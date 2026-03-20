@@ -89,22 +89,27 @@ const ShippingModule = () => {
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: `
-        .empty-msg { font-size: 0.85rem; color: var(--text-muted); font-style: italic; }
-        .cons-item { padding: 15px; border: 1px solid #eee; border-radius: 12px; margin-bottom: 12px; }
-        .cons-progress { display: flex; align-items: center; gap: 15px; margin-top: 10px; font-size: 0.85rem; }
-        .cons-progress .progress-bar { flex: 1; }
+        .empty-msg { font-size: 0.85rem; color: #666; font-style: italic; }
+        .cons-item { padding: 15px; border: 1px solid #333; border-radius: 12px; margin-bottom: 12px; background: #121212; }
+        .cons-info strong { color: #fff; }
+        .cons-progress { display: flex; align-items: center; gap: 15px; margin-top: 10px; font-size: 0.85rem; color: #999; }
+        .cons-progress .progress-bar { flex: 1; height: 6px; }
         
         .ship-item { 
           display: flex; justify-content: space-between; align-items: center; 
-          padding: 15px; background: #f8f9fa; border-radius: 12px; margin-bottom: 12px;
+          padding: 20px; background: #121212; border-radius: 16px; margin-bottom: 12px;
+          border: 1px solid #333;
         }
         .ship-info { display: flex; flex-direction: column; }
-        .ship-info span { font-size: 0.85rem; color: var(--text-muted); }
+        .ship-info strong { color: #fff; font-size: 1rem; }
+        .ship-info span { font-size: 0.85rem; color: var(--primary); font-weight: 600; margin-top: 4px; }
         .btn-success { 
-          display: flex; align-items: center; gap: 8px; padding: 10px 15px; 
-          background: var(--success); color: white; border: none; border-radius: 8px; 
-          font-weight: 600; cursor: pointer; 
+          display: flex; align-items: center; gap: 8px; padding: 10px 20px; 
+          background: #22c55e; color: white; border: none; border-radius: 10px; 
+          font-weight: 800; cursor: pointer; text-transform: uppercase; font-size: 0.75rem;
+          transition: 0.3s;
         }
+        .btn-success:hover { background: #16a34a; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(34, 197, 94, 0.3); }
       `}} />
     </div>
   )

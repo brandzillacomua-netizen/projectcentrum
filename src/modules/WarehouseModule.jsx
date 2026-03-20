@@ -126,36 +126,41 @@ const WarehouseModule = () => {
       <style dangerouslySetInnerHTML={{ __html: `
         .tab-btn { 
           display: flex; align-items: center; gap: 12px; padding: 16px 28px; 
-          background: white; border: 1px solid #f1f2f6; border-radius: 18px; 
-          cursor: pointer; white-space: nowrap; font-weight: 700; color: #636e72; 
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+          background: #1b1b1b; border: 1px solid #333; border-radius: 18px; 
+          cursor: pointer; white-space: nowrap; font-weight: 700; color: #999; 
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .tab-btn:hover { transform: translateY(-3px); box-shadow: 0 8px 15px rgba(0,0,0,0.06); }
+        .tab-btn:hover { background: #222; transform: translateY(-3px); color: #fff; }
         .tab-btn.active { 
-          background: var(--secondary); color: white; border-color: var(--secondary); 
-          box-shadow: 0 10px 25px rgba(99, 110, 114, 0.3); 
+          background: var(--primary); color: black; border-color: var(--primary); 
+          box-shadow: 0 10px 25px rgba(255, 144, 0, 0.3); 
         }
         
-        .alert-card { border: 1px solid #ffe8cc; background: #fffcf9; margin-bottom: 30px; border-radius: 24px; }
-        
+        .alert-card { border: 2px solid var(--primary); background: rgba(255,144,0,0.05); margin-bottom: 30px; border-radius: 24px; box-shadow: 0 0 30px rgba(255,144,0,0.1); }
+        .req-card-mini { min-width: 350px; padding: 25px; background: #121212 !important; border-radius: 20px; border: 1px solid #444 !important; box-shadow: 0 8px 16px rgba(0,0,0,0.3) !important; }
+        .req-info h4 { color: #fff; }
+        .req-info p { color: #999 !important; }
+
         .data-table { width: 100%; border-collapse: separate; border-spacing: 0 12px; }
         .data-table th { 
-          text-align: left; padding: 15px 25px; color: #b2bec3; font-size: 0.8rem; 
+          text-align: left; padding: 15px 25px; color: #666; font-size: 0.8rem; 
           text-transform: uppercase; letter-spacing: 0.15em; font-weight: 800;
         }
         .data-table td { 
-          padding: 25px; background: #fff; border-top: 1px solid #f1f2f6; border-bottom: 1px solid #f1f2f6;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.01);
+          padding: 25px; background: #121212; border-top: 1px solid #333; border-bottom: 1px solid #333;
+          color: #eee;
         }
-        .data-table td:first-child { border-left: 1px solid #f1f2f6; border-top-left-radius: 20px; border-bottom-left-radius: 20px; }
-        .data-table td:last-child { border-right: 1px solid #f1f2f6; border-top-right-radius: 20px; border-bottom-right-radius: 20px; }
+        .data-table td:first-child { border-left: 1px solid #333; border-top-left-radius: 20px; border-bottom-left-radius: 20px; }
+        .data-table td:last-child { border-right: 1px solid #333; border-top-right-radius: 20px; border-bottom-right-radius: 20px; }
         
-        .qty-badge { background: #f8f9fa; padding: 8px 16px; border-radius: 10px; font-size: 1.1rem; }
-        .reserve-badge { color: #b2bec3; font-weight: 600; font-size: 1.1rem; padding: 8px 16px; border-radius: 10px; background: #fdfdfd; }
-        .reserve-badge.active { color: var(--accent); background: rgba(255, 152, 0, 0.1); }
+        .qty-badge { background: #1b1b1b; padding: 8px 16px; border-radius: 10px; font-size: 1.1rem; color: #fff; border: 1px solid #333; }
+        .qty-badge strong { color: var(--primary); }
+        .reserve-badge { color: #666; font-weight: 600; font-size: 1.1rem; padding: 8px 16px; border-radius: 10px; background: #1b1b1b; border: 1px solid #333; }
+        .reserve-badge.active { color: var(--primary); background: rgba(255, 144, 0, 0.1); border-color: rgba(255,144,0,0.3); }
         
-        .mini-form input, .mini-form select { border: 1px solid #eee; border-radius: 12px; font-size: 1rem; outline: none; transition: 0.3s; }
-        .mini-form input:focus { border-color: var(--secondary); box-shadow: 0 0 0 4px rgba(99, 110, 114, 0.1); }
+        .mini-form { background: #111 !important; border: 1px solid #333 !important; }
+        .mini-form input, .mini-form select { background: #000 !important; border: 1px solid #444 !important; color: white !important; }
+        .mini-form input:focus { border-color: var(--primary) !important; }
       `}} />
     </div>
   )

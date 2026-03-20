@@ -111,10 +111,12 @@ const SettingsModule = () => {
       </div>
       
       <style dangerouslySetInnerHTML={{ __html: `
-        .data-table { width: 100%; border-collapse: collapse; }
-        .data-table th { text-align: left; padding: 12px; color: #888; font-size: 0.85rem; border-bottom: 1px solid #eee; }
-        .data-table td { padding: 12px; border-bottom: 1px solid #f9f9f9; font-size: 0.95rem; }
-        .text-danger { color: var(--danger); }
+        .data-table { width: 100%; border-collapse: separate; border-spacing: 0 8px; }
+        .data-table th { text-align: left; padding: 12px 15px; color: #666; font-size: 0.75rem; text-transform: uppercase; font-weight: 800; }
+        .data-table td { padding: 15px; background: #121212; border-top: 1px solid #333; border-bottom: 1px solid #333; color: #eee; }
+        .data-table td:first-child { border-left: 1px solid #333; border-top-left-radius: 10px; border-bottom-left-radius: 10px; }
+        .data-table td:last-child { border-right: 1px solid #333; border-top-right-radius: 10px; border-bottom-right-radius: 10px; }
+        .text-danger { color: #ef4444; }
       `}} />
     </div>
   )
