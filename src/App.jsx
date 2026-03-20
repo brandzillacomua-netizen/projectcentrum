@@ -31,10 +31,10 @@ const Portal = () => {
     <div className="portal-container">
       <header className="portal-header">
         <div className="logo-wrap">
-          <div className="logo-orb">M</div>
-          <h1>CENTRUM <span>MES</span></h1>
+          <img src="/kulytsya.png" alt="Кулиця Лого" className="logo-img" />
+          <h1>CRM <span>«КУЛИЦЯ»</span></h1>
         </div>
-        <p>Premium Industrial Control System</p>
+        <p>Industrial Control System</p>
       </header>
       
       <div className="module-grid">
@@ -52,11 +52,11 @@ const Portal = () => {
 
       <style dangerouslySetInnerHTML={{ __html: `
         .portal-header { text-align: center; margin-bottom: 80px; }
-        .logo-wrap { display: flex; flex-direction: column; align-items: center; gap: 15px; }
-        .logo-orb { width: 80px; height: 80px; background: var(--primary); color: black; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; font-weight: 900; box-shadow: 0 0 40px rgba(255,144,0,0.4); }
-        .portal-header h1 { font-size: 4rem; font-weight: 900; color: #fff; margin: 0; letter-spacing: -2px; }
+        .logo-wrap { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+        .logo-img { height: 120px; width: auto; filter: drop-shadow(0 0 20px rgba(255,144,0,0.3)); }
+        .portal-header h1 { font-size: 3.5rem; font-weight: 900; color: #fff; margin: 0; letter-spacing: -1px; }
         .portal-header h1 span { color: var(--primary); }
-        .portal-header p { color: #555; font-size: 1.1rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3em; margin-top: 10px; }
+        .portal-header p { color: #555; font-size: 0.9rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4em; margin-top: 15px; }
 
         .module-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; }
         .module-card { 
