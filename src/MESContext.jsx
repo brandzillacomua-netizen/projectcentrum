@@ -10,9 +10,15 @@ export const MESProvider = ({ children }) => {
   const [tasks, setTasks] = useState([])
   const [requests, setRequests] = useState([])
   const [nomenclatures, setNomenclatures] = useState([])
+  const [bomItems, setBomItems] = useState([])
+  const [receptionDocs, setReceptionDocs] = useState([])
+  const [purchaseRequests, setPurchaseRequests] = useState([])
+  const [workCards, setWorkCards] = useState([])
+  const [machines, setMachines] = useState([])
   const [loading, setLoading] = useState(true)
   const [hasMoreOrders, setHasMoreOrders] = useState(true)
   const PAGE_SIZE = 20
+
 
 
   const fetchOrders = async (page = 0, append = false) => {
@@ -46,15 +52,164 @@ export const MESProvider = ({ children }) => {
     const { data: t } = await supabase.from('tasks').select('*').order('created_at', { ascending: false })
     const { data: r } = await supabase.from('material_requests').select('*').order('created_at', { ascending: false })
     const { data: n } = await supabase.from('nomenclatures').select('*')
+    const { data: b } = await supabase.from('bom_items').select('*')
+    const { data: rec, error: recError } = await supabase.from('reception_docs').select('*').order('created_at', { ascending: false })
+    const { data: pr, error: prError } = await supabase.from('purchase_requests').select('*').order('created_at', { ascending: false })
+    const { data: wc, error: wcError } = await supabase.from('work_cards').select('*').order('created_at', { ascending: true })
+    const { data: mc } = await supabase.from('machines').select('*').order('name')
     
     if (c) setCustomers(c)
     if (i) setInventory(i)
     if (t) setTasks(t)
     if (r) setRequests(r)
     if (n) setNomenclatures(n)
+    if (b) setBomItems(b)
+    if (mc) setMachines(mc)
+    if (recError) {
+      console.warn('reception_docs error:', recError)
+      setReceptionDocs([])
+    } else if (rec) setReceptionDocs(rec)
+
+    if (prError) {
+      console.warn('purchase_requests error:', prError)
+      setPurchaseRequests([])
+    } else if (pr) setPurchaseRequests(pr)
+
+    if (wcError) {
+      console.warn('work_cards error:', wcError)
+      setWorkCards([])
+    } else if (wc) setWorkCards(wc)
+
     setLoading(false)
   }
 
+  const createReceptionDoc = async (items, initStatus = 'pending') => {
+    const { error } = await supabase.from('reception_docs').insert([{
+      items, // JSON array of { nomenclature_id, qty }
+      status: initStatus,
+      created_at: new Date().toISOString()
+    }])
+    if (error) throw error
+    fetchData()
+  }
+
+  const confirmReceptionDoc = async (docId) => {
+    const doc = receptionDocs.find(d => d.id === docId)
+    if (!doc || !doc.items) return
+
+    // 1. Aggregate items by nomenclature_id to prevent "stale state" overwrites
+    const totalsByNom = doc.items.reduce((acc, it) => {
+      acc[it.nomenclature_id] = (acc[it.nomenclature_id] || 0) + Number(it.qty)
+      return acc
+    }, {})
+
+    // 2. Perform updates for each unique nomenclature
+    for (const [nomId, totalQtyChange] of Object.entries(totalsByNom)) {
+      const nom = nomenclatures.find(n => n.id === nomId)
+      if (nom) {
+        const invItem = inventory.find(i => i.nomenclature_id === nomId && i.type === (nom.type === 'part' ? 'semi' : 'raw'))
+        
+        if (invItem) {
+          const currentQty = Number(invItem.total_qty) || 0
+          await supabase.from('inventory').update({ 
+            total_qty: currentQty + totalQtyChange 
+          }).eq('id', invItem.id)
+        } else {
+          // Construct a descriptive name if material_type exists but isn't in the name
+          let invName = nom.name
+          if (nom.material_type && !invName.includes(nom.material_type)) {
+            invName = `${invName} (${nom.material_type})`
+          }
+          
+          await supabase.from('inventory').insert([{
+            name: invName,
+            total_qty: totalQtyChange,
+            unit: nom.unit || 'шт',
+            type: nom.type === 'part' ? 'semi' : 'raw',
+            nomenclature_id: nomId
+          }])
+        }
+      }
+    }
+    
+    await supabase.from('reception_docs').update({ status: 'completed' }).eq('id', docId)
+    fetchData()
+  }
+
+  const createPurchaseRequest = async (orderId, orderNum, items) => {
+    const { error } = await supabase.from('purchase_requests').insert([{
+      order_id: orderId,
+      order_num: orderNum,
+      items, // array of { reqDetails, missingAmount, inventory_id }
+      status: 'pending',
+      created_at: new Date().toISOString()
+    }])
+    if (error) throw error
+    fetchData()
+  }
+
+  const updatePurchaseRequestStatus = async (id, newStatus) => {
+    const { error } = await supabase.from('purchase_requests').update({ status: newStatus }).eq('id', id)
+    if (error) throw error
+    fetchData()
+  }
+
+  const convertRequestToOrder = async (prId) => {
+    const pr = purchaseRequests.find(p => p.id === prId)
+    if (!pr || !pr.items) return
+
+    const docItems = []
+    let failedItem = null
+
+    const normalize = (s) => (s || '').toLowerCase().replace(/t/g, 'т').trim()
+
+    pr.items.forEach(it => {
+      let nomId = null
+      
+      if (it.inventory_id) {
+        const inv = inventory.find(i => i.id === it.inventory_id)
+        if (inv) nomId = inv.nomenclature_id
+      }
+      
+      if (!nomId) {
+        const reqNorm = normalize(it.reqDetails)
+        
+        // Find nomenclature by comparing normalized names and considering the " — " suffix
+        const nom = nomenclatures.find(n => {
+          const nFullName = `${n.name}${n.material_type ? ` (${n.material_type})` : ''}`
+          const nNameNorm = normalize(n.name)
+          const nFullNorm = normalize(nFullName)
+          
+          return (
+            reqNorm === nNameNorm ||
+            reqNorm.startsWith(nNameNorm + ' —') ||
+            reqNorm === nFullNorm ||
+            reqNorm.startsWith(nFullNorm + ' —')
+          )
+        })
+        if (nom) nomId = nom.id
+      }
+
+      if (nomId) { 
+        docItems.push({ nomenclature_id: nomId, qty: it.missingAmount }) 
+      } else { 
+        failedItem = it.reqDetails 
+      }
+    })
+
+    if (failedItem) {
+      alert(`Помилка: Товар "${failedItem}" не знайдено в базі номенклатур. Неможливо замовити.`)
+      return
+    }
+
+    await createReceptionDoc(docItems, 'ordered')
+    await updatePurchaseRequestStatus(prId, 'completed')
+  }
+
+  const sendDocToWarehouse = async (docId) => {
+    await supabase.from('reception_docs').update({ status: 'pending' }).eq('id', docId)
+    fetchData()
+  }
 
   useEffect(() => {
     fetchData()
@@ -92,8 +247,11 @@ export const MESProvider = ({ children }) => {
     }
 
     // 2. Consume Raw Materials (Full amount as planned)
-    if (req && req.inventory_id) {
-      const material = inventory.find(i => i.id === req.inventory_id)
+    if (req) {
+      let parsedName = ''
+      try { parsedName = req.details?.split(': ')[1]?.split(' — ')[0]?.trim() } catch(e) {}
+
+      const material = inventory.find(i => i.id === req.inventory_id || (parsedName && i.name === parsedName && i.type === 'raw'))
       if (material) {
         await supabase.from('inventory').update({
           total_qty: (Number(material.total_qty) || 0) - Number(req.quantity),
@@ -112,11 +270,12 @@ export const MESProvider = ({ children }) => {
         const nom = nomenclatures.find(n => n.id === item.nomenclature_id)
         
         if (nom) {
+          const fullName = `${nom.name}${nom.material_type ? ` (${nom.material_type})` : ''}`
           if (goodCount > 0) {
-            inventoryChanges.push({ nomenclature_id: nom.id, name: nom.name, type: 'semi', qty: goodCount })
+            inventoryChanges.push({ nomenclature_id: nom.id, name: fullName, type: 'semi', qty: goodCount })
           }
           if (scrapCount > 0) {
-            inventoryChanges.push({ nomenclature_id: nom.id, name: nom.name, type: 'scrap', qty: scrapCount })
+            inventoryChanges.push({ nomenclature_id: nom.id, name: fullName, type: 'scrap', qty: scrapCount })
           }
         }
       }
@@ -229,24 +388,101 @@ export const MESProvider = ({ children }) => {
     }
   }
 
-  const upsertNomenclature = async (nom) => { await supabase.from('nomenclatures').upsert([nom]) }
+  const upsertNomenclature = async (nom) => { 
+    const { error } = await supabase.from('nomenclatures').upsert([nom])
+    if (error) {
+      console.error('Nomenclature Save Error:', error)
+      alert(`Помилка збереження: ${error.message} (Код: ${error.code})`)
+    } else {
+      fetchData()
+    }
+  }
+  
+  const deleteNomenclature = async (id) => {
+    const { error } = await supabase.from('nomenclatures').delete().eq('id', id)
+    if (error) {
+      console.error('Error deleting nomenclature:', error)
+      alert('Помилка: ' + error.message)
+    } else {
+      fetchData()
+    }
+  }
 
-  const createNaryad = async (orderId) => {
+  const saveBOM = async (parentId, childId, qty) => {
+
+    await supabase.from('bom_items').upsert([{ 
+      parent_id: parentId, 
+      child_id: childId, 
+      quantity_per_parent: Number(qty) 
+    }], { onConflict: 'parent_id, child_id' })
+    fetchData()
+  }
+
+  const removeBOM = async (bomId) => {
+    await supabase.from('bom_items').delete().eq('id', bomId)
+    fetchData()
+  }
+
+  const updateBOMQuantity = async (id, qty) => {
+    await supabase.from('bom_items').update({ quantity_per_parent: Number(qty) }).eq('id', id)
+    fetchData()
+  }
+
+  const syncBOM = async (parentId, draftItems) => {
+    const { error: delError } = await supabase.from('bom_items').delete().eq('parent_id', parentId)
+    if (delError) {
+      console.error('Error clearing BOM:', delError)
+      return
+    }
+    
+    if (draftItems && draftItems.length > 0) {
+      const itemsToInsert = draftItems.map(d => ({
+        parent_id: parentId,
+        child_id: d.child_id,
+        quantity_per_parent: Number(d.qty || d.quantity_per_parent)
+      }))
+      const { error: insError } = await supabase.from('bom_items').insert(itemsToInsert)
+      if (insError) alert('Помилка збереження специфікації: ' + insError.message)
+    }
+    fetchData()
+  }
+
+  const createNaryad = async (orderId, machineName) => {
     try {
       const order = orders.find(o => o.id === orderId)
       if (!order) return
 
-      let totalSheets = 0
       let totalMin = 0
+      const materialSummary = {} // { nomenclature_id: { matName, sheets } }
+
       order.order_items?.forEach(item => {
-        const nom = nomenclatures.find(n => n.id === item.nomenclature_id)
-        if (nom) {
-          totalSheets += Math.ceil(Number(item.quantity) / (nom.units_per_sheet || 1))
-          totalMin += Number(item.quantity) * (Number(nom.time_per_unit) || 0)
-        }
+        // Expand BOM
+        const parts = bomItems.filter(b => b.parent_id === item.nomenclature_id)
+        const displayParts = parts.length > 0 ? parts.map(b => ({
+          nom: nomenclatures.find(n => n.id === b.child_id),
+          qtyPer: b.quantity_per_parent
+        })) : [{ 
+          nom: nomenclatures.find(n => n.id === item.nomenclature_id), 
+          qtyPer: 1 
+        }]
+
+        displayParts.forEach(part => {
+          if (!part.nom) return
+          const totalToProduce = item.quantity * part.qtyPer
+          const sheets = Math.ceil(totalToProduce / (part.nom.units_per_sheet || 1))
+          
+          // Group by material_type (thickness) to provide a summary for the warehouse
+          const matGroup = part.nom.material_type || 'Інше'
+          
+          if (!materialSummary[matGroup]) {
+            materialSummary[matGroup] = { matName: matGroup, sheets: 0 }
+          }
+          materialSummary[matGroup].sheets += sheets
+          totalMin += totalToProduce * (Number(part.nom.time_per_unit) || 0)
+        })
       })
 
-      console.log('Creating naryad for:', order.order_num, { totalSheets, totalMin })
+      console.log('Creating naryad for:', order.order_num, { materialSummary, totalMin, machineName })
 
       const { error: orderUpdateError } = await supabase.from('orders').update({ status: 'in-progress' }).eq('id', orderId)
       if (orderUpdateError) throw orderUpdateError
@@ -255,18 +491,28 @@ export const MESProvider = ({ children }) => {
         order_id: orderId, 
         step: 'Лазерна різка', 
         status: 'waiting',
-        estimated_time: Math.round(totalMin)
+        machine_name: machineName || 'Не вказано',
+        estimated_time: Math.round(totalMin),
+        engineer_conf: false,
+        warehouse_conf: false
       }])
       if (taskError) throw taskError
 
-      const rawMaterial = inventory.find(i => i.type === 'raw')
-      const details = `Сировина для ${order.order_num}: ${totalSheets} листів.`
-      const { error: reqError } = await supabase.from('material_requests').insert([{ 
-        order_id: orderId, inventory_id: rawMaterial?.id || null, quantity: totalSheets, details, status: 'pending' 
-      }])
-      if (reqError) throw reqError
+      // Create detailed material requests
+      for (const [nomId, info] of Object.entries(materialSummary)) {
+        const invItem = inventory.find(i => i.nomenclature_id === nomId && i.type === 'raw')
+        const details = `Сировина для ${order.order_num}: ${info.matName} — ${info.sheets} листів.`
+        
+        await supabase.from('material_requests').insert([{ 
+          order_id: orderId, 
+          inventory_id: invItem?.id || null, 
+          quantity: info.sheets, 
+          details, 
+          status: 'pending' 
+        }])
+      }
 
-      console.log('Naryad created successfully')
+      console.log('Naryad created successfully with detailed requests')
       await fetchData()
     } catch (err) {
       console.error('Error in createNaryad:', err)
@@ -274,13 +520,39 @@ export const MESProvider = ({ children }) => {
     }
   }
 
+  const receiveInventory = async (itemId, quantity) => {
+    const item = inventory.find(i => i.id === itemId)
+    if (!item) return
+    const newQty = (Number(item.total_qty) || 0) + Number(quantity)
+    await supabase.from('inventory').update({ total_qty: newQty }).eq('id', itemId)
+    fetchData()
+  }
+
   const issueMaterials = async (requestId) => {
     const req = requests.find(r => r.id === requestId)
-    if (req && req.inventory_id) {
-      const item = inventory.find(i => i.id === req.inventory_id)
-      if (item) await supabase.from('inventory').update({ reserved_qty: (Number(item.reserved_qty) || 0) + Number(req.quantity) }).eq('id', item.id)
+    if (req) {
+      let parsedName = ''
+      try { parsedName = req.details?.split(': ')[1]?.split(' — ')[0]?.trim() } catch(e) {}
+      
+      // Prioritize nomenclature_id for issuance
+      const invItem = inventory.find(i => 
+        i.id === req.inventory_id || 
+        (req.nomenclature_id && i.nomenclature_id === req.nomenclature_id && i.type === 'raw') ||
+        (parsedName && i.name === parsedName && i.type === 'raw')
+      )
+      
+      if (invItem) {
+        await supabase.from('inventory').update({ reserved_qty: (Number(invItem.reserved_qty) || 0) + Number(req.quantity) }).eq('id', invItem.id)
+        if (!req.inventory_id) {
+          // Permanently link the requested order line with the arrived item ID
+          await supabase.from('material_requests').update({ status: 'issued', inventory_id: invItem.id }).eq('id', requestId)
+        } else {
+          await supabase.from('material_requests').update({ status: 'issued' }).eq('id', requestId)
+        }
+      } else {
+        await supabase.from('material_requests').update({ status: 'issued' }).eq('id', requestId)
+      }
     }
-    await supabase.from('material_requests').update({ status: 'issued' }).eq('id', requestId)
   }
 
   const addInventory = async (item) => {
@@ -289,16 +561,115 @@ export const MESProvider = ({ children }) => {
     }])
   }
 
+  const approveEngineer = async (taskId) => {
+    await supabase.from('tasks').update({ engineer_conf: true }).eq('id', taskId)
+    fetchData()
+  }
+
+  const approveWarehouse = async (taskId) => {
+    await supabase.from('tasks').update({ warehouse_conf: true }).eq('id', taskId)
+    fetchData()
+  }
+
+  const startWorkCard = async (cardId) => {
+    const { error } = await supabase.from('work_cards').update({ 
+      status: 'in-progress', 
+      started_at: new Date().toISOString() 
+    }).eq('id', cardId)
+    if (error) throw error
+    fetchData()
+  }
+
+  const completeWorkCard = async (cardId, scrapCounts = {}) => {
+    const card = workCards.find(c => c.id === cardId)
+    if (!card) return
+
+    const { error } = await supabase.from('work_cards').update({ 
+      status: 'completed', 
+      completed_at: new Date().toISOString() 
+    }).eq('id', cardId)
+    if (error) throw error
+
+    // 1. Calculate & record Scrap
+    for (const [nomenclatureId, count] of Object.entries(scrapCounts)) {
+      if (count > 0) {
+        const nom = nomenclatures.find(n => n.id === nomenclatureId)
+        if (nom) {
+          const fullName = `${nom.name}${nom.material_type ? ` (${nom.material_type})` : ''}`
+          let scrapItem = inventory.find(i => i.nomenclature_id === nomenclatureId && i.type === 'scrap')
+          if (!scrapItem) {
+            const { data } = await supabase.from('inventory').insert([{
+              name: fullName + ' (Брак)',
+              unit: 'шт',
+              total_qty: Number(count),
+              type: 'scrap',
+              nomenclature_id: nomenclatureId
+            }]).select()
+            if (data && data.length > 0) scrapItem = data[0]
+          } else {
+            await supabase.from('inventory').update({ total_qty: Number(scrapItem.total_qty) + Number(count) }).eq('id', scrapItem.id)
+          }
+        }
+      }
+    }
+    
+    fetchData()
+  }
+
+  const createWorkCard = async (taskId, orderId, operation, machine, estimatedTime, cardInfo) => {
+    const { error } = await supabase.from('work_cards').insert([{
+      task_id: taskId,
+      order_id: orderId,
+      operation,
+      machine,
+      estimated_time: Number(estimatedTime) || 0,
+      status: 'pending',
+      card_info: cardInfo || null
+    }])
+    if (error) throw error
+    
+    await supabase.from('tasks').update({ status: 'in-progress' }).eq('id', taskId)
+    fetchData()
+  }
+
+  const completeTaskByMaster = async (taskId) => {
+    await supabase.from('tasks').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', taskId)
+    fetchData()
+  }
+
+  const addMachine = async (name, capacity) => {
+    const { error } = await supabase.from('machines').insert([{ 
+      name, 
+      sheet_capacity: Number(capacity) || 1 
+    }])
+    if (error) throw error
+    fetchData()
+  }
+
+  const deleteMachine = async (id) => {
+    await supabase.from('machines').delete().eq('id', id)
+    fetchData()
+  }
+
   return (
     <MESContext.Provider value={{ 
       orders, addOrder, fetchOrders, hasMoreOrders,
       customers, searchCustomers,
-      inventory, addInventory, 
+      inventory, addInventory, receiveInventory,
       tasks, startTask, completeTask, createNaryad,
       requests, issueMaterials,
-      nomenclatures, upsertNomenclature,
+      nomenclatures, upsertNomenclature, deleteNomenclature,
+      bomItems, saveBOM, removeBOM, updateBOMQuantity, syncBOM,
+      receptionDocs, createReceptionDoc, confirmReceptionDoc, sendDocToWarehouse,
+      purchaseRequests, createPurchaseRequest, updatePurchaseRequestStatus, convertRequestToOrder,
+      approveEngineer, approveWarehouse,
+      workCards, createWorkCard, startWorkCard, completeWorkCard, completeTaskByMaster,
+      machines, addMachine, deleteMachine,
       loading 
     }}>
+
+
+
 
       {children}
     </MESContext.Provider>

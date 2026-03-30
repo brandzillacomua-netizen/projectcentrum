@@ -53,10 +53,6 @@ const ManagerModule = () => {
 
 
 
-  // Live calculations for the current input row
-  const currentNom = nomenclatures.find(n => n.id === orderHeader.nomenclature_id)
-  const totalSheets = currentNom ? Math.ceil(orderHeader.quantity / currentNom.units_per_sheet) : 0
-  const totalMinutes = currentNom ? orderHeader.quantity * currentNom.time_per_unit : 0
 
 
   const handleOrderSubmit = (e) => {
@@ -159,7 +155,7 @@ const ManagerModule = () => {
                   <label>Продукт / Номенклатура</label>
                   <select value={orderHeader.nomenclature_id} onChange={e => setOrderHeader({...orderHeader, nomenclature_id: e.target.value})}>
                     <option value="">Оберіть виріб...</option>
-                    {nomenclatures.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+                    {nomenclatures.filter(n => n.type === 'product').map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
                   </select>
                 </div>
                 <div className="form-group-row">
@@ -170,16 +166,6 @@ const ManagerModule = () => {
                   <div className="form-group">
                     <label>Кількість</label>
                     <input type="number" value={orderHeader.quantity} onChange={e => setOrderHeader({...orderHeader, quantity: e.target.value})} />
-                  </div>
-                </div>
-                <div className="calc-preview-card">
-                  <div className="calc-stat">
-                    <span>Сировина:</span>
-                    <strong>{totalSheets} лист.</strong>
-                  </div>
-                  <div className="calc-stat">
-                    <span>Час:</span>
-                    <strong>{formatDuration(totalMinutes)}</strong>
                   </div>
                 </div>
               </div>
@@ -326,26 +312,6 @@ const ManagerModule = () => {
                   <div className="stat-card">
                     <label>Термін</label>
                     <div className="val">{selectedOrder.deadline ? new Date(selectedOrder.deadline).toLocaleDateString() : 'Не вказано'}</div>
-                  </div>
-                  <div className="stat-card accent">
-                    <label>Розрахунок виробництва</label>
-                    {(() => {
-                      let totalSheets = 0
-                      let totalMin = 0
-                      selectedOrder.order_items?.forEach(item => {
-                        const nom = nomenclatures.find(n => n.id === item.nomenclature_id)
-                        if (nom) {
-                          totalSheets += Math.ceil(item.quantity / (nom.units_per_sheet || 1))
-                          totalMin += item.quantity * nom.time_per_unit
-                        }
-                      })
-                      return (
-                        <div className="calc-vals">
-                          <div>Листів: <strong>{totalSheets}</strong></div>
-                          <div>Час: <strong>{formatDuration(totalMin)}</strong></div>
-                        </div>
-                      )
-                    })()}
                   </div>
                 </div>
               </div>
