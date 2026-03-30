@@ -20,8 +20,8 @@ import { MESProvider } from './MESContext'
 const Portal = () => {
   const modules = [
     { id: 'manager', title: 'Менеджер', icon: <LayoutDashboard />, path: '/manager', desc: 'Прийом замовлень та планування' },
-    { id: 'warehouse', title: 'Склад', icon: <Warehouse />, path: '/warehouse', desc: 'Облік сировини та залишків' },
     { id: 'master', title: 'Майстер', icon: <Users />, path: '/master', desc: 'Управління нарядами та зміною' },
+    { id: 'warehouse', title: 'Склад', icon: <Warehouse />, path: '/warehouse', desc: 'Облік сировини та залишків' },
     { id: 'operator', title: 'Термінал', icon: <Tablet />, path: '/operator', desc: 'Робоче місце оператора' },
     { id: 'shipping', title: 'Логістика', icon: <Truck />, path: '/shipping', desc: 'Відвантаження готової продукції' },
     { id: 'settings', title: 'Налаштування', icon: <Settings />, path: '/settings', desc: 'База номенклатури та нормативи' }
