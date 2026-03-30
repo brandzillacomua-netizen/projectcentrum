@@ -35,16 +35,11 @@ const ManagerModule = () => {
   const [selectedOrder, setSelectedOrder] = useState(null)
 
 
-  const addItem = () => {
-    if (!currentItem.nomenclature_id || !currentItem.quantity) return
-    const nom = nomenclatures.find(n => n.id === currentItem.nomenclature_id)
-    setSelectedItems([...selectedItems, { ...currentItem, name: nom.name }])
-    setCurrentItem({ nomenclature_id: '', quantity: '' })
-  }
+  // Live calculations for the current input row
+  const currentNom = nomenclatures.find(n => n.id === orderHeader.nomenclature_id)
+  const totalSheets = currentNom ? Math.ceil(orderHeader.quantity / currentNom.units_per_sheet) : 0
+  const totalMinutes = currentNom ? orderHeader.quantity * currentNom.time_per_unit : 0
 
-  const removeItem = (index) => {
-    setSelectedItems(selectedItems.filter((_, i) => i !== index))
-  }
 
   const handleOrderSubmit = (e) => {
     e.preventDefault()
@@ -81,16 +76,8 @@ const ManagerModule = () => {
     return `${hours} год ${minutes > 0 ? minutes + ' хв' : ''}`
   }
 
-  // Live calculations
-  const totalSheets = selectedItems.reduce((acc, item) => {
-    const nom = nomenclatures.find(n => n.id === item.nomenclature_id)
-    return acc + (nom ? Math.ceil(item.quantity / nom.units_per_sheet) : 0)
-  }, 0)
+  // (Calculations moved above handleOrderSubmit)
 
-  const totalMinutes = selectedItems.reduce((acc, item) => {
-    const nom = nomenclatures.find(n => n.id === item.nomenclature_id)
-    return acc + (nom ? item.quantity * nom.time_per_unit : 0)
-  }, 0)
 
   return (
     <div className="module-page">
