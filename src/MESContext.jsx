@@ -5,27 +5,56 @@ const MESContext = createContext()
 
 export const MESProvider = ({ children }) => {
   const [orders, setOrders] = useState([])
+  const [customers, setCustomers] = useState([])
   const [inventory, setInventory] = useState([])
   const [tasks, setTasks] = useState([])
   const [requests, setRequests] = useState([])
   const [nomenclatures, setNomenclatures] = useState([])
   const [loading, setLoading] = useState(true)
+  const [hasMoreOrders, setHasMoreOrders] = useState(true)
+  const PAGE_SIZE = 20
+
+
+  const fetchOrders = async (page = 0, append = false) => {
+    const start = page * PAGE_SIZE
+    const end = start + PAGE_SIZE - 1
+    
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*, order_items(*)')
+      .order('created_at', { ascending: false })
+      .range(start, end)
+      
+    if (error) {
+      console.error('Error fetching orders:', error)
+      return
+    }
+    
+    if (append) {
+      setOrders(prev => [...prev, ...data])
+    } else {
+      setOrders(data)
+    }
+    setHasMoreOrders(data.length === PAGE_SIZE)
+  }
 
   const fetchData = async () => {
     setLoading(true)
-    const { data: o } = await supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false })
+    await fetchOrders(0)
+    const { data: c } = await supabase.from('customers').select('*').limit(10).order('name')
     const { data: i } = await supabase.from('inventory').select('*')
     const { data: t } = await supabase.from('tasks').select('*').order('created_at', { ascending: false })
     const { data: r } = await supabase.from('material_requests').select('*').order('created_at', { ascending: false })
     const { data: n } = await supabase.from('nomenclatures').select('*')
     
-    if (o) setOrders(o)
+    if (c) setCustomers(c)
     if (i) setInventory(i)
     if (t) setTasks(t)
     if (r) setRequests(r)
     if (n) setNomenclatures(n)
     setLoading(false)
   }
+
 
   useEffect(() => {
     fetchData()
@@ -140,15 +169,32 @@ export const MESProvider = ({ children }) => {
   }
 
   // ... rest of the functions ...
+  const searchCustomers = async (query) => {
+    if (!query) return
+    const { data, error } = await supabase
+      .from('customers')
+      .select('*')
+      .ilike('name', `%${query}%`)
+      .limit(5)
+    if (!error && data) setCustomers(data)
+  }
+
   const addOrder = async (orderData, items) => {
     console.log('Adding order:', orderData, items)
+    
+    // 1. Upsert Customer logic
+    if (orderData.customer) {
+      await supabase.from('customers').upsert([
+        { name: orderData.customer, official_name: orderData.official_customer }
+      ], { onConflict: 'name' })
+    }
+
     const { data: order, error: orderError } = await supabase.from('orders').insert([{
       customer: orderData.customer,
       order_num: orderData.orderNum,
       deadline: orderData.deadline || null,
       accessories: orderData.accessories,
       status: 'pending',
-      // New spreadsheet fields
       order_date: orderData.orderDate || new Date().toISOString().split('T')[0],
       official_customer: orderData.official_customer || '',
       unit: orderData.unit || 'шт',
@@ -158,6 +204,7 @@ export const MESProvider = ({ children }) => {
       source: orderData.source || 'Виробництво',
       report: orderData.report || ''
     }]).select().single()
+
 
 
     if (orderError) {
@@ -244,13 +291,15 @@ export const MESProvider = ({ children }) => {
 
   return (
     <MESContext.Provider value={{ 
-      orders, addOrder, 
+      orders, addOrder, fetchOrders, hasMoreOrders,
+      customers, searchCustomers,
       inventory, addInventory, 
       tasks, startTask, completeTask, createNaryad,
       requests, issueMaterials,
       nomenclatures, upsertNomenclature,
       loading 
     }}>
+
       {children}
     </MESContext.Provider>
   )
