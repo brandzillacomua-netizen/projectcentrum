@@ -147,8 +147,18 @@ export const MESProvider = ({ children }) => {
       order_num: orderData.orderNum,
       deadline: orderData.deadline || null,
       accessories: orderData.accessories,
-      status: 'pending'
+      status: 'pending',
+      // New spreadsheet fields
+      order_date: orderData.orderDate || new Date().toISOString().split('T')[0],
+      official_customer: orderData.official_customer || '',
+      unit: orderData.unit || 'шт',
+      entered_by: orderData.entered_by || '',
+      responsible_person: orderData.responsible_person || '',
+      actual_date: orderData.actual_date || null,
+      source: orderData.source || 'Виробництво',
+      report: orderData.report || ''
     }]).select().single()
+
 
     if (orderError) {
       console.error('Error creating order:', orderError)
