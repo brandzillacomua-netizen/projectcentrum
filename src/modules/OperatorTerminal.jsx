@@ -104,16 +104,25 @@ const OperatorTerminal = () => {
   
   const getNomFromCard = (card) => {
      if (!card) return null
-     if (card.nomenclature_id) return nomenclatures.find(n => n.id === card.nomenclature_id)
-     const matchId = card.card_info?.match(/NOM_ID:([^|]+)/)
-     const metaId = matchId ? matchId[1].trim() : null
-     return nomenclatures.find(n => String(n.id) === String(metaId))
+     return nomenclatures.find(n => n.id === card.nomenclature_id)
   }
 
   const getQtyFromCard = (card) => {
      if (!card) return 0
      const matchQty = card.card_info?.match(/QTY:([^|]+)/)
      return matchQty ? matchQty[1].trim() : '—'
+  }
+
+  const formatElapsedTime = (startIso) => {
+    if (!startIso) return '00:00:00'
+    const start = new Date(startIso)
+    const diff = Math.floor((currentTime - start) / 1000)
+    if (isNaN(diff) || diff < 0) return '00:00:00'
+    
+    const h = Math.floor(diff / 3600).toString().padStart(2, '0')
+    const m = Math.floor((diff % 3600) / 60).toString().padStart(2, '0')
+    const s = (diff % 60).toString().padStart(2, '0')
+    return `${h}:${m}:${s}`
   }
 
   const availableCards = workCards.filter(c => 
@@ -162,15 +171,7 @@ const OperatorTerminal = () => {
     } finally { setIsProcessing(false) }
   }
 
-  const formatElapsedTime = (startIso) => {
-    if (!startIso) return '00:00:00'
-    const start = new Date(startIso)
-    const diff = Math.floor((currentTime - start) / 1000)
-    const h = Math.floor(diff / 3600).toString().padStart(2, '0')
-    const m = Math.floor((diff % 3600) / 60).toString().padStart(2, '0')
-    const s = (diff % 60).toString().padStart(2, '0')
-    return `${h}:${m}:${s}`
-  }
+
 
   const SpecCard = ({ icon: Icon, label, value, color="#eab308" }) => (
     <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid #1a1a1a', padding: '18px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '130px' }}>
