@@ -104,13 +104,24 @@ const OperatorTerminal = () => {
   
   const getNomFromCard = (card) => {
      if (!card) return null
-     return nomenclatures.find(n => n.id === card.nomenclature_id)
+     if (card.nomenclature_id) return nomenclatures.find(n => n.id === card.nomenclature_id)
+     const matchId = card.card_info?.match(/NOM_ID:([^|]+)/)
+     const metaId = matchId ? matchId[1].trim() : null
+     return nomenclatures.find(n => String(n.id) === String(metaId))
   }
 
   const getQtyFromCard = (card) => {
      if (!card) return 0
+     if (card.quantity && card.quantity > 0) return card.quantity
      const matchQty = card.card_info?.match(/QTY:([^|]+)/)
      return matchQty ? matchQty[1].trim() : '—'
+  }
+
+  const getSheetsFromCard = (card) => {
+    if (!card?.card_info) return null
+    // Matches patterns like "1/5" or "Loading: 2/10"
+    const match = card.card_info.match(/(\d+\/\d+)/)
+    return match ? match[1] : null
   }
 
   const formatElapsedTime = (startIso) => {
@@ -196,7 +207,7 @@ const OperatorTerminal = () => {
           <div key={card.id} onClick={() => { setSelectedCardId(card.id); setIsDrawerOpen(false); }} style={{ background: isActive ? '#eab308' : '#1a1a1a', borderRadius: '12px', padding: '15px', marginBottom: '10px', cursor: 'pointer', border: '1px solid', borderColor: isActive ? '#eab308' : '#333', transition: '0.2s', color: isActive ? '#000' : '#fff' }}>
             <div style={{ marginBottom: '4px' }}>
               <strong style={{ display: 'block', fontSize: '0.9rem', fontWeight: 800 }}>{nom?.name || 'Без назви'}</strong>
-              <div style={{ fontSize: '0.65rem', opacity: 0.7 }}>{batchQty} шт | {card.operation}</div>
+              <div style={{ fontSize: '0.65rem', opacity: 0.7 }}>{batchQty} шт | {card.operation} {getSheetsFromCard(card) ? `| Лист ${getSheetsFromCard(card)}` : ''}</div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
                 <span style={{ fontSize: '0.6rem', background: isActive ? 'rgba(0,0,0,0.2)' : 'rgba(234, 179, 8, 0.1)', color: isActive ? '#000' : '#eab308', padding: '2px 6px', borderRadius: '4px', fontWeight: 900, textTransform: 'uppercase' }}>{card.status === 'in-progress' ? (card.operation || 'У РОБОТІ') : 'ОЧІКУЄ'}</span>
@@ -267,7 +278,7 @@ const OperatorTerminal = () => {
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '30px' }}>
                 <SpecCard icon={Layers} label="Матеріал / Сировина" value={getNomFromCard(currentCard)?.material_type || '—'} color="#10b981" />
-                <SpecCard icon={Box} label="Кількість у карті" value={`${getQtyFromCard(currentCard)} шт`} color="#3b82f6" />
+                <SpecCard icon={Box} label="Кількість у карті" value={`${getQtyFromCard(currentCard)} шт ${getSheetsFromCard(currentCard) ? `(Л. ${getSheetsFromCard(currentCard)})` : ''}`} color="#3b82f6" />
                 <SpecCard icon={Gauge} label="Норма часу" value={`${currentCard.estimated_time || 0} хв`} />
                 <SpecCard icon={Tablet} label="Обладнання" value={currentCard.machine || '—'} />
               </div>

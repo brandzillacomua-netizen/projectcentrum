@@ -201,6 +201,7 @@ const ForemanWorkplace = () => {
             (() => {
               const task = readyTasks.find(t => t.id === activeTaskId)
               const order = orders.find(o => o.id === task.order_id)
+              const taskCards = workCards.filter(c => c.task_id === task.id)
               const productNames = order?.order_items?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ')
               
               return (

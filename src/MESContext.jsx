@@ -610,6 +610,19 @@ export const MESProvider = ({ children }) => {
 
   const startWorkCard = async (taskId, cardId, operatorName, extra = {}) => {
     try {
+      const card = workCards.find(c => c.id === cardId)
+      if (!card) return
+
+      // Subtract from Semi-finished inventory because we are moving parts from "Shelf" to "Machine"
+      const matchQty = card.card_info?.match(/QTY:([^|]+)/)
+      const currentQty = card.quantity || (matchQty ? Number(matchQty[1].trim()) : 0)
+      
+      let semiItem = inventory.find(i => i.nomenclature_id === card.nomenclature_id && i.type === 'semi-finished')
+      if (semiItem && currentQty > 0) {
+        const newQty = Math.max(0, Number(semiItem.total_qty) - Number(currentQty))
+        await supabase.from('inventory').update({ total_qty: newQty }).eq('id', semiItem.id)
+      }
+
       const { error } = await supabase.from('work_cards').update({ 
         status: 'in-progress', 
         started_at: new Date().toISOString(),
@@ -660,6 +673,29 @@ export const MESProvider = ({ children }) => {
          started_at: card.started_at,
          completed_at: new Date().toISOString()
       }])
+
+      // 3. Record Successful products to Semi-Finished Warehouse
+      if (qtyCompleted > 0) {
+        const nom = nomenclatures.find(n => n.id === card.nomenclature_id)
+        if (nom) {
+          const fullName = `${nom.name}${nom.material_type ? ` (${nom.material_type})` : ''}`
+          let semiItem = inventory.find(i => i.nomenclature_id === card.nomenclature_id && i.type === 'semi-finished')
+          
+          if (!semiItem) {
+            await supabase.from('inventory').insert([{
+              name: fullName,
+              unit: 'шт',
+              total_qty: Number(qtyCompleted),
+              type: 'semi-finished',
+              nomenclature_id: card.nomenclature_id
+            }])
+          } else {
+            await supabase.from('inventory').update({ 
+               total_qty: Number(semiItem.total_qty) + Number(qtyCompleted) 
+            }).eq('id', semiItem.id)
+          }
+        }
+      }
 
       // Record Scrap logic stays...
       for (const [nomenclatureId, count] of Object.entries(scrapCounts)) {
