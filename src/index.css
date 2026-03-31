@@ -497,3 +497,65 @@ body {
     padding: 20px;
   }
 }
+
+/* SIDE DRAWER & BURGER UTILITIES */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.8);
+  backdrop-filter: blur(4px);
+  z-index: 900;
+  animation: fadeIn 0.3s ease;
+}
+
+.side-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 310px;
+  max-width: 85%;
+  background: rgba(18, 18, 18, 0.95);
+  backdrop-filter: blur(15px);
+  border-right: 1px solid #333;
+  z-index: 1000;
+  transform: translateX(-100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+.side-drawer.open {
+  transform: translateX(0);
+  box-shadow: 20px 0 50px rgba(0,0,0,0.5);
+}
+
+.drawer-header {
+  padding: 20px;
+  border-bottom: 1px solid #222;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.burger-btn {
+  background: transparent;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: 0.2s;
+}
+
+.burger-btn:hover {
+  background: rgba(255,255,255,0.05);
+}
