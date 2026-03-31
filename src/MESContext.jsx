@@ -704,6 +704,7 @@ export const MESProvider = ({ children }) => {
       workCards, createWorkCard, startWorkCard, completeWorkCard, completeTaskByMaster,
       machines, addMachine, deleteMachine,
       updateOrderStatus,
+      fetchData,
       loading 
     }}>
 

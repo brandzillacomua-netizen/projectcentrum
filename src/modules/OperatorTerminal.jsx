@@ -74,10 +74,13 @@ const OperatorTerminal = () => {
             let foundCard = workCards.find(c => String(c.id).trim() === cardIdStr)
             if (!foundCard) {
               setIsSyncing(true)
-              await fetchData()
-              await new Promise(r => setTimeout(r, 800))
-              setScanError(`Шукаємо картку №${cardIdStr} в базі...`)
+              try {
+                if (typeof fetchData === 'function') {
+                  await fetchData()
+                }
+              } catch(e) {}
               setIsSyncing(false)
+              setScanError(`Картку №${cardIdStr} не знайдено. Спробуйте відсканувати ще раз.`)
             } else {
               setScannedCardIds(prev => prev.includes(foundCard.id) ? prev : [...prev, foundCard.id])
               setSelectedCardId(foundCard.id)
