@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
+import { apiService } from '../services/apiDispatcher'
 
 const OperatorTerminal = () => {
   const { workCards, tasks, orders, nomenclatures, startWorkCard, completeWorkCard } = useMES()
@@ -48,7 +49,15 @@ const OperatorTerminal = () => {
     if (!currentCard) return
     setIsProcessing(true)
     try {
-      await completeWorkCard(currentCard.id, scrapCounts)
+      // action, taskId, cardId, operatorName, extra, fallback
+      await apiService.submitOperatorAction(
+        'complete', 
+        currentCard.task_id, 
+        currentCard.id, 
+        'Оператор №1', 
+        { scrap_counts: scrapCounts }, 
+        completeWorkCard
+      )
       setShowScrapModal(false)
       setSelectedCardId(null)
     } finally {
@@ -152,7 +161,7 @@ const OperatorTerminal = () => {
                         </div>
                       </div>
                       
-                      <button className="btn-primary-glow" onClick={() => startWorkCard(currentCard.id)}>
+                      <button className="btn-primary-glow" onClick={() => apiService.submitOperatorAction('start', currentCard.task_id, currentCard.id, 'Оператор №1', {}, startWorkCard)}>
                         <Play fill="currentColor" /> РОЗПОЧАТИ ОПЕРАЦІЮ
                       </button>
                     </div>

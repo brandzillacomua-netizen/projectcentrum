@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ArrowLeft, CheckCircle2, Factory, ListTodo, Printer, Cpu, Plus, X } from 'lucide-react'
 import { useMES } from '../MESContext'
 import { QRCodeSVG } from 'qrcode.react'
+import { apiService } from '../services/apiDispatcher'
 
 const ForemanWorkplace = () => {
   const { tasks, orders, workCards, createWorkCard, completeTaskByMaster, nomenclatures, bomItems, machines } = useMES()
@@ -30,20 +31,20 @@ const ForemanWorkplace = () => {
     const qtyPerLoading = Math.floor((part.nom?.units_per_sheet || 1) * (sheets / totalLoadings))
 
     try {
-      const newCardMetadata = []
+      const cardsBatch = []
       for (let i = 1; i <= totalLoadings; i++) {
         const loadingInfo = `${i}/${totalLoadings}`
-        await createWorkCard(
-          task.id, 
-          task.order_id, 
-          'Лазерна різка', 
-          task.machine_name || 'Не вказано', 
-          (Number(part.nom?.time_per_unit) || 0) * qtyPerLoading, 
-          loadingInfo
-        )
-        newCardMetadata.push({ loading: loadingInfo, qty: qtyPerLoading })
+        cardsBatch.push({
+          operation: 'Лазерна різка',
+          machine: task.machine_name || 'Не вказано',
+          estimatedTime: (Number(part.nom?.time_per_unit) || 0) * qtyPerLoading,
+          cardInfo: loadingInfo
+        })
       }
-      setPrintQueue({ task, part, metadata: newCardMetadata })
+      
+      await apiService.submitCreateWorkCardsBatch(task.id, task.order_id, cardsBatch, createWorkCard)
+      
+      setPrintQueue({ task, part, metadata: cardsBatch.map(c => ({ loading: c.cardInfo, qty: qtyPerLoading })) })
     } catch(err) {
       alert('Помилка генерації: ' + err.message)
     }
@@ -55,7 +56,7 @@ const ForemanWorkplace = () => {
     const task = readyTasks.find(t => t.id === activeTaskId)
     
     try {
-      await createWorkCard(task.id, task.order_id, newCard.operation, newCard.machine || task.machine_name, newCard.estimatedTime, null)
+      await apiService.submitCreateWorkCard(task.id, task.order_id, newCard.operation, newCard.machine || task.machine_name, newCard.estimatedTime, createWorkCard, null)
       setShowAddCard(false)
       setNewCard({ operation: 'Лазерна різка', machine: '', estimatedTime: '' })
     } catch(err) {
@@ -66,7 +67,7 @@ const ForemanWorkplace = () => {
   const handleCloseNaryad = async (taskId) => {
     try {
       if (window.confirm("Дійсно закрити наряд? Всі операції повинні бути завершені.")) {
-        await completeTaskByMaster(taskId)
+        await apiService.submitCompleteTaskByMaster(taskId, completeTaskByMaster)
         setActiveTaskId(null)
       }
     } catch(err) {

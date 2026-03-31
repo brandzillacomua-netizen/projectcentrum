@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
+import { apiService } from '../services/apiDispatcher'
 
 const EngineerModule = () => {
   const { tasks, orders, nomenclatures, approveEngineer, loading } = useMES()
@@ -69,7 +70,7 @@ const EngineerModule = () => {
 
                     <button 
                       className="btn-approve-eng"
-                      onClick={() => approveEngineer(task.id)}
+                      onClick={() => apiService.submitApproveEngineer(task.id, approveEngineer)}
                     >
                       <ShieldCheck size={18} /> ПІДТВЕРДИТИ ПРОГРАМУ
                     </button>

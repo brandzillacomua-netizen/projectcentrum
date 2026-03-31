@@ -651,6 +651,12 @@ export const MESProvider = ({ children }) => {
     fetchData()
   }
 
+  const updateOrderStatus = async (id, status) => {
+    const { error } = await supabase.from('orders').update({ status }).eq('id', id)
+    if (error) throw error
+    fetchData()
+  }
+
   return (
     <MESContext.Provider value={{ 
       orders, addOrder, fetchOrders, hasMoreOrders,
@@ -665,6 +671,7 @@ export const MESProvider = ({ children }) => {
       approveEngineer, approveWarehouse,
       workCards, createWorkCard, startWorkCard, completeWorkCard, completeTaskByMaster,
       machines, addMachine, deleteMachine,
+      updateOrderStatus,
       loading 
     }}>
 

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
+import { apiService } from '../services/apiDispatcher'
 
 const NomenclatureModule = () => {
   const { 
@@ -67,11 +68,12 @@ const NomenclatureModule = () => {
   const handleSaveNom = (e) => {
     e.preventDefault()
     if (!newNom.name) return
-    upsertNomenclature({
+    const payloadNom = {
       ...newNom,
       units_per_sheet: Number(newNom.units_per_sheet) || 0,
       time_per_unit: Number(newNom.time_per_unit) || 0
-    })
+    }
+    apiService.submitNomenclature(payloadNom, upsertNomenclature)
     cancelEdit()
   }
 
@@ -109,7 +111,7 @@ const NomenclatureModule = () => {
 
   const handleSyncBOM = async () => {
     setIsSyncing(true)
-    await syncBOM(selectedParent, draftBOM)
+    await apiService.submitBOM(selectedParent, draftBOM, syncBOM)
     setIsSyncing(false)
   }
 
@@ -274,7 +276,7 @@ const NomenclatureModule = () => {
                         <td>
                           <div className="action-btns">
                             <button className="btn-action edit" onClick={() => startEdit(n)}><Edit3 size={14} /></button>
-                            <button className="btn-action del" onClick={() => window.confirm(`Видалити?`) && deleteNomenclature(n.id)}><Trash2 size={14} /></button>
+                            <button className="btn-action del" onClick={() => window.confirm(`Видалити?`) && apiService.submitDelete(n.id, 'nomenclature', deleteNomenclature)}><Trash2 size={14} /></button>
                           </div>
                         </td>
                       </tr>

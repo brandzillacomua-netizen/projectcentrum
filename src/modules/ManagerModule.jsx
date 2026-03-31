@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
+import { apiService } from '../services/apiDispatcher'
 
 const ManagerModule = () => {
   const { nomenclatures, addOrder, orders, fetchOrders, hasMoreOrders, customers, searchCustomers } = useMES()
@@ -65,7 +66,7 @@ const ManagerModule = () => {
     // In this new spreadsheet layout, each row is an order with one nomenclature item
     const items = [{ nomenclature_id: orderHeader.nomenclature_id, quantity: orderHeader.quantity }]
     
-    addOrder(orderHeader, items)
+    apiService.submitOrder(orderHeader, items, addOrder)
     
     // Reset but keep some defaults
     setOrderHeader({ 

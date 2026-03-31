@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
+import { apiService } from '../services/apiDispatcher'
 
 const MasterModule = () => {
   const { orders, tasks, createNaryad, nomenclatures, bomItems, machines, loading } = useMES()
@@ -379,7 +380,7 @@ const MasterModule = () => {
               <button className="btn-cancel" onClick={() => setActiveNaryadOrder(null)}>Відмінити</button>
               <button className="btn-confirm-naryad" disabled={!selectedMachine} style={{ opacity: selectedMachine ? 1 : 0.5, cursor: selectedMachine ? 'pointer' : 'not-allowed' }} onClick={() => {
                 window.print()
-                createNaryad(activeNaryadOrder.id, selectedMachine?.name)
+                apiService.submitCreateTask(activeNaryadOrder.id, selectedMachine?.name, createNaryad)
                 setActiveNaryadOrder(null)
                 setSelectedMachine(null)
               }}>

@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, CheckCircle2, Factory, Hammer, Clock, Play, Plus, X, ListTodo } from 'lucide-react'
 import { useMES } from '../MESContext'
+import { apiService } from '../services/apiService'
 
 const MasterWorkplace = () => {
   const { tasks, orders, workCards, createWorkCard, completeTaskByMaster } = useMES()
@@ -21,7 +22,7 @@ const MasterWorkplace = () => {
     const task = readyTasks.find(t => t.id === activeTaskId)
     
     try {
-      await createWorkCard(task.id, task.order_id, newCard.operation, newCard.machine, newCard.estimatedTime)
+      await apiService.submitCreateWorkCard(task.id, task.order_id, newCard.operation, newCard.machine, newCard.estimatedTime, createWorkCard)
       setShowAddCard(false)
       setNewCard({ operation: 'Лазерна різка', machine: 'LXS-1', estimatedTime: '' })
     } catch(err) {
@@ -32,7 +33,7 @@ const MasterWorkplace = () => {
   const handleCloseNaryad = async (taskId) => {
     try {
       if (window.confirm("Дійсно закрити наряд? Всі операції повинні бути завершені.")) {
-        await completeTaskByMaster(taskId)
+        await apiService.submitCompleteTaskByMaster(taskId, completeTaskByMaster)
         setActiveTaskId(null)
       }
     } catch(err) {

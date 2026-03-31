@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Cpu, Plus, Trash2, Info } from 'lucide-react'
 import { useMES } from '../MESContext'
+import { apiService } from '../services/apiDispatcher'
 
 const MachinesModule = () => {
   const { machines, addMachine, deleteMachine, loading } = useMES()
@@ -12,7 +13,12 @@ const MachinesModule = () => {
     e.preventDefault()
     if (!form.name) return
     try {
-      await addMachine(form.name, form.capacity)
+      await apiService.submitMachine({
+        name: form.name,
+        sheet_capacity: form.capacity,
+        type: 'Laser', // Defaulting to Laser as it's the primary use case
+        status: 'active'
+      }, addMachine)
       setForm({ name: '', capacity: '1' })
       setShowAdd(false)
     } catch (err) {
@@ -23,7 +29,7 @@ const MachinesModule = () => {
   const handleDelete = async (id, name) => {
     if (window.confirm(`Видалити станок "${name}"?`)) {
       try {
-        await deleteMachine(id)
+        await apiService.submitDelete(id, 'machine', deleteMachine)
       } catch (err) {
         alert('Помилка при видаленні: ' + err.message)
       }

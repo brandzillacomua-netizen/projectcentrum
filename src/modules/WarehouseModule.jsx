@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
+import { apiService } from '../services/apiDispatcher'
 
 const WarehouseModule = () => {
   const { 
@@ -84,16 +85,15 @@ const WarehouseModule = () => {
     if (missingItems.length > 0) {
       setShortages({ orderId, orderNum, items: missingItems })
     } else {
-      reqList.forEach(r => issueMaterials(r.id))
       const relatedTask = tasks.find(t => t.order_id === orderId)
-      if (relatedTask) approveWarehouse(relatedTask.id)
+      apiService.submitReserveBatch(orderId, reqList, relatedTask?.id, issueMaterials, approveWarehouse)
     }
   }
 
   const sendPurchaseRequest = async () => {
     if (!shortages) return
     try {
-      await createPurchaseRequest(shortages.orderId, shortages.orderNum, shortages.items)
+      await apiService.submitPurchaseRequest(shortages.orderId, shortages.orderNum, shortages.items, createPurchaseRequest)
       alert('Запит Менеджеру зі закупівель відправлено успішно!')
       setShortages(null)
     } catch(err) {
@@ -241,7 +241,7 @@ const WarehouseModule = () => {
                           </div>
                         </div>
                         <div style={{ paddingLeft: '30px' }}>
-                          <button className="btn-primary" style={{ background: '#10b981', padding: '20px 30px', borderRadius: '16px', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: '1rem', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 10px 20px rgba(16, 185, 129, 0.2)', transition: '0.2s' }} onClick={() => confirmReceptionDoc(doc.id)} onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'} onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}>
+                          <button className="btn-primary" style={{ background: '#10b981', padding: '20px 30px', borderRadius: '16px', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: '1rem', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 10px 20px rgba(16, 185, 129, 0.2)', transition: '0.2s' }} onClick={() => apiService.submitConfirmReception(doc.id, confirmReceptionDoc)} onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'} onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}>
                             <CheckCircle2 size={24} /> Підтвердити прийомку
                           </button>
                         </div>
@@ -253,7 +253,7 @@ const WarehouseModule = () => {
           )}
 
           {showAdd && (
-            <form onSubmit={(e) => { e.preventDefault(); addInventory(newItem); setShowAdd(false); }} className="mini-form" style={{ display: 'flex', gap: '15px', padding: '25px', background: '#f8f9fa', borderRadius: '20px', marginBottom: '35px', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)' }}>
+            <form onSubmit={(e) => { e.preventDefault(); apiService.submitInventory(newItem, addInventory); setShowAdd(false); }} className="mini-form" style={{ display: 'flex', gap: '15px', padding: '25px', background: '#f8f9fa', borderRadius: '20px', marginBottom: '35px', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)' }}>
               <input style={{ flex: 3, padding: '15px' }} placeholder="Найменування позиції..." onChange={e => setNewItem({...newItem, name: e.target.value})} />
               <input style={{ flex: 1, padding: '15px' }} type="number" placeholder="Початкова к-сть" onChange={e => setNewItem({...newItem, total_qty: e.target.value})} />
               <select style={{ flex: 1, padding: '15px' }} onChange={e => setNewItem({...newItem, unit: e.target.value})}>

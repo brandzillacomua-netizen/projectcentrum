@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
+import { apiService } from '../services/apiDispatcher'
 
 const ShippingModule = () => {
   const { orders, updateOrderStatus } = useMES()
@@ -77,7 +78,7 @@ const ShippingModule = () => {
                       <strong>{order.customer} ({order.orderNum})</strong>
                       <span>{order.item} ({order.qty} шт)</span>
                     </div>
-                    <button className="btn-success" onClick={() => updateOrderStatus(order.id, 'shipped')}>
+                    <button className="btn-success" onClick={() => apiService.submitShipOrder(order.id, updateOrderStatus)}>
                       <CheckCircle2 size={16} /> Відвантажити
                     </button>
                   </div>

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
+import { apiService } from '../services/apiDispatcher'
 
 const SupplyModule = () => {
   const { 
@@ -47,7 +48,7 @@ const SupplyModule = () => {
   const handleSendToWarehouse = async () => {
     if (draftItems.length === 0) return
     const items = draftItems.map(d => ({ nomenclature_id: d.nomenclature_id, qty: d.qty }))
-    await createReceptionDoc(items)
+    await apiService.submitCreateReceptionDoc(items, createReceptionDoc)
     setDraftItems([])
     setShowCreate(false)
     alert('Документ відправлено на склад!')
@@ -154,7 +155,7 @@ const SupplyModule = () => {
                                 <strong style={{ color: 'var(--primary)', fontSize: '1.1rem', letterSpacing: '0.05em' }}>НАРЯД #{pr.order_num}</strong>
                                 <span style={{ display: 'block', fontSize: '0.85rem', color: '#666', marginTop: '6px' }}>Від: {new Date(pr.created_at).toLocaleDateString()}</span>
                               </div>
-                              <button style={{ background: 'rgba(56,189,248,0.1)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)', padding: '10px 15px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.2s' }} onClick={() => convertRequestToOrder(pr.id)}>
+                              <button style={{ background: 'rgba(56,189,248,0.1)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)', padding: '10px 15px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.2s' }} onClick={() => apiService.submitConvertRequestToOrder(pr.id, convertRequestToOrder)}>
                                 <CheckCircle2 size={18} /> Сформувати поставку
                               </button>
                             </div>
@@ -221,7 +222,7 @@ const SupplyModule = () => {
 
                               {doc.status === 'ordered' && (
                                 <div style={{ marginTop: '25px', display: 'flex', justifyContent: 'flex-end' }}>
-                                  <button className="btn-send-full" onClick={(e) => { e.stopPropagation(); sendDocToWarehouse(doc.id); }} style={{ width: 'auto', padding: '15px 30px', fontSize: '1rem' }}>
+                                  <button className="btn-send-full" onClick={(e) => { e.stopPropagation(); apiService.submitSendDocToWarehouse(doc.id, sendDocToWarehouse); }} style={{ width: 'auto', padding: '15px 30px', fontSize: '1rem' }}>
                                     <Send size={18} /> Передати на прийомку складу
                                   </button>
                                 </div>
