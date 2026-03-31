@@ -401,9 +401,99 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Responsive */
+/* Responsive Utilities & Breakpoints */
+:root {
+  --sidebar-w: 350px;
+  --tablet-sidebar-w: 280px;
+  --mobile-nav-h: 60px;
+}
+
+.desktop-only { display: block; }
+.tablet-only { display: none; }
+.mobile-only { display: none; }
+
+/* TABLET TRANSITION (1024px) */
+@media (max-width: 1200px) {
+  :root { --sidebar-w: 300px; }
+}
+
+@media (max-width: 1024px) {
+  .desktop-only { display: none; }
+  .tablet-only { display: block; }
+  
+  .mini-sidebar { width: 80px !important; }
+  .mini-sidebar .sidebar-text { display: none; }
+  .mini-sidebar .sidebar-item { justify-content: center !important; padding: 15px !important; }
+}
+
+/* SMARTPHONE (768px) */
 @media (max-width: 768px) {
-  .portal-header h1 { font-size: 2.5rem; }
-  .module-grid { grid-template-columns: 1fr; }
-  .dashboard-grid { grid-template-columns: 1fr; }
+  .tablet-only { display: none; }
+  .mobile-only { display: block; }
+  
+  .stack-mobile { flex-direction: column !important; }
+  .hide-mobile { display: none !important; }
+  
+  .portal-container { padding: 20px 15px; }
+  .portal-header h1 { font-size: 2.2rem; }
+}
+
+/* HIGH-STANDARD RESPONSIVE LAYOUT CLASSES */
+.main-layout-responsive {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  height: calc(100vh - 70px);
+  overflow: hidden;
+}
+
+@media (max-width: 1024px) {
+  .main-layout-responsive {
+    grid-template-columns: var(--tablet-sidebar-w) 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .main-layout-responsive {
+    grid-template-columns: 1fr;
+    height: auto;
+    overflow-y: auto;
+  }
+}
+
+/* STICKY TABLE UTILITIES */
+.table-responsive-container {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  background: var(--card-bg);
+}
+
+.table-responsive-container table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 800px; /* Force scroll on very small screens */
+}
+
+.sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  background: var(--card-bg) !important;
+  box-shadow: 2px 0 5px rgba(0,0,0,0.2);
+}
+
+/* HIGH-STANDARD CARD VIEWS FOR MOBILE */
+@media (max-width: 768px) {
+  .mobile-card-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+  
+  .mobile-card {
+    background: var(--card-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 20px;
+  }
 }

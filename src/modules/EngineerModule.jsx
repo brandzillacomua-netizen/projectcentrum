@@ -4,145 +4,102 @@ import {
   ArrowLeft, 
   CheckCircle2, 
   Clock, 
-  Cpu, 
   FileCode, 
   ShieldCheck,
-  AlertCircle
+  AlertCircle,
+  BarChart3
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
 
 const EngineerModule = () => {
-  const { tasks, orders, nomenclatures, approveEngineer, loading } = useMES()
+  const { tasks, orders, nomenclatures, approveEngineer } = useMES()
   
-  // Pending approvals for Engineer
   const pendingTasks = tasks.filter(t => t.status === 'waiting' && !t.engineer_conf)
-  const approvedTasks = tasks.filter(t => t.status === 'waiting' && t.engineer_conf)
+  const approvedCount = tasks.filter(t => t.status === 'waiting' && t.engineer_conf).length
 
   return (
-    <div className="module-page engineer-page">
-      <nav className="module-nav">
-        <Link to="/" className="back-link"><ArrowLeft size={20} /> Назад</Link>
+    <div className="engineer-module-v2" style={{ background: '#080808', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
+      <nav className="module-nav" style={{ flexShrink: 0 }}>
+        <Link to="/" className="back-link"><ArrowLeft size={18} /> <span className="hide-mobile">Назад</span></Link>
         <div className="module-title-group">
-          <Settings className="text-blue" size={28} />
-          <h1>Робоче місце Інженера</h1>
+          <Settings className="text-secondary" size={24} />
+          <h1 className="hide-mobile">Робоче місце Технолога</h1>
+          <h1 className="mobile-only" style={{ fontSize: '1rem' }}>ТЕХНОЛОГ</h1>
         </div>
       </nav>
 
-      <div className="module-content">
-        <div className="engineer-grid">
-          {/* Main Work Area: Pending Approvals */}
-          <section className="eng-section main-area">
-            <div className="sec-header">
-              <h3><Clock size={18} /> Наряди на підтвердження програм ЧПК</h3>
-              <span className="badge blue">{pendingTasks.length}</span>
-            </div>
+      <div className="module-content" style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
+        
+        {/* Stats Header (Responsive) */}
+        <div className="eng-stats-bar" style={{ display: 'flex', gap: '15px', marginBottom: '25px', overflowX: 'auto', paddingBottom: '10px' }}>
+           <div style={{ flex: 1, minWidth: '150px', background: '#111', padding: '15px', borderRadius: '16px', border: '1px solid #222' }}>
+              <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800, textTransform: 'uppercase' }}>В черзі ЧПК</div>
+              <div style={{ fontSize: '1.4rem', fontWeight: 900, color: '#3b82f6' }}>{pendingTasks.length}</div>
+           </div>
+           <div style={{ flex: 1, minWidth: '150px', background: '#111', padding: '15px', borderRadius: '16px', border: '1px solid #222' }}>
+              <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800, textTransform: 'uppercase' }}>Підтверджено</div>
+              <div style={{ fontSize: '1.4rem', fontWeight: 900, color: '#10b981' }}>{approvedCount}</div>
+           </div>
+           <div className="hide-mobile" style={{ flex: 2, background: 'rgba(59, 130, 246, 0.05)', padding: '15px', borderRadius: '16px', border: '1px solid rgba(59, 130, 246, 0.2)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <AlertCircle size={20} color="#3b82f6" />
+              <p style={{ margin: 0, fontSize: '0.75rem', color: '#888', lineHeight: 1.4 }}>Ваше підтвердження активує кнопки запуску на терміналах операторів.</p>
+           </div>
+        </div>
 
-            <div className="pending-list">
-              {pendingTasks.map(task => {
-                const order = orders.find(o => o.id === task.order_id)
-                return (
-                  <div key={task.id} className="eng-card">
-                    <div className="eng-card-header">
-                      <div className="order-info">
-                        <strong>№{order?.order_num}</strong>
-                        <span>{order?.customer}</span>
+        <div className="eng-grid-layout" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+           {pendingTasks.map(task => {
+              const order = orders.find(o => o.id === task.order_id)
+              return (
+                <div key={task.id} className="eng-task-card glass-panel" style={{ background: '#111', padding: '25px', borderRadius: '24px', border: '1px solid #222', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <div className="order-branding">
+                         <strong style={{ fontSize: '1.2rem', display: 'block' }}>№{order?.order_num}</strong>
+                         <span style={{ fontSize: '0.8rem', color: '#555', fontWeight: 600 }}>{order?.customer}</span>
                       </div>
-                      <div className="task-date">{new Date(task.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-                    </div>
+                      <div style={{ color: '#444', fontSize: '0.75rem', fontWeight: 800 }}><Clock size={12} /> {new Date(task.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                   </div>
 
-                    <div className="prog-list">
-                      <label>Склад наряду (Деталі):</label>
+                   <div className="spec-review" style={{ background: '#0a0a0a', padding: '15px', borderRadius: '14px', border: '1px solid #1a1a1a' }}>
+                      <label style={{ fontSize: '0.6rem', color: '#444', textTransform: 'uppercase', marginBottom: '10px', display: 'block', fontWeight: 900 }}>Програми обробки:</label>
                       {order?.order_items?.map((item, idx) => {
-                        const nom = nomenclatures.find(n => n.id === item.nomenclature_id)
-                        return (
-                          <div key={idx} className="prog-item">
-                            <FileCode size={14} className="text-blue" />
-                            <div className="prog-details">
-                              <div className="p-name">{nom?.name}</div>
-                              <div className="p-code">{nom?.cnc_program || 'Program default'}</div>
-                            </div>
-                          </div>
-                        )
+                         const nom = nomenclatures.find(n => n.id === item.nomenclature_id)
+                         return (
+                           <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                              <FileCode size={16} color="#3b82f6" />
+                              <div style={{ flex: 1 }}>
+                                 <div style={{ fontSize: '0.8rem', fontWeight: 700 }}>{nom?.name}</div>
+                                 <div style={{ fontSize: '0.65rem', color: '#3b82f6', fontFamily: 'monospace' }}>{nom?.cnc_program || 'CNC_DEFAULT_V1.tap'}</div>
+                              </div>
+                           </div>
+                         )
                       })}
-                    </div>
+                   </div>
 
-                    <button 
-                      className="btn-approve-eng"
-                      onClick={() => apiService.submitApproveEngineer(task.id, approveEngineer)}
-                    >
-                      <ShieldCheck size={18} /> ПІДТВЕРДИТИ ПРОГРАМУ
-                    </button>
-                  </div>
-                )
-              })}
-              {pendingTasks.length === 0 && (
-                <div className="empty-state">
-                  <CheckCircle2 size={48} className="text-success" />
-                  <p>Всі наряди підтверджені. Нових запитів немає.</p>
+                   <button 
+                     onClick={() => apiService.submitApproveEngineer(task.id, approveEngineer)}
+                     style={{ width: '100%', padding: '16px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontSize: '0.9rem' }}
+                   >
+                     <ShieldCheck size={20} /> ПІДТВЕРДИТИ ЧПК
+                   </button>
                 </div>
-              )}
-            </div>
-          </section>
+              )
+           })}
 
-          {/* Sidebar: Stats or History */}
-          <aside className="eng-sidebar">
-            <div className="stat-panel">
-              <h4>Статистика зміні</h4>
-              <div className="stat-inner">
-                <div className="s-row"><span>Всього підтверджено:</span> <strong>{approvedTasks.length}</strong></div>
-                <div className="s-row"><span>В черзі:</span> <strong className="text-blue">{pendingTasks.length}</strong></div>
-              </div>
-            </div>
-
-            <div className="info-panel alert">
-              <div className="panel-head"><AlertCircle size={16} /> Важливо</div>
-              <p>Ваше підтвердження гарантує, що оператор лазера отримає коректний файл розкрою. Перевірте BOM перед натисканням.</p>
-            </div>
-          </aside>
+           {pendingTasks.length === 0 && (
+             <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '80px 20px', color: '#333' }}>
+                <CheckCircle2 size={64} style={{ marginBottom: '20px', opacity: 0.1 }} />
+                <p style={{ fontSize: '1.2rem', fontWeight: 800 }}>ЧЕРГА ПІДТВЕРДЖЕНЬ ПОРОЖНЯ</p>
+                <p style={{ fontSize: '0.9rem' }}>Всі наряди успішно опрацьовані</p>
+             </div>
+           )}
         </div>
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: `
-        .engineer-page { background: #080808; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
-        .text-blue { color: #3b82f6; }
-        .engineer-grid { display: grid; grid-template-columns: 1fr 300px; gap: 30px; flex: 1; overflow: hidden; padding: 20px; }
-        
-        .eng-section { background: #121212; border-radius: 24px; border: 1px solid #222; display: flex; flex-direction: column; overflow: hidden; }
-        .sec-header { padding: 25px; border-bottom: 1px solid #222; display: flex; justify-content: space-between; align-items: center; }
-        .sec-header h3 { margin: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 10px; color: #eee; }
-        
-        .pending-list { flex: 1; overflow-y: auto; padding: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; align-content: start; }
-        
-        .eng-card { background: #0a0a0a; border: 1px solid #222; border-radius: 20px; padding: 25px; transition: 0.3s; display: flex; flex-direction: column; gap: 20px; }
-        .eng-card:hover { border-color: #3b82f6; transform: translateY(-5px); box-shadow: 0 10px 30px rgba(59, 130, 246, 0.1); }
-        
-        .eng-card-header { display: flex; justify-content: space-between; align-items: flex-start; }
-        .order-info strong { display: block; font-size: 1.2rem; color: #fff; margin-bottom: 4px; }
-        .order-info span { font-size: 0.85rem; color: #666; font-weight: 600; }
-        .task-date { font-family: monospace; font-size: 0.8rem; color: #444; }
-        
-        .prog-list { background: #111; padding: 15px; border-radius: 12px; border: 1px solid #222; }
-        .prog-list label { font-size: 0.65rem; text-transform: uppercase; color: #555; display: block; margin-bottom: 12px; font-weight: 800; letter-spacing: 0.05em; }
-        .prog-item { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; }
-        .p-name { font-size: 0.85rem; color: #eee; font-weight: 600; }
-        .p-code { font-size: 0.7rem; color: #3b82f6; font-family: monospace; }
-        
-        .btn-approve-eng { width: 100%; padding: 16px; background: #3b82f6; color: #fff; border: none; border-radius: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; transition: 0.3s; }
-        .btn-approve-eng:hover { background: #2563eb; transform: scale(1.02); }
-        
-        .eng-sidebar { display: flex; flex-direction: column; gap: 20px; }
-        .stat-panel { background: #121212; border: 1px solid #222; border-radius: 20px; padding: 20px; }
-        .stat-panel h4 { margin: 0 0 15px; font-size: 0.8rem; text-transform: uppercase; color: #555; }
-        .s-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem; }
-        
-        .info-panel { background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 20px; padding: 20px; }
-        .panel-head { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; font-weight: 800; text-transform: uppercase; color: #3b82f6; margin-bottom: 10px; }
-        .info-panel p { margin: 0; font-size: 0.8rem; color: #888; line-height: 1.5; }
-        
-        .empty-state { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 100px; color: #444; text-align: center; }
-        .empty-state p { margin-top: 20px; font-size: 1.1rem; }
+        .eng-task-card { transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .eng-task-card:hover { transform: translateY(-5px); border-color: #3b82f6; box-shadow: 0 15px 40px rgba(59, 130, 246, 0.15); }
       `}} />
     </div>
   )
