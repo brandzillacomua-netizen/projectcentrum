@@ -604,20 +604,22 @@ export const MESProvider = ({ children }) => {
     fetchData()
   }
 
-  const startWorkCard = async (cardId, operatorName, stage) => {
+  const startWorkCard = async (taskId, cardId, operatorName, extra = {}) => {
     const { error } = await supabase.from('work_cards').update({ 
       status: 'in-progress', 
       started_at: new Date().toISOString(),
       operator_name: operatorName,
-      operation: stage
+      operation: extra.stage_name || 'В роботі'
     }).eq('id', cardId)
     if (error) throw error
     fetchData()
   }
 
-  const completeWorkCard = async (cardId, scrapCounts = {}) => {
+  const completeWorkCard = async (taskId, cardId, operatorName, extra = {}) => {
     const card = workCards.find(c => c.id === cardId)
     if (!card) return
+
+    const scrapCounts = extra.scrap_counts || {}
 
     const { error } = await supabase.from('work_cards').update({ 
       status: 'completed', 
