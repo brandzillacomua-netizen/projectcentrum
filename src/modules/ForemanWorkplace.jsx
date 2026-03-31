@@ -40,7 +40,16 @@ const ForemanWorkplace = () => {
         })
       }
       await apiService.submitCreateWorkCardsBatch(task.id, task.order_id, part.nom.id, cardsBatch, createWorkCard)
-      setPrintQueue({ task, part, metadata: cardsBatch.map(c => ({ loading: c.cardInfo, qty: qtyPerLoading })) })
+      
+      // Wait a moment for state to sync and grab the newly created cards with IDs
+      setTimeout(() => {
+        const freshCards = workCards.filter(c => c.task_id === task.id && (c.nomenclature_id === part.nom.id || c.card_info?.includes(`NOM_ID:${part.nom.id}`)))
+        setPrintQueue({ 
+          task, 
+          part, 
+          metadata: freshCards.map(c => ({ id: c.id, loading: c.card_info, qty: qtyPerLoading })) 
+        })
+      }, 700)
     } catch(err) {
       alert('Помилка: ' + err.message)
     }
@@ -149,7 +158,7 @@ const ForemanWorkplace = () => {
                                 <td style={{ padding: '15px', textAlign: 'center', color: '#ef4444', fontWeight: 800 }}>{loadings}</td>
                                 <td style={{ padding: '15px', textAlign: 'center' }}>
                                   <button 
-                                    onClick={() => hasCards ? setPrintQueue({ task, part, metadata: existing.map(c => ({ loading: c.card_info, qty: Math.floor(perSheet * (sheets/existing.length)) })) }) : handleGenerateFromWorksheet(task, part, sheets)}
+                                    onClick={() => hasCards ? setPrintQueue({ task, part, metadata: existing.map(c => ({ id: c.id, loading: c.card_info, qty: Math.floor(perSheet * (sheets/existing.length)) })) }) : handleGenerateFromWorksheet(task, part, sheets)}
                                     style={{ background: hasCards ? '#10b981' : '#ef4444', color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '8px', cursor: 'pointer', fontWeight: 900, fontSize: '0.7rem' }}
                                   >
                                     {hasCards ? 'ДРУК' : 'ГЕНЕРУВАТИ'}
@@ -216,7 +225,7 @@ const ForemanWorkplace = () => {
                              <div style={{ fontSize: '28pt', fontWeight: 900 }}>{printQueue.part.nom?.name}</div>
                           </div>
                           <div style={{ background: '#f0f0f0', padding: '40px', fontSize: '70pt', fontWeight: 900 }}>{m.qty} <small style={{ fontSize: '20pt' }}>шт</small></div>
-                          <div style={{ display: 'flex', justifyContent: 'center' }}><QRCodeSVG value={`CENTRUM_CARD_${i}`} size={250} /></div>
+                          <div style={{ display: 'flex', justifyContent: 'center' }}><QRCodeSVG value={`CENTRUM_CARD_${m.id}`} size={250} /></div>
                        </div>
                     </div>
                  ))}

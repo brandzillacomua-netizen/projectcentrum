@@ -63,21 +63,30 @@ const OperatorTerminal = () => {
         { facingMode: "environment" }, 
         config, 
         (decodedText) => {
+          console.log("Scanner Decoded:", decodedText);
+          
           if (decodedText.startsWith("CENTRUM_CARD_")) {
-            const cardIdStr = decodedText.replace("CENTRUM_CARD_", "")
-            const cardId = isNaN(Number(cardIdStr)) ? cardIdStr : Number(cardIdStr)
-            const foundCard = workCards.find(c => String(c.id) === String(cardId))
+            const cardIdStr = decodedText.replace("CENTRUM_CARD_", "").trim();
+            
+            // Debug: show what we are looking for
+            console.log("Searching for Card ID:", cardIdStr);
+            
+            const foundCard = workCards.find(c => String(c.id).trim() === cardIdStr);
             
             if (foundCard) {
+              console.log("Card found!", foundCard);
               // 1. Assign to this session
-              setScannedCardIds(prev => prev.includes(foundCard.id) ? prev : [...prev, foundCard.id])
+              setScannedCardIds(prev => prev.includes(foundCard.id) ? prev : [...prev, foundCard.id]);
               // 2. Select it
-              setSelectedCardId(foundCard.id)
+              setSelectedCardId(foundCard.id);
               // 3. Close scanner immediately
-              html5QrCode.stop().then(() => setIsScanning(false)).catch(() => setIsScanning(false))
+              html5QrCode.stop().then(() => setIsScanning(false)).catch(() => setIsScanning(false));
             } else {
-              alert("Картку не знайдено в базі!")
+              console.warn("Card not found in workCards array. Available IDs:", workCards.map(c => c.id));
+              alert(`Картку №${cardIdStr} не знайдено у вашому списку завдань!`);
             }
+          } else {
+            console.log("QR ignores (wrong prefix):", decodedText);
           }
         },
         () => {}
