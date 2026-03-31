@@ -42,7 +42,7 @@ const OperatorTerminal = () => {
     } catch(e) { return [] }
   })
 
-  const [isScanning, setIsScanning] = useState(true)
+  const [isScanning, setIsScanning] = useState(false)
   const [showScrapModal, setShowScrapModal] = useState(false)
   const [scrapCounts, setScrapCounts] = useState({})
   const [showPinModal, setShowPinModal] = useState(false)
@@ -117,10 +117,19 @@ const OperatorTerminal = () => {
   }
 
   const availableCards = workCards.filter(c => 
-    c.status !== 'completed' && (scannedCardIds.includes(c.id) || c.status === 'in-progress')
+    c.status === 'in-progress' || scannedCardIds.includes(c.id)
   )
-
-  const handleStartOperation = () => { setShowPinModal(true); setPin(''); setPinError(false); }
+  
+  const handleStartOperation = async () => {
+    if (!currentCard || !selectedStage || !selectedOperator) return
+    setIsProcessing(true)
+    try {
+      await apiService.submitOperatorAction('start', currentCard.task_id, currentCard.id, selectedOperator, { stage_name: selectedStage }, startWorkCard)
+      if (!scannedCardIds.includes(currentCard.id)) {
+        setScannedCardIds(prev => [...prev, currentCard.id])
+      }
+    } finally { setIsProcessing(false) }
+  }
 
   const validatePin = async () => {
     if (pin === '555') {
@@ -136,8 +145,11 @@ const OperatorTerminal = () => {
     if (!currentCard) return
     setIsProcessing(true)
     try {
-      await apiService.submitOperatorAction('complete', currentCard.task_id, currentCard.id, 'Оператор Тест (555)', { scrap_counts: scrapCounts }, completeWorkCard)
-      setShowScrapModal(false); setSelectedCardId(null)
+      await apiService.submitOperatorAction('complete', currentCard.task_id, currentCard.id, currentCard.operator_name, { scrap_counts: scrapCounts }, completeWorkCard)
+      setShowScrapModal(false); 
+      setSelectedCardId(null);
+      setSelectedStage('');
+      setSelectedOperator('');
       setScannedCardIds(prev => prev.filter(id => id !== currentCard.id))
     } finally { setIsProcessing(false) }
   }
@@ -178,8 +190,8 @@ const OperatorTerminal = () => {
               <div style={{ fontSize: '0.65rem', opacity: 0.7 }}>{batchQty} шт | {card.operation}</div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
-               <span style={{ fontSize: '0.6rem', background: isActive ? 'rgba(0,0,0,0.2)' : 'rgba(234, 179, 8, 0.1)', color: isActive ? '#000' : '#eab308', padding: '2px 6px', borderRadius: '4px', fontWeight: 900 }}>{card.status === 'in-progress' ? 'У РОБОТІ' : 'ОЧІКУЄ'}</span>
-               <span style={{ fontSize: '0.65rem', fontWeight: 800 }}>{card.estimated_time || 0} хв</span>
+                <span style={{ fontSize: '0.6rem', background: isActive ? 'rgba(0,0,0,0.2)' : 'rgba(234, 179, 8, 0.1)', color: isActive ? '#000' : '#eab308', padding: '2px 6px', borderRadius: '4px', fontWeight: 900, textTransform: 'uppercase' }}>{card.status === 'in-progress' ? (card.operation || 'У РОБОТІ') : 'ОЧІКУЄ'}</span>
+                <span style={{ fontSize: '0.65rem', fontWeight: 800 }}>{card.estimated_time || 0} хв</span>
             </div>
           </div>
         )
@@ -251,32 +263,61 @@ const OperatorTerminal = () => {
                 <SpecCard icon={Tablet} label="Обладнання" value={currentCard.machine || '—'} />
               </div>
 
-              <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '28px', border: '1px solid #1a1a1a', padding: '40px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '28px', border: '1px solid #1a1a1a', padding: '40px', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '4px', background: currentCard.status === 'in-progress' ? '#10b981' : '#222' }} />
                 
                 {currentCard.status === 'pending' || currentCard.status === 'waiting' ? (
-                  <>
-                     <div style={{ marginBottom: '35px' }}>
-                        <p style={{ opacity: 0.5, fontSize: '0.9rem', marginBottom: '10px' }}>Перевірте кількість ({getQtyFromCard(currentCard)} шт) та сировину для початку:</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', maxWidth: '500px', margin: '0 auto' }}>
+                     <div style={{ textAlign: 'left' }}>
+                        <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>1. Оберіть етап робіт</label>
+                        <select 
+                          value={selectedStage} 
+                          onChange={(e) => setSelectedStage(e.target.value)} 
+                          style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}
+                        >
+                           <option value="">— Оберіть етап —</option>
+                           {productionStages.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
                      </div>
-                     <button disabled={isProcessing} onClick={handleStartOperation} className="btn-action pulse-blue" style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '22px 60px', borderRadius: '18px', fontSize: '1.4rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '15px', margin: '0 auto' }}>
-                        <Play fill="currentColor" size={26} /> ПРИЙНЯТИ ТА РОЗПОЧАТИ
+
+                     <div style={{ textAlign: 'left' }}>
+                        <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>2. Відповідальний оператор</label>
+                        <select 
+                          value={selectedOperator} 
+                          onChange={(e) => setSelectedOperator(e.target.value)} 
+                          style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}
+                        >
+                           <option value="">— Оберіть оператора —</option>
+                           {operators.map(o => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                     </div>
+
+                     <button 
+                       disabled={isProcessing || !selectedStage || !selectedOperator} 
+                       onClick={handleStartOperation} 
+                       className="btn-action pulse-blue" 
+                       style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '22px 60px', borderRadius: '18px', fontSize: '1.4rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', marginTop: '20px', opacity: (selectedStage && selectedOperator) ? 1 : 0.5 }}
+                     >
+                        ВЗЯТИ В РОБОТУ
                      </button>
-                  </>
+                  </div>
                 ) : (
                   <>
                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '35px' }}>
+                        <div style={{ color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '5px 15px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 900, marginBottom: '20px' }}>
+                           ЕТАП: {currentCard.operation?.toUpperCase()} | ОПЕРАТОР: {currentCard.operator_name || 'Не вказано'}
+                        </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#10b981', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.2em' }}><Timer size={16} /> ЧАС ВИКОНАННЯ</div>
                         <div className="timer-display" style={{ fontSize: '6rem', fontWeight: 1000, color: '#10b981', fontFamily: 'monospace', letterSpacing: '-0.05em' }}>{formatElapsedTime(currentCard.started_at)}</div>
                      </div>
                      <button disabled={isProcessing} onClick={() => {
-                         const order = getTaskOrder(currentCard.order_id)
-                         const initialScrap = {}
-                         order?.order_items?.forEach(item => initialScrap[item.nomenclature_id] = 0)
-                         setScrapCounts(initialScrap)
-                         setShowScrapModal(true)
+                          const order = getTaskOrder(currentCard.order_id)
+                          const initialScrap = {}
+                          order?.order_items?.forEach(item => initialScrap[item.nomenclature_id] = 0)
+                          setScrapCounts(initialScrap)
+                          setShowScrapModal(true)
                      }} className="btn-action" style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '22px 70px', borderRadius: '18px', fontSize: '1.4rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '15px', margin: '0 auto' }}>
-                        <CheckCircle size={30} /> ЗАВЕРШИТИ ПАРТІЮ
+                        <CheckCircle size={30} /> ЗАВЕРШИТИ ЕТАП
                      </button>
                   </>
                 )}
