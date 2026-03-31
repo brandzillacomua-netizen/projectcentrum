@@ -1,13 +1,14 @@
 import React, { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Factory, ListTodo, Loader2, X, Printer } from 'lucide-react'
+import { ArrowLeft, Factory, ListTodo, Loader2, X, Printer, LayoutDashboard, Layers, User, Clock, Package } from 'lucide-react'
 import { useMES } from '../MESContext'
 import { QRCodeSVG } from 'qrcode.react'
 import { apiService } from '../services/apiDispatcher'
 
 const ForemanWorkplace = () => {
-  const { tasks, orders, workCards, createWorkCard, completeTaskByMaster, nomenclatures, bomItems, machines } = useMES()
+  const { tasks, orders, workCards, createWorkCard, completeTaskByMaster, nomenclatures, bomItems, machines, workCardHistory } = useMES()
   const [activeTaskId, setActiveTaskId] = useState(null)
+  const [activeView, setActiveView] = useState('worksheet') // 'worksheet' | 'flow'
   const [selectedMachines, setSelectedMachines] = useState({}) // { [partId]: machineName }
   const [genModal, setGenModal] = useState(null) // { task, part, total, created, rowId, machineName }
   const [printQueue, setPrintQueue] = useState(null)
@@ -107,17 +108,103 @@ const ForemanWorkplace = () => {
         </div>
 
         <div className="content-panel">
-          {activeTaskId ? (
+          <div style={{ marginBottom: '30px', display: 'flex', gap: '20px', borderBottom: '1px solid #1a1a1a', paddingBottom: '10px' }}>
+            <button 
+              onClick={() => setActiveView('worksheet')} 
+              style={{ background: 'transparent', border: 'none', color: activeView === 'worksheet' ? '#ef4444' : '#555', fontSize: '0.85rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: activeView === 'worksheet' ? '2px solid #ef4444' : '2px solid transparent', paddingBottom: '10px', transition: '0.2s' }}
+            >
+              <ListTodo size={18} /> РОБОЧІ НАРЯДИ
+            </button>
+            <button 
+              onClick={() => setActiveView('flow')} 
+              style={{ background: 'transparent', border: 'none', color: activeView === 'flow' ? '#ef4444' : '#555', fontSize: '0.85rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: activeView === 'flow' ? '2px solid #ef4444' : '2px solid transparent', paddingBottom: '10px', transition: '0.2s' }}
+            >
+              <LayoutDashboard size={18} /> ЗАГАЛЬНИЙ ПОТІК (WIP)
+            </button>
+          </div>
+
+          {activeView === 'flow' ? (
+             <div className="global-flow-dashboard anim-fade-in">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '40px' }}>
+                   {['Різка', 'Галтовка', 'Гнуття', 'Зварювання', 'Покраска'].map(stage => {
+                      const stageQty = workCards
+                        .filter(c => c.operation === stage && c.status !== 'completed')
+                        .reduce((sum, c) => sum + (c.quantity || 0), 0)
+                      return (
+                        <div key={stage} style={{ background: '#111', padding: '25px', borderRadius: '20px', border: '1px solid #222' }}>
+                           <div style={{ color: '#555', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px' }}>{stage}</div>
+                           <div style={{ fontSize: '2rem', fontWeight: 950, color: stageQty > 0 ? '#ef4444' : '#222' }}>{stageQty} <span style={{ fontSize: '0.9rem', opacity: 0.5 }}>шт.</span></div>
+                        </div>
+                      )
+                   })}
+                </div>
+
+                <div style={{ background: '#111', borderRadius: '24px', border: '1px solid #222', overflow: 'hidden' }}>
+                   <div style={{ padding: '20px 25px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900 }}>ДЕТАЛІ В ПРОЦЕСІ РОБОТИ</h3>
+                      <div style={{ fontSize: '0.8rem', color: '#555' }}>Всього активних карток: {workCards.filter(c => c.status !== 'completed').length}</div>
+                   </div>
+                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                         <tr style={{ background: '#1a1a1a', textAlign: 'left', color: '#555', fontSize: '0.75rem', fontWeight: 900 }}>
+                            <th style={{ padding: '15px 25px' }}>ДЕТАЛЬ / КРЕСЛЕННЯ</th>
+                            <th style={{ padding: '15px 25px' }}>ЗАМОВНИК</th>
+                            <th style={{ padding: '15px 25px' }}>ПОТОЧНИЙ ЕТАП</th>
+                            <th style={{ padding: '15px 25px', textAlign: 'center' }}>КІЛЬКІСТЬ</th>
+                            <th style={{ padding: '15px 25px' }}>ВІДПОВІДАЛЬНИЙ</th>
+                            <th style={{ padding: '15px 25px' }}>МАРШРУТ (ІСТОРІЯ)</th>
+                         </tr>
+                      </thead>
+                      <tbody>
+                         {workCards.filter(c => c.status !== 'completed').map(card => {
+                            const nom = nomenclatures.find(n => n.id === card.nomenclature_id)
+                            const order = orders.find(o => o.id === card.order_id)
+                            const history = workCardHistory.filter(h => h.card_id === card.id)
+                            
+                            return (
+                               <tr key={card.id} style={{ borderBottom: '1px solid #1a1a1a', fontSize: '0.9rem' }}>
+                                  <td style={{ padding: '15px 25px' }}>
+                                     <div style={{ fontWeight: 800 }}>{nom?.name || '—'}</div>
+                                     <div style={{ fontSize: '0.7rem', opacity: 0.5 }}>{nom?.material_type}</div>
+                                  </td>
+                                  <td style={{ padding: '15px 25px', color: '#555' }}>{order?.customer || '—'}</td>
+                                  <td style={{ padding: '15px 25px' }}>
+                                     <span style={{ background: card.status === 'in-progress' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(234, 179, 8, 0.1)', color: card.status === 'in-progress' ? '#10b981' : '#eab308', padding: '4px 10px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 900 }}>
+                                        {card.operation?.toUpperCase()}
+                                     </span>
+                                  </td>
+                                  <td style={{ padding: '15px 25px', textAlign: 'center', fontWeight: 900 }}>{card.quantity} шт</td>
+                                  <td style={{ padding: '15px 25px' }}>
+                                     {card.operator_name ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                           <div style={{ width: '24px', height: '24px', background: '#222', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem' }}>{card.operator_name[0]}</div>
+                                           {card.operator_name}
+                                        </div>
+                                     ) : <span style={{ opacity: 0.3 }}>—</span>}
+                                  </td>
+                                  <td style={{ padding: '15px 25px' }}>
+                                     <div style={{ display: 'flex', gap: '5px' }}>
+                                        {history.map(h => (
+                                           <div key={h.id} title={`${h.stage_name} by ${h.operator_name}`} style={{ width: '8px', height: '8px', background: '#10b981', borderRadius: '50%' }} />
+                                        ))}
+                                        <div style={{ width: '8px', height: '8px', background: card.status === 'in-progress' ? '#3b82f6' : '#222', borderRadius: '50%', border: '1px solid #333' }} />
+                                     </div>
+                                  </td>
+                               </tr>
+                            )
+                         })}
+                      </tbody>
+                   </table>
+                </div>
+             </div>
+          ) : activeTaskId ? (
             (() => {
               const task = readyTasks.find(t => t.id === activeTaskId)
               const order = orders.find(o => o.id === task.order_id)
-              const taskCards = workCards.filter(c => c.task_id === task.id)
               const productNames = order?.order_items?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ')
               
-              // Find full machine machine details safely
-              const machineObj = machines.find(m => m.name === task.machine_name)
               return (
-                <div style={{ maxWidth: '1200px' }}>
+                <div style={{ maxWidth: '1200px' }} className="anim-fade-in">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
                      <div>
                         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>

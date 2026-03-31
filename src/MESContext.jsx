@@ -14,6 +14,7 @@ export const MESProvider = ({ children }) => {
   const [receptionDocs, setReceptionDocs] = useState([])
   const [purchaseRequests, setPurchaseRequests] = useState([])
   const [workCards, setWorkCards] = useState([])
+  const [workCardHistory, setWorkCardHistory] = useState([])
   const [machines, setMachines] = useState([])
   const [operators] = useState(["Олексій", "Дмитро", "Сергій", "Андрій", "Микола"])
   const [productionStages] = useState(["Різка", "Галтовка", "Гнуття", "Зварювання", "Покраска"])
@@ -91,6 +92,9 @@ export const MESProvider = ({ children }) => {
       console.warn('work_cards error:', wcError)
       setWorkCards([])
     } else if (wc) setWorkCards(wc)
+
+    const { data: wch } = await supabase.from('work_card_history').select('*').order('created_at', { ascending: false })
+    if (wch) setWorkCardHistory(wch)
 
     setLoading(false)
   }
@@ -623,15 +627,41 @@ export const MESProvider = ({ children }) => {
 
   const completeWorkCard = async (taskId, cardId, operatorName, extra = {}) => {
     try {
-      const scrapCounts = extra.scrap_counts || {}
+      const card = workCards.find(c => c.id === cardId)
+      if (!card) return
 
+      const scrapCounts = extra.scrap_counts || {}
+      const totalScrap = Object.values(scrapCounts).reduce((acc, c) => acc + Number(c), 0)
+      
+      // Calculate finished quantity from card_info if quantity column is not yet reliable
+      const matchQty = card.card_info?.match(/QTY:([^|]+)/)
+      const initialQty = card.quantity || (matchQty ? Number(matchQty[1].trim()) : 0)
+      const qtyCompleted = Math.max(0, initialQty - totalScrap)
+
+      // 1. Update the card - move back to pending for next stage, reduce qty by scrap
       const { error } = await supabase.from('work_cards').update({ 
-        status: 'completed',
-        completed_at: new Date().toISOString()
+        status: 'pending', 
+        quantity: qtyCompleted,
+        // Update card_info with new quantity
+        card_info: card.card_info?.replace(/QTY:([^|]+)/, `QTY:${qtyCompleted}`)
       }).eq('id', cardId)
       
       if (error) throw error
 
+      // 2. Log this stage to history
+      await supabase.from('work_card_history').insert([{
+         card_id: cardId,
+         nomenclature_id: card.nomenclature_id,
+         stage_name: card.operation || 'Не вказано',
+         operator_name: operatorName || card.operator_name,
+         qty_at_start: initialQty,
+         qty_completed: qtyCompleted,
+         scrap_qty: totalScrap,
+         started_at: card.started_at,
+         completed_at: new Date().toISOString()
+      }])
+
+      // Record Scrap logic stays...
       for (const [nomenclatureId, count] of Object.entries(scrapCounts)) {
         if (count > 0) {
           const nom = nomenclatures.find(n => n.id === nomenclatureId)
@@ -715,6 +745,7 @@ export const MESProvider = ({ children }) => {
       purchaseRequests, createPurchaseRequest, updatePurchaseRequestStatus, convertRequestToOrder,
       approveEngineer, approveWarehouse, approveDirector,
       workCards, createWorkCard, startWorkCard, completeWorkCard, completeTaskByMaster,
+      workCardHistory,
       machines, addMachine, deleteMachine,
       operators, productionStages,
       updateOrderStatus,
