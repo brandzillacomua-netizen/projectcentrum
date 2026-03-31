@@ -616,7 +616,10 @@ export const MESProvider = ({ children }) => {
     fetchData()
   }
 
-  const createWorkCard = async (taskId, orderId, operation, machine, estimatedTime, cardInfo) => {
+  const createWorkCard = async (taskId, orderId, nomenclatureId, operation, machine, estimatedTime, cardInfo) => {
+    // Store metadata in card_info because nomenclature_id column doesn't exist in DB
+    const metaCardInfo = `NOM_ID:${nomenclatureId} | ${cardInfo || ''}`
+    
     const { error } = await supabase.from('work_cards').insert([{
       task_id: taskId,
       order_id: orderId,
@@ -624,9 +627,13 @@ export const MESProvider = ({ children }) => {
       machine,
       estimated_time: Number(estimatedTime) || 0,
       status: 'pending',
-      card_info: cardInfo || null
+      card_info: metaCardInfo
     }])
-    if (error) throw error
+    
+    if (error) {
+      console.error('Error creating work card:', error)
+      throw error
+    }
     
     await supabase.from('tasks').update({ status: 'in-progress' }).eq('id', taskId)
     fetchData()

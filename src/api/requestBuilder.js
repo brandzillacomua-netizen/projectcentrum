@@ -177,10 +177,11 @@ export const requestBuilder = {
   /**
    * Побудова payload для створення робочої картки (Work Card) на конкретну операцію
    */
-  buildCreateWorkCardPayload: (taskId, orderId, operation, machine, estimatedTime) => {
+  buildCreateWorkCardPayload: (taskId, orderId, nomenclatureId, operation, machine, estimatedTime) => {
     return {
       task_id: parseValue(taskId),
       order_id: parseValue(orderId),
+      nomenclature_id: parseValue(nomenclatureId),
       operation: parseValue(operation),
       machine: parseValue(machine),
       estimated_time: parseValue(estimatedTime) ? Number(estimatedTime) : null,
@@ -290,10 +291,11 @@ export const requestBuilder = {
   /**
    * Пакетна генерація робочих карток
    */
-  buildWorkCardBatchPayload: (taskId, orderId, cards) => {
+  buildWorkCardBatchPayload: (taskId, orderId, nomenclatureId, cards) => {
     return {
       task_id: parseValue(taskId),
       order_id: parseValue(orderId),
+      nomenclature_id: parseValue(nomenclatureId),
       cards: cards.map(c => ({
         operation: parseValue(c.operation),
         machine: parseValue(c.machine),

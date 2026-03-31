@@ -9,7 +9,7 @@ const ForemanWorkplace = () => {
   const { tasks, orders, workCards, createWorkCard, completeTaskByMaster, nomenclatures, bomItems, machines } = useMES()
   const [activeTaskId, setActiveTaskId] = useState(null)
   const [showAddCard, setShowAddCard] = useState(false)
-  const [newCard, setNewCard] = useState({ operation: 'Лазерна різка', machine: '', estimatedTime: '' })
+  const [newCard, setNewCard] = useState({ operation: 'Лазерна різка', machine: '', estimatedTime: '', nomenclatureId: '' })
   const [printQueue, setPrintQueue] = useState(null)
 
   const getBOMParts = (nomenclatureId) => {
@@ -42,7 +42,7 @@ const ForemanWorkplace = () => {
         })
       }
       
-      await apiService.submitCreateWorkCardsBatch(task.id, task.order_id, cardsBatch, createWorkCard)
+      await apiService.submitCreateWorkCardsBatch(task.id, task.order_id, part.nom.id, cardsBatch, createWorkCard)
       
       setPrintQueue({ task, part, metadata: cardsBatch.map(c => ({ loading: c.cardInfo, qty: qtyPerLoading })) })
     } catch(err) {
@@ -52,13 +52,13 @@ const ForemanWorkplace = () => {
 
   const handleCreateCard = async (e) => {
     e.preventDefault()
-    if (!activeTaskId || !newCard.operation || !newCard.estimatedTime) return
+    if (!activeTaskId || !newCard.operation || !newCard.estimatedTime || !newCard.nomenclatureId) return
     const task = readyTasks.find(t => t.id === activeTaskId)
     
     try {
-      await apiService.submitCreateWorkCard(task.id, task.order_id, newCard.operation, newCard.machine || task.machine_name, newCard.estimatedTime, createWorkCard, null)
+      await apiService.submitCreateWorkCard(task.id, task.order_id, newCard.nomenclatureId, newCard.operation, newCard.machine || task.machine_name, newCard.estimatedTime, createWorkCard)
       setShowAddCard(false)
-      setNewCard({ operation: 'Лазерна різка', machine: '', estimatedTime: '' })
+      setNewCard({ operation: 'Лазерна різка', machine: '', estimatedTime: '', nomenclatureId: '' })
     } catch(err) {
       alert('Помилка: ' + err.message)
     }
@@ -83,13 +83,13 @@ const ForemanWorkplace = () => {
         </Link>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <Factory size={24} color="#ef4444" />
-          <h1 style={{ fontSize: '1.2rem', fontWeight: 900, letterSpacing: '0.05em', margin: 0 }}>РОБОЧЕ МІСЦЕ МАЙСТРА ДІЛЬНИЦІ</h1>
+          <h1 style={{ fontSize: '1.2rem', fontWeight: 900, letterSpacing: '0.05em', margin: 0 }}>ВИРОБНИЦТВО: РОБОЧЕ МІСЦЕ МАЙСТРА</h1>
         </div>
       </nav>
 
-      <div style={{ padding: '40px', display: 'grid', gridTemplateColumns: '400px 1fr', gap: '30px', height: 'calc(100vh - 70px)', overflow: 'hidden' }}>
-        <div style={{ background: '#121212', borderRadius: '12px', border: '1px solid #222', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: '25px', borderBottom: '1px solid #222', color: '#888', fontWeight: 800, fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+      <div style={{ padding: '30px', display: 'grid', gridTemplateColumns: '380px 1fr', gap: '25px', height: 'calc(100vh - 70px)', overflow: 'hidden' }}>
+        <div style={{ background: '#121212', borderRadius: '20px', border: '1px solid #222', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
+          <div style={{ padding: '20px 25px', borderBottom: '1px solid #222', color: '#555', fontWeight: 800, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
             Наряди, готові до виконання
           </div>
           <div style={{ overflowY: 'auto', flex: 1, padding: '20px' }}>
@@ -103,11 +103,11 @@ const ForemanWorkplace = () => {
                 const order = orders.find(o => o.id === task.order_id)
                 const isActive = activeTaskId === task.id
                 return (
-                  <div key={task.id} onClick={() => setActiveTaskId(task.id)} style={{ padding: '20px', borderRadius: '16px', background: isActive ? '#ef4444' : '#1a1a1a', border: '1px solid', borderColor: isActive ? '#ef4444' : '#333', marginBottom: '15px', cursor: 'pointer', transition: '0.2s', color: isActive ? '#fff' : '#ccc' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <strong style={{ fontSize: '1.2rem', fontWeight: 900 }}>№ {order?.order_num}</strong>
+                  <div key={task.id} onClick={() => setActiveTaskId(task.id)} style={{ padding: '18px', borderRadius: '16px', background: isActive ? '#ef4444' : '#1a1a1a', border: '1px solid', borderColor: isActive ? '#ef4444' : '#333', marginBottom: '12px', cursor: 'pointer', transition: '0.2s', color: isActive ? '#fff' : '#ccc', boxShadow: isActive ? '0 8px 20px rgba(239, 68, 68, 0.2)' : 'none' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <strong style={{ fontSize: '1.1rem', fontWeight: 900 }}>№ {order?.order_num}</strong>
                     </div>
-                    <div style={{ fontSize: '0.9rem', opacity: isActive ? 1 : 0.7 }}>{order?.customer}</div>
+                    <div style={{ fontSize: '0.85rem', opacity: isActive ? 1 : 0.7 }}>{order?.customer}</div>
                     <div style={{ marginTop: '10px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '5px', opacity: 0.8 }}>
                       <Cpu size={14} /> {task.machine_name}
                     </div>
@@ -118,13 +118,17 @@ const ForemanWorkplace = () => {
           </div>
         </div>
 
-        <div style={{ background: '#121212', borderRadius: '12px', border: '1px solid #222', overflowY: 'auto', padding: '40px' }}>
+        <div style={{ background: '#121212', borderRadius: '20px', border: '1px solid #222', overflowY: 'auto', padding: '40px', boxShadow: '0 10px 40px rgba(0,0,0,0.5)' }}>
           {activeTaskId ? (
             (() => {
               const task = readyTasks.find(t => t.id === activeTaskId)
               const order = orders.find(o => o.id === task.order_id)
               const cards = workCards.filter(c => c.task_id === task.id)
               const machineObj = machines.find(m => m.name === task.machine_name)
+
+              const getCardsForPart = (nomId) => {
+                return cards.filter(c => c.nomenclature_id === nomId || c.card_info?.includes(`NOM_ID:${nomId}`))
+              }
               
               return (
                 <div>
@@ -204,25 +208,45 @@ const ForemanWorkplace = () => {
                               const remainder = (sheets * unitsPerSheet) - totalToProduce
                               const loadings = Math.ceil(sheets / (machineObj?.sheet_capacity || 1))
                               
+                              const existingCards = getCardsForPart(part.nom?.id)
+                              const hasCards = existingCards.length > 0
+
                               return (
                                 <tr key={`${item.id}-${pIdx}`} style={{ borderBottom: '1px solid #1a1a1a' }}>
                                   <td style={{ padding: '15px' }}>
                                     <div style={{ color: '#fff', fontWeight: 700 }}>{part.nom?.name}</div>
-                                    <div style={{ fontSize: '0.7rem', color: '#444' }}>Program default</div>
+                                    <div style={{ fontSize: '0.7rem', color: '#444' }}>{part.nom?.cnc_program || 'Program default'}</div>
                                   </td>
                                   <td style={{ padding: '15px', textAlign: 'center', color: '#555' }}>—</td>
                                   <td style={{ padding: '15px', textAlign: 'center', color: '#fff', fontWeight: 800 }}>{totalToProduce}</td>
                                   <td style={{ padding: '15px', textAlign: 'center', color: '#888' }}>{part.nom?.material_type}</td>
                                   <td style={{ padding: '15px', textAlign: 'center', color: '#888' }}>{unitsPerSheet}</td>
-                                  <td style={{ padding: '15px', textAlign: 'center', background: 'rgba(16, 185, 129, 0.05)', color: '#10b981', fontWeight: 900, fontSize: '1.1rem' }}>{sheets}</td>
-                                  <td style={{ padding: '15px', textAlign: 'center', background: 'rgba(16, 185, 129, 0.05)', color: '#10b981', fontWeight: 800 }}>{remainder}</td>
+                                  <td style={{ padding: '15px', textAlign: 'center', background: hasCards ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.05)', color: '#10b981', fontWeight: 900, fontSize: '1.1rem' }}>{sheets}</td>
+                                  <td style={{ padding: '15px', textAlign: 'center', background: hasCards ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.05)', color: '#10b981', fontWeight: 800 }}>{remainder}</td>
                                   <td style={{ padding: '15px', textAlign: 'center', fontWeight: 800, color: '#ef4444' }}>{loadings}</td>
                                   <td style={{ padding: '15px', textAlign: 'center' }}>
                                     <button 
-                                      onClick={() => handleGenerateFromWorksheet(task, part, sheets)}
-                                      style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '10px 15px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 900, cursor: 'pointer', transition: '0.2s' }}
+                                      onClick={() => {
+                                        if (hasCards) {
+                                          const qtyPerLoading = Math.floor((part.nom?.units_per_sheet || 1) * (sheets / existingCards.length))
+                                          setPrintQueue({ 
+                                            task, 
+                                            part, 
+                                            metadata: existingCards.map(c => ({ 
+                                              loading: c.card_info?.split('|')?.pop()?.trim() || c.card_info, 
+                                              qty: qtyPerLoading 
+                                            })) 
+                                          })
+                                        } else {
+                                          handleGenerateFromWorksheet(task, part, sheets)
+                                        }
+                                      }}
+                                      style={{ 
+                                        background: hasCards ? '#10b981' : '#ef4444', 
+                                        color: '#fff', border: 'none', padding: '10px 15px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 900, cursor: 'pointer', transition: '0.2s' 
+                                      }}
                                     >
-                                      ЗГЕНЕРУВАТИ
+                                      {hasCards ? 'ПЕРЕГЛЯНУТИ' : 'ЗГЕНЕРУВАТИ'}
                                     </button>
                                   </td>
                                 </tr>
@@ -236,55 +260,95 @@ const ForemanWorkplace = () => {
 
                   <div style={{ marginBottom: '40px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                      <h3 style={{ fontSize: '1rem', color: '#888', textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0 }}>Згенеровані робочі картки</h3>
+                      <h3 style={{ fontSize: '1rem', color: '#fff', textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0, fontWeight: 900 }}>АРХІВ ЗГЕНЕРОВАНИХ КАРТОК</h3>
                       <button onClick={() => setShowAddCard(!showAddCard)} style={{ background: '#1a1a1a', border: '1px solid #333', color: '#fff', padding: '10px 20px', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
                         {showAddCard ? 'Скасувати' : '+ Ручне додавання'}
                       </button>
                     </div>
 
                     {showAddCard && (
-                      <form onSubmit={handleCreateCard} style={{ background: '#000', padding: '25px', borderRadius: '16px', border: '1px solid #ef4444', marginBottom: '30px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '15px', alignItems: 'end' }}>
+                       <form onSubmit={handleCreateCard} style={{ background: '#000', padding: '25px', borderRadius: '16px', border: '1px solid #ef4444', marginBottom: '30px', display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr auto', gap: '15px', alignItems: 'end' }}>
+                        <div>
+                          <label style={{ display: 'block', color: '#555', marginBottom: '8px', fontSize: '0.7rem', fontWeight: 800 }}>ДЕТАЛЬ</label>
+                          <select style={{ width: '100%', padding: '12px', background: '#111', border: '1px solid #222', color: '#fff', borderRadius: '8px' }} value={newCard.nomenclatureId || ''} onChange={e => setNewCard({...newCard, nomenclatureId: e.target.value})}>
+                            <option value="">Оберіть деталь...</option>
+                            {nomenclatures.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+                          </select>
+                        </div>
                         <div>
                           <label style={{ display: 'block', color: '#555', marginBottom: '8px', fontSize: '0.7rem', fontWeight: 800 }}>ОПЕРАЦІЯ</label>
-                          <select style={{ width: '100%', padding: '12px', background: '#111', border: '1px solid #222', color: '#fff', borderRadius: '8px' }} value={newCard.operation} onChange={e => setNewCard({...newCard, operation: e.target.value})}>
+                          <select style={{ width: '100%', padding: '12px', background: '#111', border: '1px solid #222', color: '#fff', borderRadius: '8px' }} value={newCard.operation || 'Лазерна різка'} onChange={e => setNewCard({...newCard, operation: e.target.value})}>
                             {operations.map(o => <option key={o} value={o}>{o}</option>)}
                           </select>
                         </div>
                         <div>
-                          <label style={{ display: 'block', color: '#555', marginBottom: '8px', fontSize: '0.7rem', fontWeight: 800 }}>ЦІЛЬОВИЙ СТАНОК</label>
-                          <input style={{ width: '100%', padding: '12px', background: '#111', border: '2px solid #222', color: '#fff', borderRadius: '8px' }} value={newCard.machine || task.machine_name} onChange={e => setNewCard({...newCard, machine: e.target.value})} />
+                          <label style={{ display: 'block', color: '#555', marginBottom: '8px', fontSize: '0.7rem', fontWeight: 800 }}>СТАНОК</label>
+                          <input style={{ width: '100%', padding: '12px', background: '#111', border: '1px solid #222', color: '#fff', borderRadius: '8px' }} value={newCard.machine || task.machine_name} onChange={e => setNewCard({...newCard, machine: e.target.value})} />
                         </div>
                         <div>
-                          <label style={{ display: 'block', color: '#555', marginBottom: '8px', fontSize: '0.7rem', fontWeight: 800 }}>ПЛАНОВИЙ ЧАС (ХВ)</label>
+                          <label style={{ display: 'block', color: '#555', marginBottom: '8px', fontSize: '0.7rem', fontWeight: 800 }}>ЧАС (ХВ)</label>
                           <input type="number" required style={{ width: '100%', padding: '12px', background: '#111', border: '1px solid #222', color: '#fff', borderRadius: '8px' }} value={newCard.estimatedTime} onChange={e => setNewCard({...newCard, estimatedTime: e.target.value})} />
                         </div>
                         <button type="submit" style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '12px 25px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}>СТВОРИТИ</button>
                       </form>
                     )}
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                      {cards.map(card => (
-                        <div key={card.id} style={{ display: 'flex', gap: '20px', padding: '20px', background: '#1a1a1a', borderRadius: '16px', border: '1px solid #222', alignItems: 'center' }}>
-                          <div style={{ background: '#fff', padding: '10px', borderRadius: '12px' }}>
-                            <QRCodeSVG value={`CENTRUM_CARD_${card.id}`} size={80} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+                      {Object.entries(
+                        cards.reduce((acc, card) => {
+                          const nom = nomenclatures.find(n => n.id === card.nomenclature_id) || { name: 'Інша номенклатура' }
+                          if (!acc[nom.name]) acc[nom.name] = []
+                          acc[nom.name].push(card)
+                          return acc
+                        }, {})
+                      ).map(([nomName, nomCards]) => (
+                        <div key={nomName} style={{ background: '#0a0a0a', border: '1px solid #333', borderRadius: '24px', overflow: 'hidden' }}>
+                          <div style={{ background: '#1a1a1a', padding: '15px 30px', borderBottom: '1px solid #333', color: '#ef4444', fontWeight: 900, fontSize: '1rem', letterSpacing: '0.05em' }}>
+                            ДЕТАЛЬ: {nomName.toUpperCase()}
                           </div>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                              <h4 style={{ margin: 0, fontSize: '1.1rem' }}>{card.operation}</h4>
-                              {card.card_info && <span style={{ background: '#ef4444', color: '#fff', padding: '3px 8px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 900 }}>{card.card_info}</span>}
-                            </div>
-                            <div style={{ color: '#666', fontSize: '0.85rem', marginTop: '5px' }}>{card.machine} | {card.estimated_time || 0} хв</div>
-                            <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: card.status === 'completed' ? '#10b981' : card.status === 'in-progress' ? '#f59e0b' : '#333' }}></div>
-                              <span style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', color: card.status === 'completed' ? '#10b981' : card.status === 'in-progress' ? '#f59e0b' : '#555' }}>
-                                {card.status === 'pending' ? 'Очікує' : card.status === 'in-progress' ? 'В роботі' : 'Готово'}
-                              </span>
-                            </div>
+                          <div style={{ padding: '25px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', gap: '20px' }}>
+                            {nomCards.map(card => {
+                              const nom = nomenclatures.find(n => n.id === card.nomenclature_id) || 
+                                          nomenclatures.find(n => card.card_info?.includes(`NOM_ID:${n.id}`)) || 
+                                          { name: 'Деталь не визначена' }
+                              
+                              return (
+                                <div key={card.id} style={{ display: 'flex', gap: '20px', padding: '20px', background: '#131313', borderRadius: '20px', border: '1px solid #222', alignItems: 'center', transition: '0.3s', position: 'relative', overflow: 'hidden' }}>
+                                  {/* Тонка смужка статусу збоку */}
+                                  <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '4px', background: card.status === 'completed' ? '#10b981' : card.status === 'in-progress' ? '#f59e0b' : '#ef4444' }}></div>
+                                  
+                                  <div style={{ background: '#fff', padding: '10px', borderRadius: '12px', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
+                                    <QRCodeSVG value={`CENTRUM_CARD_${card.id}`} size={85} />
+                                  </div>
+                                  
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '5px' }}>
+                                      <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{card.operation}</span>
+                                      {card.card_info && <span style={{ background: '#ef4444', color: '#fff', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 900 }}>{card.card_info.split('|').pop()?.trim()}</span>}
+                                    </div>
+                                    
+                                    <h4 style={{ margin: '2px 0 8px 0', fontSize: '1.2rem', fontWeight: 900, color: '#fff', lineHeight: 1.1 }}>{nom.name}</h4>
+                                    
+                                    <div style={{ display: 'flex', gap: '15px' }}>
+                                      <div style={{ color: '#666', fontSize: '0.85rem' }}>{card.machine}</div>
+                                      <div style={{ color: '#444', fontSize: '0.85rem', fontWeight: 700 }}>{nom.material_type}</div>
+                                    </div>
+
+                                    <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: card.status === 'completed' ? '#10b981' : card.status === 'in-progress' ? '#f59e0b' : '#333' }}></div>
+                                      <span style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', color: card.status === 'completed' ? '#10b981' : card.status === 'in-progress' ? '#f59e0b' : '#555' }}>
+                                        {card.status === 'pending' ? 'Очікує' : card.status === 'in-progress' ? 'В роботі' : 'Готово'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            })}
                           </div>
                         </div>
                       ))}
                     </div>
-                    {cards.length === 0 && <div style={{ padding: '40px', background: '#0a0a0a', border: '1px dashed #222', borderRadius: '16px', textAlign: 'center', color: '#444' }}>Немає згенерованих карток</div>}
+                    {cards.length === 0 && <div style={{ padding: '60px', background: '#0a0a0a', border: '2px dashed #222', borderRadius: '24px', textAlign: 'center', color: '#333' }}>Архів порожній. Згенеруйте карти в таблиці вище.</div>}
                   </div>
                 </div>
               )
@@ -310,6 +374,9 @@ const ForemanWorkplace = () => {
           </div>
           
           <div className="print-scroll" style={{ flex: 1, overflowY: 'auto', padding: '40px', background: '#222' }}>
+            <div className="no-print" style={{ textAlign: 'center', marginBottom: '20px', color: '#888', fontSize: '0.9rem' }}>
+               {printQueue.metadata.length} карток готові для друку для деталі <strong>{printQueue.part.nom?.name}</strong>
+            </div>
             <div className="printable-content" style={{ width: '210mm', margin: '0 auto', background: '#fff', color: '#000' }}>
               {printQueue.metadata.map((meta, idx) => {
                 const qrData = JSON.stringify({

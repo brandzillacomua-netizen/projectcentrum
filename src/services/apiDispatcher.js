@@ -58,12 +58,12 @@ export const apiService = {
     return true;
   },
 
-  submitCreateWorkCardsBatch: async (taskId, orderId, cardsArray, fallback) => {
-    const payload = requestBuilder.buildWorkCardBatchPayload(taskId, orderId, cardsArray);
+  submitCreateWorkCardsBatch: async (taskId, orderId, nomenclatureId, cardsArray, fallback) => {
+    const payload = requestBuilder.buildWorkCardBatchPayload(taskId, orderId, nomenclatureId, cardsArray);
     console.log("%c--- 📦 BACKEND ACTION: CREATE WORK CARDS BATCH ---", "color: #ec4899; font-weight: bold; font-size: 16px; text-decoration: underline;");
     console.log("JSON Payload:", payload);
     if (typeof fallback === 'function') {
-      for (const c of cardsArray) await fallback(taskId, orderId, c.operation, c.machine, c.estimatedTime, c.cardInfo);
+      for (const c of cardsArray) await fallback(taskId, orderId, nomenclatureId, c.operation, c.machine, c.estimatedTime, c.cardInfo);
     }
     return true;
   },
@@ -73,6 +73,14 @@ export const apiService = {
     console.log("%c--- 📦 BACKEND ACTION: MASTER COMPLETE TASK ---", "color: #ef4444; font-weight: bold; font-size: 14px; text-decoration: underline;");
     console.log("JSON Payload:", payload);
     if (typeof fallback === 'function') await fallback(taskId);
+    return true;
+  },
+
+  submitCreateWorkCard: async (taskId, orderId, nomenclatureId, operation, machine, estimatedTime, fallback) => {
+    const payload = requestBuilder.buildCreateWorkCardPayload(taskId, orderId, nomenclatureId, operation, machine, estimatedTime);
+    console.log("%c--- 📦 BACKEND ACTION: CREATE WORK CARD ---", "color: #ec4899; font-weight: bold; font-size: 14px; text-decoration: underline;");
+    console.log("JSON Payload:", payload);
+    if (typeof fallback === 'function') await fallback(taskId, orderId, nomenclatureId, operation, machine, estimatedTime, null);
     return true;
   },
 
