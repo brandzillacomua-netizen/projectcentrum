@@ -32,15 +32,16 @@ const SupplyModule = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedDoc, setExpandedDoc] = useState(null)
   
-  const pendingRequests = (purchaseRequests || []).filter(pr => pr.status === 'pending')
+  const pendingRequests = (purchaseRequests || []).filter(pr => pr.status === 'pending' || pr.status === 'accepted')
   const availableNoms = nomenclatures.filter(n => n.type !== 'part' && n.type !== 'product' && n.type !== 'finished')
   const getNomLabel = (n) => `${n.name} ${n.material_type ? `(${n.material_type})` : ''}`
 
   const getStatusLabel = (status) => {
     const map = {
       'pending': 'ОЧІКУЄ',
+      'accepted': 'ПРИЙНЯТО',
       'ordered': 'ЗАМОВЛЕНО',
-      'completed': 'ПРИЙНЯТО',
+      'completed': 'ВИКОНАНО',
       'shipped': 'ВІДПРАВЛЕНО',
       'in-progress': 'В РОБОТІ'
     }
@@ -140,14 +141,19 @@ const SupplyModule = () => {
                 <h3 style={{ fontSize: '0.85rem', color: '#555', marginBottom: '20px' }}><AlertTriangle size={18} className="text-secondary" /> ДЕФІЦИТ ТА ЗАПИТИ</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                    {pendingRequests.map(pr => (
-                     <div key={pr.id} className="request-card" style={{ background: '#111', padding: '25px', borderRadius: '24px', border: '1px solid #222', borderLeft: '4px solid #ef4444' }}>
+                     <div key={pr.id} className="request-card" style={{ background: '#111', padding: '25px', borderRadius: '24px', border: '1px solid #222', borderLeft: pr.status === 'accepted' ? '4px solid #3b82f6' : '4px solid #ef4444' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
-                           <strong style={{ color: '#ef4444', fontSize: '1rem' }}>НАРЯД #{pr.order_num}</strong>
-                           <button onClick={() => apiService.submitConvertRequestToOrder(pr.id, convertRequestToOrder)} style={{ background: '#3b82f622', color: '#3b82f6', border: '1px solid #3b82f644', padding: '8px 15px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 900 }}>СФОРМУВАТИ ПОСТАВКУ</button>
+                           <strong style={ pr.status === 'accepted' ? { color: '#3b82f6', fontSize: '1rem' } : { color: '#ef4444', fontSize: '1rem' }}>НАРЯД #{pr.order_num}</strong>
+                           <div style={{ display: 'flex', gap: '8px' }}>
+                              {pr.status === 'pending' && (
+                                <button onClick={() => updatePurchaseRequestStatus(pr.id, 'accepted')} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 900 }}>ПРИЙНЯТИ</button>
+                              )}
+                              <button onClick={() => apiService.submitConvertRequestToOrder(pr.id, convertRequestToOrder)} style={{ background: '#3b82f622', color: '#3b82f6', border: '1px solid #3b82f644', padding: '8px 15px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 900 }}>СФОРМУВАТИ ПОСТАВКУ</button>
+                           </div>
                         </div>
                         <div style={{ fontSize: '0.9rem', color: '#888' }}>
                            {(pr.items || []).map((it, idx) => (
-                             <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between' }}>
+                             <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #111', display: 'flex', justifyContent: 'space-between' }}>
                                 <span>{it.reqDetails}</span>
                                 <strong style={{ color: '#ef4444' }}>{it.missingAmount}</strong>
                              </div>

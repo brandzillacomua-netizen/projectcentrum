@@ -1,22 +1,24 @@
 import React from 'react'
 import { Routes, Route, Link } from 'react-router-dom'
 import { 
-  Menu, 
-  LayoutDashboard, 
-  Warehouse, 
-  Users, 
-  Tablet, 
+  Menu,
+  LayoutDashboard,
+  Warehouse,
+  Users,
+  Tablet,
   Truck,
   Settings,
   Cpu,
   ChevronRight,
-  Monitor
+  Monitor,
+  ShieldCheck,
 } from 'lucide-react'
 import ManagerModule from './modules/ManagerModule'
 import WarehouseModule from './modules/WarehouseModule'
 import MasterModule from './modules/MasterModule_v3'
 import NomenclatureModule from './modules/NomenclatureModule'
 import EngineerModule from './modules/EngineerModule'
+import DirectorModule from './modules/DirectorModule'
 import OperatorTerminal from './modules/OperatorTerminal'
 import ShippingModule from './modules/ShippingModule'
 import SupplyModule from './modules/SupplyModule'
@@ -30,7 +32,8 @@ const Portal = () => {
     { id: 'manager', title: 'Менеджер', icon: <LayoutDashboard />, path: '/manager', desc: 'Замовлення та планування', color: '#ff9000' },
     { id: 'master', title: 'Цех №1', icon: <Monitor />, path: '/master', desc: 'Управління зміною', color: '#3b82f6' },
     { id: 'warehouse', title: 'Склад', icon: <Warehouse />, path: '/warehouse', desc: 'Матеріали та залишки', color: '#10b981' },
-    { id: 'engineer', title: 'Технолог', icon: <FileCodeIcon />, path: '/engineer', desc: 'CNC та специфікації', color: '#8b5cf6' },
+    { id: 'engineer', title: 'Інженер', icon: <FileCodeIcon />, path: '/engineer', desc: 'CNC та специфікації', color: '#8b5cf6' },
+    { id: 'director', title: 'Директор Виробництва', icon: <ShieldCheck size={24} />, path: '/director', desc: 'Фінальне підтвердження', color: '#10b981' },
     { id: 'foreman', title: 'Майстер', icon: <Users />, path: '/foreman', desc: 'Розподіл нарядів', color: '#f59e0b' },
     { id: 'operator', title: 'Термінал', icon: <Tablet />, path: '/operator', desc: 'Робоче місце', color: '#ef4444' },
     { id: 'shipping', title: 'Логістика', icon: <Truck />, path: '/shipping', desc: 'Відвантаження', color: '#ec4899' },
@@ -97,6 +100,7 @@ function App() {
         <Route path="/foreman" element={<ForemanWorkplace />} />
         <Route path="/operator" element={<OperatorTerminal />} />
         <Route path="/engineer" element={<EngineerModule />} />
+        <Route path="/director" element={<DirectorModule />} />
         <Route path="/shipping" element={<ShippingModule />} />
         <Route path="/supply" element={<SupplyModule />} />
         <Route path="/nomenclature" element={<NomenclatureModule />} />

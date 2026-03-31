@@ -123,7 +123,8 @@ export const requestBuilder = {
   buildApproveWarehouseTaskPayload: (taskId) => {
     return {
       task_id: parseValue(taskId),
-      approved_at: new Date().toISOString()
+      approved_at: new Date().toISOString(),
+      warehouse_conf: true
     };
   },
 
@@ -170,7 +171,10 @@ export const requestBuilder = {
       machine_name: parseValue(machineName),
       created_at: new Date().toISOString(),
       status: 'pending',
-      step: 'Очікує підтвердження'
+      step: 'Очікує підтвердження',
+      engineer_conf: false,
+      warehouse_conf: false,
+      director_conf: false
     };
   },
 
@@ -202,13 +206,24 @@ export const requestBuilder = {
   },
 
   /**
-   * Побудова payload для підтвердження інженером (технологом)
+   * Побудова payload для підтвердження інженером
    */
   buildApproveEngineerPayload: (taskId) => {
     return {
       task_id: parseValue(taskId),
       approved_at: new Date().toISOString(),
       engineer_conf: true
+    };
+  },
+
+  /**
+   * Побудова payload для підтвердження директором виробництва
+   */
+  buildApproveDirectorPayload: (taskId) => {
+    return {
+      task_id: parseValue(taskId),
+      approved_at: new Date().toISOString(),
+      director_conf: true
     };
   },
 

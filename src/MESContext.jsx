@@ -15,6 +15,8 @@ export const MESProvider = ({ children }) => {
   const [purchaseRequests, setPurchaseRequests] = useState([])
   const [workCards, setWorkCards] = useState([])
   const [machines, setMachines] = useState([])
+  const [operators] = useState(["Олексій", "Дмитро", "Сергій", "Андрій", "Микола"])
+  const [productionStages] = useState(["Різка", "Галтовка", "Гнуття", "Зварювання", "Покраска"])
   const [loading, setLoading] = useState(true)
   const [hasMoreOrders, setHasMoreOrders] = useState(true)
   const PAGE_SIZE = 20
@@ -93,10 +95,11 @@ export const MESProvider = ({ children }) => {
     setLoading(false)
   }
 
-  const createReceptionDoc = async (items, initStatus = 'pending') => {
+  const createReceptionDoc = async (items, initStatus = 'pending', orderId = null) => {
     const { error } = await supabase.from('reception_docs').insert([{
       items, // JSON array of { nomenclature_id, qty }
       status: initStatus,
+      order_id: orderId,
       created_at: new Date().toISOString()
     }])
     if (error) throw error
@@ -212,7 +215,7 @@ export const MESProvider = ({ children }) => {
       return
     }
 
-    await createReceptionDoc(docItems, 'ordered')
+    await createReceptionDoc(docItems, 'ordered', pr.order_id)
     await updatePurchaseRequestStatus(prId, 'completed')
   }
 
@@ -512,7 +515,8 @@ export const MESProvider = ({ children }) => {
         machine_name: machineName || 'Не вказано',
         estimated_time: Math.round(totalMin),
         engineer_conf: false,
-        warehouse_conf: false
+        warehouse_conf: false,
+        director_conf: false
       }]).select().single()
       if (taskError) throw taskError
 
@@ -595,10 +599,17 @@ export const MESProvider = ({ children }) => {
     fetchData()
   }
 
-  const startWorkCard = async (cardId) => {
+  const approveDirector = async (taskId) => {
+    await supabase.from('tasks').update({ director_conf: true }).eq('id', taskId)
+    fetchData()
+  }
+
+  const startWorkCard = async (cardId, operatorName, stage) => {
     const { error } = await supabase.from('work_cards').update({ 
       status: 'in-progress', 
-      started_at: new Date().toISOString() 
+      started_at: new Date().toISOString(),
+      operator_name: operatorName,
+      operation: stage
     }).eq('id', cardId)
     if (error) throw error
     fetchData()
@@ -700,9 +711,10 @@ export const MESProvider = ({ children }) => {
       bomItems, saveBOM, removeBOM, updateBOMQuantity, syncBOM,
       receptionDocs, createReceptionDoc, confirmReceptionDoc, sendDocToWarehouse,
       purchaseRequests, createPurchaseRequest, updatePurchaseRequestStatus, convertRequestToOrder,
-      approveEngineer, approveWarehouse,
+      approveEngineer, approveWarehouse, approveDirector,
       workCards, createWorkCard, startWorkCard, completeWorkCard, completeTaskByMaster,
       machines, addMachine, deleteMachine,
+      operators, productionStages,
       updateOrderStatus,
       fetchData,
       loading 

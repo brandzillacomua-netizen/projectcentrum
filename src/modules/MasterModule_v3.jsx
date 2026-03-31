@@ -51,7 +51,7 @@ const MasterModule = () => {
   }, [selectedMachine, machines])
 
   const handlePrint = () => {
-    if (!activeNaryadOrder || (!currentMachine && !isReprintMode)) return
+    if (!activeNaryadOrder) return
 
     // Trigger print dialog immediately
     window.print()
@@ -59,7 +59,8 @@ const MasterModule = () => {
     if (isReprintMode) {
       setActiveNaryadOrder(null)
     } else {
-      apiService.submitCreateTask(activeNaryadOrder.id, currentMachine.name, createNaryad)
+      // Call with empty string or null for machine since Master no longer selects it
+      apiService.submitCreateTask(activeNaryadOrder.id, '', createNaryad)
       setActiveNaryadOrder(null)
     }
   }
@@ -178,6 +179,7 @@ const MasterModule = () => {
 
                 const isSkladConfirmed = task.warehouse_conf === true
                 const isTechConfirmed = task.engineer_conf === true
+                const isDirConfirmed = task.director_conf === true
 
                 return (
                   <div key={task.id} style={{ position: 'relative', background: '#111', padding: '20px', borderRadius: '20px', border: '1px solid #222', borderLeft: '4px solid #ff9000' }}>
@@ -185,7 +187,7 @@ const MasterModule = () => {
                       <strong style={{ fontSize: '1rem', fontWeight: 900 }}>{order?.order_num} — {order?.customer}</strong>
                       <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                         <button onClick={() => handleReprint(task)} style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer' }} title="Друк наряду"><Printer size={20} /></button>
-                        {isSkladConfirmed && isTechConfirmed && <div style={{ width: '10px', height: '10px', background: '#22c55e', borderRadius: '2px' }}></div>}
+                        {isSkladConfirmed && isTechConfirmed && isDirConfirmed && <div style={{ width: '10px', height: '10px', background: '#22c55e', borderRadius: '2px' }}></div>}
                       </div>
                     </div>
 
@@ -198,7 +200,7 @@ const MasterModule = () => {
                       <span style={{ color: '#ff9000', fontWeight: 800 }}>{task.machine_name}</span>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                       <div style={{
                         fontSize: '0.65rem',
                         padding: '5px 12px',
@@ -216,7 +218,16 @@ const MasterModule = () => {
                         color: isTechConfirmed ? '#10b981' : '#333',
                         fontWeight: 1000,
                         border: isTechConfirmed ? '1px solid #10b981' : '1px solid #222'
-                      }}>ТЕХНОЛОГ</div>
+                      }}>ІНЖЕНЕР</div>
+                      <div style={{
+                        fontSize: '0.65rem',
+                        padding: '5px 12px',
+                        borderRadius: '8px',
+                        background: isDirConfirmed ? '#064e3b' : '#1a1a1a',
+                        color: isDirConfirmed ? '#10b981' : '#333',
+                        fontWeight: 1000,
+                        border: isDirConfirmed ? '1px solid #10b981' : '1px solid #222'
+                      }}>ДИРЕКТОР</div>
                     </div>
                   </div>
                 )
@@ -239,9 +250,6 @@ const MasterModule = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                   <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
                     <h2 className="doc-ti" style={{ margin: 0, fontSize: '1.8rem', color: '#ff9000', fontWeight: 950, letterSpacing: '-0.02em' }}>НАРЯД № {activeNaryadOrder.order_num}</h2>
-                    {currentMachine && (
-                      <div className="print-machine-tag" style={{ border: '2.5px solid #ff9000', padding: '6px 16px', borderRadius: '12px', color: '#ff9000', fontSize: '0.95rem', fontWeight: 1000, textTransform: 'uppercase' }}>{currentMachine.name} ({currentMachine.sheet_capacity} л.)</div>
-                    )}
                   </div>
                   <button onClick={() => setActiveNaryadOrder(null)} className="no-print" style={{ background: '#111', border: '1px solid #222', color: '#555', cursor: 'pointer', width: '45px', height: '45px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={24} /></button>
                 </div>
@@ -271,27 +279,17 @@ const MasterModule = () => {
             </div>
 
             <div className="worksheet-scrollable" style={{ flex: 1, overflowY: 'auto', padding: '30px 40px' }}>
-              {!isReprintMode && (
-                <div className="no-print" style={{ marginBottom: '25px' }}>
-                  <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px' }}>Оберіть обладнання:</div>
-                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                    {machines.map(m => (
-                      <button key={m.id} onClick={() => setSelectedMachine(m)} style={{ background: currentMachine?.id === m.id ? '#ff9000' : '#1a1a1a', color: currentMachine?.id === m.id ? '#000' : '#888', border: 'none', padding: '10px 20px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 900, cursor: 'pointer' }}>{m.name}</button>
-                    ))}
-                  </div>
-                </div>
-              )}
+
 
               <div className="table-responsive-container" style={{ marginBottom: '35px' }}>
                 <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                   <thead>
                     <tr style={{ background: '#111', textAlign: 'left', color: '#555' }} className="print-thr">
-                      <th style={{ padding: '12px 15px', width: '30%', borderBottom: '1.5px solid #222' }}>ДЕТАЛЬ В ПОРІЗКУ</th>
+                      <th style={{ padding: '12px 15px', width: '35%', borderBottom: '1.5px solid #222' }}>ДЕТАЛЬ В ПОРІЗКУ</th>
                       <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%', borderBottom: '1.5px solid #222' }}>ПЛАН</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '22%', borderBottom: '1.5px solid #222' }}>МАТЕРІАЛ</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '27%', borderBottom: '1.5px solid #222' }}>МАТЕРІАЛ</th>
                       <th style={{ padding: '12px 15px', textAlign: 'center', width: '10%', borderBottom: '1.5px solid #222' }}>ШТ/Л</th>
                       <th style={{ padding: '12px 15px', textAlign: 'center', color: '#22c55e', width: '10%', borderBottom: '1.5px solid #222' }}>ЛИСТІВ</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', color: '#3b82f6', width: '10%', borderBottom: '1.5px solid #222' }}>ЗАВАНТ.</th>
                       <th style={{ padding: '12px 15px', textAlign: 'center', color: '#ff9000', width: '10%', borderBottom: '1.5px solid #222' }}>БЗ</th>
                     </tr>
                   </thead>
@@ -319,7 +317,6 @@ const MasterModule = () => {
                             </td>
                             <td style={{ padding: '18px 15px', textAlign: 'center', color: '#555' }} className="print-subtxt">{(unitsPerSheet || 0).toString()}</td>
                             <td style={{ padding: '18px 15px', textAlign: 'center', fontWeight: 1000, color: '#22c55e', fontSize: '1.2rem' }} className="print-accent-g">{(sheets || 0).toString()}</td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center', fontWeight: 1000, color: '#3b82f6' }} className="print-accent-b">{(loads || 0).toString()}</td>
                             <td style={{ padding: '18px 15px', textAlign: 'center', fontWeight: 900, color: '#ff9000' }} className="print-accent-o">{surplus > 0 ? `+${surplus}` : '0'}</td>
                           </tr>
                         )
@@ -340,20 +337,6 @@ const MasterModule = () => {
                           const displayParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
                           const sh = displayParts.reduce((pa, p) => pa + Math.ceil(((Number(it.quantity) || 0) * (Number(p.quantity_per_parent) || 1)) / (Number(p.nom?.units_per_sheet) || 1)), 0)
                           return acc + sh
-                        }, 0) || 0).toString()}
-                      </td>
-                      <td style={{ padding: '20px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.1rem', color: '#3b82f6' }} className="print-accent-b">
-                        {(activeNaryadOrder.order_items?.reduce((acc, it) => {
-                          const parts = getBOMParts(it.nomenclature_id)
-                          const displayParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
-                          const lds = displayParts.reduce((pa, p) => {
-                            const total = (Number(it.quantity) || 0) * (Number(p.quantity_per_parent) || 1)
-                            const units = Number(p.nom?.units_per_sheet) || 1
-                            const sh = Math.ceil(total / units)
-                            const cap = Number(currentMachine?.sheet_capacity) || 1
-                            return pa + Math.ceil(sh / cap)
-                          }, 0)
-                          return acc + lds
                         }, 0) || 0).toString()}
                       </td>
                       <td></td>
@@ -381,18 +364,17 @@ const MasterModule = () => {
               <button onClick={() => setActiveNaryadOrder(null)} style={{ background: '#222', color: '#fff', border: 'none', padding: '12px 30px', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>СКАСУВАТИ</button>
               <button
                 onClick={handlePrint}
-                disabled={!currentMachine && !isReprintMode}
                 style={{
-                  background: (!currentMachine && !isReprintMode) ? '#222' : '#ff9000',
+                  background: '#ff9000',
                   color: '#000',
                   border: 'none',
                   padding: '12px 45px',
                   borderRadius: '12px',
                   fontWeight: 950,
-                  cursor: (!currentMachine && !isReprintMode) ? 'not-allowed' : 'pointer',
+                  cursor: 'pointer',
                   fontSize: '0.9rem',
                   transition: '0.2s',
-                  opacity: (!currentMachine && !isReprintMode) ? 0.5 : 1
+                  opacity: 1
                 }}
               >
                 {isReprintMode ? 'ПОВТОРНИЙ ДРУК' : 'ДРУКУВАТИ ТА В РОБОТУ'}

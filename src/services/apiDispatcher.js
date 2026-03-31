@@ -95,6 +95,14 @@ export const apiService = {
     if (typeof fallback === 'function') await fallback(taskId);
     return true;
   },
+  
+  submitApproveDirector: async (taskId, fallback) => {
+    const payload = requestBuilder.buildApproveDirectorPayload(taskId);
+    console.log("%c--- 📦 BACKEND ACTION: DIRECTOR APPROVE ---", "color: #10b981; font-weight: bold; font-size: 14px; text-decoration: underline;");
+    console.log("JSON Payload:", payload);
+    if (typeof fallback === 'function') await fallback(taskId);
+    return true;
+  },
 
   submitOperatorAction: async (action, taskId, cardId, operator, extra, fallback) => {
     const payload = requestBuilder.buildOperatorActionPayload(action, taskId, cardId, operator, extra);

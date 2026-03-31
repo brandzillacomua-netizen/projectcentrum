@@ -25,8 +25,8 @@ const EngineerModule = () => {
         <Link to="/" className="back-link"><ArrowLeft size={18} /> <span className="hide-mobile">На головну</span></Link>
         <div className="module-title-group">
           <Settings className="text-secondary" size={24} />
-          <h1 className="hide-mobile">Робоче місце Технолога</h1>
-          <h1 className="mobile-only" style={{ fontSize: '1rem' }}>ТЕХНОЛОГ</h1>
+          <h1 className="hide-mobile">Робоче місце Інженера</h1>
+          <h1 className="mobile-only" style={{ fontSize: '1rem' }}>ІНЖЕНЕР</h1>
         </div>
       </nav>
 
@@ -90,7 +90,7 @@ const EngineerModule = () => {
              <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '80px 20px', color: '#333' }}>
                 <CheckCircle2 size={64} style={{ marginBottom: '20px', opacity: 0.1 }} />
                 <p style={{ fontSize: '1.2rem', fontWeight: 800 }}>ЧЕРГА ПІДТВЕРДЖЕНЬ ПОРОЖНЯ</p>
-                <p style={{ fontSize: '0.9rem' }}>Всі активні наряди успішно опрацьовані технологом</p>
+                <p style={{ fontSize: '0.9rem' }}>Всі активні наряди успішно опрацьовані інженером</p>
              </div>
            )}
         </div>

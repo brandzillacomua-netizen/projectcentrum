@@ -8,6 +8,8 @@ import { apiService } from '../services/apiDispatcher'
 const ForemanWorkplace = () => {
   const { tasks, orders, workCards, createWorkCard, completeTaskByMaster, nomenclatures, bomItems, machines } = useMES()
   const [activeTaskId, setActiveTaskId] = useState(null)
+  const [selectedMachines, setSelectedMachines] = useState({}) // { [partId]: machineName }
+  const [genModal, setGenModal] = useState(null) // { task, part, total, created, rowId, machineName }
   const [printQueue, setPrintQueue] = useState(null)
   const [isGenerating, setIsGenerating] = useState(false)
 
@@ -22,21 +24,25 @@ const ForemanWorkplace = () => {
 
   const readyTasks = tasks.filter(t => t.warehouse_conf && t.engineer_conf && t.status !== 'completed')
 
-  const handleGenerateFromWorksheet = async (task, part, sheets) => {
-    const machineObj = machines.find(m => m.name === task.machine_name)
+  const handleGenerateFromWorksheet = async (task, part, sheets, selectedMachineName, count, startOffset = 0, totalToReach = 0) => {
+    const machineObj = machines.find(m => m.name === selectedMachineName)
     const capacity = Number(machineObj?.sheet_capacity) || 1
-    const totalLoadings = Math.ceil(sheets / capacity)
-    const qtyPerLoading = Math.floor((Number(part.nom?.units_per_sheet) || 1) * (sheets / totalLoadings))
+    
+    // Calculate how many were total supposed to be, to show correct denominator (X / totalToReach)
+    const displayTotal = totalToReach || Math.ceil(sheets / capacity)
+    const qtyPerLoading = Math.floor((Number(part.nom?.units_per_sheet) || 1) * (sheets / displayTotal))
 
     setIsGenerating(true)
     try {
       const cardsBatch = []
-      for (let i = 1; i <= totalLoadings; i++) {
+      // Generate only the requested 'count' of cards
+      for (let i = 1; i <= count; i++) {
+        const currentSeq = startOffset + i
         cardsBatch.push({
           operation: 'Лазерна різка',
-          machine: task.machine_name || 'Не вказано',
+          machine: selectedMachineName || 'Не вказано',
           estimatedTime: (Number(part.nom?.time_per_unit) || 0) * qtyPerLoading,
-          cardInfo: `${i}/${totalLoadings}`,
+          cardInfo: `${currentSeq}/${displayTotal}`,
           quantity: qtyPerLoading
         })
       }
@@ -60,6 +66,7 @@ const ForemanWorkplace = () => {
       alert('Помилка: ' + err.message)
     } finally {
       setIsGenerating(false)
+      setGenModal(null)
     }
   }
 
@@ -109,15 +116,12 @@ const ForemanWorkplace = () => {
               
               // Find full machine machine details safely
               const machineObj = machines.find(m => m.name === task.machine_name)
-              const machineCapacity = Number(machineObj?.sheet_capacity) || 1
-
               return (
                 <div style={{ maxWidth: '1200px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
                      <div>
                         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
                            <h2 style={{ fontSize: '2.4rem', fontWeight: 950, margin: 0 }}>Наряд №{order?.order_num}</h2>
-                           <div style={{ border: '2.5px solid #ef4444', padding: '5px 12px', borderRadius: '10px', color: '#ef4444', fontSize: '0.85rem', fontWeight: 1000, textTransform: 'uppercase' }}>{task.machine_name} ({machineCapacity} л.)</div>
                         </div>
                         <div style={{ color: '#555', marginTop: '5px', fontSize: '1.1rem', fontWeight: 800 }}>
                            ВИРІБ: <strong style={{ color: '#ef4444' }}>{productNames || '—'}</strong> | {order?.customer}
@@ -130,11 +134,12 @@ const ForemanWorkplace = () => {
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                       <thead>
                         <tr style={{ background: '#1a1a1a', textAlign: 'left', color: '#555' }}>
-                          <th style={{ padding: '12px 15px', width: '25%' }}>ДЕТАЛЬ В ПОРІЗКУ</th>
+                          <th style={{ padding: '12px 15px', width: '22%' }}>ДЕТАЛЬ В ПОРІЗКУ</th>
                           <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%' }}>ПЛАН</th>
-                          <th style={{ padding: '12px 15px', textAlign: 'center', width: '18%' }}>МАТЕРІАЛ</th>
-                          <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%' }}>ШТ/Л</th>
-                          <th style={{ padding: '12px 15px', textAlign: 'center', color: '#10b981', width: '8%' }}>ЛИСТІВ</th>
+                          <th style={{ padding: '12px 15px', textAlign: 'center', width: '15%' }}>МАТЕРІАЛ</th>
+                          <th style={{ padding: '12px 15px', textAlign: 'center', width: '6%' }}>ШТ/Л</th>
+                          <th style={{ padding: '12px 15px', textAlign: 'center', color: '#10b981', width: '6%' }}>ЛИСТІВ</th>
+                          <th style={{ padding: '12px 15px', width: '15%' }}>ВЕРСТАТ</th>
                           <th style={{ padding: '12px 15px', textAlign: 'center', color: '#3b82f6', width: '8%' }}>ЗАВАНТ.</th>
                           <th style={{ padding: '12px 15px', textAlign: 'center', color: '#ef4444', width: '8%' }}>БЗ</th>
                           <th style={{ padding: '12px 15px', textAlign: 'center', width: '12%' }}>ДІЇ</th>
@@ -145,17 +150,24 @@ const ForemanWorkplace = () => {
                           const parts = getBOMParts(item.nomenclature_id)
                           const rows = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }]
                           return rows.map((part, idx) => {
+                            const rowId = `${item.id}-${part.nom?.id || idx}`
                             const total = (Number(item.quantity) || 0) * (Number(part.quantity_per_parent) || 1)
                             const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
                             const sheets = Math.ceil(total / unitsPerSheet)
-                            const loads = Math.ceil(sheets / machineCapacity)
+                            
+                            // Get row-specific machine selection
+                            const rowMachineName = selectedMachines[rowId] || ''
+                            const rowMachineObj = machines.find(m => m.name === rowMachineName)
+                            const currentCapacity = Number(rowMachineObj?.sheet_capacity) || 0
+                            
+                            const loads = currentCapacity > 0 ? Math.ceil(sheets / currentCapacity) : 0
                             const surplus = (sheets * unitsPerSheet) - total
                             
                             const existing = taskCards.filter(c => c.nomenclature_id === part.nom?.id || c.card_info?.includes(`NOM_ID:${part.nom?.id}`))
                             const hasCards = existing.length > 0
                             
                             return (
-                              <tr key={`${item.id}-${idx}`} style={{ borderBottom: '1px solid #1a1a1a' }}>
+                              <tr key={rowId} style={{ borderBottom: '1px solid #1a1a1a' }}>
                                 <td style={{ padding: '15px' }}>
                                   <div style={{ fontWeight: 800, color: '#fff' }}>{part.nom?.name || '—'}</div>
                                   <div style={{ fontSize: '0.7rem', color: '#444' }}>{part.nom?.nomenclature_code || 'БЕЗ КОДУ'}</div>
@@ -164,25 +176,56 @@ const ForemanWorkplace = () => {
                                 <td style={{ padding: '15px', textAlign: 'center', color: '#aaa', fontSize: '0.8rem' }}>{part.nom?.material_type || '—'}</td>
                                 <td style={{ padding: '15px', textAlign: 'center', color: '#444' }}>{(unitsPerSheet || 1).toString()}</td>
                                 <td style={{ padding: '15px', textAlign: 'center', color: '#10b981', fontWeight: 1000, fontSize: '1.2rem' }}>{(sheets || 0).toString()}</td>
-                                <td style={{ padding: '15px', textAlign: 'center', color: '#3b82f6', fontWeight: 1000, fontSize: '1.2rem' }}>{(loads || 0).toString()}</td>
+                                <td style={{ padding: '15px' }}>
+                                   <select 
+                                     value={rowMachineName} 
+                                     disabled={hasCards}
+                                     onChange={(e) => setSelectedMachines(p => ({ ...p, [rowId]: e.target.value }))}
+                                     style={{ width: '100%', background: '#000', border: rowMachineName ? '1px solid #333' : '1px solid #ef4444', color: rowMachineName ? '#fff' : '#ef4444', padding: '8px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700 }}
+                                   >
+                                      <option value="">Оберіть верстат</option>
+                                      {machines.map(m => <option key={m.id} value={m.name}>{m.name} ({m.sheet_capacity} л.)</option>)}
+                                   </select>
+                                </td>
+                                <td style={{ padding: '15px', textAlign: 'center', color: '#3b82f6', fontWeight: 1000, fontSize: '1.2rem' }}>
+                                   {rowMachineName ? (
+                                      <>
+                                         <span style={{ color: existing.length < loads ? '#444' : '#3b82f6' }}>{existing.length}</span>
+                                         <span style={{ color: '#222', margin: '0 5px' }}>/</span>
+                                         <span>{loads}</span>
+                                      </>
+                                   ) : (
+                                      <span style={{ color: '#222', fontSize: '0.8rem' }}>—</span>
+                                   )}
+                                </td>
                                 <td style={{ padding: '15px', textAlign: 'center', color: '#ef4444', fontWeight: 900 }}>{surplus > 0 ? `+${surplus}` : '0'}</td>
                                 <td style={{ padding: '15px', textAlign: 'center' }}>
                                   <button 
-                                    onClick={() => hasCards ? setPrintQueue({ task, part, metadata: existing.map(c => ({ id: c.id, loading: c.card_info, qty: Math.floor(total/loads) })) }) : handleGenerateFromWorksheet(task, part, sheets)} 
+                                    onClick={() => {
+                                      if (!rowMachineName && !hasCards) return;
+                                      if (existing.length < loads) {
+                                        setGenModal({ task, part, total: loads, created: existing.length, rowId, machineName: rowMachineName, sheets })
+                                      } else {
+                                        setPrintQueue({ task, part, metadata: existing.map(c => ({ id: c.id, loading: c.card_info, qty: Math.floor(total/loads) })) })
+                                      }
+                                    }} 
+                                    disabled={!rowMachineName && !hasCards}
                                     style={{ 
-                                      background: hasCards ? '#10b981' : '#333', 
-                                      color: '#fff', 
+                                      background: existing.length === 0 ? (rowMachineName ? '#333' : '#111') : (existing.length < loads ? '#3b82f6' : '#10b981'), 
+                                      color: rowMachineName || hasCards ? '#fff' : '#333', 
                                       border: 'none', 
                                       padding: '8px 15px', 
                                       borderRadius: '10px', 
-                                      cursor: 'pointer', 
+                                      cursor: rowMachineName || hasCards ? 'pointer' : 'not-allowed', 
                                       fontWeight: 900, 
                                       fontSize: '0.65rem', 
                                       textTransform: 'uppercase',
-                                      width: '100%'
+                                      width: '100%',
+                                      transition: '0.2s',
+                                      opacity: rowMachineName || hasCards ? 1 : 0.5
                                     }}
                                   >
-                                    {hasCards ? 'ДРУК' : 'ГЕНЕРУВАТИ'}
+                                    {existing.length === 0 ? 'ГЕНЕРУВАТИ' : (existing.length < loads ? 'ДОВИДРУКУВАТИ' : 'ДРУК')}
                                   </button>
                                 </td>
                               </tr>
@@ -205,13 +248,23 @@ const ForemanWorkplace = () => {
                                  return acc + items.reduce((pa, p) => pa + Math.ceil(((Number(it.quantity) || 0) * (Number(p.quantity_per_parent) || 1)) / (Number(p.nom?.units_per_sheet) || 1)), 0)
                               }, 0) || 0).toString()}
                            </td>
-                           <td style={{ padding: '20px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.3rem', color: '#3b82f6' }}>
+                           <td></td>
+                           <td style={{ padding: '20px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.2rem', color: '#3b82f6' }}>
+                              <span style={{ color: '#222', fontSize: '0.8rem' }}>факт:</span> 
+                              {taskCards.length} 
+                              <span style={{ color: '#222', margin: '0 8px' }}>/</span> 
+                              <span style={{ color: '#333', fontSize: '0.8rem' }}>план:</span>
                               {(order?.order_items?.reduce((acc, it) => {
                                  const parts = getBOMParts(it.nomenclature_id)
                                  const items = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
-                                 return acc + items.reduce((pa, p) => {
+                                 return acc + items.reduce((pa, p, idx) => {
+                                    const rowId = `${it.id}-${p.nom?.id || idx}`
                                     const sh = Math.ceil(((Number(it.quantity) || 0) * (Number(p.quantity_per_parent) || 1)) / (Number(p.nom?.units_per_sheet) || 1))
-                                    return pa + Math.ceil(sh / machineCapacity)
+                                    const selMachineName = selectedMachines[rowId] || ''
+                                    if (!selMachineName) return pa; 
+                                    const mObj = machines.find(m => m.name === selMachineName)
+                                    const cap = Number(mObj?.sheet_capacity) || 1
+                                    return pa + Math.ceil(sh / cap)
                                  }, 0)
                               }, 0) || 0).toString()}
                            </td>
@@ -247,6 +300,50 @@ const ForemanWorkplace = () => {
           )}
         </div>
       </div>
+
+      {genModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', zIndex: 15000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
+           <div style={{ background: '#111', width: '100%', maxWidth: '450px', borderRadius: '32px', border: '1px solid #222', padding: '40px', position: 'relative', boxShadow: '0 30px 60px rgba(0,0,0,0.5)' }}>
+              <button onClick={() => setGenModal(null)} style={{ position: 'absolute', top: '25px', right: '25px', background: 'none', border: 'none', color: '#444', cursor: 'pointer' }}><X size={24} /></button>
+              
+              <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+                 <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.2em', marginBottom: '10px' }}>Генерація карток</div>
+                 <h2 style={{ fontSize: '1.8rem', fontWeight: 950, margin: 0 }}>{genModal.part.nom?.name}</h2>
+                 <div style={{ color: '#ef4444', fontSize: '1.2rem', fontWeight: 900, marginTop: '5px' }}>
+                    {genModal.created} / {genModal.total} <small style={{ fontSize: '0.7rem', color: '#444' }}>ЗАВАНТАЖЕНЬ</small>
+                 </div>
+              </div>
+
+              <div style={{ background: '#000', padding: '30px', borderRadius: '24px', border: '1px solid #1a1a1a', marginBottom: '30px' }}>
+                 <label style={{ display: 'block', color: '#555', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '15px', textAlign: 'center' }}>Скільки карт берем в роботу?</label>
+                 <input 
+                   type="number" 
+                   id="gen_count_input"
+                   defaultValue={genModal.total - genModal.created}
+                   min="1"
+                   max={genModal.total - genModal.created}
+                   style={{ width: '100%', background: 'transparent', border: 'none', borderBottom: '2px solid #ef4444', color: '#fff', fontSize: '3rem', fontWeight: 950, textAlign: 'center', outline: 'none', padding: '10px 0' }}
+                   onKeyDown={(e) => { if (e.key === 'Enter') { 
+                     const val = parseInt(document.getElementById('gen_count_input').value);
+                     if (val > 0) handleGenerateFromWorksheet(genModal.task, genModal.part, genModal.sheets, genModal.machineName, val, genModal.created, genModal.total);
+                   }}}
+                 />
+                 <div style={{ color: '#333', fontSize: '0.65rem', textAlign: 'center', marginTop: '15px' }}>Максимум доступно: {genModal.total - genModal.created}</div>
+              </div>
+
+              <button 
+                onClick={() => {
+                   const val = parseInt(document.getElementById('gen_count_input').value);
+                   if (val > 0) handleGenerateFromWorksheet(genModal.task, genModal.part, genModal.sheets, genModal.machineName, val, genModal.created, genModal.total);
+                }}
+                className="btn-primary" 
+                style={{ width: '100%', background: '#ef4444', color: '#fff', border: 'none', padding: '20px', borderRadius: '20px', fontWeight: 950, fontSize: '1rem', cursor: 'pointer', transition: '0.3s' }}
+              >
+                ГЕНЕРУВАТИ ТА ДРУКУВАТИ
+              </button>
+           </div>
+        </div>
+      )}
 
       {isGenerating && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', zIndex: 20000, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '20px' }}>

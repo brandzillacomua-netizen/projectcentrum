@@ -24,15 +24,17 @@ import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
 
 const OperatorTerminal = () => {
-  const { workCards, orders, nomenclatures, startWorkCard, completeWorkCard, fetchData } = useMES()
+  const { workCards, orders, nomenclatures, startWorkCard, completeWorkCard, fetchData, operators, productionStages } = useMES()
   const [selectedCardId, setSelectedCardId] = useState(null)
+  const [selectedStage, setSelectedStage] = useState('')
+  const [selectedOperator, setSelectedOperator] = useState('')
   const [currentTime, setCurrentTime] = useState(new Date())
   const [isProcessing, setIsProcessing] = useState(false)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
   const [scanError, setScanError] = useState(null)
   
-  // Persistent scanned IDs
+  // Persistent scanned IDs (only active/in-progress cards)
   const [scannedCardIds, setScannedCardIds] = useState(() => {
     try { 
       const saved = localStorage.getItem('centrum_operator_scanned')
@@ -40,7 +42,7 @@ const OperatorTerminal = () => {
     } catch(e) { return [] }
   })
 
-  const [isScanning, setIsScanning] = useState(false)
+  const [isScanning, setIsScanning] = useState(true)
   const [showScrapModal, setShowScrapModal] = useState(false)
   const [scrapCounts, setScrapCounts] = useState({})
   const [showPinModal, setShowPinModal] = useState(false)

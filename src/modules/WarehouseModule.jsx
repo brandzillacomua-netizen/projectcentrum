@@ -20,7 +20,7 @@ const WarehouseModule = () => {
   const { 
     inventory, addInventory, requests, issueMaterials, 
     nomenclatures, receptionDocs, confirmReceptionDoc,
-    orders, tasks, approveWarehouse, createPurchaseRequest
+    orders, tasks, approveWarehouse, createPurchaseRequest, purchaseRequests
   } = useMES()
 
   const normalize = (s) => (s || '').toLowerCase().trim()
@@ -61,6 +61,10 @@ const WarehouseModule = () => {
   }, {})
 
   const handleReserveOrder = (orderId, orderNum, reqList) => {
+    // Check if we already have a purchase request for this order
+    const hasActivePR = purchaseRequests.some(pr => pr.order_id === orderId && pr.status === 'pending')
+    if (hasActivePR) return // Prevent modal if already awaiting supply
+
     const missingItems = []
     reqList.forEach(req => {
       let parsedName = ''
@@ -109,6 +113,38 @@ const WarehouseModule = () => {
             <div style={{ display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px' }}>
               {Object.entries(groupedRequests).map(([orderId, reqList]) => {
                 const orderNum = orders.find(o => o.id === orderId)?.order_num || '???'
+                
+                // 1. Check for Active Purchase Request (Pending)
+                const hasActivePR = purchaseRequests.some(pr => pr.order_id === orderId && pr.status === 'pending')
+                
+                // 2. Check for Active Reception Doc (Ordered or Pending)
+                const hasActiveReception = receptionDocs.some(rd => rd.order_id === orderId && rd.status !== 'completed')
+
+                // 3. Check for shortages to decide between "Issue" and "Reserve"
+                const missingItems = []
+                reqList.forEach(req => {
+                  let parsedName = ''
+                  try { parsedName = req.details?.split(': ')[1]?.split(' — ')[0]?.trim() } catch(e) {}
+                  const invItem = inventory.find(i => 
+                    i.id === req.inventory_id || 
+                    (parsedName && normalize(i.name) === normalize(parsedName) && i.type === 'raw')
+                  )
+                  const available = invItem ? (Number(invItem.total_qty) || 0)  - (Number(invItem.reserved_qty) || 0) : 0
+                  const needed = Number(req.quantity)
+                  if (available < needed) missingItems.push(req)
+                })
+
+                const acceptedPR = purchaseRequests.find(pr => pr.order_id === orderId && pr.status === 'accepted')
+                const isAwaiting = hasActivePR || acceptedPR || hasActiveReception
+                
+                const btnLabel = hasActivePR ? 'ОЧІКУЄ ПОСТАВКИ' : 
+                                acceptedPR ? 'ЗАПИТ ПРИЙНЯТО' : 
+                                hasActiveReception ? 'ПРИЙОМКА' : 
+                                (missingItems.length === 0 ? 'ВИДАТИ' : 'ЗІБРАТИ ТА ЗАБРОНЮВАТИ')
+                
+                const btnColor = isAwaiting ? '#1a1a1a' : '#ff9000'
+                const textColor = isAwaiting ? '#444' : '#000'
+
                 return (
                   <div key={orderId} style={{ minWidth: '300px', background: '#111', padding: '15px', borderRadius: '15px', border: '1px solid #222' }}>
                     <strong style={{ display: 'block', fontSize: '0.75rem', marginBottom: '10px' }}>НАРЯД #{orderNum}</strong>
@@ -118,7 +154,24 @@ const WarehouseModule = () => {
                           return <li key={r.id}>{displayDetails}</li>
                       })}
                     </ul>
-                    <button onClick={() => handleReserveOrder(orderId, orderNum, reqList)} style={{ width: '100%', padding: '10px', background: '#ff9000', color: '#000', border: 'none', borderRadius: '8px', fontWeight: 900, cursor: 'pointer' }}>ЗІБРАТИ ТА ЗАБРОНЮВАТИ</button>
+                    <button 
+                      onClick={() => handleReserveOrder(orderId, orderNum, reqList)} 
+                      disabled={isAwaiting}
+                      style={{ 
+                        width: '100%', 
+                        padding: '12px', 
+                        background: btnColor, 
+                        color: textColor, 
+                        border: isAwaiting ? '1px solid #222' : 'none', 
+                        borderRadius: '10px', 
+                        fontWeight: 900, 
+                        cursor: isAwaiting ? 'not-allowed' : 'pointer',
+                        fontSize: '0.8rem',
+                        textTransform: 'uppercase'
+                      }}
+                    >
+                      {btnLabel}
+                    </button>
                   </div>
                 )
               })}
