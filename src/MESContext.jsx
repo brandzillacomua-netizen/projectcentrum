@@ -620,7 +620,7 @@ export const MESProvider = ({ children }) => {
     // Store metadata in card_info because nomenclature_id column doesn't exist in DB
     const metaCardInfo = `NOM_ID:${nomenclatureId} | ${cardInfo || ''}`
     
-    const { error } = await supabase.from('work_cards').insert([{
+    const { data, error } = await supabase.from('work_cards').insert([{
       task_id: taskId,
       order_id: orderId,
       operation,
@@ -628,7 +628,7 @@ export const MESProvider = ({ children }) => {
       estimated_time: Number(estimatedTime) || 0,
       status: 'pending',
       card_info: metaCardInfo
-    }])
+    }]).select().single()
     
     if (error) {
       console.error('Error creating work card:', error)
@@ -637,6 +637,7 @@ export const MESProvider = ({ children }) => {
     
     await supabase.from('tasks').update({ status: 'in-progress' }).eq('id', taskId)
     fetchData()
+    return data
   }
 
   const completeTaskByMaster = async (taskId) => {

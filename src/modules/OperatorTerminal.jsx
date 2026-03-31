@@ -11,20 +11,28 @@ import {
   ClipboardList,
   Camera,
   Menu,
-  Fingerprint
+  Fingerprint,
+  RefreshCw,
+  Search,
+  Box,
+  Layers,
+  FileCode,
+  Gauge
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
 
 const OperatorTerminal = () => {
-  const { workCards, orders, nomenclatures, startWorkCard, completeWorkCard } = useMES()
+  const { workCards, orders, nomenclatures, startWorkCard, completeWorkCard, fetchData } = useMES()
   const [selectedCardId, setSelectedCardId] = useState(null)
   const [currentTime, setCurrentTime] = useState(new Date())
   const [isProcessing, setIsProcessing] = useState(false)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [scanError, setScanError] = useState(null)
   
-  // Persistent scanned IDs for the session
+  // Persistent scanned IDs
   const [scannedCardIds, setScannedCardIds] = useState(() => {
     try { 
       const saved = localStorage.getItem('centrum_operator_scanned')
@@ -32,17 +40,12 @@ const OperatorTerminal = () => {
     } catch(e) { return [] }
   })
 
-  // States for Scanner
   const [isScanning, setIsScanning] = useState(false)
-
-  // States for PIN Auth
+  const [showScrapModal, setShowScrapModal] = useState(false)
+  const [scrapCounts, setScrapCounts] = useState({})
   const [showPinModal, setShowPinModal] = useState(false)
   const [pin, setPin] = useState('')
   const [pinError, setPinError] = useState(false)
-
-  // Status for completion
-  const [showScrapModal, setShowScrapModal] = useState(false)
-  const [scrapCounts, setScrapCounts] = useState({})
 
   useEffect(() => {
     localStorage.setItem('centrum_operator_scanned', JSON.stringify(scannedCardIds))
@@ -55,53 +58,41 @@ const OperatorTerminal = () => {
 
   // QR SCANNER LOGIC
   useEffect(() => {
+    let html5QrCode = null
     if (isScanning && window.Html5Qrcode) {
-      const html5QrCode = new window.Html5Qrcode("reader")
-      const config = { fps: 10, qrbox: { width: 250, height: 250 } }
-
+      html5QrCode = new window.Html5Qrcode("reader")
+      const config = { fps: 15, qrbox: { width: 260, height: 260 } }
+      const stopAndClose = async () => {
+        if (html5QrCode && html5QrCode.isScanning) await html5QrCode.stop().catch(() => {})
+        setIsScanning(false)
+      }
       html5QrCode.start(
-        { facingMode: "environment" }, 
-        config, 
-        (decodedText) => {
-          console.log("Scanner Decoded:", decodedText);
-          
+        { facingMode: "environment" }, config, async (decodedText) => {
           if (decodedText.startsWith("CENTRUM_CARD_")) {
-            const cardIdStr = decodedText.replace("CENTRUM_CARD_", "").trim();
-            
-            // Debug: show what we are looking for
-            console.log("Searching for Card ID:", cardIdStr);
-            
-            const foundCard = workCards.find(c => String(c.id).trim() === cardIdStr);
-            
-            if (foundCard) {
-              console.log("Card found!", foundCard);
-              // 1. Assign to this session
-              setScannedCardIds(prev => prev.includes(foundCard.id) ? prev : [...prev, foundCard.id]);
-              // 2. Select it
-              setSelectedCardId(foundCard.id);
-              // 3. Close scanner immediately
-              html5QrCode.stop().then(() => setIsScanning(false)).catch(() => setIsScanning(false));
+            const cardIdStr = decodedText.replace("CENTRUM_CARD_", "").trim()
+            await stopAndClose()
+            let foundCard = workCards.find(c => String(c.id).trim() === cardIdStr)
+            if (!foundCard) {
+              setIsSyncing(true)
+              await fetchData()
+              await new Promise(r => setTimeout(r, 800))
+              setScanError(`Шукаємо картку №${cardIdStr} в базі...`)
+              setIsSyncing(false)
             } else {
-              console.warn("Card not found in workCards array. Available IDs:", workCards.map(c => c.id));
-              alert(`Картку №${cardIdStr} не знайдено у вашому списку завдань!`);
+              setScannedCardIds(prev => prev.includes(foundCard.id) ? prev : [...prev, foundCard.id])
+              setSelectedCardId(foundCard.id)
+              setScanError(null)
+              window.scrollTo({ top: 0, behavior: 'smooth' })
             }
-          } else {
-            console.log("QR ignores (wrong prefix):", decodedText);
           }
-        },
-        () => {}
+        }
       ).catch(err => {
-        alert("Помилка камери: " + err)
+        setScanError("Помилка камери: " + err)
         setIsScanning(false)
       })
-
-      return () => {
-        if (html5QrCode.isScanning) {
-          html5QrCode.stop().catch(() => {})
-        }
-      }
     }
-  }, [isScanning, workCards, scannedCardIds])
+    return () => { if (html5QrCode && html5QrCode.isScanning) html5QrCode.stop().catch(() => {}) }
+  }, [isScanning, workCards])
 
   const currentCard = workCards.find(c => c.id === selectedCardId)
   const getTaskOrder = (orderId) => orders.find(o => o.id === orderId)
@@ -112,17 +103,11 @@ const OperatorTerminal = () => {
      return nomenclatures.find(n => String(n.id) === String(metaId))
   }
 
-  // ONLY SHOW SCANNED OR ALREADY IN PROGRESS CARDS
   const availableCards = workCards.filter(c => 
-    c.status !== 'completed' && 
-    (scannedCardIds.includes(c.id) || c.status === 'in-progress')
+    c.status !== 'completed' && (scannedCardIds.includes(c.id) || c.status === 'in-progress')
   )
 
-  const handleStartOperation = () => {
-    setShowPinModal(true)
-    setPin('')
-    setPinError(false)
-  }
+  const handleStartOperation = () => { setShowPinModal(true); setPin(''); setPinError(false); }
 
   const validatePin = async () => {
     if (pin === '555') {
@@ -130,25 +115,8 @@ const OperatorTerminal = () => {
        try {
          await apiService.submitOperatorAction('start', currentCard.task_id, currentCard.id, 'Оператор Тест (555)', {}, startWorkCard)
          setShowPinModal(false)
-       } finally {
-         setIsProcessing(false)
-       }
-    } else {
-      setPinError(true)
-      setPin('')
-      setTimeout(() => setPinError(false), 1000)
-    }
-  }
-
-  const handleCompleteClick = () => {
-    if (!currentCard) return
-    const order = getTaskOrder(currentCard.order_id)
-    const initialScrap = {}
-    order?.order_items?.forEach(item => {
-      initialScrap[item.nomenclature_id] = 0
-    })
-    setScrapCounts(initialScrap)
-    setShowScrapModal(true)
+       } finally { setIsProcessing(false) }
+    } else { setPinError(true); setPin(''); setTimeout(() => setPinError(false), 1000) }
   }
 
   const submitCompletion = async () => {
@@ -156,13 +124,9 @@ const OperatorTerminal = () => {
     setIsProcessing(true)
     try {
       await apiService.submitOperatorAction('complete', currentCard.task_id, currentCard.id, 'Оператор Тест (555)', { scrap_counts: scrapCounts }, completeWorkCard)
-      setShowScrapModal(false)
-      setSelectedCardId(null)
-      // Remove from scanned list once finished
+      setShowScrapModal(false); setSelectedCardId(null)
       setScannedCardIds(prev => prev.filter(id => id !== currentCard.id))
-    } finally {
-      setIsProcessing(false)
-    }
+    } finally { setIsProcessing(false) }
   }
 
   const formatElapsedTime = (startIso) => {
@@ -175,6 +139,15 @@ const OperatorTerminal = () => {
     return `${h}:${m}:${s}`
   }
 
+  const SpecCard = ({ icon: Icon, label, value, color="#eab308" }) => (
+    <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid #1a1a1a', padding: '18px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '130px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#555', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase' }}>
+        <Icon size={14} /> {label}
+      </div>
+      <div style={{ fontSize: '1.2rem', fontWeight: 900, color }}>{value}</div>
+    </div>
+  )
+
   const renderQueue = () => (
     <div className="tasks-scroll" style={{ flex: 1, overflowY: 'auto', padding: '0 15px 25px' }}>
       {availableCards.length === 0 && (
@@ -184,7 +157,6 @@ const OperatorTerminal = () => {
         const nom = getNomFromCard(card)
         const isActive = selectedCardId === card.id
         const loadInfo = card.card_info?.split('|')?.pop()?.trim() || ''
-        
         return (
           <div key={card.id} onClick={() => { setSelectedCardId(card.id); setIsDrawerOpen(false); }} style={{ background: isActive ? '#eab308' : '#1a1a1a', borderRadius: '12px', padding: '15px', marginBottom: '10px', cursor: 'pointer', border: '1px solid', borderColor: isActive ? '#eab308' : '#333', transition: '0.2s', color: isActive ? '#000' : '#fff' }}>
             <div style={{ marginBottom: '4px' }}>
@@ -202,7 +174,7 @@ const OperatorTerminal = () => {
   )
 
   return (
-    <div className="operator-terminal-v2" style={{ background: '#0a0a0a', height: '100vh', display: 'flex', flexDirection: 'column', color: '#fff', fontFamily: 'Inter, sans-serif', overflow: 'hidden' }}>
+    <div className="operator-terminal-v2" style={{ background: '#0a0a0a', height: '100vh', display: 'flex', flexDirection: 'column', color: '#fff', overflow: 'hidden' }}>
       <header className="terminal-nav" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 20px', height: '70px', background: '#000', borderBottom: '2px solid #eab308', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
            <Link to="/" style={{ color: '#94a3b8', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '0.85rem' }}>
@@ -212,13 +184,12 @@ const OperatorTerminal = () => {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Tablet size={20} color="#eab308" />
-          <h1 style={{ fontSize: '1rem', fontWeight: 800, letterSpacing: '0.1em', margin: 0 }} className="hide-mobile">ТЕРМІНАЛ ОПЕРАТОРА</h1>
+          <h1 style={{ fontSize: '1rem', fontWeight: 800, margin: 0 }} className="hide-mobile">ТЕРМІНАЛ ОПЕРАТОРА</h1>
         </div>
         <div style={{ fontWeight: 900, fontFamily: 'monospace', fontSize: '1.2rem', color: '#eab308' }}>{currentTime.toLocaleTimeString()}</div>
       </header>
 
       <div className="main-layout-responsive" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {/* Desktop Sidebar */}
         <div className="side-panel hide-mobile" style={{ width: '300px', background: '#121212', borderRight: '1px solid #222', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
           <div style={{ padding: '20px', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 800, color: '#555', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <ClipboardList size={16} /> ЧЕРГА КАРТ ({availableCards.length})
@@ -226,52 +197,75 @@ const OperatorTerminal = () => {
           {renderQueue()}
         </div>
 
-        {/* Mobile Side Drawer Overlay */}
         {isDrawerOpen && <div className="drawer-backdrop" onClick={() => setIsDrawerOpen(false)} />}
         <div className={`side-drawer ${isDrawerOpen ? 'open' : ''}`}>
-           <div className="drawer-header">
-              <span style={{ fontSize: '0.8rem', fontWeight: 900 }}>ОБЕРІТЬ КАРТУ</span>
-              <button onClick={() => setIsDrawerOpen(false)} className="burger-btn"><X size={20} /></button>
-           </div>
+           <div className="drawer-header"><span style={{ fontSize: '0.8rem', fontWeight: 900 }}>ОБЕРІТЬ КАРТУ</span><button onClick={() => setIsDrawerOpen(false)} className="burger-btn"><X size={20} /></button></div>
            {renderQueue()}
         </div>
 
-        {/* Workspace */}
-        <div className="content-panel" style={{ flex: 1, padding: '20px', background: '#0a0a0a', overflowY: 'auto', position: 'relative' }}>
+        <div className="content-panel" style={{ flex: 1, padding: '20px 15px', background: '#0a0a0a', overflowY: 'auto', position: 'relative' }}>
+          {isSyncing && (
+            <div style={{ position: 'absolute', top: 20, right: 20, background: '#eab308', color: '#000', padding: '10px 20px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '10px', zIndex: 100 }}>
+              <RefreshCw className="animate-spin" size={16} /> ОНОВЛЕННЯ ДАНИХ...
+            </div>
+          )}
+
+          {scanError && !isScanning && (
+            <div style={{ background: '#ef4444', color: '#fff', padding: '12px 20px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem' }}><AlertTriangle size={18} /> {scanError}</div>
+               <button onClick={() => setScanError(null)} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}><X size={18} /></button>
+            </div>
+          )}
+
           {currentCard ? (
-            <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '30px', flexWrap: 'wrap', gap: '20px' }}>
-                <div>
-                  <span style={{ color: '#3b82f6', fontWeight: 800, fontSize: '0.7rem', display: 'block', marginBottom: '8px' }}>АКТИВНА КАРТКА</span>
-                  <h2 style={{ fontSize: '2rem', margin: 0, fontWeight: 900 }} className="responsive-title">{getNomFromCard(currentCard)?.name}</h2>
+            <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+              {/* Header with Title and Program */}
+              <div style={{ marginBottom: '35px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                   <div style={{ background: '#3b82f6', color: 'white', padding: '4px 10px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 900 }}>{currentCard.operation.toUpperCase()}</div>
+                   <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800 }}>ID: {currentCard.id}</div>
                 </div>
-                <div style={{ background: '#3b82f6', color: 'white', padding: '10px 20px', borderRadius: '12px', fontWeight: 900, fontSize: '0.8rem' }}>
-                  {currentCard.operation.toUpperCase()}
+                <h2 style={{ fontSize: '2.5rem', margin: 0, fontWeight: 950, letterSpacing: '-0.02em', lineHeight: 1 }}>{getNomFromCard(currentCard)?.name}</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '10px', color: '#3b82f6' }}>
+                   <FileCode size={18}/> <span style={{ fontWeight: 800, fontSize: '0.9rem' }}>{getNomFromCard(currentCard)?.cnc_program || 'CNC-DEFAULT'}</span>
                 </div>
               </div>
 
-              <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '24px', border: '1px solid #222', padding: '30px', textAlign: 'center' }}>
+              {/* Data Wall Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '30px' }}>
+                <SpecCard icon={Layers} label="Матеріал" value={getNomFromCard(currentCard)?.material_type || '—'} />
+                <SpecCard icon={Box} label="План" value={`${getTaskOrder(currentCard.order_id)?.order_items?.find(i => i.nomenclature_id === currentCard.nomenclature_id || currentCard.card_info?.includes(`NOM_ID:${i.nomenclature_id}`))?.quantity || '—'} шт`} />
+                <SpecCard icon={Gauge} label="Норма" value={`${currentCard.estimated_time || 0} хв`} />
+                <SpecCard icon={Tablet} label="Станція" value={currentCard.machine || '—'} />
+              </div>
+
+              {/* Action/Timer Card */}
+              <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '28px', border: '1px solid #1a1a1a', padding: '40px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '4px', background: currentCard.status === 'in-progress' ? '#3b82f6' : '#222' }} />
+                
                 {currentCard.status === 'pending' || currentCard.status === 'waiting' ? (
                   <>
-                     <div style={{ background: '#111', padding: '25px', borderRadius: '20px', marginBottom: '30px' }}>
-                        <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>К-сть деталей: <span style={{ color: '#eab308' }}>{getTaskOrder(currentCard.order_id)?.order_items?.find(i => i.nomenclature_id === currentCard.nomenclature_id || currentCard.card_info?.includes(`NOM_ID:${i.nomenclature_id}`))?.quantity || '—'}</span> шт.</div>
-                        <div style={{ display: 'flex', justifyContent: 'center', gap: '25px', marginTop: '25px' }}>
-                           <div><div style={{ color: '#444', fontSize: '0.65rem', fontWeight: 800 }}>НОРМА</div><div style={{ fontSize: '1.5rem', fontWeight: 900 }}>{currentCard.estimated_time || 0} хв</div></div>
-                           <div><div style={{ color: '#444', fontSize: '0.65rem', fontWeight: 800 }}>СТАНОК</div><div style={{ fontSize: '1.5rem', fontWeight: 900 }}>{currentCard.machine}</div></div>
-                        </div>
+                     <div style={{ marginBottom: '35px' }}>
+                        <p style={{ opacity: 0.5, fontSize: '0.9rem', marginBottom: '10px' }}>Всі параметри перевірено? Розпочніть операцію:</p>
                      </div>
-                     <button disabled={isProcessing} onClick={handleStartOperation} className="btn-action" style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '20px 50px', borderRadius: '16px', fontSize: '1.3rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '15px', margin: '0 auto' }}>
-                        <Play fill="currentColor" size={24} /> РОЗПОЧАТИ
+                     <button disabled={isProcessing} onClick={handleStartOperation} className="btn-action pulse-blue" style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '22px 60px', borderRadius: '18px', fontSize: '1.4rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '15px', margin: '0 auto' }}>
+                        <Play fill="currentColor" size={26} /> РОЗПОЧАТИ
                      </button>
                   </>
                 ) : (
                   <>
-                    <div className="timer-display" style={{ fontSize: '5rem', fontWeight: 900, color: '#3b82f6', fontFamily: 'monospace', margin: '30px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px' }}>
-                      <Timer className="spin-slow" size={50} />
-                      <span>{formatElapsedTime(currentCard.started_at)}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '35px' }}>
+                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#3b82f6', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.2em' }}><Timer size={16} /> ЧАС У РОБОТІ</div>
+                       <div className="timer-display" style={{ fontSize: '6rem', fontWeight: 1000, color: '#3b82f6', fontFamily: 'monospace', letterSpacing: '-0.05em' }}>{formatElapsedTime(currentCard.started_at)}</div>
                     </div>
-                    <button disabled={isProcessing} onClick={handleCompleteClick} className="btn-action" style={{ background: '#10b981', color: '#fff', border: 'none', padding: '20px 60px', borderRadius: '16px', fontSize: '1.3rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '15px', margin: '0 auto' }}>
-                       <CheckCircle size={28} /> ЗАВЕРШИТИ
+                    <button disabled={isProcessing} onClick={() => {
+                        const order = getTaskOrder(currentCard.order_id)
+                        const initialScrap = {}
+                        order?.order_items?.forEach(item => initialScrap[item.nomenclature_id] = 0)
+                        setScrapCounts(initialScrap)
+                        setShowScrapModal(true)
+                    }} className="btn-action" style={{ background: '#10b981', color: '#fff', border: 'none', padding: '22px 70px', borderRadius: '18px', fontSize: '1.4rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '15px', margin: '0 auto' }}>
+                       <CheckCircle size={30} /> ЗАВЕРШИТИ
                     </button>
                   </>
                 )}
@@ -280,68 +274,66 @@ const OperatorTerminal = () => {
           ) : (
             <div style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
                <div style={{ width: '130px', height: '130px', borderRadius: '50%', background: 'rgba(234, 179, 8, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '25px', border: '2px dashed #333' }}>
-                  <Scan size={70} color="#333" />
+                  <Search size={70} color="#333" />
                </div>
-               <h3 style={{ fontSize: '1.8rem', fontWeight: 900, marginBottom: '12px' }}>ГОТОВИЙ ДО СКАНУВАННЯ</h3>
-               <p style={{ color: '#555', fontSize: '1rem', maxWidth: '350px' }}>Відскануйте QR-код робочої карти для початку операції</p>
-               <button onClick={() => setIsScanning(true)} style={{ marginTop: '35px', background: '#eab308', color: '#000', border: 'none', padding: '18px 45px', borderRadius: '14px', fontSize: '1.1rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <Camera size={22} /> ВІДКРИТИ СКАНЕР
+               <h3 style={{ fontSize: '1.9rem', fontWeight: 950, marginBottom: '12px' }}>ГОТОВИЙ ДО РОБОТИ</h3>
+               <p style={{ color: '#555', fontSize: '1rem', maxWidth: '380px' }}>Відскануйте QR-код з листка щоб відкрити специфікацію та розпочати роботу</p>
+               <button onClick={() => { setIsScanning(true); setScanError(null); }} style={{ marginTop: '35px', background: '#eab308', color: '#000', border: 'none', padding: '20px 50px', borderRadius: '16px', fontSize: '1.2rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <Camera size={24} /> ВІДКРИТИ СКАНЕР
                </button>
             </div>
           )}
         </div>
       </div>
 
-      {/* SCANNER MODAL */}
       {isScanning && (
         <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 10001, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
           <button onClick={() => setIsScanning(false)} style={{ position: 'absolute', top: 30, right: 30, background: '#1a1a1a', border: 'none', color: '#fff', padding: '15px', borderRadius: '50%', cursor: 'pointer', zIndex: 10002 }}><X size={32} /></button>
-          <div style={{ width: '100%', maxWidth: '500px', position: 'relative' }}>
-             <div id="reader" style={{ background: '#111', borderRadius: '24px', overflow: 'hidden' }}></div>
-             <div style={{ position: 'absolute', inset: 0, border: '4px solid #eab308', borderRadius: '24px', pointerEvents: 'none', animation: 'pulse 2s infinite' }}></div>
+          <div style={{ width: '100%', maxWidth: '540px', position: 'relative' }}>
+             <div id="reader" style={{ background: '#111', borderRadius: '32px', overflow: 'hidden' }}></div>
+             <div style={{ position: 'absolute', inset: -5, border: '6px solid #eab308', borderRadius: '36px', pointerEvents: 'none', animation: 'scan-glow 2s infinite' }}></div>
           </div>
+          <div style={{ marginTop: '40px', color: '#eab308', fontSize: '1rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.2em' }}>Наведіть на QR-код карти</div>
         </div>
       )}
 
-      {/* PIN MODAL */}
       {showPinModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.98)', backdropFilter: 'blur(20px)', zIndex: 10010, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-           <div style={{ width: '100%', maxWidth: '360px', textAlign: 'center' }}>
-              <div style={{ marginBottom: '25px' }}><Fingerprint size={45} color="#3b82f6" style={{ marginBottom: '10px' }} /><h3 style={{ fontSize: '1.8rem', fontWeight: 900, margin: 0 }}>CODE: 555</h3><p style={{ color: '#555', fontSize: '0.9rem' }}>Авторизація оператора</p></div>
-              <div style={{ background: '#111', padding: '10px', borderRadius: '20px', fontSize: '2.5rem', fontWeight: 900, letterSpacing: '0.4em', height: '80px', marginBottom: '25px', border: `2px solid ${pinError ? '#ef4444' : '#222'}`, color: pinError ? '#ef4444' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{pin.split('').map(() => '*').join('')}</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
-                 {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => <button key={num} onClick={() => pin.length < 6 && setPin(pin + num)} style={{ background: '#1a1a1a', border: '1px solid #333', color: '#fff', fontSize: '1.8rem', fontWeight: 900, padding: '20px', borderRadius: '16px', cursor: 'pointer' }}>{num}</button>)}
-                 <button onClick={() => setPin('')} style={{ background: '#1a1a1a', border: '1px solid #333', color: '#ef4444', fontSize: '1.8rem', fontWeight: 900, borderRadius: '16px' }}>C</button>
-                 <button onClick={() => pin.length < 6 && setPin(pin + '0')} style={{ background: '#1a1a1a', border: '1px solid #333', color: '#fff', fontSize: '1.8rem', fontWeight: 900, borderRadius: '16px' }}>0</button>
-                 <button disabled={isProcessing} onClick={validatePin} style={{ background: '#3b82f6', border: 'none', color: '#fff', fontSize: '1.1rem', fontWeight: 900, borderRadius: '16px' }}>OK</button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.98)', backdropFilter: 'blur(30px)', zIndex: 10010, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+           <div style={{ width: '100%', maxWidth: '380px', textAlign: 'center' }}>
+              <div style={{ marginBottom: '30px' }}><Fingerprint size={50} color="#3b82f6" style={{ marginBottom: '12px' }} /><h3 style={{ fontSize: '2rem', fontWeight: 950, margin: 0 }}>ВХІД: 555</h3><p style={{ color: '#555', fontSize: '0.9rem' }}>Підтвердіть особу оператора</p></div>
+              <div style={{ background: '#111', padding: '10px', borderRadius: '24px', fontSize: '3rem', fontWeight: 1000, letterSpacing: '0.4em', height: '90px', marginBottom: '30px', border: `3px solid ${pinError ? '#ef4444' : '#222'}`, color: pinError ? '#ef4444' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{pin.split('').map(() => '*').join('')}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px' }}>
+                 {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => <button key={num} onClick={() => pin.length < 6 && setPin(pin + num)} style={{ background: '#1a1a1a', border: '1px solid #333', color: '#fff', fontSize: '2rem', fontWeight: 900, padding: '22px', borderRadius: '18px', cursor: 'pointer' }}>{num}</button>)}
+                 <button onClick={() => setPin('')} style={{ background: '#1a1a1a', border: '1px solid #333', color: '#ef4444', fontSize: '2rem', fontWeight: 900, borderRadius: '18px' }}>C</button>
+                 <button onClick={() => pin.length < 6 && setPin(pin + '0')} style={{ background: '#1a1a1a', border: '1px solid #333', color: '#fff', fontSize: '2rem', fontWeight: 900, borderRadius: '18px' }}>0</button>
+                 <button disabled={isProcessing} onClick={validatePin} style={{ background: '#3b82f6', border: 'none', color: '#fff', fontSize: '1.2rem', fontWeight: 900, borderRadius: '18px' }}>OK</button>
               </div>
-              <button onClick={() => setShowPinModal(false)} style={{ marginTop: '25px', background: 'transparent', border: 'none', color: '#555', cursor: 'pointer', fontWeight: 700 }}>СКАСУВАТИ</button>
+              <button onClick={() => setShowPinModal(false)} style={{ marginTop: '30px', background: 'transparent', border: 'none', color: '#555', cursor: 'pointer', fontWeight: 800 }}>СКАСУВАТИ</button>
            </div>
         </div>
       )}
 
-      {/* SCRAP MODAL */}
       {showScrapModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', backdropFilter: 'blur(15px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10020, padding: '20px' }}>
-          <div style={{ background: '#111', width: '100%', maxWidth: '550px', borderRadius: '28px', border: '1px solid #333', overflow: 'hidden' }}>
-            <div style={{ padding: '25px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: 0, fontSize: '1.3rem' }}><AlertTriangle color="#ef4444" size={24} /> Звіт за зміну</h3>
-              <button onClick={() => setShowScrapModal(false)} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}><X size={24} /></button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.96)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10020, padding: '20px' }}>
+          <div style={{ background: '#111', width: '100%', maxWidth: '580px', borderRadius: '32px', border: '1px solid #333', overflow: 'hidden' }}>
+            <div style={{ padding: '30px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: 0, fontSize: '1.4rem', fontWeight: 900 }}><AlertTriangle color="#ef4444" size={26} /> Звіт по браку</h3>
+              <button onClick={() => setShowScrapModal(false)} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}><X size={26} /></button>
             </div>
-            <div style={{ padding: '25px', maxHeight: '60vh', overflowY: 'auto' }}>
+            <div style={{ padding: '30px', maxHeight: '60vh', overflowY: 'auto' }}>
               {getTaskOrder(currentCard?.order_id)?.order_items?.map(item => {
                 const nom = nomenclatures.find(n => n.id === item.nomenclature_id) || nomenclatures.find(n => currentCard.card_info?.includes(`NOM_ID:${n.id}`))
                 return (
-                  <div key={item.id} style={{ background: '#0a0a0a', padding: '15px', borderRadius: '16px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #1a1a1a' }}>
-                    <div style={{ flex: 1 }}><strong style={{ display: 'block', fontSize: '1.1rem', marginBottom: '4px' }}>{nom?.name}</strong><span style={{ color: '#555', fontSize: '0.8rem' }}>План: {item.quantity} шт</span></div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span style={{ color: '#ef4444', fontWeight: 900, fontSize: '0.7rem' }}>БРАК:</span>
-                      <input type="number" min="0" style={{ background: '#000', border: '1px solid #333', color: 'white', width: '70px', padding: '12px', borderRadius: '10px', textAlign: 'center', fontSize: '1.3rem', fontWeight: 900 }} value={scrapCounts[item.nomenclature_id] || 0} onChange={e => setScrapCounts({...scrapCounts, [item.nomenclature_id]: parseInt(e.target.value) || 0})} />
+                  <div key={item.id} style={{ background: '#0a0a0a', padding: '20px', borderRadius: '20px', marginBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #222' }}>
+                    <div style={{ flex: 1 }}><strong style={{ display: 'block', fontSize: '1.2rem', marginBottom: '6px' }}>{nom?.name}</strong><span style={{ color: '#555', fontSize: '0.85rem' }}>Макс. План: {item.quantity} шт</span></div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                      <span style={{ color: '#ef4444', fontWeight: 950, fontSize: '0.75rem' }}>БРАК:</span>
+                      <input type="number" min="0" style={{ background: '#000', border: '2px solid #333', color: 'white', width: '85px', padding: '15px', borderRadius: '12px', textAlign: 'center', fontSize: '1.5rem', fontWeight: 900 }} value={scrapCounts[item.nomenclature_id] || 0} onChange={e => setScrapCounts({...scrapCounts, [item.nomenclature_id]: parseInt(e.target.value) || 0})} />
                     </div>
                   </div>
                 )
               })}
-              <button disabled={isProcessing} onClick={submitCompletion} style={{ background: '#3b82f6', color: 'white', border: 'none', width: '100%', padding: '20px', borderRadius: '14px', fontWeight: 900, fontSize: '1.2rem', marginTop: '15px', cursor: 'pointer' }}>ЗБЕРЕГТИ ТА ЗАВЕРШИТИ</button>
+              <button disabled={isProcessing} onClick={submitCompletion} style={{ background: '#3b82f6', color: 'white', border: 'none', width: '100%', padding: '22px', borderRadius: '18px', fontWeight: 900, fontSize: '1.3rem', marginTop: '20px', cursor: 'pointer' }}>ЗАВЕРШИТИ ОПЕРАЦІЮ</button>
             </div>
           </div>
         </div>
@@ -349,18 +341,17 @@ const OperatorTerminal = () => {
 
       <style dangerouslySetInnerHTML={{ __html: `
         .spin-slow { animation: spin 4s linear infinite; }
+        .animate-spin { animation: spin 1s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
-        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+        @keyframes scan-glow { 0% { box-shadow: 0 0 10px #eab308; } 50% { box-shadow: 0 0 30px #eab308; } 100% { box-shadow: 0 0 10px #eab308; } }
+        @keyframes pulse-blue { 0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); } 70% { box-shadow: 0 0 0 15px rgba(59, 130, 246, 0); } 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); } }
+        .pulse-blue { animation: pulse-blue 2s infinite; }
         @media (max-width: 1024px) {
-          .responsive-title { font-size: 1.8rem !important; }
-          .timer-display { font-size: 4rem !important; }
+          .timer-display { font-size: 5rem !important; }
         }
         @media (max-width: 768px) {
-          .responsive-title { font-size: 1.4rem !important; }
-          .timer-display { font-size: 3rem !important; }
+          .timer-display { font-size: 4rem !important; }
         }
-        .tasks-scroll::-webkit-scrollbar { width: 3px; }
-        .tasks-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
       `}} />
     </div>
   )

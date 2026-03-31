@@ -62,10 +62,14 @@ export const apiService = {
     const payload = requestBuilder.buildWorkCardBatchPayload(taskId, orderId, nomenclatureId, cardsArray);
     console.log("%c--- 📦 BACKEND ACTION: CREATE WORK CARDS BATCH ---", "color: #ec4899; font-weight: bold; font-size: 16px; text-decoration: underline;");
     console.log("JSON Payload:", payload);
+    const results = [];
     if (typeof fallback === 'function') {
-      for (const c of cardsArray) await fallback(taskId, orderId, nomenclatureId, c.operation, c.machine, c.estimatedTime, c.cardInfo);
+      for (const c of cardsArray) {
+        const res = await fallback(taskId, orderId, nomenclatureId, c.operation, c.machine, c.estimatedTime, c.cardInfo);
+        if (res) results.push(res);
+      }
     }
-    return true;
+    return results;
   },
 
   submitCompleteTaskByMaster: async (taskId, fallback) => {

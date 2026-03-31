@@ -559,3 +559,54 @@ body {
 .burger-btn:hover {
   background: rgba(255,255,255,0.05);
 }
+
+/* --- NEW INDUSTRIAL UI CLASSES --- */
+.master-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  flex: 1;
+  overflow: hidden;
+  height: calc(100vh - 70px);
+}
+
+.side-panel {
+  background: #111;
+  border-right: 1px solid #222;
+  overflow-y: auto;
+}
+
+.content-panel {
+  background: #0a0a0a;
+  padding: 30px;
+  overflow-y: auto;
+}
+
+.module-nav {
+  height: 70px;
+  background: #000;
+  border-bottom: 1px solid #222;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 25px;
+  flex-shrink: 0;
+}
+
+.btn-primary {
+  background: #ef4444;
+  color: #fff;
+  border: none;
+  padding: 12px 25px;
+  border-radius: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: 0.2s;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+}
+.btn-primary:hover { background: #dc2626; transform: translateY(-1px); }
+
+@media (max-width: 1024px) {
+  .master-grid { grid-template-columns: 1fr; }
+  .side-panel { border-right: none; height: auto; }
+}
