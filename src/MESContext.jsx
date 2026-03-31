@@ -616,9 +616,9 @@ export const MESProvider = ({ children }) => {
     fetchData()
   }
 
-  const createWorkCard = async (taskId, orderId, nomenclatureId, operation, machine, estimatedTime, cardInfo) => {
+  const createWorkCard = async (taskId, orderId, nomenclatureId, operation, machine, estimatedTime, cardInfo, quantity) => {
     // Store metadata in card_info because nomenclature_id column doesn't exist in DB
-    const metaCardInfo = `NOM_ID:${nomenclatureId} | ${cardInfo || ''}`
+    const metaCardInfo = `NOM_ID:${nomenclatureId} | QTY:${quantity || 0} | ${cardInfo || ''}`
     
     const { data, error } = await supabase.from('work_cards').insert([{
       task_id: taskId,

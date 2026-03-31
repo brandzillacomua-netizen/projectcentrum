@@ -65,7 +65,7 @@ export const apiService = {
     const results = [];
     if (typeof fallback === 'function') {
       for (const c of cardsArray) {
-        const res = await fallback(taskId, orderId, nomenclatureId, c.operation, c.machine, c.estimatedTime, c.cardInfo);
+        const res = await fallback(taskId, orderId, nomenclatureId, c.operation, c.machine, c.estimatedTime, c.cardInfo, c.quantity);
         if (res) results.push(res);
       }
     }

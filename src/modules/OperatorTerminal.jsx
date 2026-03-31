@@ -96,11 +96,19 @@ const OperatorTerminal = () => {
 
   const currentCard = workCards.find(c => c.id === selectedCardId)
   const getTaskOrder = (orderId) => orders.find(o => o.id === orderId)
+  
   const getNomFromCard = (card) => {
      if (!card) return null
      if (card.nomenclature_id) return nomenclatures.find(n => n.id === card.nomenclature_id)
-     const metaId = card.card_info?.match(/NOM_ID:(\d+)/)?.[1]
+     const matchId = card.card_info?.match(/NOM_ID:([^|]+)/)
+     const metaId = matchId ? matchId[1].trim() : null
      return nomenclatures.find(n => String(n.id) === String(metaId))
+  }
+
+  const getQtyFromCard = (card) => {
+     if (!card) return 0
+     const matchQty = card.card_info?.match(/QTY:([^|]+)/)
+     return matchQty ? matchQty[1].trim() : '—'
   }
 
   const availableCards = workCards.filter(c => 
@@ -156,12 +164,13 @@ const OperatorTerminal = () => {
       {availableCards.map(card => {
         const nom = getNomFromCard(card)
         const isActive = selectedCardId === card.id
-        const loadInfo = card.card_info?.split('|')?.pop()?.trim() || ''
+        const batchQty = getQtyFromCard(card)
+        
         return (
           <div key={card.id} onClick={() => { setSelectedCardId(card.id); setIsDrawerOpen(false); }} style={{ background: isActive ? '#eab308' : '#1a1a1a', borderRadius: '12px', padding: '15px', marginBottom: '10px', cursor: 'pointer', border: '1px solid', borderColor: isActive ? '#eab308' : '#333', transition: '0.2s', color: isActive ? '#000' : '#fff' }}>
             <div style={{ marginBottom: '4px' }}>
               <strong style={{ display: 'block', fontSize: '0.9rem', fontWeight: 800 }}>{nom?.name || 'Без назви'}</strong>
-              <div style={{ fontSize: '0.65rem', opacity: 0.7 }}>{card.operation} {loadInfo && `| ${loadInfo}`}</div>
+              <div style={{ fontSize: '0.65rem', opacity: 0.7 }}>{batchQty} шт | {card.operation}</div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
                <span style={{ fontSize: '0.6rem', background: isActive ? 'rgba(0,0,0,0.2)' : 'rgba(234, 179, 8, 0.1)', color: isActive ? '#000' : '#eab308', padding: '2px 6px', borderRadius: '4px', fontWeight: 900 }}>{card.status === 'in-progress' ? 'У РОБОТІ' : 'ОЧІКУЄ'}</span>
@@ -219,44 +228,41 @@ const OperatorTerminal = () => {
 
           {currentCard ? (
             <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-              {/* Header with Title and Program */}
               <div style={{ marginBottom: '35px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-                   <div style={{ background: '#3b82f6', color: 'white', padding: '4px 10px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 900 }}>{currentCard.operation.toUpperCase()}</div>
-                   <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800 }}>ID: {currentCard.id}</div>
+                   <div style={{ background: '#3b82f6', color: 'white', padding: '4px 10px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 900 }}>РОБОЧА КАРТА</div>
+                   <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800 }}>№ {currentCard.id}</div>
                 </div>
-                <h2 style={{ fontSize: '2.5rem', margin: 0, fontWeight: 950, letterSpacing: '-0.02em', lineHeight: 1 }}>{getNomFromCard(currentCard)?.name}</h2>
+                <h2 style={{ fontSize: '2.5rem', margin: 0, fontWeight: 950, letterSpacing: '-0.02em', lineHeight: 1 }}>{getNomFromCard(currentCard)?.name || 'Деталь'}</h2>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '10px', color: '#3b82f6' }}>
-                   <FileCode size={18}/> <span style={{ fontWeight: 800, fontSize: '0.9rem' }}>{getNomFromCard(currentCard)?.cnc_program || 'CNC-DEFAULT'}</span>
+                   <FileCode size={18}/> <span style={{ fontWeight: 800, fontSize: '0.9rem' }}>{getNomFromCard(currentCard)?.cnc_program || 'CNC-PROG'}</span>
                 </div>
               </div>
 
-              {/* Data Wall Grid */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '30px' }}>
-                <SpecCard icon={Layers} label="Матеріал" value={getNomFromCard(currentCard)?.material_type || '—'} />
-                <SpecCard icon={Box} label="План" value={`${getTaskOrder(currentCard.order_id)?.order_items?.find(i => i.nomenclature_id === currentCard.nomenclature_id || currentCard.card_info?.includes(`NOM_ID:${i.nomenclature_id}`))?.quantity || '—'} шт`} />
-                <SpecCard icon={Gauge} label="Норма" value={`${currentCard.estimated_time || 0} хв`} />
-                <SpecCard icon={Tablet} label="Станція" value={currentCard.machine || '—'} />
+                <SpecCard icon={Layers} label="Матеріал / Сировина" value={getNomFromCard(currentCard)?.material_type || '—'} color="#10b981" />
+                <SpecCard icon={Box} label="Кількість у карті" value={`${getQtyFromCard(currentCard)} шт`} color="#3b82f6" />
+                <SpecCard icon={Gauge} label="Норма часу" value={`${currentCard.estimated_time || 0} хв`} />
+                <SpecCard icon={Tablet} label="Обладнання" value={currentCard.machine || '—'} />
               </div>
 
-              {/* Action/Timer Card */}
               <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '28px', border: '1px solid #1a1a1a', padding: '40px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '4px', background: currentCard.status === 'in-progress' ? '#3b82f6' : '#222' }} />
+                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '4px', background: currentCard.status === 'in-progress' ? '#10b981' : '#222' }} />
                 
                 {currentCard.status === 'pending' || currentCard.status === 'waiting' ? (
                   <>
                      <div style={{ marginBottom: '35px' }}>
-                        <p style={{ opacity: 0.5, fontSize: '0.9rem', marginBottom: '10px' }}>Всі параметри перевірено? Розпочніть операцію:</p>
+                        <p style={{ opacity: 0.5, fontSize: '0.9rem', marginBottom: '10px' }}>Перевірте кількість ({getQtyFromCard(currentCard)} шт) та сировину для початку:</p>
                      </div>
                      <button disabled={isProcessing} onClick={handleStartOperation} className="btn-action pulse-blue" style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '22px 60px', borderRadius: '18px', fontSize: '1.4rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '15px', margin: '0 auto' }}>
-                        <Play fill="currentColor" size={26} /> РОЗПОЧАТИ
+                        <Play fill="currentColor" size={26} /> ПРИЙНЯТИ ТА РОЗПОЧАТИ
                      </button>
                   </>
                 ) : (
                   <>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '35px' }}>
-                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#3b82f6', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.2em' }}><Timer size={16} /> ЧАС У РОБОТІ</div>
-                       <div className="timer-display" style={{ fontSize: '6rem', fontWeight: 1000, color: '#3b82f6', fontFamily: 'monospace', letterSpacing: '-0.05em' }}>{formatElapsedTime(currentCard.started_at)}</div>
+                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#10b981', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.2em' }}><Timer size={16} /> ЧАС ВИКОНАННЯ</div>
+                       <div className="timer-display" style={{ fontSize: '6rem', fontWeight: 1000, color: '#10b981', fontFamily: 'monospace', letterSpacing: '-0.05em' }}>{formatElapsedTime(currentCard.started_at)}</div>
                     </div>
                     <button disabled={isProcessing} onClick={() => {
                         const order = getTaskOrder(currentCard.order_id)
@@ -264,8 +270,8 @@ const OperatorTerminal = () => {
                         order?.order_items?.forEach(item => initialScrap[item.nomenclature_id] = 0)
                         setScrapCounts(initialScrap)
                         setShowScrapModal(true)
-                    }} className="btn-action" style={{ background: '#10b981', color: '#fff', border: 'none', padding: '22px 70px', borderRadius: '18px', fontSize: '1.4rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '15px', margin: '0 auto' }}>
-                       <CheckCircle size={30} /> ЗАВЕРШИТИ
+                    }} className="btn-action" style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '22px 70px', borderRadius: '18px', fontSize: '1.4rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '15px', margin: '0 auto' }}>
+                       <CheckCircle size={30} /> ЗАВЕРШИТИ ПАРТІЮ
                     </button>
                   </>
                 )}
@@ -276,9 +282,9 @@ const OperatorTerminal = () => {
                <div style={{ width: '130px', height: '130px', borderRadius: '50%', background: 'rgba(234, 179, 8, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '25px', border: '2px dashed #333' }}>
                   <Search size={70} color="#333" />
                </div>
-               <h3 style={{ fontSize: '1.9rem', fontWeight: 950, marginBottom: '12px' }}>ГОТОВИЙ ДО РОБОТИ</h3>
-               <p style={{ color: '#555', fontSize: '1rem', maxWidth: '380px' }}>Відскануйте QR-код з листка щоб відкрити специфікацію та розпочати роботу</p>
-               <button onClick={() => { setIsScanning(true); setScanError(null); }} style={{ marginTop: '35px', background: '#eab308', color: '#000', border: 'none', padding: '20px 50px', borderRadius: '16px', fontSize: '1.2rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '14px' }}>
+               <h3 style={{ fontSize: '1.9rem', fontWeight: 950, marginBottom: '12px' }}>ОЧІКУВАННЯ СКАНУВАННЯ</h3>
+               <p style={{ color: '#555', fontSize: '1rem', maxWidth: '380px' }}>Відскануйте QR-код робочої карти яку надав вам майстер</p>
+               <button onClick={() => { setIsScanning(true); setScanError(null); }} style={{ marginTop: '35px', background: '#3b82f6', color: '#fff', border: 'none', padding: '20px 50px', borderRadius: '16px', fontSize: '1.2rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '14px' }}>
                   <Camera size={24} /> ВІДКРИТИ СКАНЕР
                </button>
             </div>
@@ -291,12 +297,13 @@ const OperatorTerminal = () => {
           <button onClick={() => setIsScanning(false)} style={{ position: 'absolute', top: 30, right: 30, background: '#1a1a1a', border: 'none', color: '#fff', padding: '15px', borderRadius: '50%', cursor: 'pointer', zIndex: 10002 }}><X size={32} /></button>
           <div style={{ width: '100%', maxWidth: '540px', position: 'relative' }}>
              <div id="reader" style={{ background: '#111', borderRadius: '32px', overflow: 'hidden' }}></div>
-             <div style={{ position: 'absolute', inset: -5, border: '6px solid #eab308', borderRadius: '36px', pointerEvents: 'none', animation: 'scan-glow 2s infinite' }}></div>
+             <div style={{ position: 'absolute', inset: -5, border: '6px solid #3b82f6', borderRadius: '36px', pointerEvents: 'none', animation: 'scan-glow 2s infinite' }}></div>
           </div>
-          <div style={{ marginTop: '40px', color: '#eab308', fontSize: '1rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.2em' }}>Наведіть на QR-код карти</div>
+          <div style={{ marginTop: '40px', color: '#3b82f6', fontSize: '1rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.2em' }}>Зчитайте QR-код з листка</div>
         </div>
       )}
 
+      {/* PIN & SCRAP MODALS SAME AS BEFORE */}
       {showPinModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.98)', backdropFilter: 'blur(30px)', zIndex: 10010, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
            <div style={{ width: '100%', maxWidth: '380px', textAlign: 'center' }}>
@@ -340,18 +347,11 @@ const OperatorTerminal = () => {
       )}
 
       <style dangerouslySetInnerHTML={{ __html: `
-        .spin-slow { animation: spin 4s linear infinite; }
         .animate-spin { animation: spin 1s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
-        @keyframes scan-glow { 0% { box-shadow: 0 0 10px #eab308; } 50% { box-shadow: 0 0 30px #eab308; } 100% { box-shadow: 0 0 10px #eab308; } }
+        @keyframes scan-glow { 0% { box-shadow: 0 0 10px #3b82f6; } 50% { box-shadow: 0 0 30px #3b82f6; } 100% { box-shadow: 0 0 10px #3b82f6; } }
         @keyframes pulse-blue { 0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); } 70% { box-shadow: 0 0 0 15px rgba(59, 130, 246, 0); } 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); } }
         .pulse-blue { animation: pulse-blue 2s infinite; }
-        @media (max-width: 1024px) {
-          .timer-display { font-size: 5rem !important; }
-        }
-        @media (max-width: 768px) {
-          .timer-display { font-size: 4rem !important; }
-        }
       `}} />
     </div>
   )

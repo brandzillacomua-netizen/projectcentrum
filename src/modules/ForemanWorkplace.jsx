@@ -36,7 +36,8 @@ const ForemanWorkplace = () => {
           operation: 'Лазерна різка',
           machine: task.machine_name || 'Не вказано',
           estimatedTime: (Number(part.nom?.time_per_unit) || 0) * qtyPerLoading,
-          cardInfo: `${i}/${totalLoadings}`
+          cardInfo: `${i}/${totalLoadings}`,
+          quantity: qtyPerLoading
         })
       }
       
