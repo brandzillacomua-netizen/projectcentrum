@@ -121,13 +121,21 @@ const OperatorTerminal = () => {
   )
   
   const handleStartOperation = async () => {
-    if (!currentCard || !selectedStage || !selectedOperator) return
+    console.log('--- 🛡️ TERMINAL START CLICKED ---', { currentCard, selectedStage, selectedOperator });
+    if (!currentCard || !selectedStage || !selectedOperator) {
+      console.warn('Abort: Missing card, stage or operator');
+      return
+    }
     setIsProcessing(true)
     try {
       await apiService.submitOperatorAction('start', currentCard.task_id, currentCard.id, selectedOperator, { stage_name: selectedStage }, startWorkCard)
       if (!scannedCardIds.includes(currentCard.id)) {
         setScannedCardIds(prev => [...prev, currentCard.id])
       }
+      console.log('--- 🛡️ TERMINAL START CALL SENT ---');
+    } catch (e) {
+      console.error('Terminal start error:', e);
+      alert('Помилка при старті: ' + e.message);
     } finally { setIsProcessing(false) }
   }
 

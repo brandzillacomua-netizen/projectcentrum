@@ -605,52 +605,78 @@ export const MESProvider = ({ children }) => {
   }
 
   const startWorkCard = async (taskId, cardId, operatorName, extra = {}) => {
-    const { error } = await supabase.from('work_cards').update({ 
-      status: 'in-progress', 
-      started_at: new Date().toISOString(),
-      operator_name: operatorName,
-      operation: extra.stage_name || 'В роботі'
-    }).eq('id', cardId)
-    if (error) throw error
-    fetchData()
+    console.log('--- 🚀 START WORK CARD ATTEMPT ---', { taskId, cardId, operatorName, extra });
+    
+    try {
+      const { error } = await supabase.from('work_cards').update({ 
+        status: 'in-progress', 
+        started_at: new Date().toISOString(),
+        operator_name: operatorName,
+        operation: extra.stage_name || 'В роботі'
+      }).eq('id', cardId)
+      
+      if (error) {
+        console.error('Supabase update error:', error);
+        alert('Помилка бази даних: ' + (error.message || 'Не вдалося оновити статус картки. Можливо, відсутні потрібні колонки в БД.'));
+        throw error
+      }
+      
+      await fetchData()
+      console.log('--- ✅ START WORK CARD SUCCESS ---');
+    } catch (err) {
+      console.error('Final startWorkCard error:', err);
+      alert('Помилка: ' + err.message);
+    }
   }
 
   const completeWorkCard = async (taskId, cardId, operatorName, extra = {}) => {
-    const card = workCards.find(c => c.id === cardId)
-    if (!card) return
+    console.log('--- 🏁 COMPLETE WORK CARD ATTEMPT ---', { taskId, cardId, operatorName, extra });
+    
+    try {
+      const card = workCards.find(c => c.id === cardId)
+      if (!card) return
 
-    const scrapCounts = extra.scrap_counts || {}
+      const scrapCounts = extra.scrap_counts || {}
 
-    const { error } = await supabase.from('work_cards').update({ 
-      status: 'completed', 
-      completed_at: new Date().toISOString() 
-    }).eq('id', cardId)
-    if (error) throw error
+      const { error } = await supabase.from('work_cards').update({ 
+        status: 'completed', 
+        completed_at: new Date().toISOString() 
+      }).eq('id', cardId)
+      
+      if (error) {
+        console.error('Supabase update error:', error);
+        alert('Помилка бази даних: ' + (error.message || 'Не вдалося завершити етап.'));
+        throw error
+      }
 
-    // 1. Calculate & record Scrap
-    for (const [nomenclatureId, count] of Object.entries(scrapCounts)) {
-      if (count > 0) {
-        const nom = nomenclatures.find(n => n.id === nomenclatureId)
-        if (nom) {
-          const fullName = `${nom.name}${nom.material_type ? ` (${nom.material_type})` : ''}`
-          let scrapItem = inventory.find(i => i.nomenclature_id === nomenclatureId && i.type === 'scrap')
-          if (!scrapItem) {
-            const { data } = await supabase.from('inventory').insert([{
-              name: fullName + ' (Брак)',
-              unit: 'шт',
-              total_qty: Number(count),
-              type: 'scrap',
-              nomenclature_id: nomenclatureId
-            }]).select()
-            if (data && data.length > 0) scrapItem = data[0]
-          } else {
-            await supabase.from('inventory').update({ total_qty: Number(scrapItem.total_qty) + Number(count) }).eq('id', scrapItem.id)
+      // Record Scrap logic stays...
+      for (const [nomenclatureId, count] of Object.entries(scrapCounts)) {
+        if (count > 0) {
+          const nom = nomenclatures.find(n => n.id === nomenclatureId)
+          if (nom) {
+            const fullName = `${nom.name}${nom.material_type ? ` (${nom.material_type})` : ''}`
+            let scrapItem = inventory.find(i => i.nomenclature_id === nomenclatureId && i.type === 'scrap')
+            if (!scrapItem) {
+              await supabase.from('inventory').insert([{
+                name: fullName + ' (Брак)',
+                unit: 'шт',
+                total_qty: Number(count),
+                type: 'scrap',
+                nomenclature_id: nomenclatureId
+              }])
+            } else {
+              await supabase.from('inventory').update({ total_qty: Number(scrapItem.total_qty) + Number(count) }).eq('id', scrapItem.id)
+            }
           }
         }
       }
+      
+      await fetchData()
+      console.log('--- ✅ COMPLETE WORK CARD SUCCESS ---');
+    } catch (err) {
+       console.error('Final completeWorkCard error:', err);
+       alert('Помилка завершення: ' + err.message);
     }
-    
-    fetchData()
   }
 
   const createWorkCard = async (taskId, orderId, nomenclatureId, operation, machine, estimatedTime, cardInfo, quantity) => {
