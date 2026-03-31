@@ -19,6 +19,16 @@ export const MESProvider = ({ children }) => {
   const [hasMoreOrders, setHasMoreOrders] = useState(true)
   const PAGE_SIZE = 20
 
+  const normalize = (s) => (s || '').toLowerCase().trim()
+    .replace(/[тt]/g, 't')
+    .replace(/[аa]/g, 'a')
+    .replace(/[еe]/g, 'e')
+    .replace(/[оo]/g, 'o')
+    .replace(/[рp]/g, 'p')
+    .replace(/[сc]/g, 'c')
+    .replace(/[хx]/g, 'x')
+    .replace(/\s/g, '')
+
 
 
   const fetchOrders = async (page = 0, append = false) => {
@@ -296,16 +306,16 @@ export const MESProvider = ({ children }) => {
         const existing = inventory.find(i => i.nomenclature_id === change.nomenclature_id && i.type === change.type)
         
         if (existing) {
-          console.log(`Updating existing inventory: ${change.name} (${change.type}) +${change.qty}`)
+          console.log(`Оновлення існуючого складу: ${change.name} (${change.type}) +${change.qty}`)
           const { error: upError } = await supabase.from('inventory')
             .update({ total_qty: (Number(existing.total_qty) || 0) + change.qty })
             .eq('id', existing.id)
           if (upError) {
-            console.error('Update Error:', upError)
+            console.error('Помилка оновлення:', upError)
             alert(`Помилка оновлення складу (${change.name}): ${upError.message}`)
           }
         } else {
-          console.log(`Inserting new inventory: ${change.name} (${change.type}) qty: ${change.qty}`)
+          console.log(`Додавання нової позиції на склад: ${change.name} (${change.type}) к-сть: ${change.qty}`)
           const { error: inError } = await supabase.from('inventory')
             .insert([{ 
               nomenclature_id: change.nomenclature_id, 
@@ -315,7 +325,7 @@ export const MESProvider = ({ children }) => {
               unit: 'шт' 
             }])
           if (inError) {
-            console.error('Insert Error:', inError)
+            console.error('Помилка вставки:', inError)
             alert(`Помилка запису на склад (${change.name}): ${inError.message}`)
           }
         }
@@ -453,10 +463,9 @@ export const MESProvider = ({ children }) => {
       if (!order) return
 
       let totalMin = 0
-      const materialSummary = {} // { nomenclature_id: { matName, sheets } }
+      const materialSummary = {} 
 
       order.order_items?.forEach(item => {
-        // Expand BOM
         const parts = bomItems.filter(b => b.parent_id === item.nomenclature_id)
         const displayParts = parts.length > 0 ? parts.map(b => ({
           nom: nomenclatures.find(n => n.id === b.child_id),
@@ -468,16 +477,25 @@ export const MESProvider = ({ children }) => {
 
         displayParts.forEach(part => {
           if (!part.nom) return
-          const totalToProduce = item.quantity * part.qtyPer
+          const totalToProduce = (Number(item.quantity) || 0) * (Number(part.qtyPer) || 1)
           const sheets = Math.ceil(totalToProduce / (part.nom.units_per_sheet || 1))
           
-          // Group by material_type (thickness) to provide a summary for the warehouse
-          const matGroup = part.nom.material_type || 'Інше'
-          
-          if (!materialSummary[matGroup]) {
-            materialSummary[matGroup] = { matName: matGroup, sheets: 0 }
+          // Logic: Group strictly by the material/thickness name
+          const matKey = part.nom.material_type || part.nom.name || 'Інше'
+
+          if (!materialSummary[matKey]) {
+            const rawNom = nomenclatures.find(n => n.type === 'raw' && (normalize(n.material_type) === normalize(matKey) || normalize(n.name) === normalize(matKey)))
+            const invItem = inventory.find(i => rawNom ? (String(i.nomenclature_id) === String(rawNom.id)) : (String(i.nomenclature_id) === String(part.nom.id)) && i.type === 'raw')
+            
+            materialSummary[matKey] = { 
+              matName: matKey, 
+              sheets: 0, 
+              components: [],
+              inventory_id: invItem?.id || null
+            }
           }
-          materialSummary[matGroup].sheets += sheets
+          materialSummary[matKey].sheets += sheets
+          materialSummary[matKey].components.push(`${part.nom.name}: ${totalToProduce}шт`)
           totalMin += totalToProduce * (Number(part.nom.time_per_unit) || 0)
         })
       })
@@ -487,7 +505,7 @@ export const MESProvider = ({ children }) => {
       const { error: orderUpdateError } = await supabase.from('orders').update({ status: 'in-progress' }).eq('id', orderId)
       if (orderUpdateError) throw orderUpdateError
 
-      const { error: taskError } = await supabase.from('tasks').insert([{ 
+      const { data: taskData, error: taskError } = await supabase.from('tasks').insert([{ 
         order_id: orderId, 
         step: 'Лазерна різка', 
         status: 'waiting',
@@ -495,21 +513,27 @@ export const MESProvider = ({ children }) => {
         estimated_time: Math.round(totalMin),
         engineer_conf: false,
         warehouse_conf: false
-      }])
+      }]).select().single()
       if (taskError) throw taskError
 
       // Create detailed material requests
-      for (const [nomId, info] of Object.entries(materialSummary)) {
-        const invItem = inventory.find(i => i.nomenclature_id === nomId && i.type === 'raw')
-        const details = `Сировина для ${order.order_num}: ${info.matName} — ${info.sheets} листів.`
+      for (const info of Object.values(materialSummary)) {
+        const details = `Сировина для ${order.order_num}: ${info.matName} — ${info.sheets} л. (Для: ${info.components.join(', ')})`
         
-        await supabase.from('material_requests').insert([{ 
+        const reqPayload = { 
           order_id: orderId, 
-          inventory_id: invItem?.id || null, 
-          quantity: info.sheets, 
+          quantity: Number(info.sheets) || 0, 
           details, 
           status: 'pending' 
-        }])
+        }
+        if (info.inventory_id) reqPayload.inventory_id = info.inventory_id
+
+        const { error: reqError } = await supabase.from('material_requests').insert([reqPayload])
+        
+        if (reqError) {
+          console.error('Error creating material request:', reqError)
+          alert('Помилка при запиті на склад: ' + (reqError.message || JSON.stringify(reqError)))
+        }
       }
 
       console.log('Naryad created successfully with detailed requests')
@@ -538,7 +562,7 @@ export const MESProvider = ({ children }) => {
       const invItem = inventory.find(i => 
         i.id === req.inventory_id || 
         (req.nomenclature_id && i.nomenclature_id === req.nomenclature_id && i.type === 'raw') ||
-        (parsedName && i.name === parsedName && i.type === 'raw')
+        (parsedName && normalize(i.name) === normalize(parsedName) && i.type === 'raw')
       )
       
       if (invItem) {

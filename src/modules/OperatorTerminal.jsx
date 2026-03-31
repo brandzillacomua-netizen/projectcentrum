@@ -215,7 +215,7 @@ const OperatorTerminal = () => {
         <div className="content-panel" style={{ flex: 1, padding: '20px 15px', background: '#0a0a0a', overflowY: 'auto', position: 'relative' }}>
           {isSyncing && (
             <div style={{ position: 'absolute', top: 20, right: 20, background: '#eab308', color: '#000', padding: '10px 20px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '10px', zIndex: 100 }}>
-              <RefreshCw className="animate-spin" size={16} /> ОНОВЛЕННЯ ДАНИХ...
+              <RefreshCw className="animate-spin" size={16} /> СИНХРОНІЗАЦІЯ ДАНИХ...
             </div>
           )}
 
@@ -235,7 +235,7 @@ const OperatorTerminal = () => {
                 </div>
                 <h2 style={{ fontSize: '2.5rem', margin: 0, fontWeight: 950, letterSpacing: '-0.02em', lineHeight: 1 }}>{getNomFromCard(currentCard)?.name || 'Деталь'}</h2>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '10px', color: '#3b82f6' }}>
-                   <FileCode size={18}/> <span style={{ fontWeight: 800, fontSize: '0.9rem' }}>{getNomFromCard(currentCard)?.cnc_program || 'CNC-PROG'}</span>
+                   <FileCode size={18}/> <span style={{ fontWeight: 800, fontSize: '0.9rem' }}>{getNomFromCard(currentCard)?.cnc_program || 'БЕЗ ПРОГРАМИ'}</span>
                 </div>
               </div>
 
@@ -260,19 +260,19 @@ const OperatorTerminal = () => {
                   </>
                 ) : (
                   <>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '35px' }}>
-                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#10b981', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.2em' }}><Timer size={16} /> ЧАС ВИКОНАННЯ</div>
-                       <div className="timer-display" style={{ fontSize: '6rem', fontWeight: 1000, color: '#10b981', fontFamily: 'monospace', letterSpacing: '-0.05em' }}>{formatElapsedTime(currentCard.started_at)}</div>
-                    </div>
-                    <button disabled={isProcessing} onClick={() => {
-                        const order = getTaskOrder(currentCard.order_id)
-                        const initialScrap = {}
-                        order?.order_items?.forEach(item => initialScrap[item.nomenclature_id] = 0)
-                        setScrapCounts(initialScrap)
-                        setShowScrapModal(true)
-                    }} className="btn-action" style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '22px 70px', borderRadius: '18px', fontSize: '1.4rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '15px', margin: '0 auto' }}>
-                       <CheckCircle size={30} /> ЗАВЕРШИТИ ПАРТІЮ
-                    </button>
+                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '35px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#10b981', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.2em' }}><Timer size={16} /> ЧАС ВИКОНАННЯ</div>
+                        <div className="timer-display" style={{ fontSize: '6rem', fontWeight: 1000, color: '#10b981', fontFamily: 'monospace', letterSpacing: '-0.05em' }}>{formatElapsedTime(currentCard.started_at)}</div>
+                     </div>
+                     <button disabled={isProcessing} onClick={() => {
+                         const order = getTaskOrder(currentCard.order_id)
+                         const initialScrap = {}
+                         order?.order_items?.forEach(item => initialScrap[item.nomenclature_id] = 0)
+                         setScrapCounts(initialScrap)
+                         setShowScrapModal(true)
+                     }} className="btn-action" style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '22px 70px', borderRadius: '18px', fontSize: '1.4rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '15px', margin: '0 auto' }}>
+                        <CheckCircle size={30} /> ЗАВЕРШИТИ ПАРТІЮ
+                     </button>
                   </>
                 )}
               </div>
@@ -283,7 +283,7 @@ const OperatorTerminal = () => {
                   <Search size={70} color="#333" />
                </div>
                <h3 style={{ fontSize: '1.9rem', fontWeight: 950, marginBottom: '12px' }}>ОЧІКУВАННЯ СКАНУВАННЯ</h3>
-               <p style={{ color: '#555', fontSize: '1rem', maxWidth: '380px' }}>Відскануйте QR-код робочої карти яку надав вам майстер</p>
+               <p style={{ color: '#555', fontSize: '1rem', maxWidth: '380px' }}>Зчитайте QR-код з листка робочої карти, яку надав вам майстер</p>
                <button onClick={() => { setIsScanning(true); setScanError(null); }} style={{ marginTop: '35px', background: '#3b82f6', color: '#fff', border: 'none', padding: '20px 50px', borderRadius: '16px', fontSize: '1.2rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '14px' }}>
                   <Camera size={24} /> ВІДКРИТИ СКАНЕР
                </button>
@@ -299,15 +299,14 @@ const OperatorTerminal = () => {
              <div id="reader" style={{ background: '#111', borderRadius: '32px', overflow: 'hidden' }}></div>
              <div style={{ position: 'absolute', inset: -5, border: '6px solid #3b82f6', borderRadius: '36px', pointerEvents: 'none', animation: 'scan-glow 2s infinite' }}></div>
           </div>
-          <div style={{ marginTop: '40px', color: '#3b82f6', fontSize: '1rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.2em' }}>Зчитайте QR-код з листка</div>
+          <div style={{ marginTop: '40px', color: '#3b82f6', fontSize: '1rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.2em' }}>Зчитайте QR-код з робочої карти</div>
         </div>
       )}
 
-      {/* PIN & SCRAP MODALS SAME AS BEFORE */}
       {showPinModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.98)', backdropFilter: 'blur(30px)', zIndex: 10010, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
            <div style={{ width: '100%', maxWidth: '380px', textAlign: 'center' }}>
-              <div style={{ marginBottom: '30px' }}><Fingerprint size={50} color="#3b82f6" style={{ marginBottom: '12px' }} /><h3 style={{ fontSize: '2rem', fontWeight: 950, margin: 0 }}>ВХІД: 555</h3><p style={{ color: '#555', fontSize: '0.9rem' }}>Підтвердіть особу оператора</p></div>
+              <div style={{ marginBottom: '30px' }}><Fingerprint size={50} color="#3b82f6" style={{ marginBottom: '12px' }} /><h3 style={{ fontSize: '2rem', fontWeight: 950, margin: 0 }}>ВХІД: 555</h3><p style={{ color: '#555', fontSize: '0.9rem' }}>Підтвердіть особу оператора для початку робіт</p></div>
               <div style={{ background: '#111', padding: '10px', borderRadius: '24px', fontSize: '3rem', fontWeight: 1000, letterSpacing: '0.4em', height: '90px', marginBottom: '30px', border: `3px solid ${pinError ? '#ef4444' : '#222'}`, color: pinError ? '#ef4444' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{pin.split('').map(() => '*').join('')}</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px' }}>
                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => <button key={num} onClick={() => pin.length < 6 && setPin(pin + num)} style={{ background: '#1a1a1a', border: '1px solid #333', color: '#fff', fontSize: '2rem', fontWeight: 900, padding: '22px', borderRadius: '18px', cursor: 'pointer' }}>{num}</button>)}
@@ -324,7 +323,7 @@ const OperatorTerminal = () => {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.96)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10020, padding: '20px' }}>
           <div style={{ background: '#111', width: '100%', maxWidth: '580px', borderRadius: '32px', border: '1px solid #333', overflow: 'hidden' }}>
             <div style={{ padding: '30px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: 0, fontSize: '1.4rem', fontWeight: 900 }}><AlertTriangle color="#ef4444" size={26} /> Звіт по браку</h3>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: 0, fontSize: '1.4rem', fontWeight: 900 }}><AlertTriangle color="#ef4444" size={26} /> Звіт по браку за партію</h3>
               <button onClick={() => setShowScrapModal(false)} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}><X size={26} /></button>
             </div>
             <div style={{ padding: '30px', maxHeight: '60vh', overflowY: 'auto' }}>
@@ -332,15 +331,15 @@ const OperatorTerminal = () => {
                 const nom = nomenclatures.find(n => n.id === item.nomenclature_id) || nomenclatures.find(n => currentCard.card_info?.includes(`NOM_ID:${n.id}`))
                 return (
                   <div key={item.id} style={{ background: '#0a0a0a', padding: '20px', borderRadius: '20px', marginBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #222' }}>
-                    <div style={{ flex: 1 }}><strong style={{ display: 'block', fontSize: '1.2rem', marginBottom: '6px' }}>{nom?.name}</strong><span style={{ color: '#555', fontSize: '0.85rem' }}>Макс. План: {item.quantity} шт</span></div>
+                    <div style={{ flex: 1 }}><strong style={{ display: 'block', fontSize: '1.2rem', marginBottom: '6px' }}>{nom?.name}</strong><span style={{ color: '#555', fontSize: '0.85rem' }}>План замовлення: {item.quantity} шт</span></div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                      <span style={{ color: '#ef4444', fontWeight: 950, fontSize: '0.75rem' }}>БРАК:</span>
-                      <input type="number" min="0" style={{ background: '#000', border: '2px solid #333', color: 'white', width: '85px', padding: '15px', borderRadius: '12px', textAlign: 'center', fontSize: '1.5rem', fontWeight: 900 }} value={scrapCounts[item.nomenclature_id] || 0} onChange={e => setScrapCounts({...scrapCounts, [item.nomenclature_id]: parseInt(e.target.value) || 0})} />
+                       <span style={{ color: '#ef4444', fontWeight: 950, fontSize: '0.75rem' }}>БРАК:</span>
+                       <input type="number" min="0" style={{ background: '#000', border: '2px solid #333', color: 'white', width: '85px', padding: '15px', borderRadius: '12px', textAlign: 'center', fontSize: '1.5rem', fontWeight: 900 }} value={scrapCounts[item.nomenclature_id] || 0} onChange={e => setScrapCounts({...scrapCounts, [item.nomenclature_id]: parseInt(e.target.value) || 0})} />
                     </div>
                   </div>
                 )
               })}
-              <button disabled={isProcessing} onClick={submitCompletion} style={{ background: '#3b82f6', color: 'white', border: 'none', width: '100%', padding: '22px', borderRadius: '18px', fontWeight: 900, fontSize: '1.3rem', marginTop: '20px', cursor: 'pointer' }}>ЗАВЕРШИТИ ОПЕРАЦІЮ</button>
+              <button disabled={isProcessing} onClick={submitCompletion} style={{ background: '#3b82f6', color: 'white', border: 'none', width: '100%', padding: '22px', borderRadius: '18px', fontWeight: 900, fontSize: '1.3rem', marginTop: '20px', cursor: 'pointer' }}>ЗАВЕРШИТИ ПАРТІЮ ТА ЗБЕРЕГТИ</button>
             </div>
           </div>
         </div>

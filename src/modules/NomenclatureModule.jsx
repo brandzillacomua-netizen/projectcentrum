@@ -37,7 +37,6 @@ const NomenclatureModule = () => {
   const [draftBOM, setDraftBOM] = useState([])
   const [isSyncing, setIsSyncing] = useState(false)
   const [partToAdd, setPartToAdd] = useState({ child_id: '', qty: 1 })
-  const [hwToAdd, setHwToAdd] = useState({ child_id: '', qty: 1 })
 
   useEffect(() => {
     if (!selectedParent) {
@@ -55,7 +54,8 @@ const NomenclatureModule = () => {
     { id: 'product', label: 'Готовий виріб', icon: <Box size={16} />, color: '#ff9000' },
     { id: 'part', label: 'Деталь (Лазер)', icon: <Component size={16} />, color: '#3b82f6' },
     { id: 'hardware', label: 'Метизи / Комплектуючі', icon: <Nut size={16} />, color: '#22c55e' },
-    { id: 'raw', label: 'Сировина', icon: <Layers size={16} />, color: '#eab308' }
+    { id: 'raw', label: 'Сировина', icon: <Layers size={16} />, color: '#eab308' },
+    { id: 'consumable', label: 'Розхідники', icon: <Trash2 size={16} />, color: '#ef4444' }
   ]
 
   const handleSaveNom = (e) => {
@@ -89,12 +89,10 @@ const NomenclatureModule = () => {
     } else {
       setDraftBOM([...draftBOM, { child_id: data.child_id, qty: data.qty }])
     }
-    if (type === 'part') setPartToAdd({ child_id: '', qty: 1 })
-    else setHwToAdd({ child_id: '', qty: 1 })
+    setPartToAdd({ child_id: '', qty: 1 })
   }
 
   const removeFromDraft = (childId) => setDraftBOM(draftBOM.filter(d => d.child_id !== childId))
-  const updateDraftQty = (childId, newQty) => setDraftBOM(draftBOM.map(d => d.child_id === childId ? { ...d, qty: newQty } : d))
 
   const handleSyncBOM = async () => {
     setIsSyncing(true)
@@ -107,8 +105,6 @@ const NomenclatureModule = () => {
     const matchesSearch = n.name.toLowerCase().includes(searchQuery.toLowerCase())
     return matchesTab && matchesSearch
   })
-
-  const draftParts = draftBOM.filter(d => nomenclatures.find(n => n.id === d.child_id)?.type === 'part')
 
   return (
     <div className="nomenclature-module-v2" style={{ background: '#080808', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
@@ -128,41 +124,69 @@ const NomenclatureModule = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
                 {isEditing ? <Edit3 size={20} color="#ff9000" /> : <Plus size={20} />} 
-                {isEditing ? 'Редагування' : 'Створити позицію'}
+                {isEditing ? 'Реагування' : 'Реєстрація нової позиції'}
               </h3>
               {isEditing && <button onClick={cancelEdit} style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid #ef444433', padding: '5px 12px', borderRadius: '8px', fontSize: '0.75rem', cursor: 'pointer' }}><X size={14} /> Скасувати</button>}
             </div>
             
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
+            <div className="type-buttons-v2" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '10px', marginBottom: '25px' }}>
               {types.map(t => (
-                <button key={t.id} onClick={() => setNewNom({...newNom, type: t.id})} style={{ background: newNom.type === t.id ? t.color : '#111', color: newNom.type === t.id ? '#000' : '#555', border: '1px solid #222', padding: '8px 12px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button key={t.id} onClick={() => setNewNom({...newNom, type: t.id})} style={{ 
+                  background: newNom.type === t.id ? t.color : 'rgba(255,255,255,0.03)', 
+                  color: newNom.type === t.id ? '#000' : '#444', 
+                  border: '1px solid ' + (newNom.type === t.id ? t.color : '#222'), 
+                  padding: '12px 10px', 
+                  borderRadius: '12px', 
+                  fontSize: '0.72rem', 
+                  fontWeight: 900, 
+                  cursor: 'pointer', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  gap: '8px', 
+                  transition: 'all 0.2s',
+                  boxShadow: newNom.type === t.id ? `0 0 15px ${t.color}33` : 'none'
+                }}>
                   {t.icon} <span>{t.label}</span>
                 </button>
               ))}
             </div>
 
-            <form onSubmit={handleSaveNom} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <form onSubmit={handleSaveNom} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div className="form-group">
-                <label style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800, textTransform: 'uppercase', marginBottom: '5px', display: 'block' }}>Назва позиції</label>
-                <input style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '12px', borderRadius: '10px' }} value={newNom.name} onChange={e => setNewNom({...newNom, name: e.target.value})} placeholder="напр. РАМА XL-10" required />
+                <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>НАЗВА МОДЕЛІ / АРТИКУЛ</label>
+                <input style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px', fontSize: '1.2rem', fontWeight: 700 }} value={newNom.name} onChange={e => setNewNom({...newNom, name: e.target.value})} placeholder="напр. KHARAK 10.0" required />
               </div>
-
-              <div className="form-grid stack-mobile" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+ 
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                 <div className="form-group">
-                  <label style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800, textTransform: 'uppercase' }}>Матеріал</label>
+                  <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>МАТЕРІАЛ / ТОВЩИНА</label>
                   {newNom.type === 'part' ? (
-                    <select style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '12px', borderRadius: '10px' }} value={newNom.material_type} onChange={e => setNewNom({...newNom, material_type: e.target.value})} required>
-                      <option value="">Оберіть...</option>
+                    <select style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px', appearance: 'none' }} value={newNom.material_type} onChange={e => setNewNom({...newNom, material_type: e.target.value})} required>
+                      <option value="">Оберіть сировину...</option>
                       {nomenclatures.filter(n => n.type === 'raw').map(n => <option key={n.id} value={n.name}>{n.name}</option>)}
                     </select>
-                  ) : <input style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '12px', borderRadius: '10px' }} value={newNom.material_type} onChange={e => setNewNom({...newNom, material_type: e.target.value})} placeholder="Товщина/Марка" />}
+                  ) : <input style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.material_type} onChange={e => setNewNom({...newNom, material_type: e.target.value})} placeholder="..." />}
                 </div>
-                {newNom.type === 'part' && (
-                  <div className="form-group"><label style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800, textTransform: 'uppercase' }}>Лист/ШТ</label><input type="number" style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '12px', borderRadius: '10px' }} value={newNom.units_per_sheet} onChange={e => setNewNom({...newNom, units_per_sheet: e.target.value})} /></div>
-                )}
+                <div className="form-group">
+                  <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>ЧПК (.DXF)</label>
+                  <input style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.cnc_program} onChange={e => setNewNom({...newNom, cnc_program: e.target.value})} placeholder="..." />
+                </div>
               </div>
-              <button type="submit" style={{ width: '100%', padding: '15px', background: isEditing ? '#3b82f6' : '#ff9000', color: '#000', border: 'none', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-                {isEditing ? <Check size={18} /> : <Save size={18} />} {isEditing ? 'ОНОВИТИ' : 'ЗБЕРЕГТИ'}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                <div className="form-group">
+                  <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>ШТ/ЛИСТ</label>
+                  <input type="number" style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.units_per_sheet} onChange={e => setNewNom({...newNom, units_per_sheet: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>ЧАС ВИРІЗКИ/ШТ (ХВ)</label>
+                  <input type="number" step="0.01" style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.time_per_unit} onChange={e => setNewNom({...newNom, time_per_unit: e.target.value})} />
+                </div>
+              </div>
+
+              <button type="submit" style={{ width: '100%', padding: '18px', background: isEditing ? '#3b82f6' : '#ff9000', color: '#000', border: 'none', borderRadius: '16px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', fontSize: '1rem', marginTop: '10px' }}>
+                {isEditing ? <Check size={20} /> : <Save size={20} />} {isEditing ? 'ОНОВИТИ ПОЗИЦІЮ' : 'ЗБЕРЕГТИ НОВУ ПОЗИЦІЮ'}
               </button>
             </form>
           </div>
@@ -187,7 +211,7 @@ const NomenclatureModule = () => {
                 <div style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: '20px' }}>
                    {draftBOM.map(d => (
                      <div key={d.child_id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', background: '#111', borderRadius: '8px', marginBottom: '5px' }}>
-                        <span style={{ fontSize: '0.85rem' }}>{nomenclatures.find(n => n.id === d.child_id)?.name}</span>
+                        <span style={{ fontSize: '0.85rem', color: '#888' }}>{nomenclatures.find(n => n.id === d.child_id)?.name}</span>
                         <div style={{ display: 'flex', gap: '10px' }}>
                            <span style={{ color: '#ff9000', fontWeight: 800 }}>{d.qty} шт</span>
                            <Trash2 size={14} color="#ef4444" style={{ cursor: 'pointer' }} onClick={() => removeFromDraft(d.child_id)} />
@@ -196,10 +220,11 @@ const NomenclatureModule = () => {
                    ))}
                 </div>
                 <button onClick={handleSyncBOM} style={{ width: '100%', padding: '12px', background: hasUnsavedChanges ? '#ff9000' : '#222', color: hasUnsavedChanges ? '#000' : '#555', border: 'none', borderRadius: '10px', fontWeight: 900, cursor: 'pointer' }} disabled={isSyncing || !hasUnsavedChanges}>
-                  <Save size={16} /> ЗБЕРЕГТИ СКЛАД
+                  <Save size={16} /> ЗБЕРЕГТИ СКЛАД ВИРОБУ
                 </button>
               </div>
             )}
+            {!selectedParent && <p style={{ color: '#333', fontSize: '0.8rem', textAlign: 'center', marginTop: '40px' }}>Оберіть виріб зі списку вище для перегляду або редагування його складу (BOM)</p>}
           </div>
 
           <div className="content-card full-width glass-panel" style={{ padding: '25px', borderRadius: '24px', background: 'rgba(20,20,20,0.6)', border: '1px solid #222', marginTop: '20px' }}>
@@ -207,7 +232,7 @@ const NomenclatureModule = () => {
                <h3 style={{ margin: 0 }}>Реєстр номенклатури</h3>
                <div style={{ position: 'relative' }}>
                   <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#555' }} />
-                  <input style={{ background: '#000', border: '1px solid #222', padding: '10px 15px 10px 40px', borderRadius: '10px', color: '#fff', width: '250px' }} placeholder="Пошук..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                  <input style={{ background: '#000', border: '1px solid #222', padding: '10px 15px 10px 40px', borderRadius: '10px', color: '#fff', width: '250px' }} placeholder="Пошук за назвою..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                </div>
             </div>
 
@@ -215,10 +240,10 @@ const NomenclatureModule = () => {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: '#111', borderBottom: '1px solid #222' }}>
-                    <th className="sticky-col" style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555' }}>НАЗВА</th>
-                    <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555' }}>ТИП</th>
-                    <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555' }}>МАТЕРІАЛ</th>
-                    <th style={{ padding: '15px', textAlign: 'center', fontSize: '0.7rem', color: '#555' }}>ДІЇ</th>
+                    <th className="sticky-col" style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Назва</th>
+                    <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Тип</th>
+                    <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Матеріал</th>
+                    <th style={{ padding: '15px', textAlign: 'center', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Дії</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -232,7 +257,7 @@ const NomenclatureModule = () => {
                         <td style={{ padding: '15px', textAlign: 'center' }}>
                            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
                              <Edit3 size={16} style={{ cursor: 'pointer', color: '#3b82f6' }} onClick={() => startEdit(n)} />
-                             <Trash2 size={16} style={{ cursor: 'pointer', color: '#ef4444' }} onClick={() => window.confirm('Видалити?') && apiService.submitDelete(n.id, 'nomenclature', deleteNomenclature)} />
+                             <Trash2 size={16} style={{ cursor: 'pointer', color: '#ef4444' }} onClick={() => window.confirm('Видалити цей елемент?') && apiService.submitDelete(n.id, 'nomenclature', deleteNomenclature)} />
                            </div>
                         </td>
                       </tr>
@@ -249,7 +274,7 @@ const NomenclatureModule = () => {
                        <span style={{ fontSize: '0.6rem', color: '#ff9000', fontWeight: 900 }}>{n.type.toUpperCase()}</span>
                        <div style={{ display: 'flex', gap: '15px' }}>
                           <Edit3 size={16} color="#555" onClick={() => startEdit(n)} />
-                          <Trash2 size={16} color="#ef4444" onClick={() => apiService.submitDelete(n.id, 'nomenclature', deleteNomenclature)} />
+                          <Trash2 size={16} color="#ef4444" onClick={() => window.confirm('Видалити?') && apiService.submitDelete(n.id, 'nomenclature', deleteNomenclature)} />
                        </div>
                     </div>
                     <strong>{n.name}</strong>
@@ -267,8 +292,6 @@ const NomenclatureModule = () => {
         @media (max-width: 1024px) {
           .nomenclature-grid-responsive { grid-template-columns: 1fr; }
         }
-        .spin { animation: spin 1s linear infinite; }
-        @keyframes spin { from {transform: rotate(0deg)} to {transform: rotate(360deg)} }
       `}} />
     </div>
   )

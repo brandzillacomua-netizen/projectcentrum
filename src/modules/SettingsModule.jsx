@@ -34,7 +34,7 @@ const SettingsModule = () => {
       cnc_program: newNom.cnc_program
     })
     setNewNom({ name: '', units_per_sheet: '', time_per_unit: '', material_type: '', cnc_program: '' })
-    alert('Номенклатуру збережено!')
+    alert('Номенклатуру збережено успішно!')
   }
 
   const handleAddBOM = (e) => {
@@ -52,7 +52,7 @@ const SettingsModule = () => {
   return (
     <div className="settings-module-v2" style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
       <nav className="module-nav" style={{ flexShrink: 0 }}>
-        <Link to="/" className="back-link"><ArrowLeft size={18} /> <span className="hide-mobile">Назад</span></Link>
+        <Link to="/" className="back-link"><ArrowLeft size={18} /> <span className="hide-mobile">На головну</span></Link>
         <div className="module-title-group">
           <SettingsIcon className="text-secondary" size={24} />
           <h1 className="hide-mobile">Конструктор Номенклатури</h1>
@@ -77,17 +77,17 @@ const SettingsModule = () => {
                 <h3 style={{ fontSize: '1rem', fontWeight: 900, marginBottom: '25px', display: 'flex', alignItems: 'center', gap: '10px', color: '#ff9000' }}><Plus size={20} /> НОВА ПОЗИЦІЯ</h3>
                 <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                    <div>
-                      <label className="form-label">НАЗВА ДЕТАЛІ</label>
-                      <input style={inputStyle} value={newNom.name} onChange={e => setNewNom({...newNom, name: e.target.value})} placeholder="напр. KHARAK 10.0" />
+                      <label className="form-label">НАЗВА ДЕТАЛІ / ВИРОБУ</label>
+                      <input style={inputStyle} value={newNom.name} onChange={e => setNewNom({...newNom, name: e.target.value})} placeholder="напр. КРОНШТЕЙН K-10" required />
                    </div>
                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                       <div>
                          <label className="form-label">МЕТАЛ / ТОВЩИНА</label>
-                         <input style={inputStyle} value={newNom.material_type} onChange={e => setNewNom({...newNom, material_type: e.target.value})} placeholder="T300-3" />
+                         <input style={inputStyle} value={newNom.material_type} onChange={e => setNewNom({...newNom, material_type: e.target.value})} placeholder="напр. S355 4мм" />
                       </div>
                       <div>
                          <label className="form-label">ПРОГРАМА ЧПК</label>
-                         <input style={inputStyle} value={newNom.cnc_program} onChange={e => setNewNom({...newNom, cnc_program: e.target.value})} placeholder="cut.dxf" />
+                         <input style={inputStyle} value={newNom.cnc_program} onChange={e => setNewNom({...newNom, cnc_program: e.target.value})} placeholder="cut_file.dxf" />
                       </div>
                    </div>
                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
@@ -96,11 +96,11 @@ const SettingsModule = () => {
                          <input type="number" style={inputStyle} value={newNom.units_per_sheet} onChange={e => setNewNom({...newNom, units_per_sheet: e.target.value})} />
                       </div>
                       <div>
-                         <label className="form-label">ЧАС НА ДЕТАЛЬ (хв)</label>
+                         <label className="form-label">ЧАС НА ОДИН. (хв)</label>
                          <input type="number" style={inputStyle} value={newNom.time_per_unit} onChange={e => setNewNom({...newNom, time_per_unit: e.target.value})} />
                       </div>
                    </div>
-                   <button type="submit" style={{ background: '#ff9000', color: '#000', border: 'none', padding: '18px', borderRadius: '14px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                   <button type="submit" style={{ background: '#ff9000', color: '#000', border: 'none', padding: '18px', borderRadius: '14px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontSize: '1rem' }}>
                       <Save size={20} /> ЗБЕРЕГТИ ПОЗИЦІЮ
                    </button>
                 </form>
@@ -110,30 +110,30 @@ const SettingsModule = () => {
            {/* BOM EDITOR */}
            {(activeTab === 'bom' || !window.matchMedia("(max-width: 768px)").matches) && (
              <section className="settings-panel glass-panel" style={{ background: '#111', padding: '30px', borderRadius: '24px', border: '1px solid #222' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 900, marginBottom: '25px', display: 'flex', alignItems: 'center', gap: '10px', color: '#ff9000' }}><Layers size={20} /> РЕДАКТОР СПЕЦИФІКАЦІЙ</h3>
+                <h3 style={{ fontSize: '1rem', fontWeight: 900, marginBottom: '25px', display: 'flex', alignItems: 'center', gap: '10px', color: '#ff9000' }}><Layers size={20} /> РЕДАКТОР СПЕЦИФІКАЦІЙ (BOM)</h3>
                 
                 <div style={{ marginBottom: '25px' }}>
                    <label className="form-label">Оберіть Готовий Виріб</label>
                    <select style={inputStyle} value={selectedParent} onChange={e => setSelectedParent(e.target.value)}>
-                      <option value="">Пошук виробу...</option>
+                      <option value="">Пошук виробу для редагування...</option>
                       {nomenclatures.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
                    </select>
                 </div>
 
                 {selectedParent && (
                    <div style={{ animation: 'fadeIn 0.3s forwards' }}>
-                      <label className="form-label">Додати деталь у склад:</label>
+                      <label className="form-label">Додати деталь у склад виробу:</label>
                       <form onSubmit={handleAddBOM} style={{ display: 'grid', gridTemplateColumns: '1fr 80px auto', gap: '10px', marginBottom: '20px' }}>
                          <select style={inputStyle} value={bomPart.child_id} onChange={e => setBomPart({...bomPart, child_id: e.target.value})}>
                             <option value="">Оберіть деталь...</option>
                             {nomenclatures.filter(n => n.id !== selectedParent).map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
                          </select>
                          <input type="number" style={inputStyle} value={bomPart.qty} onChange={e => setBomPart({...bomPart, qty: e.target.value})} min="1" />
-                         <button type="submit" style={{ background: '#222', color: '#ff9000', border: 'none', padding: '10px 15px', borderRadius: '10px', fontWeight: 900 }}><Plus size={20} /></button>
+                         <button type="submit" style={{ background: '#222', color: '#ff9000', border: 'none', padding: '10px 15px', borderRadius: '10px', fontWeight: 900 }} title="Додати"><Plus size={20} /></button>
                       </form>
 
                       <div style={{ background: '#0a0a0a', padding: '15px', borderRadius: '18px', border: '1px solid #1a1a1a' }}>
-                         <h4 style={{ fontSize: '0.65rem', color: '#444', textTransform: 'uppercase', marginBottom: '15px' }}>Склад виробу:</h4>
+                         <h4 style={{ fontSize: '0.65rem', color: '#444', textTransform: 'uppercase', marginBottom: '15px' }}>Поточний склад виробу:</h4>
                          {bomItems.filter(b => b.parent_id === selectedParent).map(b => {
                             const child = nomenclatures.find(n => n.id === b.child_id)
                             return (
@@ -141,14 +141,16 @@ const SettingsModule = () => {
                                   <span style={{ fontSize: '0.85rem' }}>{child?.name}</span>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                                      <strong style={{ color: '#ff9000' }}>{b.quantity_per_parent} шт</strong>
-                                     <button onClick={() => removeBOM(b.id)} style={{ background: 'transparent', border: 'none', color: '#444', cursor: 'pointer' }}><Trash2 size={16} /></button>
+                                     <button onClick={() => removeBOM(b.id)} style={{ background: 'transparent', border: 'none', color: '#444', cursor: 'pointer' }} title="Видалити"><Trash2 size={16} /></button>
                                   </div>
                                </div>
                             )
                          })}
+                         {bomItems.filter(b => b.parent_id === selectedParent).length === 0 && <p style={{ textAlign: 'center', fontSize: '0.75rem', color: '#333', padding: '20px' }}>Склад поки що порожній</p>}
                       </div>
                    </div>
                 )}
+                {!selectedParent && <p style={{ textAlign: 'center', fontSize: '0.8rem', color: '#333', marginTop: '40px' }}>Оберіть виріб для перегляду специфікації</p>}
              </section>
            )}
 
@@ -156,10 +158,10 @@ const SettingsModule = () => {
            {(activeTab === 'list' || !window.matchMedia("(max-width: 768px)").matches) && (
              <section className="registry-area">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                   <h3 style={{ fontSize: '0.85rem', color: '#555', margin: 0 }}><BarChart3 size={18} /> ГЛОБАЛЬНИЙ РЕЄСТР</h3>
+                   <h3 style={{ fontSize: '0.85rem', color: '#555', margin: 0 }}><BarChart3 size={18} /> ГЛОБАЛЬНИЙ РЕЄСТР НОМЕНКЛАТУРИ</h3>
                    <div style={{ position: 'relative' }}>
                       <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#333' }} />
-                      <input style={{ background: '#000', border: '1px solid #222', borderRadius: '10px', padding: '8px 10px 8px 35px', color: '#fff', fontSize: '0.8rem', width: '180px' }} placeholder="Пошук..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                      <input style={{ background: '#000', border: '1px solid #222', borderRadius: '10px', padding: '8px 10px 8px 35px', color: '#fff', fontSize: '0.8rem', width: '200px' }} placeholder="Пошук..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                    </div>
                 </div>
 
@@ -171,22 +173,22 @@ const SettingsModule = () => {
                             <th style={{ padding: '15px' }}>МАТЕРІАЛ</th>
                             <th style={{ padding: '15px' }}>ПРОГРАМА</th>
                             <th style={{ padding: '15px' }}>ШТ/ЛИСТ</th>
-                            <th style={{ padding: '15px' }}>ЧАС</th>
+                            <th style={{ padding: '15px' }}>НОРМА ЧАСУ</th>
                             <th style={{ padding: '15px', textAlign: 'right' }}>ДІЯ</th>
                          </tr>
                       </thead>
                       <tbody>
                          {filteredNoms.map(n => (
-                           <tr key={n.id} style={{ borderBottom: '1px solid #111' }}>
-                              <td style={{ padding: '15px', fontWeight: 800 }}>{n.name}</td>
-                              <td style={{ padding: '15px', color: '#888' }}>{n.material_type || '—'}</td>
-                              <td style={{ padding: '15px', color: '#3b82f6', fontFamily: 'monospace' }}>{n.cnc_program || '—'}</td>
-                              <td style={{ padding: '15px' }}>{n.units_per_sheet}</td>
-                              <td style={{ padding: '15px' }}>{n.time_per_unit} хв</td>
-                              <td style={{ padding: '15px', textAlign: 'right' }}>
-                                 <button onClick={() => window.confirm(`Видалити?`) && deleteNomenclature(n.id)} style={{ background: 'transparent', border: 'none', color: '#444', cursor: 'pointer' }}><Trash2 size={16} /></button>
-                              </td>
-                           </tr>
+                            <tr key={n.id} style={{ borderBottom: '1px solid #111' }}>
+                               <td style={{ padding: '15px', fontWeight: 800 }}>{n.name}</td>
+                               <td style={{ padding: '15px', color: '#888' }}>{n.material_type || '—'}</td>
+                               <td style={{ padding: '15px', color: '#3b82f6', fontFamily: 'monospace' }}>{n.cnc_program || '—'}</td>
+                               <td style={{ padding: '15px' }}>{n.units_per_sheet}</td>
+                               <td style={{ padding: '15px' }}>{n.time_per_unit} хв</td>
+                               <td style={{ padding: '15px', textAlign: 'right' }}>
+                                  <button onClick={() => window.confirm(`Видалити позицію "${n.name}"?`) && deleteNomenclature(n.id)} style={{ background: 'transparent', border: 'none', color: '#444', cursor: 'pointer' }}><Trash2 size={16} /></button>
+                               </td>
+                            </tr>
                          ))}
                       </tbody>
                    </table>
@@ -197,9 +199,9 @@ const SettingsModule = () => {
                      <div key={n.id} style={{ background: '#111', padding: '20px', borderRadius: '24px', border: '1px solid #222' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
                            <strong style={{ fontSize: '1.2rem' }}>{n.name}</strong>
-                           <button onClick={() => deleteNomenclature(n.id)} style={{ background: 'transparent', border: 'none', color: '#444' }}><Trash2 size={18} /></button>
+                           <button onClick={() => window.confirm(`Видалити?`) && deleteNomenclature(n.id)} style={{ background: 'transparent', border: 'none', color: '#444' }}><Trash2 size={18} /></button>
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: '15px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                            <div><label style={{ fontSize: '0.6rem', color: '#444' }}>МАТЕРІАЛ</label><div style={{ fontSize: '0.8rem', fontWeight: 700 }}>{n.material_type || '—'}</div></div>
                            <div><label style={{ fontSize: '0.6rem', color: '#444' }}>ПРОГРАМА</label><div style={{ fontSize: '0.7rem', color: '#3b82f6', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.cnc_program || '—'}</div></div>
                            <div><label style={{ fontSize: '0.6rem', color: '#444' }}>НОРМА</label><div style={{ fontSize: '0.8rem' }}>{n.units_per_sheet} шт/л</div></div>

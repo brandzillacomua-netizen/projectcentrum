@@ -111,5 +111,45 @@ export const apiService = {
     console.log("JSON Payload:", payload);
     if (typeof fallback === 'function') await fallback(orderId, 'shipped');
     return true;
+  },
+
+  submitPurchaseRequest: async (orderId, orderNum, items, fallback) => {
+    const payload = requestBuilder.buildPurchaseRequestPayload(orderId, orderNum, items);
+    console.log("%c--- 📦 BACKEND ACTION: PURCHASE REQUEST ---", "color: #ef4444; font-weight: bold; font-size: 14px; text-decoration: underline;");
+    console.log("JSON Payload:", payload);
+    if (typeof fallback === 'function') await fallback(orderId, orderNum, items);
+    return true;
+  },
+
+  submitConfirmReception: async (docId, fallback) => {
+    const payload = requestBuilder.buildConfirmReceptionPayload(docId);
+    console.log("%c--- 📦 BACKEND ACTION: RECEPTION CONFIRM ---", "color: #10b981; font-weight: bold; font-size: 14px; text-decoration: underline;");
+    console.log("JSON Payload:", payload);
+    if (typeof fallback === 'function') await fallback(docId);
+    return true;
+  },
+
+  submitCreateReceptionDoc: async (items, fallback) => {
+    const payload = requestBuilder.buildCreateReceptionDocPayload(items);
+    console.log("%c--- 📦 BACKEND ACTION: CREATE RECEPTION DOC ---", "color: #0ea5e9; font-weight: bold; font-size: 14px; text-decoration: underline;");
+    console.log("JSON Payload:", payload);
+    if (typeof fallback === 'function') await fallback(items);
+    return true;
+  },
+
+  submitConvertRequestToOrder: async (requestId, fallback) => {
+    const payload = requestBuilder.buildConvertRequestToOrderPayload(requestId);
+    console.log("%c--- 📦 BACKEND ACTION: CONVERT REQUEST TO ORDER ---", "color: #3b82f6; font-weight: bold; font-size: 14px; text-decoration: underline;");
+    console.log("JSON Payload:", payload);
+    if (typeof fallback === 'function') await fallback(requestId);
+    return true;
+  },
+
+  submitSendDocToWarehouse: async (docId, fallback) => {
+    const payload = { action: 'SEND_TO_WAREHOUSE', docId };
+    console.log("%c--- 📦 BACKEND ACTION: NOTIFY WAREHOUSE ---", "color: #0ea5e9; font-weight: bold; font-size: 14px; text-decoration: underline;");
+    console.log("JSON Payload:", payload);
+    if (typeof fallback === 'function') await fallback(docId);
+    return true;
   }
 };

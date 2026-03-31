@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import ManagerModule from './modules/ManagerModule'
 import WarehouseModule from './modules/WarehouseModule'
-import MasterModule from './modules/MasterModule'
+import MasterModule from './modules/MasterModule_v3'
 import NomenclatureModule from './modules/NomenclatureModule'
 import EngineerModule from './modules/EngineerModule'
 import OperatorTerminal from './modules/OperatorTerminal'

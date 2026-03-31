@@ -21,14 +21,14 @@ const MachinesModule = () => {
       }, addMachine)
       setForm({ name: '', capacity: '1' })
       setShowAdd(false)
-      alert('Станок додано успішно!')
+      alert('Верстат додано успішно!')
     } catch (err) {
       alert('Помилка: ' + err.message)
     }
   }
 
   const handleDelete = async (id, name) => {
-    if (window.confirm(`Видалити станок "${name}"?`)) {
+    if (window.confirm(`Видалити верстат "${name}"?`)) {
       try {
         await apiService.submitDelete(id, 'machine', deleteMachine)
       } catch (err) {
@@ -40,11 +40,11 @@ const MachinesModule = () => {
   return (
     <div className="machines-module-v2" style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
       <nav className="module-nav" style={{ flexShrink: 0 }}>
-        <Link to="/" className="back-link"><ArrowLeft size={18} /> <span className="hide-mobile">Назад</span></Link>
+        <Link to="/" className="back-link"><ArrowLeft size={18} /> <span className="hide-mobile">На головну</span></Link>
         <div className="module-title-group">
           <Cpu className="text-secondary" size={24} />
-          <h1 className="hide-mobile">Управління станками</h1>
-          <h1 className="mobile-only" style={{ fontSize: '1rem' }}>СТАНКИ</h1>
+          <h1 className="hide-mobile">Управління верстатами</h1>
+          <h1 className="mobile-only" style={{ fontSize: '1rem' }}>ВЕРСТАТИ</h1>
         </div>
       </nav>
 
@@ -54,14 +54,14 @@ const MachinesModule = () => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
             <div>
               <h2 style={{ fontSize: '1.6rem', fontWeight: 900, margin: 0 }}>ПАРК ОБЛАДНАННЯ</h2>
-              <p style={{ color: '#555', margin: '5px 0 0', fontSize: '0.85rem' }}>Конфігурація виробничих ліній</p>
+              <p style={{ color: '#555', margin: '5px 0 0', fontSize: '0.85rem' }}>Конфігурація та налаштування виробничих ліній</p>
             </div>
             <button 
               onClick={() => setShowAdd(!showAdd)}
               style={{ background: showAdd ? '#222' : '#ff9000', color: showAdd ? '#fff' : '#000', border: 'none', padding: '12px 24px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: showAdd ? 'none' : '0 10px 20px rgba(255,144,0,0.2)' }}
             >
               {showAdd ? <X size={20} /> : <Plus size={20} />}
-              {showAdd ? 'ЗАКРИТИ' : 'ДОДАТИ'}
+              {showAdd ? 'ЗАКРИТИ' : 'ДОДАТИ ВЕРСТАТ'}
             </button>
           </div>
 
@@ -70,15 +70,15 @@ const MachinesModule = () => {
               <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
                    <div>
-                      <label style={{ display: 'block', fontSize: '0.7rem', color: '#555', marginBottom: '8px', fontWeight: 800 }}>НАЗВА СТАНКА</label>
-                      <input style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '12px' }} placeholder="напр. Laser Alpha" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
+                      <label style={{ display: 'block', fontSize: '0.7rem', color: '#555', marginBottom: '8px', fontWeight: 800 }}>НАЗВА ВЕРСТАТА / ОБЛАДНАННЯ</label>
+                      <input style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '12px' }} placeholder="напр. Laser Alpha-1" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
                    </div>
                    <div>
-                      <label style={{ display: 'block', fontSize: '0.7rem', color: '#555', marginBottom: '8px', fontWeight: 800 }}>МІСТКІСТЬ (ЛИСТІВ)</label>
+                      <label style={{ display: 'block', fontSize: '0.7rem', color: '#555', marginBottom: '8px', fontWeight: 800 }}>МІСТКІСТЬ (ЛИСТІВ У ПАРТІЇ)</label>
                       <input type="number" style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '12px' }} value={form.capacity} onChange={e => setForm({...form, capacity: e.target.value})} required />
                    </div>
                 </div>
-                <button type="submit" style={{ background: '#fff', color: '#000', border: 'none', padding: '18px', borderRadius: '14px', fontWeight: 900, cursor: 'pointer' }}>ЗБЕРЕГТИ ОБЛАДНАННЯ</button>
+                <button type="submit" style={{ background: '#fff', color: '#000', border: 'none', padding: '18px', borderRadius: '14px', fontWeight: 900, cursor: 'pointer', fontSize: '1rem' }}>ЗБЕРЕГТИ ОБЛАДНАННЯ</button>
               </form>
             </div>
           )}
@@ -93,7 +93,7 @@ const MachinesModule = () => {
                     <div style={{ background: '#0a0a0a', width: '50px', height: '50px', borderRadius: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #1a1a1a' }}>
                       <Cpu size={24} color="#ff9000" />
                     </div>
-                    <button onClick={() => handleDelete(m.id, m.name)} style={{ background: 'transparent', border: 'none', color: '#333', cursor: 'pointer' }}><Trash2 size={20} /></button>
+                    <button onClick={() => handleDelete(m.id, m.name)} style={{ background: 'transparent', border: 'none', color: '#333', cursor: 'pointer' }} title="Видалити"><Trash2 size={20} /></button>
                   </div>
                   <h3 style={{ margin: '0 0 10px', fontSize: '1.4rem', fontWeight: 900 }}>{m.name}</h3>
                   <div style={{ background: 'rgba(255,144,0,0.05)', padding: '12px 15px', borderRadius: '14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -104,7 +104,7 @@ const MachinesModule = () => {
               ))}
               {machines.length === 0 && !showAdd && (
                 <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '100px 20px', background: '#0a0a0a', border: '2px dashed #1a1a1a', borderRadius: '30px' }}>
-                   <p style={{ color: '#444' }}>Парк обладнання порожній.<br/>Додайте перший станок для початку роботи.</p>
+                   <p style={{ color: '#444' }}>Парк обладнання порожній.<br/>Додайте перший верстат для початку роботи.</p>
                 </div>
               )}
             </div>

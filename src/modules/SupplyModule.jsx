@@ -13,7 +13,8 @@ import {
   History,
   AlertTriangle,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Warehouse
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
@@ -34,6 +35,17 @@ const SupplyModule = () => {
   const pendingRequests = (purchaseRequests || []).filter(pr => pr.status === 'pending')
   const availableNoms = nomenclatures.filter(n => n.type !== 'part' && n.type !== 'product' && n.type !== 'finished')
   const getNomLabel = (n) => `${n.name} ${n.material_type ? `(${n.material_type})` : ''}`
+
+  const getStatusLabel = (status) => {
+    const map = {
+      'pending': 'ОЧІКУЄ',
+      'ordered': 'ЗАМОВЛЕНО',
+      'completed': 'ПРИЙНЯТО',
+      'shipped': 'ВІДПРАВЛЕНО',
+      'in-progress': 'В РОБОТІ'
+    }
+    return map[status] || status.toUpperCase()
+  }
 
   const addToDraft = () => {
     if (!searchQuery || !selectedQty) return
@@ -79,7 +91,7 @@ const SupplyModule = () => {
 
         <div className="supply-main-layout" style={{ display: 'grid', gridTemplateColumns: showCreate ? '1fr' : 'repeat(auto-fit, minmax(400px, 1fr))', gap: '30px' }}>
            
-           {/* CREATE PANEL - Tablet/PC fixed or Mobile full-screen */}
+           {/* CREATE PANEL */}
            {(showCreate || (!window.matchMedia("(max-width: 768px)").matches && showCreate)) && (
              <section className="create-panel glass-panel" style={{ background: '#111', borderRadius: '24px', border: '1px solid #222', padding: '30px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '25px' }}>
@@ -151,7 +163,7 @@ const SupplyModule = () => {
            {/* REGISTRY COLUMN */}
            {!showCreate && (activeMobileSection === 'registry' || !window.matchMedia("(max-width: 768px)").matches) && (
              <section className="registry-col">
-                <h3 style={{ fontSize: '0.85rem', color: '#555', marginBottom: '20px' }}><History size={18} className="text-secondary" /> ОСТАННІ ПОСТАВКИ</h3>
+                <h3 style={{ fontSize: '0.85rem', color: '#555', marginBottom: '20px' }}><History size={18} className="text-secondary" /> РЕЄСТР ПОСТАВОК</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                    {(receptionDocs || []).map(doc => (
                      <div key={doc.id} className="doc-card" style={{ background: '#111', borderRadius: '20px', border: '1px solid #222', overflow: 'hidden' }}>
@@ -163,19 +175,35 @@ const SupplyModule = () => {
                                  <div style={{ fontSize: '0.65rem', color: '#444' }}>{new Date(doc.created_at).toLocaleDateString()}</div>
                               </div>
                            </div>
-                           <div className={`status-pill ${doc.status}`} style={{ fontSize: '0.6rem', fontWeight: 900, textTransform: 'uppercase', padding: '5px 10px', borderRadius: '20px' }}>{doc.status}</div>
+                           <div className={`status-pill ${doc.status}`} style={{ fontSize: '0.6rem', fontWeight: 900, textTransform: 'uppercase', padding: '5px 10px', borderRadius: '20px' }}>
+                              {getStatusLabel(doc.status)}
+                           </div>
                         </div>
                         {expandedDoc === doc.id && (
                            <div style={{ padding: '20px', background: '#0a0a0a', borderTop: '1px solid #222' }}>
-                              {doc.items.map((it, idx) => {
-                                 const nom = nomenclatures.find(n => n.id === it.nomenclature_id)
-                                 return (
-                                   <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #111' }}>
-                                      <span style={{ fontSize: '0.8rem', color: '#888' }}>{nom?.name}</span>
-                                      <strong style={{ fontSize: '0.8rem' }}>{it.qty}</strong>
-                                   </div>
-                                 )
-                              })}
+                              <div style={{ marginBottom: '15px' }}>
+                                 {doc.items.map((it, idx) => {
+                                    const nom = nomenclatures.find(n => n.id === it.nomenclature_id)
+                                    return (
+                                       <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #111' }}>
+                                          <span style={{ fontSize: '0.8rem', color: '#888' }}>{nom ? getNomLabel(nom) : 'Невідома номенклатура'}</span>
+                                          <strong style={{ fontSize: '0.8rem' }}>{it.qty}</strong>
+                                       </div>
+                                    )
+                                 })}
+                              </div>
+                              
+                              {doc.status === 'ordered' && (
+                                 <button 
+                                   onClick={(e) => {
+                                     e.stopPropagation()
+                                     apiService.submitSendDocToWarehouse(doc.id, sendDocToWarehouse)
+                                   }}
+                                   style={{ width: '100%', padding: '12px', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 900, fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
+                                 >
+                                    <Warehouse size={16} /> ВІДПРАВИТИ НА СКЛАД
+                                 </button>
+                              )}
                            </div>
                         )}
                      </div>

@@ -29,18 +29,23 @@ const ManagerModule = () => {
     nomenclature_id: '',
     unit: 'шт',
     quantity: 1,
-    entered_by: '',
-    responsible_person: '',
     deadline: '',
-    actual_date: '',
-    source: 'Виробництво',
-    report: '',
-    accessories: '' 
+    source: 'Виробництво'
   })
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [showCustomerHints, setShowCustomerHints] = useState(false)
   const [currentPage, setCurrentPage] = useState(0)
   const [localSearch, setLocalSearch] = useState('')
+
+  const getStatusLabel = (s) => {
+    const map = {
+      'pending': 'ОЧІКУЄ',
+      'in-progress': 'В РОБОТІ',
+      'completed': 'ВИКОНАНО',
+      'shipped': 'ВІДВАНТАЖЕНО'
+    }
+    return map[s] || s?.toUpperCase()
+  }
 
   const handleCustomerChange = (val) => {
     setOrderHeader({ ...orderHeader, customer: val })
@@ -72,7 +77,8 @@ const ManagerModule = () => {
       customer: '',
       official_customer: '',
       nomenclature_id: '',
-      quantity: 1
+      quantity: 1,
+      deadline: ''
     })
   }
 
@@ -84,7 +90,7 @@ const ManagerModule = () => {
   return (
     <div className="manager-module-v2" style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
       <nav className="module-nav" style={{ flexShrink: 0 }}>
-        <Link to="/" className="back-link"><ArrowLeft size={18} /> <span className="hide-mobile">Назад</span></Link>
+        <Link to="/" className="back-link"><ArrowLeft size={18} /> <span className="hide-mobile">На головну</span></Link>
         <div className="module-title-group">
           <LayoutDashboard className="text-secondary" size={24} />
           <h1 className="hide-mobile">Модуль Менеджера</h1>
@@ -93,7 +99,6 @@ const ManagerModule = () => {
       </nav>
 
       <div className="module-content" style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
-        {/* Responsive Section Tabs */}
         <div className="manager-sections-switcher" style={{ display: 'flex', background: '#111', padding: '5px', borderRadius: '14px', marginBottom: '25px', maxWidth: '400px' }}>
           <button onClick={() => setActiveTab('new')} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: activeTab === 'new' ? '#222' : 'transparent', color: activeTab === 'new' ? '#ff9000' : '#555', fontWeight: 900, cursor: 'pointer', fontSize: '0.8rem' }}>НОВЕ ЗАМОВЛЕННЯ</button>
           <button onClick={() => setActiveTab('list')} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: activeTab === 'list' ? '#222' : 'transparent', color: activeTab === 'list' ? '#ff9000' : '#555', fontWeight: 900, cursor: 'pointer', fontSize: '0.8rem' }}>РЕЄСТР ({orders.length})</button>
@@ -122,11 +127,11 @@ const ManagerModule = () => {
               </div>
 
               <div className="form-section">
-                <h4 style={{ fontSize: '0.7rem', color: '#444', textTransform: 'uppercase', marginBottom: '15px' }}>Продукт та терміни</h4>
+                <h4 style={{ fontSize: '0.7rem', color: '#444', textTransform: 'uppercase', marginBottom: '15px' }}>Виріб та терміни</h4>
                 <div style={{ marginBottom: '15px' }}>
                   <label style={{ display: 'block', fontSize: '0.7rem', marginBottom: '5px', color: '#666' }}>Виріб</label>
                   <select style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '12px', borderRadius: '10px' }} value={orderHeader.nomenclature_id} onChange={e => setOrderHeader({...orderHeader, nomenclature_id: e.target.value})}>
-                     <option value="">Оберіть...</option>
+                     <option value="">Оберіть виріб...</option>
                      {nomenclatures.filter(n => n.type === 'product').map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
                   </select>
                 </div>
@@ -137,14 +142,14 @@ const ManagerModule = () => {
                    </div>
                    <div style={{ flex: 1 }}>
                      <label style={{ display: 'block', fontSize: '0.7rem', marginBottom: '5px', color: '#666' }}>Дедлайн</label>
-                     <input type="date" style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '11px', borderRadius: '10px' }} value={orderHeader.deadline} onChange={e => setOrderHeader({...orderHeader, deadline: e.target.value})} />
+                     <input type="date" onClick={(e) => e.target.showPicker()} style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '11px', borderRadius: '10px', cursor: 'pointer' }} value={orderHeader.deadline} onChange={e => setOrderHeader({...orderHeader, deadline: e.target.value})} />
                    </div>
                 </div>
               </div>
 
               <div className="form-section" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
                  <button type="submit" style={{ width: '100%', padding: '18px', background: '#ff9000', color: '#000', border: 'none', borderRadius: '14px', fontWeight: 900, cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-                    <Plus size={20} /> ЗАРЕЄСТРУВАТИ
+                    <Plus size={20} /> ЗАРЕЄСТРУВАТИ ЗАМОВЛЕННЯ
                  </button>
               </div>
             </form>
@@ -166,7 +171,7 @@ const ManagerModule = () => {
                         <th className="sticky-col" style={{ padding: '15px' }}>№ ЗАМОВЛЕННЯ</th>
                         <th style={{ padding: '15px' }}>ЗАМОВНИК</th>
                         <th style={{ padding: '15px' }}>ВИРІБ</th>
-                        <th style={{ padding: '15px' }}>К-СТЬ</th>
+                        <th style={{ padding: '15px' }}>КІЛЬКІСТЬ</th>
                         <th style={{ padding: '15px' }}>ТЕРМІН</th>
                         <th style={{ padding: '15px', textAlign: 'right' }}>СТАТУС</th>
                      </tr>
@@ -180,7 +185,7 @@ const ManagerModule = () => {
                            <td style={{ padding: '15px' }}><strong>{order.order_items?.[0]?.quantity}</strong> {order.unit}</td>
                            <td style={{ padding: '15px', color: '#444' }}>{order.deadline ? new Date(order.deadline).toLocaleDateString() : '—'}</td>
                            <td style={{ padding: '15px', textAlign: 'right' }}>
-                              <span className={`status-badge-v2 ${order.status}`} style={{ fontSize: '0.65rem', padding: '5px 10px', borderRadius: '20px', fontWeight: 900, textTransform: 'uppercase' }}>{order.status}</span>
+                              <span className={`status-badge-v2 ${order.status}`} style={{ fontSize: '0.65rem', padding: '5px 10px', borderRadius: '20px', fontWeight: 900, textTransform: 'uppercase' }}>{getStatusLabel(order.status)}</span>
                            </td>
                         </tr>
                       ))}
@@ -193,7 +198,7 @@ const ManagerModule = () => {
                   <div key={order.id} onClick={() => setSelectedOrder(order)} style={{ background: '#111', padding: '20px', borderRadius: '20px', border: '1px solid #222' }}>
                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
                         <strong style={{ color: '#ff9000', fontSize: '1.2rem' }}>#{order.order_num}</strong>
-                        <span className={`status-badge-v2 ${order.status}`} style={{ fontSize: '0.6rem', padding: '4px 8px', borderRadius: '6px', fontWeight: 900 }}>{order.status}</span>
+                        <span className={`status-badge-v2 ${order.status}`} style={{ fontSize: '0.6rem', padding: '4px 8px', borderRadius: '6px', fontWeight: 900 }}>{getStatusLabel(order.status)}</span>
                      </div>
                      <div style={{ fontSize: '0.9rem', marginBottom: '5px' }}>{order.customer}</div>
                      <div style={{ fontSize: '0.75rem', color: '#555', marginBottom: '15px' }}>{nomenclatures.find(n => n.id === order.order_items?.[0]?.nomenclature_id)?.name}</div>
@@ -214,7 +219,6 @@ const ManagerModule = () => {
         )}
       </div>
 
-      {/* DETAIL MODAL */}
       {selectedOrder && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px' }}>
            <div className="glass-panel" style={{ background: '#111', width: '100%', maxWidth: '600px', borderRadius: '24px', border: '1px solid #333', overflow: 'hidden' }}>
@@ -229,24 +233,24 @@ const ManagerModule = () => {
                        <div style={{ fontWeight: 700 }}>{selectedOrder.customer}</div>
                     </div>
                     <div className="detail-box">
-                       <label style={{ fontSize: '0.6rem', color: '#555', display: 'block' }}>ДЕВЛАЙН</label>
+                       <label style={{ fontSize: '0.6rem', color: '#555', display: 'block' }}>ДЕВЛАЙН (ТЕРМІН)</label>
                        <div style={{ fontWeight: 700, color: '#ff9000' }}>{selectedOrder.deadline || '—'}</div>
                     </div>
                     <div className="detail-box">
-                       <label style={{ fontSize: '0.6rem', color: '#555', display: 'block' }}>СТАТУС</label>
-                       <div style={{ fontWeight: 900, textTransform: 'uppercase', color: '#3b82f6' }}>{selectedOrder.status}</div>
+                       <label style={{ fontSize: '0.6rem', color: '#555', display: 'block' }}>ПОТОЧНИЙ СТАТУС</label>
+                       <div style={{ fontWeight: 900, textTransform: 'uppercase', color: '#3b82f6' }}>{getStatusLabel(selectedOrder.status)}</div>
                     </div>
                     <div className="detail-box">
-                       <label style={{ fontSize: '0.6rem', color: '#555', display: 'block' }}>ОФІЦ. ЗАМОВНИК</label>
+                       <label style={{ fontSize: '0.6rem', color: '#555', display: 'block' }}>ОФІЦІЙНА НАЗВА</label>
                        <div style={{ fontWeight: 500, fontSize: '0.8rem' }}>{selectedOrder.official_customer || '—'}</div>
                     </div>
                  </div>
                  <h4 style={{ fontSize: '0.8rem', color: '#444' }}>СКЛАД ЗАМОВЛЕННЯ:</h4>
                  {selectedOrder.order_items?.map((item, idx) => (
-                   <div key={idx} style={{ background: '#000', padding: '15px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <span>{nomenclatures.find(n => n.id === item.nomenclature_id)?.name}</span>
-                      <strong>{item.quantity} шт</strong>
-                   </div>
+                    <div key={idx} style={{ background: '#000', padding: '15px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                       <span>{nomenclatures.find(n => n.id === item.nomenclature_id)?.name}</span>
+                       <strong>{item.quantity} шт</strong>
+                    </div>
                  ))}
               </div>
            </div>
@@ -257,7 +261,13 @@ const ManagerModule = () => {
         .status-badge-v2.pending { background: #333; color: #888; }
         .status-badge-v2.in-progress { background: #22c55e22; color: #22c55e; }
         .status-badge-v2.completed { background: #3b82f622; color: #3b82f6; }
+        .status-badge-v2.shipped { background: #ff900022; color: #ff9000; }
         
+        input[type="date"]::-webkit-calendar-picker-indicator {
+          filter: invert(1);
+          cursor: pointer;
+        }
+
         @media (max-width: 768px) { .hide-mobile { display: none !important; } }
         @media (min-width: 769px) { .mobile-only { display: none !important; } }
       `}} />
