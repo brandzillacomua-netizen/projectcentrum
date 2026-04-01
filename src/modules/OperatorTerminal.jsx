@@ -371,7 +371,7 @@ const OperatorTerminal = () => {
                </div>
 
                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '40px' }}>
-                  {['Різка', 'Галтовка', 'Гнуття', 'Зварювання', 'Покраска'].map(stage => {
+                  {['Різка', 'Галтовка', 'Пресування', 'Фарбування', 'Паквання'].map(stage => {
                      const inWork = workCards.filter(c => c.operation === stage && c.status === 'in-progress')
                      const atBuffer = workCards.filter(c => c.operation === stage && (c.status === 'at-buffer' || c.status === 'waiting-buffer' || c.status === 'completed'))
                      
@@ -401,7 +401,7 @@ const OperatorTerminal = () => {
                <div style={{ background: '#111', borderRadius: '24px', border: '1px solid #222', overflow: 'hidden' }}>
                   <div style={{ padding: '20px 25px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                      <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 900, color: '#eab308' }}>КАРТКИ В РОБОТІ</h3>
-                     <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800 }}>ВСЬОГО: {workCards.filter(c => c.status === 'in-progress').length}</div>
+                     <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800 }}>ВСЬОГО: {workCards.filter(c => ['in-progress', 'at-buffer'].includes(c.status)).length}</div>
                   </div>
                   <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
                      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
@@ -416,10 +416,10 @@ const OperatorTerminal = () => {
                            </tr>
                         </thead>
                         <tbody>
-                           {workCards.filter(c => c.status === 'in-progress').length === 0 ? (
+                           {workCards.filter(c => ['in-progress', 'at-buffer'].includes(c.status)).length === 0 ? (
                               <tr><td colSpan="6" style={{ padding: '40px', textAlign: 'center', color: '#333', fontSize: '0.8rem' }}>Немає активних карток у роботі</td></tr>
                            ) : (
-                              workCards.filter(c => c.status === 'in-progress').map(card => {
+                              workCards.filter(c => ['in-progress', 'at-buffer'].includes(c.status)).map(card => {
                                  const nom = getNomFromCard(card)
                                  return (
                                     <tr key={card.id} style={{ borderBottom: '1px solid #1a1a1a', fontSize: '0.85rem' }}>
@@ -428,7 +428,9 @@ const OperatorTerminal = () => {
                                           <div style={{ fontSize: '0.65rem', color: '#555' }}>№ {card.id}</div>
                                        </td>
                                        <td style={{ padding: '12px 25px' }}>
-                                          <span style={{ color: '#3b82f6', fontWeight: 900, fontSize: '0.7rem' }}>{card.operation?.toUpperCase()}</span>
+                                          <span style={{ color: card.status === 'at-buffer' ? '#10b981' : '#3b82f6', fontWeight: 900, fontSize: '0.7rem' }}>
+                                             {card.status === 'at-buffer' ? `БУФЕР ${card.operation?.toUpperCase()}` : card.operation?.toUpperCase()}
+                                          </span>
                                        </td>
                                        <td style={{ padding: '12px 25px', fontWeight: 900 }}>{card.quantity} <small style={{ opacity: 0.3 }}>шт</small></td>
                                        <td style={{ padding: '12px 25px', color: '#aaa' }}>{card.operator_name || '—'}</td>

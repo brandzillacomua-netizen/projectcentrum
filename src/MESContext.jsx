@@ -17,7 +17,7 @@ export const MESProvider = ({ children }) => {
   const [workCardHistory, setWorkCardHistory] = useState([])
   const [machines, setMachines] = useState([])
   const [operators] = useState(["Олексій", "Дмитро", "Сергій", "Андрій", "Микола"])
-  const [productionStages] = useState(["Різка", "Галтовка", "Гнуття", "Зварювання", "Покраска"])
+  const [productionStages] = useState(["Різка", "Галтовка", "Пресування", "Фарбування", "Паквання"])
   const [loading, setLoading] = useState(true)
   const [hasMoreOrders, setHasMoreOrders] = useState(true)
   const PAGE_SIZE = 20
