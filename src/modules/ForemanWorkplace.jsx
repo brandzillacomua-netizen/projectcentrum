@@ -27,7 +27,7 @@ const ForemanWorkplace = () => {
       }))
   }
 
-  const readyTasks = tasks.filter(t => t.warehouse_conf && t.engineer_conf && t.status !== 'completed')
+  const readyTasks = tasks.filter(t => t.warehouse_conf && t.engineer_conf && t.director_conf && t.status !== 'completed')
 
   const handleGenerateFromWorksheet = async (task, part, sheets, selectedMachineName, count, startOffset = 0, totalToReach = 0) => {
     const machineObj = machines.find(m => m.name === selectedMachineName)
@@ -522,10 +522,10 @@ const ForemanWorkplace = () => {
             margin: 0 !important;
             padding: 0 !important;
             height: auto !important;
-            width: 100% !important;
+            width: 210mm !important;
             overflow: visible !important;
           }
-          /* surgically hide everything but the print overlay */
+          /* Hide everything except the print overlay */
           #root > *:not(.print-overlay),
           .foreman-main-ui, 
           .portal-header-v2, 
@@ -548,21 +548,23 @@ const ForemanWorkplace = () => {
           }
           .no-print { display: none !important; }
           .print-scroll { 
+            display: block !important;
             overflow: visible !important; 
             height: auto !important; 
             padding: 0 !important; 
             background: #fff !important;
           }
           .printable-content { 
+            display: block !important;
             width: 210mm !important; 
             margin: 0 !important;
             background: #fff !important;
           }
           .a4-page { 
-            display: flex !important;
-            flex-direction: column !important;
+            display: block !important; /* Force block for better page break parsing */
+            position: relative !important;
             width: 210mm !important;
-            height: 297mm !important; /* Perfect A4 */
+            height: 296.8mm !important; /* Slightly under 297 to avoid margin overflow */
             padding: 15mm !important;
             margin: 0 !important;
             box-shadow: none !important;
@@ -574,6 +576,15 @@ const ForemanWorkplace = () => {
             -webkit-print-color-adjust: exact;
             overflow: hidden !important;
           }
+          
+          /* Enforce internal layout during print */
+          .a4-page > div {
+             height: 100% !important;
+             display: flex !important;
+             flex-direction: column !important;
+             box-sizing: border-box !important;
+          }
+
           .a4-page * { 
             visibility: visible !important;
           }
