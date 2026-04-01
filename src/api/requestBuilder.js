@@ -51,7 +51,8 @@ export const requestBuilder = {
       material_type: parseValue(nomData.material_type),
       cnc_program: parseValue(nomData.cnc_program),
       units_per_sheet: parseValue(nomData.units_per_sheet) ? Number(nomData.units_per_sheet) : null,
-      time_per_unit: parseValue(nomData.time_per_unit) ? Number(nomData.time_per_unit) : null
+      time_per_unit: parseValue(nomData.time_per_unit) ? Number(nomData.time_per_unit) : null,
+      consumption_per_sheet: parseValue(nomData.consumption_per_sheet) ? Number(nomData.consumption_per_sheet) : null
     };
   },
 

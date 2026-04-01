@@ -524,23 +524,45 @@ export const MESProvider = ({ children }) => {
       }]).select().single()
       if (taskError) throw taskError
 
-      // Create detailed material requests
-      for (const info of Object.values(materialSummary)) {
+      // 2. CONSOLDATE ALL REQUESTS FOR BULK INSERT
+      const allMaterials = Object.values(materialSummary)
+      const requestsToInsert = []
+
+      // Materials
+      for (const info of allMaterials) {
         const details = `Сировина для ${order.order_num}: ${info.matName} — ${info.sheets} л. (Для: ${info.components.join(', ')})`
-        
-        const reqPayload = { 
+        requestsToInsert.push({ 
           order_id: orderId, 
           quantity: Number(info.sheets) || 0, 
           details, 
-          status: 'pending' 
-        }
-        if (info.inventory_id) reqPayload.inventory_id = info.inventory_id
+          status: 'pending',
+          inventory_id: info.inventory_id
+        })
+      }
 
-        const { error: reqError } = await supabase.from('material_requests').insert([reqPayload])
-        
+      // Consumables (Calculated based on total sheets)
+      const totalSheetsOverall = allMaterials.reduce((acc, m) => acc + (Number(m.sheets) || 0), 0)
+      if (totalSheetsOverall > 0) {
+        const activeConsumables = nomenclatures.filter(n => n.type === 'consumable' && (Number(n.consumption_per_sheet) || 0) > 0)
+        for (const cons of activeConsumables) {
+          const neededQty = Math.ceil(totalSheetsOverall * Number(cons.consumption_per_sheet))
+          const invItem = inventory.find(i => i.nomenclature_id === cons.id)
+          requestsToInsert.push({
+            order_id: orderId,
+            quantity: neededQty,
+            details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ${order.order_num}: ${cons.name} — ${neededQty} од.`,
+            status: 'pending',
+            inventory_id: invItem?.id || null
+          })
+        }
+      }
+
+      // 3. ATOMIC INSERTION
+      if (requestsToInsert.length > 0) {
+        const { error: reqError } = await supabase.from('material_requests').insert(requestsToInsert)
         if (reqError) {
-          console.error('Error creating material request:', reqError)
-          alert('Помилка при запиті на склад: ' + (reqError.message || JSON.stringify(reqError)))
+          console.error('Error creating production requests:', reqError)
+          throw reqError
         }
       }
 
@@ -569,18 +591,13 @@ export const MESProvider = ({ children }) => {
       // Prioritize nomenclature_id for issuance
       const invItem = inventory.find(i => 
         i.id === req.inventory_id || 
-        (req.nomenclature_id && i.nomenclature_id === req.nomenclature_id && i.type === 'raw') ||
-        (parsedName && normalize(i.name) === normalize(parsedName) && i.type === 'raw')
+        (req.nomenclature_id && i.nomenclature_id === req.nomenclature_id) ||
+        (parsedName && normalize(i.name) === normalize(parsedName))
       )
       
       if (invItem) {
         await supabase.from('inventory').update({ reserved_qty: (Number(invItem.reserved_qty) || 0) + Number(req.quantity) }).eq('id', invItem.id)
-        if (!req.inventory_id) {
-          // Permanently link the requested order line with the arrived item ID
-          await supabase.from('material_requests').update({ status: 'issued', inventory_id: invItem.id }).eq('id', requestId)
-        } else {
-          await supabase.from('material_requests').update({ status: 'issued' }).eq('id', requestId)
-        }
+        await supabase.from('material_requests').update({ status: 'issued', inventory_id: invItem.id }).eq('id', requestId)
       } else {
         await supabase.from('material_requests').update({ status: 'issued' }).eq('id', requestId)
       }
@@ -640,33 +657,40 @@ export const MESProvider = ({ children }) => {
 
   const completeWorkCard = async (taskId, cardId, operatorName, extra = {}) => {
     try {
+      await supabase.from('work_cards').update({ 
+        status: 'waiting-buffer',
+        operator_name: operatorName || 'Не вказано'
+      }).eq('id', cardId)
+      await fetchData()
+    } catch (err) {
+       alert('Помилка завершення етапу: ' + err.message);
+    }
+  }
+
+  const confirmBuffer = async (cardId, scrapData = {}) => {
+    try {
       const card = workCards.find(c => c.id === cardId)
       if (!card) return
 
-      const scrapCounts = extra.scrap_counts || {}
-      const totalScrap = Object.values(scrapCounts).reduce((acc, c) => acc + Number(c), 0)
+      const totalScrap = Object.values(scrapData).reduce((acc, c) => acc + Number(c), 0)
       
-      // Calculate finished quantity from card_info if quantity column is not yet reliable
       const matchQty = card.card_info?.match(/QTY:([^|]+)/)
       const initialQty = card.quantity || (matchQty ? Number(matchQty[1].trim()) : 0)
       const qtyCompleted = Math.max(0, initialQty - totalScrap)
 
-      // 1. Update the card - move back to pending for next stage, reduce qty by scrap
-      const { error } = await supabase.from('work_cards').update({ 
-        status: 'pending', 
+      // 1. Update card: status -> at-buffer, quantity -> reduced
+      await supabase.from('work_cards').update({ 
+        status: 'at-buffer', 
         quantity: qtyCompleted,
-        // Update card_info with new quantity
         card_info: card.card_info?.replace(/QTY:([^|]+)/, `QTY:${qtyCompleted}`)
       }).eq('id', cardId)
-      
-      if (error) throw error
 
       // 2. Log this stage to history
       await supabase.from('work_card_history').insert([{
          card_id: cardId,
          nomenclature_id: card.nomenclature_id,
-         stage_name: card.operation || 'Не вказано',
-         operator_name: operatorName || card.operator_name,
+         stage_name: card.operation || 'Різка',
+         operator_name: card.operator_name || 'Не вказано',
          qty_at_start: initialQty,
          qty_completed: qtyCompleted,
          scrap_qty: totalScrap,
@@ -697,8 +721,8 @@ export const MESProvider = ({ children }) => {
         }
       }
 
-      // Record Scrap logic stays...
-      for (const [nomenclatureId, count] of Object.entries(scrapCounts)) {
+      // Record Scrap
+      for (const [nomenclatureId, count] of Object.entries(scrapData)) {
         if (count > 0) {
           const nom = nomenclatures.find(n => n.id === nomenclatureId)
           if (nom) {
@@ -717,7 +741,7 @@ export const MESProvider = ({ children }) => {
       
       await fetchData()
     } catch (err) {
-       alert('Помилка завершення: ' + err.message);
+       alert('Помилка буферної прийомки: ' + err.message);
     }
   }
 
@@ -726,10 +750,11 @@ export const MESProvider = ({ children }) => {
       task_id: taskId,
       order_id: orderId,
       nomenclature_id: nomenclatureId,
-      operation,
+      operation: operation || 'Нова',
       machine,
       estimated_time: Number(estimatedTime) || 0,
-      status: 'pending',
+      status: 'new',
+      quantity: Number(quantity) || 0,
       card_info: cardInfo
     }]).select().single()
     
@@ -780,7 +805,7 @@ export const MESProvider = ({ children }) => {
       receptionDocs, createReceptionDoc, confirmReceptionDoc, sendDocToWarehouse,
       purchaseRequests, createPurchaseRequest, updatePurchaseRequestStatus, convertRequestToOrder,
       approveEngineer, approveWarehouse, approveDirector,
-      workCards, createWorkCard, startWorkCard, completeWorkCard, completeTaskByMaster,
+      workCards, createWorkCard, startWorkCard, completeWorkCard, confirmBuffer, completeTaskByMaster,
       workCardHistory,
       machines, addMachine, deleteMachine,
       operators, productionStages,

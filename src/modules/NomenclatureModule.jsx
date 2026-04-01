@@ -31,7 +31,7 @@ const NomenclatureModule = () => {
   const [selectedParent, setSelectedParent] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const [newNom, setNewNom] = useState({ 
-    name: '', type: 'part', material_type: '', cnc_program: '', units_per_sheet: '', time_per_unit: '' 
+    name: '', type: 'part', material_type: '', cnc_program: '', units_per_sheet: '', time_per_unit: '', consumption_per_sheet: '' 
   })
 
   const [draftBOM, setDraftBOM] = useState([])
@@ -64,7 +64,8 @@ const NomenclatureModule = () => {
     const payloadNom = {
       ...newNom,
       units_per_sheet: Number(newNom.units_per_sheet) || 0,
-      time_per_unit: Number(newNom.time_per_unit) || 0
+      time_per_unit: Number(newNom.time_per_unit) || 0,
+      consumption_per_sheet: Number(newNom.consumption_per_sheet) || 0
     }
     apiService.submitNomenclature(payloadNom, upsertNomenclature)
     cancelEdit()
@@ -78,7 +79,7 @@ const NomenclatureModule = () => {
 
   const cancelEdit = () => {
     setIsEditing(false)
-    setNewNom({ name: '', type: 'part', material_type: '', cnc_program: '', units_per_sheet: '', time_per_unit: '' })
+    setNewNom({ name: '', type: 'part', material_type: '', cnc_program: '', units_per_sheet: '', time_per_unit: '', consumption_per_sheet: '' })
   }
 
   const addToDraft = (type, data) => {
@@ -176,11 +177,15 @@ const NomenclatureModule = () => {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                 <div className="form-group">
-                  <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>ШТ/ЛИСТ</label>
-                  <input type="number" style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.units_per_sheet} onChange={e => setNewNom({...newNom, units_per_sheet: e.target.value})} />
+                  <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>
+                    {newNom.type === 'consumable' ? 'ВИТРАТА НА 1 ЛИСТ (ШТ)' : 'ШТ/ЛИСТ'}
+                  </label>
+                  <input type="number" step="0.01" style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.type === 'consumable' ? newNom.consumption_per_sheet : newNom.units_per_sheet} onChange={e => setNewNom({...newNom, [newNom.type === 'consumable' ? 'consumption_per_sheet' : 'units_per_sheet']: e.target.value})} />
                 </div>
                 <div className="form-group">
-                  <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>ЧАС ВИРІЗКИ/ШТ (ХВ)</label>
+                  <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>
+                    {newNom.type === 'consumable' ? 'РЕСУРС (ПРИБЛИЗНО)' : 'ЧАС ВИРІЗКИ/ШТ (ХВ)'}
+                  </label>
                   <input type="number" step="0.01" style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.time_per_unit} onChange={e => setNewNom({...newNom, time_per_unit: e.target.value})} />
                 </div>
               </div>
@@ -243,6 +248,7 @@ const NomenclatureModule = () => {
                     <th className="sticky-col" style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Назва</th>
                     <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Тип</th>
                     <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Матеріал</th>
+                    <th style={{ padding: '15px', textAlign: 'center', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Норма</th>
                     <th style={{ padding: '15px', textAlign: 'center', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Дії</th>
                   </tr>
                 </thead>
@@ -254,6 +260,14 @@ const NomenclatureModule = () => {
                         <td className="sticky-col" style={{ padding: '15px', fontWeight: 800 }}>{n.name}</td>
                         <td style={{ padding: '15px' }}><span style={{ color: typeInfo?.color, fontSize: '0.65rem', fontWeight: 900 }}>{typeInfo?.label.toUpperCase()}</span></td>
                         <td style={{ padding: '15px', color: '#666' }}>{n.material_type || '—'}</td>
+                        <td style={{ padding: '15px', textAlign: 'center' }}>
+                           {n.type === 'consumable' ? (
+                             <span style={{ color: '#0ea5e9', fontWeight: 800 }}>{n.consumption_per_sheet || 0}</span>
+                           ) : (
+                             <span style={{ color: '#555' }}>{n.units_per_sheet || 0}</span>
+                           )}
+                           <span style={{ fontSize: '0.6rem', color: '#333', marginLeft: '5px' }}>/лист</span>
+                        </td>
                         <td style={{ padding: '15px', textAlign: 'center' }}>
                            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
                              <Edit3 size={16} style={{ cursor: 'pointer', color: '#3b82f6' }} onClick={() => startEdit(n)} />

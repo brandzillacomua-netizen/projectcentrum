@@ -32,6 +32,15 @@ const WarehouseModule = () => {
     .replace(/[сc]/g, 'c')
     .replace(/[хx]/g, 'x')
     .replace(/\s/g, '')
+
+  const parseMaterialName = (details) => {
+    if (!details) return ''
+    if (details.includes('ВИТРАТНІ МАТЕРІАЛИ')) {
+      const match = details.match(/:\s*(.+)\s*—/)
+      return match ? match[1].trim() : details
+    }
+    return details.split(': ')[1]?.split(' — ')[0]?.trim() || details
+  }
   
   const [activeTab, setActiveTab] = useState('raw')
   const [showAdd, setShowAdd] = useState(false)
@@ -63,12 +72,11 @@ const WarehouseModule = () => {
   const handleReserveOrder = (orderId, orderNum, reqList) => {
     // Check if we already have a purchase request for this order
     const hasActivePR = purchaseRequests.some(pr => pr.order_id === orderId && pr.status === 'pending')
-    if (hasActivePR) return // Prevent modal if already awaiting supply
+    if (hasActivePR) return 
 
     const missingItems = []
     reqList.forEach(req => {
-      let parsedName = ''
-      try { parsedName = req.details?.split(': ')[1]?.split(' — ')[0]?.trim() } catch(e) {}
+      const parsedName = parseMaterialName(req.details)
       const invItem = inventory.find(i => 
         i.id === req.inventory_id || 
         (parsedName && normalize(i.name) === normalize(parsedName))
@@ -77,8 +85,8 @@ const WarehouseModule = () => {
       const needed = Number(req.quantity)
       if (available < needed) {
         const missingAmount = needed - available
-        const reqDescription = req.details?.split(': ')[1] || req.details || 'Невідома деталь'
-        let nomenclature_id = invItem?.nomenclature_id || (nomenclatures.find(n => n.name === parsedName)?.id) || null
+        const reqDescription = parsedName || 'Невідома деталь'
+        let nomenclature_id = invItem?.nomenclature_id || (nomenclatures.find(n => normalize(n.name) === normalize(parsedName))?.id) || null
         missingItems.push({ reqDetails: reqDescription, missingAmount, inventory_id: invItem?.id || req.inventory_id, nomenclature_id, needed })
       }
     })
@@ -111,23 +119,19 @@ const WarehouseModule = () => {
           <div className="content-card glass-panel" style={{ borderLeft: '4px solid #ff9000', marginBottom: '30px', padding: '20px' }}>
             <h3 style={{ fontSize: '0.8rem', color: '#ff9000', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}><Bell size={16} /> ЗАЯВКИ НА КОМПЛЕКТАЦІЮ</h3>
             <div style={{ display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px' }}>
-              {Object.entries(gr                // 1. Check for Active Purchase Request (Pending)
-                const activePR = purchaseRequests.find(pr => pr.order_id === orderId && pr.status === 'pending')
+              {Object.entries(groupedRequests).map(([orderId, reqList]) => {
+                const orderNum = orders.find(o => o.id === orderId)?.order_num || '???'
                 
-                // 2. Check for Accepted Purchase Request
+                // Supply states
+                const activePR = purchaseRequests.find(pr => pr.order_id === orderId && pr.status === 'pending')
                 const acceptedPR = purchaseRequests.find(pr => pr.order_id === orderId && pr.status === 'accepted')
-
-                // 3. Check for Active Reception Doc (Ordered by Supplier)
                 const orderedReception = receptionDocs.find(rd => rd.order_id === orderId && rd.status === 'ordered')
-
-                // 4. Check for Awaiting Reception Doc (Arrived at Warehouse door)
                 const pendingReception = receptionDocs.find(rd => rd.order_id === orderId && rd.status === 'pending')
 
-                // 5. Check for shortages to decide between "Issue" and "Reserve"
+                // Check shortages
                 const missingItems = []
                 reqList.forEach(req => {
-                  let parsedName = ''
-                  try { parsedName = req.details?.split(': ')[1]?.split(' — ')[0]?.trim() } catch(e) {}
+                  const parsedName = parseMaterialName(req.details)
                   const invItem = inventory.find(i => 
                     i.id === req.inventory_id || 
                     (parsedName && normalize(i.name) === normalize(parsedName))
@@ -139,15 +143,14 @@ const WarehouseModule = () => {
 
                 const isAwaiting = activePR || acceptedPR || orderedReception || pendingReception
                 
-                const btnLabel = activePR ? 'ЗАПИТ НАДІСЛАНО' : 
-                                acceptedPR ? 'ЗАПИТ ПРИЙНЯТО' : 
-                                orderedReception ? 'ОЧІКУЄ ПРИЙОМКИ' : 
-                                pendingReception ? 'ПРИЙОМКА' : 
-                                (missingItems.length === 0 ? 'ВИДАТИ' : 'ЗІБРАТИ ТА ЗАБРОНЮАТИ')
-�НЯТО' : 
-                                hasActiveReception ? 'ПРИЙОМКА' : 
-                                (missingItems.length === 0 ? 'ВИДАТИ' : 'ЗІБРАТИ ТА ЗАБРОНЮВАТИ')
-                
+                let btnLabel = ''
+                if (activePR) btnLabel = 'ЗАПИТ НАДІСЛАНО'
+                else if (acceptedPR) btnLabel = 'ЗАПИТ ПРИЙНЯТО'
+                else if (orderedReception) btnLabel = 'ОЧІКУЄ ПРИЙОМКИ'
+                else if (pendingReception) btnLabel = 'ПРИЙОМКА'
+                else if (missingItems.length === 0) btnLabel = 'ВИДАТИ'
+                else btnLabel = 'ЗІБРАТИ ТА ЗАБРОНЮАТИ'
+
                 const btnColor = isAwaiting ? '#1a1a1a' : '#ff9000'
                 const textColor = isAwaiting ? '#444' : '#000'
 
@@ -156,8 +159,9 @@ const WarehouseModule = () => {
                     <strong style={{ display: 'block', fontSize: '0.75rem', marginBottom: '10px' }}>НАРЯД #{orderNum}</strong>
                     <ul style={{ fontSize: '0.8rem', color: '#888', paddingLeft: '15px', marginBottom: '15px' }}>
                       {reqList.map(r => {
-                          const displayDetails = r.details?.split(': ')[1]?.split(' (Для:')[0] || r.details
-                          return <li key={r.id}>{displayDetails}</li>
+                          const parsedName = parseMaterialName(r.details)
+                          const displayDetails = parsedName || r.details
+                          return <li key={r.id}>{displayDetails} — {r.quantity} од.</li>
                       })}
                     </ul>
                     <button 

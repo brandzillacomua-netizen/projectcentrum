@@ -14,7 +14,7 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 import ManagerModule from './modules/ManagerModule'
-import WarehouseModule from './modules/WarehouseModule'
+import WarehouseModule from './modules/WarehouseModuleOld'
 import MasterModule from './modules/MasterModule_v3'
 import NomenclatureModule from './modules/NomenclatureModule'
 import EngineerModule from './modules/EngineerModule'

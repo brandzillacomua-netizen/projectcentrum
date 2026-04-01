@@ -137,7 +137,11 @@ const OperatorTerminal = () => {
   }
 
   const availableCards = workCards.filter(c => 
-    c.status === 'in-progress' || scannedCardIds.includes(c.id)
+    c.status === 'in-progress' || 
+    c.status === 'new' || 
+    c.status === 'waiting-buffer' || 
+    c.status === 'at-buffer' ||
+    scannedCardIds.includes(c.id)
   )
   
   const handleStartOperation = async () => {
@@ -173,8 +177,7 @@ const OperatorTerminal = () => {
     if (!currentCard) return
     setIsProcessing(true)
     try {
-      await apiService.submitOperatorAction('complete', currentCard.task_id, currentCard.id, currentCard.operator_name, { scrap_counts: scrapCounts }, completeWorkCard)
-      setShowScrapModal(false); 
+      await apiService.submitOperatorAction('complete', currentCard.task_id, currentCard.id, currentCard.operator_name, {}, completeWorkCard)
       setSelectedCardId(null);
       setSelectedStage('');
       setSelectedOperator('');
@@ -230,7 +233,7 @@ const OperatorTerminal = () => {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Tablet size={20} color="#eab308" />
-          <h1 style={{ fontSize: '1rem', fontWeight: 800, margin: 0 }} className="hide-mobile">ТЕРМІНАЛ ОПЕРАТОРА</h1>
+          <h1 style={{ fontSize: '1rem', fontWeight: 800, margin: 0 }} className="hide-mobile">ТЕРМІНАЛ ЦЕХУ (МАЙСТЕР)</h1>
         </div>
         <div style={{ fontWeight: 900, fontFamily: 'monospace', fontSize: '1.2rem', color: '#eab308' }}>{currentTime.toLocaleTimeString()}</div>
       </header>
@@ -264,21 +267,26 @@ const OperatorTerminal = () => {
           )}
 
           {currentCard ? (
-            <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-              <div style={{ marginBottom: '35px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-                   <div style={{ background: '#3b82f6', color: 'white', padding: '4px 10px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 900 }}>РОБОЧА КАРТА</div>
-                   <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800 }}>№ {currentCard.id}</div>
+            <div style={{ maxWidth: '900px', margin: '0 auto' }} className="anim-fade-in">
+              <div style={{ marginBottom: '35px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                     <div style={{ background: currentCard.status === 'new' ? '#ef4444' : '#3b82f6', color: 'white', padding: '4px 10px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 900 }}>
+                        {currentCard.status === 'new' ? 'НОВА КАРТА' : 'РОБОЧА КАРТА'}
+                     </div>
+                     <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800 }}>№ {currentCard.id}</div>
+                  </div>
+                  <h2 style={{ fontSize: '2.5rem', margin: 0, fontWeight: 950, letterSpacing: '-0.02em', lineHeight: 1 }}>{getNomFromCard(currentCard)?.name || 'Деталь'}</h2>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '10px', color: '#3b82f6' }}>
+                     <FileCode size={18}/> <span style={{ fontWeight: 800, fontSize: '0.9rem' }}>{getNomFromCard(currentCard)?.cnc_program || 'БЕЗ ПРОГРАМИ'}</span>
+                  </div>
                 </div>
-                <h2 style={{ fontSize: '2.5rem', margin: 0, fontWeight: 950, letterSpacing: '-0.02em', lineHeight: 1 }}>{getNomFromCard(currentCard)?.name || 'Деталь'}</h2>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '10px', color: '#3b82f6' }}>
-                   <FileCode size={18}/> <span style={{ fontWeight: 800, fontSize: '0.9rem' }}>{getNomFromCard(currentCard)?.cnc_program || 'БЕЗ ПРОГРАМИ'}</span>
-                </div>
+                <button onClick={() => setSelectedCardId(null)} style={{ background: '#111', border: 'none', color: '#555', padding: '10px', borderRadius: '12px', cursor: 'pointer' }}><X size={24}/></button>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '30px' }}>
                 <SpecCard icon={Layers} label="Матеріал / Сировина" value={getNomFromCard(currentCard)?.material_type || '—'} color="#10b981" />
-                <SpecCard icon={Box} label="Кількість у карті" value={`${getQtyFromCard(currentCard)} шт ${getSheetsFromCard(currentCard) ? `(Л. ${getSheetsFromCard(currentCard)})` : ''}`} color="#3b82f6" />
+                <SpecCard icon={Box} label="Кількість у карті" value={`${currentCard.quantity || getQtyFromCard(currentCard)} шт`} color="#3b82f6" />
                 <SpecCard icon={Gauge} label="Норма часу" value={`${currentCard.estimated_time || 0} хв`} />
                 <SpecCard icon={Tablet} label="Обладнання" value={currentCard.machine || '—'} />
               </div>
@@ -286,12 +294,12 @@ const OperatorTerminal = () => {
               <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '28px', border: '1px solid #1a1a1a', padding: '40px', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '4px', background: currentCard.status === 'in-progress' ? '#10b981' : '#222' }} />
                 
-                {currentCard.status === 'pending' || currentCard.status === 'waiting' ? (
+                {currentCard.status === 'new' || currentCard.status === 'at-buffer' ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', maxWidth: '500px', margin: '0 auto' }}>
                      <div style={{ textAlign: 'left' }}>
-                        <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>1. Оберіть етап робіт</label>
+                        <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>1. Етап робіт</label>
                         <select 
-                          value={selectedStage} 
+                          value={selectedStage || currentCard.operation} 
                           onChange={(e) => setSelectedStage(e.target.value)} 
                           style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}
                         >
@@ -313,15 +321,15 @@ const OperatorTerminal = () => {
                      </div>
 
                      <button 
-                       disabled={isProcessing || !selectedStage || !selectedOperator} 
+                       disabled={isProcessing || !selectedOperator} 
                        onClick={handleStartOperation} 
                        className="btn-action pulse-blue" 
-                       style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '22px 60px', borderRadius: '18px', fontSize: '1.4rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', marginTop: '20px', opacity: (selectedStage && selectedOperator) ? 1 : 0.5 }}
+                       style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '22px 60px', borderRadius: '18px', fontSize: '1.4rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', marginTop: '20px' }}
                      >
                         ВЗЯТИ В РОБОТУ
                      </button>
                   </div>
-                ) : (
+                ) : currentCard.status === 'in-progress' ? (
                   <>
                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '35px' }}>
                         <div style={{ color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '5px 15px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 900, marginBottom: '20px' }}>
@@ -330,29 +338,60 @@ const OperatorTerminal = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#10b981', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.2em' }}><Timer size={16} /> ЧАС ВИКОНАННЯ</div>
                         <div className="timer-display" style={{ fontSize: '6rem', fontWeight: 1000, color: '#10b981', fontFamily: 'monospace', letterSpacing: '-0.05em' }}>{formatElapsedTime(currentCard.started_at)}</div>
                      </div>
-                     <button disabled={isProcessing} onClick={() => {
-                          const order = getTaskOrder(currentCard.order_id)
-                          const initialScrap = {}
-                          order?.order_items?.forEach(item => initialScrap[item.nomenclature_id] = 0)
-                          setScrapCounts(initialScrap)
-                          setShowScrapModal(true)
-                     }} className="btn-action" style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '22px 70px', borderRadius: '18px', fontSize: '1.4rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '15px', margin: '0 auto' }}>
-                        <CheckCircle size={30} /> ЗАВЕРШИТИ ЕТАП
+                     <button disabled={isProcessing} onClick={submitCompletion} className="btn-action" style={{ background: '#ec4899', color: '#fff', border: 'none', padding: '22px 70px', borderRadius: '18px', fontSize: '1.4rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '15px', margin: '0 auto' }}>
+                        <CheckCircle size={30} /> ЗАВЕРШИТИ ТА В БУФЕР
                      </button>
                   </>
+                ) : (
+                   <div style={{ textAlign: 'center', padding: '40px' }}>
+                      <CheckCircle size={60} color="#10b981" style={{ marginBottom: '20px' }} />
+                      <h3 style={{ margin: 0 }}>Очікує прийомки на буфер</h3>
+                      <p style={{ color: '#444' }}>Статус: {currentCard.status}</p>
+                   </div>
                 )}
               </div>
             </div>
           ) : (
-            <div style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
-               <div style={{ width: '130px', height: '130px', borderRadius: '50%', background: 'rgba(234, 179, 8, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '25px', border: '2px dashed #333' }}>
-                  <Search size={70} color="#333" />
+            <div style={{ maxWidth: '1200px', margin: '0 auto' }} className="anim-fade-in">
+               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+                  <h2 style={{ fontSize: '1.8rem', fontWeight: 950, margin: 0 }}>ЛАНЦЮЖОК ВИРОБНИЦТВА</h2>
+                  <button onClick={() => { setIsScanning(true); setScanError(null); }} style={{ background: '#eab308', color: '#000', border: 'none', padding: '15px 30px', borderRadius: '15px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 10px 20px rgba(234, 179, 8, 0.2)' }}>
+                     <Camera size={20} /> ВІДКРИТИ СКАНЕР
+                  </button>
                </div>
-               <h3 style={{ fontSize: '1.9rem', fontWeight: 950, marginBottom: '12px' }}>ОЧІКУВАННЯ СКАНУВАННЯ</h3>
-               <p style={{ color: '#555', fontSize: '1rem', maxWidth: '380px' }}>Зчитайте QR-код з листка робочої карти, яку надав вам майстер</p>
-               <button onClick={() => { setIsScanning(true); setScanError(null); }} style={{ marginTop: '35px', background: '#3b82f6', color: '#fff', border: 'none', padding: '20px 50px', borderRadius: '16px', fontSize: '1.2rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  <Camera size={24} /> ВІДКРИТИ СКАНЕР
-               </button>
+
+               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '40px' }}>
+                  {['Різка', 'Галтовка', 'Гнуття', 'Зварювання', 'Покраска'].map(stage => {
+                     const inWork = workCards.filter(c => c.operation === stage && c.status === 'in-progress')
+                     const atBuffer = workCards.filter(c => c.operation === stage && (c.status === 'at-buffer' || c.status === 'completed'))
+                     
+                     const workQty = inWork.reduce((sum, c) => sum + (c.quantity || 0), 0)
+                     const bufferQty = atBuffer.reduce((sum, c) => sum + (c.quantity || 0), 0)
+
+                     return (
+                        <div key={stage} style={{ background: '#111', padding: '25px', borderRadius: '24px', border: '1px solid #222', position: 'relative', overflow: 'hidden' }}>
+                           <div style={{ color: '#555', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '15px', letterSpacing: '0.1em' }}>{stage}</div>
+                           <div style={{ display: 'flex', alignItems: 'flex-end', gap: '15px' }}>
+                              <div>
+                                 <div style={{ fontSize: '0.65rem', color: '#3b82f6', fontWeight: 800, marginBottom: '2px' }}>У РОБОТІ</div>
+                                 <div style={{ fontSize: '2rem', fontWeight: 950, color: workQty > 0 ? '#fff' : '#222' }}>{workQty} <span style={{ fontSize: '0.8rem', opacity: 0.3 }}>шт</span></div>
+                              </div>
+                              <div style={{ width: '1px', height: '30px', background: '#222' }} />
+                              <div>
+                                 <div style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: 800, marginBottom: '2px' }}>БУФЕР</div>
+                                 <div style={{ fontSize: '2rem', fontWeight: 950, color: bufferQty > 0 ? '#10b981' : '#222' }}>{bufferQty} <span style={{ fontSize: '0.8rem', opacity: 0.3 }}>шт</span></div>
+                              </div>
+                           </div>
+                           <div style={{ position: 'absolute', bottom: 0, left: 0, height: '4px', background: workQty > 0 ? '#3b82f6' : '#222', width: '100%' }} />
+                        </div>
+                     )
+                  })}
+               </div>
+
+               <div style={{ background: '#111', padding: '30px', borderRadius: '24px', border: '1px solid #222', textAlign: 'center', opacity: 0.5 }}>
+                  <Tablet size={50} color="#222" style={{ marginBottom: '15px' }} />
+                  <div style={{ fontSize: '0.9rem', fontWeight: 800 }}>ОБЕРІТЬ КАРТУ ЗІ СПИСКУ ЗЛІВА АБО ВІДСКАНУЙТЕ QR</div>
+               </div>
             </div>
           )}
         </div>

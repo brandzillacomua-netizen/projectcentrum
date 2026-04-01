@@ -4,16 +4,10 @@ import {
   ArrowLeft, 
   Package, 
   Plus, 
-  Bell, 
-  Search,
-  CheckCircle2,
-  ListPlus,
-  Send,
   X,
   History,
   AlertTriangle,
-  ChevronDown,
-  ChevronUp,
+  Send,
   Warehouse
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -63,25 +57,40 @@ const SupplyModule = () => {
   const handleSendToWarehouse = async () => {
     if (draftItems.length === 0) return
     const items = draftItems.map(d => ({ nomenclature_id: d.nomenclature_id, qty: d.qty }))
-    await apiService.submitCreateReceptionDoc(items, createReceptionDoc)
+    
+    // Default manual creation to 'ordered' so Supply Manager can review first
+    await apiService.submitCreateReceptionDoc(items, (its) => createReceptionDoc(its, 'ordered'))
+    
     setDraftItems([])
     setShowCreate(false)
     setActiveMobileSection('registry')
-    alert('Готово! Документ передано на склад.')
+    alert('Готово! Документ створено. Не забудьте "Відправити на склад" з Реєстру.')
   }
 
   return (
     <div className="supply-module-v2" style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
-      <nav className="module-nav" style={{ flexShrink: 0 }}>
-        <Link to="/" className="back-link"><ArrowLeft size={18} /> <span className="hide-mobile">Назад</span></Link>
-        <div className="module-title-group">
-          <Truck className="text-secondary" size={24} />
-          <h1 className="hide-mobile">Менеджер із постачання</h1>
-          <h1 className="mobile-only" style={{ fontSize: '1rem' }}>ПОСТАЧАННЯ</h1>
+      <nav className="module-nav" style={{ flexShrink: 0, padding: '15px 25px', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #222' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <Link to="/" className="back-link" style={{ color: '#555', transition: '0.3s' }}><ArrowLeft size={18} /></Link>
+          <div className="module-title-group" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <Truck className="text-secondary" size={24} style={{ color: '#ff9000' }} />
+            <h1 className="hide-mobile" style={{ margin: 0, fontSize: '1.2rem', fontWeight: 950, letterSpacing: '-0.02em' }}>Менеджер із постачання</h1>
+            <h1 className="mobile-only" style={{ margin: 0, fontSize: '1rem', fontWeight: 950 }}>ПОСТАЧАННЯ</h1>
+          </div>
         </div>
+
+        {!showCreate && (
+           <button 
+             onClick={() => setShowCreate(true)} 
+             className="hide-mobile"
+             style={{ background: '#ff9000', color: '#000', border: 'none', padding: '10px 22px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem' }}
+           >
+              <Plus size={20} /> НОВА ПРИЙОМКА
+           </button>
+        )}
       </nav>
 
-      <div className="module-content" style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
+      <div className="module-content" style={{ padding: '25px', overflowY: 'auto', flex: 1 }}>
         
         {/* Section Tabs (Mobile Only) */}
         <div className="mobile-only supply-tabs" style={{ display: 'flex', background: '#111', padding: '5px', borderRadius: '14px', marginBottom: '25px' }}>
@@ -93,42 +102,59 @@ const SupplyModule = () => {
         <div className="supply-main-layout" style={{ display: 'grid', gridTemplateColumns: showCreate ? '1fr' : 'repeat(auto-fit, minmax(400px, 1fr))', gap: '30px' }}>
            
            {/* CREATE PANEL */}
-           {(showCreate || (!window.matchMedia("(max-width: 768px)").matches && showCreate)) && (
-             <section className="create-panel glass-panel" style={{ background: '#111', borderRadius: '24px', border: '1px solid #222', padding: '30px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '25px' }}>
-                   <h2 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#ff9000', margin: 0 }}>НОВА ПРИЙОМКА ТОВАРУ</h2>
-                   <button onClick={() => {setShowCreate(false); setActiveMobileSection('registry')}} style={{ background: 'transparent', border: 'none', color: '#444', cursor: 'pointer' }}><X size={24} /></button>
+           {(showCreate || activeMobileSection === 'create') && (
+             <section className="create-panel glass-panel" style={{ background: '#111', borderRadius: '24px', border: '1px solid #222', padding: '35px', maxWidth: '800px', margin: '0 auto', width: '100%' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '35px', alignItems: 'center' }}>
+                   <div>
+                      <h2 style={{ fontSize: '1.5rem', fontWeight: 950, color: '#ff9000', margin: 0, letterSpacing: '-0.02em' }}>СФОРМУВАТИ ПРИЙОМКУ</h2>
+                      <p style={{ color: '#555', fontSize: '0.9rem', margin: '8px 0 0' }}>Оберіть товар та вкажіть кількість для передачі на склад</p>
+                   </div>
+                   <button onClick={() => {setShowCreate(false); setActiveMobileSection('registry')}} style={{ background: '#222', border: 'none', color: '#888', cursor: 'pointer', width: '45px', height: '45px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={24} /></button>
                 </div>
 
-                <div className="creation-flow" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                   <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '10px' }} className="mobile-stack">
-                      <div style={{ position: 'relative', flex: 1 }}>
-                         <input list="noms-list" style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '12px' }} placeholder="Оберіть товар..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                <div className="creation-flow" style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 65px', gap: '15px' }} className="mobile-stack">
+                      <div style={{ position: 'relative' }}>
+                         <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 900, color: '#444', marginBottom: '10px', textTransform: 'uppercase' }}>Номенклатура</label>
+                         <input list="noms-list" style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '18px', borderRadius: '15px', fontSize: '1.1rem' }} placeholder="Пошук товару..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                          <datalist id="noms-list">
                             {availableNoms.map(n => <option key={n.id} value={getNomLabel(n)} />)}
                          </datalist>
                       </div>
-                      <input type="number" style={{ width: '80px', background: '#000', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '12px', textAlign: 'center' }} placeholder="К-сть" value={selectedQty} onChange={e => setSelectedQty(e.target.value)} />
-                      <button onClick={addToDraft} style={{ background: '#222', color: '#fff', border: 'none', padding: '15px 25px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}><Plus size={20} /></button>
+                      <div>
+                         <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 900, color: '#444', marginBottom: '10px', textTransform: 'uppercase' }}>Кількість</label>
+                         <input type="number" style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '18px', borderRadius: '15px', textAlign: 'center', fontSize: '1.1rem', fontWeight: 700 }} placeholder="0" value={selectedQty} onChange={e => setSelectedQty(e.target.value)} />
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                         <button onClick={addToDraft} style={{ height: '62px', width: '100%', background: '#ff9000', color: '#000', border: 'none', borderRadius: '15px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={28} /></button>
+                      </div>
                    </div>
 
-                   <div className="draft-preview" style={{ background: '#0a0a0a', padding: '15px', borderRadius: '18px', minHeight: '100px', border: '1px solid #1a1a1a' }}>
-                      {draftItems.length === 0 ? <p style={{ color: '#444', textAlign: 'center', marginTop: '25px', fontSize: '0.8rem' }}>Додайте позиції вище</p> : 
-                        draftItems.map((it, idx) => (
-                           <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #111' }}>
-                              <span style={{ fontSize: '0.85rem' }}>{it.name}</span>
-                              <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                                 <strong style={{ color: '#ff9000' }}>{it.qty}</strong>
-                                 <button onClick={() => setDraftItems(draftItems.filter((_, i) => i !== idx))} style={{ color: '#444', border: 'none', background: 'transparent', cursor: 'pointer' }}><X size={14} /></button>
-                              </div>
-                           </div>
-                        ))
-                      }
+                   <div className="draft-preview" style={{ background: 'rgba(0,0,0,0.3)', padding: '25px', borderRadius: '24px', minHeight: '150px', border: '1px solid #1a1a1a' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 900, color: '#444', marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>СПИСОК ДО ПРИЙОМКИ ({draftItems.length})</div>
+                      {draftItems.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '40px 0', color: '#333' }}>
+                           <Package size={40} style={{ marginBottom: '15px', opacity: 0.1 }} />
+                           <p style={{ fontSize: '0.9rem' }}>Додайте товари вище</p>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          {draftItems.map((it, idx) => (
+                             <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '15px 20px', background: '#0a0a0a', borderRadius: '15px', border: '1px solid #222' }}>
+                                <span style={{ fontSize: '1rem', fontWeight: 700 }}>{it.name}</span>
+                                <div style={{ display: 'flex', gap: '25px', alignItems: 'center' }}>
+                                   <strong style={{ color: '#ff9000', fontSize: '1.25rem', fontWeight: 950 }}>{it.qty}</strong>
+                                   <button onClick={() => setDraftItems(draftItems.filter((_, i) => i !== idx))} style={{ color: '#444', border: 'none', background: 'transparent', cursor: 'pointer', padding: '5px' }}><X size={20} /></button>
+                                </div>
+                             </div>
+                          ))}
+                        </div>
+                      )}
                    </div>
                    
                    {draftItems.length > 0 && (
-                      <button onClick={handleSendToWarehouse} style={{ width: '100%', padding: '18px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '14px', fontWeight: 900, cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-                         <Send size={18} /> ПЕРЕДАТИ НА СКЛАД
+                      <button onClick={handleSendToWarehouse} style={{ width: '100%', padding: '22px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '20px', fontWeight: 950, cursor: 'pointer', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', marginTop: '15px', boxShadow: '0 15px 30px rgba(16, 185, 129, 0.2)' }}>
+                         <Send size={22} /> СФОРМУВАТИ ДОКУМЕНТ ТА ПЕРЕДАТИ
                       </button>
                    )}
                 </div>
@@ -138,7 +164,7 @@ const SupplyModule = () => {
            {/* REQUESTS COLUMN */}
            {!showCreate && (activeMobileSection === 'requests' || !window.matchMedia("(max-width: 768px)").matches) && (
              <section className="requests-col">
-                <h3 style={{ fontSize: '0.85rem', color: '#555', marginBottom: '20px' }}><AlertTriangle size={18} className="text-secondary" /> ДЕФІЦИТ ТА ЗАПИТИ</h3>
+                <h3 style={{ fontSize: '0.85rem', color: '#555', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}><AlertTriangle size={18} className="text-secondary" /> ДЕФІЦИТ ТА ЗАПИТИ</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                    {pendingRequests.map(pr => (
                      <div key={pr.id} className="request-card" style={{ background: '#111', padding: '25px', borderRadius: '24px', border: '1px solid #222', borderLeft: pr.status === 'accepted' ? '4px solid #3b82f6' : '4px solid #ef4444' }}>
@@ -169,7 +195,7 @@ const SupplyModule = () => {
            {/* REGISTRY COLUMN */}
            {!showCreate && (activeMobileSection === 'registry' || !window.matchMedia("(max-width: 768px)").matches) && (
              <section className="registry-col">
-                <h3 style={{ fontSize: '0.85rem', color: '#555', marginBottom: '20px' }}><History size={18} className="text-secondary" /> РЕЄСТР ПОСТАВОК</h3>
+                <h3 style={{ fontSize: '0.85rem', color: '#555', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}><History size={18} className="text-secondary" /> РЕЄСТР ПОСТАВОК</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                    {(receptionDocs || []).map(doc => (
                      <div key={doc.id} className="doc-card" style={{ background: '#111', borderRadius: '20px', border: '1px solid #222', overflow: 'hidden' }}>
@@ -214,6 +240,7 @@ const SupplyModule = () => {
                         )}
                      </div>
                    ))}
+                   {receptionDocs.length === 0 && <div style={{ textAlign: 'center', padding: '60px', color: '#333', fontSize: '0.85rem' }}>Історія поставок порожня</div>}
                 </div>
              </section>
            )}

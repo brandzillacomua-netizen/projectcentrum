@@ -1,18 +1,22 @@
 import React, { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Factory, ListTodo, Loader2, X, Printer, LayoutDashboard, Layers, User, Clock, Package } from 'lucide-react'
+import { ArrowLeft, Factory, ListTodo, Loader2, X, Printer, LayoutDashboard, Layers, User, Clock, Package, Scan, CheckCircle2, AlertTriangle, Camera, Tablet } from 'lucide-react'
 import { useMES } from '../MESContext'
 import { QRCodeSVG } from 'qrcode.react'
 import { apiService } from '../services/apiDispatcher'
 
 const ForemanWorkplace = () => {
-  const { tasks, orders, workCards, createWorkCard, completeTaskByMaster, nomenclatures, bomItems, machines, workCardHistory } = useMES()
+  const { tasks, orders, workCards, createWorkCard, completeTaskByMaster, nomenclatures, bomItems, machines, workCardHistory, confirmBuffer, fetchData } = useMES()
   const [activeTaskId, setActiveTaskId] = useState(null)
   const [activeView, setActiveView] = useState('worksheet') // 'worksheet' | 'flow'
   const [selectedMachines, setSelectedMachines] = useState({}) // { [partId]: machineName }
   const [genModal, setGenModal] = useState(null) // { task, part, total, created, rowId, machineName }
   const [printQueue, setPrintQueue] = useState(null)
   const [isGenerating, setIsGenerating] = useState(false)
+  
+  const [isBufferScanning, setIsBufferScanning] = useState(false)
+  const [bufferScrapModal, setBufferScrapModal] = useState(null) // { cardId, nomenclature_id }
+  const [bufferScrapCounts, setBufferScrapCounts] = useState({})
 
   const getBOMParts = (nomenclatureId) => {
     return bomItems
@@ -71,12 +75,46 @@ const ForemanWorkplace = () => {
     }
   }
 
-  const handleCloseNaryad = async (taskId) => {
-    if (window.confirm("Дійсно закрити наряд? Це завершить виробництво за цим замовленням.")) {
-      await apiService.submitCompleteTaskByMaster(taskId, completeTaskByMaster)
-      setActiveTaskId(null)
+  const handleBufferReception = async (cardId) => {
+    const card = workCards.find(c => c.id === Number(cardId))
+    if (!card) {
+      alert("Картку не знайдено!")
+      return
+    }
+    setBufferScrapModal({ cardId: card.id, nomenclature_id: card.nomenclature_id })
+    // Initialize scrap counts
+    setBufferScrapCounts({ [card.nomenclature_id]: 0 })
+  }
+
+  const submitBufferReception = async () => {
+    if (!bufferScrapModal) return
+    try {
+      await apiService.submitBufferConfirmation(bufferScrapModal.cardId, bufferScrapCounts, confirmBuffer)
+      setBufferScrapModal(null)
+      setIsBufferScanning(false)
+    } catch(err) {
+      alert("Помилка: " + err.message)
     }
   }
+
+  // Effect for Buffer Scanner
+  React.useEffect(() => {
+    let html5QrCode = null
+    if (isBufferScanning && window.Html5Qrcode) {
+      html5QrCode = new window.Html5Qrcode("buffer-reader")
+      const config = { fps: 15, qrbox: { width: 260, height: 260 } }
+      html5QrCode.start(
+        { facingMode: "environment" }, config, async (decodedText) => {
+          if (decodedText.startsWith("CENTRUM_CARD_")) {
+            const cardId = decodedText.replace("CENTRUM_CARD_", "").trim()
+            if (html5QrCode && html5QrCode.isScanning) await html5QrCode.stop()
+            handleBufferReception(cardId)
+          }
+        }
+      ).catch(e => console.error(e))
+    }
+    return () => { if (html5QrCode && html5QrCode.isScanning) html5QrCode.stop().catch(() => {}) }
+  }, [isBufferScanning])
 
   return (
     <div className="foreman-module" style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
@@ -115,87 +153,25 @@ const ForemanWorkplace = () => {
             >
               <ListTodo size={18} /> РОБОЧІ НАРЯДИ
             </button>
-            <button 
-              onClick={() => setActiveView('flow')} 
-              style={{ background: 'transparent', border: 'none', color: activeView === 'flow' ? '#ef4444' : '#555', fontSize: '0.85rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: activeView === 'flow' ? '2px solid #ef4444' : '2px solid transparent', paddingBottom: '10px', transition: '0.2s' }}
+            <Link 
+              to="/operator-terminal" 
+              style={{ background: 'rgba(234, 179, 8, 0.1)', border: '1px solid #eab308', color: '#eab308', fontSize: '0.8rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 15px', borderRadius: '10px', textDecoration: 'none', marginLeft: 'auto' }}
             >
-              <LayoutDashboard size={18} /> ЗАГАЛЬНИЙ ПОТІК (WIP)
-            </button>
+              <Tablet size={16} /> ВІДКРИТИ ТЕРМІНАЛ ЦЕХУ
+            </Link>
           </div>
 
           {activeView === 'flow' ? (
-             <div className="global-flow-dashboard anim-fade-in">
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '40px' }}>
-                   {['Різка', 'Галтовка', 'Гнуття', 'Зварювання', 'Покраска'].map(stage => {
-                      const stageQty = workCards
-                        .filter(c => c.operation === stage && c.status !== 'completed')
-                        .reduce((sum, c) => sum + (c.quantity || 0), 0)
-                      return (
-                        <div key={stage} style={{ background: '#111', padding: '25px', borderRadius: '20px', border: '1px solid #222' }}>
-                           <div style={{ color: '#555', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px' }}>{stage}</div>
-                           <div style={{ fontSize: '2rem', fontWeight: 950, color: stageQty > 0 ? '#ef4444' : '#222' }}>{stageQty} <span style={{ fontSize: '0.9rem', opacity: 0.5 }}>шт.</span></div>
-                        </div>
-                      )
-                   })}
-                </div>
-
-                <div style={{ background: '#111', borderRadius: '24px', border: '1px solid #222', overflow: 'hidden' }}>
-                   <div style={{ padding: '20px 25px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900 }}>ДЕТАЛІ В ПРОЦЕСІ РОБОТИ</h3>
-                      <div style={{ fontSize: '0.8rem', color: '#555' }}>Всього активних карток: {workCards.filter(c => c.status !== 'completed').length}</div>
-                   </div>
-                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead>
-                         <tr style={{ background: '#1a1a1a', textAlign: 'left', color: '#555', fontSize: '0.75rem', fontWeight: 900 }}>
-                            <th style={{ padding: '15px 25px' }}>ДЕТАЛЬ / КРЕСЛЕННЯ</th>
-                            <th style={{ padding: '15px 25px' }}>ЗАМОВНИК</th>
-                            <th style={{ padding: '15px 25px' }}>ПОТОЧНИЙ ЕТАП</th>
-                            <th style={{ padding: '15px 25px', textAlign: 'center' }}>КІЛЬКІСТЬ</th>
-                            <th style={{ padding: '15px 25px' }}>ВІДПОВІДАЛЬНИЙ</th>
-                            <th style={{ padding: '15px 25px' }}>МАРШРУТ (ІСТОРІЯ)</th>
-                         </tr>
-                      </thead>
-                      <tbody>
-                         {workCards.filter(c => c.status !== 'completed').map(card => {
-                            const nom = nomenclatures.find(n => n.id === card.nomenclature_id)
-                            const order = orders.find(o => o.id === card.order_id)
-                            const history = workCardHistory.filter(h => h.card_id === card.id)
-                            
-                            return (
-                               <tr key={card.id} style={{ borderBottom: '1px solid #1a1a1a', fontSize: '0.9rem' }}>
-                                  <td style={{ padding: '15px 25px' }}>
-                                     <div style={{ fontWeight: 800 }}>{nom?.name || '—'}</div>
-                                     <div style={{ fontSize: '0.7rem', opacity: 0.5 }}>{nom?.material_type}</div>
-                                  </td>
-                                  <td style={{ padding: '15px 25px', color: '#555' }}>{order?.customer || '—'}</td>
-                                  <td style={{ padding: '15px 25px' }}>
-                                     <span style={{ background: card.status === 'in-progress' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(234, 179, 8, 0.1)', color: card.status === 'in-progress' ? '#10b981' : '#eab308', padding: '4px 10px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 900 }}>
-                                        {card.operation?.toUpperCase()}
-                                     </span>
-                                  </td>
-                                  <td style={{ padding: '15px 25px', textAlign: 'center', fontWeight: 900 }}>{card.quantity} шт</td>
-                                  <td style={{ padding: '15px 25px' }}>
-                                     {card.operator_name ? (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                           <div style={{ width: '24px', height: '24px', background: '#222', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem' }}>{card.operator_name[0]}</div>
-                                           {card.operator_name}
-                                        </div>
-                                     ) : <span style={{ opacity: 0.3 }}>—</span>}
-                                  </td>
-                                  <td style={{ padding: '15px 25px' }}>
-                                     <div style={{ display: 'flex', gap: '5px' }}>
-                                        {history.map(h => (
-                                           <div key={h.id} title={`${h.stage_name} by ${h.operator_name}`} style={{ width: '8px', height: '8px', background: '#10b981', borderRadius: '50%' }} />
-                                        ))}
-                                        <div style={{ width: '8px', height: '8px', background: card.status === 'in-progress' ? '#3b82f6' : '#222', borderRadius: '50%', border: '1px solid #333' }} />
-                                     </div>
-                                  </td>
-                               </tr>
-                            )
-                         })}
-                      </tbody>
-                   </table>
-                </div>
+             <div style={{ padding: '60px 20px', textAlign: 'center', background: '#111', borderRadius: '32px', border: '1px solid #222', marginTop: '20px' }} className="anim-fade-in">
+                <Tablet size={80} color="#eab308" style={{ marginBottom: '25px', opacity: 0.8 }} />
+                <h2 style={{ fontSize: '2rem', fontWeight: 950, margin: '0 0 15px', color: '#fff' }}>МОНІТОРИНГ ПОТОКУ ПЕРЕВЕДЕНО</h2>
+                <p style={{ color: '#555', fontSize: '1.1rem', maxWidth: '500px', margin: '0 auto 40px', lineHeight: 1.5 }}>
+                  Загальний потік (WIP) та ланцюжок виробництва тепер доступні безпосередньо у <b>Терміналі Цеху</b>. 
+                  Це дозволяє майстру зручно сканувати карти та бачити стан цеху в одному місці.
+                </p>
+                <Link to="/operator-terminal" style={{ background: '#eab308', color: '#000', padding: '20px 50px', borderRadius: '18px', fontWeight: 950, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '15px', fontSize: '1.2rem', boxShadow: '0 10px 30px rgba(234, 179, 8, 0.2)' }}>
+                  <Scan size={24} /> ПЕРЕЙТИ ДО ТЕРМІНАЛУ
+                </Link>
              </div>
           ) : activeTaskId ? (
             (() => {
@@ -481,6 +457,50 @@ const ForemanWorkplace = () => {
         </div>
       )}
 
+      {isBufferScanning && (
+        <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 25000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <button onClick={() => setIsBufferScanning(false)} style={{ position: 'absolute', top: 30, right: 30, background: '#1a1a1a', border: 'none', color: '#fff', padding: '15px', borderRadius: '50%', cursor: 'pointer' }}><X size={32} /></button>
+          <div style={{ width: '100%', maxWidth: '540px', position: 'relative' }}>
+             <div id="buffer-reader" style={{ background: '#111', borderRadius: '32px', overflow: 'hidden' }}></div>
+             <div style={{ position: 'absolute', inset: -5, border: '6px solid #ef4444', borderRadius: '36px', pointerEvents: 'none', animation: 'scan-glow 2s infinite' }}></div>
+          </div>
+          <div style={{ marginTop: '40px', color: '#ef4444', fontSize: '1rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.2em' }}>Скануйте карту для прийомки на буфер</div>
+        </div>
+      )}
+
+      {bufferScrapModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.96)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 30000, padding: '20px' }}>
+          <div style={{ background: '#111', width: '100%', maxWidth: '500px', borderRadius: '32px', border: '1px solid #333', padding: '40px' }}>
+            <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+              <AlertTriangle color="#ef4444" size={40} style={{ marginBottom: '15px' }} />
+              <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 900 }}>ПРИЙОМКА НА БУФЕР</h3>
+              <p style={{ color: '#555', fontSize: '0.9rem' }}>Перевірте кількість та вкажіть брак (якщо є)</p>
+            </div>
+            
+            <div style={{ background: '#000', padding: '25px', borderRadius: '20px', border: '1px solid #222', marginBottom: '25px' }}>
+               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontWeight: 800 }}>{nomenclatures.find(n => n.id === bufferScrapModal.nomenclature_id)?.name}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: 900 }}>БРАК:</span>
+                    <input 
+                      type="number" 
+                      min="0" 
+                      style={{ width: '80px', background: '#111', border: '1px solid #333', color: '#fff', padding: '10px', borderRadius: '10px', textAlign: 'center', fontSize: '1.2rem', fontWeight: 900 }}
+                      value={bufferScrapCounts[bufferScrapModal.nomenclature_id] || 0}
+                      onChange={e => setBufferScrapCounts({ ...bufferScrapCounts, [bufferScrapModal.nomenclature_id]: parseInt(e.target.value) || 0 })}
+                    />
+                  </div>
+               </div>
+            </div>
+
+            <button onClick={submitBufferReception} style={{ width: '100%', background: '#10b981', color: '#fff', border: 'none', padding: '20px', borderRadius: '18px', fontWeight: 900, fontSize: '1.1rem', cursor: 'pointer' }}>
+               ПІДТВЕРДИТИ ПРИЙОМКУ
+            </button>
+            <button onClick={() => setBufferScrapModal(null)} style={{ width: '100%', background: 'transparent', border: 'none', color: '#555', marginTop: '15px', fontWeight: 800, cursor: 'pointer' }}>СКАСУВАТИ</button>
+          </div>
+        </div>
+      )}
+
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
           @page { size: A4; margin: 0; }
@@ -531,6 +551,7 @@ const ForemanWorkplace = () => {
         }
         .animate-spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes scan-glow { 0% { box-shadow: 0 0 10px #ef4444; } 50% { box-shadow: 0 0 30px #ef4444; } 100% { box-shadow: 0 0 10px #ef4444; } }
       `}} />
     </div>
   )

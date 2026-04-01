@@ -104,6 +104,19 @@ const MasterModule = () => {
       .join(', ')
   }, [activeNaryadOrder, nomenclatures])
 
+  const consumableSummary = useMemo(() => {
+    if (!activeNaryadOrder) return []
+    const totalSheetsCount = materialSummary.reduce((acc, m) => acc + (Number(m.sheets) || 0), 0)
+    if (totalSheetsCount <= 0) return []
+
+    return nomenclatures
+      .filter(n => n.type === 'consumable' && (Number(n.consumption_per_sheet) || 0) > 0)
+      .map(n => ({
+        name: n.name,
+        total: Math.ceil(totalSheetsCount * Number(n.consumption_per_sheet))
+      }))
+  }, [activeNaryadOrder, materialSummary, nomenclatures])
+
   const renderAnalytics = () => (
     <div className="analytics-scroll" style={{ overflowX: 'auto', marginBottom: '25px', display: 'flex', gap: '15px', paddingBottom: '10px' }}>
       <div className="ana-card-v2" style={{ minWidth: '140px', flex: 1, background: '#111', padding: '15px', borderRadius: '16px', border: '1px solid #222' }}>
@@ -325,13 +338,13 @@ const MasterModule = () => {
                   </tbody>
                   <tfoot style={{ background: 'rgba(255,144,0,0.05)', borderTop: '2px solid #ff9000' }} className="print-tf">
                     <tr>
-                      <td style={{ padding: '20px 15px', fontWeight: 1000, fontSize: '1rem', textTransform: 'uppercase' }} className="print-txt">ЗАГАЛЬНИЙ ПІДСУМОК:</td>
-                      <td style={{ padding: '20px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.1rem' }} className="print-txt">
+                      <td style={{ padding: '12px 15px', fontWeight: 1000, fontSize: '1rem', textTransform: 'uppercase', border: '1px solid #000' }} className="print-txt">ЗАГАЛЬНИЙ ПІДСУМОК:</td>
+                      <td style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.1rem', border: '1px solid #000' }} className="print-txt">
                         {(activeNaryadOrder.order_items?.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0) || 0).toString()}
                       </td>
-                      <td></td>
-                      <td></td>
-                      <td style={{ padding: '20px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.4rem', color: '#22c55e' }} className="print-accent-g">
+                      <td style={{ padding: '12px 15px', border: '1px solid #000' }}></td>
+                      <td style={{ padding: '12px 15px', border: '1px solid #000' }}></td>
+                      <td style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.4rem', color: '#22c55e', border: '1px solid #000' }} className="print-accent-g">
                         {(activeNaryadOrder.order_items?.reduce((acc, it) => {
                           const parts = getBOMParts(it.nomenclature_id)
                           const displayParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
@@ -339,7 +352,7 @@ const MasterModule = () => {
                           return acc + sh
                         }, 0) || 0).toString()}
                       </td>
-                      <td></td>
+                      <td style={{ border: '1px solid #000' }}></td>
                     </tr>
                   </tfoot>
                 </table>
@@ -353,6 +366,20 @@ const MasterModule = () => {
                       <div key={idx} className="mat-card-p" style={{ flex: 1, padding: '0 0 5px 15px', borderLeft: '4px solid #ff9000', minWidth: 'min-content' }}>
                         <div style={{ fontSize: '0.6rem', color: '#555', fontWeight: 800, marginBottom: '3px' }} className="print-subtxt">{m.name || '—'}</div>
                         <div style={{ fontSize: '1.1rem', fontWeight: 950, color: '#fff' }} className="print-txt">{(Number(m.sheets) || 0).toString()} <small style={{ fontSize: '0.65rem', fontWeight: 400, color: '#444' }} className="print-subtxt">ЛИСТІВ</small></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {consumableSummary.length > 0 && (
+                <div className="consumable-summary-section" style={{ marginTop: '15px', padding: '20px 30px', borderRadius: '18px', border: '1px solid #222', background: 'rgba(59,130,246,0.05)' }}>
+                  <h4 style={{ margin: '0 0 15px', fontSize: '0.75rem', fontWeight: 950, color: '#3b82f6', textTransform: 'uppercase' }}>ВИТРАТНІ МАТЕРІАЛИ:</h4>
+                  <div className="mat-flex-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '25px' }}>
+                    {consumableSummary.map((c, idx) => (
+                      <div key={idx} className="mat-card-p" style={{ padding: '0 0 5px 15px', borderLeft: '4px solid #3b82f6', minWidth: '150px' }}>
+                        <div style={{ fontSize: '0.6rem', color: '#555', fontWeight: 800, marginBottom: '3px' }} className="print-subtxt">{c.name}</div>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 950, color: '#fff' }} className="print-txt">{(Number(c.total) || 0).toString()} <small style={{ fontSize: '0.65rem', fontWeight: 400, color: '#444' }} className="print-subtxt">ОД.</small></div>
                       </div>
                     ))}
                   </div>
@@ -384,77 +411,145 @@ const MasterModule = () => {
         </div>
       )}
 
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         @media print {
-          @page { size: A4; margin: 10mm; }
+          @page { 
+            size: A4 portrait; 
+            margin: 0 !important; 
+          }
           
-          /* Hide EVERYTHING first */
-          * { visibility: hidden !important; background: transparent !important; color: #000 !important; }
+          /* Force box-sizing and white backgrounds */
+          * { 
+            visibility: hidden !important; 
+            background: transparent !important; 
+            color: #000 !important; 
+            box-sizing: border-box !important;
+            box-shadow: none !important;
+            text-shadow: none !important;
+            -webkit-print-color-adjust: exact !important;
+          }
           
-          /* Only show the target and its children */
-          .print-target, .print-target * { visibility: visible !important; }
+          .print-target, .print-target * { 
+            visibility: visible !important; 
+          }
           
-          /* Force White Background and Static Positioning */
-          html, body { background: #fff !important; }
+          /* FIXED WIDTH CONTAINER FOR A4 */
           .print-target { 
             position: absolute !important; 
-            inset: 0 !important; 
+            top: 0 !important; 
+            left: 0 !important;
+            width: 210mm !important;
+            min-height: 297mm !important;
             background: #fff !important; 
             display: block !important;
-            padding: 0 !important;
+            padding: 10mm !important;
             margin: 0 !important;
             z-index: 99999 !important;
-            width: 100% !important;
-            height: auto !important;
+            overflow: visible !important;
           }
           
           .worksheet-panel {
             background: #fff !important;
-            color: #000 !important;
             width: 100% !important;
-            max-width: none !important;
+            max-width: 190mm !important; /* Content area */
             height: auto !important;
-            position: relative !important;
-            box-shadow: none !important;
             border: none !important;
-            border-radius: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
           }
           
           .worksheet-header-area { 
-            background: #fff !important; 
             border-bottom: 2px solid #000 !important; 
-            padding: 20px 0 !important;
+            padding: 0 0 10px 0 !important;
+            margin-bottom: 15px !important;
+            width: 100% !important;
+          }
+
+          .doc-ti { 
+            font-size: 2.2rem !important; 
+            margin-bottom: 10px !important;
           }
           
           .print-info-box { 
-            background: #f9f9f9 !important; 
-            border: 1px solid #ddd !important; 
-            padding: 15px !important;
-            border-radius: 10px !important;
+            border: 2px solid #000 !important; 
+            padding: 10px 15px !important;
+            margin-bottom: 15px !important;
+            width: 100% !important;
+          }
+
+          .print-prod-info {
+            font-size: 1.4rem !important;
+            text-decoration: underline !important;
           }
           
-          .worksheet-scrollable { padding: 20px 0 !important; overflow: visible !important; }
-          
-          .print-table { border-collapse: collapse !important; width: 100% !important; }
-          .print-thr { background: #eee !important; border-bottom: 2px solid #000 !important; }
-          .print-tr { border-bottom: 1px solid #ddd !important; }
-          .print-tf { border-top: 2px solid #000 !important; background: #f9f9f9 !important; }
-          
-          .print-txt { color: #000 !important; font-weight: bold !important; }
-          .print-subtxt { color: #555 !important; }
-          .print-accent-g { color: #065f46 !important; font-weight: bold !important; }
-          .print-accent-b { color: #1e40af !important; font-weight: bold !important; }
-          .print-accent-o { color: #92400e !important; font-weight: bold !important; }
-          
-          .mat-summary-section { 
-            background: #fff !important; 
-            border: 1px solid #ddd !important; 
-            margin-top: 30px !important;
-            padding: 20px !important;
+          .worksheet-scrollable, .table-responsive-container { 
+            padding: 0 !important; 
+            margin: 0 !important;
+            overflow: visible !important; 
+            width: 100% !important;
+            display: block !important;
           }
-          .mat-card-p { border-left: 4px solid #000 !important; }
+
+          /* STRICT TABLE LAYOUT */
+          .print-table { 
+            border-collapse: collapse !important; 
+            width: 190mm !important; 
+            border: 2px solid #000 !important;
+            table-layout: fixed !important;
+          }
+
+          /* COLUMN SIZING (TOTAL: 190mm) */
+          /* Name: 95, Plan: 12, Material: 40, QTY/SH: 12, Sheets: 15, Surplus: 16 */
+          .print-table th:nth-child(1), .print-table td:nth-child(1) { width: 95mm !important; text-align: left !important; }
+          .print-table th:nth-child(2), .print-table td:nth-child(2) { width: 12mm !important; text-align: center !important; white-space: nowrap !important; }
+          .print-table th:nth-child(3), .print-table td:nth-child(3) { width: 40mm !important; text-align: left !important; }
+          .print-table th:nth-child(4), .print-table td:nth-child(4) { width: 12mm !important; text-align: center !important; white-space: nowrap !important; }
+          .print-table th:nth-child(5), .print-table td:nth-child(5) { width: 15mm !important; text-align: center !important; white-space: nowrap !important; }
+          .print-table th:nth-child(6), .print-table td:nth-child(6) { width: 16mm !important; text-align: center !important; white-space: nowrap !important; }
+
+          .print-thr th {
+             padding: 4px 3px !important;
+             font-size: 0.65rem !important;
+             border: 1px solid #000 !important;
+             background: #eee !important;
+             text-transform: uppercase !important;
+          }
+          .print-tr td {
+            padding: 3px 4px !important;
+            border: 1px solid #000 !important;
+            font-size: 0.75rem !important;
+            vertical-align: middle !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            word-break: break-all !important;
+          }
+          .print-tf td {
+            font-weight: bold !important;
+            font-size: 1rem !important;
+            padding: 6px 5px !important;
+            border: 2px solid #000 !important;
+            background: #eee !important;
+          }
+          
+          .print-txt { font-weight: bold !important; }
+          .print-subtxt { font-weight: bold !important; font-size: 0.6rem !important; }
+          
+          /* Summaries */
+          .mat-summary-section, .consumable-summary-section { 
+            border: 2px solid #000 !important; 
+            margin-top: 15px !important;
+            padding: 10px !important;
+            width: 100% !important;
+            page-break-inside: avoid !important;
+          }
+          .mat-card-p { 
+            border-left: 5px solid #000 !important; 
+            margin-bottom: 5px !important;
+          }
           
           .no-print { display: none !important; }
+          ::-webkit-scrollbar { display: none !important; }
         }
       `}} />
     </div>
