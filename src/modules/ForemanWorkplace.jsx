@@ -34,7 +34,7 @@ const ForemanWorkplace = () => {
     const capacity = Number(machineObj?.sheet_capacity) || 1
     
     // Calculate how many were total supposed to be, to show correct denominator (X / totalToReach)
-    const displayTotal = totalToReach || Math.ceil(sheets / capacity)
+    const displayTotal = Math.max(1, totalToReach || Math.ceil(sheets / capacity))
     const qtyPerLoading = Math.floor((Number(part.nom?.units_per_sheet) || 1) * (sheets / displayTotal))
 
     setIsGenerating(true)
@@ -219,16 +219,16 @@ const ForemanWorkplace = () => {
                             const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
                             const sheets = Math.ceil(total / unitsPerSheet)
                             
-                            // Get row-specific machine selection
-                            const rowMachineName = selectedMachines[rowId] || ''
+                            const existing = taskCards.filter(c => c.nomenclature_id === part.nom?.id || c.card_info?.includes(`NOM_ID:${part.nom?.id}`))
+                            const hasCards = existing.length > 0
+
+                            // Get row-specific machine selection with fallback to DB
+                            const rowMachineName = selectedMachines[rowId] || (hasCards ? existing[0].machine : '')
                             const rowMachineObj = machines.find(m => m.name === rowMachineName)
                             const currentCapacity = Number(rowMachineObj?.sheet_capacity) || 0
                             
                             const loads = currentCapacity > 0 ? Math.ceil(sheets / currentCapacity) : 0
                             const surplus = (sheets * unitsPerSheet) - total
-                            
-                            const existing = taskCards.filter(c => c.nomenclature_id === part.nom?.id || c.card_info?.includes(`NOM_ID:${part.nom?.id}`))
-                            const hasCards = existing.length > 0
                             
                             return (
                               <tr key={rowId} style={{ borderBottom: '1px solid #1a1a1a' }}>
@@ -270,7 +270,16 @@ const ForemanWorkplace = () => {
                                       if (existing.length < loads) {
                                         setGenModal({ task, part, total: loads, created: existing.length, rowId, machineName: rowMachineName, sheets })
                                       } else {
-                                        setPrintQueue({ task, part, metadata: existing.map(c => ({ id: c.id, loading: c.card_info, qty: Math.floor(total/loads) })) })
+                                        setPrintQueue({ 
+                                          task, 
+                                          part, 
+                                          metadata: existing.map(c => ({ 
+                                            id: c.id, 
+                                            loading: c.card_info, 
+                                            qty: c.quantity || (loads > 0 ? Math.floor(total/loads) : '—'),
+                                            machine: c.machine
+                                          })) 
+                                        })
                                       }
                                     }} 
                                     disabled={!rowMachineName && !hasCards}
@@ -433,7 +442,7 @@ const ForemanWorkplace = () => {
                           <div style={{ textAlign: 'center', marginBottom: '20px' }}>
                              <h1 style={{ margin: '0 0 15px', fontSize: '42pt', fontWeight: 900, textTransform: 'uppercase' }}>РОБОЧА КАРТА</h1>
                              <div style={{ fontSize: '18pt', fontWeight: 700, color: '#333' }}>
-                                 Верстат: {printQueue.task.machine_name} | Завантаження: {m.loading?.split('|')?.pop() || m.loading}
+                                 Верстат: {m.machine || 'Не вказано'} | Завантаження: {m.loading?.split('|')?.pop() || m.loading}
                              </div>
                           </div>
                           <div style={{ borderTop: '2px solid #000', margin: '20px 0' }}></div>

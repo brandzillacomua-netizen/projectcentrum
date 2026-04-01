@@ -136,13 +136,10 @@ const OperatorTerminal = () => {
     return `${h}:${m}:${s}`
   }
 
-  const availableCards = workCards.filter(c => 
-    c.status === 'in-progress' || 
-    c.status === 'new' || 
-    c.status === 'waiting-buffer' || 
-    c.status === 'at-buffer' ||
-    scannedCardIds.includes(c.id)
-  )
+  const queuedCards = workCards.filter(c => 
+    (c.status === 'new' || c.status === 'at-buffer' || scannedCardIds.includes(c.id)) && 
+    c.status !== 'in-progress'
+  ).filter(c => c.status !== 'waiting-buffer' && c.status !== 'completed')
   
   const handleStartOperation = async () => {
     console.log('--- 🛡️ TERMINAL START CLICKED ---', { currentCard, selectedStage, selectedOperator });
@@ -198,10 +195,10 @@ const OperatorTerminal = () => {
 
   const renderQueue = () => (
     <div className="tasks-scroll" style={{ flex: 1, overflowY: 'auto', padding: '0 15px 25px' }}>
-      {availableCards.length === 0 && (
+      {queuedCards.length === 0 && (
          <div style={{ textAlign: 'center', padding: '40px 10px', color: '#444', fontSize: '0.8rem' }}>Поки що немає прийнятих карт. Відскануйте першу...</div>
       )}
-      {availableCards.map(card => {
+      {queuedCards.map(card => {
         const nom = getNomFromCard(card)
         const isActive = selectedCardId === card.id
         const batchQty = getQtyFromCard(card)
@@ -241,7 +238,7 @@ const OperatorTerminal = () => {
       <div className="main-layout-responsive" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <div className="side-panel hide-mobile" style={{ width: '300px', background: '#121212', borderRight: '1px solid #222', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
           <div style={{ padding: '20px', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 800, color: '#555', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <ClipboardList size={16} /> ЧЕРГА КАРТ ({availableCards.length})
+            <ClipboardList size={16} /> ЧЕРГА КАРТ ({queuedCards.length})
           </div>
           {renderQueue()}
         </div>
@@ -363,7 +360,7 @@ const OperatorTerminal = () => {
                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '40px' }}>
                   {['Різка', 'Галтовка', 'Гнуття', 'Зварювання', 'Покраска'].map(stage => {
                      const inWork = workCards.filter(c => c.operation === stage && c.status === 'in-progress')
-                     const atBuffer = workCards.filter(c => c.operation === stage && (c.status === 'at-buffer' || c.status === 'completed'))
+                     const atBuffer = workCards.filter(c => c.operation === stage && (c.status === 'at-buffer' || c.status === 'waiting-buffer' || c.status === 'completed'))
                      
                      const workQty = inWork.reduce((sum, c) => sum + (c.quantity || 0), 0)
                      const bufferQty = atBuffer.reduce((sum, c) => sum + (c.quantity || 0), 0)
@@ -388,9 +385,56 @@ const OperatorTerminal = () => {
                   })}
                </div>
 
-               <div style={{ background: '#111', padding: '30px', borderRadius: '24px', border: '1px solid #222', textAlign: 'center', opacity: 0.5 }}>
-                  <Tablet size={50} color="#222" style={{ marginBottom: '15px' }} />
-                  <div style={{ fontSize: '0.9rem', fontWeight: 800 }}>ОБЕРІТЬ КАРТУ ЗІ СПИСКУ ЗЛІВА АБО ВІДСКАНУЙТЕ QR</div>
+               <div style={{ background: '#111', borderRadius: '24px', border: '1px solid #222', overflow: 'hidden' }}>
+                  <div style={{ padding: '20px 25px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                     <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 900, color: '#eab308' }}>КАРТКИ В РОБОТІ</h3>
+                     <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800 }}>ВСЬОГО: {workCards.filter(c => c.status === 'in-progress').length}</div>
+                  </div>
+                  <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                        <thead style={{ position: 'sticky', top: 0, background: '#1a1a1a', fontSize: '0.65rem', color: '#555', fontWeight: 900, textTransform: 'uppercase' }}>
+                           <tr>
+                              <th style={{ padding: '12px 25px' }}>ДЕТАЛЬ</th>
+                              <th style={{ padding: '12px 25px' }}>ЕТАП</th>
+                              <th style={{ padding: '12px 25px' }}>КІЛЬКІСТЬ</th>
+                              <th style={{ padding: '12px 25px' }}>ОПЕРАТОР</th>
+                              <th style={{ padding: '12px 25px' }}>ЧАС</th>
+                              <th style={{ padding: '12px 25px', textAlign: 'right' }}>ДІЯ</th>
+                           </tr>
+                        </thead>
+                        <tbody>
+                           {workCards.filter(c => c.status === 'in-progress').length === 0 ? (
+                              <tr><td colSpan="6" style={{ padding: '40px', textAlign: 'center', color: '#333', fontSize: '0.8rem' }}>Немає активних карток у роботі</td></tr>
+                           ) : (
+                              workCards.filter(c => c.status === 'in-progress').map(card => {
+                                 const nom = getNomFromCard(card)
+                                 return (
+                                    <tr key={card.id} style={{ borderBottom: '1px solid #1a1a1a', fontSize: '0.85rem' }}>
+                                       <td style={{ padding: '12px 25px' }}>
+                                          <div style={{ fontWeight: 800 }}>{nom?.name || '—'}</div>
+                                          <div style={{ fontSize: '0.65rem', color: '#555' }}>№ {card.id}</div>
+                                       </td>
+                                       <td style={{ padding: '12px 25px' }}>
+                                          <span style={{ color: '#3b82f6', fontWeight: 900, fontSize: '0.7rem' }}>{card.operation?.toUpperCase()}</span>
+                                       </td>
+                                       <td style={{ padding: '12px 25px', fontWeight: 900 }}>{card.quantity} <small style={{ opacity: 0.3 }}>шт</small></td>
+                                       <td style={{ padding: '12px 25px', color: '#aaa' }}>{card.operator_name || '—'}</td>
+                                       <td style={{ padding: '12px 25px', fontFamily: 'monospace', color: '#10b981', fontWeight: 800 }}>{formatElapsedTime(card.started_at)}</td>
+                                       <td style={{ padding: '12px 25px', textAlign: 'right' }}>
+                                          <button 
+                                            onClick={() => setSelectedCardId(card.id)} 
+                                            style={{ background: '#222', border: '1px solid #333', color: '#fff', padding: '6px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 800, cursor: 'pointer' }}
+                                          >
+                                             ВІДКРИТИ
+                                          </button>
+                                       </td>
+                                    </tr>
+                                 )
+                              })
+                           )}
+                        </tbody>
+                     </table>
+                  </div>
                </div>
             </div>
           )}
