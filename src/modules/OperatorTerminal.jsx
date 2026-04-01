@@ -24,7 +24,7 @@ import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
 
 const OperatorTerminal = () => {
-  const { workCards, orders, nomenclatures, startWorkCard, completeWorkCard, fetchData, operators, productionStages } = useMES()
+  const { workCards, orders, nomenclatures, startWorkCard, completeWorkCard, confirmBuffer, fetchData, operators, productionStages } = useMES()
   const [selectedCardId, setSelectedCardId] = useState(null)
   const [selectedStage, setSelectedStage] = useState('')
   const [selectedOperator, setSelectedOperator] = useState('')
