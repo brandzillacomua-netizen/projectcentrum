@@ -172,14 +172,27 @@ const OperatorTerminal = () => {
 
   const submitCompletion = async () => {
     if (!currentCard) return
+    const nom = getNomFromCard(currentCard)
+    // Pre-fill scrap for the current card nomenclature
+    setScrapCounts({ [nom?.id]: 0 })
+    setShowScrapModal(true)
+  }
+
+  const handleFinalFinish = async () => {
+    if (!currentCard) return
     setIsProcessing(true)
     try {
-      await apiService.submitOperatorAction('complete', currentCard.task_id, currentCard.id, currentCard.operator_name, {}, completeWorkCard)
-      setSelectedCardId(null);
-      setSelectedStage('');
-      setSelectedOperator('');
+      // Use confirmBuffer which handles scrap, card status (at-buffer), history, and physical inventory
+      await apiService.submitBufferConfirmation(currentCard.id, scrapCounts, confirmBuffer)
+      
+      setSelectedCardId(null)
+      setShowScrapModal(false)
       setScannedCardIds(prev => prev.filter(id => id !== currentCard.id))
-    } finally { setIsProcessing(false) }
+    } catch (e) {
+      alert('Помилка при оприбуткуванні: ' + e.message)
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
 
@@ -470,25 +483,50 @@ const OperatorTerminal = () => {
 
       {showScrapModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.96)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10020, padding: '20px' }}>
-          <div style={{ background: '#111', width: '100%', maxWidth: '580px', borderRadius: '32px', border: '1px solid #333', overflow: 'hidden' }}>
-            <div style={{ padding: '30px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: 0, fontSize: '1.4rem', fontWeight: 900 }}><AlertTriangle color="#ef4444" size={26} /> Звіт по браку за партію</h3>
-              <button onClick={() => setShowScrapModal(false)} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}><X size={26} /></button>
+          <div style={{ background: '#111', width: '100%', maxWidth: '580px', borderRadius: '32px', border: '1px solid #333', overflow: 'hidden', boxShadow: '0 40px 100px rgba(0,0,0,0.8)' }}>
+            <div style={{ padding: '30px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#1a1a1a' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: 0, fontSize: '1.4rem', fontWeight: 900 }}><AlertTriangle color="#ef4444" size={26} /> Звіт про брак та оприбуткування</h3>
+              <button onClick={() => setShowScrapModal(false)} style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer' }}><X size={26} /></button>
             </div>
-            <div style={{ padding: '30px', maxHeight: '60vh', overflowY: 'auto' }}>
-              {getTaskOrder(currentCard?.order_id)?.order_items?.map(item => {
-                const nom = nomenclatures.find(n => n.id === item.nomenclature_id) || nomenclatures.find(n => currentCard.card_info?.includes(`NOM_ID:${n.id}`))
-                return (
-                  <div key={item.id} style={{ background: '#0a0a0a', padding: '20px', borderRadius: '20px', marginBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #222' }}>
-                    <div style={{ flex: 1 }}><strong style={{ display: 'block', fontSize: '1.2rem', marginBottom: '6px' }}>{nom?.name}</strong><span style={{ color: '#555', fontSize: '0.85rem' }}>План замовлення: {item.quantity} шт</span></div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                       <span style={{ color: '#ef4444', fontWeight: 950, fontSize: '0.75rem' }}>БРАК:</span>
-                       <input type="number" min="0" style={{ background: '#000', border: '2px solid #333', color: 'white', width: '85px', padding: '15px', borderRadius: '12px', textAlign: 'center', fontSize: '1.5rem', fontWeight: 900 }} value={scrapCounts[item.nomenclature_id] || 0} onChange={e => setScrapCounts({...scrapCounts, [item.nomenclature_id]: parseInt(e.target.value) || 0})} />
-                    </div>
-                  </div>
-                )
-              })}
-              <button disabled={isProcessing} onClick={submitCompletion} style={{ background: '#3b82f6', color: 'white', border: 'none', width: '100%', padding: '22px', borderRadius: '18px', fontWeight: 900, fontSize: '1.3rem', marginTop: '20px', cursor: 'pointer' }}>ЗАВЕРШИТИ ПАРТІЮ ТА ЗБЕРЕГТИ</button>
+            <div style={{ padding: '40px' }}>
+              <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+                 <div style={{ fontSize: '0.75rem', color: '#555', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>Завершення етапу для:</div>
+                 <h2 style={{ fontSize: '1.8rem', fontWeight: 950, margin: 0 }}>{getNomFromCard(currentCard)?.name}</h2>
+                 <div style={{ color: '#3b82f6', fontSize: '1.1rem', fontWeight: 800, marginTop: '5px' }}>Планова кількість: {currentCard?.quantity} шт</div>
+              </div>
+
+              <div style={{ background: '#000', padding: '30px', borderRadius: '24px', border: '1px solid #1a1a1a', textAlign: 'center' }}>
+                 <label style={{ display: 'block', color: '#ef4444', fontSize: '0.8rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '15px' }}>Вкажіть кількість браку (якщо є)</label>
+                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px' }}>
+                    <button onClick={() => {
+                        const nid = getNomFromCard(currentCard)?.id;
+                        setScrapCounts(p => ({ ...p, [nid]: Math.max(0, (p[nid] || 0) - 1) }))
+                    }} style={{ background: '#1a1a1a', border: '1px solid #333', color: '#fff', width: '60px', height: '60px', borderRadius: '15px', fontSize: '2rem', cursor: 'pointer' }}>-</button>
+                    
+                    <input 
+                      type="number" 
+                      min="0"
+                      value={scrapCounts[getNomFromCard(currentCard)?.id] || 0}
+                      onChange={e => setScrapCounts({ [getNomFromCard(currentCard)?.id]: parseInt(e.target.value) || 0 })}
+                      style={{ background: 'transparent', border: 'none', borderBottom: '3px solid #ef4444', color: '#fff', width: '120px', textAlign: 'center', fontSize: '3.5rem', fontWeight: 950, outline: 'none' }}
+                    />
+
+                    <button onClick={() => {
+                        const nid = getNomFromCard(currentCard)?.id;
+                        setScrapCounts(p => ({ ...p, [nid]: (p[nid] || 0) + 1 }))
+                    }} style={{ background: '#1a1a1a', border: '1px solid #333', color: '#fff', width: '60px', height: '60px', borderRadius: '15px', fontSize: '2rem', cursor: 'pointer' }}>+</button>
+                 </div>
+                 <div style={{ color: '#333', fontSize: '0.7rem', marginTop: '20px' }}>Хороших деталей буде оприбутковано: {Math.max(0, (currentCard?.quantity || 0) - (scrapCounts[getNomFromCard(currentCard)?.id] || 0))} шт</div>
+              </div>
+
+              <button 
+                disabled={isProcessing} 
+                onClick={handleFinalFinish} 
+                className="btn-action" 
+                style={{ background: '#10b981', color: '#fff', border: 'none', width: '100%', padding: '22px', borderRadius: '18px', fontWeight: 900, fontSize: '1.3rem', marginTop: '35px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', boxShadow: '0 10px 30px rgba(16, 185, 129, 0.2)' }}
+              >
+                {isProcessing ? <RefreshCw className="animate-spin" /> : <CheckCircle size={24} />} ПІДТВЕРДИТИ ТА ПЕРЕДАТИ НА СКЛАД
+              </button>
             </div>
           </div>
         </div>
