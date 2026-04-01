@@ -700,18 +700,23 @@ export const MESProvider = ({ children }) => {
 
       // 3. Record Successful products to Semi-Finished Warehouse
       if (qtyCompleted > 0) {
-        const nom = nomenclatures.find(n => n.id === card.nomenclature_id)
+        // Robust nomenclature extraction: prefer card field, then metadata match
+        const metadataId = card.card_info?.match(/NOM_ID:([^|]+)/)?.[1]
+        const finalNomId = card.nomenclature_id || metadataId
+        
+        const nom = nomenclatures.find(n => String(n.id) === String(finalNomId))
         if (nom) {
           const fullName = `${nom.name}${nom.material_type ? ` (${nom.material_type})` : ''}`
-          let semiItem = inventory.find(i => i.nomenclature_id === card.nomenclature_id && i.type === 'semi-finished')
+          // Use 'semi' type to match WarehouseModuleOld filtering
+          let semiItem = inventory.find(i => String(i.nomenclature_id) === String(finalNomId) && i.type === 'semi')
           
           if (!semiItem) {
             await supabase.from('inventory').insert([{
               name: fullName,
               unit: 'шт',
               total_qty: Number(qtyCompleted),
-              type: 'semi-finished',
-              nomenclature_id: card.nomenclature_id
+              type: 'semi',
+              nomenclature_id: finalNomId
             }])
           } else {
             await supabase.from('inventory').update({ 

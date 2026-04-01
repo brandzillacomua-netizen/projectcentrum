@@ -512,50 +512,70 @@ const ForemanWorkplace = () => {
 
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
-          @page { size: A4; margin: 0; }
+          @page { 
+            size: A4 portrait !important; 
+            margin: 0 !important; 
+          }
           html, body { 
             background: #fff !important; 
             color: #000 !important;
+            margin: 0 !important;
+            padding: 0 !important;
             height: auto !important;
+            width: 100% !important;
             overflow: visible !important;
           }
-          body > * { display: none !important; }
-          body > .foreman-module, 
-          body > .foreman-module * { 
-            display: none !important; 
+          /* surgically hide everything but the print overlay */
+          #root > *:not(.print-overlay),
+          .foreman-main-ui, 
+          .portal-header-v2, 
+          .portal-container-v2,
+          .foreman-module > *:not(.print-overlay) { 
+             display: none !important; 
           }
-          .print-overlay, .print-overlay * { 
-            display: flex !important;
-            visibility: visible !important;
-            color: #000 !important;
-            background: #fff !important;
-          }
-          .print-overlay .a4-page * {
-             display: block !important;
-          }
-          .print-overlay div[style*="display: flex"] {
-             display: flex !important;
-          }
-          
+
           .print-overlay { 
-            position: absolute !important; 
-            left: 0 !important; 
-            width: 100% !important; 
             display: block !important;
-            z-index: 99999 !important;
+            visibility: visible !important;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 210mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
+            z-index: 999999 !important;
           }
           .no-print { display: none !important; }
-          .print-scroll { overflow: visible !important; height: auto !important; padding: 0 !important; }
-          .printable-content { width: 210mm !important; margin: 0 auto !important; }
-          .a4-page { 
-            margin: 0 !important; 
-            box-shadow: none !important; 
-            break-after: page !important; 
-            page-break-after: always !important; 
+          .print-scroll { 
+            overflow: visible !important; 
+            height: auto !important; 
+            padding: 0 !important; 
             background: #fff !important;
+          }
+          .printable-content { 
+            width: 210mm !important; 
+            margin: 0 !important;
+            background: #fff !important;
+          }
+          .a4-page { 
+            display: flex !important;
+            flex-direction: column !important;
             width: 210mm !important;
-            height: 296mm !important;
-            padding: 10mm !important;
+            height: 297mm !important; /* Perfect A4 */
+            padding: 15mm !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+            background: #fff !important;
+            color: #000 !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            box-sizing: border-box !important;
+            -webkit-print-color-adjust: exact;
+            overflow: hidden !important;
+          }
+          .a4-page * { 
+            visibility: visible !important;
           }
         }
         .animate-spin { animation: spin 1s linear infinite; }
