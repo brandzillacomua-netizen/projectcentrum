@@ -426,19 +426,19 @@ const ForemanWorkplace = () => {
       )}
 
       {printQueue && (
-        <div className="print-overlay" style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 10000, display: 'flex', flexDirection: 'column' }}>
-           <div className="no-print" style={{ padding: '15px 30px', background: '#111', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #222' }}>
+        <div className="print-overlay" style={{ position: 'fixed', inset: 0, background: '#fff', color: '#000', zIndex: 10000, overflowY: 'auto' }}>
+           <div className="no-print" style={{ position: 'sticky', top: 0, padding: '15px 30px', background: '#111', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #222', zIndex: 100 }}>
              <h3>Друк: {printQueue.part.nom?.name}</h3>
              <div style={{ display: 'flex', gap: '15px' }}>
                 <button onClick={() => setPrintQueue(null)} style={{ background: '#222', color: '#888', border: 'none', padding: '12px 25px', borderRadius: '10px', cursor: 'pointer', fontWeight: 700 }}>СКАСУВАТИ</button>
                 <button onClick={() => window.print()} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '12px 30px', borderRadius: '10px', cursor: 'pointer', fontWeight: 900 }}>ДРУК НА А4</button>
              </div>
            </div>
-           <div className="print-scroll" style={{ flex: 1, overflowY: 'auto', background: '#1a1a1a', padding: '40px 20px' }}>
-              <div className="printable-content" style={{ width: '210mm', margin: '0 auto' }}>
+           <div className="print-scroll" style={{ background: '#fff', padding: '40px 20px' }}>
+              <div className="printable-content" style={{ width: '210mm', margin: '0 auto', background: '#fff' }}>
                  {printQueue.metadata.map((m, i) => (
-                    <div key={i} className="a4-page" style={{ width: '210mm', height: '296mm', padding: '10mm', breakAfter: 'page', pageBreakAfter: 'always', backgroundColor: '#fff', color: '#000', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
-                       <div style={{ border: '2px solid #000', padding: '15mm', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
+                    <div key={i} className="a4-page" style={{ width: '210mm', height: '297mm', background: '#fff', color: '#000', boxSizing: 'border-box', padding: '10mm' }}>
+                       <div className="a4-page-inner" style={{ border: '3px solid #000', padding: '15mm', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', background: '#fff' }}>
                           <div style={{ textAlign: 'center', marginBottom: '20px' }}>
                              <h1 style={{ margin: '0 0 15px', fontSize: '42pt', fontWeight: 900, textTransform: 'uppercase' }}>РОБОЧА КАРТА</h1>
                              <div style={{ fontSize: '18pt', fontWeight: 700, color: '#333' }}>
@@ -522,21 +522,22 @@ const ForemanWorkplace = () => {
             margin: 0 !important;
             padding: 0 !important;
             height: auto !important;
-            width: 210mm !important;
+            width: 100% !important;
             overflow: visible !important;
           }
-          /* Hide everything except the print overlay */
-          #root > *:not(.print-overlay),
+          /* surgically hide only the dashboard, never the root/routes */
           .foreman-main-ui, 
           .portal-header-v2, 
           .portal-container-v2,
-          .foreman-module > *:not(.print-overlay) { 
+          .foreman-dashboard-main,
+          nav, 
+          header,
+          .no-print { 
              display: none !important; 
           }
 
           .print-overlay { 
             display: block !important;
-            visibility: visible !important;
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
@@ -544,28 +545,23 @@ const ForemanWorkplace = () => {
             margin: 0 !important;
             padding: 0 !important;
             background: #fff !important;
-            z-index: 999999 !important;
+            z-index: 9999999 !important;
+            overflow: visible !important;
           }
-          .no-print { display: none !important; }
-          .print-scroll { 
+          .print-scroll, .printable-content { 
             display: block !important;
+            height: auto !important;
             overflow: visible !important; 
-            height: auto !important; 
             padding: 0 !important; 
             background: #fff !important;
-          }
-          .printable-content { 
-            display: block !important;
-            width: 210mm !important; 
             margin: 0 !important;
-            background: #fff !important;
+            width: 100% !important;
           }
           .a4-page { 
-            display: block !important; /* Force block for better page break parsing */
-            position: relative !important;
+            display: block !important;
             width: 210mm !important;
-            height: 296.8mm !important; /* Slightly under 297 to avoid margin overflow */
-            padding: 15mm !important;
+            height: 297mm !important;
+            padding: 10mm !important;
             margin: 0 !important;
             box-shadow: none !important;
             background: #fff !important;
@@ -577,16 +573,18 @@ const ForemanWorkplace = () => {
             overflow: hidden !important;
           }
           
-          /* Enforce internal layout during print */
-          .a4-page > div {
-             height: 100% !important;
+          .a4-page-inner {
              display: flex !important;
              flex-direction: column !important;
+             height: 100% !important;
              box-sizing: border-box !important;
+             background: #fff !important;
+             border: 3px solid #000 !important;
           }
 
           .a4-page * { 
             visibility: visible !important;
+            color: #000 !important;
           }
         }
         .animate-spin { animation: spin 1s linear infinite; }
