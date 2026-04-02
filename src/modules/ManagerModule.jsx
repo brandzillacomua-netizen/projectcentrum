@@ -64,8 +64,8 @@ const ManagerModule = () => {
 
   const handleOrderSubmit = (e) => {
     e.preventDefault()
-    if (!orderHeader.customer || !orderHeader.orderNum || !orderHeader.nomenclature_id) {
-      alert('Будь ласка, заповніть Замовника, Номер замовлення та оберіть Продукт')
+    if (!orderHeader.customer || !orderHeader.orderNum || !orderHeader.nomenclature_id || !orderHeader.deadline) {
+      alert('Будь ласка, заповніть Замовника, Номер замовлення, оберіть Продукт та вкажіть Термін (Дедлайн)')
       return
     }
     const items = [{ nomenclature_id: orderHeader.nomenclature_id, quantity: orderHeader.quantity }]

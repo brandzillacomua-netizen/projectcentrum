@@ -13,7 +13,7 @@ const ForemanWorkplace = () => {
   const [genModal, setGenModal] = useState(null) // { task, part, total, created, rowId, machineName }
   const [printQueue, setPrintQueue] = useState(null)
   const [isGenerating, setIsGenerating] = useState(false)
-  
+
   const [isBufferScanning, setIsBufferScanning] = useState(false)
   const [bufferScrapModal, setBufferScrapModal] = useState(null) // { cardId, nomenclature_id }
   const [bufferScrapCounts, setBufferScrapCounts] = useState({})
@@ -27,12 +27,23 @@ const ForemanWorkplace = () => {
       }))
   }
 
+  const handleCloseNaryad = async (taskId) => {
+    if (!window.confirm("Ви впевнені, що хочете закрити цей наряд?")) return
+    try {
+      await completeTaskByMaster(taskId)
+      setActiveTaskId(null)
+      fetchData()
+    } catch (err) {
+      alert("Помилка: " + err.message)
+    }
+  }
+
   const readyTasks = tasks.filter(t => t.warehouse_conf && t.engineer_conf && t.director_conf && t.status !== 'completed')
 
   const handleGenerateFromWorksheet = async (task, part, sheets, selectedMachineName, count, startOffset = 0, totalToReach = 0) => {
     const machineObj = machines.find(m => m.name === selectedMachineName)
     const capacity = Number(machineObj?.sheet_capacity) || 1
-    
+
     // Calculate how many were total supposed to be, to show correct denominator (X / totalToReach)
     const displayTotal = Math.max(1, totalToReach || Math.ceil(sheets / capacity))
     const qtyPerLoading = Math.floor((Number(part.nom?.units_per_sheet) || 1) * (sheets / displayTotal))
@@ -40,7 +51,6 @@ const ForemanWorkplace = () => {
     setIsGenerating(true)
     try {
       const cardsBatch = []
-      // Generate only the requested 'count' of cards
       for (let i = 1; i <= count; i++) {
         const currentSeq = startOffset + i
         cardsBatch.push({
@@ -51,23 +61,29 @@ const ForemanWorkplace = () => {
           quantity: qtyPerLoading
         })
       }
-      
+
       const createdCards = await apiService.submitCreateWorkCardsBatch(task.id, task.order_id, part.nom.id, cardsBatch, createWorkCard)
-      
+
       if (createdCards && createdCards.length > 0) {
-        setPrintQueue({ 
-          task, 
-          part, 
-          metadata: createdCards.map(c => ({ 
-            id: c.id, 
-            loading: c.card_info, 
-            qty: qtyPerLoading 
-          })) 
+        setPrintQueue({
+          task,
+          part,
+          total: displayTotal,
+          created: startOffset,
+          metadata: createdCards.map(c => ({
+            id: c.id,
+            loading: c.card_info,
+            qty: qtyPerLoading,
+            estimatedTime: (Number(part.nom?.time_per_unit) || 0) * qtyPerLoading,
+            totalLoadings: displayTotal,
+            sheetsPerLoading: capacity,
+            machine: selectedMachineName
+          }))
         })
       } else {
         alert('Помилка: Не вдалося отримати ID створених карток.')
       }
-    } catch(err) {
+    } catch (err) {
       alert('Помилка: ' + err.message)
     } finally {
       setIsGenerating(false)
@@ -82,7 +98,6 @@ const ForemanWorkplace = () => {
       return
     }
     setBufferScrapModal({ cardId: card.id, nomenclature_id: card.nomenclature_id })
-    // Initialize scrap counts
     setBufferScrapCounts({ [card.nomenclature_id]: 0 })
   }
 
@@ -92,12 +107,11 @@ const ForemanWorkplace = () => {
       await apiService.submitBufferConfirmation(bufferScrapModal.cardId, bufferScrapCounts, confirmBuffer)
       setBufferScrapModal(null)
       setIsBufferScanning(false)
-    } catch(err) {
+    } catch (err) {
       alert("Помилка: " + err.message)
     }
   }
 
-  // Effect for Buffer Scanner
   React.useEffect(() => {
     let html5QrCode = null
     if (isBufferScanning && window.Html5Qrcode) {
@@ -113,7 +127,7 @@ const ForemanWorkplace = () => {
         }
       ).catch(e => console.error(e))
     }
-    return () => { if (html5QrCode && html5QrCode.isScanning) html5QrCode.stop().catch(() => {}) }
+    return () => { if (html5QrCode && html5QrCode.isScanning) html5QrCode.stop().catch(() => { }) }
   }, [isBufferScanning])
 
   return (
@@ -147,51 +161,39 @@ const ForemanWorkplace = () => {
 
         <div className="content-panel">
           <div style={{ marginBottom: '30px', display: 'flex', gap: '20px', borderBottom: '1px solid #1a1a1a', paddingBottom: '10px' }}>
-            <button 
-              onClick={() => setActiveView('worksheet')} 
+            <button
+              onClick={() => setActiveView('worksheet')}
               style={{ background: 'transparent', border: 'none', color: activeView === 'worksheet' ? '#ef4444' : '#555', fontSize: '0.85rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: activeView === 'worksheet' ? '2px solid #ef4444' : '2px solid transparent', paddingBottom: '10px', transition: '0.2s' }}
             >
               <ListTodo size={18} /> РОБОЧІ НАРЯДИ
             </button>
-            <Link 
-              to="/operator-terminal" 
+            <Link
+              to="/operator-terminal"
               style={{ background: 'rgba(234, 179, 8, 0.1)', border: '1px solid #eab308', color: '#eab308', fontSize: '0.8rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 15px', borderRadius: '10px', textDecoration: 'none', marginLeft: 'auto' }}
             >
               <Tablet size={16} /> ВІДКРИТИ ТЕРМІНАЛ ЦЕХУ
             </Link>
           </div>
 
-          {activeView === 'flow' ? (
-             <div style={{ padding: '60px 20px', textAlign: 'center', background: '#111', borderRadius: '32px', border: '1px solid #222', marginTop: '20px' }} className="anim-fade-in">
-                <Tablet size={80} color="#eab308" style={{ marginBottom: '25px', opacity: 0.8 }} />
-                <h2 style={{ fontSize: '2rem', fontWeight: 950, margin: '0 0 15px', color: '#fff' }}>МОНІТОРИНГ ПОТОКУ ПЕРЕВЕДЕНО</h2>
-                <p style={{ color: '#555', fontSize: '1.1rem', maxWidth: '500px', margin: '0 auto 40px', lineHeight: 1.5 }}>
-                  Загальний потік (WIP) та ланцюжок виробництва тепер доступні безпосередньо у <b>Терміналі Цеху</b>. 
-                  Це дозволяє майстру зручно сканувати карти та бачити стан цеху в одному місці.
-                </p>
-                <Link to="/operator-terminal" style={{ background: '#eab308', color: '#000', padding: '20px 50px', borderRadius: '18px', fontWeight: 950, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '15px', fontSize: '1.2rem', boxShadow: '0 10px 30px rgba(234, 179, 8, 0.2)' }}>
-                  <Scan size={24} /> ПЕРЕЙТИ ДО ТЕРМІНАЛУ
-                </Link>
-             </div>
-          ) : activeTaskId ? (
+          {activeTaskId ? (
             (() => {
               const task = readyTasks.find(t => t.id === activeTaskId)
               const order = orders.find(o => o.id === task.order_id)
               const taskCards = workCards.filter(c => c.task_id === task.id)
               const productNames = order?.order_items?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ')
-              
+
               return (
                 <div style={{ maxWidth: '1200px' }} className="anim-fade-in">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
-                     <div>
-                        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                           <h2 style={{ fontSize: '2.4rem', fontWeight: 950, margin: 0 }}>Наряд №{order?.order_num}</h2>
-                        </div>
-                        <div style={{ color: '#555', marginTop: '5px', fontSize: '1.1rem', fontWeight: 800 }}>
-                           ВИРІБ: <strong style={{ color: '#ef4444' }}>{productNames || '—'}</strong> | {order?.customer}
-                        </div>
-                     </div>
-                     <button onClick={() => handleCloseNaryad(task.id)} className="btn-primary" style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '12px 25px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}>ЗАКРИТИ НАРЯД</button>
+                    <div>
+                      <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                        <h2 style={{ fontSize: '2.4rem', fontWeight: 950, margin: 0 }}>Наряд №{order?.order_num}</h2>
+                      </div>
+                      <div style={{ color: '#555', marginTop: '5px', fontSize: '1.1rem', fontWeight: 800 }}>
+                        ВИРІБ: <strong style={{ color: '#ef4444' }}>{productNames || '—'}</strong> | {order?.customer}
+                      </div>
+                    </div>
+                    <button onClick={() => handleCloseNaryad(task.id)} className="btn-primary" style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '12px 25px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}>ЗАКРИТИ НАРЯД</button>
                   </div>
 
                   <div style={{ marginBottom: '40px', background: '#111', borderRadius: '20px', overflow: 'hidden', border: '1px solid #222' }}>
@@ -218,18 +220,15 @@ const ForemanWorkplace = () => {
                             const total = (Number(item.quantity) || 0) * (Number(part.quantity_per_parent) || 1)
                             const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
                             const sheets = Math.ceil(total / unitsPerSheet)
-                            
+
                             const existing = taskCards.filter(c => c.nomenclature_id === part.nom?.id || c.card_info?.includes(`NOM_ID:${part.nom?.id}`))
                             const hasCards = existing.length > 0
-
-                            // Get row-specific machine selection with fallback to DB
                             const rowMachineName = selectedMachines[rowId] || (hasCards ? existing[0].machine : '')
                             const rowMachineObj = machines.find(m => m.name === rowMachineName)
                             const currentCapacity = Number(rowMachineObj?.sheet_capacity) || 0
-                            
                             const loads = currentCapacity > 0 ? Math.ceil(sheets / currentCapacity) : 0
                             const surplus = (sheets * unitsPerSheet) - total
-                            
+
                             return (
                               <tr key={rowId} style={{ borderBottom: '1px solid #1a1a1a' }}>
                                 <td style={{ padding: '15px' }}>
@@ -241,128 +240,104 @@ const ForemanWorkplace = () => {
                                 <td style={{ padding: '15px', textAlign: 'center', color: '#444' }}>{(unitsPerSheet || 1).toString()}</td>
                                 <td style={{ padding: '15px', textAlign: 'center', color: '#10b981', fontWeight: 1000, fontSize: '1.2rem' }}>{(sheets || 0).toString()}</td>
                                 <td style={{ padding: '15px' }}>
-                                   <select 
-                                     value={rowMachineName} 
-                                     disabled={hasCards}
-                                     onChange={(e) => setSelectedMachines(p => ({ ...p, [rowId]: e.target.value }))}
-                                     style={{ width: '100%', background: '#000', border: rowMachineName ? '1px solid #333' : '1px solid #ef4444', color: rowMachineName ? '#fff' : '#ef4444', padding: '8px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700 }}
-                                   >
-                                      <option value="">Оберіть верстат</option>
-                                      {machines.map(m => <option key={m.id} value={m.name}>{m.name} ({m.sheet_capacity} л.)</option>)}
-                                   </select>
+                                  <select
+                                    value={rowMachineName}
+                                    disabled={hasCards}
+                                    onChange={(e) => setSelectedMachines(p => ({ ...p, [rowId]: e.target.value }))}
+                                    style={{ width: '100%', background: '#000', border: rowMachineName ? '1px solid #333' : '1px solid #ef4444', color: rowMachineName ? '#fff' : '#ef4444', padding: '8px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700 }}
+                                  >
+                                    <option value="">Оберіть верстат</option>
+                                    {machines.map(m => <option key={m.id} value={m.name}>{m.name} ({m.sheet_capacity} л.)</option>)}
+                                  </select>
                                 </td>
                                 <td style={{ padding: '15px', textAlign: 'center', color: '#3b82f6', fontWeight: 1000, fontSize: '1.2rem' }}>
-                                   {rowMachineName ? (
-                                      <>
-                                         <span style={{ color: existing.length < loads ? '#444' : '#3b82f6' }}>{existing.length}</span>
-                                         <span style={{ color: '#222', margin: '0 5px' }}>/</span>
-                                         <span>{loads}</span>
-                                      </>
-                                   ) : (
-                                      <span style={{ color: '#222', fontSize: '0.8rem' }}>—</span>
-                                   )}
+                                  {rowMachineName ? (
+                                    <>
+                                      <span style={{ color: existing.length < loads ? '#444' : '#3b82f6' }}>{existing.length}</span>
+                                      <span style={{ color: '#222', margin: '0 5px' }}>/</span>
+                                      <span>{loads}</span>
+                                    </>
+                                  ) : (
+                                    <span style={{ color: '#222', fontSize: '0.8rem' }}>—</span>
+                                  )}
                                 </td>
                                 <td style={{ padding: '15px', textAlign: 'center', color: '#ef4444', fontWeight: 900 }}>{surplus > 0 ? `+${surplus}` : '0'}</td>
                                 <td style={{ padding: '15px', textAlign: 'center' }}>
-                                  <button 
-                                    onClick={() => {
-                                      if (!rowMachineName && !hasCards) return;
-                                      if (existing.length < loads) {
-                                        setGenModal({ task, part, total: loads, created: existing.length, rowId, machineName: rowMachineName, sheets })
-                                      } else {
-                                        setPrintQueue({ 
-                                          task, 
-                                          part, 
-                                          metadata: existing.map(c => ({ 
-                                            id: c.id, 
-                                            loading: c.card_info, 
-                                            qty: c.quantity || (loads > 0 ? Math.floor(total/loads) : '—'),
-                                            machine: c.machine
-                                          })) 
-                                        })
-                                      }
-                                    }} 
-                                    disabled={!rowMachineName && !hasCards}
-                                    style={{ 
-                                      background: existing.length === 0 ? (rowMachineName ? '#333' : '#111') : (existing.length < loads ? '#3b82f6' : '#10b981'), 
-                                      color: rowMachineName || hasCards ? '#fff' : '#333', 
-                                      border: 'none', 
-                                      padding: '8px 15px', 
-                                      borderRadius: '10px', 
-                                      cursor: rowMachineName || hasCards ? 'pointer' : 'not-allowed', 
-                                      fontWeight: 900, 
-                                      fontSize: '0.65rem', 
-                                      textTransform: 'uppercase',
-                                      width: '100%',
-                                      transition: '0.2s',
-                                      opacity: rowMachineName || hasCards ? 1 : 0.5
-                                    }}
-                                  >
-                                    {existing.length === 0 ? 'ГЕНЕРУВАТИ' : (existing.length < loads ? 'ДОВИДРУКУВАТИ' : 'ДРУК')}
-                                  </button>
+                                  <div style={{ display: 'flex', gap: '5px' }}>
+                                    {(existing.length === 0 || existing.length < loads) && (
+                                      <button
+                                        onClick={() => {
+                                          if (!rowMachineName) return;
+                                          setGenModal({ task, part, total: loads, created: existing.length, rowId, machineName: rowMachineName, sheets })
+                                        }}
+                                        disabled={!rowMachineName}
+                                        style={{
+                                          flex: 1,
+                                          background: existing.length === 0 ? (rowMachineName ? '#333' : '#111') : '#3b82f6',
+                                          color: rowMachineName ? '#fff' : '#333',
+                                          border: 'none',
+                                          padding: '8px 10px',
+                                          borderRadius: '10px',
+                                          cursor: rowMachineName ? 'pointer' : 'not-allowed',
+                                          fontWeight: 900,
+                                          fontSize: '0.6rem',
+                                          textTransform: 'uppercase',
+                                          opacity: rowMachineName ? 1 : 0.5
+                                        }}
+                                      >
+                                        ГЕНЕРУВАТИ
+                                      </button>
+                                    )}
+                                    {existing.length > 0 && (
+                                      <button
+                                        onClick={() => {
+                                          setPrintQueue({
+                                            task,
+                                            part,
+                                            metadata: existing.map(c => ({
+                                              id: c.id,
+                                              loading: c.card_info,
+                                              qty: c.quantity || (loads > 0 ? Math.floor(total / loads) : '—'),
+                                              machine: c.machine,
+                                              totalLoadings: loads,
+                                              sheetsPerLoading: machines.find(m => m.name === c.machine)?.sheet_capacity || 1,
+                                              estimatedTime: (Number(part.nom?.time_per_unit) || 0) * (Number(c.quantity) || 0)
+                                            }))
+                                          })
+                                        }}
+                                        style={{
+                                          width: (existing.length < loads) ? '40px' : '100%',
+                                          background: (existing.length < loads) ? '#222' : '#10b981',
+                                          color: '#fff', border: 'none', padding: '8px', borderRadius: '10px', cursor: 'pointer', fontWeight: 900, fontSize: '0.65rem'
+                                        }}
+                                      >
+                                        <Printer size={16} />
+                                      </button>
+                                    )}
+                                  </div>
                                 </td>
                               </tr>
                             )
                           })
                         })}
                       </tbody>
-                      <tfoot style={{ background: 'rgba(239,68,68,0.05)', borderTop: '2.5px solid #ef4444' }}>
-                        <tr>
-                           <td style={{ padding: '20px 15px', fontWeight: 1000, textTransform: 'uppercase' }}>ЗАГАЛЬНИЙ ПІДСУМОК:</td>
-                           <td style={{ padding: '20px 15px', textAlign: 'center', fontWeight: 1000 }}>
-                              {(order?.order_items?.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0) || 0).toString()}
-                           </td>
-                           <td></td>
-                           <td></td>
-                           <td style={{ padding: '20px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.3rem', color: '#10b981' }}>
-                              {(order?.order_items?.reduce((acc, it) => {
-                                 const parts = getBOMParts(it.nomenclature_id)
-                                 const items = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
-                                 return acc + items.reduce((pa, p) => pa + Math.ceil(((Number(it.quantity) || 0) * (Number(p.quantity_per_parent) || 1)) / (Number(p.nom?.units_per_sheet) || 1)), 0)
-                              }, 0) || 0).toString()}
-                           </td>
-                           <td></td>
-                           <td style={{ padding: '20px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.2rem', color: '#3b82f6' }}>
-                              <span style={{ color: '#222', fontSize: '0.8rem' }}>факт:</span> 
-                              {taskCards.length} 
-                              <span style={{ color: '#222', margin: '0 8px' }}>/</span> 
-                              <span style={{ color: '#333', fontSize: '0.8rem' }}>план:</span>
-                              {(order?.order_items?.reduce((acc, it) => {
-                                 const parts = getBOMParts(it.nomenclature_id)
-                                 const items = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
-                                 return acc + items.reduce((pa, p, idx) => {
-                                    const rowId = `${it.id}-${p.nom?.id || idx}`
-                                    const sh = Math.ceil(((Number(it.quantity) || 0) * (Number(p.quantity_per_parent) || 1)) / (Number(p.nom?.units_per_sheet) || 1))
-                                    const selMachineName = selectedMachines[rowId] || ''
-                                    if (!selMachineName) return pa; 
-                                    const mObj = machines.find(m => m.name === selMachineName)
-                                    const cap = Number(mObj?.sheet_capacity) || 1
-                                    return pa + Math.ceil(sh / cap)
-                                 }, 0)
-                              }, 0) || 0).toString()}
-                           </td>
-                           <td></td>
-                           <td></td>
-                        </tr>
-                      </tfoot>
                     </table>
                   </div>
 
                   <h3 style={{ fontSize: '0.75rem', color: '#444', textTransform: 'uppercase', marginBottom: '20px' }}>Архів робочих карток</h3>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
                     {taskCards.map(card => {
-                       const nom = nomenclatures.find(n => n.id === card.nomenclature_id || card.card_info?.includes(`NOM_ID:${n.id}`))
-                       const loadingText = card.card_info?.split('|')?.pop()?.trim() || card.card_info
-                       return (
+                      const nom = nomenclatures.find(n => n.id === card.nomenclature_id)
+                      const loadingText = card.card_info
+                      return (
                         <div key={card.id} style={{ background: '#111', padding: '15px', borderRadius: '18px', display: 'flex', gap: '15px', alignItems: 'center', border: '1px solid #222' }}>
-                           <div style={{ background: '#fff', padding: '6px', borderRadius: '8px' }}><QRCodeSVG value={`CENTRUM_CARD_${card.id}`} size={50} /></div>
-                           <div style={{ flex: 1 }}>
-                              <div style={{ fontSize: '0.9rem', fontWeight: 800 }}>{nom?.name || 'Деталь'}</div>
-                              <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '4px' }}>Завантаження: {loadingText}</div>
-                           </div>
-                           <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: card.status === 'completed' ? '#10b981' : '#ef4444' }}></div>
+                          <div style={{ background: '#fff', padding: '6px', borderRadius: '8px' }}><QRCodeSVG value={`CENTRUM_CARD_${card.id}`} size={50} /></div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '0.9rem', fontWeight: 800 }}>{nom?.name || 'Деталь'}</div>
+                            <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '4px' }}>Завантаження: {loadingText}</div>
+                          </div>
                         </div>
-                       )
+                      )
                     })}
                   </div>
                 </div>
@@ -376,220 +351,288 @@ const ForemanWorkplace = () => {
 
       {genModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', zIndex: 15000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
-           <div style={{ background: '#111', width: '100%', maxWidth: '450px', borderRadius: '32px', border: '1px solid #222', padding: '40px', position: 'relative', boxShadow: '0 30px 60px rgba(0,0,0,0.5)' }}>
-              <button onClick={() => setGenModal(null)} style={{ position: 'absolute', top: '25px', right: '25px', background: 'none', border: 'none', color: '#444', cursor: 'pointer' }}><X size={24} /></button>
-              
-              <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-                 <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.2em', marginBottom: '10px' }}>Генерація карток</div>
-                 <h2 style={{ fontSize: '1.8rem', fontWeight: 950, margin: 0 }}>{genModal.part.nom?.name}</h2>
-                 <div style={{ color: '#ef4444', fontSize: '1.2rem', fontWeight: 900, marginTop: '5px' }}>
-                    {genModal.created} / {genModal.total} <small style={{ fontSize: '0.7rem', color: '#444' }}>ЗАВАНТАЖЕНЬ</small>
-                 </div>
-              </div>
-
-              <div style={{ background: '#000', padding: '30px', borderRadius: '24px', border: '1px solid #1a1a1a', marginBottom: '30px' }}>
-                 <label style={{ display: 'block', color: '#555', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '15px', textAlign: 'center' }}>Скільки карт берем в роботу?</label>
-                 <input 
-                   type="number" 
-                   id="gen_count_input"
-                   defaultValue={genModal.total - genModal.created}
-                   min="1"
-                   max={genModal.total - genModal.created}
-                   style={{ width: '100%', background: 'transparent', border: 'none', borderBottom: '2px solid #ef4444', color: '#fff', fontSize: '3rem', fontWeight: 950, textAlign: 'center', outline: 'none', padding: '10px 0' }}
-                   onKeyDown={(e) => { if (e.key === 'Enter') { 
-                     const val = parseInt(document.getElementById('gen_count_input').value);
-                     if (val > 0) handleGenerateFromWorksheet(genModal.task, genModal.part, genModal.sheets, genModal.machineName, val, genModal.created, genModal.total);
-                   }}}
-                 />
-                 <div style={{ color: '#333', fontSize: '0.65rem', textAlign: 'center', marginTop: '15px' }}>Максимум доступно: {genModal.total - genModal.created}</div>
-              </div>
-
-              <button 
-                onClick={() => {
-                   const val = parseInt(document.getElementById('gen_count_input').value);
-                   if (val > 0) handleGenerateFromWorksheet(genModal.task, genModal.part, genModal.sheets, genModal.machineName, val, genModal.created, genModal.total);
-                }}
-                className="btn-primary" 
-                style={{ width: '100%', background: '#ef4444', color: '#fff', border: 'none', padding: '20px', borderRadius: '20px', fontWeight: 950, fontSize: '1rem', cursor: 'pointer', transition: '0.3s' }}
-              >
-                ГЕНЕРУВАТИ ТА ДРУКУВАТИ
-              </button>
-           </div>
+          <div style={{ background: '#111', width: '100%', maxWidth: '450px', borderRadius: '32px', border: '1px solid #222', padding: '40px', position: 'relative' }}>
+            <button onClick={() => setGenModal(null)} style={{ position: 'absolute', top: '25px', right: '25px', background: 'none', border: 'none', color: '#444', cursor: 'pointer' }}><X size={24} /></button>
+            <h2 style={{ fontSize: '1.8rem', fontWeight: 950, margin: 0, textAlign: 'center' }}>{genModal.part.nom?.name}</h2>
+            <div style={{ color: '#ef4444', fontSize: '1.2rem', fontWeight: 900, textAlign: 'center', marginTop: '10px' }}>{genModal.created} / {genModal.total} КАРТ</div>
+            <div style={{ margin: '30px 0' }}>
+              <input
+                type="number" id="gen_count_input" defaultValue={genModal.total - genModal.created} min="1" max={genModal.total - genModal.created}
+                style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', fontSize: '2rem', fontWeight: 950, textAlign: 'center', padding: '15px', borderRadius: '15px' }}
+              />
+            </div>
+            <button onClick={() => {
+              const v = parseInt(document.getElementById('gen_count_input').value);
+              if (v > 0) handleGenerateFromWorksheet(genModal.task, genModal.part, genModal.sheets, genModal.machineName, v, genModal.created, genModal.total);
+            }} style={{ width: '100%', background: '#ef4444', color: '#fff', padding: '20px', borderRadius: '20px', fontWeight: 950, cursor: 'pointer', border: 'none' }}>ГЕНЕРУВАТИ ТА ДРУКУВАТИ</button>
+          </div>
         </div>
       )}
 
       {isGenerating && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', zIndex: 20000, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '20px' }}>
-           <Loader2 size={60} color="#ef4444" className="animate-spin" />
-           <h2 style={{ fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.2em' }}>Генерація карток...</h2>
+          <Loader2 size={60} color="#ef4444" className="animate-spin" />
+          <h2 style={{ fontWeight: 900, textTransform: 'uppercase' }}>Генерація карток...</h2>
         </div>
       )}
 
       {printQueue && (
-        <div className="print-overlay" style={{ position: 'fixed', inset: 0, background: '#fff', color: '#000', zIndex: 10000, overflowY: 'auto' }}>
-           <div className="no-print" style={{ position: 'sticky', top: 0, padding: '15px 30px', background: '#111', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #222', zIndex: 100 }}>
-             <h3>Друк: {printQueue.part.nom?.name}</h3>
-             <div style={{ display: 'flex', gap: '15px' }}>
-                <button onClick={() => setPrintQueue(null)} style={{ background: '#222', color: '#888', border: 'none', padding: '12px 25px', borderRadius: '10px', cursor: 'pointer', fontWeight: 700 }}>СКАСУВАТИ</button>
-                <button onClick={() => window.print()} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '12px 30px', borderRadius: '10px', cursor: 'pointer', fontWeight: 900 }}>ДРУК НА А4</button>
-             </div>
-           </div>
-           <div className="print-scroll" style={{ background: '#fff', padding: '40px 20px' }}>
-              <div className="printable-content" style={{ width: '210mm', margin: '0 auto', background: '#fff' }}>
-                 {printQueue.metadata.map((m, i) => (
-                    <div key={i} className="a4-page" style={{ width: '210mm', height: '297mm', background: '#fff', color: '#000', boxSizing: 'border-box', padding: '10mm' }}>
-                       <div className="a4-page-inner" style={{ border: '3px solid #000', padding: '15mm', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', background: '#fff' }}>
-                          <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                             <h1 style={{ margin: '0 0 15px', fontSize: '42pt', fontWeight: 900, textTransform: 'uppercase' }}>РОБОЧА КАРТА</h1>
-                             <div style={{ fontSize: '18pt', fontWeight: 700, color: '#333' }}>
-                                 Верстат: {m.machine || 'Не вказано'} | Завантаження: {m.loading?.split('|')?.pop() || m.loading}
-                             </div>
+        <div className="print-overlay" style={{ position: 'fixed', inset: 0, background: '#111', color: '#000', zIndex: 10000, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 0' }}>
+          <div className="no-print" style={{ position: 'sticky', top: 0, width: '100%', padding: '15px 30px', background: '#111', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #222', zIndex: 100 }}>
+            <h3>Друк: {printQueue.part.nom?.name}</h3>
+            <div style={{ display: 'flex', gap: '15px' }}>
+              <button onClick={() => window.print()} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer' }}>ДРУКУВАТИ</button>
+              <button onClick={() => setPrintQueue(null)} style={{ color: '#fff', background: 'none', border: 'none', cursor: 'pointer' }}><X size={24} /></button>
+            </div>
+          </div>
+
+          {printQueue.metadata.map((m, i) => {
+            const order = orders.find(o => o.id === printQueue.task.order_id)
+            const nomenclature = nomenclatures.find(n => n.id === (printQueue.part.nomenclature_id || printQueue.part.nom?.id))
+            const currentDate = new Date().toLocaleDateString('uk-UA')
+            const finishedProduct = order?.order_items?.[0] ? nomenclatures.find(n => n.id === order.order_items[0].nomenclature_id) : null;
+
+            const formatTime = (seconds) => {
+              const h = Math.floor(seconds / 3600);
+              const m = Math.floor((seconds % 3600) / 60);
+              const s = Math.floor(seconds % 60);
+              return [h, m, s].map(v => v.toString().padStart(2, '0')).join(':');
+            };
+
+            return (
+              <div key={i} className="a4-page" style={{ width: '210mm', height: '297mm', background: '#fff', padding: '10mm', margin: '0 auto 40px auto', pageBreakAfter: 'always', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>
+                <div style={{ height: '100%', display: 'flex', flexDirection: 'column', border: '1.5px solid #000' }}>
+                  {/* UPPER TRACKING BLOCKS (Rows 1-8) - Repeated twice */}
+                  {[1, 2].map(blockIdx => (
+                    <div key={blockIdx} style={{ borderBottom: '1.5px solid #000', marginBottom: blockIdx === 1 ? '20px' : '0' }}>
+                      {/* Sub-Header Part 1: Metadata Row 1 & 2 */}
+                      <div style={{ borderTop: blockIdx === 2 ? '1.5px solid #000' : 'none' }}>
+                        <div style={{ display: 'flex', height: '18px', borderBottom: '1px solid #000', textAlign: 'center', background: '#fff' }}>
+                          <div style={{ width: '25%', borderRight: '1px solid #000', fontSize: '6pt', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Замовник</div>
+                          <div style={{ width: '25%', borderRight: '1px solid #000', fontSize: '6pt', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Номер замовлення</div>
+                          <div style={{ width: '35%', borderRight: '1px solid #000', fontSize: '6pt', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Планова дата відвантаження</div>
+                          <div style={{ width: '15%', fontSize: '6pt', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Дата</div>
+                        </div>
+                        <div style={{ display: 'flex', height: '24px', borderBottom: '1.5px solid #000', textAlign: 'center', alignItems: 'center' }}>
+                          <div style={{ width: '25%', borderRight: '1px solid #000', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10pt', fontWeight: 950 }}>
+                             {order?.customer || '—'}
                           </div>
-                          <div style={{ borderTop: '2px solid #000', margin: '20px 0' }}></div>
+                          <div style={{ width: '25%', borderRight: '1px solid #000', fontSize: '11pt', fontWeight: 950 }}>{order?.order_num || '—'}</div>
+                          <div style={{ width: '35%', borderRight: '1px solid #000', fontSize: '10pt', fontWeight: 950 }}>{order?.deadline ? new Date(order.deadline).toLocaleDateString('uk-UA') : '—'}</div>
+                          <div style={{ width: '15%', fontSize: '11pt', fontWeight: 950 }}>{currentDate}</div>
+                        </div>
+
+                        {/* Sub-Header Part 2: Project Metadata Row 3 & 4 */}
+                        <div style={{ display: 'flex', height: '18px', borderBottom: '1px solid #000', textAlign: 'center', background: '#fff' }}>
+                          <div style={{ width: '30%', borderRight: '1px solid #000', fontSize: '6pt', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Назва проєкту</div>
+                          <div style={{ width: '10%', borderRight: '1px solid #000', fontSize: '6pt', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>К-сть листів</div>
+                          <div style={{ width: '12%', borderRight: '1px solid #000', fontSize: '6pt', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Товщина, мм</div>
+                          <div style={{ width: '15%', borderRight: '1px solid #000', fontSize: '6pt', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Тип станку</div>
+                          <div style={{ width: '15%', borderRight: '1px solid #000', fontSize: '6pt', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>№ картки</div>
+                          <div style={{ width: '18%', fontSize: '6pt', fontWeight: 900 }}></div>
+                        </div>
+                        <div style={{ display: 'flex', height: '26px', borderBottom: '1.5px solid #000', textAlign: 'center', alignItems: 'center' }}>
+                          <div style={{ width: '30%', borderRight: '1px solid #000', fontSize: '9pt', fontWeight: 1000 }}>{finishedProduct?.name || '—'}</div>
+                          <div style={{ width: '10%', borderRight: '1px solid #000', fontSize: '13pt', fontWeight: 1000 }}>{m.sheetsPerLoading}</div>
+                          <div style={{ width: '12%', borderRight: '1px solid #000', fontSize: '8pt', fontWeight: 1000, lineHeight: 1.1 }}>{nomenclature?.material_type || '—'}</div>
+                          <div style={{ width: '15%', borderRight: '1px solid #000', fontSize: '7.5pt', fontWeight: 1000, padding: '0 2px' }}>{m.machine}</div>
+                          <div style={{ width: '15%', borderRight: '1px solid #000', fontSize: '11pt', fontWeight: 1000 }}>{m.loading}</div>
+                          <div style={{ width: '18%', fontSize: '6pt', fontWeight: 900 }}></div>
+                        </div>
+                      </div>
+
+                      {/* Sub-Header Part 3: Main Tracking (Rows 5-8) */}
+                      <div style={{ display: 'flex', height: '125px' }}>
+                        {/* Left & Middle Column Split */}
+                        <div style={{ width: '75%', borderRight: '1.5px solid #000', display: 'flex' }}>
+                           <div style={{ width: '68%', borderRight: '1.5px solid #000', display: 'flex', flexDirection: 'column' }}>
+                              <div style={{ display: 'flex', height: '18px', borderBottom: '1px solid #000', textAlign: 'center' }}>
+                                  <div style={{ width: '50%', borderRight: '1px solid #000', fontSize: '6.5pt', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Основна номенклатура</div>
+                                  <div style={{ width: '30%', borderRight: '1px solid #000', fontSize: '6.5pt', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Планова к-сть, шт</div>
+                                  <div style={{ width: '20%', fontSize: '6.5pt', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>ЧПУ №</div>
+                              </div>
+                              <div style={{ display: 'flex', height: '28px', borderBottom: '1px solid #000', textAlign: 'center', alignItems: 'center' }}>
+                                  <div style={{ width: '50%', borderRight: '1px solid #000', fontSize: '8pt', fontWeight: 1000, padding: '0 4px', lineHeight: 1.1 }}>{nomenclature?.name}</div>
+                                  <div style={{ width: '30%', borderRight: '1px solid #000', fontSize: '20pt', fontWeight: 1000 }}>{m.qty}</div>
+                                  <div style={{ width: '20%', fontSize: '11pt', fontWeight: 1000 }}></div>
+                              </div>
+                              <div style={{ display: 'flex', height: '30px', borderBottom: '1px solid #000' }}>
+                                  <div style={{ width: '50%', borderRight: '1px solid #000', display: 'flex', flexDirection: 'column', padding: '1px 2px' }}>
+                                     <span style={{ fontSize: '6pt', fontWeight: 900 }}>ПІБ працівника</span>
+                                     <div style={{ flex: 1 }}></div>
+                                  </div>
+                                  <div style={{ width: '50%', display: 'flex', flexDirection: 'column', padding: '1px 2px' }}>
+                                     <span style={{ fontSize: '6pt', fontWeight: 900 }}>ПІБ працівника</span>
+                                     <div style={{ flex: 1 }}></div>
+                                  </div>
+                              </div>
+                              <div style={{ display: 'flex', height: '49px' }}>
+                                  <div style={{ width: '50%', borderRight: '1px solid #000', display: 'flex', flexDirection: 'column', padding: '1px 2px' }}>
+                                     <span style={{ fontSize: '6pt', fontWeight: 950 }}>Дата початку / Час початку</span>
+                                     <div style={{ flex: 1 }}></div>
+                                  </div>
+                                  <div style={{ width: '50%', display: 'flex', flexDirection: 'column', padding: '1px 2px' }}>
+                                     <span style={{ fontSize: '6pt', fontWeight: 950 }}>Дата завершення / Час завершення</span>
+                                     <div style={{ flex: 1 }}></div>
+                                  </div>
+                              </div>
+                           </div>
+                           
+                           <div style={{ width: '32%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2px' }}>
+                              <QRCodeSVG value={`CENTRUM_CARD_${m.id}`} size={105} />
+                           </div>
+                        </div>
+
+                        <div style={{ width: '25%', display: 'flex', flexDirection: 'column' }}>
+                           <table style={{ width: '100%', height: '100%', borderCollapse: 'collapse', fontSize: '6pt' }}>
+                              <tbody>
+                                 {[1, 2, 3].map(idx => (
+                                   <tr key={idx} style={{ height: '28px', borderBottom: '1px solid #000' }}>
+                                      <td style={{ borderRight: '1px solid #000', width: '70%', background: '#fff' }}></td>
+                                      <td style={{ textAlign: 'center', width: '30%' }}>
+                                          <div style={{ fontSize: '5pt', fontWeight: 900, borderBottom: '1px solid #eee', textTransform: 'uppercase' }}>К-сть, шт</div>
+                                          <div style={{ fontSize: '9pt', fontWeight: 1000 }}>0</div>
+                                      </td>
+                                   </tr>
+                                 ))}
+                                 <tr style={{ flex: 1, background: '#fff' }}>
+                                    <td colSpan="2" style={{ padding: '2px', textAlign: 'center' }}>
+                                       <span style={{ fontSize: '6pt', fontWeight: 900, display: 'block', textTransform: 'uppercase', marginBottom: '1px' }}>План. час виконання</span>
+                                       <span style={{ fontSize: '11pt', fontWeight: 1000 }}>{formatTime(m.estimatedTime || 0)}</span>
+                                    </td>
+                                 </tr>
+                              </tbody>
+                           </table>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Operations Table */}
+                  <div style={{ marginTop: '2px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '6.5pt' }}>
+                      <thead>
+                        <tr style={{ background: '#fff', textAlign: 'center', fontWeight: 'bold', height: '28px' }}>
+                          <td style={{ border: '1.5px solid #000', width: '25%' }}>Операція (1 сторона)</td>
+                          <td style={{ border: '1.5px solid #000', width: '8%', fontSize: '5.5pt', lineHeight: 1 }}>Статус<br/>виконання<br/>☑</td>
+                          <td style={{ border: '1.5px solid #000', width: '25%' }}>Операція (2 сторона)</td>
+                          <td style={{ border: '1.5px solid #000', width: '8%', fontSize: '5.5pt', lineHeight: 1 }}>Статус<br/>виконання<br/>☑</td>
+                          <td style={{ border: '1.5px solid #000', width: '25%' }}>Операція (2 сторона вирізка)</td>
+                          <td style={{ border: '1.5px solid #000', width: '9%', fontSize: '5.5pt', lineHeight: 1 }}>Статус<br/>виконання<br/>☑</td>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...Array(10)].map((_, idx) => (
+                          <tr key={idx} style={{ height: '22px' }}>
+                            <td style={{ border: '1.5px solid #000' }}></td>
+                            <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt' }}>☐</td>
+                            <td style={{ border: '1.5px solid #000' }}></td>
+                            <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt' }}>☐</td>
+                            <td style={{ border: '1.5px solid #000' }}></td>
+                            <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt' }}>☐</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div style={{ border: '1.5px solid #000', borderTop: 'none', display: 'flex', height: '45px' }}>
+                    <div style={{ width: '130px', borderRight: '1.5px solid #000', background: '#fff', fontWeight: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8pt' }}>Коментар</div>
+                    <div style={{ flex: 1 }}></div>
+                  </div>
+
+                  {/* Sheet-by-Sheet Tracking Rows */}
+                  <div style={{ marginTop: '2px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '6.5pt' }}>
+                      <tbody>
+                        {[1, 2, 3, 4].map(num => (
+                          <tr key={num} style={{ height: '28px' }}>
+                            <td style={{ border: '1.5px solid #000', width: '130px', textAlign: 'center', fontWeight: 'bold', background: '#fff' }}>
+                               {num} лист<br/>Перша деталь
+                            </td>
+                            <td style={{ border: '1.5px solid #000', width: '12%' }}></td>
+                            <td style={{ border: '1.5px solid #000', width: '12%' }}></td>
+                            <td style={{ border: '1.5px solid #000', width: '12%' }}></td>
+                            <td style={{ border: '1.5px solid #000' }}></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Industrial Footer Section */}
+                  <div style={{ marginTop: '2px', border: '1.5px solid #000', display: 'flex', fontSize: '7.5pt', height: '60px' }}>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
+                       <div style={{ width: '110px', padding: '2px', fontWeight: 1000, textAlign: 'center' }}>Причина браку:</div>
+                       <div style={{ flex: 1, padding: '2px', fontSize: '5.5pt', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px' }}>
+                         <div>☐ Биття цанги</div>
+                         <div>☐ Помилка програми</div>
+                         <div>☐ Збій станка</div>
+                         <div>☐ Кривизна листа</div>
+                         <div>☐ Поломка флешки</div>
+                         <div>☐ Прив'язка</div>
+                         <div>☐ Помилка оператора</div>
+                         <div>☐ Інше (коментар)</div>
+                       </div>
+                    </div>
+                    
+                    <div style={{ width: '120px', borderLeft: '1.5px solid #000', textAlign: 'center', display: 'flex', flexDirection: 'column' }}>
+                       <div style={{ borderBottom: '1px solid #000', padding: '2px', fontWeight: 1000 }}>Кількість браку</div>
+                       <div style={{ flex: 1 }}></div>
+                    </div>
+
+                    <div style={{ width: '140px', borderLeft: '1.5px solid #000', display: 'flex', flexDirection: 'column' }}>
+                       <div style={{ borderBottom: '1px solid #000', padding: '2px', textAlign: 'center', fontWeight: 1000, fontSize: '6pt' }}>Корекція перегортання</div>
+                       <div style={{ flex: 1, display: 'flex' }}>
+                          <div style={{ flex: 1, borderRight: '1px solid #000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                             <span style={{ fontSize: '7pt', fontWeight: 900 }}>X</span>
+                             <div style={{ flex: 1 }}></div>
+                          </div>
                           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                             <div style={{ fontSize: '14pt', opacity: 0.4, textTransform: 'uppercase', marginBottom: '10px' }}>назва деталі:</div>
-                             <div style={{ fontSize: '32pt', fontWeight: 900, marginBottom: '40px', textAlign: 'center', width: '100%' }}>{printQueue.part.nom?.name}</div>
-                             <div style={{ background: '#f5f5f5', width: '100%', padding: '40px 20px', borderRadius: '15px', textAlign: 'center', margin: '20px 0' }}>
-                                <div style={{ fontSize: '90pt', fontWeight: 900, lineHeight: 1 }}>{m.qty} <small style={{ fontSize: '30pt' }}>шт</small></div>
-                             </div>
-                          </div>
-                          <div style={{ borderTop: '2px solid #000', margin: '20px 0' }}></div>
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingBottom: '20px' }}>
-                             <QRCodeSVG value={`CENTRUM_CARD_${m.id}`} size={300} />
-                             <div style={{ fontSize: '10pt', color: '#999', marginTop: '10px' }}>Унікальний ID: {m.id}</div>
+                             <span style={{ fontSize: '7pt', fontWeight: 900 }}>Y</span>
+                             <div style={{ flex: 1 }}></div>
                           </div>
                        </div>
                     </div>
-                 ))}
+                  </div>
+                </div>
               </div>
-           </div>
+            )
+          })}
         </div>
       )}
 
       {isBufferScanning && (
-        <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 25000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <button onClick={() => setIsBufferScanning(false)} style={{ position: 'absolute', top: 30, right: 30, background: '#1a1a1a', border: 'none', color: '#fff', padding: '15px', borderRadius: '50%', cursor: 'pointer' }}><X size={32} /></button>
-          <div style={{ width: '100%', maxWidth: '540px', position: 'relative' }}>
-             <div id="buffer-reader" style={{ background: '#111', borderRadius: '32px', overflow: 'hidden' }}></div>
-             <div style={{ position: 'absolute', inset: -5, border: '6px solid #ef4444', borderRadius: '36px', pointerEvents: 'none', animation: 'scan-glow 2s infinite' }}></div>
-          </div>
-          <div style={{ marginTop: '40px', color: '#ef4444', fontSize: '1rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.2em' }}>Скануйте карту для прийомки на буфер</div>
+        <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 25000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <button onClick={() => setIsBufferScanning(false)} style={{ position: 'absolute', top: 30, right: 30, background: '#333', color: '#fff', padding: '15px', borderRadius: '50%', border: 'none' }}><X size={32} /></button>
+          <div id="buffer-reader" style={{ width: '100%', maxWidth: '500px', borderRadius: '20px', overflow: 'hidden' }}></div>
         </div>
       )}
 
       {bufferScrapModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.96)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 30000, padding: '20px' }}>
-          <div style={{ background: '#111', width: '100%', maxWidth: '500px', borderRadius: '32px', border: '1px solid #333', padding: '40px' }}>
-            <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-              <AlertTriangle color="#ef4444" size={40} style={{ marginBottom: '15px' }} />
-              <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 900 }}>ПРИЙОМКА НА БУФЕР</h3>
-              <p style={{ color: '#555', fontSize: '0.9rem' }}>Перевірте кількість та вкажіть брак (якщо є)</p>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 30000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#111', width: '400px', padding: '30px', borderRadius: '20px', textAlign: 'center' }}>
+            <h3 style={{ margin: '0 0 20px' }}>ПРИЙОМКА НА БУФЕР</h3>
+            <div style={{ marginBottom: '20px' }}>
+              <label>Кількість браку:</label>
+              <input type="number" style={{ width: '100%', background: '#000', color: '#fff', border: '1px solid #333', padding: '10px' }} value={bufferScrapCounts[bufferScrapModal.nomenclature_id] || 0} onChange={e => setBufferScrapCounts({ ...bufferScrapCounts, [bufferScrapModal.nomenclature_id]: parseInt(e.target.value) || 0 })} />
             </div>
-            
-            <div style={{ background: '#000', padding: '25px', borderRadius: '20px', border: '1px solid #222', marginBottom: '25px' }}>
-               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontWeight: 800 }}>{nomenclatures.find(n => n.id === bufferScrapModal.nomenclature_id)?.name}</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: 900 }}>БРАК:</span>
-                    <input 
-                      type="number" 
-                      min="0" 
-                      style={{ width: '80px', background: '#111', border: '1px solid #333', color: '#fff', padding: '10px', borderRadius: '10px', textAlign: 'center', fontSize: '1.2rem', fontWeight: 900 }}
-                      value={bufferScrapCounts[bufferScrapModal.nomenclature_id] || 0}
-                      onChange={e => setBufferScrapCounts({ ...bufferScrapCounts, [bufferScrapModal.nomenclature_id]: parseInt(e.target.value) || 0 })}
-                    />
-                  </div>
-               </div>
-            </div>
-
-            <button onClick={submitBufferReception} style={{ width: '100%', background: '#10b981', color: '#fff', border: 'none', padding: '20px', borderRadius: '18px', fontWeight: 900, fontSize: '1.1rem', cursor: 'pointer' }}>
-               ПІДТВЕРДИТИ ПРИЙОМКУ
-            </button>
-            <button onClick={() => setBufferScrapModal(null)} style={{ width: '100%', background: 'transparent', border: 'none', color: '#555', marginTop: '15px', fontWeight: 800, cursor: 'pointer' }}>СКАСУВАТИ</button>
+            <button onClick={submitBufferReception} style={{ width: '100%', background: '#10b981', color: '#fff', padding: '15px', borderRadius: '10px', border: 'none' }}>ПІДТВЕРДИТИ</button>
           </div>
         </div>
       )}
 
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         @media print {
-          @page { 
-            size: A4 portrait !important; 
-            margin: 0 !important; 
-          }
-          html, body { 
-            background: #fff !important; 
-            color: #000 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            height: auto !important;
-            width: 100% !important;
-            overflow: visible !important;
-          }
-          /* surgically hide only the dashboard, never the root/routes */
-          .foreman-main-ui, 
-          .portal-header-v2, 
-          .portal-container-v2,
-          .foreman-dashboard-main,
-          nav, 
-          header,
-          .no-print { 
-             display: none !important; 
-          }
-
-          .print-overlay { 
-            display: block !important;
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 210mm !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #fff !important;
-            z-index: 9999999 !important;
-            overflow: visible !important;
-          }
-          .print-scroll, .printable-content { 
-            display: block !important;
-            height: auto !important;
-            overflow: visible !important; 
-            padding: 0 !important; 
-            background: #fff !important;
-            margin: 0 !important;
-            width: 100% !important;
-          }
-          .a4-page { 
-            display: block !important;
-            width: 210mm !important;
-            height: 297mm !important;
-            padding: 10mm !important;
-            margin: 0 !important;
-            box-shadow: none !important;
-            background: #fff !important;
-            color: #000 !important;
-            page-break-after: always !important;
-            break-after: page !important;
-            box-sizing: border-box !important;
-            -webkit-print-color-adjust: exact;
-            overflow: hidden !important;
-          }
-          
-          .a4-page-inner {
-             display: flex !important;
-             flex-direction: column !important;
-             height: 100% !important;
-             box-sizing: border-box !important;
-             background: #fff !important;
-             border: 3px solid #000 !important;
-          }
-
-          .a4-page * { 
-            visibility: visible !important;
-            color: #000 !important;
-          }
+          @page { size: A4 portrait; margin: 0; }
+          html, body { background: #fff; color: #000; margin: 0; padding: 0; }
+          .no-print { display: none !important; }
+          .print-overlay { position: static !important; background: #fff !important; padding: 0 !important; overflow: visible !important; }
+          .a4-page { boxShadow: none !important; margin: 0 !important; pageBreakAfter: always !important; }
         }
         .animate-spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @keyframes scan-glow { 0% { box-shadow: 0 0 10px #ef4444; } 50% { box-shadow: 0 0 30px #ef4444; } 100% { box-shadow: 0 0 10px #ef4444; } }
       `}} />
     </div>
   )
