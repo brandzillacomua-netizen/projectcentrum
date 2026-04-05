@@ -30,26 +30,32 @@ export default function Shop1Terminal() {
 
   const [currentTime, setCurrentTime] = useState(new Date())
   const [selectedCardId, setSelectedCardId] = useState(null)
+  
+  // Сканування та ручний ввід
   const [isScanning, setIsScanning] = useState(false)
+  const [manualId, setManualId] = useState('')
+  const [showManualInput, setShowManualInput] = useState(false)
+  const [scanError, setScanError] = useState(null)
+  
+  // Процеси та UI
   const [isSyncing, setIsSyncing] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
-  const [scanError, setScanError] = useState(null)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
-
-  // Форма старту (new → in-progress)
+  
+  // Форми та модалки
   const [selectedOperator, setSelectedOperator] = useState('')
   const [selectedMachine, setSelectedMachine] = useState('')
-
-  // Модалка завершення етапу (in-progress → at-buffer)
   const [showCompleteModal, setShowCompleteModal] = useState(false)
   const [finalOperator, setFinalOperator] = useState('')
   const [scrapCount, setScrapCount] = useState(0)
-
-  // Деталі по кліку на карточку етапу
+  
+  // Детальна статистика етапу
   const [detailStage, setDetailStage] = useState(null)
   const [detailTab, setDetailTab] = useState('work')
+  const [showStorageExplorer, setShowStorageExplorer] = useState(false)
+  const [activeExplorerTab, setActiveExplorerTab] = useState('semi')
 
-  // Скановані картки (локальна черга)
+  // Локальна черга сканованого
   const [scannedIds, setScannedIds] = useState(() => {
     try { return JSON.parse(localStorage.getItem('shop1_scanned') || '[]') } catch { return [] }
   })
@@ -57,19 +63,27 @@ export default function Shop1Terminal() {
   useEffect(() => { localStorage.setItem('shop1_scanned', JSON.stringify(scannedIds)) }, [scannedIds])
   useEffect(() => { const t = setInterval(() => setCurrentTime(new Date()), 1000); return () => clearInterval(t) }, [])
 
-  // ── QR-сканер ────────────────────────────────────────────────────────────
+  // ── QR-сканер (Зроблено "таким самим", як в інших терміналах) ──────────
   useEffect(() => {
-    let qr = null
+    let html5QrCode = null
     if (isScanning && window.Html5Qrcode) {
-      qr = new window.Html5Qrcode('shop1-reader')
-      const stop = async () => { try { if (qr?.isScanning) await qr.stop() } catch {} ; setIsScanning(false) }
-      qr.start(
-        { facingMode: 'environment' },
-        { fps: 15, qrbox: { width: 260, height: 260 } },
+      html5QrCode = new window.Html5Qrcode("reader")
+      const config = { fps: 15, qrbox: { width: 260, height: 260 } }
+      
+      const stopAndClose = async () => {
+        if (html5QrCode && html5QrCode.isScanning) await html5QrCode.stop().catch(() => {})
+        setIsScanning(false)
+      }
+
+      html5QrCode.start(
+        { facingMode: "environment" }, 
+        config, 
         async (text) => {
           if (!text.startsWith('CENTRUM_CARD_')) return
           const id = text.replace('CENTRUM_CARD_', '').trim()
-          await stop()
+          
+          await stopAndClose()
+          
           let card = workCards.find(c => String(c.id).trim() === id)
           if (!card) {
             setIsSyncing(true)
@@ -77,17 +91,64 @@ export default function Shop1Terminal() {
             setIsSyncing(false)
             card = workCards.find(c => String(c.id).trim() === id)
           }
-          if (!card) { setScanError(`Картку №${id} не знайдено`); return }
-          if (!CHAIN.includes(card.operation)) { setScanError(`Картка #${id} — не для Цеху №1 (${card.operation})`); return }
-          if (card.status === 'completed') { setScanError(`Картка #${id} вже завершена`); return }
+
+          if (!card) { 
+            setScanError(`Картку №${id} не знайдено`); 
+            return 
+          }
+
+          // Дозволяємо картки "Нова" або ті, що вже в ланцюжку Цеху №1
+          const isNew = card.status === 'new' || !card.operation || card.operation === 'Нова'
+          const isInChain = CHAIN.includes(card.operation)
+          
+          if (!isNew && !isInChain) { 
+            setScanError(`Картка #${id} — не для Цеху №1 (${card.operation})`); 
+            return 
+          }
+
+          if (card.status === 'completed') { 
+            setScanError(`Картка #${id} вже завершена`); 
+            return 
+          }
+
+          // Додаємо в локальну чергу та активуємо
           setScannedIds(prev => prev.includes(card.id) ? prev : [...prev, card.id])
           setSelectedCardId(card.id)
           setScanError(null)
+          window.scrollTo({ top: 0, behavior: 'smooth' })
         }
-      ).catch(err => { setScanError('Помилка камери: ' + err); setIsScanning(false) })
+      ).catch(err => { 
+        console.error("Scanner error:", err)
+        setScanError(`Помилка камери: ${err}. Перевірте дозволи у браузері.`)
+        // Не закриваємо setIsScanning(false) одразу, щоб користувач бачив помилку в самому інтерфейсі
+      })
     }
-    return () => { try { if (qr?.isScanning) qr.stop() } catch {} }
+    return () => { if (html5QrCode && html5QrCode.isScanning) html5QrCode.stop().catch(() => {}) }
   }, [isScanning, workCards])
+
+  const handleManualEntry = async (e) => {
+    if (e) e.preventDefault()
+    if (!manualId) return
+    setIsProcessing(true)
+    
+    let card = workCards.find(c => String(c.id).trim() === manualId.trim())
+    if (!card) {
+      await fetchData().catch(() => {})
+      card = workCards.find(c => String(c.id).trim() === manualId.trim())
+    }
+
+    if (!card) {
+      setScanError(`Картку №${manualId} не знайдено`)
+    } else {
+      setScannedIds(prev => prev.includes(card.id) ? prev : [...prev, card.id])
+      setSelectedCardId(card.id)
+      setManualId('')
+      setShowManualInput(false)
+      setIsScanning(false)
+      setScanError(null)
+    }
+    setIsProcessing(false)
+  }
 
   // ── Хелпери ──────────────────────────────────────────────────────────────
   const currentCard = workCards.find(c => c.id === selectedCardId)
@@ -100,6 +161,34 @@ export default function Shop1Terminal() {
   const nextStageFor = card => {
     const i = CHAIN.indexOf(card?.operation || '')
     return i >= 0 && i < CHAIN.length - 1 ? CHAIN[i + 1] : null
+  }
+
+  // Уніфікована функція запису в інвентар (без bz_qty колонки)
+  const updateInventoryStock = async (nomId, qty, type = 'semi') => {
+    if (!nomId || qty <= 0) return
+    try {
+      const { data: existing } = await supabase.from('inventory')
+        .select('*')
+        .eq('nomenclature_id', nomId)
+        .eq('type', type)
+        .single()
+
+      if (existing) {
+        await supabase.from('inventory').update({
+          total_qty: (Number(existing.total_qty) || 0) + Number(qty),
+          updated_at: new Date().toISOString()
+        }).eq('id', existing.id)
+      } else {
+        const nom = nomenclatures.find(n => n.id === nomId)
+        await supabase.from('inventory').insert([{
+          name: nom?.name || 'Деталь',
+          unit: nom?.unit || 'шт',
+          total_qty: Number(qty),
+          type: type,
+          nomenclature_id: nomId
+        }])
+      }
+    } catch (e) { console.warn(`Stock update failed for type ${type}:`, e) }
   }
 
   // Картки для черги зліва:
@@ -138,16 +227,15 @@ export default function Shop1Terminal() {
     finally { setIsProcessing(false) }
   }
 
-  // ── ДІЯ 2: Завершити етап → БУФЕР (in-progress → at-buffer, ТА САМА операція!) ──
+  // ── ДІЯ 2: Завершити етап → БУФЕР (in-progress → at-buffer) ──────────
   const handleCompleteToBuffer = async () => {
     if (!currentCard) return
     setIsProcessing(true)
     try {
       const qtyDone = Math.max(0, (currentCard.quantity || 0) - scrapCount)
       const op = finalOperator || currentCard.operator_name || 'Не вказано'
-      const isFinal = currentCard.operation === CHAIN[CHAIN.length - 1] // Прийомка
 
-      // Записуємо в history
+      // 1. Записуємо в history
       await supabase.from('work_card_history').insert([{
         card_id: currentCard.id,
         nomenclature_id: currentCard.nomenclature_id,
@@ -160,48 +248,25 @@ export default function Shop1Terminal() {
         completed_at: new Date().toISOString()
       }])
 
-      // Оновлюємо картку
-      await supabase.from('work_cards').update(
-        isFinal
-          ? { status: 'completed', quantity: qtyDone, operator_name: op }
-          : { status: 'at-buffer', quantity: qtyDone, operator_name: op }
-      ).eq('id', currentCard.id)
+      // 2. Оновлюємо картку (тільки перехід у буфер, фінальна прийомка далі)
+      await supabase.from('work_cards').update({ 
+        status: 'at-buffer', 
+        quantity: qtyDone, 
+        operator_name: op 
+      }).eq('id', currentCard.id)
 
-      // ── При ПРИЙОМЦІ (фінал) → зараховуємо на склад ─────────────────
-      if (isFinal && qtyDone > 0) {
-        const nom = nomenclatures.find(n => n.id === currentCard.nomenclature_id)
-        if (nom) {
-          // БЗ: читаємо зі значення картки (якщо є мітка [BZ:X])
-          const bzMatch = (currentCard.card_info || '').match(/\[BZ:(\d+)\]/)
-          const bzQty = bzMatch ? Number(bzMatch[1]) : 0
-          // Чисті напів-фабрикати = все що прийнято
-          const netQty = qtyDone
-
-          const invItem = inventory.find(i => i.nomenclature_id === nom.id)
-          if (invItem) {
-            await supabase.from('inventory').update({
-              total_qty: (Number(invItem.total_qty) || 0) + netQty,
-              bz_qty: (Number(invItem.bz_qty) || 0) + bzQty
-            }).eq('id', invItem.id)
-          } else {
-            await supabase.from('inventory').upsert([{
-              name: nom.name,
-              unit: nom.unit || 'шт',
-              total_qty: netQty,
-              bz_qty: bzQty,
-              type: 'semi',
-              nomenclature_id: nom.id
-            }], { onConflict: 'nomenclature_id' })
-          }
-        }
+      // 3. Якщо є брак — записуємо його в інвентар окремим типом
+      if (scrapCount > 0) {
+        await updateInventoryStock(currentCard.nomenclature_id, scrapCount, 'scrap')
       }
 
       await fetchData()
       setShowCompleteModal(false)
       setSelectedCardId(null)
-      setScannedIds(prev => prev.filter(id => id !== currentCard.id))
-    } catch (e) { alert('Помилка: ' + e.message) }
-    finally { setIsProcessing(false) }
+    } catch (e) { 
+      console.error('Buffer error:', e)
+      alert('Помилка буфера: ' + e.message) 
+    } finally { setIsProcessing(false) }
   }
 
   // ── ДІЯ 3: ПРИЙНЯТИ (з буфера Галтовки або інших етапів не Прийомка) ─
@@ -241,8 +306,9 @@ export default function Shop1Terminal() {
     try {
       const qtyDone = currentCard.quantity || 0
       const op = selectedOperator || currentCard.operator_name || 'Прийомка'
+      const nom = nomenclatures.find(n => n.id === currentCard.nomenclature_id)
 
-      // Записуємо history запис прийомки
+      // 1. Записуємо history запис прийомки
       await supabase.from('work_card_history').insert([{
         card_id: currentCard.id,
         nomenclature_id: currentCard.nomenclature_id,
@@ -255,45 +321,36 @@ export default function Shop1Terminal() {
         completed_at: new Date().toISOString()
       }])
 
-      // Картка → completed
-      await supabase.from('work_cards').update({
+      // 2. Картка → completed (фініш процесу)
+      // 2. Картка → completed (фініш процесу)
+      const { error: cardErr } = await supabase.from('work_cards').update({
         status: 'completed',
         operation: 'Прийомка'
       }).eq('id', currentCard.id)
+      
+      if (cardErr) throw cardErr
 
-      // Оновлюємо склад (напів-фабрикати)
-      if (qtyDone > 0) {
-        const nom = nomenclatures.find(n => n.id === currentCard.nomenclature_id)
-        if (nom) {
-          const bzMatch = (currentCard.card_info || '').match(/\[BZ:(\d+)\]/)
-          const bzQty = bzMatch ? Number(bzMatch[1]) : 0
-          // Шукаємо по nomenclature_id
-          const invItem = (inventory || []).find(i => String(i.nomenclature_id) === String(nom.id))
-          if (invItem) {
-            // Оновлюємо існуючий запис
-            await supabase.from('inventory').update({
-              total_qty: (Number(invItem.total_qty) || 0) + qtyDone,
-              bz_qty: (Number(invItem.bz_qty) || 0) + bzQty
-            }).eq('id', invItem.id)
-          } else {
-            // Створюємо новий запис (insert, без onConflict)
-            await supabase.from('inventory').insert([{
-              name: nom.name,
-              unit: nom.unit || 'шт',
-              total_qty: qtyDone,
-              bz_qty: bzQty,
-              type: 'semi',
-              nomenclature_id: nom.id
-            }])
-          }
-        }
+      // Одразу закриваємо інтерфейс картки, щоб не "зависати", навіть якщо далі буде помилка складу
+      setSelectedCardId(null)
+      setScannedIds(prev => prev.filter(id => id !== currentCard.id))
+
+      // 3. Оновлюємо склад (напів-фабрикати та БЗ)
+      if (qtyDone > 0 && nom) {
+        const bzMatch = (currentCard.card_info || '').match(/\[BZ:(\d+)\]/)
+        const bzQty = bzMatch ? Number(bzMatch[1]) : 0
+        const semiQty = Math.max(0, qtyDone - bzQty)
+
+        // Записуємо чисту кількість як semi
+        if (semiQty > 0) await updateInventoryStock(nom.id, semiQty, 'semi')
+        // Записуємо БЗ окремим типом bz
+        if (bzQty > 0) await updateInventoryStock(nom.id, bzQty, 'bz')
       }
 
       await fetchData()
-      setSelectedCardId(null)
-      setScannedIds(prev => prev.filter(id => id !== currentCard.id))
-    } catch (e) { alert('Помилка: ' + e.message) }
-    finally { setIsProcessing(false) }
+    } catch (e) { 
+      console.error('Acceptance error:', e)
+      alert('Помилка прийомки: ' + (e.message || 'Невідома помилка')) 
+    } finally { setIsProcessing(false) }
   }
 
   // ── Статистика по кожному етапу ─────────────────────────────────────────
@@ -575,6 +632,74 @@ export default function Shop1Terminal() {
     )
   }
 
+  // ── Рендер: Експорер складу (СЕНСОРНИЙ РЕЖИМ) ───────────────────────────
+  const renderStorageExplorer = () => {
+    const explorerTabs = [
+      { id: 'semi', label: 'НАПІВФАБРИКАТИ', icon: <Layers size={16} />, color: '#10b981' },
+      { id: 'bz', label: 'БЗ (СТАНДАРТ)', icon: <ClipboardList size={16} />, color: '#eab308' },
+      { id: 'scrap', label: 'БРАК / ВІДХОДИ', icon: <AlertTriangle size={16} />, color: '#ef4444' },
+    ]
+    const filteredItems = (inventory || []).filter(i => i.type === activeExplorerTab)
+
+    return (
+      <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: '#0a0a0a', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '20px', borderBottom: '1px solid #111', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ background: '#10b98120', padding: '8px', borderRadius: '10px' }}><Package size={20} color="#10b981" /></div>
+            <div>
+              <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 1000 }}>КВІТ-СКЛАД ЦЕХУ №1</h2>
+              <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 800, textTransform: 'uppercase' }}>Моніторинг запасів та браку</div>
+            </div>
+          </div>
+          <button onClick={() => setShowStorageExplorer(false)} style={{ background: '#1a1a1a', border: 'none', color: '#fff', width: '40px', height: '40px', borderRadius: '12px', cursor: 'pointer' }}>
+            <X size={20} />
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', gap: '8px', padding: '15px 20px', background: '#0d0d0d' }}>
+          {explorerTabs.map(t => (
+            <button key={t.id} onClick={() => setActiveExplorerTab(t.id)}
+              style={{
+                flex: 1, background: activeExplorerTab === t.id ? t.color : '#0a0a0a',
+                color: activeExplorerTab === t.id ? '#000' : '#444', border: 'none',
+                padding: '12px', borderRadius: '12px', fontWeight: 900, fontSize: '0.65rem',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                transition: 'all 0.2s', cursor: 'pointer'
+              }}>
+              {t.icon} {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '15px' }}>
+            {filteredItems.map(item => {
+              const nom = nomenclatures.find(n => n.id === item.nomenclature_id)
+              return (
+                <div key={item.id} style={{ background: '#111', borderRadius: '18px', padding: '18px', border: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 800, marginBottom: '2px' }}>{nom?.name || item.name}</div>
+                    <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 900 }}>{item.unit || 'од'} | {new Date(item.updated_at).toLocaleDateString()}</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 1000, color: explorerTabs.find(t=>t.id===activeExplorerTab).color }}>{item.total_qty}</div>
+                    <div style={{ fontSize: '0.5rem', color: '#333', fontWeight: 900 }}>ЗАЛИШОК</div>
+                  </div>
+                </div>
+              )
+            })}
+            {filteredItems.length === 0 && (
+              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '60px', color: '#222' }}>
+                <Package size={48} style={{ marginBottom: '15px', opacity: 0.1 }} />
+                <div style={{ fontWeight: 800 }}>ПОЗИЦІЙ НЕ ЗНАЙДЕНО</div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // ── Рендер: дашборд (без вибраної картки) ───────────────────────────────
   const renderDashboard = () => (
     <div style={{ maxWidth: '1050px', margin: '0 auto' }}>
@@ -632,18 +757,20 @@ export default function Shop1Terminal() {
                   ))}
                 </div>
               </div>
-              {/* Буфер між етапами */}
-              {idx === 0 && (() => {
-                const bufQty = stageStats('Різка').inBuffer
+              
+              {/* Буфер між етапами або перехід до складу */}
+              {(() => {
+                const bufQty = s.inBuffer
+                const color = idx === 0 ? '#f59e0b' : '#10b981'
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 6px', flexShrink: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center' }}>
-                      <div style={{ width: '20px', height: '2px', background: bufQty > 0 ? '#f59e0b' : '#222' }} />
-                      <ChevronRight size={14} color={bufQty > 0 ? '#f59e0b' : '#222'} />
+                      <div style={{ width: '20px', height: '2px', background: bufQty > 0 ? color : '#222' }} />
+                      <ChevronRight size={14} color={bufQty > 0 ? color : '#222'} />
                     </div>
                     <div style={{ marginTop: '5px', fontSize: '0.46rem', fontWeight: 900, textTransform: 'uppercase', padding: '2px 6px', borderRadius: '4px',
-                      background: bufQty > 0 ? '#f59e0b20' : '#1a1a1a', color: bufQty > 0 ? '#f59e0b' : '#2a2a2a' }}>
-                      {bufQty > 0 ? `${bufQty} шт` : 'БУФЕР'}
+                      background: bufQty > 0 ? `${color}20` : '#1a1a1a', color: bufQty > 0 ? color : '#2a2a2a' }}>
+                      {bufQty > 0 ? `${bufQty} шт` : (idx === 0 ? 'БУФЕР' : 'СКЛАД')}
                     </div>
                   </div>
                 )
@@ -652,76 +779,50 @@ export default function Shop1Terminal() {
           )
         })}
 
-        {/* Стрілка від Галтовки до Прийомки */}
+        {/* ─── ПРИЙОМКА / СКЛАД (Фінальна стадія) ─── */}
         {(() => {
-          const galBuf = stageStats('Галтовка').inBuffer
+          const semiQty = (inventory || []).filter(i => i.type === 'semi' && (i.nomenclature_id || '').length > 0).reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
+          const bzQty = (inventory || []).filter(i => i.type === 'bz').reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
+          const scrapQty = (inventory || []).filter(i => i.type === 'scrap').reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
+          
           return (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 6px', flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{ width: '20px', height: '2px', background: galBuf > 0 ? '#10b981' : '#222' }} />
-                <ChevronRight size={14} color={galBuf > 0 ? '#10b981' : '#222'} />
-              </div>
-              <div style={{ marginTop: '5px', fontSize: '0.46rem', fontWeight: 900, textTransform: 'uppercase', padding: '2px 6px', borderRadius: '4px',
-                background: galBuf > 0 ? '#10b98120' : '#1a1a1a', color: galBuf > 0 ? '#10b981' : '#2a2a2a' }}>
-                {galBuf > 0 ? `${galBuf} шт` : 'СКЛАД'}
-              </div>
-            </div>
-          )
-        })()}
-
-        {/* ─── ПРИЙОМКА: СТОК НАПІВ-ФАБРИКАТІВ (Преміум-віджет) ─── */}
-        {(() => {
-          const acceptedNomIds = new Set(workCardHistory.filter(h => h.stage_name === 'Прийомка').map(h => h.nomenclature_id))
-          const stockItems = inventory.filter(i => acceptedNomIds.has(i.nomenclature_id))
-          const totalStockQty = stockItems.reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
-
-          return (
-            <div style={{ 
-              flex: '2 1 260px', minWidth: '240px', background: 'linear-gradient(145deg, #0e1a15 0%, #050a08 100%)', 
-              border: '1px solid #10b98130', borderRadius: '22px', padding: '20px', 
-              boxShadow: '0 15px 35px rgba(0,0,0,0.4)', position: 'relative', overflow: 'hidden' 
-            }}>
-              <div style={{ position: 'absolute', top: '-10px', right: '-10px', width: '60px', height: '60px', background: '#10b98108', borderRadius: '50%', filter: 'blur(20px)' }} />
-              
+            <div onClick={() => setShowStorageExplorer(true)}
+              style={{ 
+                flex: '1.5 1 200px', minWidth: '180px', 
+                background: 'linear-gradient(145deg, #0d1a15 0%, #050a08 100%)', 
+                border: '1px solid #10b98130', borderTop: '4px solid #10b981',
+                borderRadius: '22px', padding: '20px 16px', cursor: 'pointer',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                transition: 'all 0.2s ease'
+              }}
+              className="s1-stage-card-storage">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ width: '6px', height: '6px', borderRadius: '1px', background: '#10b981', boxShadow: '0 0 10px #10b981' }} />
-                  <span style={{ fontSize: '0.65rem', fontWeight: 1000, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.08em' }}>СТОК ПРИЙОМКИ</span>
-                </div>
-                <div style={{ background: '#10b98115', color: '#10b981', fontSize: '0.55rem', fontWeight: 900, padding: '2px 8px', borderRadius: '10px' }}>ГОТОВО ДО ЦЕХУ №2</div>
+                <span style={{ fontSize: '0.65rem', fontWeight: 1000, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.12em' }}>ПРИЙОМКА / СКЛАД</span>
+                <ClipboardList size={14} color="#10b981" style={{ opacity: 0.5 }} />
               </div>
 
-              {stockItems.length === 0 ? (
-                <div style={{ color: '#222', fontSize: '0.75rem', textAlign: 'center', padding: '30px 0', fontWeight: 700 }}>ОЧІКУВАННЯ ПЕРШИХ ПАРТІЙ</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '130px', overflowY: 'auto', paddingRight: '4px' }}>
-                  {stockItems.map(item => {
-                    const nom = nomenclatures.find(n => n.id === item.nomenclature_id)
-                    return (
-                      <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', padding: '8px 12px', border: '1px solid rgba(16,185,129,0.05)' }}>
-                        <span style={{ fontSize: '0.75rem', color: '#aaa', fontWeight: 700 }}>{nom?.name || item.name}</span>
-                        <div style={{ textAlign: 'right' }}>
-                          <span style={{ fontSize: '1.1rem', fontWeight: 1000, color: '#fff' }}>{item.total_qty}</span>
-                          <span style={{ fontSize: '0.5rem', color: '#10b981', fontWeight: 900, marginLeft: '4px' }}>ШТ</span>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-
-              {totalStockQty > 0 && (
-                <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px dotted rgba(16,185,129,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                  <span style={{ fontSize: '0.55rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>УСЬОГО НА СКЛАДІ НФ</span>
-                  <div style={{ fontSize: '1.4rem', fontWeight: 1000, color: '#10b981', letterSpacing: '-0.02em' }}>
-                    {totalStockQty} <small style={{ fontSize: '0.6rem', opacity: 0.6 }}>од.</small>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '6px' }}>
+                {[
+                  { label: 'СКЛАД НФ', val: semiQty, color: '#10b981' },
+                  { label: 'БЗ (СТ)', val: bzQty, color: '#eab308' },
+                  { label: 'БРАК', val: scrapQty, color: '#ef4444' },
+                ].map(({ label, val, color }, i) => (
+                  <div key={label} style={i > 0 ? { borderLeft: '1px solid #111', paddingLeft: '6px' } : {}}>
+                    <div style={{ fontSize: '0.5rem', color: '#333', fontWeight: 1000, marginBottom: '2px', textTransform: 'uppercase' }}>{label}</div>
+                    <div style={{ 
+                      fontSize: '1.3rem', fontWeight: 1000, letterSpacing: '-0.02em',
+                      color: val > 0 ? color : '#1a1a1a' 
+                    }}>
+                      {val}
+                    </div>
                   </div>
-                </div>
-              )}
+                ))}
+              </div>
             </div>
           )
         })()}
       </div>
+
 
       {/* Таблиця активних карток */}
       <div style={{ background: '#111', borderRadius: '18px', border: '1px solid #1a1a1a', overflow: 'hidden' }}>
@@ -850,16 +951,69 @@ export default function Shop1Terminal() {
         </div>
       </div>
 
-      {/* ── QR-сканер ──────────────────────────────────────────────────────── */}
+      {/* ── QR-сканер (Класичний вигляд з Ручним Вводом) ────────────────── */}
       {isScanning && (
-        <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 10001, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '20px' }}>
-          <button onClick={() => setIsScanning(false)}
+        <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 10001, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '20px', padding: '20px' }}>
+          <button onClick={() => { setIsScanning(false); setShowManualInput(false); setScanError(null); }}
             style={{ position: 'absolute', top: 24, right: 24, background: '#1a1a1a', border: 'none', color: '#fff', padding: '12px', borderRadius: '50%', cursor: 'pointer' }}>
             <X size={26} />
           </button>
-          <div style={{ fontSize: '0.75rem', fontWeight: 900, color: '#eab308', letterSpacing: '0.1em', textTransform: 'uppercase' }}>ЦЕХ №1 · СКАНЕР</div>
-          <div id="shop1-reader" style={{ width: '88%', maxWidth: '440px', border: '3px solid #eab308', borderRadius: '24px', overflow: 'hidden' }} />
-          <div style={{ color: '#333', fontSize: '0.7rem' }}>Наведіть на QR-код робочої картки</div>
+          
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 1000, color: '#eab308', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '4px' }}>ЦЕХ №1 · ТЕРМІНАЛ</div>
+            <div style={{ color: '#555', fontSize: '0.65rem', fontWeight: 700 }}>{showManualInput ? 'ВВЕДІТЬ НОМЕР КАРТКИ ВРУЧНУ' : 'ВІДСКАНУЙТЕ КАРТКУ ТЕХНОЛОГІЧНОГО ПРОЦЕСУ'}</div>
+          </div>
+
+          {!showManualInput ? (
+            <>
+              {/* Чистий контейнер для сканера */}
+              <div style={{ width: '100%', maxWidth: '480px', background: '#0a0a0a', borderRadius: '32px', border: '2px solid #eab30830', overflow: 'hidden', minHeight: '300px', position: 'relative' }}>
+                <div id="reader" style={{ width: '100%' }} />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px', width: '100%' }}>
+                {scanError && (
+                  <div style={{ color: '#ef4444', fontSize: '0.75rem', fontWeight: 900, textAlign: 'center', background: '#ef444415', padding: '12px 24px', borderRadius: '16px', border: '1px solid #ef444430', maxWidth: '380px' }}>
+                    ⚠️ {scanError}
+                  </div>
+                )}
+                
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button onClick={() => setShowManualInput(true)} 
+                    style={{ background: '#1a1a1a', border: '1px solid #333', color: '#eab308', padding: '12px 24px', borderRadius: '14px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer' }}>
+                    ⌨️ ВВЕСТИ НОМЕР ВРУЧНУ
+                  </button>
+                  <button onClick={() => { setIsScanning(false); setScanError(null); }} 
+                    style={{ background: 'transparent', border: '1px solid #222', color: '#555', padding: '12px 24px', borderRadius: '14px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer' }}>
+                    ПОВЕРНУТИСЬ
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div style={{ background: '#111', width: '100%', maxWidth: '400px', padding: '30px', borderRadius: '24px', border: '1px solid #222' }}>
+               <form onSubmit={handleManualEntry} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <input 
+                    type="text" 
+                    autoFocus
+                    placeholder="Приклад: 12345"
+                    value={manualId}
+                    onChange={e => setManualId(e.target.value)}
+                    style={{ width: '100%', background: '#000', border: '2px solid #eab30850', color: '#fff', fontSize: '2.5rem', textAlign: 'center', padding: '15px', borderRadius: '16px', fontWeight: 900, fontFamily: 'monospace' }}
+                  />
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button type="submit" disabled={!manualId || isProcessing}
+                      style={{ flex: 2, background: '#eab308', color: '#000', border: 'none', padding: '18px', borderRadius: '14px', fontSize: '1.1rem', fontWeight: 900, cursor: 'pointer' }}>
+                      ВІДКРИТИ КАРТКУ
+                    </button>
+                    <button type="button" onClick={() => { setShowManualInput(false); setManualId(''); }}
+                      style={{ flex: 1, background: '#1a1a1a', color: '#fff', border: 'none', padding: '15px', borderRadius: '14px', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer' }}>
+                      НАЗАД
+                    </button>
+                  </div>
+               </form>
+            </div>
+          )}
         </div>
       )}
 
@@ -974,6 +1128,8 @@ export default function Shop1Terminal() {
           </div>
         </div>
       )}
+
+      {showStorageExplorer && renderStorageExplorer()}
 
       <style>{`
         .s1-stage-hover:hover { background: #181818!important; transform: translateY(-3px); }

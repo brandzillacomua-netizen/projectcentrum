@@ -205,20 +205,19 @@ const ForemanWorkplace = () => {
                     <button onClick={() => handleCloseNaryad(task.id)} className="btn-primary" style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '12px 25px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}>ЗАКРИТИ НАРЯД</button>
                   </div>
 
-                  <div style={{ marginBottom: '40px', background: '#111', borderRadius: '20px', overflow: 'hidden', border: '1px solid #222' }}>
-                    <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                      <table style={{ width: '100%', minWidth: '940px', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', minWidth: '1050px', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
                         <thead>
-                          <tr style={{ background: '#1a1a1a', textAlign: 'left', color: '#555' }}>
-                            <th style={{ padding: '12px 15px', width: '22%' }}>ДЕТАЛЬ В ПОРІЗКУ</th>
-                            <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%' }}>ПЛАН</th>
-                            <th style={{ padding: '12px 15px', textAlign: 'center', width: '15%' }}>МАТЕРІАЛ</th>
-                            <th style={{ padding: '12px 15px', textAlign: 'center', width: '6%' }}>ШТ/Л</th>
-                            <th style={{ padding: '12px 15px', textAlign: 'center', color: '#10b981', width: '6%' }}>ЛИСТІВ</th>
-                            <th style={{ padding: '12px 15px', width: '15%' }}>ВЕРСТАТ</th>
-                            <th style={{ padding: '12px 15px', textAlign: 'center', color: '#3b82f6', width: '8%' }}>ЗАВАНТ.</th>
-                            <th style={{ padding: '12px 15px', textAlign: 'center', color: '#ef4444', width: '8%' }}>БЗ</th>
-                            <th style={{ padding: '12px 15px', textAlign: 'center', width: '12%' }}>ДІЇ</th>
+                          <tr style={{ background: '#1a1a1a', textAlign: 'left', color: '#555', textTransform: 'uppercase', fontSize: '0.65rem', fontWeight: 900 }}>
+                            <th style={{ padding: '12px 15px', width: '20%' }}>ДЕТАЛЬ В ПОРІЗКУ</th>
+                            <th style={{ padding: '12px 15px', textAlign: 'center' }}>ПЛАН</th>
+                            <th style={{ padding: '12px 15px', textAlign: 'center' }}>МАТЕРІАЛ</th>
+                            <th style={{ padding: '12px 15px', textAlign: 'center', color: '#10b981' }}>ЛИСТІВ</th>
+                            <th style={{ padding: '12px 15px' }}>ВЕРСТАТ</th>
+                            <th style={{ padding: '12px 15px', textAlign: 'center', color: '#3b82f6' }}>ПРИЙНЯТО</th>
+                            <th style={{ padding: '12px 15px', textAlign: 'center', color: '#ef4444' }}>БРАК</th>
+                            <th style={{ padding: '12px 15px', textAlign: 'center', color: '#eab308' }}>ФІНАЛЬНИЙ БЗ</th>
+                            <th style={{ padding: '12px 15px', textAlign: 'center' }}>ДІЇ</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -227,32 +226,70 @@ const ForemanWorkplace = () => {
                             const rows = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }]
                             return rows.map((part, idx) => {
                               const rowId = `${item.id}-${part.nom?.id || idx}`
-                              const total = (Number(item.quantity) || 0) * (Number(part.quantity_per_parent) || 1)
+                              const planTotal = (Number(item.quantity) || 0) * (Number(part.quantity_per_parent) || 1)
                               const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
-                              const sheets = Math.ceil(total / unitsPerSheet)
-                              const existing = taskCards.filter(c => c.nomenclature_id === part.nom?.id || c.card_info?.includes(`NOM_ID:${part.nom?.id}`))
-                              const hasCards = existing.length > 0
-                              const rowMachineName = selectedMachines[rowId] || (hasCards ? existing[0].machine : '')
+                              const sheets = Math.ceil(planTotal / unitsPerSheet)
+                              
+                              const existingCards = taskCards.filter(c => c.nomenclature_id === part.nom?.id)
+                              const producedQty = existingCards.filter(c => c.status === 'completed').reduce((acc, c) => acc + (Number(c.quantity) || 0), 0)
+                              const atBufferQty = existingCards.filter(c => c.status === 'at-buffer').reduce((acc, c) => acc + (Number(c.quantity) || 0), 0)
+                              
+                              const scrapQty = workCardHistory
+                                .filter(h => h.nomenclature_id === part.nom?.id && h.task_id === task.id)
+                                .reduce((acc, h) => acc + (Number(h.scrap_qty) || 0), 0)
+
+                              const initialBZ = (sheets * unitsPerSheet) - planTotal
+                              const bzResult = initialBZ - scrapQty
+                              const shortage = bzResult < 0 ? Math.abs(bzResult) : 0
+
+                              const rowMachineName = selectedMachines[rowId] || (existingCards.length > 0 ? existingCards[0].machine : '')
                               const rowMachineObj = machines.find(m => m.name === rowMachineName)
                               const currentCapacity = Number(rowMachineObj?.sheet_capacity) || 0
                               const loads = currentCapacity > 0 ? Math.ceil(sheets / currentCapacity) : 0
-                              const surplus = (sheets * unitsPerSheet) - total
+
                               return (
-                                <tr key={rowId} style={{ borderBottom: '1px solid #1a1a1a' }}>
-                                  <td style={{ padding: '15px' }}><div style={{ fontWeight: 800, color: '#fff' }}>{part.nom?.name || '—'}</div><div style={{ fontSize: '0.7rem', color: '#444' }}>{part.nom?.nomenclature_code || 'БЕЗ КОДУ'}</div></td>
-                                  <td style={{ padding: '15px', textAlign: 'center', fontWeight: 800 }}>{total}</td>
-                                  <td style={{ padding: '15px', textAlign: 'center', color: '#aaa', fontSize: '0.8rem' }}>{part.nom?.material_type || '—'}</td>
-                                  <td style={{ padding: '15px', textAlign: 'center', color: '#444' }}>{unitsPerSheet}</td>
+                                <tr key={rowId} style={{ borderBottom: '1px solid #1a1a1a', background: shortage > 0 ? 'rgba(239, 68, 68, 0.03)' : 'transparent' }}>
+                                  <td style={{ padding: '15px' }}>
+                                    <div style={{ fontWeight: 800, color: '#fff' }}>{part.nom?.name || '—'}</div>
+                                    <div style={{ fontSize: '0.65rem', color: '#444' }}>{part.nom?.nomenclature_code || 'БЕЗ КОДУ'}</div>
+                                  </td>
+                                  <td style={{ padding: '15px', textAlign: 'center', fontWeight: 900 }}>{planTotal}</td>
+                                  <td style={{ padding: '15px', textAlign: 'center', color: '#666', fontSize: '0.75rem' }}>{part.nom?.material_type || '—'}</td>
                                   <td style={{ padding: '15px', textAlign: 'center', color: '#10b981', fontWeight: 1000, fontSize: '1.2rem' }}>{sheets}</td>
-                                  <td style={{ padding: '15px' }}><select value={rowMachineName} disabled={hasCards} onChange={(e) => setSelectedMachines(p => ({ ...p, [rowId]: e.target.value }))} style={{ width: '100%', background: '#000', border: rowMachineName ? '1px solid #333' : '1px solid #ef4444', color: rowMachineName ? '#fff' : '#ef4444', padding: '8px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700 }}><option value="">Оберіть верстат</option>{machines.map(m => <option key={m.id} value={m.name}>{m.name} ({m.sheet_capacity} л.)</option>)}</select></td>
-                                  <td style={{ padding: '15px', textAlign: 'center', color: '#3b82f6', fontWeight: 1000, fontSize: '1.2rem' }}>{rowMachineName ? <><span style={{ color: existing.length < loads ? '#444' : '#3b82f6' }}>{existing.length}</span><span style={{ color: '#222', margin: '0 5px' }}>/</span><span>{loads}</span></> : <span style={{ color: '#222', fontSize: '0.8rem' }}>—</span>}</td>
-                                  <td style={{ padding: '15px', textAlign: 'center', color: '#ef4444', fontWeight: 900 }}>{surplus > 0 ? `+${surplus}` : '0'}</td>
+                                  <td style={{ padding: '15px' }}>
+                                    <select value={rowMachineName} disabled={existingCards.length > 0 && shortage === 0} 
+                                      onChange={(e) => setSelectedMachines(p => ({ ...p, [rowId]: e.target.value }))} 
+                                      style={{ width: '100%', background: '#000', border: rowMachineName ? '1px solid #333' : '1px solid #ef4444', color: rowMachineName ? '#fff' : '#ef4444', padding: '8px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700 }}>
+                                      <option value="">Оберіть верстат</option>
+                                      {machines.map(m => <option key={m.id} value={m.name}>{m.name} ({m.sheet_capacity} л.)</option>)}
+                                    </select>
+                                  </td>
+                                  <td style={{ padding: '15px', textAlign: 'center' }}>
+                                    <div style={{ color: '#3b82f6', fontWeight: 1000, fontSize: '1.2rem' }}>{producedQty}</div>
+                                    {atBufferQty > 0 && <div style={{ fontSize: '0.65rem', color: '#10b981' }}>+ {atBufferQty} в буфері</div>}
+                                  </td>
+                                  <td style={{ padding: '15px', textAlign: 'center', color: scrapQty > 0 ? '#ef4444' : '#222', fontWeight: 900 }}>{scrapQty}</td>
+                                  <td style={{ padding: '15px', textAlign: 'center' }}>
+                                    {shortage > 0 ? (
+                                      <div style={{ color: '#ef4444', fontWeight: 1000 }}>НЕСТАЧА: {shortage}</div>
+                                    ) : (
+                                      <div style={{ color: '#eab308', fontWeight: 1000 }}>+{bzResult}</div>
+                                    )}
+                                  </td>
                                   <td style={{ padding: '15px', textAlign: 'center' }}>
                                     <div style={{ display: 'flex', gap: '5px' }}>
-                                      {(existing.length === 0 || existing.length < loads) && (
-                                        <button onClick={() => { if (!rowMachineName) return; setGenModal({ task, part, total: loads, requirement: total, created: existing.length, rowId, machineName: rowMachineName, sheets }) }} disabled={!rowMachineName} style={{ flex: 1, background: existing.length === 0 ? (rowMachineName ? '#333' : '#111') : '#3b82f6', color: rowMachineName ? '#fff' : '#333', border: 'none', padding: '8px 10px', borderRadius: '10px', cursor: rowMachineName ? 'pointer' : 'not-allowed', fontWeight: 900, fontSize: '0.6rem', textTransform: 'uppercase', opacity: rowMachineName ? 1 : 0.5 }}>ГЕНЕРУВАТИ</button>
+                                      {(existingCards.length === 0 || shortage > 0) && (
+                                        <button onClick={() => { if (!rowMachineName) return; setGenModal({ task, part, total: loads, requirement: planTotal, created: existingCards.length, rowId, machineName: rowMachineName, sheets, isRepair: shortage > 0 }) }} 
+                                          style={{ flex: 1, background: shortage > 0 ? '#ef4444' : '#333', color: '#fff', border: 'none', padding: '8px 10px', borderRadius: '10px', cursor: rowMachineName ? 'pointer' : 'not-allowed', fontWeight: 900, fontSize: '0.6rem', textTransform: 'uppercase' }}>
+                                          {shortage > 0 ? 'ДОВИПУСК' : 'ГЕНЕРУВАТИ'}
+                                        </button>
                                       )}
-                                      {existing.length > 0 && <button onClick={() => setPrintQueue({ task, part, metadata: existing.map(c => ({ id: c.id, loading: c.card_info, qty: c.quantity || (loads > 0 ? Math.floor(total / loads) : '—'), machine: c.machine, totalLoadings: loads, sheetsPerLoading: machines.find(m => m.name === c.machine)?.sheet_capacity || 1, estimatedTime: (Number(part.nom?.time_per_unit) || 0) * (Number(c.quantity) || 0) })) })} style={{ width: (existing.length < loads) ? '40px' : '100%', background: (existing.length < loads) ? '#222' : '#10b981', color: '#fff', border: 'none', padding: '8px', borderRadius: '10px', cursor: 'pointer', fontWeight: 900, fontSize: '0.65rem' }}><Printer size={16} /></button>}
+                                      {existingCards.length > 0 && (
+                                        <button onClick={() => setPrintQueue({ task, part, metadata: existingCards.map(c => ({ id: c.id, loading: c.card_info, qty: c.quantity, machine: c.machine, totalLoadings: loads, sheetsPerLoading: machines.find(m => m.name === c.machine)?.sheet_capacity || 1, estimatedTime: (Number(part.nom?.time_per_unit) || 0) * (Number(c.quantity) || 0) })) })} 
+                                          style={{ background: '#10b981', color: '#fff', border: 'none', padding: '8px', borderRadius: '10px', cursor: 'pointer' }}>
+                                          <Printer size={16} />
+                                        </button>
+                                      )}
                                     </div>
                                   </td>
                                 </tr>
@@ -262,35 +299,91 @@ const ForemanWorkplace = () => {
                         </tbody>
                       </table>
                     </div>
-                  </div>
 
-                  <h3 style={{ fontSize: '0.75rem', color: '#444', textTransform: 'uppercase', marginBottom: '20px' }}>Архів робочих карток</h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
-                    {taskCards.map(card => {
-                      const nom = nomenclatures.find(n => n.id === card.nomenclature_id)
-                      const loadingText = card.card_info?.split(' [')[0]
-                      const getStatusBadge = () => {
-                         if (card.status === 'new') return { label: 'ОЧІКУЄ', color: '#eab308' };
-                         if (card.status === 'in-progress') return { label: `У РОБОТІ: ${card.operation?.toUpperCase()}`, color: '#3b82f6' };
-                         if (card.status === 'at-buffer' || card.status === 'waiting-buffer') return { label: `БУФЕР: ${card.operation?.toUpperCase()}`, color: '#10b981' };
-                         if (card.status === 'completed') return { label: 'ЗАВЕРШЕНО', color: '#10b981' };
-                         return { label: card.status?.toUpperCase(), color: '#555' };
-                      }
-                      const badge = getStatusBadge();
-                      const handleReprintCard = () => {
-                         const currentNom = nomenclatures.find(n => n.id === card.nomenclature_id);
-                         const currentTask = tasks.find(t => t.id === card.task_id);
-                         setPrintQueue({ task: currentTask, part: { nom: currentNom, nomenclature_id: card.nomenclature_id }, metadata: [{ id: card.id, loading: card.card_info?.split(' [')[0], qty: card.quantity, machine: card.machine, totalLoadings: '—', sheetsPerLoading: machines.find(m => m.name === card.machine)?.sheet_capacity || 1, estimatedTime: (Number(currentNom?.time_per_unit) || 0) * (Number(card.quantity) || 0) }] });
-                      }
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#444', textTransform: 'uppercase', marginBottom: '25px', marginTop: '50px', borderLeft: '4px solid #ef4444', paddingLeft: '15px' }}>
+                    Архів робочих карток
+                  </h3>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}>
+                    {Object.entries(
+                      taskCards.reduce((acc, card) => {
+                        const nomId = card.nomenclature_id || 'unknown';
+                        if (!acc[nomId]) acc[nomId] = [];
+                        acc[nomId].push(card);
+                        return acc;
+                      }, {})
+                    ).map(([nomId, cards]) => {
+                      const nom = nomenclatures.find(n => (n.id === nomId || n.id === Number(nomId)));
+                      const groupProduced = cards.filter(c => c.status === 'completed').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0);
+                      const groupScrap = workCardHistory.filter(h => h.nomenclature_id === nom?.id && h.task_id === task.id).reduce((sum, h) => sum + (Number(h.scrap_qty) || 0), 0);
+
+                      const stages = cards.reduce((acc, c) => {
+                        if (c.status === 'new') acc.waiting++;
+                        else if (c.status === 'completed') acc.reception++;
+                        else if (c.operation?.includes('Різка')) acc.cutting++;
+                        else if (c.operation?.includes('Галтовка')) acc.tumbling++;
+                        else if (c.operation?.includes('Прийомка')) acc.reception++;
+                        return acc;
+                      }, { waiting: 0, cutting: 0, tumbling: 0, reception: 0 });
+
                       return (
-                        <div key={card.id} onClick={handleReprintCard} style={{ background: '#111', padding: '15px', borderRadius: '18px', display: 'flex', gap: '15px', alignItems: 'center', border: '1px solid #222', cursor: 'pointer', transition: '0.2s' }} className="archive-card-hover">
-                          <div style={{ background: '#fff', padding: '6px', borderRadius: '8px' }}><QRCodeSVG value={`CENTRUM_CARD_${card.id}`} size={50} /></div>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                               <div style={{ fontSize: '0.9rem', fontWeight: 800 }}>{nom?.name || 'Деталь'}</div>
-                               <span style={{ fontSize: '0.55rem', fontWeight: 1000, padding: '2px 6px', borderRadius: '4px', background: `${badge.color}22`, color: badge.color, border: `1px solid ${badge.color}44` }}>{badge.label}</span>
+                        <div key={nomId} className="nomenclature-archive-group">
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', background: '#111', padding: '10px 20px', borderRadius: '12px', border: '1px solid #222' }}>
+                            <div style={{ fontWeight: 900, fontSize: '0.95rem', color: '#fff' }}>{nom?.name || 'Невідома деталь'}</div>
+                            <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+                              <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800 }}>
+                                КАРТОК: <span style={{ color: '#fff' }}>{cards.length}</span>
+                                <small style={{ marginLeft: '10px', color: '#444' }}>
+                                  ( {stages.waiting > 0 && <span style={{ color: '#eab308' }}>Очікують: {stages.waiting} </span>}
+                                  {stages.cutting > 0 && <span style={{ color: '#3b82f6' }}>Різка: {stages.cutting} </span>}
+                                  {stages.tumbling > 0 && <span style={{ color: '#a855f7' }}>Галтовка: {stages.tumbling} </span>}
+                                  {stages.reception > 0 && <span style={{ color: '#10b981' }}>Прийомка: {stages.reception} </span>} )
+                                </small>
+                              </div>
+                              <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800, borderLeft: '1px solid #222', paddingLeft: '15px' }}>ПРИЙНЯТО: <span style={{ color: '#3b82f6' }}>{groupProduced}</span></div>
+                              <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800 }}>БРАК: <span style={{ color: '#ef4444' }}>{groupScrap}</span></div>
                             </div>
-                            <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '4px' }}>Завантаження: {loadingText} | {card.machine}</div>
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '15px' }}>
+                            {cards.map(card => {
+                              const loadingText = card.card_info?.split(' [')[0]
+                              const getStatusBadge = () => {
+                                if (card.status === 'new') return { label: 'ОЧІКУЄ', color: '#eab308' };
+                                if (card.status === 'in-progress') return { label: `У РОБОТІ: ${card.operation?.toUpperCase()}`, color: '#3b82f6' };
+                                if (card.status === 'at-buffer' || card.status === 'waiting-buffer') return { label: `БУФЕР: ${card.operation?.toUpperCase()}`, color: '#10b981' };
+                                if (card.status === 'completed') return { label: 'ЗАВЕРШЕНО', color: '#10b981' };
+                                return { label: card.status?.toUpperCase(), color: '#555' };
+                              }
+                              const badge = getStatusBadge();
+                              const handleReprintCard = () => {
+                                setPrintQueue({ 
+                                  task, 
+                                  part: { nom, nomenclature_id: card.nomenclature_id }, 
+                                  metadata: [{ 
+                                    id: card.id, 
+                                    loading: card.card_info?.split(' [')[0], 
+                                    qty: card.quantity, 
+                                    machine: card.machine, 
+                                    totalLoadings: '—', 
+                                    sheetsPerLoading: machines.find(m => m.name === card.machine)?.sheet_capacity || 1, 
+                                    estimatedTime: (Number(nom?.time_per_unit) || 0) * (Number(card.quantity) || 0) 
+                                  }] 
+                                });
+                              }
+                              return (
+                                <div key={card.id} onClick={handleReprintCard} style={{ background: '#0f0f0f', padding: '15px', borderRadius: '18px', display: 'flex', gap: '15px', alignItems: 'center', border: '1px solid #1a1a1a', cursor: 'pointer', transition: '0.2s' }} className="archive-card-hover">
+                                  <div style={{ background: '#fff', padding: '6px', borderRadius: '8px' }}><QRCodeSVG value={`CENTRUM_CARD_${card.id}`} size={45} /></div>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                      <div style={{ fontSize: '0.8rem', fontWeight: 800 }}>Кількість: {card.quantity}</div>
+                                      <span style={{ fontSize: '0.5rem', fontWeight: 1000, padding: '2px 6px', borderRadius: '4px', background: `${badge.color}22`, color: badge.color, border: `1px solid ${badge.color}44` }}>{badge.label}</span>
+                                    </div>
+                                    <div style={{ fontSize: '0.6rem', color: '#444', marginTop: '4px' }}>{loadingText} | {card.machine}</div>
+                                  </div>
+                                </div>
+                              )
+                            })}
                           </div>
                         </div>
                       )
