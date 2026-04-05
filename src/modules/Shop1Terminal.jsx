@@ -85,16 +85,23 @@ export default function Shop1Terminal() {
           await stopAndClose()
           
           let card = workCards.find(c => String(c.id).trim() === id)
+          
           if (!card) {
             setIsSyncing(true)
-            await fetchData().catch(() => {})
+            // Direct DB lookup for instant discovery of newly created cards
+            const { data: freshCard, error: fetchError } = await supabase
+              .from('work_cards')
+              .select('*')
+              .eq('id', id)
+              .single()
+            
             setIsSyncing(false)
-            card = workCards.find(c => String(c.id).trim() === id)
-          }
-
-          if (!card) { 
-            setScanError(`Картку №${id} не знайдено`); 
-            return 
+            
+            if (fetchError || !freshCard) {
+              setScanError(`Картку №${id} не знайдено.`)
+              return
+            }
+            card = freshCard
           }
 
           // Дозволяємо картки "Нова" або ті, що вже в ланцюжку Цеху №1
@@ -102,7 +109,7 @@ export default function Shop1Terminal() {
           const isInChain = CHAIN.includes(card.operation)
           
           if (!isNew && !isInChain) { 
-            setScanError(`Картка #${id} — не для Цеху №1 (${card.operation})`); 
+            setScanError(`Картка #${id} — не для Цеху №1 (${card.operation})`)
             return 
           }
 
@@ -474,22 +481,22 @@ export default function Shop1Terminal() {
         </div>
 
         {/* Заголовок */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: '2rem', fontWeight: 950, letterSpacing: '-0.02em' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+          <div style={{ flex: 1 }}>
+            <h2 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 950, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
               {nom?.name || 'Деталь'}
             </h2>
-            <div style={{ fontSize: '0.68rem', color: '#444', marginTop: '4px' }}>
-              Картка #{currentCard.id} · {currentCard.quantity} шт
+            <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800, marginTop: '6px', textTransform: 'uppercase' }}>
+              Картка #{currentCard.id.slice(-8).toUpperCase()} · {currentCard.quantity} шт
             </div>
           </div>
           <button onClick={() => setSelectedCardId(null)}
-            style={{ background: '#111', border: 'none', color: '#555', padding: '9px', borderRadius: '10px', cursor: 'pointer' }}>
-            <X size={20} />
+            style={{ background: '#111', border: 'none', color: '#555', padding: '10px', borderRadius: '12px', cursor: 'pointer', marginLeft: '10px' }}>
+            <X size={22} />
           </button>
         </div>
 
-        <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '22px', border: '1px solid #1a1a1a', padding: '32px' }}>
+        <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '24px', border: '1px solid #1a1a1a', padding: '25px 20px' }}>
 
           {/* ── СТАН: NEW → Форма старту ──────────────────────────────────── */}
           {(status === 'new' || (status === 'in-progress' && !CHAIN.includes(currentCard.operation))) && (() => {
@@ -550,32 +557,32 @@ export default function Shop1Terminal() {
                   </div>
                 </div>
 
-                <div style={{ fontSize: '5.5rem', fontWeight: 1000, color: '#10b981', fontFamily: 'monospace', lineHeight: 1, letterSpacing: '-0.05em' }}>
+                <div style={{ fontSize: '4.5rem', fontWeight: 1000, color: '#10b981', fontFamily: 'monospace', lineHeight: 1, letterSpacing: '-0.05em' }}>
                   {formatTime(currentCard.started_at)}
                 </div>
                 
-                <div style={{ color: '#333', fontSize: '0.72rem', marginTop: '12px', marginBottom: '32px', fontWeight: 800 }}>
-                  ОПЕРАТОР: <span style={{ color: '#666' }}>{currentCard.operator_name || '—'}</span>
+                <div style={{ color: '#444', fontSize: '0.7rem', marginTop: '15px', marginBottom: '30px', fontWeight: 800, textTransform: 'uppercase' }}>
+                  ОПЕРАТОР: <span style={{ color: '#888' }}>{currentCard.operator_name || '—'}</span>
                 </div>
 
               {/* Стрілка куди піде картка */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '28px', background: '#f59e0b0d', border: '1px solid #f59e0b22', borderRadius: '12px', padding: '11px 20px' }}>
-                <span style={{ fontSize: '0.68rem', color: '#555', fontWeight: 700 }}>{currentCard.operation}</span>
-                <ArrowRight size={13} color="#f59e0b" />
-                <span style={{ fontSize: '0.62rem', background: '#f59e0b', color: '#000', fontWeight: 900, padding: '2px 8px', borderRadius: '5px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '25px', background: '#f59e0b0d', border: '1px solid #f59e0b22', borderRadius: '14px', padding: '12px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.65rem', color: '#555', fontWeight: 700 }}>{currentCard.operation}</span>
+                <ArrowRight size={12} color="#f59e0b" />
+                <span style={{ fontSize: '0.6rem', background: '#f59e0b', color: '#000', fontWeight: 900, padding: '3px 8px', borderRadius: '6px', textTransform: 'uppercase' }}>
                   БУФЕР {currentCard.operation?.toUpperCase()}
                 </span>
                 {!isFinal && (
                   <>
-                    <ArrowRight size={13} color="#444" />
-                    <span style={{ fontSize: '0.68rem', color: '#444', fontWeight: 700 }}>{next}</span>
+                    <ArrowRight size={12} color="#444" />
+                    <span style={{ fontSize: '0.65rem', color: '#444', fontWeight: 700 }}>{next}</span>
                   </>
                 )}
               </div>
 
                 <button onClick={() => { setScrapCount(0); setFinalOperator(currentCard.operator_name || ''); setShowCompleteModal(true) }}
-                  style={{ background: '#ec4899', color: '#fff', border: 'none', padding: '22px 64px', borderRadius: '18px', fontSize: '1.3rem', fontWeight: 1000, cursor: 'pointer', boxShadow: '0 10px 30px rgba(236,72,153,0.2)' }}>
-                  {isFinal ? '✓ ПРИЙНЯТО' : `✓ ЗАВЕРШИТИ ${opName}`}
+                  style={{ background: '#ec4899', color: '#fff', border: 'none', padding: '22px', width: '100%', borderRadius: '18px', fontSize: '1.3rem', fontWeight: 1000, cursor: 'pointer', boxShadow: '0 10px 30px rgba(236,72,153,0.3)' }}>
+                  {isFinal ? '✓ ПРИЙНЯТО' : `ЗАВЕРШИТИ ${opName}`}
                 </button>
               </div>
             )
@@ -744,22 +751,27 @@ export default function Shop1Terminal() {
         </button>
       </div>
 
-      {/* Ланцюжок з буферами + сток Прийомки */}
-      <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, marginBottom: '36px', overflowX: 'auto', paddingBottom: '6px' }}>
-        {/* ─── Етапи: Різка та Галтовка ─── */}
+      {/* Ланцюжок з буферами + сток Прийомки (GRID LAYOUT) */}
+      <div className="stages-grid-responsive" style={{ 
+        display: 'grid', 
+        gap: '12px', 
+        marginBottom: '36px',
+        alignItems: 'stretch'
+      }}>
         {['Різка', 'Галтовка'].map((stage, idx) => {
           const s = stageStats(stage)
           return (
             <React.Fragment key={stage}>
               <div onClick={() => { setDetailStage(stage); setDetailTab('work') }}
                 style={{ 
-                  flex: '1 1 180px', minWidth: '160px', background: '#0a0a0a', 
-                  border: '1px solid #222', borderTop: `4px solid ${idx === 0 ? '#3b82f6' : '#f59e0b'}`,
+                  background: '#0a0a0a', 
+                  border: '1px solid #222', 
+                  borderTop: `4px solid ${idx === 0 ? '#3b82f6' : '#f59e0b'}`,
                   borderRadius: '20px', padding: '20px 16px', cursor: 'pointer',
-                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                  gridArea: `stage${idx + 1}`
                 }}
-                className="s1-stage-card">
+                className="s1-stage-card s1-stage-hover">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                   <span style={{ fontSize: '0.65rem', fontWeight: 1000, color: '#444', textTransform: 'uppercase', letterSpacing: '0.12em' }}>{stage}</span>
                   <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: s.inWork > 0 ? '#10b981' : '#222', boxShadow: s.inWork > 0 ? '0 0 8px #10b981' : 'none' }} />
@@ -784,23 +796,26 @@ export default function Shop1Terminal() {
                 </div>
               </div>
               
-              {/* Буфер між етапами або перехід до складу */}
-              {(() => {
-                const bufQty = s.inBuffer
-                const color = idx === 0 ? '#f59e0b' : '#10b981'
-                return (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 6px', flexShrink: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                      <div style={{ width: '20px', height: '2px', background: bufQty > 0 ? color : '#222' }} />
-                      <ChevronRight size={14} color={bufQty > 0 ? color : '#222'} />
-                    </div>
-                    <div style={{ marginTop: '5px', fontSize: '0.46rem', fontWeight: 900, textTransform: 'uppercase', padding: '2px 6px', borderRadius: '4px',
-                      background: bufQty > 0 ? `${color}20` : '#1a1a1a', color: bufQty > 0 ? color : '#2a2a2a' }}>
-                      {bufQty > 0 ? `${bufQty} шт` : (idx === 0 ? 'БУФЕР' : 'СКЛАД')}
-                    </div>
-                  </div>
-                )
-              })()}
+              {/* Буфер між етапами або перехід до складу (Arrow) */}
+              <div 
+                className={`hide-mobile`}
+                style={{ 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  padding: '0 6px',
+                  gridArea: `arrow${idx + 1}`
+                }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <div style={{ width: '20px', height: '2px', background: s.inBuffer > 0 ? (idx === 0 ? '#f59e0b' : '#10b981') : '#222' }} />
+                  <ChevronRight size={14} color={s.inBuffer > 0 ? (idx === 0 ? '#f59e0b' : '#10b981') : '#222'} />
+                </div>
+                <div style={{ marginTop: '5px', fontSize: '0.46rem', fontWeight: 900, textTransform: 'uppercase', padding: '2px 6px', borderRadius: '4px',
+                  background: s.inBuffer > 0 ? `${idx === 0 ? '#f59e0b20' : '#10b98120'}` : '#1a1a1a', color: s.inBuffer > 0 ? (idx === 0 ? '#f59e0b' : '#10b981') : '#2a2a2a' }}>
+                  {s.inBuffer > 0 ? `${s.inBuffer} шт` : (idx === 0 ? 'БУФЕР' : 'СКЛАД')}
+                </div>
+              </div>
             </React.Fragment>
           )
         })}
@@ -814,14 +829,14 @@ export default function Shop1Terminal() {
           return (
             <div onClick={() => setShowStorageExplorer(true)}
               style={{ 
-                flex: '1.5 1 200px', minWidth: '180px', 
                 background: 'linear-gradient(145deg, #0d1a15 0%, #050a08 100%)', 
                 border: '1px solid #10b98130', borderTop: '4px solid #10b981',
                 borderRadius: '22px', padding: '20px 16px', cursor: 'pointer',
                 boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-                transition: 'all 0.2s ease'
+                transition: 'all 0.2s ease',
+                gridArea: 'storage'
               }}
-              className="s1-stage-card-storage">
+              className="s1-stage-card-storage s1-stage-hover">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                 <span style={{ fontSize: '0.65rem', fontWeight: 1000, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.12em' }}>ПРИЙОМКА / СКЛАД</span>
                 <ClipboardList size={14} color="#10b981" style={{ opacity: 0.5 }} />
@@ -849,63 +864,62 @@ export default function Shop1Terminal() {
         })()}
       </div>
 
-
       {/* Таблиця активних карток */}
-      <div style={{ background: '#111', borderRadius: '18px', border: '1px solid #1a1a1a', overflow: 'hidden' }}>
-        <div style={{ padding: '18px 22px', borderBottom: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0, fontSize: '0.8rem', fontWeight: 900, color: '#555', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-            В РОБОТІ ТА БУФЕРІ
-          </h3>
-          {isSyncing && <div style={{ fontSize: '0.65rem', color: '#eab308', display: 'flex', alignItems: 'center', gap: '6px' }}><RefreshCw size={11} className="spin-s1" /> Оновлення...</div>}
+      <div style={{ background: '#111', borderRadius: '24px', border: '1px solid #1a1a1a', overflow: 'hidden' }}>
+        <div style={{ padding: '25px', borderBottom: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900 }}>В РОБОТІ ТА БУФЕРІ</h3>
+          {isSyncing && <div style={{ fontSize: '0.7rem', color: '#eab308', display: 'flex', alignItems: 'center', gap: '8px' }}><RefreshCw className="spin-s1" size={12} /> Оновлення...</div>}
         </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-          <thead>
-            <tr style={{ background: '#0d0d0d', fontSize: '0.58rem', fontWeight: 900, color: '#333', textTransform: 'uppercase' }}>
-              <th style={{ padding: '11px 18px' }}>ДЕТАЛЬ</th>
-              <th style={{ padding: '11px 18px' }}>ОПЕРАЦІЯ</th>
-              <th style={{ padding: '11px 18px' }}>СТАТУС</th>
-              <th style={{ padding: '11px 18px' }}>К-СТЬ</th>
-              <th style={{ padding: '11px 18px' }}>ОПЕРАТОР</th>
-              <th style={{ padding: '11px 18px' }}>ЧАС</th>
-              <th style={{ padding: '11px 18px' }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {workCards
-              .filter(c => CHAIN.includes(c.operation) && (c.status === 'in-progress' || c.status === 'at-buffer'))
-              .map(card => {
-                const inBuf = card.status === 'at-buffer'
-                return (
-                  <tr key={card.id} style={{ borderBottom: '1px solid #161616', fontSize: '0.8rem' }}>
-                    <td style={{ padding: '13px 18px', fontWeight: 800 }}>{getNom(card)?.name || '—'}</td>
-                    <td style={{ padding: '13px 18px', color: '#777' }}>{card.operation}</td>
-                    <td style={{ padding: '13px 18px' }}>
-                      <span style={{
-                        fontSize: '0.6rem', fontWeight: 900, textTransform: 'uppercase',
-                        background: inBuf ? '#f59e0b18' : '#3b82f618',
-                        color: inBuf ? '#f59e0b' : '#3b82f6',
-                        padding: '3px 8px', borderRadius: '5px'
-                      }}>
-                        {inBuf ? '▣ БУФЕР' : '▶ У РОБОТІ'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '13px 18px', fontWeight: 900 }}>{card.quantity} шт</td>
-                    <td style={{ padding: '13px 18px', color: '#555' }}>{card.operator_name || '—'}</td>
-                    <td style={{ padding: '13px 18px', color: '#10b981', fontFamily: 'monospace', fontWeight: 700 }}>{formatTime(card.started_at)}</td>
-                    <td style={{ padding: '13px 18px', textAlign: 'right' }}>
-                      <button onClick={() => { setSelectedCardId(card.id); setSelectedOperator('') }}
-                        style={{ background: '#1e1e1e', border: 'none', color: '#bbb', padding: '6px 13px', borderRadius: '7px', cursor: 'pointer', fontSize: '0.65rem', fontWeight: 800 }}>
-                        ВІДКРИТИ
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            {workCards.filter(c => CHAIN.includes(c.operation) && (c.status === 'in-progress' || c.status === 'at-buffer')).length === 0 && (
-              <tr><td colSpan={7} style={{ padding: '36px', textAlign: 'center', color: '#222', fontSize: '0.8rem' }}>Немає активних карток</td></tr>
-            )}
-          </tbody>
-        </table>
+        <div className="table-responsive-container" style={{ border: 'none', borderRadius: 0 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <thead>
+              <tr style={{ background: '#0a0a0a', fontSize: '0.65rem', fontWeight: 900, color: '#555', textTransform: 'uppercase' }}>
+                <th style={{ padding: '15px 25px' }}>ДЕТАЛЬ</th>
+                <th style={{ padding: '15px 25px' }}>ЕТАП</th>
+                <th style={{ padding: '15px 25px' }}>СТАТУС</th>
+                <th style={{ padding: '15px 25px' }}>К-СТЬ</th>
+                <th style={{ padding: '15px 25px' }}>ОПЕРАТОР</th>
+                <th style={{ padding: '15px 25px' }}>ЧАС</th>
+                <th style={{ padding: '15px 25px' }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {workCards
+                .filter(c => CHAIN.includes(c.operation) && (c.status === 'in-progress' || c.status === 'at-buffer'))
+                .map(card => {
+                  const inBuf = card.status === 'at-buffer'
+                  return (
+                    <tr key={card.id} style={{ borderBottom: '1px solid #1a1a1a', fontSize: '0.85rem' }}>
+                      <td style={{ padding: '15px 25px', fontWeight: 800 }}>{getNom(card)?.name || '—'}</td>
+                      <td style={{ padding: '15px 25px' }}>{card.operation}</td>
+                      <td style={{ padding: '15px 25px' }}>
+                        <span style={{
+                          fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase',
+                          background: inBuf ? '#f59e0b18' : '#3b82f618',
+                          color: inBuf ? '#f59e0b' : '#3b82f6',
+                          padding: '4px 10px', borderRadius: '6px'
+                        }}>
+                          {inBuf ? '▣ БУФЕР' : '▶ РОБОТА'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '15px 25px', fontWeight: 900 }}>{card.quantity} шт</td>
+                      <td style={{ padding: '15px 25px', color: '#aaa' }}>{card.operator_name || '—'}</td>
+                      <td style={{ padding: '15px 25px', color: '#10b981', fontFamily: 'monospace', fontWeight: 700 }}>{formatTime(card.started_at)}</td>
+                      <td style={{ padding: '15px 25px', textAlign: 'right' }}>
+                        <button onClick={() => { setSelectedCardId(card.id); setSelectedOperator('') }}
+                          style={{ background: '#222', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 800 }}>
+                          ВІДКРИТИ
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              {workCards.filter(c => CHAIN.includes(c.operation) && (c.status === 'in-progress' || c.status === 'at-buffer')).length === 0 && (
+                <tr><td colSpan={7} style={{ padding: '50px', textAlign: 'center', color: '#444', fontSize: '0.8rem' }}>Немає активних карток</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )
@@ -915,58 +929,51 @@ export default function Shop1Terminal() {
     <div style={{ background: '#0a0a0a', height: '100vh', display: 'flex', flexDirection: 'column', color: '#fff', overflow: 'hidden' }}>
 
       {/* Хедер */}
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 20px', height: '64px', background: '#000', borderBottom: '2px solid #eab308', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <Link to="/" style={{ color: '#555', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem' }}>
-            <ArrowLeft size={16} /> Вихід
+      <header className="terminal-nav" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 20px', height: '70px', background: '#000', borderBottom: '2px solid #eab308', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <Link to="/" style={{ color: '#94a3b8', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '0.85rem' }}>
+            <ArrowLeft size={18} /> <span className="hide-mobile">Вихід</span>
           </Link>
-          <button onClick={() => setIsDrawerOpen(true)}
-            style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}
-            className="s1-burger-btn">
-            <Menu size={20} />
-          </button>
+          <button onClick={() => setIsDrawerOpen(true)} className="burger-btn mobile-only"><Menu size={24} /></button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#eab308', boxShadow: '0 0 8px #eab308' }} />
-          <span style={{ fontSize: '0.9rem', fontWeight: 900, letterSpacing: '0.06em' }}>ЦЕХ №1</span>
+          <span style={{ fontSize: '1rem', fontWeight: 800, margin: 0 }} className="hide-mobile">ЦЕХ №1: ТЕРМІНАЛ</span>
         </div>
-        <div style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: '1.1rem', color: '#eab308' }}>
+        <div style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: '1.2rem', color: '#eab308' }}>
           {currentTime.toLocaleTimeString()}
         </div>
       </header>
 
       {/* Layout */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      <div className="main-layout-responsive" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
-        {/* Ліва панель черги */}
-        <div style={{ width: '258px', background: '#111', borderRight: '1px solid #1a1a1a', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-          <div style={{ padding: '16px 14px 10px', fontSize: '0.6rem', textTransform: 'uppercase', fontWeight: 900, color: '#333', display: 'flex', alignItems: 'center', gap: '7px', borderBottom: '1px solid #1a1a1a' }}>
-            <ClipboardList size={13} /> ЧЕРГА ({queueCards.length})
+        {/* Ліва панель черги (Десктоп) */}
+        <div className="side-panel hide-mobile" style={{ width: '280px', background: '#111', borderRight: '1px solid #1a1a1a', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+          <div style={{ padding: '20px 15px 15px', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 900, color: '#555', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid #1a1a1a' }}>
+            <ClipboardList size={16} /> ЧЕРГА КАРТ ({queueCards.length})
           </div>
           {renderQueue()}
-          <div style={{ padding: '12px', borderTop: '1px solid #1a1a1a' }}>
+          <div style={{ padding: '15px', borderTop: '1px solid #1a1a1a' }}>
             <button onClick={() => setIsScanning(true)}
-              style={{ width: '100%', background: '#eab30815', border: '1px solid #eab30830', color: '#eab308', padding: '11px', borderRadius: '10px', fontWeight: 900, fontSize: '0.78rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-              <Camera size={15} /> СКАНУВАТИ
+              style={{ width: '100%', background: '#eab30815', border: '1px solid #eab30830', color: '#eab308', padding: '14px', borderRadius: '12px', fontWeight: 900, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              <Camera size={18} /> СКАНУВАТИ
             </button>
           </div>
         </div>
 
         {/* Мобільний дравер */}
-        {isDrawerOpen && (
-          <div onClick={() => setIsDrawerOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9000 }}>
-            <div onClick={e => e.stopPropagation()} style={{ width: '260px', height: '100%', background: '#111', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1a1a1a' }}>
-                <span style={{ fontWeight: 900, fontSize: '0.78rem' }}>ЧЕРГА</span>
-                <button onClick={() => setIsDrawerOpen(false)} style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer' }}><X size={18} /></button>
-              </div>
-              {renderQueue()}
-            </div>
+        {isDrawerOpen && <div className="drawer-backdrop" onClick={() => setIsDrawerOpen(false)} />}
+        <div className={`side-drawer ${isDrawerOpen ? 'open' : ''}`}>
+          <div className="drawer-header">
+            <span style={{ fontSize: '0.8rem', fontWeight: 900, color: '#eab308' }}>ЧЕРГА (ОБЕРІТЬ КАРТУ)</span>
+            <button onClick={() => setIsDrawerOpen(false)} className="burger-btn"><X size={20} /></button>
           </div>
-        )}
+          {renderQueue()}
+        </div>
 
         {/* Основний контент */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '24px 20px' }}>
+        <div className="content-panel" style={{ flex: 1, overflowY: 'auto', padding: '25px 15px', background: '#0a0a0a' }}>
           {scanError && (
             <div style={{ background: '#ef444420', border: '1px solid #ef444440', borderRadius: '10px', padding: '12px 16px', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '10px', color: '#ef4444', maxWidth: '680px' }}>
               <AlertTriangle size={16} /> {scanError}
@@ -1178,6 +1185,31 @@ export default function Shop1Terminal() {
         @keyframes spinS1 { 100% { transform: rotate(360deg); } }
         .s1-burger-btn { display: none; }
         @media (max-width: 768px) { .s1-burger-btn { display: flex!important; } }
+
+        /* Hover effect for cards */
+        .s1-stage-hover {
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .s1-stage-hover:hover {
+          background: #111 !important;
+          border-color: #333 !important;
+          transform: translateY(-2px);
+          box-shadow: 0 8px 20px rgba(0,0,0,0.4) !important;
+        }
+
+        .stages-grid-responsive {
+          grid-template-columns: 1fr auto 1fr auto 1.5fr;
+          grid-template-areas: "stage1 arrow1 stage2 arrow2 storage";
+        }
+
+        @media (max-width: 768px) {
+          .stages-grid-responsive {
+            grid-template-columns: 1fr 1fr;
+            grid-template-areas: 
+              "stage1 stage2"
+              "storage storage";
+          }
+        }
       `}</style>
     </div>
   )
