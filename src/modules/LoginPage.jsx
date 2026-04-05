@@ -51,25 +51,20 @@ const LoginPage = () => {
         zIndex: 10,
         textAlign: 'center'
       }}>
-        <div className="login-logo" style={{ marginBottom: '40px' }}>
-          <div style={{
-            width: '80px',
-            height: '80px',
-            background: 'linear-gradient(135deg, #ff9000, #ff5e00)',
-            borderRadius: '24px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: '0 auto 20px',
-            boxShadow: '0 20px 40px rgba(255,144,0,0.3)'
-          }}>
-            <ShieldCheck size={40} color="#000" />
+        <div className="login-logo" style={{ marginBottom: '50px' }}>
+          <div style={{ position: 'relative', width: '100px', height: '100px', margin: '0 auto 25px' }}>
+            <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle, rgba(255,144,0,0.4) 0%, transparent 70%)', filter: 'blur(15px)', borderRadius: '50%' }}></div>
+            <img 
+              src="/kulytsya.png" 
+              alt="Logo" 
+              style={{ width: '80px', height: '80px', position: 'relative', zIndex: 2, display: 'block', margin: '10px auto' }} 
+            />
           </div>
-          <h1 style={{ color: '#fff', fontSize: '1.8rem', fontWeight: 950, margin: 0, letterSpacing: '-1px' }}>
-            CRM <span style={{ color: '#ff9000' }}>CENTRUM</span>
+          <h1 style={{ color: '#fff', fontSize: '2.4rem', fontWeight: 950, margin: 0, letterSpacing: '-1.5px', textTransform: 'uppercase' }}>
+            CRM <span style={{ color: '#ff9000' }}>КУЛИЦЯ</span>
           </h1>
-          <p style={{ color: '#444', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.3em', marginTop: '10px' }}>
-            Industrial Authorization
+          <p style={{ color: '#555', fontSize: '0.8rem', fontWeight: 1000, textTransform: 'uppercase', letterSpacing: '0.45em', marginTop: '12px' }}>
+            INDUSTRIAL CONTROL V2.0
           </p>
         </div>
 

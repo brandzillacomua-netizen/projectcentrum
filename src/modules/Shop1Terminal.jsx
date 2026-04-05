@@ -359,8 +359,34 @@ export default function Shop1Terminal() {
     return {
       inWork:   cards.filter(c => c.status === 'in-progress').reduce((a, c) => a + (c.quantity || 0), 0),
       inBuffer: cards.filter(c => c.status === 'at-buffer').reduce((a, c) => a + (c.quantity || 0), 0),
-      scrap:    workCardHistory.filter(h => h.stage_name === stage).reduce((a, h) => a + (Number(h.scrap_qty) || 0), 0),
+      scrap:    workCardHistory.filter(h => h.stage_name === stage && !h.is_archived_scrap).reduce((a, h) => a + (Number(h.scrap_qty) || 0), 0),
       total:    cards.length
+    }
+  }
+
+  // ── ПЕРЕМІЩЕННЯ БРАКУ НА СКЛАД (Архівування з етапу) ────────────────────
+  const handleArchiveStageScrap = async (stage, nomId) => {
+    const unarchivedScrap = workCardHistory.filter(h => h.stage_name === stage && String(h.nomenclature_id) === String(nomId) && !h.is_archived_scrap && Number(h.scrap_qty) > 0)
+    const totalQty = unarchivedScrap.reduce((acc, h) => acc + Number(h.scrap_qty), 0)
+    
+    if (totalQty === 0) return
+    setIsProcessing(true)
+    
+    try {
+      // 1. Оновлюємо інвентар типу 'scrap'
+      await updateInventoryStock(nomId, totalQty, 'scrap')
+
+      // 2. Помічаємо history як архівоване
+      const idsToMark = unarchivedScrap.map(h => h.id)
+      const { error } = await supabase.from('work_card_history').update({ is_archived_scrap: true }).in('id', idsToMark)
+      if (error) throw error
+
+      await fetchData()
+    } catch (err) {
+      console.error('Archive scrap error:', err)
+      alert('Помилка архівації браку: ' + err.message)
+    } finally {
+      setIsProcessing(false)
     }
   }
 
@@ -1099,25 +1125,39 @@ export default function Shop1Terminal() {
               {(() => {
                 const agg = {}
                 if (detailTab === 'scrap') {
-                  workCardHistory.filter(h => h.stage_name === detailStage && Number(h.scrap_qty) > 0).forEach(h => {
+                  const scraps = workCardHistory.filter(h => h.stage_name === detailStage && !h.is_archived_scrap && Number(h.scrap_qty) > 0)
+                  scraps.forEach(h => {
                     const nom = nomenclatures.find(n => String(n.id) === String(h.nomenclature_id))
-                    agg[nom?.name || 'Деталь'] = (agg[nom?.name || 'Деталь'] || 0) + Number(h.scrap_qty)
+                    const nomId = h.nomenclature_id
+                    const name = nom?.name || 'Деталь'
+                    if (!agg[nomId]) agg[nomId] = { name, qty: 0, nomId }
+                    agg[nomId].qty += Number(h.scrap_qty)
                   })
                 } else {
                   workCards.filter(c => c.operation === detailStage && (detailTab === 'work' ? c.status === 'in-progress' : c.status === 'at-buffer')).forEach(c => {
                     const nom = getNom(c)
-                    agg[nom?.name || 'Деталь'] = (agg[nom?.name || 'Деталь'] || 0) + (c.quantity || 0)
+                    const name = nom?.name || 'Деталь'
+                    if (!agg[name]) agg[name] = { name, qty: 0 }
+                    agg[name].qty += (c.quantity || 0)
                   })
                 }
-                const items = Object.entries(agg)
+                const items = Object.values(agg)
                 if (!items.length) return <div style={{ textAlign: 'center', padding: '46px', color: '#222', fontSize: '0.78rem' }}>Немає даних</div>
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    {items.map(([name, qty], i) => (
+                    {items.map((item, i) => (
                       <div key={i} style={{ background: '#0d0d0d', padding: '12px 16px', borderRadius: '9px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ fontWeight: 800, fontSize: '0.85rem' }}>{name}</div>
+                        <div>
+                           <div style={{ fontWeight: 800, fontSize: '0.85rem' }}>{item.name}</div>
+                           {detailTab === 'scrap' && (
+                             <button onClick={() => handleArchiveStageScrap(detailStage, item.nomId)} disabled={isProcessing}
+                               style={{ marginTop: '5px', background: '#ef444415', border: '1px solid #ef444430', color: '#ef4444', fontSize: '0.55rem', fontWeight: 900, padding: '3px 8px', borderRadius: '5px', cursor: 'pointer', textTransform: 'uppercase' }}>
+                               {isProcessing ? 'Збереження...' : 'Здати на склад'}
+                             </button>
+                           )}
+                        </div>
                         <div style={{ fontWeight: 1000, fontSize: '1.05rem', color: detailTab === 'work' ? '#3b82f6' : detailTab === 'buffer' ? '#f59e0b' : '#ef4444' }}>
-                          {qty} <small style={{ opacity: 0.3, fontSize: '0.5rem' }}>шт</small>
+                          {item.qty} <small style={{ opacity: 0.3, fontSize: '0.5rem' }}>шт</small>
                         </div>
                       </div>
                     ))}
