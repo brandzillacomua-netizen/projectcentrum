@@ -46,8 +46,19 @@ const ForemanWorkplace = () => {
   const handleGenerateFromWorksheet = async (task, part, sheets, selectedMachineName, count, startOffset = 0, totalToReach = 0) => {
     const machineObj = machines.find(m => m.name === selectedMachineName)
     const capacity = Number(machineObj?.sheet_capacity) || 1
-    const displayTotal = Math.max(1, totalToReach || Math.ceil(sheets / capacity))
-    const qtyPerLoading = Math.floor((Number(part.nom?.units_per_sheet) || 1) * (sheets / displayTotal))
+    
+    // totalCards is the total number of loadings (e.g. 5)
+    // Avoid using totalToReach as the denominator for 1/5!
+    const totalCards = Math.ceil(sheets / capacity)
+    const displayTotal = totalCards
+
+    // Total units produced if we cut all sheets fully
+    const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
+    const totalPhysicalUnits = sheets * unitsPerSheet
+    
+    const qtyPerLoading = Math.floor(totalPhysicalUnits / totalCards)
+    const requirementPerLoading = totalToReach ? Math.floor(totalToReach / totalCards) : qtyPerLoading
+    const surplusPerLoading = qtyPerLoading - requirementPerLoading
 
     setIsGenerating(true)
     try {
@@ -59,7 +70,8 @@ const ForemanWorkplace = () => {
           machine: selectedMachineName || 'Не вказано',
           estimatedTime: (Number(part.nom?.time_per_unit) || 0) * qtyPerLoading,
           cardInfo: `${currentSeq}/${displayTotal}`,
-          quantity: qtyPerLoading
+          quantity: qtyPerLoading,
+          bufferQty: Math.max(0, surplusPerLoading)
         })
       }
       const createdCards = await apiService.submitCreateWorkCardsBatch(task.id, task.order_id, part.nom.id, cardsBatch, createWorkCard)
@@ -238,7 +250,7 @@ const ForemanWorkplace = () => {
                                   <td style={{ padding: '15px', textAlign: 'center' }}>
                                     <div style={{ display: 'flex', gap: '5px' }}>
                                       {(existing.length === 0 || existing.length < loads) && (
-                                        <button onClick={() => { if (!rowMachineName) return; setGenModal({ task, part, total: loads, created: existing.length, rowId, machineName: rowMachineName, sheets }) }} disabled={!rowMachineName} style={{ flex: 1, background: existing.length === 0 ? (rowMachineName ? '#333' : '#111') : '#3b82f6', color: rowMachineName ? '#fff' : '#333', border: 'none', padding: '8px 10px', borderRadius: '10px', cursor: rowMachineName ? 'pointer' : 'not-allowed', fontWeight: 900, fontSize: '0.6rem', textTransform: 'uppercase', opacity: rowMachineName ? 1 : 0.5 }}>ГЕНЕРУВАТИ</button>
+                                        <button onClick={() => { if (!rowMachineName) return; setGenModal({ task, part, total: loads, requirement: total, created: existing.length, rowId, machineName: rowMachineName, sheets }) }} disabled={!rowMachineName} style={{ flex: 1, background: existing.length === 0 ? (rowMachineName ? '#333' : '#111') : '#3b82f6', color: rowMachineName ? '#fff' : '#333', border: 'none', padding: '8px 10px', borderRadius: '10px', cursor: rowMachineName ? 'pointer' : 'not-allowed', fontWeight: 900, fontSize: '0.6rem', textTransform: 'uppercase', opacity: rowMachineName ? 1 : 0.5 }}>ГЕНЕРУВАТИ</button>
                                       )}
                                       {existing.length > 0 && <button onClick={() => setPrintQueue({ task, part, metadata: existing.map(c => ({ id: c.id, loading: c.card_info, qty: c.quantity || (loads > 0 ? Math.floor(total / loads) : '—'), machine: c.machine, totalLoadings: loads, sheetsPerLoading: machines.find(m => m.name === c.machine)?.sheet_capacity || 1, estimatedTime: (Number(part.nom?.time_per_unit) || 0) * (Number(c.quantity) || 0) })) })} style={{ width: (existing.length < loads) ? '40px' : '100%', background: (existing.length < loads) ? '#222' : '#10b981', color: '#fff', border: 'none', padding: '8px', borderRadius: '10px', cursor: 'pointer', fontWeight: 900, fontSize: '0.65rem' }}><Printer size={16} /></button>}
                                     </div>
@@ -256,7 +268,7 @@ const ForemanWorkplace = () => {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
                     {taskCards.map(card => {
                       const nom = nomenclatures.find(n => n.id === card.nomenclature_id)
-                      const loadingText = card.card_info
+                      const loadingText = card.card_info?.split(' [')[0]
                       const getStatusBadge = () => {
                          if (card.status === 'new') return { label: 'ОЧІКУЄ', color: '#eab308' };
                          if (card.status === 'in-progress') return { label: `У РОБОТІ: ${card.operation?.toUpperCase()}`, color: '#3b82f6' };
@@ -268,7 +280,7 @@ const ForemanWorkplace = () => {
                       const handleReprintCard = () => {
                          const currentNom = nomenclatures.find(n => n.id === card.nomenclature_id);
                          const currentTask = tasks.find(t => t.id === card.task_id);
-                         setPrintQueue({ task: currentTask, part: { nom: currentNom, nomenclature_id: card.nomenclature_id }, metadata: [{ id: card.id, loading: card.card_info, qty: card.quantity, machine: card.machine, totalLoadings: '—', sheetsPerLoading: machines.find(m => m.name === card.machine)?.sheet_capacity || 1, estimatedTime: (Number(currentNom?.time_per_unit) || 0) * (Number(card.quantity) || 0) }] });
+                         setPrintQueue({ task: currentTask, part: { nom: currentNom, nomenclature_id: card.nomenclature_id }, metadata: [{ id: card.id, loading: card.card_info?.split(' [')[0], qty: card.quantity, machine: card.machine, totalLoadings: '—', sheetsPerLoading: machines.find(m => m.name === card.machine)?.sheet_capacity || 1, estimatedTime: (Number(currentNom?.time_per_unit) || 0) * (Number(card.quantity) || 0) }] });
                       }
                       return (
                         <div key={card.id} onClick={handleReprintCard} style={{ background: '#111', padding: '15px', borderRadius: '18px', display: 'flex', gap: '15px', alignItems: 'center', border: '1px solid #222', cursor: 'pointer', transition: '0.2s' }} className="archive-card-hover">
@@ -300,7 +312,7 @@ const ForemanWorkplace = () => {
             <h2 style={{ fontSize: '1.8rem', fontWeight: 950, margin: 0, textAlign: 'center' }}>{genModal.part.nom?.name}</h2>
             <div style={{ color: '#ef4444', fontSize: '1.2rem', fontWeight: 900, textAlign: 'center', marginTop: '10px' }}>{genModal.created} / {genModal.total} КАРТ</div>
             <div style={{ margin: '30px 0' }}><input type="number" id="gen_count_input" defaultValue={genModal.total - genModal.created} min="1" max={genModal.total - genModal.created} style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', fontSize: '2rem', fontWeight: 950, textAlign: 'center', padding: '15px', borderRadius: '15px' }} /></div>
-            <button onClick={() => { const v = parseInt(document.getElementById('gen_count_input').value); if (v > 0) handleGenerateFromWorksheet(genModal.task, genModal.part, genModal.sheets, genModal.machineName, v, genModal.created, genModal.total); }} style={{ width: '100%', background: '#ef4444', color: '#fff', padding: '20px', borderRadius: '20px', fontWeight: 950, cursor: 'pointer', border: 'none' }}>ГЕНЕРУВАТИ ТА ДРУКУВАТИ</button>
+            <button onClick={() => { const v = parseInt(document.getElementById('gen_count_input').value); if (v > 0) handleGenerateFromWorksheet(genModal.task, genModal.part, genModal.sheets, genModal.machineName, v, genModal.created, genModal.requirement); }} style={{ width: '100%', background: '#ef4444', color: '#fff', padding: '20px', borderRadius: '20px', fontWeight: 950, cursor: 'pointer', border: 'none' }}>ГЕНЕРУВАТИ ТА ДРУКУВАТИ</button>
           </div>
         </div>
       )}
@@ -359,7 +371,7 @@ const ForemanWorkplace = () => {
                           <div style={{ width: '10%', borderRight: '1px solid #000', fontSize: '13pt', fontWeight: 1000 }}>{m.sheetsPerLoading}</div>
                           <div style={{ width: '12%', borderRight: '1px solid #000', fontSize: '8pt', fontWeight: 1000, lineHeight: 1.1 }}>{nomenclature?.material_type || '—'}</div>
                           <div style={{ width: '15%', borderRight: '1px solid #000', fontSize: '7.5pt', fontWeight: 1000, padding: '0 2px' }}>{m.machine}</div>
-                          <div style={{ width: '15%', borderRight: '1px solid #000', fontSize: '11pt', fontWeight: 1000 }}>{m.loading}</div>
+                          <div style={{ width: '15%', borderRight: '1px solid #000', fontSize: '11pt', fontWeight: 1000 }}>{m.loading?.split(' [')[0]}</div>
                           <div style={{ width: '18%', fontSize: '6pt', fontWeight: 900 }}></div>
                         </div>
                       </div>

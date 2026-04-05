@@ -19,7 +19,7 @@ import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
 
 const ManagerModule = () => {
-  const { nomenclatures, addOrder, orders, fetchOrders, hasMoreOrders, customers, searchCustomers } = useMES()
+  const { nomenclatures, addOrder, orders, fetchOrders, hasMoreOrders, customers, searchCustomers, currentUser } = useMES()
   const [activeTab, setActiveTab] = useState('new') // 'new' or 'list'
   const [orderHeader, setOrderHeader] = useState({ 
     orderDate: new Date().toISOString().split('T')[0],
@@ -69,7 +69,7 @@ const ManagerModule = () => {
       return
     }
     const items = [{ nomenclature_id: orderHeader.nomenclature_id, quantity: orderHeader.quantity }]
-    apiService.submitOrder(orderHeader, items, addOrder)
+    apiService.submitOrder(orderHeader, items, addOrder, currentUser?.token)
     alert('Замовлення успішно додано!')
     setOrderHeader({ 
       ...orderHeader,

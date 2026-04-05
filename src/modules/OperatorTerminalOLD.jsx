@@ -304,17 +304,10 @@ const OperatorTerminal = () => {
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px', marginBottom: '50px' }}>
                 {productionStages.map(stage => {
-                  const stageKey = stage.toLowerCase()
-                  const stageCards = workCards.filter(c => {
-                    const op = (c.operation || '').toLowerCase()
-                    return op === stageKey || op.includes(stageKey) || stageKey.includes(op)
-                  })
+                  const stageCards = workCards.filter(c => c.operation === stage)
                   const workQty = stageCards.filter(c => c.status === 'in-progress').reduce((acc, c) => acc + (c.quantity || 0), 0)
                   const bufferQty = stageCards.filter(c => ['at-buffer', 'waiting-buffer', 'completed'].includes(c.status)).reduce((acc, c) => acc + (c.quantity || 0), 0)
-                  const scrapQty = workCardHistory.filter(h => {
-                    const hn = (h.stage_name || '').toLowerCase()
-                    return hn === stageKey || hn.includes(stageKey) || stageKey.includes(hn)
-                  }).reduce((acc, h) => acc + (Number(h.scrap_qty) || 0), 0)
+                  const scrapQty = workCardHistory.filter(h => h.stage_name === stage).reduce((acc, h) => acc + (Number(h.scrap_qty) || 0), 0)
                   return (
                     <div key={stage} onClick={() => setDetailStage(stage)} className="stage-card-hover" style={{ background: '#111', border: '1px solid #222', borderRadius: '24px', padding: '20px', cursor: 'pointer', position: 'relative' }}>
                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>

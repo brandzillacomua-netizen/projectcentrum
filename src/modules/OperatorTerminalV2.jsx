@@ -1,23 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import {
-  Tablet,
-  ArrowLeft,
-  Play,
-  CheckCircle,
-  Scan,
-  Timer,
-  AlertTriangle,
-  X,
-  ClipboardList,
-  Camera,
-  Menu,
-  Fingerprint,
-  RefreshCw,
-  Search,
-  Box,
-  Layers,
-  FileCode,
-  Gauge
+  Tablet, ArrowLeft, Play, CheckCircle, Scan, Timer, AlertTriangle,
+  X, ClipboardList, Camera, Menu, Fingerprint, RefreshCw, Search,
+  Box, Layers, FileCode, Gauge
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
@@ -36,10 +21,8 @@ const OperatorTerminal = () => {
   const [scanError, setScanError] = useState(null)
 
   const [scannedCardIds, setScannedCardIds] = useState(() => {
-    try {
-      const saved = localStorage.getItem('centrum_operator_scanned')
-      return saved ? JSON.parse(saved) : []
-    } catch (e) { return [] }
+    try { const saved = localStorage.getItem('centrum_operator_scanned'); return saved ? JSON.parse(saved) : [] }
+    catch (e) { return [] }
   })
 
   const [isScanning, setIsScanning] = useState(false)
@@ -49,17 +32,11 @@ const OperatorTerminal = () => {
   const [pin, setPin] = useState('')
   const [pinError, setPinError] = useState(false)
   const [detailStage, setDetailStage] = useState(null)
-  const [detailTab, setDetailTab] = useState('work') 
+  const [detailTab, setDetailTab] = useState('work')
   const [filterStage, setFilterStage] = useState('all')
 
-  useEffect(() => {
-    localStorage.setItem('centrum_operator_scanned', JSON.stringify(scannedCardIds))
-  }, [scannedCardIds])
-
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000)
-    return () => clearInterval(timer)
-  }, [])
+  useEffect(() => { localStorage.setItem('centrum_operator_scanned', JSON.stringify(scannedCardIds)) }, [scannedCardIds])
+  useEffect(() => { const timer = setInterval(() => setCurrentTime(new Date()), 1000); return () => clearInterval(timer) }, [])
 
   useEffect(() => {
     let html5QrCode = null
@@ -67,36 +44,29 @@ const OperatorTerminal = () => {
       html5QrCode = new window.Html5Qrcode("reader")
       const config = { fps: 15, qrbox: { width: 260, height: 260 } }
       const stopAndClose = async () => {
-        if (html5QrCode && html5QrCode.isScanning) await html5QrCode.stop().catch(() => { })
+        if (html5QrCode && html5QrCode.isScanning) await html5QrCode.stop().catch(() => {})
         setIsScanning(false)
       }
-      html5QrCode.start(
-        { facingMode: "environment" }, config, async (decodedText) => {
-          if (decodedText.startsWith("CENTRUM_CARD_")) {
-            const cardIdStr = decodedText.replace("CENTRUM_CARD_", "").trim()
-            await stopAndClose()
-            let foundCard = workCards.find(c => String(c.id).trim() === cardIdStr)
-            if (!foundCard) {
-              setIsSyncing(true)
-              try {
-                if (typeof fetchData === 'function') await fetchData()
-              } catch (e) { }
-              setIsSyncing(false)
-              setScanError(`Картку №${cardIdStr} не знайдено. Спробуйте відсканувати ще раз.`)
-            } else {
-              setScannedCardIds(prev => prev.includes(foundCard.id) ? prev : [...prev, foundCard.id])
-              setSelectedCardId(foundCard.id)
-              setScanError(null)
-              window.scrollTo({ top: 0, behavior: 'smooth' })
-            }
+      html5QrCode.start({ facingMode: "environment" }, config, async (decodedText) => {
+        if (decodedText.startsWith("CENTRUM_CARD_")) {
+          const cardIdStr = decodedText.replace("CENTRUM_CARD_", "").trim()
+          await stopAndClose()
+          let foundCard = workCards.find(c => String(c.id).trim() === cardIdStr)
+          if (!foundCard) {
+            setIsSyncing(true)
+            try { if (typeof fetchData === 'function') await fetchData() } catch (e) {}
+            setIsSyncing(false)
+            setScanError(`Картку №${cardIdStr} не знайдено. Спробуйте відсканувати ще раз.`)
+          } else {
+            setScannedCardIds(prev => prev.includes(foundCard.id) ? prev : [...prev, foundCard.id])
+            setSelectedCardId(foundCard.id)
+            setScanError(null)
+            window.scrollTo({ top: 0, behavior: 'smooth' })
           }
         }
-      ).catch(err => {
-        setScanError("Помилка камери: " + err)
-        setIsScanning(false)
-      })
+      }).catch(err => { setScanError("Помилка камери: " + err); setIsScanning(false) })
     }
-    return () => { if (html5QrCode && html5QrCode.isScanning) html5QrCode.stop().catch(() => { }) }
+    return () => { if (html5QrCode && html5QrCode.isScanning) html5QrCode.stop().catch(() => {}) }
   }, [isScanning, workCards])
 
   const currentCard = workCards.find(c => c.id === selectedCardId)
@@ -107,20 +77,17 @@ const OperatorTerminal = () => {
     const metaId = matchId ? matchId[1].trim() : null
     return nomenclatures.find(n => String(n.id) === String(metaId))
   }
-
   const getQtyFromCard = (card) => {
     if (!card) return 0
     if (card.quantity && card.quantity > 0) return card.quantity
     const matchQty = card.card_info?.match(/QTY:([^|]+)/)
     return matchQty ? matchQty[1].trim() : 0
   }
-
   const getSheetsFromCard = (card) => {
     if (!card?.card_info) return null
     const match = card.card_info.match(/(\d+\/\d+)/)
     return match ? match[1] : null
   }
-
   const formatElapsedTime = (startIso) => {
     if (!startIso) return '00:00:00'
     const start = new Date(startIso)
@@ -132,9 +99,16 @@ const OperatorTerminal = () => {
     return `${h}:${m}:${s}`
   }
 
+  // Helper: bidirectional stage matching
+  const matchesStage = (cardOp, stageName) => {
+    const op = (cardOp || '').toLowerCase()
+    const sk = (stageName || '').toLowerCase()
+    return op === sk || op.includes(sk) || sk.includes(op)
+  }
+
   const queuedCards = workCards.filter(c =>
-    (c.status === 'new' || c.status === 'at-buffer' || scannedCardIds.includes(c.id)) &&
-    c.status !== 'in-progress' && c.status !== 'waiting-buffer' && c.status !== 'completed'
+    (c.status === 'new' || scannedCardIds.includes(c.id)) &&
+    c.status !== 'in-progress' && c.status !== 'waiting-buffer' && c.status !== 'completed' && c.status !== 'at-buffer'
   )
 
   const handleStartOperation = async () => {
@@ -143,9 +117,8 @@ const OperatorTerminal = () => {
     try {
       await apiService.submitOperatorAction('start', currentCard.task_id, currentCard.id, selectedOperator, { stage_name: selectedStage, machine_name: selectedMachine }, startWorkCard)
       if (!scannedCardIds.includes(currentCard.id)) setScannedCardIds(prev => [...prev, currentCard.id])
-    } catch (e) {
-      alert('Помилка при старті: ' + e.message);
-    } finally { setIsProcessing(false) }
+    } catch (e) { alert('Помилка при старті: ' + e.message) }
+    finally { setIsProcessing(false) }
   }
 
   const validatePin = async () => {
@@ -173,9 +146,8 @@ const OperatorTerminal = () => {
       setSelectedCardId(null)
       setShowScrapModal(false)
       setScannedCardIds(prev => prev.filter(id => id !== currentCard.id))
-    } catch (e) {
-      alert('Помилка при оприбуткуванні: ' + e.message)
-    } finally { setIsProcessing(false) }
+    } catch (e) { alert('Помилка при оприбуткуванні: ' + e.message) }
+    finally { setIsProcessing(false) }
   }
 
   const SpecCard = ({ icon: Icon, label, value, color = "#eab308" }) => (
@@ -197,7 +169,7 @@ const OperatorTerminal = () => {
         const isActive = selectedCardId === card.id
         const batchQty = getQtyFromCard(card)
         return (
-          <div key={card.id} onClick={() => { setSelectedCardId(card.id); setIsDrawerOpen(false); }} style={{ background: isActive ? '#eab308' : '#1a1a1a', borderRadius: '12px', padding: '15px', marginBottom: '10px', cursor: 'pointer', border: '1px solid', borderColor: isActive ? '#eab308' : '#333', transition: '0.2s', color: isActive ? '#000' : '#fff' }}>
+          <div key={card.id} onClick={() => { setSelectedCardId(card.id); setIsDrawerOpen(false) }} style={{ background: isActive ? '#eab308' : '#1a1a1a', borderRadius: '12px', padding: '15px', marginBottom: '10px', cursor: 'pointer', border: '1px solid', borderColor: isActive ? '#eab308' : '#333', transition: '0.2s', color: isActive ? '#000' : '#fff' }}>
             <div style={{ marginBottom: '4px' }}>
               <strong style={{ display: 'block', fontSize: '0.9rem', fontWeight: 800 }}>{nom?.name || 'Без назви'}</strong>
               <div style={{ fontSize: '0.65rem', opacity: 0.7 }}>{batchQty} шт | {card.operation} {getSheetsFromCard(card) ? `| Лист ${getSheetsFromCard(card)}` : ''}</div>
@@ -263,7 +235,7 @@ const OperatorTerminal = () => {
               </div>
 
               <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '28px', border: '1px solid #1a1a1a', padding: '40px' }}>
-                {currentCard.status === 'new' || currentCard.status === 'at-buffer' ? (
+                {currentCard.status === 'new' ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', maxWidth: '500px', margin: '0 auto' }}>
                     <div>
                       <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Етап робіт</label>
@@ -305,37 +277,31 @@ const OperatorTerminal = () => {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px', marginBottom: '50px' }}>
                 {productionStages.map(stage => {
                   const stageKey = stage.toLowerCase()
-                  const stageCards = workCards.filter(c => {
-                    const op = (c.operation || '').toLowerCase()
-                    return op === stageKey || op.includes(stageKey) || stageKey.includes(op)
-                  })
+                  const stageCards = workCards.filter(c => matchesStage(c.operation, stage))
                   const workQty = stageCards.filter(c => c.status === 'in-progress').reduce((acc, c) => acc + (c.quantity || 0), 0)
-                  const bufferQty = stageCards.filter(c => ['at-buffer', 'waiting-buffer', 'completed'].includes(c.status)).reduce((acc, c) => acc + (c.quantity || 0), 0)
-                  const scrapQty = workCardHistory.filter(h => {
-                    const hn = (h.stage_name || '').toLowerCase()
-                    return hn === stageKey || hn.includes(stageKey) || stageKey.includes(hn)
-                  }).reduce((acc, h) => acc + (Number(h.scrap_qty) || 0), 0)
+                  const bufferQty = stageCards.filter(c => ['at-buffer', 'waiting-buffer'].includes(c.status)).reduce((acc, c) => acc + (c.quantity || 0), 0)
+                  const scrapQty = workCardHistory.filter(h => matchesStage(h.stage_name, stage)).reduce((acc, h) => acc + (Number(h.scrap_qty) || 0), 0)
                   return (
                     <div key={stage} onClick={() => setDetailStage(stage)} className="stage-card-hover" style={{ background: '#111', border: '1px solid #222', borderRadius: '24px', padding: '20px', cursor: 'pointer', position: 'relative' }}>
-                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                          <span style={{ color: '#555', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase' }}>{stage}</span>
-                          <Layers size={14} color="#333" />
-                       </div>
-                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', alignItems: 'flex-end', width: '100%' }}>
-                          <div style={{ overflow: 'hidden' }}>
-                            <div style={{ fontSize: '0.6rem', color: '#3b82f6', fontWeight: 800, whiteSpace: 'nowrap' }}>У РОБОТІ</div>
-                            <div style={{ fontSize: '1.3rem', fontWeight: 950, whiteSpace: 'nowrap', letterSpacing: '-0.02em', color: workQty > 0 ? '#fff' : '#222' }}>{workQty} <small style={{ fontSize: '0.55rem', opacity: 0.3 }}>шт</small></div>
-                          </div>
-                          <div style={{ borderLeft: '1px solid #222', paddingLeft: '8px', overflow: 'hidden' }}>
-                            <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 800, whiteSpace: 'nowrap' }}>БУФЕР</div>
-                            <div style={{ fontSize: '1.3rem', fontWeight: 950, whiteSpace: 'nowrap', letterSpacing: '-0.02em', color: bufferQty > 0 ? '#10b981' : '#222' }}>{bufferQty} <small style={{ fontSize: '0.55rem', opacity: 0.3 }}>шт</small></div>
-                          </div>
-                          <div style={{ borderLeft: '1px solid #222', paddingLeft: '8px', overflow: 'hidden' }}>
-                            <div style={{ fontSize: '0.6rem', color: '#ef4444', fontWeight: 800, whiteSpace: 'nowrap' }}>БРАК</div>
-                            <div style={{ fontSize: '1.3rem', fontWeight: 950, whiteSpace: 'nowrap', letterSpacing: '-0.02em', color: scrapQty > 0 ? '#ef4444' : '#222' }}>{scrapQty} <small style={{ fontSize: '0.55rem', opacity: 0.3 }}>шт</small></div>
-                          </div>
-                       </div>
-                       <div style={{ textAlign: 'right', marginTop: '10px' }}><span style={{ fontSize: '0.55rem', color: '#333', fontWeight: 900 }}>ВСЬОГО: {stageCards.length}</span></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                        <span style={{ color: '#555', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase' }}>{stage}</span>
+                        <Layers size={14} color="#333" />
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', alignItems: 'flex-end', width: '100%' }}>
+                        <div style={{ overflow: 'hidden' }}>
+                          <div style={{ fontSize: '0.6rem', color: '#3b82f6', fontWeight: 800, whiteSpace: 'nowrap' }}>У РОБОТІ</div>
+                          <div style={{ fontSize: '1.3rem', fontWeight: 950, whiteSpace: 'nowrap', letterSpacing: '-0.02em', color: workQty > 0 ? '#fff' : '#222' }}>{workQty} <small style={{ fontSize: '0.55rem', opacity: 0.3 }}>шт</small></div>
+                        </div>
+                        <div style={{ borderLeft: '1px solid #222', paddingLeft: '8px', overflow: 'hidden' }}>
+                          <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 800, whiteSpace: 'nowrap' }}>БУФЕР</div>
+                          <div style={{ fontSize: '1.3rem', fontWeight: 950, whiteSpace: 'nowrap', letterSpacing: '-0.02em', color: bufferQty > 0 ? '#10b981' : '#222' }}>{bufferQty} <small style={{ fontSize: '0.55rem', opacity: 0.3 }}>шт</small></div>
+                        </div>
+                        <div style={{ borderLeft: '1px solid #222', paddingLeft: '8px', overflow: 'hidden' }}>
+                          <div style={{ fontSize: '0.6rem', color: '#ef4444', fontWeight: 800, whiteSpace: 'nowrap' }}>БРАК</div>
+                          <div style={{ fontSize: '1.3rem', fontWeight: 950, whiteSpace: 'nowrap', letterSpacing: '-0.02em', color: scrapQty > 0 ? '#ef4444' : '#222' }}>{scrapQty} <small style={{ fontSize: '0.55rem', opacity: 0.3 }}>шт</small></div>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right', marginTop: '10px' }}><span style={{ fontSize: '0.55rem', color: '#333', fontWeight: 900 }}>ВСЬОГО: {stageCards.length}</span></div>
                     </div>
                   )
                 })}
@@ -343,8 +309,8 @@ const OperatorTerminal = () => {
 
               <div style={{ background: '#111', borderRadius: '24px', border: '1px solid #222', overflow: 'hidden' }}>
                 <div style={{ padding: '25px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                   <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900 }}>В РОБОТІ ТА БУФЕРІ</h3>
-                   {isSyncing && <div style={{ fontSize: '0.7rem', color: '#eab308', display: 'flex', alignItems: 'center', gap: '8px' }}><RefreshCw className="animate-spin" size={12} /> ОНОВЛЕННЯ...</div>}
+                  <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900 }}>В РОБОТІ ТА БУФЕРІ</h3>
+                  {isSyncing && <div style={{ fontSize: '0.7rem', color: '#eab308', display: 'flex', alignItems: 'center', gap: '8px' }}><RefreshCw className="animate-spin" size={12} /> ОНОВЛЕННЯ...</div>}
                 </div>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                   <thead style={{ background: '#0a0a0a', fontSize: '0.65rem', fontWeight: 900, color: '#555', textTransform: 'uppercase' }}>
@@ -378,16 +344,16 @@ const OperatorTerminal = () => {
 
       {showPinModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.98)', zIndex: 10010, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-           <div style={{ width: '100%', maxWidth: '350px', textAlign: 'center' }}>
-              <div style={{ background: '#111', padding: '20px', borderRadius: '24px', fontSize: '3rem', fontWeight: 1000, marginBottom: '30px', border: `3px solid ${pinError ? '#ef4444' : '#222'}` }}>{pin.split('').map(() => '*').join('')}</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px' }}>
-                 {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => <button key={num} onClick={() => setPin(pin + num)} style={{ background: '#1a1a1a', color: '#fff', border: '1px solid #333', fontSize: '2rem', padding: '20px', borderRadius: '15px' }}>{num}</button>)}
-                 <button onClick={() => setPin('')} style={{ background: '#1a1a1a', color: '#ef4444', fontSize: '2rem', borderRadius: '15px' }}>C</button>
-                 <button onClick={() => setPin(pin + '0')} style={{ background: '#1a1a1a', color: '#fff', fontSize: '2rem', borderRadius: '15px' }}>0</button>
-                 <button onClick={validatePin} style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '15px', fontSize: '1.2rem' }}>OK</button>
-              </div>
-              <button onClick={() => setShowPinModal(false)} style={{ marginTop: '30px', background: 'transparent', color: '#555', border: 'none' }}>СКАСУВАТИ</button>
-           </div>
+          <div style={{ width: '100%', maxWidth: '350px', textAlign: 'center' }}>
+            <div style={{ background: '#111', padding: '20px', borderRadius: '24px', fontSize: '3rem', fontWeight: 1000, marginBottom: '30px', border: `3px solid ${pinError ? '#ef4444' : '#222'}` }}>{pin.split('').map(() => '*').join('')}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px' }}>
+              {[1,2,3,4,5,6,7,8,9].map(num => <button key={num} onClick={() => setPin(pin + num)} style={{ background: '#1a1a1a', color: '#fff', border: '1px solid #333', fontSize: '2rem', padding: '20px', borderRadius: '15px' }}>{num}</button>)}
+              <button onClick={() => setPin('')} style={{ background: '#1a1a1a', color: '#ef4444', fontSize: '2rem', borderRadius: '15px' }}>C</button>
+              <button onClick={() => setPin(pin + '0')} style={{ background: '#1a1a1a', color: '#fff', fontSize: '2rem', borderRadius: '15px' }}>0</button>
+              <button onClick={validatePin} style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '15px', fontSize: '1.2rem' }}>OK</button>
+            </div>
+            <button onClick={() => setShowPinModal(false)} style={{ marginTop: '30px', background: 'transparent', color: '#555', border: 'none' }}>СКАСУВАТИ</button>
+          </div>
         </div>
       )}
 
@@ -416,49 +382,59 @@ const OperatorTerminal = () => {
 
       {detailStage && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', zIndex: 10030, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-           <div style={{ width: '100%', maxWidth: '700px', background: '#111', borderRadius: '32px', border: '1px solid #333', overflow: 'hidden' }}>
-              <div style={{ padding: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#1a1a1a' }}>
-                 <h2 style={{ margin: 0, color: '#eab308' }}>{detailStage.toUpperCase()}</h2>
-                 <button onClick={() => setDetailStage(null)} style={{ background: '#222', border: 'none', color: '#fff', padding: '10px', borderRadius: '10px' }}><X size={20} /></button>
-              </div>
-              <div style={{ display: 'flex', padding: '15px', gap: '10px' }}>
-                 <button onClick={() => setDetailTab('work')} style={{ flex: 1, padding: '15px', borderRadius: '15px', border: 'none', background: detailTab === 'work' ? '#3b82f6' : '#222', color: '#fff', fontWeight: 900 }}>У РОБОТІ</button>
-                 <button onClick={() => setDetailTab('buffer')} style={{ flex: 1, padding: '15px', borderRadius: '15px', border: 'none', background: detailTab === 'buffer' ? '#10b981' : '#222', color: '#fff', fontWeight: 900 }}>БУФЕР</button>
-                 <button onClick={() => setDetailTab('scrap')} style={{ flex: 1, padding: '15px', borderRadius: '15px', border: 'none', background: detailTab === 'scrap' ? '#ef4444' : '#222', color: '#fff', fontWeight: 900 }}>БРАК</button>
-              </div>
-              <div style={{ padding: '0 15px 15px', maxHeight: '450px', overflowY: 'auto' }}>
-                 {(() => {
-                    const agg = {};
-                    if (detailTab === 'scrap') {
-                      workCardHistory.filter(h => h.stage_name === detailStage).forEach(h => {
-                         if (Number(h.scrap_qty) > 0) {
-                            const nom = nomenclatures.find(n => String(n.id) === String(h.nomenclature_id));
-                            const name = nom?.name || 'Деталь';
-                            agg[name] = (agg[name] || 0) + Number(h.scrap_qty);
-                         }
-                      });
-                    } else {
-                      workCards.filter(c => c.operation === detailStage && (detailTab === 'work' ? c.status === 'in-progress' : ['at-buffer', 'waiting-buffer', 'completed'].includes(c.status))).forEach(c => {
-                         const nom = getNomFromCard(c);
-                         const name = nom?.name || 'Деталь';
-                         agg[name] = (agg[name] || 0) + (c.quantity || 0);
-                      });
-                    }
-                    const items = Object.entries(agg);
-                    if (items.length === 0) return <div style={{ textAlign: 'center', padding: '50px', color: '#444' }}>Немає даних</div>;
-                    return (
-                       <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                          {items.map(([name, qty], idx) => (
-                             <div key={idx} style={{ background: 'rgba(255,255,255,0.02)', padding: '15px 20px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div style={{ fontWeight: 800 }}>{name}</div>
-                                <div style={{ fontWeight: 1000, fontSize: '1.2rem', color: detailTab === 'work' ? '#3b82f6' : detailTab === 'buffer' ? '#10b981' : '#ef4444' }}>{qty} <small style={{ opacity: 0.3 }}>шт</small></div>
-                             </div>
-                          ))}
-                       </div>
-                    );
-                 })()}
-              </div>
-           </div>
+          <div style={{ width: '100%', maxWidth: '700px', background: '#111', borderRadius: '32px', border: '1px solid #333', overflow: 'hidden' }}>
+            <div style={{ padding: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#1a1a1a' }}>
+              <h2 style={{ margin: 0, color: '#eab308' }}>{detailStage.toUpperCase()}</h2>
+              <button onClick={() => setDetailStage(null)} style={{ background: '#222', border: 'none', color: '#fff', padding: '10px', borderRadius: '10px' }}><X size={20} /></button>
+            </div>
+            <div style={{ display: 'flex', padding: '15px', gap: '10px' }}>
+              <button onClick={() => setDetailTab('work')} style={{ flex: 1, padding: '15px', borderRadius: '15px', border: 'none', background: detailTab === 'work' ? '#3b82f6' : '#222', color: '#fff', fontWeight: 900 }}>У РОБОТІ</button>
+              <button onClick={() => setDetailTab('buffer')} style={{ flex: 1, padding: '15px', borderRadius: '15px', border: 'none', background: detailTab === 'buffer' ? '#10b981' : '#222', color: '#fff', fontWeight: 900 }}>БУФЕР</button>
+              <button onClick={() => setDetailTab('scrap')} style={{ flex: 1, padding: '15px', borderRadius: '15px', border: 'none', background: detailTab === 'scrap' ? '#ef4444' : '#222', color: '#fff', fontWeight: 900 }}>БРАК</button>
+            </div>
+            <div style={{ padding: '0 15px 15px', maxHeight: '450px', overflowY: 'auto' }}>
+              {(() => {
+                const agg = {}
+                if (detailTab === 'scrap') {
+                  workCardHistory
+                    .filter(h => matchesStage(h.stage_name, detailStage))
+                    .forEach(h => {
+                      if (Number(h.scrap_qty) > 0) {
+                        const nom = nomenclatures.find(n => String(n.id) === String(h.nomenclature_id))
+                        const name = nom?.name || 'Деталь'
+                        agg[name] = (agg[name] || 0) + Number(h.scrap_qty)
+                      }
+                    })
+                } else {
+                  workCards
+                    .filter(c => {
+                      const stageMatch = matchesStage(c.operation, detailStage)
+                      const statusMatch = detailTab === 'work'
+                        ? c.status === 'in-progress'
+                        : ['at-buffer', 'waiting-buffer'].includes(c.status)
+                      return stageMatch && statusMatch
+                    })
+                    .forEach(c => {
+                      const nom = getNomFromCard(c)
+                      const name = nom?.name || 'Деталь'
+                      agg[name] = (agg[name] || 0) + (c.quantity || 0)
+                    })
+                }
+                const items = Object.entries(agg)
+                if (items.length === 0) return <div style={{ textAlign: 'center', padding: '50px', color: '#444' }}>Немає даних</div>
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                    {items.map(([name, qty], idx) => (
+                      <div key={idx} style={{ background: 'rgba(255,255,255,0.02)', padding: '15px 20px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ fontWeight: 800 }}>{name}</div>
+                        <div style={{ fontWeight: 1000, fontSize: '1.2rem', color: detailTab === 'work' ? '#3b82f6' : detailTab === 'buffer' ? '#10b981' : '#ef4444' }}>{qty} <small style={{ opacity: 0.3 }}>шт</small></div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
         </div>
       )}
 

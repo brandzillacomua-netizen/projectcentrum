@@ -1,11 +1,33 @@
 import { requestBuilder } from '../api/requestBuilder';
 
+const baseUrl = 'https://8ff5-37-248-226-236.ngrok-free.app/api';
+
 export const apiService = {
-  submitOrder: async (header, items, fallback) => {
+  submitOrder: async (header, items, fallback, token) => {
     const payload = requestBuilder.buildOrderPayload(header, items);
-    console.log("%c--- 📦 BACKEND ACTION: CREATE ORDER ---", "color: #3b82f6; font-weight: bold; font-size: 14px; text-decoration: underline;");
-    console.log("JSON Payload:", payload);
-    if (typeof fallback === 'function') fallback(header, items);
+
+    console.log("%c--- 📦 BACKEND ACTION: CREATE ORDER (HYBRID) ---", "color: #3b82f6; font-weight: bold; font-size: 14px; text-decoration: underline;");
+    console.log("JSON Payload to Backend:", payload);
+
+    // 1. Sync with External Backend
+    try {
+      const res = await fetch(`${baseUrl}/orders`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      console.log("External Backend Response:", data);
+    } catch (err) {
+      console.warn("External Backend Sync failed:", err.message);
+    }
+
+    // 2. Save to local Supabase via fallback
+    if (typeof fallback === 'function') await fallback(header, items);
+    
     return true;
   },
 
@@ -65,7 +87,7 @@ export const apiService = {
     const results = [];
     if (typeof fallback === 'function') {
       for (const c of cardsArray) {
-        const res = await fallback(taskId, orderId, nomenclatureId, c.operation, c.machine, c.estimatedTime, c.cardInfo, c.quantity);
+        const res = await fallback(taskId, orderId, nomenclatureId, c.operation, c.machine, c.estimatedTime, c.cardInfo, c.quantity, c.bufferQty);
         if (res) results.push(res);
       }
     }
@@ -80,11 +102,11 @@ export const apiService = {
     return true;
   },
 
-  submitCreateWorkCard: async (taskId, orderId, nomenclatureId, operation, machine, estimatedTime, fallback) => {
-    const payload = requestBuilder.buildCreateWorkCardPayload(taskId, orderId, nomenclatureId, operation, machine, estimatedTime);
+  submitCreateWorkCard: async (taskId, orderId, nomenclatureId, operation, machine, estimatedTime, fallback, bufferQty) => {
+    const payload = requestBuilder.buildCreateWorkCardPayload(taskId, orderId, nomenclatureId, operation, machine, estimatedTime, bufferQty);
     console.log("%c--- 📦 BACKEND ACTION: CREATE WORK CARD ---", "color: #ec4899; font-weight: bold; font-size: 14px; text-decoration: underline;");
     console.log("JSON Payload:", payload);
-    if (typeof fallback === 'function') await fallback(taskId, orderId, nomenclatureId, operation, machine, estimatedTime, null);
+    if (typeof fallback === 'function') await fallback(taskId, orderId, nomenclatureId, operation, machine, estimatedTime, null, null, bufferQty);
     return true;
   },
 
@@ -167,5 +189,48 @@ export const apiService = {
     console.log("JSON Payload:", payload);
     if (typeof fallback === 'function') await fallback(cardId, scrapData);
     return true;
+  },
+
+  submitUserAction: async (userData, fallback, token) => {
+    const payload = requestBuilder.buildExternalUserPayload(userData);
+    console.log("%c--- 👤 BACKEND ACTION: USER SYNC (HYBRID) ---", "color: #ac94f1; font-weight: bold; font-size: 14px; text-decoration: underline;");
+    console.log("JSON Payload to External Backend:", payload);
+
+    try {
+      const res = await fetch(`${baseUrl}/users`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      console.log("External Backend Response:", data);
+    } catch (err) {
+      console.warn("External Backend User Sync failed:", err.message);
+    }
+
+    // Always fallback to local Supabase
+    if (typeof fallback === 'function') await fallback(userData);
+    return true;
+  },
+
+  submitLogin: async (login, password) => {
+    console.log("%c--- 🔑 BACKEND ACTION: AUTH SYNC ---", "color: #3b82f6; font-weight: bold; font-size: 14px; text-decoration: underline;");
+    
+    try {
+      const res = await fetch(baseUrl + '/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: login, password: password })
+      });
+      const data = await res.json();
+      console.log("Backend Response:", data);
+      return data;
+    } catch (err) {
+      console.warn("Backend Auth Sync failed (offline or wrong URL):", err.message);
+      return null;
+    }
   }
 };

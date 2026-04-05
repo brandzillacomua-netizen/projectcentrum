@@ -182,7 +182,7 @@ export const requestBuilder = {
   /**
    * Побудова payload для створення робочої картки (Work Card) на конкретну операцію
    */
-  buildCreateWorkCardPayload: (taskId, orderId, nomenclatureId, operation, machine, estimatedTime) => {
+  buildCreateWorkCardPayload: (taskId, orderId, nomenclatureId, operation, machine, estimatedTime, bufferQty) => {
     return {
       task_id: parseValue(taskId),
       order_id: parseValue(orderId),
@@ -191,6 +191,7 @@ export const requestBuilder = {
       machine: parseValue(machine),
       estimated_time: parseValue(estimatedTime) ? Number(estimatedTime) : null,
       status: 'pending',
+      buffer_qty: parseValue(bufferQty) ? Number(bufferQty) : 0,
       created_at: new Date().toISOString()
     };
   },
@@ -316,10 +317,40 @@ export const requestBuilder = {
         operation: parseValue(c.operation),
         machine: parseValue(c.machine),
         estimated_time: parseValue(c.estimatedTime),
+        quantity: parseValue(c.quantity) ? Number(c.quantity) : 0,
+        buffer_qty: parseValue(c.bufferQty) ? Number(c.bufferQty) : 0,
         card_info: parseValue(c.cardInfo)
       })),
       action: 'CREATE_WORK_CARDS_BATCH',
       timestamp: new Date().toISOString()
+    };
+  },
+
+  /**
+   * Побудова payload для створення/оновлення системного користувача
+   */
+  buildUserPayload: (userData) => {
+    return {
+      id: parseValue(userData.id),
+      login: parseValue(userData.login),
+      password: parseValue(userData.password),
+      first_name: parseValue(userData.first_name),
+      last_name: parseValue(userData.last_name),
+      position: parseValue(userData.position),
+      access_rights: userData.access_rights || {},
+      updated_at: new Date().toISOString()
+    };
+  },
+
+  /**
+   * Побудова payload для ЗОВНІШНЬОГО бекенду (згідно Full_API_Documentation.md)
+   */
+  buildExternalUserPayload: (userData) => {
+    return {
+      full_name: `${userData.first_name || ''} ${userData.last_name || ''}`.trim() || userData.login,
+      email: userData.login.includes('@') ? userData.login : `${userData.login}@centrum.com`,
+      password: userData.password,
+      department: userData.position || 'Виробництво'
     };
   }
 };

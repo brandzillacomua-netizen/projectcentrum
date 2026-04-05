@@ -17,7 +17,7 @@ import { apiService } from '../services/apiDispatcher'
 
 const MasterModule = () => {
   const {
-    orders, tasks, machines, nomenclatures, bomItems,
+    orders, tasks, machines, nomenclatures, bomItems, inventory,
     totalProduced, totalScrapCount,
     createNaryad, issueMaterials, approveWarehouse
   } = useMES()
@@ -84,7 +84,12 @@ const MasterModule = () => {
 
       displayParts.forEach(part => {
         if (!part.nom) return
-        const totalToProduce = (Number(item.quantity) || 0) * (Number(part.quantity_per_parent) || 1)
+        const totalNeeded = (Number(item.quantity) || 0) * (Number(part.quantity_per_parent) || 1)
+        const inStock = inventory.find(i => i.nomenclature_id === part.nom?.id && i.type === 'semi')?.bz_qty || 0
+        const totalToProduce = Math.max(0, totalNeeded - inStock)
+        
+        if (totalToProduce <= 0) return
+
         const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
         const sheets = Math.ceil(totalToProduce / unitsPerSheet)
         const matKey = part.nom.material_type || 'Інші ТМЦ'
@@ -298,12 +303,14 @@ const MasterModule = () => {
                 <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                   <thead>
                     <tr style={{ background: '#111', textAlign: 'left', color: '#555' }} className="print-thr">
-                      <th style={{ padding: '12px 15px', width: '35%', borderBottom: '1.5px solid #222' }}>ДЕТАЛЬ В ПОРІЗКУ</th>
+                      <th style={{ padding: '12px 15px', width: '30%', borderBottom: '1.5px solid #222' }}>ДЕТАЛЬ В ПОРІЗКУ</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%', borderBottom: '1.5px solid #222' }}>ПОТРЕБА</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%', borderBottom: '1.5px solid #222' }}>СКЛАД БЗ</th>
                       <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%', borderBottom: '1.5px solid #222' }}>ПЛАН</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '27%', borderBottom: '1.5px solid #222' }}>МАТЕРІАЛ</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '10%', borderBottom: '1.5px solid #222' }}>ШТ/Л</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', color: '#22c55e', width: '10%', borderBottom: '1.5px solid #222' }}>ЛИСТІВ</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', color: '#ff9000', width: '10%', borderBottom: '1.5px solid #222' }}>БЗ</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '21%', borderBottom: '1.5px solid #222' }}>МАТЕРІАЛ</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%', borderBottom: '1.5px solid #222' }}>ШТ/Л</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', color: '#22c55e', width: '8%', borderBottom: '1.5px solid #222' }}>ЛИСТІВ</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', color: '#ff9000', width: '9%', borderBottom: '1.5px solid #222' }}>БЗ</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -311,12 +318,14 @@ const MasterModule = () => {
                       const parts = getBOMParts(it.nomenclature_id)
                       const displayParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
                       return displayParts.map((part, pIdx) => {
-                        const totalToProduce = (Number(it.quantity) || 0) * (Number(part.quantity_per_parent) || 1)
+                        const totalNeeded = (Number(it.quantity) || 0) * (Number(part.quantity_per_parent) || 1)
+                        const inStock = inventory.find(i => i.nomenclature_id === part.nom?.id && i.type === 'semi')?.bz_qty || 0
+                        const totalToProduce = Math.max(0, totalNeeded - inStock)
+                        
                         const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
                         const sheets = Math.ceil(totalToProduce / unitsPerSheet)
                         const capacityValue = Number(currentMachine?.sheet_capacity) || 1
-                        const loads = Math.ceil(sheets / capacityValue)
-                        const surplus = (sheets * unitsPerSheet) - totalToProduce
+                        const surplus = totalToProduce > 0 ? (sheets * unitsPerSheet) - totalToProduce : 0
 
                         return (
                           <tr key={`${it.id}-${pIdx}`} style={{ borderBottom: '1px solid #1a1a1a', background: pIdx % 2 === 0 ? 'transparent' : 'rgba(255,144,0,0.02)' }} className="print-tr">
@@ -324,12 +333,14 @@ const MasterModule = () => {
                               <div style={{ fontWeight: 1000, color: '#fff', fontSize: '0.95rem', marginBottom: '4px' }} className="print-txt">{part.nom?.name || '—'}</div>
                               <div style={{ fontSize: '0.7rem', color: '#444', fontWeight: 800 }} className="print-subtxt">{part.nom?.nomenclature_code || 'БЕЗ КОДУ'}</div>
                             </td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center', fontWeight: 800, fontSize: '1rem' }} className="print-txt">{(totalToProduce || 0).toString()}</td>
+                            <td style={{ padding: '18px 15px', textAlign: 'center', fontWeight: 800, fontSize: '1rem' }} className="print-txt">{(totalNeeded || 0).toString()}</td>
+                            <td style={{ padding: '18px 15px', textAlign: 'center', color: '#555', fontSize: '0.9rem' }}>{(inStock || 0).toString()}</td>
+                            <td style={{ padding: '18px 15px', textAlign: 'center', fontWeight: 900, color: '#ff9000', fontSize: '1.1rem' }} className="print-txt">{(totalToProduce || 0).toString()}</td>
                             <td style={{ padding: '18px 15px', textAlign: 'center' }}>
                               <div style={{ fontSize: '0.85rem', color: '#aaa', fontWeight: 700 }} className="print-subtxt">{part.nom?.material_type || '—'}</div>
                             </td>
                             <td style={{ padding: '18px 15px', textAlign: 'center', color: '#555' }} className="print-subtxt">{(unitsPerSheet || 0).toString()}</td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center', fontWeight: 1000, color: '#22c55e', fontSize: '1.2rem' }} className="print-accent-g">{(sheets || 0).toString()}</td>
+                            <td style={{ padding: '18px 15px', textAlign: 'center', fontWeight: 1000, color: '#22c55e', fontSize: '1.2rem' }} className="print-accent-g">{totalToProduce > 0 ? (sheets || 0).toString() : '0'}</td>
                             <td style={{ padding: '18px 15px', textAlign: 'center', fontWeight: 900, color: '#ff9000' }} className="print-accent-o">{surplus > 0 ? `+${surplus}` : '0'}</td>
                           </tr>
                         )
@@ -343,12 +354,29 @@ const MasterModule = () => {
                         {(activeNaryadOrder.order_items?.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0) || 0).toString()}
                       </td>
                       <td style={{ padding: '12px 15px', border: '1px solid #000' }}></td>
+                      <td style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.1rem', color: '#ff9000', border: '1px solid #000' }} className="print-txt">
+                        {(activeNaryadOrder.order_items?.reduce((acc, it) => {
+                          const parts = getBOMParts(it.nomenclature_id)
+                          const displayParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
+                          return acc + displayParts.reduce((pa, p) => {
+                            const totalNeeded = (Number(it.quantity) || 0) * (Number(p.quantity_per_parent) || 1)
+                            const inStock = inventory.find(i => i.nomenclature_id === p.nom?.id && i.type === 'semi')?.bz_qty || 0
+                            return pa + Math.max(0, totalNeeded - inStock)
+                          }, 0)
+                        }, 0) || 0).toString()}
+                      </td>
+                      <td style={{ padding: '12px 15px', border: '1px solid #000' }}></td>
                       <td style={{ padding: '12px 15px', border: '1px solid #000' }}></td>
                       <td style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.4rem', color: '#22c55e', border: '1px solid #000' }} className="print-accent-g">
                         {(activeNaryadOrder.order_items?.reduce((acc, it) => {
                           const parts = getBOMParts(it.nomenclature_id)
                           const displayParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
-                          const sh = displayParts.reduce((pa, p) => pa + Math.ceil(((Number(it.quantity) || 0) * (Number(p.quantity_per_parent) || 1)) / (Number(p.nom?.units_per_sheet) || 1)), 0)
+                          const sh = displayParts.reduce((pa, p) => {
+                            const totalNeeded = (Number(it.quantity) || 0) * (Number(p.quantity_per_parent) || 1)
+                            const inStock = inventory.find(i => i.nomenclature_id === p.nom?.id && i.type === 'semi')?.bz_qty || 0
+                            const totalToProduce = Math.max(0, totalNeeded - inStock)
+                            return pa + Math.ceil(totalToProduce / (Number(p.nom?.units_per_sheet) || 1))
+                          }, 0)
                           return acc + sh
                         }, 0) || 0).toString()}
                       </td>
@@ -500,13 +528,15 @@ const MasterModule = () => {
           }
 
           /* COLUMN SIZING (TOTAL: 190mm) */
-          /* Name: 95, Plan: 12, Material: 40, QTY/SH: 12, Sheets: 15, Surplus: 16 */
-          .print-table th:nth-child(1), .print-table td:nth-child(1) { width: 95mm !important; text-align: left !important; }
-          .print-table th:nth-child(2), .print-table td:nth-child(2) { width: 12mm !important; text-align: center !important; white-space: nowrap !important; }
-          .print-table th:nth-child(3), .print-table td:nth-child(3) { width: 40mm !important; text-align: left !important; }
-          .print-table th:nth-child(4), .print-table td:nth-child(4) { width: 12mm !important; text-align: center !important; white-space: nowrap !important; }
-          .print-table th:nth-child(5), .print-table td:nth-child(5) { width: 15mm !important; text-align: center !important; white-space: nowrap !important; }
-          .print-table th:nth-child(6), .print-table td:nth-child(6) { width: 16mm !important; text-align: center !important; white-space: nowrap !important; }
+          /* Name: 80, Need: 15, Stock: 15, Plan: 15, Material: 30, QTY/SH: 10, Sheets: 10, Surplus: 15 */
+          .print-table th:nth-child(1), .print-table td:nth-child(1) { width: 80mm !important; text-align: left !important; }
+          .print-table th:nth-child(2), .print-table td:nth-child(2) { width: 15mm !important; text-align: center !important; white-space: nowrap !important; }
+          .print-table th:nth-child(3), .print-table td:nth-child(3) { width: 15mm !important; text-align: center !important; white-space: nowrap !important; }
+          .print-table th:nth-child(4), .print-table td:nth-child(4) { width: 15mm !important; text-align: center !important; white-space: nowrap !important; }
+          .print-table th:nth-child(5), .print-table td:nth-child(5) { width: 30mm !important; text-align: left !important; }
+          .print-table th:nth-child(6), .print-table td:nth-child(6) { width: 10mm !important; text-align: center !important; white-space: nowrap !important; }
+          .print-table th:nth-child(7), .print-table td:nth-child(7) { width: 10mm !important; text-align: center !important; white-space: nowrap !important; }
+          .print-table th:nth-child(8), .print-table td:nth-child(8) { width: 15mm !important; text-align: center !important; white-space: nowrap !important; }
 
           .print-thr th {
              padding: 4px 3px !important;

@@ -1,5 +1,5 @@
 import React from 'react'
-import { Routes, Route, Link } from 'react-router-dom'
+import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom'
 import { 
   Menu,
   LayoutDashboard,
@@ -14,21 +14,28 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 import ManagerModule from './modules/ManagerModule'
-import WarehouseModule from './modules/WarehouseModuleOld'
+import WarehouseModule from './modules/WarehouseModuleV2'
 import MasterModule from './modules/MasterModule_v3'
 import NomenclatureModule from './modules/NomenclatureModule'
 import EngineerModule from './modules/EngineerModule'
 import DirectorModule from './modules/DirectorModule'
-import OperatorTerminal from './modules/OperatorTerminal'
+import OperatorTerminal from './modules/OperatorTerminalV2'
 import ShippingModule from './modules/ShippingModule'
-import SupplyModule from './modules/SupplyModule'
+import SupplyModule from './modules/SupplyModuleV2'
 import ForemanWorkplace from './modules/ForemanWorkplace'
 import MachinesModule from './modules/MachinesModule'
 import SettingsModule from './modules/SettingsModule'
-import { MESProvider } from './MESContext'
+import LoginPage from './modules/LoginPage'
+import Shop1Terminal from './modules/Shop1Terminal'
+import { MESProvider, useMES } from './MESContext'
+
+const FileCodeIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="m10 13-2 2 2 2"/><path d="m14 17 2-2-2-2"/></svg>
+)
 
 const Portal = () => {
-  const modules = [
+  const { currentUser } = useMES()
+  const allModules = [
     { id: 'manager', title: 'Менеджер', icon: <LayoutDashboard />, path: '/manager', desc: 'Замовлення та планування', color: '#ff9000' },
     { id: 'master', title: 'Цех №1', icon: <Monitor />, path: '/master', desc: 'Управління зміною', color: '#3b82f6' },
     { id: 'warehouse', title: 'Склад', icon: <Warehouse />, path: '/warehouse', desc: 'Матеріали та залишки', color: '#10b981' },
@@ -36,12 +43,15 @@ const Portal = () => {
     { id: 'director', title: 'Директор Виробництва', icon: <ShieldCheck size={24} />, path: '/director', desc: 'Фінальне підтвердження', color: '#10b981' },
     { id: 'foreman', title: 'Майстер', icon: <Users />, path: '/foreman', desc: 'Розподіл нарядів', color: '#f59e0b' },
     { id: 'operator', title: 'Термінал', icon: <Tablet />, path: '/operator', desc: 'Робоче місце', color: '#ef4444' },
+    { id: 'shop1', title: 'Цех №1 · Термінал', icon: <Tablet />, path: '/shop1', desc: 'Різка → Галтовка → Прийомка', color: '#eab308' },
     { id: 'shipping', title: 'Логістика', icon: <Truck />, path: '/shipping', desc: 'Відвантаження', color: '#ec4899' },
     { id: 'supply', title: 'Постачання', icon: <Truck />, path: '/supply', desc: 'Закупівля ТМЦ', color: '#06b6d4' },
     { id: 'nomenclature', title: 'База', icon: <Settings />, path: '/nomenclature', desc: 'Номенклатура', color: '#6366f1' },
     { id: 'machines', title: 'Станки', icon: <Cpu />, path: '/machines', desc: 'Обладнання', color: '#f97316' },
     { id: 'settings', title: 'Система', icon: <Settings />, path: '/settings', desc: 'Конфігурація', color: '#444' }
   ]
+
+  const modules = allModules.filter(m => currentUser?.access_rights?.[m.id] === true)
 
   return (
     <div className="portal-container-v2" style={{ background: '#050505', minHeight: '100vh', color: '#fff', padding: '40px 20px' }}>
@@ -52,7 +62,6 @@ const Portal = () => {
            <p style={{ color: '#333', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.4em' }}>Industrial Control v2.0</p>
         </div>
       </header>
-
       <div className="portal-grid-v2" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', maxWidth: '1200px', margin: '0 auto' }}>
         {modules.map(mod => (
           <Link key={mod.id} to={mod.path} className="portal-card-v2 glass-panel" style={{ textDecoration: 'none', background: '#111', border: '1px solid #1a1a1a', borderRadius: '24px', padding: '25px', display: 'flex', alignItems: 'center', gap: '20px', transition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)', position: 'relative', overflow: 'hidden' }}>
@@ -68,45 +77,56 @@ const Portal = () => {
           </Link>
         ))}
       </div>
-
       <style dangerouslySetInnerHTML={{ __html: `
         .portal-card-v2:hover { transform: translateY(-5px) scale(1.02); background: #181818; border-color: #333; box-shadow: 0 20px 40px rgba(0,0,0,0.4); }
         .portal-card-v2:hover .arrow-v2 { color: #ff9000; transform: translateX(5px); }
         .portal-card-v2:hover .hover-line { opacity: 1; }
-        
-        @media (max-width: 768px) {
-          .portal-grid-v2 { grid-template-columns: 1fr; }
-          .portal-header-v2 h1 { font-size: 1.8rem; }
-          .portal-card-v2 { padding: 20px; border-radius: 20px; }
-          .card-icon-v2 { width: 48px; height: 48px; }
-        }
+        @media (max-width: 768px) { .portal-grid-v2 { grid-template-columns: 1fr; } }
       `}} />
     </div>
   )
 }
 
-const FileCodeIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="m10 13-2 2 2 2"/><path d="m14 17 2-2-2-2"/></svg>
-)
+const AppContent = () => {
+  const { currentUser } = useMES()
+  const location = useLocation()
+
+  // РЕДИРЕКТ НА /login ЯКЩО НЕ АВТОРИЗОВАНИЙ
+  if (!currentUser && location.pathname !== '/login') {
+    return <Navigate to="/login" replace />
+  }
+
+  // РЕДИРЕКТ З /login НА ГОЛОВНУ ЯКЩО ВЖЕ АВТОРИЗОВАНИЙ
+  if (currentUser && location.pathname === '/login') {
+    return <Navigate to="/" replace />
+  }
+
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/" element={<Portal />} />
+      <Route path="/manager" element={<ManagerModule />} />
+      <Route path="/warehouse" element={<WarehouseModule />} />
+      <Route path="/master" element={<MasterModule />} />
+      <Route path="/foreman" element={<ForemanWorkplace />} />
+      <Route path="/operator" element={<OperatorTerminal />} />
+      <Route path="/shop1" element={<Shop1Terminal />} />
+      <Route path="/engineer" element={<EngineerModule />} />
+      <Route path="/director" element={<DirectorModule />} />
+      <Route path="/shipping" element={<ShippingModule />} />
+      <Route path="/supply" element={<SupplyModule />} />
+      <Route path="/nomenclature" element={<NomenclatureModule />} />
+      <Route path="/machines" element={<MachinesModule />} />
+      <Route path="/settings" element={<SettingsModule />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
 
 function App() {
   return (
     <MESProvider>
-      <Routes>
-        <Route path="/" element={<Portal />} />
-        <Route path="/manager" element={<ManagerModule />} />
-        <Route path="/warehouse" element={<WarehouseModule />} />
-        <Route path="/master" element={<MasterModule />} />
-        <Route path="/foreman" element={<ForemanWorkplace />} />
-        <Route path="/operator" element={<OperatorTerminal />} />
-        <Route path="/engineer" element={<EngineerModule />} />
-        <Route path="/director" element={<DirectorModule />} />
-        <Route path="/shipping" element={<ShippingModule />} />
-        <Route path="/supply" element={<SupplyModule />} />
-        <Route path="/nomenclature" element={<NomenclatureModule />} />
-        <Route path="/machines" element={<MachinesModule />} />
-        <Route path="/settings" element={<SettingsModule />} />
-      </Routes>
+      <AppContent />
     </MESProvider>
   )
 }
