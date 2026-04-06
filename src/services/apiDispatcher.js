@@ -19,10 +19,16 @@ export const apiService = {
         },
         body: JSON.stringify(payload)
       });
-      const data = await res.json();
-      console.log("External Backend Response:", data);
+      if (res.ok) {
+        const data = await res.json();
+        console.log("External Backend Response:", data);
+      }
     } catch (err) {
-      console.warn("External Backend Sync failed:", err.message);
+      if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+        console.warn("⚠️ Backend Offline (ngrok link expired or server down). Sync skipped, using Supabase fallback.");
+      } else {
+        console.error("Backend Sync error:", err.message);
+      }
     }
 
     // 2. Save to local Supabase via fallback
@@ -76,7 +82,7 @@ export const apiService = {
     const payload = requestBuilder.buildCreateTaskPayload(orderId, machine);
     console.log("%c--- 📦 BACKEND ACTION: CREATE PRODUCTION NARYAD ---", "color: #f59e0b; font-weight: bold; font-size: 14px; text-decoration: underline;");
     console.log("JSON Payload:", payload);
-    if (typeof fallback === 'function') fallback(orderId, machine);
+    if (typeof fallback === 'function') await fallback(orderId, machine);
     return true;
   },
 
@@ -102,11 +108,11 @@ export const apiService = {
     return true;
   },
 
-  submitCreateWorkCard: async (taskId, orderId, nomenclatureId, operation, machine, estimatedTime, fallback, bufferQty) => {
+  submitCreateWorkCard: async (taskId, orderId, nomenclatureId, operation, machine, estimatedTime, fallback, bufferQty, cardInfo, quantity) => {
     const payload = requestBuilder.buildCreateWorkCardPayload(taskId, orderId, nomenclatureId, operation, machine, estimatedTime, bufferQty);
     console.log("%c--- 📦 BACKEND ACTION: CREATE WORK CARD ---", "color: #ec4899; font-weight: bold; font-size: 14px; text-decoration: underline;");
     console.log("JSON Payload:", payload);
-    if (typeof fallback === 'function') await fallback(taskId, orderId, nomenclatureId, operation, machine, estimatedTime, null, null, bufferQty);
+    if (typeof fallback === 'function') await fallback(taskId, orderId, nomenclatureId, operation, machine, estimatedTime, cardInfo, quantity, bufferQty);
     return true;
   },
 

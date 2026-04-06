@@ -21,6 +21,7 @@ import { apiService } from '../services/apiDispatcher'
 const ManagerModule = () => {
   const { nomenclatures, addOrder, orders, fetchOrders, hasMoreOrders, customers, searchCustomers, currentUser } = useMES()
   const [activeTab, setActiveTab] = useState('new') // 'new' or 'list'
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [orderHeader, setOrderHeader] = useState({ 
     orderDate: new Date().toISOString().split('T')[0],
     orderNum: '',
@@ -62,24 +63,34 @@ const ManagerModule = () => {
     setShowCustomerHints(false)
   }
 
-  const handleOrderSubmit = (e) => {
+  const handleOrderSubmit = async (e) => {
     e.preventDefault()
     if (!orderHeader.customer || !orderHeader.orderNum || !orderHeader.nomenclature_id || !orderHeader.deadline) {
       alert('Будь ласка, заповніть Замовника, Номер замовлення, оберіть Продукт та вкажіть Термін (Дедлайн)')
       return
     }
-    const items = [{ nomenclature_id: orderHeader.nomenclature_id, quantity: orderHeader.quantity }]
-    apiService.submitOrder(orderHeader, items, addOrder, currentUser?.token)
-    alert('Замовлення успішно додано!')
-    setOrderHeader({ 
-      ...orderHeader,
-      orderNum: '',
-      customer: '',
-      official_customer: '',
-      nomenclature_id: '',
-      quantity: 1,
-      deadline: ''
-    })
+    
+    setIsSubmitting(true)
+    try {
+      const items = [{ nomenclature_id: orderHeader.nomenclature_id, quantity: orderHeader.quantity }]
+      await apiService.submitOrder(orderHeader, items, addOrder, currentUser?.token)
+      
+      setOrderHeader({ 
+        ...orderHeader,
+        orderNum: '',
+        customer: '',
+        official_customer: '',
+        nomenclature_id: '',
+        quantity: 1,
+        deadline: ''
+      })
+      alert('Замовлення успішно додано!')
+      setActiveTab('list')
+    } catch (err) {
+      alert('Помилка при додаванні замовлення: ' + err.message)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const filteredOrders = orders.filter(o => 

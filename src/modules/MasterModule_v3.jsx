@@ -23,10 +23,12 @@ const MasterModule = () => {
   } = useMES()
 
   const [activeNaryadOrder, setActiveNaryadOrder] = useState(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [selectedMachine, setSelectedMachine] = useState(null)
   const [isReprintMode, setIsReprintMode] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const [reprintTask, setReprintTask] = useState(null)
 
   const pendingOrders = orders.filter(o => o.status === 'pending')
   const filteredPending = pendingOrders.filter(o =>
@@ -50,18 +52,27 @@ const MasterModule = () => {
     return machines.find(m => m.name === selectedMachine.name) || selectedMachine
   }, [selectedMachine, machines])
 
-  const handlePrint = () => {
-    if (!activeNaryadOrder) return
+  const handlePrint = async () => {
+    if (!activeNaryadOrder || isSubmitting) return
 
-    // Trigger print dialog immediately
-    window.print()
+    setIsSubmitting(true)
+    try {
+      // Trigger print dialog immediately
+      window.print()
 
-    if (isReprintMode) {
-      setActiveNaryadOrder(null)
-    } else {
-      // Call with empty string or null for machine since Master no longer selects it
-      apiService.submitCreateTask(activeNaryadOrder.id, '', createNaryad)
-      setActiveNaryadOrder(null)
+      if (isReprintMode) {
+        setReprintTask(null)
+        setActiveNaryadOrder(null)
+      } else {
+        // Call with empty string or null for machine since Master no longer selects it
+        await apiService.submitCreateTask(activeNaryadOrder.id, '', createNaryad)
+        setActiveNaryadOrder(null)
+      }
+    } catch (err) {
+      console.error("Naryad creation error:", err)
+      alert("Помилка створення наряду: " + err.message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -69,6 +80,7 @@ const MasterModule = () => {
     const order = orders.find(o => o.id === task.order_id)
     if (order) {
       setIsReprintMode(true)
+      setReprintTask(task)
       setSelectedMachine({ name: task.machine_name })
       setActiveNaryadOrder(order)
     }
@@ -84,22 +96,30 @@ const MasterModule = () => {
 
       displayParts.forEach(part => {
         if (!part.nom) return
-        const totalNeeded = (Number(item.quantity) || 0) * (Number(part.quantity_per_parent) || 1)
-        const inStock = inventory.find(i => i.nomenclature_id === part.nom?.id && i.type === 'semi')?.bz_qty || 0
-        const totalToProduce = Math.max(0, totalNeeded - inStock)
         
+        const snapshot = reprintTask?.plan_snapshot?.[String(part.nom.id)]
+        const totalNeeded = snapshot ? snapshot.need : ((Number(item.quantity) || 0) * (Number(part.quantity_per_parent) || 1))
+        const inStock = snapshot ? snapshot.stock : (() => {
+          const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'bz')
+          return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
+        })()
+        
+        const totalToProduce = Math.max(0, totalNeeded - inStock)
         if (totalToProduce <= 0) return
 
+        const matKey = (part.nom.material_type || part.nom.name || 'Інше').trim()
         const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
         const sheets = Math.ceil(totalToProduce / unitsPerSheet)
-        const matKey = part.nom.material_type || 'Інші ТМЦ'
 
-        if (!summary[matKey]) summary[matKey] = { name: matKey, sheets: 0 }
+        if (!summary[matKey]) {
+          summary[matKey] = { name: matKey, sheets: 0 }
+        }
         summary[matKey].sheets += sheets
       })
     })
+
     return Object.values(summary)
-  }, [activeNaryadOrder, nomenclatures, bomItems])
+  }, [activeNaryadOrder, inventory, reprintTask, nomenclatures, bomItems])
 
   const productNames = useMemo(() => {
     if (!activeNaryadOrder) return ''
@@ -318,10 +338,15 @@ const MasterModule = () => {
                       const parts = getBOMParts(it.nomenclature_id)
                       const displayParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
                       return displayParts.map((part, pIdx) => {
-                        const totalNeeded = (Number(it.quantity) || 0) * (Number(part.quantity_per_parent) || 1)
-                        const inStock = inventory.find(i => i.nomenclature_id === part.nom?.id && i.type === 'semi')?.bz_qty || 0
-                        const totalToProduce = Math.max(0, totalNeeded - inStock)
+                        const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)]
                         
+                        const totalNeeded = snapshot ? snapshot.need : ((Number(it.quantity) || 0) * (Number(part.quantity_per_parent) || 1))
+                        const inStock = snapshot ? snapshot.stock : (() => {
+                          const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz')
+                          return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
+                        })()
+                        const totalToProduce = snapshot ? snapshot.plan : Math.max(0, totalNeeded - inStock)
+
                         const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
                         const sheets = Math.ceil(totalToProduce / unitsPerSheet)
                         const capacityValue = Number(currentMachine?.sheet_capacity) || 1
@@ -360,25 +385,16 @@ const MasterModule = () => {
                           const displayParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
                           return acc + displayParts.reduce((pa, p) => {
                             const totalNeeded = (Number(it.quantity) || 0) * (Number(p.quantity_per_parent) || 1)
-                            const inStock = inventory.find(i => i.nomenclature_id === p.nom?.id && i.type === 'semi')?.bz_qty || 0
+                            const bzInv = inventory.find(i => String(i.nomenclature_id) === String(p.nom?.id) && i.type === 'bz')
+                            const inStock = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
                             return pa + Math.max(0, totalNeeded - inStock)
                           }, 0)
                         }, 0) || 0).toString()}
                       </td>
                       <td style={{ padding: '12px 15px', border: '1px solid #000' }}></td>
                       <td style={{ padding: '12px 15px', border: '1px solid #000' }}></td>
-                      <td style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.4rem', color: '#22c55e', border: '1px solid #000' }} className="print-accent-g">
-                        {(activeNaryadOrder.order_items?.reduce((acc, it) => {
-                          const parts = getBOMParts(it.nomenclature_id)
-                          const displayParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
-                          const sh = displayParts.reduce((pa, p) => {
-                            const totalNeeded = (Number(it.quantity) || 0) * (Number(p.quantity_per_parent) || 1)
-                            const inStock = inventory.find(i => i.nomenclature_id === p.nom?.id && i.type === 'semi')?.bz_qty || 0
-                            const totalToProduce = Math.max(0, totalNeeded - inStock)
-                            return pa + Math.ceil(totalToProduce / (Number(p.nom?.units_per_sheet) || 1))
-                          }, 0)
-                          return acc + sh
-                        }, 0) || 0).toString()}
+                          <td style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.4rem', color: '#22c55e', border: '1px solid #000' }} className="print-accent-g">
+                        {materialSummary.reduce((acc, m) => acc + (m.sheets || 0), 0).toString()}
                       </td>
                       <td style={{ border: '1px solid #000' }}></td>
                     </tr>
@@ -416,23 +432,24 @@ const MasterModule = () => {
             </div>
 
             <div className="no-print" style={{ padding: '30px 40px', background: '#111', borderTop: '1px solid #222', display: 'flex', justifyContent: 'flex-end', gap: '15px' }}>
-              <button onClick={() => setActiveNaryadOrder(null)} style={{ background: '#222', color: '#fff', border: 'none', padding: '12px 30px', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>СКАСУВАТИ</button>
+              <button onClick={() => { setActiveNaryadOrder(null); setReprintTask(null); }} style={{ background: '#222', color: '#fff', border: 'none', padding: '12px 30px', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>СКАСУВАТИ</button>
               <button
                 onClick={handlePrint}
+                disabled={isSubmitting}
                 style={{
-                  background: '#ff9000',
-                  color: '#000',
+                  background: isSubmitting ? '#444' : '#ff9000',
+                  color: isSubmitting ? '#888' : '#000',
                   border: 'none',
                   padding: '12px 45px',
                   borderRadius: '12px',
                   fontWeight: 950,
-                  cursor: 'pointer',
+                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
                   fontSize: '0.9rem',
                   transition: '0.2s',
-                  opacity: 1
+                  opacity: isSubmitting ? 0.7 : 1
                 }}
               >
-                {isReprintMode ? 'ПОВТОРНИЙ ДРУК' : 'ДРУКУВАТИ ТА В РОБОТУ'}
+                {isSubmitting ? 'ЧЕКАЙТЕ...' : (isReprintMode ? 'ПОВТОРНИЙ ДРУК' : 'ДРУКУВАТИ ТА В РОБОТУ')}
               </button>
             </div>
           </div>

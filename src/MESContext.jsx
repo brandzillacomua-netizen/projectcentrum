@@ -254,7 +254,6 @@ export const MESProvider = ({ children }) => {
           if (!part.nom) return
           const totalNeeded = (Number(item.quantity) || 0) * (Number(part.qtyPer) || 1)
           
-          // Шукаємо ТІЛЬКИ в БЗ (готові деталі) для планування наряду
           const invItem = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'bz')
           const inStockQty = invItem ? Math.max(0, (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0)) : 0 
           
@@ -262,7 +261,7 @@ export const MESProvider = ({ children }) => {
           const totalToProduce = Math.max(0, totalNeeded - inStockQty)
 
           const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
-          const sheets = Math.ceil(totalToProduce / unitsPerSheet)
+          let sheets = Math.ceil(totalToProduce / unitsPerSheet)
           
           plan_snapshot[part.nom.id] = {
             id: part.nom.id,
@@ -272,50 +271,103 @@ export const MESProvider = ({ children }) => {
             stock: inStockQty,
             plan: totalToProduce,
             units_per_sheet: unitsPerSheet,
-            sheets: sheets,
+            sheets: sheets, // Цей показник для відображення в Snapshot
             material: part.nom.material_type
           }
 
           if (usedFromStock > 0 && invItem) {
-            // Віднімаємо саме з записів типу BЗ (готові деталі)
             bzStockDeductions.push({ id: invItem.id, next_qty: (Number(invItem.total_qty) || 0) - usedFromStock })
           }
 
           if (totalToProduce <= 0) return
           
-          const matKey = part.nom.material_type || part.nom.name || 'Інше'
+          const matKey = (part.nom.material_type || part.nom.name || 'Інше').trim()
+          const normalize = (s) => s?.toLowerCase().replace(/[\s-]/g, '')
+          
+          sheets = Math.ceil(totalToProduce / unitsPerSheet)
           
           if (!materialSummary[matKey]) {
-            const rawNom = nomenclatures.find(n => n.type === 'raw' && (normalize(n.material_type) === normalize(matKey) || normalize(n.name) === normalize(matKey)))
-            const rawInv = inventory.find(i => rawNom ? (String(i.nomenclature_id) === String(rawNom.id)) : (String(i.nomenclature_id) === String(part.nom.id)) && i.type === 'raw')
-            materialSummary[matKey] = { matName: matKey, sheets: 0, components: [], inventory_id: rawInv?.id || null }
+            const rawNom = nomenclatures.find(n => 
+              n.type === 'raw' && (
+                normalize(n.material_type) === normalize(matKey) || 
+                normalize(n.name).includes(normalize(matKey)) ||
+                normalize(matKey).includes(normalize(n.name))
+              )
+            )
+            const rawInv = inventory.find(i => rawNom ? (String(i.nomenclature_id) === String(rawNom.id)) : (String(i.nomenclature_id) === String(part.nom.id) && i.type === 'raw'))
+            materialSummary[matKey] = { matName: matKey, sheets: 0, totalUnits: 0, components: [], inventory_id: rawInv?.id || null }
           }
           materialSummary[matKey].sheets += sheets
+          materialSummary[matKey].totalUnits += totalToProduce
           materialSummary[matKey].components.push(`${part.nom.name}: ${totalToProduce}шт`)
           totalMin += totalToProduce * (Number(part.nom.time_per_unit) || 0)
         })
       })
       
-      // --- EXECUTE STOCK DEDUCTIONS ---
-      for (const upd of bzStockDeductions) {
-        // Deduction always from total_qty
-        await supabase.from('inventory').update({ total_qty: upd.next_qty }).eq('id', upd.id)
-      }
-      
-      await supabase.from('orders').update({ status: 'in-progress' }).eq('id', orderId)
+      // --- EXECUTE STOCK DEDUCTIONS & CREATE BZ CARDS ---
       const { data: taskData, error: taskError } = await supabase.from('tasks').insert([{
         order_id: orderId, step: 'Лазерна різка', status: 'waiting', machine_name: machineName || 'Не вказано',
         estimated_time: Math.round(totalMin), engineer_conf: false, warehouse_conf: false, director_conf: false,
         plan_snapshot: plan_snapshot
       }]).select()
+      
       const tData = (taskData && taskData.length > 0) ? taskData[0] : null
       if (taskError) throw taskError
-      const allMaterials = Object.values(materialSummary)
-      const requestsToInsert = allMaterials.map(info => ({
-        order_id: orderId, quantity: Number(info.sheets) || 0, status: 'pending', inventory_id: info.inventory_id,
-        details: `Сировина для ${order.order_num}: ${info.matName} — ${info.sheets} л. (Для: ${info.components.join(', ')})`
+
+      // Process BZ deductions and reservation cards
+      for (const upd of bzStockDeductions) {
+        // 1. Списання загальної кількості
+        await supabase.from('inventory').update({ total_qty: upd.next_qty }).eq('id', upd.id)
+        
+        // 2. Створення завершеної картки резерву для цього наряду
+        const invItem = inventory.find(i => i.id === upd.id)
+        if (invItem && tData) {
+          const usedQty = (Number(invItem.total_qty) || 0) - upd.next_qty
+          if (usedQty > 0) {
+            // Створюємо картку
+            const { data: bzCardData } = await supabase.from('work_cards').insert([{
+              task_id: tData.id, 
+              order_id: orderId, 
+              nomenclature_id: invItem.nomenclature_id,
+              quantity: usedQty,
+              status: 'completed',
+              operation: 'Склад БЗ',
+              card_info: '[ЗІ СКЛАДУ БЗ]'
+            }]).select()
+
+            const bzCard = (bzCardData && bzCardData.length > 0) ? bzCardData[0] : null
+
+            // Створюємо історію
+            await supabase.from('work_card_history').insert([{
+              card_id: bzCard?.id || null, 
+              nomenclature_id: invItem.nomenclature_id,
+              stage_name: 'Склад БЗ',
+              operator_name: 'Склад (БРОНЬ)',
+              qty_at_start: usedQty,
+              qty_completed: usedQty,
+              scrap_qty: 0,
+              completed_at: new Date().toISOString()
+            }])
+          }
+        }
+      }
+      
+      await supabase.from('orders').update({ status: 'in-progress' }).eq('id', orderId)
+
+      const allMaterials = Object.values(materialSummary).map(info => ({
+        ...info,
+        sheets: Number(info.sheets) || 0
       }))
-      const totalSheetsOverall = allMaterials.reduce((acc, m) => acc + (Number(m.sheets) || 0), 0)
+
+      const requestsToInsert = allMaterials.map(info => ({
+        order_id: orderId, 
+        quantity: info.sheets, 
+        status: 'pending', 
+        inventory_id: info.inventory_id,
+        details: `СИРОВИНА: ${info.matName} — ${info.sheets} л. (Разом: ${info.totalUnits} шт | Для: ${info.components.join(', ')})`
+      }))
+
+      const totalSheetsOverall = allMaterials.reduce((acc, m) => acc + (m.sheets || 0), 0)
       if (totalSheetsOverall > 0) {
         nomenclatures.filter(n => n.type === 'consumable' && (Number(n.consumption_per_sheet) || 0) > 0).forEach(cons => {
           const neededQty = Math.ceil(totalSheetsOverall * Number(cons.consumption_per_sheet))
@@ -511,7 +563,8 @@ export const MESProvider = ({ children }) => {
       task_id: taskId, order_id: orderId, nomenclature_id: nomenclatureId,
       operation: operation || 'Нова', machine, quantity: Number(quantity) || 0,
       estimated_time: Number(estimatedTime) || 0, status: 'new', 
-      card_info: `${cardInfo}${Number(bufferQty) > 0 ? ` [BZ:${bufferQty}]` : ''}${isRework ? ' [REDO]' : ''}`
+      is_rework: isRework,
+      card_info: `${cardInfo || ''}${Number(bufferQty) > 0 ? ` [BZ:${bufferQty}]` : ''}${isRework ? ' [REDO]' : ''}`
     }]).select()
     const data = (list && list.length > 0) ? list[0] : null
     await supabase.from('tasks').update({ status: 'in-progress' }).eq('id', taskId)
@@ -632,6 +685,18 @@ export const MESProvider = ({ children }) => {
         operation: 'Склад БЗ',
         card_info: '[ЗІ СКЛАДУ БЗ]',
         buffer_qty: 0
+      }])
+
+      // 1. Записуємо в history одразу, щоб відображалось як "Вироблено"
+      await supabase.from('work_card_history').insert([{
+        task_id: taskId,
+        nomenclature_id: nomenclatureId,
+        stage_name: 'Склад БЗ',
+        operator_name: 'Система (БРОНЬ)',
+        qty_at_start: qty,
+        qty_completed: qty,
+        scrap_qty: 0,
+        completed_at: new Date().toISOString()
       }])
 
       fetchData()

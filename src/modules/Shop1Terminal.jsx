@@ -26,7 +26,7 @@ const CHAIN = ['Різка', 'Галтовка', 'Прийомка']
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function Shop1Terminal() {
-  const { workCards, nomenclatures, operators, workCardHistory, inventory, fetchData } = useMES()
+  const { workCards, nomenclatures, operators, workCardHistory, inventory, fetchData, createWorkCard, orders, bomItems, tasks } = useMES()
 
   const [currentTime, setCurrentTime] = useState(new Date())
   const [selectedCardId, setSelectedCardId] = useState(null)
@@ -45,6 +45,7 @@ export default function Shop1Terminal() {
   // Форми та модалки
   const [selectedOperator, setSelectedOperator] = useState('')
   const [selectedMachine, setSelectedMachine] = useState('')
+  const [machineNumber, setMachineNumber] = useState('')
   const [showCompleteModal, setShowCompleteModal] = useState(false)
   const [finalOperator, setFinalOperator] = useState('')
   const [scrapCount, setScrapCount] = useState(0)
@@ -170,6 +171,25 @@ export default function Shop1Terminal() {
     return i >= 0 && i < CHAIN.length - 1 ? CHAIN[i + 1] : null
   }
 
+  // Автоматичне скидання полів при зміні обраної картки
+  useEffect(() => {
+    setSelectedOperator('')
+    
+    const combined = currentCard?.machine || ''
+    const match = combined.match(/^(.*?) ?№ ?(\d+)$/)
+    if (match) {
+      setSelectedMachine(match[1].trim())
+      setMachineNumber(match[2].trim())
+    } else {
+      setSelectedMachine(combined)
+      setMachineNumber('')
+    }
+    
+    setFinalOperator('')
+    setScrapCount(0)
+  }, [selectedCardId, currentCard])
+
+
   // Уніфікована функція запису в інвентар (без bz_qty колонки)
   const updateInventoryStock = async (nomId, qty, type = 'semi') => {
     if (!nomId || qty <= 0) return
@@ -178,7 +198,7 @@ export default function Shop1Terminal() {
         .select('*')
         .eq('nomenclature_id', nomId)
         .eq('type', type)
-        .single()
+        .maybeSingle()
 
       if (existing) {
         await supabase.from('inventory').update({
@@ -225,7 +245,7 @@ export default function Shop1Terminal() {
         operation: startOp,
         started_at: new Date().toISOString(),
         operator_name: selectedOperator,
-        machine: selectedMachine || currentCard.machine,
+        machine: machineNumber ? `${selectedMachine} №${machineNumber}`.trim() : (selectedMachine?.trim() || 'Не вказано'),
         card_info: ((currentCard.card_info || '').replace('[SHOP:1]', '').trim() + ' [SHOP:1]').trim()
       }).eq('id', currentCard.id)
       await fetchData()
@@ -252,7 +272,8 @@ export default function Shop1Terminal() {
         qty_completed: qtyDone,
         scrap_qty: scrapCount,
         started_at: currentCard.started_at,
-        completed_at: new Date().toISOString()
+        completed_at: new Date().toISOString(),
+        is_archived_scrap: scrapCount > 0 // Автоматично архівуємо брак, бо він вже в інвентар пішов
       }])
 
       // 2. Оновлюємо картку (тільки перехід у буфер, фінальна прийомка далі)
@@ -267,9 +288,10 @@ export default function Shop1Terminal() {
         await updateInventoryStock(currentCard.nomenclature_id, scrapCount, 'scrap')
       }
 
-      await fetchData()
       setShowCompleteModal(false)
+      setScrapCount(0)
       setSelectedCardId(null)
+      await fetchData()
     } catch (e) { 
       console.error('Buffer error:', e)
       alert('Помилка буфера: ' + e.message) 
@@ -298,7 +320,7 @@ export default function Shop1Terminal() {
         operation: next,
         started_at: new Date().toISOString(),
         operator_name: selectedOperator,
-        machine: currentCard.machine || null
+        machine: currentCard.machine || 'Не вказано'
       }).eq('id', currentCard.id)
       await fetchData()
       if (!scannedIds.includes(currentCard.id)) setScannedIds(prev => [...prev, currentCard.id])
@@ -323,7 +345,8 @@ export default function Shop1Terminal() {
         qty_completed: 0,
         scrap_qty: currentCard.quantity,
         started_at: currentCard.started_at,
-        completed_at: new Date().toISOString()
+        completed_at: new Date().toISOString(),
+        is_archived_scrap: true
       }])
 
       // 2. Оновлюємо поточну картку → completed (з 0 qty)
@@ -380,10 +403,10 @@ export default function Shop1Terminal() {
         qty_completed: qtyDone,
         scrap_qty: 0,
         started_at: new Date().toISOString(),
-        completed_at: new Date().toISOString()
+        completed_at: new Date().toISOString(),
+        is_archived_scrap: true
       }])
 
-      // 2. Картка → completed (фініш процесу)
       // 2. Картка → completed (фініш процесу)
       const { error: cardErr } = await supabase.from('work_cards').update({
         status: 'completed',
@@ -396,16 +419,84 @@ export default function Shop1Terminal() {
       setSelectedCardId(null)
       setScannedIds(prev => prev.filter(id => id !== currentCard.id))
 
-      // 3. Оновлюємо склад (напів-фабрикати та БЗ)
+      // 3. Оновлюємо склад (напів-фабрикати та БЗ) - ПРІОРИТЕТНА ЛОГІКА ТУТ
       if (qtyDone > 0 && nom) {
-        const bzMatch = (currentCard.card_info || '').match(/\[BZ:(\d+)\]/)
-        const bzQty = bzMatch ? Number(bzMatch[1]) : 0
-        const semiQty = Math.max(0, qtyDone - bzQty)
+        // [Dynamic Balancing]: Перевіряємо, чи це остання картка цнієї номенклатури в наряді
+        const otherActive = workCards.filter(c => 
+          String(c.order_id) === String(currentCard.order_id) && 
+          String(c.nomenclature_id) === String(currentCard.nomenclature_id) && 
+          String(c.id) !== String(currentCard.id) && 
+          c.status !== 'completed'
+        )
+        const isLastCard = otherActive.length === 0
 
-        // Записуємо чисту кількість як semi
-        if (semiQty > 0) await updateInventoryStock(nom.id, semiQty, 'semi')
-        // Записуємо БЗ окремим типом bz
-        if (bzQty > 0) await updateInventoryStock(nom.id, bzQty, 'bz')
+        if (!isLastCard) {
+          // Якщо не остання — все йде в напівфабрикати (мітка потреби)
+          await updateInventoryStock(nom.id, qtyDone, 'semi')
+        } else {
+          // Якщо остання — робимо фінальний розрахунок БЗ
+          
+          // 1. Шукаємо потребу ПРАВИЛЬНИМ шляхом (перебором ключів для надійності)
+          const taskRef = tasks.find(t => String(t.id) === String(currentCard.task_id))
+          let totalNeed = 0
+          let initialStockBZ = 0 // Початковий БЗ, який був врахований у ПЛАНІ
+          
+          if (taskRef?.plan_snapshot) {
+            // Шукаємо в снапшоті (може бути ключ як число або рядок)
+            const snEntries = Object.entries(taskRef.plan_snapshot)
+            const match = snEntries.find(([k, v]) => String(k) === String(nom.id) || String(v.id) === String(nom.id))
+            if (match) {
+              totalNeed = Number(match[1].need) || 0
+              // ВРАХОВУЄМО: Скільки БЗ ми вже мали на момент ПЛАНУВАННЯ
+              initialStockBZ = Number(match[1].stock) || 0
+            }
+          }
+
+          // Fallback якщо в снапшоті не знайшли (наприклад, стара картка)
+          if (totalNeed === 0) {
+            const orderRef = orders.find(o => String(o.id) === String(currentCard.order_id))
+            const directItem = orderRef?.order_items?.find(it => String(it.nomenclature_id) === String(nom.id))
+            if (directItem) {
+              totalNeed = Number(directItem.quantity) || 0
+            } else {
+              // BOM fallback
+              orderRef?.order_items?.forEach(oi => {
+                const bItem = bomItems.find(b => String(b.parent_id) === String(oi.nomenclature_id) && String(b.child_id) === String(nom.id))
+                if (bItem) totalNeed += (Number(oi.quantity) || 0) * (Number(bItem.quantity_per_parent) || 1)
+              })
+            }
+          }
+
+          // 2. Отримуємо історію виробництва (тільки фінальну стадію Прийомка, щоб не рахувати Різку/Галтовку двічі)
+          const allHistory = workCardHistory.filter(h => 
+            String(h.nomenclature_id) === String(nom.id) && 
+            h.stage_name === 'Прийомка' &&
+            workCards.find(c => String(c.id) === String(h.card_id))?.order_id === currentCard.order_id
+          )
+          const previouslyCompleted = allHistory.reduce((sum, h) => sum + (Number(h.qty_completed) || 0), 0)
+          
+          // ВАЖЛИВО: totalProduced — це все, що ми СЬОГОДНІ прийняли на склад (вже завершені + ця карта)
+          const totalProducedWithThis = previouslyCompleted + qtyDone
+
+          // 3. Розраховуємо БЗ
+          // Якщо ми не знайшли потребу (totalNeed == 0), то краще вважати, що ВСЕ йде в НФ (semi), 
+          // щоб не "ховати" деталі в БЗ поки замовлення не підтверджено.
+          let bzQty = 0
+          let semiQtyForThisCard = qtyDone
+
+          if (totalNeed > 0) {
+            // ПЛАН в наряді = Потреба - Початковий БЗ.
+            // Ми маємо додавати в БЗ все, що понад цей ПЛАН.
+            const surplus = Math.max(0, totalProducedWithThis - (totalNeed - initialStockBZ))
+            bzQty = Math.min(qtyDone, surplus)
+            semiQtyForThisCard = Math.max(0, qtyDone - bzQty)
+          }
+
+          console.log(`[Dynamic Acceptance] Nom: ${nom.name}, Need: ${totalNeed}, Prev: ${previouslyCompleted}, This: ${qtyDone}, BZ: ${bzQty}, NF: ${semiQtyForThisCard}`)
+
+          if (semiQtyForThisCard > 0) await updateInventoryStock(nom.id, semiQtyForThisCard, 'semi')
+          if (bzQty > 0) await updateInventoryStock(nom.id, bzQty, 'bz')
+        }
       }
 
       await fetchData()
@@ -582,9 +673,28 @@ export default function Shop1Terminal() {
                   {displayOp === 'Різка' && (
                     <div>
                       <label style={labelStyle}>Верстат / обладнання</label>
-                      <input type="text" placeholder="Номер верстата..."
-                        value={selectedMachine} onChange={e => setSelectedMachine(e.target.value)}
-                        style={{ ...selectStyle, cursor: 'text' }} />
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                        <input type="text" placeholder="Назва верстата..."
+                          value={selectedMachine} onChange={e => setSelectedMachine(e.target.value)}
+                          style={{ ...selectStyle, cursor: 'text', flex: 1 }} />
+                        <div style={{ position: 'relative', width: '80px' }}>
+                          <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#555', fontWeight: 1000, fontSize: '1.1rem' }}>№</span>
+                          <input type="text" placeholder="..."
+                            value={machineNumber} onChange={e => setMachineNumber(e.target.value)}
+                            style={{ 
+                              ...selectStyle, fontSize: '1.2rem', fontWeight: 1000, color: '#eab308',
+                              paddingLeft: '32px', width: '100%', cursor: 'text',
+                              borderColor: machineNumber ? '#eab308' : '#333'
+                            }} 
+                            onKeyDown={e => {
+                                // Якщо натиснуто Enter — це як клік на кнопку START
+                                if (e.key === 'Enter' && selectedOperator && !isProcessing) {
+                                    handleStart()
+                                }
+                            }}
+                            />
+                        </div>
+                      </div>
                     </div>
                   )}
                   <button onClick={handleStart} disabled={!selectedOperator || isProcessing}
@@ -874,7 +984,7 @@ export default function Shop1Terminal() {
 
         {/* ─── ПРИЙОМКА / СКЛАД (Фінальна стадія) ─── */}
         {(() => {
-          const semiQty = (inventory || []).filter(i => i.type === 'semi' && (i.nomenclature_id || '').length > 0).reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
+          const semiQty = (inventory || []).filter(i => i.type === 'semi' && (i.nomenclature_id !== null && i.nomenclature_id !== undefined)).reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
           const bzQty = (inventory || []).filter(i => i.type === 'bz').reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
           const scrapQty = (inventory || []).filter(i => i.type === 'scrap').reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
           
