@@ -27,6 +27,7 @@ import MachinesModule from './modules/MachinesModule'
 import SettingsModule from './modules/SettingsModule'
 import LoginPage from './modules/LoginPage'
 import Shop1Terminal from './modules/Shop1Terminal'
+import Shop2Module from './modules/Shop2Module'
 import { MESProvider, useMES } from './MESContext'
 
 const FileCodeIcon = () => (
@@ -44,6 +45,7 @@ const Portal = () => {
     { id: 'foreman', title: 'Майстер', icon: <Users />, path: '/foreman', desc: 'Розподіл нарядів', color: '#f59e0b' },
     { id: 'operator', title: 'Термінал', icon: <Tablet />, path: '/operator', desc: 'Робоче місце', color: '#ef4444' },
     { id: 'shop1', title: 'Цех №1 · Термінал', icon: <Tablet />, path: '/shop1', desc: 'Різка → Галтовка → Прийомка', color: '#eab308' },
+    { id: 'shop2', title: 'Цех №2', icon: <Monitor />, path: '/shop2', desc: 'Черга нарядів', color: '#8b5cf6' },
     { id: 'shipping', title: 'Логістика', icon: <Truck />, path: '/shipping', desc: 'Відвантаження', color: '#ec4899' },
     { id: 'supply', title: 'Постачання', icon: <Truck />, path: '/supply', desc: 'Закупівля ТМЦ', color: '#06b6d4' },
     { id: 'nomenclature', title: 'База', icon: <Settings />, path: '/nomenclature', desc: 'Номенклатура', color: '#6366f1' },
@@ -51,7 +53,10 @@ const Portal = () => {
     { id: 'settings', title: 'Система', icon: <Settings />, path: '/settings', desc: 'Конфігурація', color: '#444' }
   ]
 
-  const modules = allModules.filter(m => currentUser?.access_rights?.[m.id] === true)
+  const modules = allModules.filter(m => {
+    if (m.id === 'shop2') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.shop2;
+    return currentUser?.access_rights?.[m.id] === true;
+  })
 
   return (
     <div className="portal-container-v2" style={{ background: '#050505', minHeight: '100vh', color: '#fff', padding: '40px 20px' }}>
@@ -111,6 +116,7 @@ const AppContent = () => {
       <Route path="/foreman" element={<ForemanWorkplace />} />
       <Route path="/operator" element={<OperatorTerminal />} />
       <Route path="/shop1" element={<Shop1Terminal />} />
+      <Route path="/shop2" element={<Shop2Module />} />
       <Route path="/engineer" element={<EngineerModule />} />
       <Route path="/director" element={<DirectorModule />} />
       <Route path="/shipping" element={<ShippingModule />} />

@@ -572,6 +572,34 @@ export const MESProvider = ({ children }) => {
     return data
   }
 
+  const handoverTaskToShop2 = async (taskId) => {
+    try {
+      const task = tasks.find(t => String(t.id) === String(taskId))
+      if (!task) return
+
+      // 1. Завершуємо поточний наряд у Цеху №1
+      await supabase.from('tasks').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', taskId)
+
+      // 2. Створюємо новий наряд для Цеху №2
+      await supabase.from('tasks').insert([{
+        order_id: task.order_id,
+        step: 'Пресування',
+        status: 'waiting',
+        estimated_time: task.estimated_time || 0,
+        engineer_conf: true,
+        warehouse_conf: true,
+        director_conf: true,
+        plan_snapshot: task.plan_snapshot
+      }])
+
+      if (window.fetchData) window.fetchData() // На всяк випадок
+      fetchData()
+    } catch (err) {
+      console.error('Handover error:', err)
+      throw err
+    }
+  }
+
   const completeTaskByMaster = async (taskId) => {
     await supabase.from('tasks').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', taskId)
     fetchData()
@@ -717,7 +745,7 @@ export const MESProvider = ({ children }) => {
       fetchOrders, fetchData,
       createNaryad, issueMaterials, approveWarehouse, approveEngineer, approveDirector,
       upsertNomenclature, deleteNomenclature, saveBOM, removeBOM,
-      createWorkCard, startWorkCard, completeWorkCard, confirmBuffer, completeTaskByMaster,
+      createWorkCard, startWorkCard, completeWorkCard, confirmBuffer, completeTaskByMaster, handoverTaskToShop2,
       searchCustomers, addOrder, reserveBZForTask,
       createPurchaseRequest, updatePurchaseRequestStatus, convertRequestToOrder,
       createReceptionDoc, sendDocToWarehouse, confirmReception,

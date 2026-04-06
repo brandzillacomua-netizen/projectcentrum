@@ -7,7 +7,7 @@ import { apiService } from '../services/apiDispatcher'
 import { supabase } from '../supabase'
 
 const ForemanWorkplace = () => {
-  const { tasks, orders, workCards, createWorkCard, inventory, completeTaskByMaster, nomenclatures, bomItems, machines, workCardHistory, confirmBuffer, fetchData, reserveBZForTask } = useMES()
+  const { tasks, orders, workCards, createWorkCard, inventory, completeTaskByMaster, handoverTaskToShop2, nomenclatures, bomItems, machines, workCardHistory, confirmBuffer, fetchData, reserveBZForTask } = useMES()
   const [activeTaskId, setActiveTaskId] = useState(null)
   const [activeView, setActiveView] = useState('worksheet')
   const [selectedMachines, setSelectedMachines] = useState({})
@@ -49,7 +49,27 @@ const ForemanWorkplace = () => {
     }
   }
 
-  const readyTasks = tasks.filter(t => t.warehouse_conf && t.engineer_conf && t.director_conf && t.status !== 'completed')
+  const handleHandoverToShop2 = async (taskId) => {
+    if (!window.confirm("Передати цей наряд у Цех №2?")) return
+    try {
+      await handoverTaskToShop2(taskId)
+      setActiveTaskId(null)
+      fetchData()
+      alert("Наряд успішно передано в Цех №2!")
+    } catch (err) {
+      alert("Помилка при передачі: " + err.message)
+    }
+  }
+
+  const relevantTasks = useMemo(() => {
+    return tasks
+      .filter(t => t.warehouse_conf && t.engineer_conf && t.director_conf && t.step === 'Лазерна різка')
+      .sort((a, b) => {
+        if (a.status === 'completed' && b.status !== 'completed') return 1
+        if (a.status !== 'completed' && b.status === 'completed') return -1
+        return new Date(b.created_at) - new Date(a.created_at)
+      })
+  }, [tasks])
 
   const handleGenerateFromWorksheet = async (task, part, sheets, selectedMachineName, count, startOffset = 0, totalToReach = 0, isRepair = false) => {
     const machineObj = findMachine(selectedMachineName)
@@ -219,7 +239,7 @@ const ForemanWorkplace = () => {
           style={{ width: '300px', display: 'flex', flexDirection: 'column', background: '#121212', borderRight: '1px solid #222', transition: '0.3s transform' }}
         >
           <div style={{ padding: '20px', color: '#444', fontWeight: 800, fontSize: '0.65rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            ЧЕРГА НАРЯДІВ ({readyTasks.length})
+            ЧЕРГА НАРЯДІВ ({relevantTasks.length})
             {isDrawerOpen && (
               <button onClick={() => setIsDrawerOpen(false)} style={{ background: 'transparent', border: 'none', color: '#555' }}>
                 <X size={18} />
@@ -227,7 +247,7 @@ const ForemanWorkplace = () => {
             )}
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
-            {readyTasks.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(task => {
+            {relevantTasks.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(task => {
               const order = orders.find(o => o.id === task.order_id)
               const isActive = activeTaskId === task.id
               return (
@@ -236,16 +256,20 @@ const ForemanWorkplace = () => {
                   onClick={() => { setActiveTaskId(task.id); setIsDrawerOpen(false); }}
                   style={{ padding: '15px', borderLeft: isActive ? '4px solid #ef4444' : '4px solid transparent', background: isActive ? '#1a1a1a' : 'transparent', cursor: 'pointer' }}
                 >
-                  <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>№ {order?.order_num}</div>
-                  <div style={{ fontSize: '0.7rem', color: '#555' }}>{order?.customer}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontWeight: 800, fontSize: '0.9rem', color: task.status === 'completed' ? '#555' : '#fff' }}>№ {order?.order_num}</div>
+                    {task.status === 'completed' && <CheckCircle2 size={14} color="#10b981" />}
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: task.status === 'completed' ? '#333' : '#555' }}>{order?.customer}</div>
+                  {task.status === 'completed' && <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 900, marginTop: '4px' }}>ВИКОНАНО</div>}
                 </div>
               )
             })}
-            {readyTasks.length === 0 && (
-              <div style={{ padding: '20px', color: '#333', fontSize: '0.8rem' }}>Немає активних нарядів</div>
+            {relevantTasks.length === 0 && (
+              <div style={{ padding: '20px', color: '#333', fontSize: '0.8rem' }}>Немає нарядів</div>
             )}
           </div>
-          {readyTasks.length > itemsPerPage && (
+          {relevantTasks.length > itemsPerPage && (
             <div style={{ padding: '15px', borderTop: '1px solid #222', display: 'flex', justifyContent: 'center', gap: '10px' }}>
               <button
                 disabled={currentPage === 1}
@@ -253,12 +277,12 @@ const ForemanWorkplace = () => {
                 style={{ background: '#222', border: 'none', color: '#fff', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', opacity: currentPage === 1 ? 0.3 : 1 }}
               >Назад</button>
               <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800, display: 'flex', alignItems: 'center' }}>
-                {currentPage} / {Math.ceil(readyTasks.length / itemsPerPage)}
+                {currentPage} / {Math.ceil(relevantTasks.length / itemsPerPage)}
               </div>
               <button
-                disabled={currentPage === Math.ceil(readyTasks.length / itemsPerPage)}
+                disabled={currentPage === Math.ceil(relevantTasks.length / itemsPerPage)}
                 onClick={() => setCurrentPage(p => p + 1)}
-                style={{ background: '#222', border: 'none', color: '#fff', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', opacity: currentPage === Math.ceil(readyTasks.length / itemsPerPage) ? 0.3 : 1 }}
+                style={{ background: '#222', border: 'none', color: '#fff', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', opacity: currentPage === Math.ceil(relevantTasks.length / itemsPerPage) ? 0.3 : 1 }}
               >Вперед</button>
             </div>
           )}
@@ -282,10 +306,24 @@ const ForemanWorkplace = () => {
 
           {activeTaskId ? (
             (() => {
-              const task = readyTasks.find(t => t.id === activeTaskId)
+              const task = relevantTasks.find(t => t.id === activeTaskId)
               const order = orders.find(o => o.id === task.order_id)
               const taskCards = workCards.filter(c => c.task_id === task.id)
               const productNames = order?.order_items?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ')
+
+              // ПЕРЕВІРКА НА ПОВНЕ ВИКОНАННЯ
+              const isTaskComplete = order?.order_items?.every(item => {
+                const parts = getBOMParts(item.nomenclature_id)
+                const rows = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }]
+                return rows.every(part => {
+                  const snapshot = task.plan_snapshot?.[String(part.nom?.id)]
+                  const need = snapshot ? snapshot.need : (Number(item.quantity) * (Number(part.quantity_per_parent) || 1))
+                  const produced = taskCards
+                    .filter(c => String(c.nomenclature_id) === String(part.nom?.id))
+                    .reduce((sum, c) => sum + (c.status === 'completed' ? Number(c.quantity) : 0), 0)
+                  return produced >= need
+                })
+              })
 
               return (
                 <div style={{ maxWidth: '1200px' }} className="anim-fade-in">
@@ -297,11 +335,22 @@ const ForemanWorkplace = () => {
                       </div>
                     </div>
                     <button
-                      onClick={() => handleCloseNaryad(task.id)}
+                      onClick={() => isTaskComplete ? handleHandoverToShop2(task.id) : handleCloseNaryad(task.id)}
                       className="btn-primary"
-                      style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '12px 25px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}
+                      disabled={task.status === 'completed'}
+                      style={{ 
+                        background: task.status === 'completed' ? '#222' : (isTaskComplete ? '#10b981' : '#ef4444'), 
+                        color: task.status === 'completed' ? '#555' : '#fff', 
+                        border: 'none', 
+                        padding: '12px 25px', 
+                        borderRadius: '12px', 
+                        fontWeight: 900, 
+                        cursor: task.status === 'completed' ? 'default' : 'pointer',
+                        boxShadow: (isTaskComplete && task.status !== 'completed') ? '0 10px 20px -5px rgba(16, 185, 129, 0.4)' : 'none',
+                        transition: '0.3s'
+                      }}
                     >
-                      ЗАКРИТИ НАРЯД
+                      {task.status === 'completed' ? 'ПЕРЕДАНО В ЦЕХ №2' : (isTaskComplete ? 'ПЕРЕВЕСТИ В ЦЕХ №2' : 'ЗАКРИТИ НАРЯД')}
                     </button>
                   </div>
 
@@ -550,7 +599,7 @@ const ForemanWorkplace = () => {
                               <div style={{ fontSize: '0.7rem', color: groupScrap > 0 ? '#ef4444' : '#333', fontWeight: 950 }}>
                                 БРАК: {groupScrap}
                               </div>
-                              {shortage > 0 && (
+                              {shortage > 0 && task.status !== 'completed' && (
                                 <div style={{ padding: '4px 12px', borderRadius: '8px', background: '#ef444422', border: '1px solid #ef444444', display: 'flex', alignItems: 'center', gap: '12px' }}>
                                   <div style={{ color: '#ef4444', fontSize: '0.7rem', fontWeight: 950 }}>НЕСТАЧА: {shortage}</div>
                                   <button
