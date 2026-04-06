@@ -879,6 +879,7 @@ export default function Shop1Terminal() {
                 <th style={{ padding: '15px 25px' }}>СТАТУС</th>
                 <th style={{ padding: '15px 25px' }}>К-СТЬ</th>
                 <th style={{ padding: '15px 25px' }}>ОПЕРАТОР</th>
+                <th style={{ padding: '15px 25px' }}>ВЕРСТАТ</th>
                 <th style={{ padding: '15px 25px' }}>ЧАС</th>
                 <th style={{ padding: '15px 25px' }}></th>
               </tr>
@@ -904,6 +905,7 @@ export default function Shop1Terminal() {
                       </td>
                       <td style={{ padding: '15px 25px', fontWeight: 900 }}>{card.quantity} шт</td>
                       <td style={{ padding: '15px 25px', color: '#aaa' }}>{card.operator_name || '—'}</td>
+                      <td style={{ padding: '15px 25px', color: '#eab308', fontWeight: 800 }}>{card.machine || '—'}</td>
                       <td style={{ padding: '15px 25px', color: '#10b981', fontFamily: 'monospace', fontWeight: 700 }}>{formatTime(card.started_at)}</td>
                       <td style={{ padding: '15px 25px', textAlign: 'right' }}>
                         <button onClick={() => { setSelectedCardId(card.id); setSelectedOperator('') }}
@@ -915,7 +917,7 @@ export default function Shop1Terminal() {
                   )
                 })}
               {workCards.filter(c => CHAIN.includes(c.operation) && (c.status === 'in-progress' || c.status === 'at-buffer')).length === 0 && (
-                <tr><td colSpan={7} style={{ padding: '50px', textAlign: 'center', color: '#444', fontSize: '0.8rem' }}>Немає активних карток</td></tr>
+                <tr><td colSpan={8} style={{ padding: '50px', textAlign: 'center', color: '#444', fontSize: '0.8rem' }}>Немає активних карток</td></tr>
               )}
             </tbody>
           </table>

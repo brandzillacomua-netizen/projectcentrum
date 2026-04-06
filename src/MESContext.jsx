@@ -253,14 +253,16 @@ export const MESProvider = ({ children }) => {
           const totalNeeded = (Number(item.quantity) || 0) * (Number(part.qtyPer) || 1)
           
           // Use bz_qty (Safety Buffer) for stock reduction as per user requirement
+          // bzStockDeductions placeholder removed if no bz_qty column exists
+          // If we need to deduct from stock, we should use total_qty or a specific type
           const invItem = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'semi')
-          const inStockQty = Number(invItem?.bz_qty) || 0
+          const inStockQty = Number(invItem?.total_qty) || 0 // Changed from bz_qty if missing
           
-          const usedFromBZ = Math.min(totalNeeded, inStockQty)
+          const usedFromStock = Math.min(totalNeeded, inStockQty)
           const totalToProduce = Math.max(0, totalNeeded - inStockQty)
 
-          if (usedFromBZ > 0 && invItem) {
-            bzStockDeductions.push({ id: invItem.id, next_bz: inStockQty - usedFromBZ })
+          if (usedFromStock > 0 && invItem) {
+            bzStockDeductions.push({ id: invItem.id, next_qty: inStockQty - usedFromStock })
           }
 
           if (totalToProduce <= 0) return
@@ -279,9 +281,10 @@ export const MESProvider = ({ children }) => {
         })
       })
       
-      // --- EXECUTE BZ DEDUCTIONS IMMEDIATELY ---
+      // --- EXECUTE STOCK DEDUCTIONS ---
       for (const upd of bzStockDeductions) {
-        await supabase.from('inventory').update({ bz_qty: upd.next_bz }).eq('id', upd.id)
+        // Deduction always from total_qty
+        await supabase.from('inventory').update({ total_qty: upd.next_qty }).eq('id', upd.id)
       }
       
       await supabase.from('orders').update({ status: 'in-progress' }).eq('id', orderId)
@@ -367,69 +370,63 @@ export const MESProvider = ({ children }) => {
   }
 
   const confirmReception = async (docId) => {
-    const doc = receptionDocs.find(d => d.id === docId)
-    if (!doc) return
+    try {
+      const doc = (receptionDocs || []).find(d => d.id === docId)
+      if (!doc) return console.error('confirmReception: Doc not found', docId)
 
-    for (const it of (doc.items || [])) {
-      // 1. Визначаємо кількість (всі можливі назви полів)
-      const qtyToAdd = Number(it.qty ?? it.missingAmount ?? it.quantity ?? it.needed ?? 0)
-      if (!qtyToAdd || qtyToAdd <= 0) continue
+      let allSuccess = true
+      for (const it of (doc.items || [])) {
+        const qtyToAdd = Number(it.qty ?? it.missingAmount ?? it.quantity ?? it.needed ?? 0)
+        if (!qtyToAdd || qtyToAdd <= 0) continue
 
-      // 2. Визначаємо назву позиції (всі можливі назви полів)
-      const itemName = it.name || it.reqDetails || it.details || ''
+        const itemName = it.name || it.reqDetails || it.details || ''
+        const nomId = it.nomenclature_id || null
 
-      // 3. Шукаємо в інвентарі: спочатку за ID, потім за nomenclature_id, потім за назвою (fuzzy)
-      let invItem = null
-      if (it.inventory_id) {
-        invItem = inventory.find(i => i.id === it.inventory_id)
+        // ШИКАЄМО В БД ДЛЯ НАДІЙНОСТІ
+        let existing = null
+        if (nomId) {
+          const { data } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomId).eq('type', 'raw').maybeSingle()
+          existing = data
+        }
+        if (!existing && itemName) {
+          const { data } = await supabase.from('inventory').select('*').eq('name', itemName).eq('type', 'raw').maybeSingle()
+          existing = data
+        }
+
+        if (existing) {
+          const { error: updErr } = await supabase.from('inventory').update({
+            total_qty: (Number(existing.total_qty) || 0) + qtyToAdd,
+            updated_at: new Date().toISOString()
+          }).eq('id', existing.id)
+          if (updErr) { console.error('Reception Update Error:', updErr.message); allSuccess = false; }
+        } else {
+          const nom = nomId ? nomenclatures.find(n => n.id === nomId) : null
+          const { error: insErr } = await supabase.from('inventory').insert([{
+            nomenclature_id: nomId,
+            name: nom?.name || itemName || 'Прийнята позиція',
+            total_qty: qtyToAdd,
+            reserved_qty: 0,
+            type: 'raw',
+            unit: nom?.unit || 'шт'
+          }])
+          if (insErr) { console.error('Reception Insert Error:', insErr.message); allSuccess = false; }
+        }
       }
-      if (!invItem && it.nomenclature_id) {
-        invItem = inventory.find(i => i.nomenclature_id === it.nomenclature_id)
-      }
-      if (!invItem && itemName) {
-        // Fuzzy пошук за назвою (нормалізований)
-        const norm = (s) => (s || '').toLowerCase().trim()
-          .replace(/[тt]/g, 't').replace(/[аa]/g, 'a').replace(/[еe]/g, 'e')
-          .replace(/[оo]/g, 'o').replace(/[рp]/g, 'p').replace(/[сc]/g, 'c')
-          .replace(/[хx]/g, 'x').replace(/\s/g, '')
-        invItem = inventory.find(i => norm(i.name) === norm(itemName))
-      }
 
-      if (invItem) {
-        // 4a. Позиція знайдена → оновлюємо кількість
-        const currentQty = Number(invItem.total_qty) || 0
-        const updatePayload = { total_qty: currentQty + qtyToAdd }
-        if (!invItem.type) updatePayload.type = 'raw'
-        await supabase.from('inventory').update(updatePayload).eq('id', invItem.id)
+      if (allSuccess) {
+        await supabase.from('reception_docs').update({ status: 'completed' }).eq('id', docId)
+        if (doc.order_id) {
+          await supabase.from('purchase_requests').update({ status: 'completed' }).eq('order_id', doc.order_id)
+        }
+        await fetchData()
+        alert('Прийомку успішно завершено! Склад оновлено.')
       } else {
-        // 4b. Позиції немає → створюємо нову (завжди type: 'raw' для прийомки від постачальника)
-        const nom = it.nomenclature_id
-          ? nomenclatures.find(n => n.id === it.nomenclature_id)
-          : null
-        await supabase.from('inventory').insert([{
-          nomenclature_id: it.nomenclature_id || null,
-          name: nom?.name || itemName || 'Невідома позиція',
-          total_qty: qtyToAdd,
-          bz_qty: 0,
-          type: 'raw',
-          unit: nom?.unit || 'шт'
-        }])
+        alert('Помилка при оновленні складу. Перевірте консоль (F12).')
       }
+    } catch (err) {
+      console.error('CRITICAL: confirmReception crash:', err)
+      alert('Критична помилка прийомки. Подробиці в консолі.')
     }
-
-    // 5. Закриваємо документ прийомки
-    const { error } = await supabase.from('reception_docs').update({ status: 'completed' }).eq('id', docId)
-
-    // 6. Закриваємо пов'язаний purchase_request (щоб кнопка на складі стала "ВИДАТИ")
-    if (doc.order_id) {
-      await supabase.from('purchase_requests')
-        .update({ status: 'completed' })
-        .eq('order_id', doc.order_id)
-        .in('status', ['pending', 'accepted', 'ordered'])
-    }
-
-    if (!error) fetchData()
-    return { error }
   }
 
   const issueMaterials = async (requestId) => {
@@ -564,34 +561,32 @@ export const MESProvider = ({ children }) => {
     ])
 
     // Оновлюємо інвентар (BZ логіка)
-    if (qtyCompleted > 0) {
-      const nom = nomenclatures.find(n => n.id === card.nomenclature_id)
-      if (nom) {
-        const plannedBuffer = Number(card.buffer_qty) || Number(card.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
-        const actualBuffer = Math.max(0, plannedBuffer - totalScrap)
-        const netQtyForOrder = Math.max(0, (Number(card.quantity) || 0) - (totalScrap > plannedBuffer ? totalScrap - plannedBuffer : 0))
+        const nom = nomenclatures.find(n => n.id === card.nomenclature_id)
+        if (nom) {
+          const plannedBuffer = Number(card.buffer_qty) || Number(card.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
+          const actualBuffer = Math.max(0, plannedBuffer - totalScrap)
+          const netQtyForOrder = Math.max(0, qtyCompleted - actualBuffer)
 
-        // Шукаємо по nomenclature_id БЕЗ фільтру type (щоб уникнути 400 duplicate)
-        const item = inventory.find(i => i.nomenclature_id === nom.id)
+          // 1. Оновлюємо semi (чиста кількість)
+          if (netQtyForOrder > 0) {
+            const { data: semi } = await supabase.from('inventory').select('*').eq('nomenclature_id', nom.id).eq('type', 'semi').maybeSingle()
+            if (semi) {
+              await supabase.from('inventory').update({ total_qty: (Number(semi.total_qty) || 0) + netQtyForOrder }).eq('id', semi.id)
+            } else {
+              await supabase.from('inventory').insert([{ nomenclature_id: nom.id, name: nom.name, unit: nom.unit || 'шт', total_qty: netQtyForOrder, reserved_qty: 0, type: 'semi' }])
+            }
+          }
 
-        if (item) {
-          await supabase.from('inventory').update({
-            total_qty: Number(item.total_qty) + netQtyForOrder,
-            bz_qty: (Number(item.bz_qty) || 0) + actualBuffer
-          }).eq('id', item.id)
-        } else {
-          // Upsert замість insert — безпечно при constraint
-          await supabase.from('inventory').upsert([{
-            name: nom.name,
-            unit: nom.unit || 'шт',
-            total_qty: netQtyForOrder,
-            bz_qty: actualBuffer,
-            type: 'semi',
-            nomenclature_id: nom.id
-          }], { onConflict: 'nomenclature_id' })
-        }
+          // 2. Оновлюємо bz як окремий запис
+          if (actualBuffer > 0) {
+            const { data: bz } = await supabase.from('inventory').select('*').eq('nomenclature_id', nom.id).eq('type', 'bz').maybeSingle()
+            if (bz) {
+              await supabase.from('inventory').update({ total_qty: (Number(bz.total_qty) || 0) + actualBuffer }).eq('id', bz.id)
+            } else {
+              await supabase.from('inventory').insert([{ nomenclature_id: nom.id, name: nom.name, unit: nom.unit || 'шт', total_qty: actualBuffer, reserved_qty: 0, type: 'bz' }])
+            }
+          }
       }
-    }
     fetchData()
   }
 
@@ -609,7 +604,8 @@ export const MESProvider = ({ children }) => {
       searchCustomers, addOrder,
       createPurchaseRequest, updatePurchaseRequestStatus, convertRequestToOrder,
       createReceptionDoc, sendDocToWarehouse, confirmReception,
-      issueMaterials, receiveInventory,
+      confirmReceptionDoc: confirmReception,
+      receiveInventory,
       totalProduced: productionData.totalProduced,
       totalScrapCount: productionData.totalScrap
     }}>
