@@ -6,7 +6,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { apiService } from '../services/apiDispatcher'
 
 const ForemanWorkplace = () => {
-  const { tasks, orders, workCards, createWorkCard, inventory, completeTaskByMaster, nomenclatures, bomItems, machines, workCardHistory, confirmBuffer, fetchData } = useMES()
+  const { tasks, orders, workCards, createWorkCard, inventory, completeTaskByMaster, nomenclatures, bomItems, machines, workCardHistory, confirmBuffer, fetchData, reserveBZForTask } = useMES()
   const [activeTaskId, setActiveTaskId] = useState(null)
   const [activeView, setActiveView] = useState('worksheet') 
   const [selectedMachines, setSelectedMachines] = useState({}) 
@@ -109,13 +109,14 @@ const ForemanWorkplace = () => {
     setBufferScrapCounts({ [card.nomenclature_id]: 0 })
   }
 
-  const submitBufferReception = async () => {
-    if (!bufferScrapModal) return
+  const handleReserveBZ = async (taskId, orderId, nomId, qty) => {
+    if (!window.confirm(`Забронювати ${qty} шт. зі складу БЗ?`)) return
     try {
-      await apiService.submitBufferConfirmation(bufferScrapModal.cardId, bufferScrapCounts, confirmBuffer)
-      setBufferScrapModal(null)
-      setIsBufferScanning(false)
-    } catch (err) { alert("Помилка: " + err.message) }
+      await reserveBZForTask(taskId, orderId, nomId, qty)
+      alert("Деталі заброньовано!")
+    } catch (err) {
+      alert("Помилка: " + err.message)
+    }
   }
 
   React.useEffect(() => {
@@ -229,21 +230,38 @@ const ForemanWorkplace = () => {
                             const rows = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }]
                             return rows.map((part, idx) => {
                               const rowId = `${item.id}-${part.nom?.id || idx}`
-                              const need = (Number(item.quantity) || 0) * (Number(part.quantity_per_parent) || 1)
+                              const nomId = part.nom?.id
+
+                              // Snapshot fallback logic
+                              let need, stockBZ, plan, unitsPerSheet, sheets
+                              const snapshot = task.plan_snapshot?.[nomId]
+
+                              if (snapshot) {
+                                need = snapshot.need
+                                stockBZ = snapshot.stock
+                                plan = snapshot.plan
+                                unitsPerSheet = snapshot.units_per_sheet
+                                sheets = snapshot.sheets
+                              } else {
+                                need = (Number(item.quantity) || 0) * (Number(part.quantity_per_parent) || 1)
+                                const bzInv = (inventory || []).find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'bz')
+                                stockBZ = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
+                                plan = Math.max(0, need - stockBZ)
+                                unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
+                                sheets = Math.ceil(plan / unitsPerSheet)
+                              }
                               
-                              // Inventory Stock BZ lookup
-                              const stockBZ = (inventory || []).filter(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz').reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
-                              
-                              const plan = Math.max(0, need - stockBZ)
-                              const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
-                              const sheets = Math.ceil(plan / unitsPerSheet)
-                              
-                              const existing = taskCards.filter(c => c.nomenclature_id === part.nom?.id)
+                              const existing = taskCards.filter(c => c.nomenclature_id === nomId)
+                              const reworks = existing.filter(c => (c.card_info || '').includes('[REDO]'))
+                              const redoCount = reworks.length
+
                               const rowMachineName = selectedMachines[rowId] || (existing.length > 0 ? existing[0].machine : '')
                               const rowMachineObj = machines.find(m => m.name === rowMachineName)
                               const currentCapacity = Number(rowMachineObj?.sheet_capacity) || 0
                               const loads = currentCapacity > 0 ? Math.ceil(sheets / currentCapacity) : 0
-                              const surplus = (sheets * unitsPerSheet) - plan
+                              
+                              const totalTargetLoads = loads + redoCount
+                              const surplus = sheets > 0 ? Math.max(0, (sheets * unitsPerSheet) - need) : 0
 
                               return (
                                 <tr key={rowId} style={{ borderBottom: '1px solid #1a1a1a' }}>
@@ -258,16 +276,21 @@ const ForemanWorkplace = () => {
                                   <td style={{ padding: '15px', textAlign: 'center', color: '#444' }}>{unitsPerSheet}</td>
                                   <td style={{ padding: '15px', textAlign: 'center', color: '#10b981', fontWeight: 1000, fontSize: '1.1rem' }}>{sheets}</td>
                                   <td style={{ padding: '15px' }}>
-                                    <select value={rowMachineName} disabled={existing.length > 0} 
+                                    <select value={rowMachineName} disabled={existing.length > 0 || plan === 0} 
                                       onChange={(e) => setSelectedMachines(p => ({ ...p, [rowId]: e.target.value }))} 
-                                      style={{ width: '100%', background: '#000', border: rowMachineName ? '1px solid #333' : '1px solid #ef4444', color: rowMachineName ? '#fff' : '#ef4444', padding: '8px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700 }}>
-                                      <option value="">Оберіть верстат</option>
+                                      style={{ width: '100%', background: '#000', border: rowMachineName || plan === 0 ? '1px solid #333' : '1px solid #ef4444', color: rowMachineName || plan === 0 ? '#fff' : '#ef4444', padding: '8px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700, opacity: plan === 0 ? 0.3 : 1 }}>
+                                      <option value="">{plan === 0 ? 'Не потрібно' : 'Оберіть верстат'}</option>
                                       {machines.map(m => <option key={m.id} value={m.name}>{m.name} ({m.sheet_capacity} л.)</option>)}
                                     </select>
                                   </td>
                                   <td style={{ padding: '15px', textAlign: 'center', color: '#3b82f6', fontWeight: 1000, fontSize: '1.2rem' }}>
                                     {rowMachineName ? (
-                                      <><span style={{ color: existing.length < loads ? '#444' : '#3b82f6' }}>{existing.length}</span><span style={{ color: '#222', margin: '0 5px' }}>/</span><span>{loads}</span></>
+                                      <>
+                                        <span style={{ color: existing.length < totalTargetLoads ? '#444' : '#3b82f6' }}>{existing.length}</span>
+                                        <span style={{ color: '#222', margin: '0 5px' }}>/</span>
+                                        <span>{totalTargetLoads}</span>
+                                        {redoCount > 0 && <span style={{ fontSize: '0.7rem', color: '#ef4444', marginLeft: '5px' }}>+{redoCount}</span>}
+                                      </>
                                     ) : (
                                       <span style={{ color: '#222', fontSize: '0.8rem' }}>—</span>
                                     )}
@@ -275,11 +298,20 @@ const ForemanWorkplace = () => {
                                   <td style={{ padding: '15px', textAlign: 'center', color: '#ef4444', fontWeight: 900 }}>{surplus > 0 ? `+${surplus}` : '0'}</td>
                                   <td style={{ padding: '15px', textAlign: 'center' }}>
                                     <div style={{ display: 'flex', gap: '5px' }}>
-                                      {(existing.length === 0 || existing.length < loads) && (
-                                        <button onClick={() => { if (!rowMachineName) return; setGenModal({ task, part, total: loads, requirement: plan, created: existing.length, rowId, machineName: rowMachineName, sheets }) }} 
-                                          style={{ flex: 1, background: existing.length === 0 ? (rowMachineName ? '#333' : '#111') : '#3b82f6', color: rowMachineName ? '#fff' : '#333', border: 'none', padding: '8px 10px', borderRadius: '10px', cursor: rowMachineName ? 'pointer' : 'not-allowed', fontWeight: 900, fontSize: '0.6rem', textTransform: 'uppercase' }}>
-                                          ГЕНЕРУВАТИ
-                                        </button>
+                                      {plan === 0 ? (
+                                        existing.length === 0 && (
+                                          <button onClick={() => handleReserveBZ(task.id, order.id, nomId, need)} 
+                                            style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 900, cursor: 'pointer', textTransform: 'uppercase' }}>
+                                            Забронювати БЗ
+                                          </button>
+                                        )
+                                      ) : (
+                                        (existing.length === 0 || existing.length < loads) && (
+                                          <button onClick={() => { if (!rowMachineName) return; setGenModal({ task, part, total: loads, requirement: plan, created: existing.length, rowId, machineName: rowMachineName, sheets }) }} 
+                                            style={{ background: rowMachineName ? '#ff9000' : '#222', color: rowMachineName ? '#000' : '#444', border: 'none', padding: '8px 15px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 900, cursor: rowMachineName ? 'pointer' : 'not-allowed', textTransform: 'uppercase' }}>
+                                            Генерувати
+                                          </button>
+                                        )
                                       )}
                                       {existing.length > 0 && (
                                         <button onClick={() => setPrintQueue({ task, part, metadata: existing.map(c => ({ id: c.id, loading: c.card_info, qty: c.quantity, machine: c.machine, totalLoadings: loads, sheetsPerLoading: machines.find(m => m.name === c.machine)?.sheet_capacity || 1, estimatedTime: (Number(part.nom?.time_per_unit) || 0) * (Number(c.quantity) || 0) })) })} 
@@ -312,16 +344,45 @@ const ForemanWorkplace = () => {
                       }, {})
                     ).map(([nomId, cards]) => {
                       const nom = nomenclatures.find(n => (n.id === nomId || n.id === Number(nomId)));
-                      const groupProduced = cards.filter(c => c.status === 'completed').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0);
-                      const groupScrap = workCardHistory.filter(h => h.nomenclature_id === nom?.id && h.task_id === task.id).reduce((sum, h) => sum + (Number(h.scrap_qty) || 0), 0);
+                      const activeCards = taskCards.filter(c => (c.nomenclature_id === nomId || c.nomenclature_id === Number(nomId)));
+                      const historicalCards = workCardHistory.filter(h => (h.nomenclature_id === nom?.id && h.task_id === task.id));
+                      
+                      const allRelatedCards = [
+                        ...activeCards.map(c => ({ ...c, is_history: false })),
+                        ...historicalCards.map(h => ({ ...h, is_history: true, status: h.scrap_qty > 0 && h.qty_completed === 0 ? 'scrapped' : 'completed' }))
+                      ];
 
-                      // Calculate shortage logic for archive
+                      const groupProduced = historicalCards.reduce((sum, h) => sum + (Number(h.qty_completed) || 0), 0);
+                      const groupScrap = historicalCards.reduce((sum, h) => sum + (Number(h.scrap_qty) || 0), 0);
+
+                      // Calculate requirement logic for archive
+                      const snapshot = task.plan_snapshot?.[nomId] || task.plan_snapshot?.[nom?.id];
                       const order = orders.find(o => o.id === task.order_id);
-                      const itemRef = order?.order_items?.find(it => it.nomenclature_id === nom?.id);
-                      const planTotal = (Number(itemRef?.quantity) || 0) * (Number(nom?.quantity_per_parent) || 1);
-                      const unitsPerSheet = Number(nom?.units_per_sheet) || 1;
-                      const sheets = Math.ceil(planTotal / unitsPerSheet);
-                      const initialBZ = (sheets * unitsPerSheet) - planTotal;
+                      
+                      // Identify need: from snapshot or calculated via BOM from order items
+                      let need = 0;
+                      if (snapshot) {
+                        need = snapshot.need;
+                      } else {
+                        // Fallback: search in order items and BOM
+                        const itemRef = order?.order_items?.find(it => it.nomenclature_id === nom?.id);
+                        if (itemRef) {
+                          need = Number(itemRef.quantity) || 0;
+                        } else {
+                          // Could be a part of another item in the order
+                          (order?.order_items || []).forEach(oi => {
+                             const bom = bomItems.filter(b => b.parent_id === oi.nomenclature_id);
+                             const bItem = bom.find(b => b.child_id === nom?.id);
+                             if (bItem) {
+                               need += (Number(oi.quantity) || 0) * (Number(bItem.quantity_per_parent) || 1);
+                             }
+                          });
+                        }
+                      }
+                      
+                      const unitsPerSheet = snapshot ? snapshot.units_per_sheet : (Number(nom?.units_per_sheet) || 1);
+                      const sheets = snapshot ? snapshot.sheets : Math.ceil(need / unitsPerSheet);
+                      const initialBZ = (sheets * unitsPerSheet) - need;
                       const bzResult = initialBZ - groupScrap;
                       const shortage = bzResult < 0 ? Math.abs(bzResult) : 0;
 
@@ -339,7 +400,11 @@ const ForemanWorkplace = () => {
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', background: '#111', padding: '12px 20px', borderRadius: '12px', border: '1px solid #222' }}>
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                               <div style={{ fontWeight: 900, fontSize: '0.95rem', color: '#fff' }}>{nom?.name || 'Невідома деталь'}</div>
-                              <div style={{ fontSize: '0.65rem', color: '#444', marginTop: '2px' }}>План: {planTotal} | БЗ: +{initialBZ}</div>
+                              <div style={{ fontSize: '0.65rem', color: '#444', marginTop: '2px', fontWeight: 700 }}>
+                                Потреба: <span style={{ color: '#aaa' }}>{need}</span> | 
+                                Вироблено: <span style={{ color: '#3b82f6' }}>{groupProduced}</span>
+                                {initialBZ > 0 && <span style={{ color: '#444' }}> | БЗ з листа: +{initialBZ}</span>}
+                              </div>
                             </div>
                             <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
                               <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800 }}>
@@ -369,15 +434,17 @@ const ForemanWorkplace = () => {
                           </div>
 
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '15px' }}>
-                            {cards.map(card => {
-                              const loadingText = card.card_info?.split(' [')[0]
-                              const getStatusBadge = () => {
-                                if (card.status === 'new') return { label: 'ОЧІКУЄ', color: '#eab308' };
-                                if (card.status === 'in-progress') return { label: `У РОБОТІ: ${card.operation?.toUpperCase()}`, color: '#3b82f6' };
-                                if (card.status === 'at-buffer' || card.status === 'waiting-buffer') return { label: `БУФЕР: ${card.operation?.toUpperCase()}`, color: '#10b981' };
-                                if (card.status === 'completed') return { label: 'ЗАВЕРШЕНО', color: '#10b981' };
-                                return { label: card.status?.toUpperCase(), color: '#555' };
-                              }
+                            {allRelatedCards.map(card => {
+                               const loadingText = card.card_info?.split(' [')[0]
+                               const isRedo = (card.card_info || '').includes('[REDO]')
+                               const getStatusBadge = () => {
+                                 if (card.status === 'scrapped') return { label: 'БРАК (100%)', color: '#ef4444' };
+                                 if (card.status === 'new') return { label: 'ОЧІКУЄ', color: '#eab308' };
+                                 if (card.status === 'in-progress') return { label: `У РОБОТІ: ${card.operation?.toUpperCase()}`, color: '#3b82f6' };
+                                 if (card.status === 'at-buffer' || card.status === 'waiting-buffer') return { label: `БУФЕР: ${card.operation?.toUpperCase()}`, color: '#10b981' };
+                                 if (card.status === 'completed') return { label: 'ЗАВЕРШЕНО', color: '#10b981' };
+                                 return { label: card.status?.toUpperCase(), color: '#555' };
+                               }
                               const badge = getStatusBadge();
                               const handleReprintCard = () => {
                                 setPrintQueue({ 
@@ -399,7 +466,10 @@ const ForemanWorkplace = () => {
                                   <div style={{ background: '#fff', padding: '6px', borderRadius: '8px' }}><QRCodeSVG value={`CENTRUM_CARD_${card.id}`} size={45} /></div>
                                   <div style={{ flex: 1 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                      <div style={{ fontSize: '0.8rem', fontWeight: 800 }}>Кількість: {card.quantity}</div>
+                                      <div style={{ fontSize: '0.8rem', fontWeight: 800 }}>
+                                        {card.status === 'scrapped' ? `Брак: ${card.scrap_qty}` : `Кількість: ${card.quantity || card.qty_completed}`}
+                                        {isRedo && <span style={{ color: '#ef4444', marginLeft: '5px' }}>[REDO]</span>}
+                                      </div>
                                       <span style={{ fontSize: '0.5rem', fontWeight: 1000, padding: '2px 6px', borderRadius: '4px', background: `${badge.color}22`, color: badge.color, border: `1px solid ${badge.color}44` }}>{badge.label}</span>
                                     </div>
                                     <div style={{ fontSize: '0.6rem', color: '#444', marginTop: '4px' }}>{loadingText} | {card.machine}</div>

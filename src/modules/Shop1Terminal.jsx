@@ -298,12 +298,67 @@ export default function Shop1Terminal() {
         operation: next,
         started_at: new Date().toISOString(),
         operator_name: selectedOperator,
-        machine: selectedMachine || null
+        machine: currentCard.machine || null
       }).eq('id', currentCard.id)
       await fetchData()
       if (!scannedIds.includes(currentCard.id)) setScannedIds(prev => [...prev, currentCard.id])
     } catch (e) { alert('Помилка: ' + e.message) }
     finally { setIsProcessing(false) }
+  }
+
+  // ── ДІЯ 4: ЗАМОВИТИ ДОВИПУСК (якщо 100% брак) ─────────────────────────
+  const handleRequestRework = async () => {
+    if (!currentCard || !createWorkCard) return
+    setIsProcessing(true)
+    try {
+      const op = finalOperator || currentCard.operator_name || 'Брак'
+      
+      // 1. Записуємо в history
+      await supabase.from('work_card_history').insert([{
+        card_id: currentCard.id,
+        nomenclature_id: currentCard.nomenclature_id,
+        stage_name: currentCard.operation,
+        operator_name: op,
+        qty_at_start: currentCard.quantity,
+        qty_completed: 0,
+        scrap_qty: currentCard.quantity,
+        started_at: currentCard.started_at,
+        completed_at: new Date().toISOString()
+      }])
+
+      // 2. Оновлюємо поточну картку → completed (з 0 qty)
+      await supabase.from('work_cards').update({ 
+        status: 'completed', 
+        quantity: 0, 
+        operator_name: op 
+      }).eq('id', currentCard.id)
+
+      // 3. Записуємо брак на склад
+      await updateInventoryStock(currentCard.nomenclature_id, currentCard.quantity, 'scrap')
+
+      // 4. Створюємо НОВУ картку (Різка) для перевипуску
+      const nom = getNom(currentCard)
+      await createWorkCard(
+        currentCard.task_id,
+        currentCard.order_id,
+        currentCard.nomenclature_id,
+        CHAIN[0], // Різка
+        null,     // Машину обере заново
+        0,        // Естімейт
+        `[REDO] після ${currentCard.operation}`,
+        currentCard.quantity,
+        0,
+        true      // isRework = true
+      )
+
+      await fetchData()
+      setShowCompleteModal(false)
+      setSelectedCardId(null)
+      alert('Запит на перевипуск створено успішно!')
+    } catch (e) { 
+      console.error('Rework error:', e)
+      alert('Помилка перевипуску: ' + e.message) 
+    } finally { setIsProcessing(false) }
   }
 
   // ── ПРИЙНЯТИ НА СКЛАД (з буфера Галтовки без in-progress) ─────────────
@@ -524,12 +579,14 @@ export default function Shop1Terminal() {
                       {operators.map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                   </div>
-                  <div>
-                    <label style={labelStyle}>Верстат / обладнання</label>
-                    <input type="text" placeholder="Номер верстата..."
-                      value={selectedMachine} onChange={e => setSelectedMachine(e.target.value)}
-                      style={{ ...selectStyle, cursor: 'text' }} />
-                  </div>
+                  {displayOp === 'Різка' && (
+                    <div>
+                      <label style={labelStyle}>Верстат / обладнання</label>
+                      <input type="text" placeholder="Номер верстата..."
+                        value={selectedMachine} onChange={e => setSelectedMachine(e.target.value)}
+                        style={{ ...selectStyle, cursor: 'text' }} />
+                    </div>
+                  )}
                   <button onClick={handleStart} disabled={!selectedOperator || isProcessing}
                     style={{ ...btnPrimary, marginTop: '10px', height: '64px', fontSize: '1.2rem', opacity: (!selectedOperator || isProcessing) ? 0.45 : 1 }}>
                     ▶ ВЗЯТИ В РОБОТУ · {displayOp?.toUpperCase()}
@@ -641,11 +698,6 @@ export default function Shop1Terminal() {
                         <option value="">— Оберіть оператора —</option>
                         {operators.map(o => <option key={o} value={o}>{o}</option>)}
                       </select>
-                    </div>
-                    <div style={{ marginBottom: '20px' }}>
-                      <label style={labelStyle}>Верстат</label>
-                      <input type="text" value={selectedMachine} onChange={e => setSelectedMachine(e.target.value)}
-                        placeholder="Номер верстата..." style={{ ...selectStyle, cursor: 'text' }} />
                     </div>
                     <button onClick={handleStartNext} disabled={!selectedOperator || isProcessing} 
                       style={{ 
@@ -1101,14 +1153,21 @@ export default function Shop1Terminal() {
                 </div>
               </div>
 
-              <button onClick={handleCompleteToBuffer} disabled={isProcessing}
-                style={{ ...btnGreen, opacity: isProcessing ? 0.5 : 1 }}>
-                {isProcessing ? 'ЗБЕРЕЖЕННЯ...' : (
-                  currentCard.operation === CHAIN[CHAIN.length - 1]
-                    ? '✓ ПРИЙНЯТО · ЗАВЕРШИТИ'
-                    : `✓ В БУФЕР ${currentCard.operation?.toUpperCase()}`
-                )}
-              </button>
+               {Math.max(0, (currentCard.quantity || 0) - scrapCount) === 0 ? (
+                <button onClick={handleRequestRework} disabled={isProcessing}
+                  style={{ ...btnPrimary, background: '#ef4444', boxShadow: '0 10px 30px rgba(239,68,68,0.3)', opacity: isProcessing ? 0.5 : 1 }}>
+                  {isProcessing ? 'ЗБЕРЕЖЕННЯ...' : '♻ ЗАМОВИТИ ДОВИПУСК'}
+                </button>
+              ) : (
+                <button onClick={handleCompleteToBuffer} disabled={isProcessing}
+                  style={{ ...btnGreen, opacity: isProcessing ? 0.5 : 1 }}>
+                  {isProcessing ? 'ЗБЕРЕЖЕННЯ...' : (
+                    currentCard.operation === CHAIN[CHAIN.length - 1]
+                      ? '✓ ПРИЙНЯТО · ЗАВЕРШИТИ'
+                      : `✓ В БУФЕР ${currentCard.operation?.toUpperCase()}`
+                  )}
+                </button>
+              )}
             </div>
           </div>
         </div>

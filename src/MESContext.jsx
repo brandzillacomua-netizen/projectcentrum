@@ -241,6 +241,8 @@ export const MESProvider = ({ children }) => {
       const materialSummary = {}
       const bzStockDeductions = []
 
+      const plan_snapshot = {}
+
       order.order_items?.forEach(item => {
         const parts = bomItems.filter(b => b.parent_id === item.nomenclature_id)
         const displayParts = parts.length > 0 ? parts.map(b => ({
@@ -252,22 +254,35 @@ export const MESProvider = ({ children }) => {
           if (!part.nom) return
           const totalNeeded = (Number(item.quantity) || 0) * (Number(part.qtyPer) || 1)
           
-          // Use bz_qty (Safety Buffer) for stock reduction as per user requirement
-          // bzStockDeductions placeholder removed if no bz_qty column exists
-          // If we need to deduct from stock, we should use total_qty or a specific type
-          const invItem = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'semi')
-          const inStockQty = Number(invItem?.total_qty) || 0 // Changed from bz_qty if missing
+          // Шукаємо ТІЛЬКИ в БЗ (готові деталі) для планування наряду
+          const invItem = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'bz')
+          const inStockQty = invItem ? Math.max(0, (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0)) : 0 
           
           const usedFromStock = Math.min(totalNeeded, inStockQty)
           const totalToProduce = Math.max(0, totalNeeded - inStockQty)
 
+          const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
+          const sheets = Math.ceil(totalToProduce / unitsPerSheet)
+          
+          plan_snapshot[part.nom.id] = {
+            id: part.nom.id,
+            name: part.nom.name,
+            code: part.nom.nomenclature_code,
+            need: totalNeeded,
+            stock: inStockQty,
+            plan: totalToProduce,
+            units_per_sheet: unitsPerSheet,
+            sheets: sheets,
+            material: part.nom.material_type
+          }
+
           if (usedFromStock > 0 && invItem) {
-            bzStockDeductions.push({ id: invItem.id, next_qty: inStockQty - usedFromStock })
+            // Віднімаємо саме з записів типу BЗ (готові деталі)
+            bzStockDeductions.push({ id: invItem.id, next_qty: (Number(invItem.total_qty) || 0) - usedFromStock })
           }
 
           if (totalToProduce <= 0) return
           
-          const sheets = Math.ceil(totalToProduce / (part.nom.units_per_sheet || 1))
           const matKey = part.nom.material_type || part.nom.name || 'Інше'
           
           if (!materialSummary[matKey]) {
@@ -290,7 +305,8 @@ export const MESProvider = ({ children }) => {
       await supabase.from('orders').update({ status: 'in-progress' }).eq('id', orderId)
       const { data: taskData, error: taskError } = await supabase.from('tasks').insert([{
         order_id: orderId, step: 'Лазерна різка', status: 'waiting', machine_name: machineName || 'Не вказано',
-        estimated_time: Math.round(totalMin), engineer_conf: false, warehouse_conf: false, director_conf: false
+        estimated_time: Math.round(totalMin), engineer_conf: false, warehouse_conf: false, director_conf: false,
+        plan_snapshot: plan_snapshot
       }]).select()
       const tData = (taskData && taskData.length > 0) ? taskData[0] : null
       if (taskError) throw taskError
@@ -490,12 +506,12 @@ export const MESProvider = ({ children }) => {
     fetchData()
   }
 
-  const createWorkCard = async (taskId, orderId, nomenclatureId, operation, machine, estimatedTime, cardInfo, quantity, bufferQty) => {
+  const createWorkCard = async (taskId, orderId, nomenclatureId, operation, machine, estimatedTime, cardInfo, quantity, bufferQty, isRework = false) => {
     const { data: list } = await supabase.from('work_cards').insert([{
       task_id: taskId, order_id: orderId, nomenclature_id: nomenclatureId,
       operation: operation || 'Нова', machine, quantity: Number(quantity) || 0,
       estimated_time: Number(estimatedTime) || 0, status: 'new', 
-      card_info: `${cardInfo}${Number(bufferQty) > 0 ? ` [BZ:${bufferQty}]` : ''}`
+      card_info: `${cardInfo}${Number(bufferQty) > 0 ? ` [BZ:${bufferQty}]` : ''}${isRework ? ' [REDO]' : ''}`
     }]).select()
     const data = (list && list.length > 0) ? list[0] : null
     await supabase.from('tasks').update({ status: 'in-progress' }).eq('id', taskId)
@@ -590,6 +606,42 @@ export const MESProvider = ({ children }) => {
     fetchData()
   }
 
+  const reserveBZForTask = async (taskId, orderId, nomenclatureId, qty) => {
+    try {
+      const { data: bz } = await supabase
+        .from('inventory')
+        .select('*')
+        .eq('nomenclature_id', nomenclatureId)
+        .eq('type', 'bz')
+        .maybeSingle()
+
+      if (!bz) throw new Error("Товар не знайдено на складі БЗ")
+
+      const nextReserved = (Number(bz.reserved_qty) || 0) + Number(qty)
+      await supabase
+        .from('inventory')
+        .update({ reserved_qty: nextReserved })
+        .eq('id', bz.id)
+
+      await supabase.from('work_cards').insert([{
+        task_id: taskId,
+        order_id: orderId,
+        nomenclature_id: nomenclatureId,
+        quantity: qty,
+        status: 'completed',
+        operation: 'Склад БЗ',
+        card_info: '[ЗІ СКЛАДУ БЗ]',
+        buffer_qty: 0
+      }])
+
+      fetchData()
+      return { success: true }
+    } catch (err) {
+      console.error(err)
+      throw err
+    }
+  }
+
   return (
     <MESContext.Provider value={{
       orders, customers, inventory, tasks, requests, nomenclatures, bomItems,
@@ -601,7 +653,7 @@ export const MESProvider = ({ children }) => {
       createNaryad, issueMaterials, approveWarehouse, approveEngineer, approveDirector,
       upsertNomenclature, deleteNomenclature, saveBOM, removeBOM,
       createWorkCard, startWorkCard, completeWorkCard, confirmBuffer, completeTaskByMaster,
-      searchCustomers, addOrder,
+      searchCustomers, addOrder, reserveBZForTask,
       createPurchaseRequest, updatePurchaseRequestStatus, convertRequestToOrder,
       createReceptionDoc, sendDocToWarehouse, confirmReception,
       confirmReceptionDoc: confirmReception,

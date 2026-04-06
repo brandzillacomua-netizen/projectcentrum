@@ -396,7 +396,7 @@ const WarehouseModuleV2 = () => {
                       <small style={{ color: '#444', fontWeight: 400 }}>{item.unit}</small>
                     </td>
                     <td style={{ padding: '15px', textAlign: 'center', color: Number(item.reserved_qty) > 0 ? '#3b82f6' : '#222', fontWeight: 800 }}>
-                      {activeTab === 'bz' ? '—' : (item.reserved_qty || 0)}
+                      {item.reserved_qty || 0}
                     </td>
                     <td style={{ padding: '15px', textAlign: 'right', color: '#333', fontSize: '0.7rem' }}>
                       {item.updated_at
