@@ -117,6 +117,17 @@ export const MESProvider = ({ children }) => {
 
   useEffect(() => {
     fetchData()
+    // Одноразова міграція
+    const runFix = async () => {
+      const done = localStorage.getItem('bz_fix_v2')
+      if (!done) {
+        await fixInventoryTypes()
+        localStorage.setItem('bz_fix_v2', 'true')
+        console.log('--- BZ FIX COMPLETE ---')
+      }
+    }
+    runFix()
+
     const sub = supabase.channel('mes-changes')
       .on('postgres_changes', { event: '*', schema: 'public' }, () => fetchData())
       .subscribe()
@@ -127,15 +138,15 @@ export const MESProvider = ({ children }) => {
   const login = async (loginName, password) => {
     // 1. СИНХРОНІЗАЦІЯ З БЕКЕНДОМ (ngrok)
     const backendRes = await apiService.submitLogin(loginName, password);
-    
+
     // 2. ПЕРЕВІРКА В БД (Supabase)
     const { data } = await supabase
       .from('system_users')
       .select('*')
       .eq('login', loginName)
-      
+
     let user = (data && data.length > 0) ? data[0] : null;
-    
+
     // 3. ОБРОБКА РЕЗУЛЬТАТІВ ГІБРИДНОЇ АВТОРИЗАЦІЇ
     const token = backendRes?.token || backendRes?.accessToken || backendRes?.data?.token;
 
@@ -192,16 +203,16 @@ export const MESProvider = ({ children }) => {
       deadline: header.deadline,
       status: 'pending'
     }]).select()
-    
+
     if (error) throw error
     const newOrderId = data[0].id
-    
+
     const itemsToInsert = items.map(it => ({
       order_id: newOrderId,
       nomenclature_id: it.nomenclature_id,
       quantity: Number(it.quantity)
     }))
-    
+
     await supabase.from('order_items').insert(itemsToInsert)
     fetchData()
   }
@@ -246,7 +257,7 @@ export const MESProvider = ({ children }) => {
       order.order_items?.forEach(item => {
         const parts = bomItems.filter(b => String(b.parent_id) === String(item.nomenclature_id))
         console.log(`Checking BOM for ${item.nomenclature_id}: found ${parts.length} parts`)
-        
+
         const displayParts = parts.length > 0 ? parts.map(b => ({
           nom: nomenclatures.find(n => String(n.id) === String(b.child_id)),
           qtyPer: b.quantity_per_parent
@@ -255,16 +266,16 @@ export const MESProvider = ({ children }) => {
         displayParts.forEach(part => {
           if (!part.nom) return
           const totalNeeded = (Number(item.quantity) || 0) * (Number(part.qtyPer) || 1)
-          
+
           const invItem = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'bz')
-          const inStockQty = invItem ? Math.max(0, (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0)) : 0 
-          
+          const inStockQty = invItem ? Math.max(0, (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0)) : 0
+
           const usedFromStock = Math.min(totalNeeded, inStockQty)
           const totalToProduce = Math.max(0, totalNeeded - inStockQty)
 
           const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
           let sheets = Math.ceil(totalToProduce / unitsPerSheet)
-          
+
           plan_snapshot[part.nom.id] = {
             id: part.nom.id,
             name: part.nom.name,
@@ -282,16 +293,16 @@ export const MESProvider = ({ children }) => {
           }
 
           if (totalToProduce <= 0) return
-          
+
           const matKey = (part.nom.material_type || part.nom.name || 'Інше').trim()
           const normalize = (s) => s?.toLowerCase().replace(/[\s-]/g, '')
-          
+
           sheets = Math.ceil(totalToProduce / unitsPerSheet)
-          
+
           if (!materialSummary[matKey]) {
-            const rawNom = nomenclatures.find(n => 
+            const rawNom = nomenclatures.find(n =>
               n.type === 'raw' && (
-                normalize(n.material_type) === normalize(matKey) || 
+                normalize(n.material_type) === normalize(matKey) ||
                 normalize(n.name).includes(normalize(matKey)) ||
                 normalize(matKey).includes(normalize(n.name))
               )
@@ -306,14 +317,14 @@ export const MESProvider = ({ children }) => {
           totalMin += totalToProduce * (Number(part.nom.time_per_unit) || 0)
         })
       })
-      
+
       // --- EXECUTE STOCK DEDUCTIONS & CREATE BZ CARDS ---
       const { data: taskData, error: taskError } = await supabase.from('tasks').insert([{
         order_id: orderId, step: 'Лазерна різка', status: 'waiting', machine_name: machineName || 'Не вказано',
         estimated_time: Math.round(totalMin), engineer_conf: false, warehouse_conf: false, director_conf: false,
         plan_snapshot: plan_snapshot
       }]).select()
-      
+
       const tData = (taskData && taskData.length > 0) ? taskData[0] : null
       if (taskError) throw taskError
 
@@ -321,7 +332,7 @@ export const MESProvider = ({ children }) => {
       for (const upd of bzStockDeductions) {
         // 1. Списання загальної кількості
         await supabase.from('inventory').update({ total_qty: upd.next_qty }).eq('id', upd.id)
-        
+
         // 2. Створення завершеної картки резерву для цього наряду
         const invItem = inventory.find(i => i.id === upd.id)
         if (invItem && tData) {
@@ -329,8 +340,8 @@ export const MESProvider = ({ children }) => {
           if (usedQty > 0) {
             // Створюємо картку
             const { data: bzCardData } = await supabase.from('work_cards').insert([{
-              task_id: tData.id, 
-              order_id: orderId, 
+              task_id: tData.id,
+              order_id: orderId,
               nomenclature_id: invItem.nomenclature_id,
               quantity: usedQty,
               status: 'completed',
@@ -342,7 +353,7 @@ export const MESProvider = ({ children }) => {
 
             // Створюємо історію
             await supabase.from('work_card_history').insert([{
-              card_id: bzCard?.id || null, 
+              card_id: bzCard?.id || null,
               nomenclature_id: invItem.nomenclature_id,
               stage_name: 'Склад БЗ',
               operator_name: 'Склад (БРОНЬ)',
@@ -354,7 +365,7 @@ export const MESProvider = ({ children }) => {
           }
         }
       }
-      
+
       await supabase.from('orders').update({ status: 'in-progress' }).eq('id', orderId)
 
       const allMaterials = Object.values(materialSummary).map(info => ({
@@ -363,9 +374,9 @@ export const MESProvider = ({ children }) => {
       }))
 
       const requestsToInsert = allMaterials.map(info => ({
-        order_id: orderId, 
-        quantity: info.sheets, 
-        status: 'pending', 
+        order_id: orderId,
+        quantity: info.sheets,
+        status: 'pending',
         inventory_id: info.inventory_id,
         details: `СИРОВИНА: ${info.matName} — ${info.sheets} л. (Разом: ${info.totalUnits} шт | Для: ${info.components.join(', ')})`
       }))
@@ -580,7 +591,7 @@ export const MESProvider = ({ children }) => {
     const { data: list } = await supabase.from('work_cards').insert([{
       task_id: taskId, order_id: orderId, nomenclature_id: nomenclatureId,
       operation: operation || 'Нова', machine, quantity: Number(quantity) || 0,
-      estimated_time: Number(estimatedTime) || 0, status: 'new', 
+      estimated_time: Number(estimatedTime) || 0, status: 'new',
       is_rework: isRework,
       card_info: `${cardInfo || ''}${Number(bufferQty) > 0 ? ` [BZ:${bufferQty}]` : ''}${isRework ? ' [REDO]' : ''}`
     }]).select()
@@ -623,6 +634,57 @@ export const MESProvider = ({ children }) => {
     fetchData()
   }
 
+  const completeTaskShop2 = async (taskId) => {
+    try {
+      const task = tasks.find(t => String(t.id) === String(taskId))
+      const order = orders.find(o => String(o.id) === String(task?.order_id))
+      if (!task || !order) return
+
+      // 1. Mark task as completed
+      await supabase.from('tasks').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', taskId)
+
+      // 2. Conver WIP BZ to Warehouse BZ for all order items
+      const itemNoms = (order.order_items || []).map(it => it.nomenclature_id)
+      const childIds = bomItems.filter(b => itemNoms.map(String).includes(String(b.parent_id))).map(b => b.child_id)
+      const allRelatedNoms = Array.from(new Set([...itemNoms, ...childIds]))
+
+      for (const nomId of allRelatedNoms) {
+        const wipItem = inventory.find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'wip_bz')
+        const wipQty = Number(wipItem?.total_qty) || 0
+        
+        if (wipQty > 0) {
+          const { data: bzItem } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomId).eq('type', 'bz').maybeSingle()
+          
+          if (bzItem) {
+            await supabase.from('inventory').update({ total_qty: (Number(bzItem.total_qty) || 0) + wipQty }).eq('id', bzItem.id)
+          } else {
+            const nom = nomenclatures.find(n => n.id === nomId)
+            await supabase.from('inventory').insert([{ 
+              nomenclature_id: nomId, 
+              name: nom?.name || 'BZ Item', 
+              unit: nom?.unit || 'шт', 
+              total_qty: wipQty, 
+              reserved_qty: 0, 
+              type: 'bz' 
+            }])
+          }
+          await supabase.from('inventory').update({ total_qty: 0 }).eq('id', wipItem.id)
+        }
+      }
+
+      fetchData()
+    } catch (err) {
+      console.error('Error completing Shop 2 task:', err)
+      throw err
+    }
+  }
+
+  const fixInventoryTypes = async () => {
+    const { error } = await supabase.from('inventory').update({ type: 'wip_bz' }).eq('type', 'bz')
+    if (!error) fetchData()
+    return { error }
+  }
+
   const startWorkCard = async (taskId, cardId, operatorName) => {
     await supabase.from('work_cards').update({ status: 'in-progress', started_at: new Date().toISOString(), operator_name: operatorName }).eq('id', cardId)
     fetchData()
@@ -642,7 +704,7 @@ export const MESProvider = ({ children }) => {
     // Ланцюжки виробництва
     // Цех №1: Різка → Галтовка → Прийомка    (мітка [SHOP:1] у card_info)
     // Загальний: Різка → Галтовка → Пресування → Фарбування → Паквання
-    const CHAIN_SHOP1   = ['Різка', 'Галтовка', 'Прийомка']
+    const CHAIN_SHOP1 = ['Різка', 'Галтовка', 'Прийомка']
     const CHAIN_GENERAL = ['Різка', 'Галтовка', 'Пресування', 'Фарбування', 'Паквання']
 
     const currentOp = (card.operation || '').trim()
@@ -676,32 +738,32 @@ export const MESProvider = ({ children }) => {
     ])
 
     // Оновлюємо інвентар (BZ логіка)
-        const nom = nomenclatures.find(n => n.id === card.nomenclature_id)
-        if (nom) {
-          const plannedBuffer = Number(card.buffer_qty) || Number(card.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
-          const actualBuffer = Math.max(0, plannedBuffer - totalScrap)
-          const netQtyForOrder = Math.max(0, qtyCompleted - actualBuffer)
+    const nom = nomenclatures.find(n => n.id === card.nomenclature_id)
+    if (nom) {
+      const plannedBuffer = Number(card.buffer_qty) || Number(card.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
+      const actualBuffer = Math.max(0, plannedBuffer - totalScrap)
+      const netQtyForOrder = Math.max(0, qtyCompleted - actualBuffer)
 
-          // 1. Оновлюємо semi (чиста кількість)
-          if (netQtyForOrder > 0) {
-            const { data: semi } = await supabase.from('inventory').select('*').eq('nomenclature_id', nom.id).eq('type', 'semi').maybeSingle()
-            if (semi) {
-              await supabase.from('inventory').update({ total_qty: (Number(semi.total_qty) || 0) + netQtyForOrder }).eq('id', semi.id)
-            } else {
-              await supabase.from('inventory').insert([{ nomenclature_id: nom.id, name: nom.name, unit: nom.unit || 'шт', total_qty: netQtyForOrder, reserved_qty: 0, type: 'semi' }])
-            }
-          }
-
-          // 2. Оновлюємо bz як окремий запис
-          if (actualBuffer > 0) {
-            const { data: bz } = await supabase.from('inventory').select('*').eq('nomenclature_id', nom.id).eq('type', 'bz').maybeSingle()
-            if (bz) {
-              await supabase.from('inventory').update({ total_qty: (Number(bz.total_qty) || 0) + actualBuffer }).eq('id', bz.id)
-            } else {
-              await supabase.from('inventory').insert([{ nomenclature_id: nom.id, name: nom.name, unit: nom.unit || 'шт', total_qty: actualBuffer, reserved_qty: 0, type: 'bz' }])
-            }
-          }
+      // 1. Оновлюємо semi (чиста кількість)
+      if (netQtyForOrder > 0) {
+        const { data: semi } = await supabase.from('inventory').select('*').eq('nomenclature_id', nom.id).eq('type', 'semi').maybeSingle()
+        if (semi) {
+          await supabase.from('inventory').update({ total_qty: (Number(semi.total_qty) || 0) + netQtyForOrder }).eq('id', semi.id)
+        } else {
+          await supabase.from('inventory').insert([{ nomenclature_id: nom.id, name: nom.name, unit: nom.unit || 'шт', total_qty: netQtyForOrder, reserved_qty: 0, type: 'semi' }])
+        }
       }
+
+      // 2. Оновлюємо wip_bz як тимчасовий запис (не для віднімання в Майстрі поки що)
+      if (actualBuffer > 0) {
+        const { data: wip } = await supabase.from('inventory').select('*').eq('nomenclature_id', nom.id).eq('type', 'wip_bz').maybeSingle()
+        if (wip) {
+          await supabase.from('inventory').update({ total_qty: (Number(wip.total_qty) || 0) + actualBuffer }).eq('id', wip.id)
+        } else {
+          await supabase.from('inventory').insert([{ nomenclature_id: nom.id, name: nom.name, unit: nom.unit || 'шт', total_qty: actualBuffer, reserved_qty: 0, type: 'wip_bz' }])
+        }
+      }
+    }
     fetchData()
   }
 
@@ -763,7 +825,7 @@ export const MESProvider = ({ children }) => {
       fetchOrders, fetchData,
       createNaryad, issueMaterials, approveWarehouse, approveEngineer, approveDirector,
       upsertNomenclature, deleteNomenclature, saveBOM, removeBOM,
-      createWorkCard, startWorkCard, completeWorkCard, confirmBuffer, completeTaskByMaster, handoverTaskToShop2,
+      createWorkCard, startWorkCard, completeWorkCard, confirmBuffer, completeTaskByMaster, handoverTaskToShop2, completeTaskShop2, fixInventoryTypes,
       searchCustomers, addOrder, reserveBZForTask,
       syncBOM,
       createPurchaseRequest, updatePurchaseRequestStatus, convertRequestToOrder,

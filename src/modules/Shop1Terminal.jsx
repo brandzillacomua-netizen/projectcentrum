@@ -831,10 +831,13 @@ export default function Shop1Terminal() {
   const renderStorageExplorer = () => {
     const explorerTabs = [
       { id: 'semi', label: 'НАПІВФАБРИКАТИ', icon: <Layers size={16} />, color: '#10b981' },
-      { id: 'bz', label: 'БЗ (СТАНДАРТ)', icon: <ClipboardList size={16} />, color: '#eab308' },
+      { id: 'bz', label: 'БЗ (на ЦЕХ №2)', icon: <ClipboardList size={16} />, color: '#eab308' },
       { id: 'scrap', label: 'БРАК / ВІДХОДИ', icon: <AlertTriangle size={16} />, color: '#ef4444' },
     ]
-    const filteredItems = (inventory || []).filter(i => i.type === activeExplorerTab)
+    const filteredItems = (inventory || []).filter(i => {
+      if (activeExplorerTab === 'bz') return i.type === 'bz' || i.type === 'wip_bz'
+      return i.type === activeExplorerTab
+    })
 
     return (
       <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: '#0a0a0a', display: 'flex', flexDirection: 'column' }}>
@@ -985,7 +988,7 @@ export default function Shop1Terminal() {
         {/* ─── ПРИЙОМКА / СКЛАД (Фінальна стадія) ─── */}
         {(() => {
           const semiQty = (inventory || []).filter(i => i.type === 'semi' && (i.nomenclature_id !== null && i.nomenclature_id !== undefined)).reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
-          const bzQty = (inventory || []).filter(i => i.type === 'bz').reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
+          const bzQty = (inventory || []).filter(i => (i.type === 'bz' || i.type === 'wip_bz')).reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
           const scrapQty = (inventory || []).filter(i => i.type === 'scrap').reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
           
           return (

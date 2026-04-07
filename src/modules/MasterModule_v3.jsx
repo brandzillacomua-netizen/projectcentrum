@@ -386,7 +386,9 @@ const MasterModule = () => {
                       <td style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.1rem', color: '#ff9000', border: '1px solid #000' }} className="print-txt">
                         {(activeNaryadOrder.order_items?.reduce((acc, it) => {
                           const parts = getBOMParts(it.nomenclature_id)
-                          const displayParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
+                          const allParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
+                          const displayParts = allParts.filter(p => p.nom?.type === 'part')
+                          
                           return acc + displayParts.reduce((pa, p) => {
                             const totalNeeded = (Number(it.quantity) || 0) * (Number(p.quantity_per_parent) || 1)
                             const bzInv = inventory.find(i => String(i.nomenclature_id) === String(p.nom?.id) && i.type === 'bz')
