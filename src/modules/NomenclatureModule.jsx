@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { supabase } from '../supabase'
 import { 
   Settings as SettingsIcon, 
   ArrowLeft, 
@@ -14,7 +15,9 @@ import {
   X,
   Check,
   AlertCircle,
-  Loader2
+  Loader2,
+  FileUp,
+  Clock
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
@@ -23,7 +26,7 @@ import { apiService } from '../services/apiDispatcher'
 const NomenclatureModule = () => {
   const { 
     nomenclatures, upsertNomenclature, deleteNomenclature, 
-    bomItems, syncBOM, loading 
+    bomItems, syncBOM, fetchData, loading 
   } = useMES()
   
   const [activeTab, setActiveTab] = useState('all')
@@ -101,8 +104,132 @@ const NomenclatureModule = () => {
     setIsSyncing(false)
   }
 
+
+  const [importLogs, setImportLogs] = useState([])
+  const [isProcessing, setIsProcessing] = useState(false)
+
+  const parseSpecCSV = (text) => {
+    // Очищаємо текст від переносів рядків всередині лапок
+    const cleanedText = text.replace(/"([^"]*)"/g, (m, p1) => `"${p1.replace(/\r?\n/g, ' ')}"`)
+    const lines = cleanedText.split(/\r?\n/).filter(line => line.trim() !== '')
+    if (lines.length === 0) return null
+
+    // 1. Отримуємо Назву виробу (перший рядок)
+    const firstLine = lines[0].replace(/^"Специфікація\s+""/, '').replace(/"""?,.*$/, '').trim()
+    
+    const result = {
+      productName: firstLine,
+      components: []
+    }
+
+    let currentCategory = 'structural'
+
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i]
+      // Регулярний вираз для розділення колонок з урахуванням лапок
+      const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.trim().replace(/^"|"$/g, ''))
+
+      // Перевірка на зміну категорії (тільки якщо перший стовпець порожній)
+      const isHeader = !cols[0] || isNaN(parseInt(cols[0]))
+      if (isHeader) {
+        if (line.includes('Метизи')) { currentCategory = 'fastener'; continue }
+        if (line.includes('Стійки')) { currentCategory = 'hardware'; continue }
+        if (line.includes('Накладки')) { currentCategory = 'hardware'; continue }
+        if (line.includes('Тримач')) { currentCategory = 'hardware'; continue }
+      }
+
+      const indexNum = parseInt(cols[0])
+      if (!isNaN(indexNum) && cols[1]) {
+        const desc = cols[3] || ''
+        let thickness = ''; let unitsPerSheet = 0;
+        const thickMatch = desc.match(/(\d+(?:\.\d+)?)\s*мм/i); if (thickMatch) thickness = thickMatch[1];
+        const unitsMatch = desc.match(/(\d+)\s*шт/i); if (unitsMatch) unitsPerSheet = parseInt(unitsMatch[1]);
+
+        result.components.push({
+          name: cols[1],
+          characteristics: cols[2],
+          description: desc,
+          qtyPerOne: parseFloat(cols[4]) || 1,
+          category: currentCategory,
+          thickness,
+          unitsPerSheet
+        })
+      }
+    }
+    return result
+  }
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setIsProcessing(true); setImportLogs(['⏳ Зчитування файлу...'])
+    const reader = new FileReader()
+    reader.onload = async (event) => {
+      try {
+        const text = event.target.result
+        const parsed = parseSpecCSV(text)
+        if (!parsed || !parsed.productName) throw new Error("Не вдалося розпізнати назву виробу")
+        setImportLogs(prev => [...prev, `📦 Знайдено виріб: ${parsed.productName}`, `🧩 Скдадових частин: ${parsed.components.length}`])
+
+        const createdBOM = []
+
+        // 1. Створюємо/Оновлюємо компоненти
+        for (const comp of parsed.components) {
+          // Формуємо розумну назву: якщо характеристика вже містить назву - не дублюємо
+          const nameLower = comp.name.toLowerCase()
+          const charLower = (comp.characteristics || '').toLowerCase()
+          const fullName = charLower.includes(nameLower) 
+            ? comp.characteristics 
+            : (comp.characteristics ? `${comp.name} ${comp.characteristics}` : comp.name)
+          
+          setImportLogs(prev => [...prev, `🔍 Обробка: ${fullName}...`])
+          
+          let materialType = comp.category === 'structural' && comp.thickness ? `Лист T300 (${comp.thickness}мм)` : comp.characteristics || ''
+          const payload = {
+            name: fullName,
+            type: comp.category === 'structural' ? 'part' : 'hardware',
+            material_type: materialType,
+            units_per_sheet: comp.unitsPerSheet || 0
+          }
+          
+          // Шукаємо за повною назвою
+          const existing = nomenclatures.find(n => n.name === fullName)
+          if (existing) payload.id = existing.id
+          
+          const { data: upserted, error } = await supabase.from('nomenclatures').upsert([payload]).select()
+          if (error) throw error
+          if (upserted && upserted[0]) {
+            createdBOM.push({ child_id: upserted[0].id, qty: comp.qtyPerOne })
+          }
+        }
+
+        // 2. Створюємо батьківський виріб
+        setImportLogs(prev => [...prev, `✨ Реєстрація комплекту: ${parsed.productName}...`])
+        const existingParent = nomenclatures.find(n => n.name === parsed.productName)
+        const parentPayload = { name: parsed.productName, type: 'product', material_type: 'Збірка' }
+        if (existingParent) parentPayload.id = existingParent.id
+        
+        const { data: pData, error: pErr } = await supabase.from('nomenclatures').upsert([parentPayload]).select()
+        if (pErr) throw pErr
+
+        if (pData && pData[0]) {
+          const parentId = pData[0].id
+          setImportLogs(prev => [...prev, `🔗 Формування специфікації BOM...`])
+          await syncBOM(parentId, createdBOM)
+          setImportLogs(prev => [...prev, `✅ ІМПОРТ ЗАВЕРШЕНО УСПІШНО!`, `🎉 Виріб готовий до використання.`])
+        }
+        
+        if (fetchData) fetchData()
+        setIsProcessing(false)
+      } catch (err) {
+        setImportLogs(prev => [...prev, `❌ Помилка: ${err.message}`]); setIsProcessing(false)
+      }
+    }
+    reader.readAsText(file)
+  }
+
   const filteredNomenclatures = nomenclatures.filter(n => {
-    const matchesTab = activeTab === 'all' || n.type === activeTab
+    const matchesTab = (activeTab === 'all' || activeTab === 'import') || n.type === activeTab
     const matchesSearch = n.name.toLowerCase().includes(searchQuery.toLowerCase())
     return matchesTab && matchesSearch
   })
@@ -116,12 +243,66 @@ const NomenclatureModule = () => {
           <h1 className="hide-mobile">Керування номенклатурою</h1>
           <h1 className="mobile-only" style={{ fontSize: '1rem' }}>НОМЕНКЛАТУРА</h1>
         </div>
+        <div className="tab-switcher-v2" style={{ display: 'flex', marginLeft: 'auto', background: '#111', padding: '4px', borderRadius: '10px' }}>
+           <button onClick={() => setActiveTab('all')} style={{ background: activeTab === 'all' ? '#222' : 'transparent', border: 'none', color: '#fff', padding: '6px 15px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 800 }}>БАЗА</button>
+           <button onClick={() => setActiveTab('import')} style={{ background: activeTab === 'import' ? '#ff9000' : 'transparent', border: 'none', color: activeTab === 'import' ? '#000' : '#555', padding: '6px 15px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 800 }}>ІМПОРТ CSV</button>
+        </div>
       </nav>
 
       <div className="module-content" style={{ padding: '20px', overflowY: 'auto' }}>
-        <div className="nomenclature-grid-responsive">
-          
-          <div className="content-card entry-card glass-panel" style={{ padding: '25px', borderRadius: '24px', background: 'rgba(20,20,20,0.6)', border: '1px solid #222' }}>
+        
+        {activeTab === 'import' ? (
+          <div className="import-section anim-fade-in" style={{ maxWidth: '800px', margin: '0 auto' }}>
+             <div className="glass-panel" style={{ padding: '40px', borderRadius: '24px', textAlign: 'center', border: '2px dashed #333', background: 'rgba(20,20,20,0.4)' }}>
+                <FileUp size={48} color="#ff9000" style={{ marginBottom: '20px', opacity: 0.5 }} />
+                <h2 style={{ fontSize: '1.5rem', fontWeight: 900, marginBottom: '10px' }}>Імпорт специфікацій</h2>
+                <p style={{ color: '#555', marginBottom: '30px', fontSize: '0.9rem' }}>Завантажте CSV-файл специфікації. Система автоматично створить <br/> набори та зв'язки BOM.</p>
+                
+                <input 
+                  type="file" 
+                  accept=".csv" 
+                  id="csv-upload" 
+                  hidden 
+                  onChange={handleFileUpload}
+                  disabled={isProcessing}
+                />
+                <label htmlFor="csv-upload" style={{ 
+                  display: 'inline-flex', 
+                  alignItems: 'center', 
+                  gap: '12px', 
+                  background: '#ff9000', 
+                  color: '#000', 
+                  padding: '15px 35px', 
+                  borderRadius: '14px', 
+                  fontWeight: 900, 
+                  cursor: isProcessing ? 'default' : 'pointer',
+                  opacity: isProcessing ? 0.5 : 1
+                }}>
+                  {isProcessing ? <Loader2 className="spin" size={20} /> : <Plus size={20} />} ОБРАТИ ФАЙЛ СПЕЦИФІКАЦІЇ
+                </label>
+             </div>
+
+             {importLogs.length > 0 && (
+               <div style={{ marginTop: '30px', background: '#000', borderRadius: '16px', border: '1px solid #1a1a1a', padding: '20px', maxHeight: '400px', overflowY: 'auto' }}>
+                  <h4 style={{ margin: '0 0 15px', color: '#555', display: 'flex', alignItems: 'center', gap: '8px' }}><Clock size={16}/> Логи процесу:</h4>
+                  {importLogs.map((log, i) => (
+                    <div key={i} style={{ 
+                      fontSize: '0.8rem', 
+                      padding: '8px 0', 
+                      borderBottom: '1px solid #111',
+                      color: log.includes('✅') ? '#10b981' : log.includes('❌') ? '#ef4444' : '#888',
+                      fontWeight: log.startsWith('📦') || log.startsWith('✨') ? 800 : 400
+                    }}>
+                      {log}
+                    </div>
+                  ))}
+               </div>
+             )}
+          </div>
+        ) : (
+          <div className="nomenclature-grid-responsive">
+            
+            <div className="content-card entry-card glass-panel" style={{ padding: '25px', borderRadius: '24px', background: 'rgba(20,20,20,0.6)', border: '1px solid #222' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
                 {isEditing ? <Edit3 size={20} color="#ff9000" /> : <Plus size={20} />} 
@@ -298,7 +479,8 @@ const NomenclatureModule = () => {
             </div>
           </div>
         </div>
-      </div>
+      )}
+    </div>
 
       <style dangerouslySetInnerHTML={{ __html: `
         .nomenclature-grid-responsive { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; }

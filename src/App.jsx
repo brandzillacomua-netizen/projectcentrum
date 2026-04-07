@@ -28,6 +28,7 @@ import SettingsModule from './modules/SettingsModule'
 import LoginPage from './modules/LoginPage'
 import Shop1Terminal from './modules/Shop1Terminal'
 import Shop2Module from './modules/Shop2Module'
+import NomenclatureV2 from './modules/NomenclatureV2'
 import { MESProvider, useMES } from './MESContext'
 
 const FileCodeIcon = () => (
@@ -48,6 +49,7 @@ const Portal = () => {
     { id: 'shop2', title: 'Цех №2', icon: <Monitor />, path: '/shop2', desc: 'Черга нарядів', color: '#8b5cf6' },
     { id: 'shipping', title: 'Логістика', icon: <Truck />, path: '/shipping', desc: 'Відвантаження', color: '#ec4899' },
     { id: 'supply', title: 'Постачання', icon: <Truck />, path: '/supply', desc: 'Закупівля ТМЦ', color: '#06b6d4' },
+    { id: 'nomenclature_v2', title: 'Номенклатура', icon: <Menu />, path: '/nomenclature-v2', desc: 'Управління каталогом', color: '#8b5cf6' },
     { id: 'nomenclature', title: 'База', icon: <Settings />, path: '/nomenclature', desc: 'Номенклатура', color: '#6366f1' },
     { id: 'machines', title: 'Станки', icon: <Cpu />, path: '/machines', desc: 'Обладнання', color: '#f97316' },
     { id: 'settings', title: 'Система', icon: <Settings />, path: '/settings', desc: 'Конфігурація', color: '#444' }
@@ -122,6 +124,7 @@ const AppContent = () => {
       <Route path="/shipping" element={<ShippingModule />} />
       <Route path="/supply" element={<SupplyModule />} />
       <Route path="/nomenclature" element={<NomenclatureModule />} />
+      <Route path="/nomenclature-v2" element={<NomenclatureV2 />} />
       <Route path="/machines" element={<MachinesModule />} />
       <Route path="/settings" element={<SettingsModule />} />
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -244,11 +244,13 @@ export const MESProvider = ({ children }) => {
       const plan_snapshot = {}
 
       order.order_items?.forEach(item => {
-        const parts = bomItems.filter(b => b.parent_id === item.nomenclature_id)
+        const parts = bomItems.filter(b => String(b.parent_id) === String(item.nomenclature_id))
+        console.log(`Checking BOM for ${item.nomenclature_id}: found ${parts.length} parts`)
+        
         const displayParts = parts.length > 0 ? parts.map(b => ({
-          nom: nomenclatures.find(n => n.id === b.child_id),
+          nom: nomenclatures.find(n => String(n.id) === String(b.child_id)),
           qtyPer: b.quantity_per_parent
-        })) : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), qtyPer: 1 }]
+        })) : [{ nom: nomenclatures.find(n => String(n.id) === String(item.nomenclature_id)), qtyPer: 1 }]
 
         displayParts.forEach(part => {
           if (!part.nom) return
@@ -295,7 +297,8 @@ export const MESProvider = ({ children }) => {
               )
             )
             const rawInv = inventory.find(i => rawNom ? (String(i.nomenclature_id) === String(rawNom.id)) : (String(i.nomenclature_id) === String(part.nom.id) && i.type === 'raw'))
-            materialSummary[matKey] = { matName: matKey, sheets: 0, totalUnits: 0, components: [], inventory_id: rawInv?.id || null }
+            const unit = (part.nom.type === 'hardware' || part.nom.type === 'fastener') ? 'шт' : 'ЛИСТІВ'
+            materialSummary[matKey] = { matName: matKey, sheets: 0, totalUnits: 0, components: [], inventory_id: rawInv?.id || null, unit }
           }
           materialSummary[matKey].sheets += sheets
           materialSummary[matKey].totalUnits += totalToProduce
@@ -558,6 +561,21 @@ export const MESProvider = ({ children }) => {
     fetchData()
   }
 
+  const syncBOM = async (parentId, items) => {
+    // 1. Видаляємо старі зв'язки
+    await supabase.from('bom_items').delete().eq('parent_id', parentId)
+    // 2. Вставляємо нові
+    if (items.length > 0) {
+      const toInsert = items.map(it => ({
+        parent_id: parentId,
+        child_id: it.child_id,
+        quantity_per_parent: Number(it.qty)
+      }))
+      await supabase.from('bom_items').insert(toInsert)
+    }
+    fetchData()
+  }
+
   const createWorkCard = async (taskId, orderId, nomenclatureId, operation, machine, estimatedTime, cardInfo, quantity, bufferQty, isRework = false) => {
     const { data: list } = await supabase.from('work_cards').insert([{
       task_id: taskId, order_id: orderId, nomenclature_id: nomenclatureId,
@@ -747,6 +765,7 @@ export const MESProvider = ({ children }) => {
       upsertNomenclature, deleteNomenclature, saveBOM, removeBOM,
       createWorkCard, startWorkCard, completeWorkCard, confirmBuffer, completeTaskByMaster, handoverTaskToShop2,
       searchCustomers, addOrder, reserveBZForTask,
+      syncBOM,
       createPurchaseRequest, updatePurchaseRequestStatus, convertRequestToOrder,
       createReceptionDoc, sendDocToWarehouse, confirmReception,
       confirmReceptionDoc: confirmReception,

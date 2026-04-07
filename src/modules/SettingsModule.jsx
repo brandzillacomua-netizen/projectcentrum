@@ -41,7 +41,7 @@ const SettingsModule = () => {
     access_rights: {
       manager: false, master: false, warehouse: false, engineer: false, 
       director: false, foreman: false, operator: true, shipping: false, 
-      supply: false, nomenclature: false, machines: false, settings: false
+      supply: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false
     }
   })
   const [userSearch, setUserSearch] = useState('')
@@ -75,7 +75,7 @@ const SettingsModule = () => {
     
     setUserForm({
       id: null, login: '', password: '', first_name: '', last_name: '', position: 'Оператор',
-      access_rights: { manager: false, master: false, warehouse: false, engineer: false, director: false, foreman: false, operator: true, shipping: false, supply: false, nomenclature: false, machines: false, settings: false }
+      access_rights: { manager: false, master: false, warehouse: false, engineer: false, director: false, foreman: false, operator: true, shipping: false, supply: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false }
     })
   }
 
@@ -118,7 +118,9 @@ const SettingsModule = () => {
     { id: 'shop1', label: 'Цех №1 (Різка→Прийомка)' },
     { id: 'shipping', label: 'Логістика' },
     { id: 'supply', label: 'Постачання' },
-    { id: 'nomenclature', label: 'База номенклатур' },
+    { id: 'shop2', label: 'Цех №2 (Черга)' },
+    { id: 'nomenclature', label: 'База номенклатур (Old)' },
+    { id: 'nomenclature_v2', label: 'Номенклатура (Нова)' },
     { id: 'machines', label: 'Налаштування станків' },
     { id: 'settings', label: 'Система (Адмін)' }
   ]

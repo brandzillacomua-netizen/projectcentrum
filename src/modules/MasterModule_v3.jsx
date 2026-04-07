@@ -95,7 +95,7 @@ const MasterModule = () => {
       const displayParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }]
 
       displayParts.forEach(part => {
-        if (!part.nom) return
+        if (!part.nom || part.nom.type === 'hardware' || part.nom.type === 'fastener') return
         
         const snapshot = reprintTask?.plan_snapshot?.[String(part.nom.id)]
         const totalNeeded = snapshot ? snapshot.need : ((Number(item.quantity) || 0) * (Number(part.quantity_per_parent) || 1))
@@ -110,9 +110,10 @@ const MasterModule = () => {
         const matKey = (part.nom.material_type || part.nom.name || 'Інше').trim()
         const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
         const sheets = Math.ceil(totalToProduce / unitsPerSheet)
+        const unit = (part.nom.type === 'hardware' || part.nom.type === 'fastener') ? 'шт' : 'ЛИСТІВ'
 
         if (!summary[matKey]) {
-          summary[matKey] = { name: matKey, sheets: 0 }
+          summary[matKey] = { name: matKey, sheets: 0, unit }
         }
         summary[matKey].sheets += sheets
       })
@@ -336,7 +337,10 @@ const MasterModule = () => {
                   <tbody>
                     {activeNaryadOrder.order_items?.map(it => {
                       const parts = getBOMParts(it.nomenclature_id)
-                      const displayParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
+                      const allParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
+                      // Відображаємо тільки деталі (part), які потрібно різати
+                      const displayParts = allParts.filter(p => p.nom?.type === 'part')
+                      
                       return displayParts.map((part, pIdx) => {
                         const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)]
                         
@@ -409,7 +413,7 @@ const MasterModule = () => {
                     {materialSummary.map((m, idx) => (
                       <div key={idx} className="mat-card-p" style={{ flex: 1, padding: '0 0 5px 15px', borderLeft: '4px solid #ff9000', minWidth: 'min-content' }}>
                         <div style={{ fontSize: '0.6rem', color: '#555', fontWeight: 800, marginBottom: '3px' }} className="print-subtxt">{m.name || '—'}</div>
-                        <div style={{ fontSize: '1.1rem', fontWeight: 950, color: '#fff' }} className="print-txt">{(Number(m.sheets) || 0).toString()} <small style={{ fontSize: '0.65rem', fontWeight: 400, color: '#444' }} className="print-subtxt">ЛИСТІВ</small></div>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 950, color: '#fff' }} className="print-txt">{(Number(m.sheets) || 0).toString()} <small style={{ fontSize: '0.65rem', fontWeight: 400, color: '#444' }} className="print-subtxt">{m.unit || 'ЛИСТІВ'}</small></div>
                       </div>
                     ))}
                   </div>

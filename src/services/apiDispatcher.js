@@ -1,6 +1,6 @@
 import { requestBuilder } from '../api/requestBuilder';
 
-const baseUrl = 'https://8ff5-37-248-226-236.ngrok-free.app/api';
+const baseUrl = '/api';
 
 export const apiService = {
   submitOrder: async (header, items, fallback, token) => {
