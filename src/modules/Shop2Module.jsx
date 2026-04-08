@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Monitor, ListTodo, X, Clock, CheckCircle2, ChevronRight, Menu, Printer } from 'lucide-react'
+import { ArrowLeft, Monitor, ListTodo, X, Clock, CheckCircle2, ChevronRight, Menu, Printer, Tablet } from 'lucide-react'
 import { useMES } from '../MESContext'
 import { supabase } from '../supabase'
 import { QRCodeCanvas } from 'qrcode.react'
