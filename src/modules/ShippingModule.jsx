@@ -18,14 +18,15 @@ const ShippingModule = () => {
   const { orders, updateOrderStatus, nomenclatures } = useMES()
   const [activeMobileSection, setActiveMobileSection] = useState('ready') // ready, plan
 
-  const readyForShipping = orders.filter(o => o.status === 'completed')
-  const inConsolidation = orders.filter(o => o.status === 'pending' || o.status === 'in-progress')
+  const readyForShipping = orders.filter(o => o.status === 'packaged')
+  const inConsolidation = orders.filter(o => o.status === 'pending' || o.status === 'in-progress' || o.status === 'completed')
 
   const getStatusLabel = (s) => {
     const map = {
       'pending': 'ОЧІКУЄ',
       'in-progress': 'В РОБОТІ',
-      'completed': 'ВИКОНАНО'
+      'completed': 'НА ПАКУВАННІ',
+      'packaged': 'СПАКОВАНО'
     }
     return map[s] || s?.toUpperCase()
   }

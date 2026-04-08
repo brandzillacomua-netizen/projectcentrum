@@ -581,7 +581,7 @@ export default function Shop1Terminal() {
               </div>
             </div>
             <div style={{ fontSize: '0.6rem', opacity: active ? 0.7 : 0.4, marginBottom: '10px', fontWeight: 600 }}>
-              #{card.id.slice(-8).toUpperCase()}
+              №{orders?.find(o => o.id === card.order_id)?.order_num || ''} · #{card.id.slice(-8).toUpperCase()}
             </div>
             <span style={{
               fontSize: '0.55rem', fontWeight: 1000, textTransform: 'uppercase', letterSpacing: '0.05em',
@@ -633,7 +633,12 @@ export default function Shop1Terminal() {
               {nom?.name || 'Деталь'}
             </h2>
             <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800, marginTop: '6px', textTransform: 'uppercase' }}>
-              Картка #{currentCard.id.slice(-8).toUpperCase()} · {currentCard.quantity} шт
+              ЗАМОВЛЕННЯ №{orders?.find(o => o.id === currentCard.order_id)?.order_num || '—'} · Картка #{currentCard.id.slice(-8).toUpperCase()} · {(() => {
+                const bz = Number(currentCard.buffer_qty) || Number(currentCard.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
+                const need = Number(currentCard.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Number(currentCard.quantity) - bz)
+                if (bz > 0) return `${currentCard.quantity} шт (${need} + ${bz} БЗ)`
+                return `${currentCard.quantity} шт`
+              })()}
             </div>
           </div>
           <button onClick={() => setSelectedCardId(null)}

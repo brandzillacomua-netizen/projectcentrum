@@ -12,6 +12,7 @@ import {
   ChevronRight,
   Monitor,
   ShieldCheck,
+  Package
 } from 'lucide-react'
 import ManagerModule from './modules/ManagerModule'
 import WarehouseModule from './modules/WarehouseModuleV2'
@@ -23,6 +24,7 @@ import OperatorTerminal from './modules/OperatorTerminalV2'
 import ShippingModule from './modules/ShippingModule'
 import SupplyModule from './modules/SupplyModuleV2'
 import ForemanWorkplace from './modules/ForemanWorkplace'
+import PackagingModule from './modules/PackagingModule'
 import MachinesModule from './modules/MachinesModule'
 import SettingsModule from './modules/SettingsModule'
 import LoginPage from './modules/LoginPage'
@@ -49,6 +51,7 @@ const Portal = () => {
     { id: 'shop1', title: 'Цех №1 · Термінал', icon: <Tablet />, path: '/shop1', desc: 'Різка → Галтовка → Прийомка', color: '#eab308' },
     { id: 'shop2', title: 'Цех №2', icon: <Monitor />, path: '/shop2', desc: 'Черга нарядів', color: '#8b5cf6' },
     { id: 'shop2_terminal', title: 'Цех №2 · Термінал', icon: <Tablet />, path: '/shop2-terminal', desc: 'Пресування → Фарбування → Доопрацювання', color: '#8b5cf6' },
+    { id: 'packaging', title: 'Пакування', icon: <Package />, path: '/packaging', desc: 'Комплектування', color: '#f43f5e' },
     { id: 'shipping', title: 'Логістика', icon: <Truck />, path: '/shipping', desc: 'Відвантаження', color: '#ec4899' },
     { id: 'supply', title: 'Постачання', icon: <Truck />, path: '/supply', desc: 'Закупівля ТМЦ', color: '#06b6d4' },
     { id: 'nomenclature_v2', title: 'Номенклатура', icon: <Menu />, path: '/nomenclature-v2', desc: 'Управління каталогом', color: '#8b5cf6' },
@@ -122,6 +125,7 @@ const AppContent = () => {
       <Route path="/shop1" element={<Shop1Terminal />} />
       <Route path="/shop2" element={<Shop2Module />} />
       <Route path="/shop2-terminal" element={<Shop2Terminal />} />
+      <Route path="/packaging" element={<PackagingModule />} />
       <Route path="/engineer" element={<EngineerModule />} />
       <Route path="/director" element={<DirectorModule />} />
       <Route path="/shipping" element={<ShippingModule />} />

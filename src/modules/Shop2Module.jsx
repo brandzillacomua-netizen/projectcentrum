@@ -63,7 +63,14 @@ const Shop2Module = () => {
   }
 
   const handleGenerateCard = async (task, item, totalQty) => {
-    const stage = selectedStages[String(item.nom?.id)] || task.plan_snapshot?.[String(item.nom?.id)]?.shop2_stage
+    const nomId = item.nom?.id
+    const stage = selectedStages[String(nomId)] || task.plan_snapshot?.[String(nomId)]?.shop2_stage
+    
+    if (!nomId) {
+      alert("Не знайдено ID номенклатури!")
+      return
+    }
+    
     if (!stage) {
       alert("Спершу оберіть етап!")
       return
@@ -72,17 +79,28 @@ const Shop2Module = () => {
     setIsGenerating(true)
     try {
       const order = orders.find(o => o.id === task.order_id)
-      const { data, error } = await supabase.from('work_cards').insert([{
+      
+      const payload = {
         task_id: task.id,
         order_id: task.order_id,
-        nomenclature_id: item.nom?.id,
-        quantity: totalQty,
+        nomenclature_id: nomId,
+        quantity: Number(totalQty) || 0,
         operation: stage,
         status: 'new',
-        card_info: `[ЦЕХ №2] Наряд №${order?.order_num || task.id}`
-      }]).select().single()
+        machine: '—', // Додаємо для відповідності схемі
+        is_rework: false, // Додаємо для відповідності схемі
+        estimated_time: 0, // Додаємо для відповідності схемі
+        card_info: `[ЦЕХ №2] [NEED:${item.need || 0}] [BZ:${item.bz || 0}] Наряд №${order?.order_num || task.id}`
+      }
 
-      if (error) throw error
+      console.log("Generating card with payload:", payload)
+
+      const { data, error } = await supabase.from('work_cards').insert([payload]).select().single()
+
+      if (error) {
+        console.error("Supabase insert error:", error)
+        throw error
+      }
 
       setPrintModalData({
         cardId: data.id,
@@ -93,8 +111,8 @@ const Shop2Module = () => {
         customer: order?.customer || '—'
       })
     } catch (err) {
-      console.error("Error generating card:", err)
-      alert("Помилка генерації картки")
+      console.error("Error generating card details:", err)
+      alert(`Помилка генерації картки: ${err.message || 'невідома помилка'}`)
     } finally {
       setIsGenerating(false)
       fetchData()
@@ -254,31 +272,40 @@ const Shop2Module = () => {
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '15px' }}>
-                     {task.status !== 'completed' && (
-                       <button 
-                        onClick={async () => {
-                          if (window.confirm('Ви впевнені, що хочете закрити наряд?')) {
-                            try {
-                              await completeTaskShop2(task.id);
-                              alert('Наряд успішно закритий!');
-                            } catch (e) {
-                              alert('Помилка: ' + e.message);
-                            }
-                          }
-                        }}
-                        style={{ 
-                          background: '#8b5cf6', 
-                          color: '#fff', 
-                          border: 'none', 
-                          padding: '12px 25px', 
-                          borderRadius: '14px', 
-                          fontWeight: 900, 
-                          cursor: 'pointer',
-                          boxShadow: '0 10px 20px -5px rgba(139, 92, 246, 0.4)'
-                        }}>
-                         ЗАКРИТИ НАРЯД ЦЕХУ
-                       </button>
-                     )}
+                              {(() => {
+                        const taskCards = (workCards || []).filter(c => String(c.task_id) === String(task.id))
+                        const allCardsDone = taskCards.length > 0 && taskCards.every(c => c.status === 'completed')
+                        
+                        if (task.status !== 'completed' && allCardsDone) {
+                          return (
+                            <button 
+                              onClick={async () => {
+                                if (window.confirm('Ви впевнені, що хочете закрити наряд?')) {
+                                  try {
+                                    await completeTaskShop2(task.id);
+                                    alert('Наряд успішно закритий!');
+                                  } catch (e) {
+                                    alert('Помилка: ' + e.message);
+                                  }
+                                }
+                              }}
+                              style={{ 
+                                background: '#8b5cf6', 
+                                color: '#fff', 
+                                border: 'none', 
+                                padding: '12px 25px', 
+                                borderRadius: '14px', 
+                                fontWeight: 900, 
+                                cursor: 'pointer',
+                                boxShadow: '0 10px 20px -5px rgba(139, 92, 246, 0.4)'
+                              }}
+                            >
+                              ЗАКРИТИ НАРЯД ЦЕХУ
+                            </button>
+                          )
+                        }
+                        return null
+                      })()}
                   </div>
                 </div>
 
@@ -286,38 +313,47 @@ const Shop2Module = () => {
                 <div style={{ background: '#111', borderRadius: '28px', border: '1px solid #1a1a1a', overflow: 'hidden' }}>
                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
-                        <tr style={{ background: '#1a1a1a', textAlign: 'left', color: '#555', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase' }}>
-                           <th style={{ padding: '20px' }}>Номенклатура</th>
-                           <th style={{ padding: '20px', textAlign: 'center' }}>Матеріал</th>
-                           <th style={{ padding: '20px', textAlign: 'center', color: '#fff' }}>Загальна кількість</th>
-                           <th style={{ padding: '20px', textAlign: 'center', color: '#10b981' }}>Етап</th>
-                           <th style={{ padding: '20px', textAlign: 'center', color: '#8b5cf6' }}>Стан</th>
-                           <th style={{ padding: '20px', textAlign: 'center' }}>Дія</th>
+                        <tr style={{ background: '#0a0a0a', textAlign: 'left', color: '#555', textTransform: 'uppercase', fontSize: '0.65rem', fontWeight: 900 }}>
+                          <th style={{ padding: '15px 25px' }}>НОМЕНКЛАТУРА</th>
+                          <th style={{ padding: '15px 20px', textAlign: 'center' }}>МАТЕРІАЛ</th>
+                          <th style={{ padding: '15px 20px', textAlign: 'center' }}>ПОТРЕБА</th>
+                          <th style={{ padding: '15px 20px', textAlign: 'center', color: '#eab308' }}>БЗ (ЗАПАС)</th>
+                          <th style={{ padding: '15px 20px', textAlign: 'center' }}>ЗАГАЛЬНА КІЛЬКІСТЬ</th>
+                          <th style={{ padding: '15px 20px' }}>ЕТАП</th>
+                          <th style={{ padding: '15px 20px', textAlign: 'center' }}>СТАН</th>
+                          <th style={{ padding: '15px 20px', textAlign: 'center' }}>ДІЯ</th>
                         </tr>
                       </thead>
                       <tbody>
                         {(() => {
                            const snapshot = task.plan_snapshot || {}
-                           const snapshotItems = Object.values(snapshot)
+                           const snapshotItems = Object.values(snapshot).filter(Boolean)
                            
-                           const displayItems = snapshotItems.length > 0 ? snapshotItems.map(s => ({
-                             nom: nomenclatures.find(n => n.id === s.id),
-                             need: s.need,
-                             stock: s.stock,
-                             plan: s.plan,
-                             code: s.code
-                           })) : order?.order_items?.flatMap(item => {
-                             const parts = getBOMParts(item.nomenclature_id)
+                           let displayItems = snapshotItems.length > 0 ? snapshotItems.map(s => ({
+                             nom: (nomenclatures || []).find(n => String(n?.id) === String(s?.id)),
+                             need: s?.need,
+                             bz: s?.bz,
+                             stock: s?.stock,
+                             plan: s?.plan,
+                             code: s?.code
+                           })) : (order?.order_items || []).flatMap(item => {
+                             const bzItem = (inventory || []).find(i => String(i.nomenclature_id) === String(item?.nomenclature_id) && (i.type === 'bz_shop2' || i.type === 'bz'))
+                             const bzQty = Number(bzItem?.total_qty) || 0
+                             const parts = getBOMParts(item?.nomenclature_id)
                              return parts.length > 0 ? parts.map(p => ({
                                nom: p.nom,
-                               need: (Number(item.quantity) || 0) * (Number(p.quantity_per_parent) || 1),
+                               need: (Number(item?.quantity) || 0) * (Number(p.quantity_per_parent) || 1),
+                               bz: 0,
                                code: p.nom?.nomenclature_code
                              })) : [{ 
-                               nom: nomenclatures.find(n => n.id === item.nomenclature_id), 
-                               need: (Number(item.quantity) || 0),
-                               code: nomenclatures.find(n => n.id === item.nomenclature_id)?.nomenclature_code
-                             }]
+                                nom: (nomenclatures || []).find(n => String(n?.id) === String(item?.nomenclature_id)), 
+                                need: (Number(item?.quantity) || 0),
+                                bz: bzQty,
+                                code: (nomenclatures || []).find(n => String(n?.id) === String(item?.nomenclature_id))?.nomenclature_code
+                              }]
                            })
+
+                           displayItems = (displayItems || []).filter(item => item.nom?.type === 'part')
 
                            return (displayItems || []).map((item, idx) => (
                               <tr key={idx} style={{ borderBottom: '1px solid #1a1a1a' }}>
@@ -325,15 +361,23 @@ const Shop2Module = () => {
                                     <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#fff' }}>{item.nom?.name || '—'}</div>
                                     <div style={{ fontSize: '0.7rem', color: '#444', marginTop: '2px' }}>{item.code || 'БЕЗ КОДУ'}</div>
                                  </td>
-                                 <td style={{ padding: '20px', textAlign: 'center', color: '#666', fontSize: '0.85rem' }}>
-                                    {item.nom?.material_type || '—'}
+                                 <td style={{ padding: '20px', textAlign: 'center' }}>
+                                    <div style={{ color: '#666', fontSize: '0.85rem', fontWeight: 700 }}>{item.nom?.material_type || '—'}</div>
                                  </td>
-                                 <td style={{ padding: '20px', textAlign: 'center', color: '#fff', fontWeight: 1000, fontSize: '1.4rem' }}>
+                                 <td style={{ padding: '20px', textAlign: 'center', color: '#fff', fontSize: '1.2rem', fontWeight: 600 }}>
+                                    {item.need || '0'}
+                                 </td>
+                                 <td style={{ padding: '20px', textAlign: 'center', color: '#eab308', fontWeight: 1000, fontSize: '1.4rem' }}>
                                     {(() => {
-                                       const wipItem = (inventory || []).find(i => String(i.nomenclature_id) === String(item.nom?.id) && i.type === 'wip_bz')
-                                       const wipQty = Number(wipItem?.total_qty) || 0
-                                       const totalBZ = (Number(item.stock) || 0) + wipQty
-                                       return (Number(item.need) || 0) + totalBZ
+                                       const bzItem = (inventory || []).find(i => String(i.nomenclature_id) === String(item.nom?.id) && (i.type === 'bz_shop2' || i.type === 'bz'))
+                                       return Number(bzItem?.total_qty) || 0
+                                    })()}
+                                 </td>
+                                 <td style={{ padding: '20px', textAlign: 'center', color: '#3b82f6', fontWeight: 1000, fontSize: '1.4rem' }}>
+                                    {(() => {
+                                       const bzItem = (inventory || []).find(i => String(i.nomenclature_id) === String(item.nom?.id) && (i.type === 'bz_shop2' || i.type === 'bz'))
+                                       const bzQty = Number(bzItem?.total_qty) || 0
+                                       return (Number(item.need) || 0) + bzQty
                                     })()}
                                  </td>
                                  <td style={{ padding: '20px' }}>
@@ -368,11 +412,18 @@ const Shop2Module = () => {
                                  <td style={{ padding: '20px', textAlign: 'center' }}>
                                     {(() => {
                                       const stage = selectedStages[String(item.nom?.id)] || task.plan_snapshot?.[String(item.nom?.id)]?.shop2_stage
-                                      const existingCard = (workCards || []).find(wc => 
-                                        wc.task_id === task.id && 
-                                        wc.nomenclature_id === item.nom?.id && 
-                                        wc.operation === stage
-                                      )
+                                      
+                                      // Робимо порівняння максимально стійким
+                                      const existingCard = (workCards || []).find(wc => {
+                                        const idMatch = String(wc.task_id) === String(task.id) && String(wc.nomenclature_id) === String(item.nom?.id)
+                                        const opMatch = String(wc.operation || '').toLowerCase().trim() === String(stage || '').toLowerCase().trim()
+                                        return idMatch && opMatch
+                                      })
+
+                                      // DEBUG лог лише для активних нарядів (можна видалити після перевірки)
+                                      if (!existingCard && item.nom?.id === 'some_id') {
+                                         console.log("Checking match for:", item.nom?.name, "Stage:", stage, "WorkCards total:", workCards?.length)
+                                      }
 
                                       if (existingCard) {
                                         return (
@@ -410,9 +461,9 @@ const Shop2Module = () => {
                                       return (
                                         <button
                                           onClick={() => {
-                                            const wipItem = (inventory || []).find(i => String(i.nomenclature_id) === String(item.nom?.id) && i.type === 'wip_bz')
-                                            const wipQty = Number(wipItem?.total_qty) || 0
-                                            const total = (Number(item.need) || 0) + (Number(item.stock) || 0) + wipQty
+                                            const bzItem = (inventory || []).find(i => String(i.nomenclature_id) === String(item.nom?.id) && (i.type === 'bz_shop2' || i.type === 'bz'))
+                                            const bzQty = Number(bzItem?.total_qty) || 0
+                                            const total = (Number(item.need) || 0) + bzQty
                                             handleGenerateCard(task, item, total)
                                           }}
                                           disabled={task.status === 'completed' || isGenerating || !stage}
@@ -447,6 +498,85 @@ const Shop2Module = () => {
                   </div>
                 )}
 
+                {/* ───── ВХІДНИЙ БУФЕР (З ЦЕХУ №1) ───── */}
+                <div style={{ marginTop: '40px' }}>
+                   <h3 style={{ fontSize: '1.2rem', fontWeight: 950, color: '#444', textTransform: 'uppercase', marginBottom: '25px', borderLeft: '4px solid #10b981', paddingLeft: '15px' }}>
+                     Буфер надходжень (з Цеху №1)
+                   </h3>
+                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '15px' }}>
+                      {(() => {
+                         const snap = task.plan_snapshot || {}
+                         const snapIds = Object.keys(snap).filter(id => id !== 'arrivals')
+                         
+                         let arrivals = []
+
+                         if (snap.arrivals && Array.isArray(snap.arrivals)) {
+                            snap.arrivals.forEach(arr => {
+                               arrivals.push({ 
+                                  id: arr.id, 
+                                  name: arr.name, 
+                                  need: Number(arr.semi) || 0,
+                                  bz: Number(arr.bz) || 0,
+                                  total: (Number(arr.semi) || 0) + (Number(arr.bz) || 0)
+                               })
+                            })
+                         } else {
+                            snapIds.forEach(nomId => {
+                              const nom = (nomenclatures || []).find(n => String(n?.id) === String(nomId))
+                              if (!nom) return
+
+                              const taskCards = (workCards || []).filter(c => String(c.task_id) === String(task.id) && String(c.nomenclature_id) === String(nomId))
+                              let cardsNeedSum = 0
+                              let cardsBzSum = 0
+
+                              taskCards.forEach(c => {
+                                 const bzTag = Number(c.buffer_qty) || Number(c.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
+                                 const needTag = Number(c.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Number(c.quantity) - bzTag)
+                                 cardsNeedSum += Math.max(0, needTag)
+                                 cardsBzSum += Math.max(0, bzTag)
+                              })
+
+                              const invItems = (inventory || []).filter(i => String(i.nomenclature_id) === String(nomId))
+                              const invSemi = invItems.filter(i => i.type === 'semi_shop2').reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
+                              const invBz = invItems.filter(i => i.type === 'bz_shop2' || i.type === 'bz').reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
+
+                              const totSemi = invSemi + cardsNeedSum
+                              const totBz = invBz + cardsBzSum
+
+                              if (totSemi > 0 || totBz > 0) {
+                                arrivals.push({ id: nomId, name: nom.name, need: totSemi, bz: totBz, total: totSemi + totBz })
+                              }
+                            })
+                         }
+
+                         if (arrivals.length === 0) {
+                            return <div style={{ color: '#222', fontSize: '0.85rem', fontWeight: 700, padding: '20px' }}>Буфер порожній. Передайте наряд з Цеху №1...</div>
+                         }
+
+                         return arrivals.map(item => (
+                               <div key={item.id} style={{ background: '#111', borderRadius: '24px', padding: '20px', border: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <div>
+                                     <div style={{ fontWeight: 900, fontSize: '0.9rem', color: '#fff' }}>{item.name}</div>
+                                     <div style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 900, textTransform: 'uppercase', marginTop: '4px' }}>
+                                        НАДХОДЖЕННЯ З ЦЕХУ №1
+                                     </div>
+                                  </div>
+                                  <div style={{ textAlign: 'right' }}>
+                                     <div style={{ fontSize: '1.8rem', fontWeight: 1000, color: '#fff', lineHeight: 1 }}>{item.total || 0}</div>
+                                     <div style={{ fontSize: '0.9rem', fontWeight: 1000, color: '#fff' }}>
+                                        {item.need || 0} 
+                                        <span style={{ color: '#444', fontSize: '0.9rem', margin: '0 5px' }}>+</span> 
+                                        <span style={{ color: '#eab308' }}>{item.bz || 0}</span>
+                                        <span style={{ color: '#eab308', fontSize: '0.7rem', marginLeft: '4px' }}>БЗ</span>
+                                     </div>
+                                     <div style={{ fontSize: '0.55rem', color: '#444', fontWeight: 900 }}>ЗАГАЛЬНА КІЛЬКІСТЬ</div>
+                                  </div>
+                               </div>
+                            ))
+                      })()}
+                   </div>
+                </div>
+
                 {/* ───── АРХІВ РОБОЧИХ КАРТОК (ЦЕХ №2) ───── */}
                 <div style={{ marginTop: '60px' }}>
                    <h3 style={{ fontSize: '1.2rem', fontWeight: 950, color: '#444', textTransform: 'uppercase', marginBottom: '25px', borderLeft: '4px solid #8b5cf6', paddingLeft: '15px' }}>
@@ -454,9 +584,21 @@ const Shop2Module = () => {
                    </h3>
 
                    {(() => {
-                      const taskCards = (workCards || []).filter(c => c.task_id === task.id && c.card_info?.includes('[ЦЕХ №2]'))
+                      const taskCards = (workCards || []).filter(c => {
+                         const oMatch = String(c.order_id) === String(task.order_id)
+                         const tMatch = String(c.task_id) === String(task.id)
+                         // Херистіка для фантомних карток (пошук за текстом "Наряд №" у card_info)
+                         const infoMatch = c.card_info?.includes(`Наряд №${task.order_id}`) || c.card_info?.includes(`Наряд №${task.id}`)
+                         return (oMatch || tMatch || infoMatch) && c.card_info?.includes('[ЦЕХ №2]')
+                      })
+                      
+                      // DEBUG для Архіву
+                      if (taskCards.length > 0) {
+                         console.log(`Found ${taskCards.length} cards for archive of task ${task.id}`);
+                      }
+
                       const grouped = taskCards.reduce((acc, c) => {
-                         const nomId = c.nomenclature_id
+                         const nomId = String(c.nomenclature_id)
                          if (!acc[nomId]) acc[nomId] = []
                          acc[nomId].push(c)
                          return acc
@@ -467,7 +609,20 @@ const Shop2Module = () => {
                       }
 
                       return Object.keys(grouped).map(nomId => {
-                         const nom = nomenclatures.find(n => String(n.id) === String(nomId))
+                         let nom = nomenclatures.find(n => String(n.id) === String(nomId))
+                          
+                         // Херистіка для фантомних карток (якщо ID зламаний, групуємо за кількістю та замовленням)
+                         if (!nom || nomId === 'null' || nomId === 'NaN') {
+                           const sampleCard = grouped[nomId][0]
+                           const info = sampleCard?.card_info || ''
+                           const orderNumMatch = info.match(/Наряд №(\d+)/)
+                           const orderNum = orderNumMatch ? orderNumMatch[1] : null
+                           if (orderNum) {
+                             const order = orders.find(o => String(o.order_num) === String(orderNum) || String(o.id) === String(orderNum))
+                             const match = order?.order_items?.find(it => Number(it.quantity) === Number(sampleCard.quantity))
+                             if (match) nom = nomenclatures.find(n => String(n.id) === String(match.nomenclature_id))
+                           }
+                         }
                          const cards = grouped[nomId]
                          
                          return (

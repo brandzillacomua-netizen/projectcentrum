@@ -172,7 +172,14 @@ const OperatorTerminal = () => {
           <div key={card.id} onClick={() => { setSelectedCardId(card.id); setIsDrawerOpen(false) }} style={{ background: isActive ? '#eab308' : '#1a1a1a', borderRadius: '12px', padding: '15px', marginBottom: '10px', cursor: 'pointer', border: '1px solid', borderColor: isActive ? '#eab308' : '#333', transition: '0.2s', color: isActive ? '#000' : '#fff' }}>
             <div style={{ marginBottom: '4px' }}>
               <strong style={{ display: 'block', fontSize: '0.9rem', fontWeight: 800 }}>{nom?.name || 'Без назви'}</strong>
-              <div style={{ fontSize: '0.65rem', opacity: 0.7 }}>{batchQty} шт | {card.operation} {getSheetsFromCard(card) ? `| Лист ${getSheetsFromCard(card)}` : ''}</div>
+              <div style={{ fontSize: '0.65rem', opacity: 0.7 }}>
+                №{orders?.find(o => o.id === card.order_id)?.order_num || '—'} | {(() => {
+                  const bz = Number(card.buffer_qty) || Number(card.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
+                  const need = Number(card.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Number(card.quantity) - bz)
+                  if (bz > 0) return `${card.quantity} шт (${need}+${bz} БЗ)`
+                  return `${card.quantity} шт`
+                })()} | {card.operation} {getSheetsFromCard(card) ? `| Лист ${getSheetsFromCard(card)}` : ''}
+              </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
               <span style={{ fontSize: '0.6rem', background: isActive ? 'rgba(0,0,0,0.2)' : 'rgba(234, 179, 8, 0.1)', color: isActive ? '#000' : '#eab308', padding: '2px 6px', borderRadius: '4px', fontWeight: 900, textTransform: 'uppercase' }}>{card.status === 'in-progress' ? 'У РОБОТІ' : 'ОЧІКУЄ'}</span>
@@ -221,7 +228,14 @@ const OperatorTerminal = () => {
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
                     <div style={{ background: currentCard.status === 'new' ? '#ef4444' : '#3b82f6', color: 'white', padding: '4px 10px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 900 }}>{currentCard.status === 'new' ? 'НОВА КАРТА' : 'РОБОЧА КАРТА'}</div>
-                    <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800 }}>№ {currentCard.id}</div>
+                    <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800 }}>
+                      ЗАМОВЛЕННЯ №{orders?.find(o => o.id === currentCard.order_id)?.order_num || '—'} | КАРТКА #{currentCard.id.slice(0,8).toUpperCase()}... | {(() => {
+                        const bz = Number(currentCard.buffer_qty) || Number(currentCard.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
+                        const need = Number(currentCard.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Number(currentCard.quantity) - bz)
+                        if (bz > 0) return `${currentCard.quantity} ШТ (${need}+${bz} БЗ)`
+                        return `${currentCard.quantity} ШТ`
+                      })()}
+                    </div>
                   </div>
                   <h2 style={{ fontSize: '2.5rem', margin: 0, fontWeight: 950, letterSpacing: '-0.02em', lineHeight: 1 }}>{getNomFromCard(currentCard)?.name || 'Деталь'}</h2>
                 </div>

@@ -55,7 +55,7 @@ const WarehouseModuleV2 = () => {
 
   const filteredInventory = (inventory || []).filter(i => {
     const matchesSearch = (i.name || '').toLowerCase().includes(searchQuery.toLowerCase())
-    if (activeTab === 'bz') return (Number(i.bz_qty) || 0) > 0 && matchesSearch
+    if (activeTab === 'bz') return i.type === 'bz' && matchesSearch
     // Items without a type default to 'raw'
     const itemType = i.type || 'raw'
     return itemType === activeTab && matchesSearch
@@ -392,7 +392,7 @@ const WarehouseModuleV2 = () => {
                   <tr key={item.id} style={{ borderBottom: '1px solid #151515' }}>
                     <td className="sticky-col" style={{ padding: '15px', fontWeight: 800 }}>{item.name}</td>
                     <td style={{ padding: '15px', textAlign: 'center', color: '#ff9000', fontWeight: 900 }}>
-                      {activeTab === 'bz' ? (item.bz_qty || 0) : (item.total_qty || 0)}{' '}
+                      {item.total_qty || 0}{' '}
                       <small style={{ color: '#444', fontWeight: 400 }}>{item.unit}</small>
                     </td>
                     <td style={{ padding: '15px', textAlign: 'center', color: Number(item.reserved_qty) > 0 ? '#3b82f6' : '#222', fontWeight: 800 }}>
@@ -419,9 +419,9 @@ const WarehouseModuleV2 = () => {
                 </div>
                 <div style={{ display: 'flex', gap: '20px' }}>
                   <div>
-                    <div style={{ fontSize: '0.6rem', color: '#555' }}>{activeTab === 'bz' ? 'ЗАЛИШОК БЗ' : 'НАЯВНІСТЬ'}</div>
+                    <div style={{ fontSize: '0.6rem', color: '#555' }}>НАЯВНІСТЬ</div>
                     <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#ff9000' }}>
-                      {activeTab === 'bz' ? (item.bz_qty || 0) : (item.total_qty || 0)}
+                      {item.total_qty || 0}
                     </div>
                   </div>
                   {activeTab !== 'bz' && (

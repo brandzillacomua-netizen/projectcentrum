@@ -41,7 +41,7 @@ const SettingsModule = () => {
     access_rights: {
       manager: false, master: false, warehouse: false, engineer: false, 
       director: false, foreman: false, operator: true, shipping: false, 
-      supply: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false
+      supply: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, packaging: false
     }
   })
   const [userSearch, setUserSearch] = useState('')
@@ -116,6 +116,7 @@ const SettingsModule = () => {
     { id: 'foreman', label: 'Майстер дільниці' },
     { id: 'operator', label: 'Термінал оператора' },
     { id: 'shop1', label: 'Цех №1 (Різка→Прийомка)' },
+    { id: 'packaging', label: 'Пакування' },
     { id: 'shipping', label: 'Логістика' },
     { id: 'supply', label: 'Постачання' },
     { id: 'shop2', label: 'Цех №2 (Черга)' },

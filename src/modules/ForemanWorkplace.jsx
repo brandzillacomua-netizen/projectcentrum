@@ -111,6 +111,19 @@ const ForemanWorkplace = () => {
       }
 
       const createdCards = await apiService.submitCreateWorkCardsBatch(task.id, task.order_id, part.nom.id, cardsBatch, createWorkCard)
+      
+      // --- RE-CUT LOOP: Create Material Request for REDO/Shortage ---
+      if (isRepair && sheets > 0) {
+        const order = orders.find(o => o.id === task.order_id)
+        const matName = part.nom?.material_type || part.nom?.name || 'Сировина'
+        await supabase.from('material_requests').insert([{
+          order_id: task.order_id,
+          quantity: sheets,
+          status: 'pending',
+          details: `ДОЗАПИТ (БРАК/НЕСТАЧА) для ${order?.order_num || '???'}: ${matName} — ${sheets} л.`
+        }])
+      }
+
       if (createdCards && createdCards.length > 0) {
         setPrintQueue({
           task,
@@ -315,7 +328,8 @@ const ForemanWorkplace = () => {
               const isTaskComplete = order?.order_items?.every(item => {
                 const parts = getBOMParts(item.nomenclature_id)
                 const rows = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }]
-                return rows.every(part => {
+                const shop1Parts = rows.filter(r => r.nom?.type === 'part')
+                return shop1Parts.every(part => {
                   const snapshot = task.plan_snapshot?.[String(part.nom?.id)]
                   const need = snapshot ? snapshot.need : (Number(item.quantity) * (Number(part.quantity_per_parent) || 1))
                   const produced = taskCards
@@ -376,7 +390,11 @@ const ForemanWorkplace = () => {
                         <tbody>
                           {order?.order_items?.flatMap(item => {
                             const parts = getBOMParts(item.nomenclature_id)
-                            const rows = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }]
+                            const initialRows = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }]
+                            
+                            // Filter: Only show parts in Shop 1 (exclude hardware/fasteners)
+                            const rows = initialRows.filter(r => r.nom?.type === 'part')
+                            
                             return rows.map((part, idx) => {
                               const rowId = `${item.id}-${part.nom?.id || idx}`
                               const nomId = part.nom?.id
@@ -525,6 +543,8 @@ const ForemanWorkplace = () => {
                     {Object.keys(task.plan_snapshot || {}).map((nomIdStr) => {
                       const nomId = isNaN(nomIdStr) ? nomIdStr : Number(nomIdStr)
                       const nom = nomenclatures.find(n => String(n.id) === String(nomId))
+                      
+                      if (nom?.type !== 'part') return null
 
                       const activeCards = taskCards.filter(c => String(c.nomenclature_id) === String(nomId))
                       const cardIdsStrings = activeCards.map(c => String(c.id))
