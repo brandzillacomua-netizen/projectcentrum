@@ -276,6 +276,29 @@ const MasterModule = () => {
 
           <section className="grid-col">
             <h3 style={{ fontSize: '0.85rem', color: '#555', marginBottom: '15px' }}><History size={16} /> АРХІВ СЬОГОДНІ</h3>
+            <div className="v-stack" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {tasks.filter(t => {
+                if (t.status !== 'completed' || !t.completed_at) return false
+                const d = new Date(t.completed_at)
+                const now = new Date()
+                return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+              }).sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at)).map(task => {
+                const order = orders.find(o => o.id === task.order_id)
+                return (
+                  <div key={task.id} style={{ background: '#0a0a0a', padding: '15px', borderRadius: '16px', border: '1px solid #1a1a1a', opacity: 0.6 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <strong style={{ fontSize: '0.9rem', color: '#fff' }}>№{order?.order_num}</strong>
+                      <span style={{ fontSize: '0.65rem', color: '#444' }}>{new Date(task.completed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#555', marginBottom: '8px' }}>{order?.customer}</div>
+                    <div style={{ fontSize: '0.65rem', color: '#333', fontWeight: 800, textTransform: 'uppercase' }}>{task.step}</div>
+                  </div>
+                )
+              })}
+              {tasks.filter(t => t.status === 'completed' && new Date(t.completed_at).toDateString() === new Date().toDateString()).length === 0 && (
+                <div style={{ textAlign: 'center', padding: '20px', color: '#222', fontSize: '0.75rem' }}>Сьогодні ще немає завершених нарядів</div>
+              )}
+            </div>
           </section>
         </div>
       </div>
