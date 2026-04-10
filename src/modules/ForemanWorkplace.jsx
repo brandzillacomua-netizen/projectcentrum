@@ -1,13 +1,13 @@
 import React, { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Factory, ListTodo, Loader2, X, Printer, LayoutDashboard, Layers, User, Clock, Package, Scan, CheckCircle2, AlertTriangle, Camera, Tablet, Menu } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Factory, ListTodo, Loader2, X, Printer, LayoutDashboard, Layers, User, Clock, Package, Scan, CheckCircle2, AlertTriangle, Camera, Tablet, Menu } from 'lucide-react'
 import { useMES } from '../MESContext'
 import { QRCodeSVG } from 'qrcode.react'
 import { apiService } from '../services/apiDispatcher'
 import { supabase } from '../supabase'
 
 const ForemanWorkplace = () => {
-  const { tasks, orders, workCards, createWorkCard, inventory, completeTaskByMaster, handoverTaskToShop2, nomenclatures, bomItems, machines, workCardHistory, confirmBuffer, fetchData, reserveBZForTask } = useMES()
+  const { tasks, orders, workCards, createWorkCard, inventory, completeTaskByMaster, handoverTaskToShop2, cancelHandoverToShop2, nomenclatures, bomItems, machines, workCardHistory, confirmBuffer, fetchData, reserveBZForTask } = useMES()
   const [activeTaskId, setActiveTaskId] = useState(null)
   const [activeView, setActiveView] = useState('worksheet')
   const [selectedMachines, setSelectedMachines] = useState({})
@@ -50,26 +50,99 @@ const ForemanWorkplace = () => {
   }
 
   const handleHandoverToShop2 = async (taskId) => {
-    if (!window.confirm("Передати цей наряд у Цех №2?")) return
     try {
       await handoverTaskToShop2(taskId)
       setActiveTaskId(null)
       fetchData()
-      alert("Наряд успішно передано в Цех №2!")
     } catch (err) {
       alert("Помилка при передачі: " + err.message)
     }
   }
 
+  // 0. Per-task readiness: all Shop-1 cards produced >= need
+  const taskReadinessMap = useMemo(() => {
+    const map = {}
+    tasks.forEach(task => {
+      if (task.status === 'completed') { map[task.id] = false; return }
+      const order = orders.find(o => o.id === task.order_id)
+      const taskCards = workCards.filter(c => c.task_id === task.id)
+      const isReady = order?.order_items?.every(item => {
+        const parts = bomItems
+          .filter(b => b.parent_id === item.nomenclature_id)
+          .map(b => ({ ...b, nom: nomenclatures.find(n => n.id === b.child_id) }))
+        const rows = parts.length > 0
+          ? parts
+          : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }]
+        const shop1Parts = rows.filter(r => r.nom?.type === 'part')
+        if (shop1Parts.length === 0) return true
+        return shop1Parts.every(part => {
+          const snapshot = task.plan_snapshot?.[String(part.nom?.id)]
+          const need = snapshot
+            ? snapshot.need
+            : (Number(item.quantity) * (Number(part.quantity_per_parent) || 1))
+          if (need === 0) return true
+          const produced = taskCards
+            .filter(c => String(c.nomenclature_id) === String(part.nom?.id))
+            .reduce((sum, c) => sum + (c.status === 'completed' ? Number(c.quantity) : 0), 0)
+          return produced >= need
+        })
+      })
+      map[task.id] = Boolean(isReady)
+    })
+    return map
+  }, [tasks, orders, workCards, nomenclatures, bomItems])
+
+  // 0b. Per-task shortage map — needs ДОВИПУСК (scrap exceeded BZ buffer, no REDO card yet)
+  const taskShortageMap = useMemo(() => {
+    const map = {}
+    tasks.forEach(task => {
+      if (task.status === 'completed') { map[task.id] = false; return }
+      const snapshot = task.plan_snapshot || {}
+      const taskCards = workCards.filter(c => c.task_id === task.id)
+      const cardIds = taskCards.map(c => String(c.id))
+      const taskHistory = workCardHistory.filter(h => cardIds.includes(String(h.card_id)))
+      let hasShortage = false
+      Object.keys(snapshot).forEach(nomIdStr => {
+        if (hasShortage) return
+        const nom = nomenclatures.find(n => String(n.id) === String(nomIdStr))
+        if (nom?.type !== 'part') return
+        const snap = snapshot[nomIdStr]
+        if (!snap) return
+        const need = snap.need || 0
+        const unitsPerSheet = snap.units_per_sheet || 1
+        const sheets = snap.sheets || 0
+        const activeCards = taskCards.filter(c => String(c.nomenclature_id) === String(nomIdStr))
+        const groupScrap = taskHistory
+          .filter(h => activeCards.some(c => String(c.id) === String(h.card_id)))
+          .reduce((sum, h) => sum + (Number(h.scrap_qty) || 0), 0)
+        const initialBZ = (sheets * unitsPerSheet) - need
+        const shortage = (initialBZ - groupScrap) < 0 ? Math.abs(initialBZ - groupScrap) : 0
+        // Needs ДОВИПУСК: shortage > 0 AND no REDO card generated yet
+        if (shortage > 0 && !activeCards.some(c => (c.card_info || '').includes('[REDO]'))) {
+          hasShortage = true
+        }
+      })
+      map[task.id] = hasShortage
+    })
+    return map
+  }, [tasks, workCards, workCardHistory, nomenclatures])
+
   const relevantTasks = useMemo(() => {
     return tasks
       .filter(t => t.warehouse_conf && t.engineer_conf && t.director_conf && t.step === 'Лазерна різка')
       .sort((a, b) => {
+        // Already transferred → bottom
         if (a.status === 'completed' && b.status !== 'completed') return 1
         if (a.status !== 'completed' && b.status === 'completed') return -1
+        // Ready for Shop 2 → top
+        if (taskReadinessMap[a.id] && !taskReadinessMap[b.id]) return -1
+        if (!taskReadinessMap[a.id] && taskReadinessMap[b.id]) return 1
+        // Needs ДОВИПУСК → second
+        if (taskShortageMap[a.id] && !taskShortageMap[b.id]) return -1
+        if (!taskShortageMap[a.id] && taskShortageMap[b.id]) return 1
         return new Date(b.created_at) - new Date(a.created_at)
       })
-  }, [tasks])
+  }, [tasks, taskReadinessMap, taskShortageMap])
 
   const handleGenerateFromWorksheet = async (task, part, sheets, selectedMachineName, count, startOffset = 0, totalToReach = 0, isRepair = false) => {
     const machineObj = findMachine(selectedMachineName)
@@ -263,18 +336,75 @@ const ForemanWorkplace = () => {
             {relevantTasks.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(task => {
               const order = orders.find(o => o.id === task.order_id)
               const isActive = activeTaskId === task.id
+              const isReady = taskReadinessMap[task.id]
+              const isShortage = taskShortageMap[task.id]
+              const isCompleted = task.status === 'completed'
+
+              const borderColor = isActive
+                ? '#ef4444'
+                : isReady && !isCompleted
+                  ? '#10b981'
+                  : isShortage && !isCompleted
+                    ? '#f97316'
+                    : 'transparent'
+
+              const bgColor = isActive
+                ? '#1a1a1a'
+                : isReady && !isCompleted
+                  ? 'rgba(16, 185, 129, 0.06)'
+                  : isShortage && !isCompleted
+                    ? 'rgba(249, 115, 22, 0.06)'
+                    : 'transparent'
+
               return (
                 <div
                   key={task.id}
                   onClick={() => { setActiveTaskId(task.id); setIsDrawerOpen(false); }}
-                  style={{ padding: '15px', borderLeft: isActive ? '4px solid #ef4444' : '4px solid transparent', background: isActive ? '#1a1a1a' : 'transparent', cursor: 'pointer' }}
+                  style={{ padding: '15px', borderLeft: `4px solid ${borderColor}`, background: bgColor, cursor: 'pointer', transition: 'background 0.2s' }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontWeight: 800, fontSize: '0.9rem', color: task.status === 'completed' ? '#555' : '#fff' }}>№ {order?.order_num}</div>
-                    {task.status === 'completed' && <CheckCircle2 size={14} color="#10b981" />}
+                    <div style={{ fontWeight: 800, fontSize: '0.9rem', color: isCompleted ? '#555' : '#fff' }}>№ {order?.order_num}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      {isCompleted && <CheckCircle2 size={14} color="#10b981" />}
+                      {isReady && !isCompleted && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '3px', background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px', padding: '2px 7px' }}>
+                          <ArrowRight size={9} color="#10b981" />
+                          <span style={{ fontSize: '0.55rem', fontWeight: 900, color: '#10b981', letterSpacing: '0.5px' }}>ЦЕХ №2</span>
+                        </div>
+                      )}
+                      {isShortage && !isCompleted && !isReady && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '3px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: '6px', padding: '2px 7px' }}>
+                          <AlertTriangle size={9} color="#ef4444" />
+                          <span style={{ fontSize: '0.55rem', fontWeight: 900, color: '#ef4444', letterSpacing: '0.5px' }}>НЕСТАЧА</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.7rem', color: task.status === 'completed' ? '#333' : '#555' }}>{order?.customer}</div>
-                  {task.status === 'completed' && <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 900, marginTop: '4px' }}>ВИКОНАНО</div>}
+                  <div style={{ fontSize: '0.7rem', color: isCompleted ? '#333' : '#555' }}>{order?.customer}</div>
+                  {isCompleted && <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 900, marginTop: '4px' }}>ВИКОНАНО</div>}
+                  {isReady && !isCompleted && (
+                    <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 900, marginTop: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <CheckCircle2 size={10} />
+                      ВСІ КАРТКИ ГОТОВІ — ПЕРЕДАТИ
+                    </div>
+                  )}
+                  {isShortage && !isCompleted && !isReady && (
+                    <div style={{ fontSize: '0.6rem', color: '#ef4444', fontWeight: 900, marginTop: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <AlertTriangle size={10} />
+                      ПОТРІБЕН ДОВИПУСК
+                    </div>
+                  )}
+                  {isCompleted && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        cancelHandoverToShop2(task.id).catch(err => alert('Помилка: ' + err.message))
+                      }}
+                      style={{ marginTop: '6px', background: 'transparent', border: '1px solid #333', color: '#444', fontSize: '0.55rem', fontWeight: 900, padding: '2px 8px', borderRadius: '6px', cursor: 'pointer', letterSpacing: '0.5px', display: 'block' }}
+                    >
+                      ↩ СКАСУВАТИ ПЕРЕДАЧУ
+                    </button>
+                  )}
                 </div>
               )
             })}
@@ -348,24 +478,26 @@ const ForemanWorkplace = () => {
                         ВИРІБ: <strong style={{ color: '#ef4444' }}>{productNames || '—'}</strong> | {order?.customer}
                       </div>
                     </div>
-                    <button
-                      onClick={() => isTaskComplete ? handleHandoverToShop2(task.id) : handleCloseNaryad(task.id)}
-                      className="btn-primary"
-                      disabled={task.status === 'completed'}
-                      style={{ 
-                        background: task.status === 'completed' ? '#222' : (isTaskComplete ? '#10b981' : '#ef4444'), 
-                        color: task.status === 'completed' ? '#555' : '#fff', 
-                        border: 'none', 
-                        padding: '12px 25px', 
-                        borderRadius: '12px', 
-                        fontWeight: 900, 
-                        cursor: task.status === 'completed' ? 'default' : 'pointer',
-                        boxShadow: (isTaskComplete && task.status !== 'completed') ? '0 10px 20px -5px rgba(16, 185, 129, 0.4)' : 'none',
-                        transition: '0.3s'
-                      }}
-                    >
-                      {task.status === 'completed' ? 'ПЕРЕДАНО В ЦЕХ №2' : (isTaskComplete ? 'ПЕРЕВЕСТИ В ЦЕХ №2' : 'ЗАКРИТИ НАРЯД')}
-                    </button>
+                    {(isTaskComplete || task.status === 'completed') && (
+                      <button
+                        onClick={() => handleHandoverToShop2(task.id)}
+                        className="btn-primary"
+                        disabled={task.status === 'completed'}
+                        style={{ 
+                          background: task.status === 'completed' ? '#222' : '#10b981', 
+                          color: task.status === 'completed' ? '#555' : '#fff', 
+                          border: 'none', 
+                          padding: '12px 25px', 
+                          borderRadius: '12px', 
+                          fontWeight: 900, 
+                          cursor: task.status === 'completed' ? 'default' : 'pointer',
+                          boxShadow: task.status !== 'completed' ? '0 10px 20px -5px rgba(16, 185, 129, 0.4)' : 'none',
+                          transition: '0.3s'
+                        }}
+                      >
+                        {task.status === 'completed' ? 'ПЕРЕДАНО В ЦЕХ №2' : 'ПЕРЕВЕСТИ В ЦЕХ №2'}
+                      </button>
+                    )}
                   </div>
 
                   {/* ───── ТАБЛИЦЯ ДЕТАЛЕЙ ───── */}

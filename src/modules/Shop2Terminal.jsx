@@ -427,10 +427,8 @@ const Shop2Terminal = () => {
                     {currentCard.status === 'at-buffer' && (
                       <button 
                         onClick={() => {
-                          if (window.confirm('Передати ці готові деталі на склад готової продукції (СГП)?')) {
-                            handoverToSGP(currentCard.id)
-                            setSelectedCardId(null)
-                          }
+                          handoverToSGP(currentCard.id)
+                          setSelectedCardId(null)
                         }}
                         style={{ background: '#f43f5e', color: '#fff', border: 'none', padding: '15px', borderRadius: '18px', fontSize: '1rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                       >
