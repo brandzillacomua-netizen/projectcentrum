@@ -17,7 +17,7 @@ import {
 import { useMES } from '../MESContext'
 
 const AnalyticsModule = () => {
-  const { tasks, orders, workCardHistory, nomenclatures, machines, totalProduced, totalScrapCount } = useMES()
+  const { tasks, orders, workCards, workCardHistory, nomenclatures, machines, totalProduced, totalScrapCount } = useMES()
 
   // --- DATA AGGREGATION ---
 
@@ -281,21 +281,44 @@ const AnalyticsModule = () => {
            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {workCardHistory.slice(0, 50).map(h => {
                 const nom = nomenclatures.find(n => n.id === h.nomenclature_id)
+                // Знаходимо картку щоб визначити замовлення та доп інформацію
+                const rootCard = (workCards || []).find(c => String(c.id) === String(h.card_id))
+                let orderNum = "—"
+                if (rootCard) {
+                  const order = (orders || []).find(o => String(o.id) === String(rootCard.order_id))
+                  if (order) orderNum = order.order_num
+                } else if (h.card_info) {
+                  // Fallback якщо картку видалили, але є інфо
+                  const match = h.card_info.match(/Наряд №(\d+)/)
+                  if (match) orderNum = match[1]
+                }
+
                 return (
                   <div key={h.id} style={{ background: '#0a0a0a', border: '1px solid #111', padding: '15px 25px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', gap: '30px', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '30px', alignItems: 'center', flex: 1 }}>
                        <div style={{ color: '#333', fontSize: '0.65rem', fontWeight: 900 }}>{new Date(h.completed_at).toLocaleString()}</div>
-                       <div>
-                          <div style={{ fontSize: '0.9rem', fontWeight: 800 }}>{nom?.name}</div>
-                          <div style={{ fontSize: '0.7rem', color: '#555' }}>Етап: <strong style={{ color: '#3b82f6' }}>{h.stage_name}</strong></div>
+                       <div style={{ width: '120px' }}>
+                          <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800 }}>ЗАМОВЛЕННЯ</div>
+                          <div style={{ fontSize: '1rem', fontWeight: 900, color: '#f43f5e' }}>№{orderNum}</div>
+                       </div>
+                       <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#fff' }}>{nom?.name || 'Деталь'}</div>
+                          <div style={{ fontSize: '0.7rem', color: '#555', marginTop: '4px', display: 'flex', gap: '10px' }}>
+                            <span>Етап: <strong style={{ color: '#3b82f6' }}>{h.stage_name}</strong></span>
+                            {nom?.material_type && <span>Матеріал: <strong style={{ color: '#10b981' }}>{nom.material_type}</strong></span>}
+                          </div>
                        </div>
                     </div>
                     <div style={{ display: 'flex', gap: '40px', alignItems: 'center' }}>
-                       <div style={{ textAlign: 'center' }}>
-                          <div style={{ fontSize: '1rem', fontWeight: 950, color: '#ff9000' }}>{h.qty_completed} <small style={{ fontSize: '0.6rem' }}>ШТ</small></div>
-                          {Number(h.scrap_qty) > 0 && <div style={{ fontSize: '0.65rem', color: '#ef4444' }}>Брак: {h.scrap_qty}</div>}
+                       <div style={{ textAlign: 'center', background: '#111', padding: '10px 20px', borderRadius: '12px' }}>
+                          <div style={{ fontSize: '1.2rem', fontWeight: 950, color: '#ff9000' }}>{h.qty_completed} <small style={{ fontSize: '0.6rem' }}>ШТ</small></div>
+                          {Number(h.scrap_qty) > 0 ? (
+                            <div style={{ fontSize: '0.65rem', color: '#ef4444', fontWeight: 800, marginTop: '2px' }}>БРАК: {h.scrap_qty}</div>
+                          ) : (
+                            <div style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: 800, marginTop: '2px' }}>ОК</div>
+                          )}
                        </div>
-                       <div style={{ width: '150px', textAlign: 'right' }}>
+                       <div style={{ width: '120px', textAlign: 'right' }}>
                           <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#fff' }}>{h.operator_name}</div>
                           <div style={{ fontSize: '0.65rem', color: '#555' }}>Виконавець</div>
                        </div>
