@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { 
   ArrowLeft, 
@@ -18,6 +18,15 @@ import { useMES } from '../MESContext'
 
 const AnalyticsModule = () => {
   const { tasks, orders, workCards, workCardHistory, nomenclatures, machines, totalProduced, totalScrapCount } = useMES()
+  const [archiveTab, setArchiveTab] = useState('shop1')
+  const [expandedOrders, setExpandedOrders] = useState({})
+  const [expandedNoms, setExpandedNoms] = useState({})
+
+  const toggleOrder = (orderNum) => setExpandedOrders(prev => ({ ...prev, [orderNum]: !prev[orderNum] }))
+  const toggleNom = (orderNum, nomId) => {
+    const key = `${orderNum}_${nomId}`
+    setExpandedNoms(prev => ({ ...prev, [key]: !prev[key] }))
+  }
 
   // --- DATA AGGREGATION ---
 
@@ -275,57 +284,137 @@ const AnalyticsModule = () => {
 
         {/* ─── ARCHIVE HISTORY ─── */}
         <div style={{ marginTop: '50px' }}>
-           <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem', fontWeight: 950, marginBottom: '25px' }}>
-              <Layers size={22} color="#3b82f6" /> АРХІВНІ ЗАПИСИ (TRACEABILITY)
-           </h3>
-           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {workCardHistory.slice(0, 50).map(h => {
-                const nom = nomenclatures.find(n => n.id === h.nomenclature_id)
-                // Знаходимо картку щоб визначити замовлення та доп інформацію
-                const rootCard = (workCards || []).find(c => String(c.id) === String(h.card_id))
-                let orderNum = "—"
-                if (rootCard) {
-                  const order = (orders || []).find(o => String(o.id) === String(rootCard.order_id))
-                  if (order) orderNum = order.order_num
-                } else if (h.card_info) {
-                  // Fallback якщо картку видалили, але є інфо
-                  const match = h.card_info.match(/Наряд №(\d+)/)
-                  if (match) orderNum = match[1]
-                }
+           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '25px', borderBottom: '1px solid #1a1a1a', paddingBottom: '15px' }}>
+             <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem', fontWeight: 950, margin: 0 }}>
+                <Layers size={22} color="#3b82f6" /> АРХІВНІ ЗАПИСИ (TRACEABILITY)
+             </h3>
+             <div style={{ display: 'flex', gap: '10px' }}>
+                <button 
+                  onClick={() => setArchiveTab('shop1')}
+                  style={{ background: archiveTab === 'shop1' ? '#3b82f6' : '#111', color: archiveTab === 'shop1' ? '#fff' : '#555', border: 'none', padding: '10px 20px', borderRadius: '12px', fontWeight: 900, fontSize: '0.8rem', cursor: 'pointer', transition: '0.2s' }}
+                >
+                  ЦЕХ №1
+                </button>
+                <button 
+                  onClick={() => setArchiveTab('shop2')}
+                  style={{ background: archiveTab === 'shop2' ? '#8b5cf6' : '#111', color: archiveTab === 'shop2' ? '#fff' : '#555', border: 'none', padding: '10px 20px', borderRadius: '12px', fontWeight: 900, fontSize: '0.8rem', cursor: 'pointer', transition: '0.2s' }}
+                >
+                  ЦЕХ №2
+                </button>
+             </div>
+           </div>
 
-                return (
-                  <div key={h.id} style={{ background: '#0a0a0a', border: '1px solid #111', padding: '15px 25px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', gap: '30px', alignItems: 'center', flex: 1 }}>
-                       <div style={{ color: '#333', fontSize: '0.65rem', fontWeight: 900 }}>{new Date(h.completed_at).toLocaleString()}</div>
-                       <div style={{ width: '120px' }}>
-                          <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800 }}>ЗАМОВЛЕННЯ</div>
-                          <div style={{ fontSize: '1rem', fontWeight: 900, color: '#f43f5e' }}>№{orderNum}</div>
-                       </div>
-                       <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#fff' }}>{nom?.name || 'Деталь'}</div>
-                          <div style={{ fontSize: '0.7rem', color: '#555', marginTop: '4px', display: 'flex', gap: '10px' }}>
-                            <span>Етап: <strong style={{ color: '#3b82f6' }}>{h.stage_name}</strong></span>
-                            {nom?.material_type && <span>Матеріал: <strong style={{ color: '#10b981' }}>{nom.material_type}</strong></span>}
-                          </div>
-                       </div>
+           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {(() => {
+                // Filter by Shop
+                const filteredHistory = workCardHistory.filter(h => {
+                   const rootCard = (workCards || []).find(c => String(c.id) === String(h.card_id))
+                   const cardInfoIsShop2 = ((rootCard?.card_info || '') + (h.card_info || '')).includes('[ЦЕХ №2]')
+                   const stageIsShop2 = ['Пресування', 'Фарбування', 'Доопрацювання'].includes(h.stage_name)
+                   
+                   const isShop2 = cardInfoIsShop2 || stageIsShop2
+                   return archiveTab === 'shop2' ? isShop2 : !isShop2
+                })
+
+                // Group by Order Num -> Nomenclature ID
+                const grouped = filteredHistory.reduce((acc, h) => {
+                  const rootCard = (workCards || []).find(c => String(c.id) === String(h.card_id))
+                  let orderNum = "Невідоме"
+                  
+                  if (rootCard) {
+                    const order = (orders || []).find(o => String(o.id) === String(rootCard.order_id))
+                    if (order) orderNum = order.order_num
+                  } else if (h.card_info) {
+                    const match = h.card_info.match(/Наряд №(\d+)/)
+                    if (match) orderNum = match[1]
+                  }
+
+                  if (!acc[orderNum]) acc[orderNum] = {}
+                  if (!acc[orderNum][h.nomenclature_id]) acc[orderNum][h.nomenclature_id] = []
+                  
+                  acc[orderNum][h.nomenclature_id].push(h)
+                  return acc
+                }, {})
+
+                const orderKeys = Object.keys(grouped).sort((a,b) => b.localeCompare(a))
+
+                if (orderKeys.length === 0) return <div style={{ color: '#555', textAlign: 'center', padding: '50px' }}>Записи відсутні у вибраному цеху</div>
+
+                return orderKeys.map(orderNum => {
+                  const nomKeys = Object.keys(grouped[orderNum])
+                  const totalCardsInOrder = nomKeys.reduce((sum, nId) => sum + grouped[orderNum][nId].length, 0)
+
+                  return (
+                    <div key={orderNum} style={{ background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: '20px', overflow: 'hidden' }}>
+                      
+                      <div onClick={() => toggleOrder(orderNum)} style={{ background: '#111', padding: '15px 25px', display: 'flex', alignItems: 'center', borderBottom: expandedOrders[orderNum] ? '1px solid #1a1a1a' : 'none', cursor: 'pointer', transition: '0.2s' }}>
+                         <div style={{ background: archiveTab === 'shop1' ? '#3b82f620' : '#8b5cf620', color: archiveTab === 'shop1' ? '#3b82f6' : '#8b5cf6', padding: '6px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 900, marginRight: '15px' }}>
+                            ЗАМОВЛЕННЯ
+                         </div>
+                         <div style={{ fontSize: '1.2rem', fontWeight: 950, color: '#fff', flex: 1 }}>№{orderNum}</div>
+                         <div style={{ color: '#555', fontSize: '0.7rem', fontWeight: 900, background: '#1a1a1a', padding: '6px 12px', borderRadius: '8px' }}>
+                            {expandedOrders[orderNum] ? '▲ ЗГОРНУТИ' : `▼ РОЗГОРНУТИ (${totalCardsInOrder} записів)`}
+                         </div>
+                      </div>
+
+                      {expandedOrders[orderNum] && (
+                        <div style={{ padding: '15px 25px 25px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          {nomKeys.map(nomId => {
+                            const nom = nomenclatures.find(n => String(n.id) === String(nomId))
+                            const items = grouped[orderNum][nomId]
+                            const key = `${orderNum}_${nomId}`
+                            
+                            return (
+                              <div key={nomId} style={{ background: '#111', borderRadius: '16px', overflow: 'hidden', border: '1px solid #1a1a1a' }}>
+                                 <div onClick={() => toggleNom(orderNum, nomId)} style={{ padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', background: 'rgba(255,255,255,0.02)' }}>
+                                    <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                                       <div style={{ fontWeight: 900, color: '#e2e8f0', fontSize: '1rem' }}>{nom?.name || 'Деталь'}</div>
+                                       {nom?.material_type && <div style={{ fontSize: '0.7rem', color: '#10b981', background: '#10b98115', padding: '4px 10px', borderRadius: '6px', fontWeight: 800 }}>{nom.material_type}</div>}
+                                    </div>
+                                    <div style={{ color: '#555', fontSize: '0.7rem', fontWeight: 900, background: '#0a0a0a', padding: '4px 10px', borderRadius: '6px' }}>
+                                       {expandedNoms[key] ? '▲' : `▼ ${items.length} карток`}
+                                    </div>
+                                 </div>
+
+                                 {expandedNoms[key] && (
+                                   <div style={{ padding: '15px 20px', display: 'flex', flexDirection: 'column', gap: '8px', background: '#0a0a0a' }}>
+                                     {items.map(h => (
+                                       <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 15px', background: '#111', borderRadius: '12px', border: '1px solid #1a1a1a' }}>
+                                         <div style={{ display: 'flex', gap: '25px', alignItems: 'center' }}>
+                                           <div style={{ width: '120px', color: '#555', fontSize: '0.65rem', fontWeight: 800 }}>{new Date(h.completed_at).toLocaleString()}</div>
+                                           <div>
+                                              <div style={{ fontSize: '0.65rem', color: '#555', marginBottom: '4px', fontWeight: 900, letterSpacing: '0.05em' }}>
+                                                КАРТКА <span style={{ color: '#888' }}>#{h.card_id?.slice(0,8) || '---'}</span>
+                                              </div>
+                                              <div style={{ fontSize: '0.85rem', color: archiveTab === 'shop1' ? '#3b82f6' : '#8b5cf6', fontWeight: 900 }}>Етап: {h.stage_name}</div>
+                                           </div>
+                                         </div>
+                                         <div style={{ display: 'flex', gap: '40px', alignItems: 'center' }}>
+                                            <div style={{ textAlign: 'right' }}>
+                                               <div style={{ fontSize: '1.2rem', fontWeight: 950, color: '#ff9000' }}>{h.qty_completed} <small style={{ fontSize: '0.6rem' }}>ШТ</small></div>
+                                               {Number(h.scrap_qty) > 0 ? (
+                                                 <div style={{ fontSize: '0.65rem', color: '#ef4444', fontWeight: 800 }}>БРАК: {h.scrap_qty}</div>
+                                               ) : (
+                                                 <div style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: 800 }}>ОК</div>
+                                               )}
+                                            </div>
+                                            <div style={{ width: '100px', textAlign: 'right' }}>
+                                               <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#fff' }}>{h.operator_name}</div>
+                                            </div>
+                                         </div>
+                                       </div>
+                                     ))}
+                                   </div>
+                                 )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
-                    <div style={{ display: 'flex', gap: '40px', alignItems: 'center' }}>
-                       <div style={{ textAlign: 'center', background: '#111', padding: '10px 20px', borderRadius: '12px' }}>
-                          <div style={{ fontSize: '1.2rem', fontWeight: 950, color: '#ff9000' }}>{h.qty_completed} <small style={{ fontSize: '0.6rem' }}>ШТ</small></div>
-                          {Number(h.scrap_qty) > 0 ? (
-                            <div style={{ fontSize: '0.65rem', color: '#ef4444', fontWeight: 800, marginTop: '2px' }}>БРАК: {h.scrap_qty}</div>
-                          ) : (
-                            <div style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: 800, marginTop: '2px' }}>ОК</div>
-                          )}
-                       </div>
-                       <div style={{ width: '120px', textAlign: 'right' }}>
-                          <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#fff' }}>{h.operator_name}</div>
-                          <div style={{ fontSize: '0.65rem', color: '#555' }}>Виконавець</div>
-                       </div>
-                    </div>
-                  </div>
-                )
-              })}
+                  )
+                })
+              })()}
            </div>
         </div>
 
