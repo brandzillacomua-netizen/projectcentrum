@@ -28,8 +28,13 @@ const DirectorModule = () => {
   const [hoveredPid, setHoveredPid] = useState(null)
   const [selectedOrderId, setSelectedOrderId] = useState(null)
 
-  // 1. Pending Approvals Data
-  const pendingTasks = tasks.filter(t => t.status === 'waiting' && !t.director_conf)
+  // 1. Pending Approvals Data (Only trigger when it's Director's turn)
+  const pendingTasks = tasks.filter(t => 
+    t.status === 'waiting' && 
+    t.warehouse_conf === true && 
+    t.engineer_conf === true && 
+    !t.director_conf
+  )
   const approvedCount = tasks.filter(t => t.status === 'waiting' && t.director_conf).length
 
   // 2. Matrix Data Preparation
@@ -72,27 +77,68 @@ const DirectorModule = () => {
     return nomenclatures.filter(n => n.type === 'product' && productIdsInOrders.has(n.id))
   }, [orders, nomenclatures])
 
-  // Map orders to (Date, Product)
+  // Map orders to (Date, Product) - Intelligent scheduling logic
   const matrixData = useMemo(() => {
     const map = {}
+    
+    // Helper to add qty to map
+    const addEntry = (dateKey, pid, entry) => {
+       if (!dateKey) return
+       if (!map[dateKey]) map[dateKey] = {}
+       if (!map[dateKey][pid]) map[dateKey][pid] = []
+       map[dateKey][pid].push(entry)
+    }
+
+    // Step 1: Process Orders (Remaining Balance)
     orders.forEach(o => {
-      const dateKey = toLocalISO(o.deadline)
-      if (!dateKey) return
-      
-      if (!map[dateKey]) map[dateKey] = {}
-      
+      const orderDeadline = toLocalISO(o.deadline)
+      if (!orderDeadline) return
+
+      // Find all tasks related to this order to calculate planned sets
+      const totalPlanned = tasks
+        .filter(t => String(t.order_id) === String(o.id))
+        .reduce((acc, t) => acc + (Number(t.planned_sets) || 0), 0)
+
       o.order_items?.forEach(item => {
-        if (!map[dateKey][item.nomenclature_id]) map[dateKey][item.nomenclature_id] = []
-        map[dateKey][item.nomenclature_id].push({
-          orderNum: o.order_num,
-          customer: o.customer,
-          qty: item.quantity,
-          id: o.id
-        })
+        const totalQty = Number(item.quantity) || 0
+        const itemRemaining = Math.max(0, totalQty - totalPlanned)
+
+        if (itemRemaining > 0) {
+          addEntry(orderDeadline, item.nomenclature_id, {
+            orderNum: o.order_num,
+            customer: o.customer,
+            qty: itemRemaining,
+            id: o.id,
+            isPartialRemaining: true
+          })
+        }
       })
     })
+
+    // Step 2: Process Tasks (Planned Batches)
+    tasks.forEach(t => {
+      const taskDeadline = toLocalISO(t.planned_deadline || t.created_at)
+      if (!taskDeadline) return
+      
+      const order = orders.find(o => String(o.id) === String(t.order_id))
+      const batchQty = Number(t.planned_sets) || 0
+      
+      if (order && batchQty > 0) {
+        order.order_items?.forEach(item => {
+          addEntry(taskDeadline, item.nomenclature_id, {
+             orderNum: `${order.order_num}${t.batch_index ? `/${t.batch_index}` : ''}`,
+             customer: order.customer,
+             qty: batchQty,
+             id: order.id,
+             taskId: t.id,
+             isBatch: true
+          })
+        })
+      }
+    })
+
     return map
-  }, [orders])
+  }, [orders, tasks])
 
   const changeMonth = (offset) => {
     const newDate = new Date(viewDate)
@@ -430,12 +476,17 @@ const DirectorModule = () => {
 
         .nav-right { display: flex; gap: 20px; }
         .btn-notifications {
-          display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.03);
-          color: #fff; border: 1px solid rgba(255,255,255,0.05); padding: 8px 18px; border-radius: 12px;
-          font-weight: 800; font-size: 0.7rem; cursor: pointer; position: relative;
-          transition: all 0.2s;
+          display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.03);
+          color: #fff; border: 1px solid rgba(255,255,255,0.05); padding: 10px 25px; border-radius: 14px;
+          font-weight: 800; font-size: 0.8rem; cursor: pointer; position: relative;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          min-width: 180px; justify-content: center;
         }
-        .btn-notifications:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,144,0,0.3); }
+        .btn-notifications:hover { 
+          background: rgba(255,255,255,0.08); 
+          border-color: rgba(255,144,0,0.5);
+          transform: translateY(-1px);
+        }
 
         .badge-count {
           position: absolute; top: -8px; right: -8px; background: #ef4444; color: #fff;

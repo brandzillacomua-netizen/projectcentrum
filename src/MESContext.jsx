@@ -294,20 +294,23 @@ export const MESProvider = ({ children }) => {
   }
 
   // --- CORE BUSINESS LOGIC ---
-  const createNaryad = async (orderId, machineName) => {
+  const createNaryad = async (orderId, machineName, customQuantities = null, customDeadline = null) => {
     try {
       const order = orders.find(o => o.id === orderId)
       if (!order) return
       let totalMin = 0
       const materialSummary = {}
       const bzStockDeductions = []
-
       const plan_snapshot = {}
 
       order.order_items?.forEach(item => {
-        const parts = bomItems.filter(b => String(b.parent_id) === String(item.nomenclature_id))
-        console.log(`Checking BOM for ${item.nomenclature_id}: found ${parts.length} parts`)
+        const requestedQty = customQuantities && customQuantities[item.id] !== undefined 
+          ? Number(customQuantities[item.id]) 
+          : Number(item.quantity)
+        
+        if (requestedQty <= 0) return
 
+        const parts = bomItems.filter(b => String(b.parent_id) === String(item.nomenclature_id))
         const displayParts = parts.length > 0 ? parts.map(b => ({
           nom: nomenclatures.find(n => String(n.id) === String(b.child_id)),
           qtyPer: b.quantity_per_parent
@@ -315,14 +318,12 @@ export const MESProvider = ({ children }) => {
 
         displayParts.forEach(part => {
           if (!part.nom) return
-          const totalNeeded = (Number(item.quantity) || 0) * (Number(part.qtyPer) || 1)
-
+          const totalNeeded = requestedQty * (Number(part.qtyPer) || 1)
           const invItem = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'bz')
           const inStockQty = invItem ? Math.max(0, (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0)) : 0
 
           const usedFromStock = Math.min(totalNeeded, inStockQty)
           const totalToProduce = Math.max(0, totalNeeded - inStockQty)
-
           const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
           let sheets = Math.ceil(totalToProduce / unitsPerSheet)
 
@@ -334,8 +335,9 @@ export const MESProvider = ({ children }) => {
             stock: inStockQty,
             plan: totalToProduce,
             units_per_sheet: unitsPerSheet,
-            sheets: sheets, // Цей показник для відображення в Snapshot
-            material: part.nom.material_type
+            sheets: sheets, 
+            material: part.nom.material_type,
+            order_item_id: item.id
           }
 
           if (usedFromStock > 0 && invItem) {
@@ -345,16 +347,15 @@ export const MESProvider = ({ children }) => {
           if (totalToProduce <= 0) return
 
           const matKey = (part.nom.material_type || part.nom.name || 'Інше').trim()
-          const normalize = (s) => s?.toLowerCase().replace(/[\s-]/g, '')
-
+          const normalizeStr = (s) => s?.toLowerCase().replace(/[\s-]/g, '')
           sheets = Math.ceil(totalToProduce / unitsPerSheet)
 
           if (!materialSummary[matKey]) {
             const rawNom = nomenclatures.find(n =>
               n.type === 'raw' && (
-                normalize(n.material_type) === normalize(matKey) ||
-                normalize(n.name).includes(normalize(matKey)) ||
-                normalize(matKey).includes(normalize(n.name))
+                normalizeStr(n.material_type) === normalizeStr(matKey) ||
+                normalizeStr(n.name).includes(normalizeStr(matKey)) ||
+                normalizeStr(matKey).includes(normalizeStr(n.name))
               )
             )
             const rawInv = inventory.find(i => rawNom ? (String(i.nomenclature_id) === String(rawNom.id)) : (String(i.nomenclature_id) === String(part.nom.id) && i.type === 'raw'))
@@ -368,27 +369,47 @@ export const MESProvider = ({ children }) => {
         })
       })
 
-      // --- EXECUTE STOCK DEDUCTIONS & CREATE BZ CARDS ---
+      if (Object.keys(plan_snapshot).length === 0) return
+
+      // --- SMART NUMBERING & DATA LOGIC ---
+      const totalUnits = order.order_items?.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0) || 0;
+      const thisNaryadTotalSets = customQuantities 
+          ? Math.max(...Object.values(customQuantities).map(v => Number(v) || 0)) 
+          : totalUnits;
+      
+      const alreadyPlannedSets = tasks.filter(t => t.order_id === orderId).reduce((acc, t) => acc + (Number(t.planned_sets) || 0), 0);
+      const isPartial = (thisNaryadTotalSets < totalUnits) || (alreadyPlannedSets > 0);
+      const nextBatchIndex = tasks.filter(t => t.order_id === orderId).length + 1;
+
+      plan_snapshot._metadata = {
+        planned_deadline: customDeadline || order.deadline,
+        batch_index: isPartial ? nextBatchIndex : null
+      }
+
       const { data: taskData, error: taskError } = await supabase.from('tasks').insert([{
-        order_id: orderId, step: 'Лазерна різка', status: 'waiting', machine_name: machineName || 'Не вказано',
-        estimated_time: Math.round(totalMin), engineer_conf: false, warehouse_conf: false, director_conf: false,
-        plan_snapshot: plan_snapshot
+        order_id: orderId, 
+        step: 'Лазерна різка', 
+        status: 'waiting', 
+        machine_name: machineName || 'Не вказано',
+        estimated_time: Math.round(totalMin), 
+        engineer_conf: false, 
+        warehouse_conf: false, 
+        director_conf: false,
+        plan_snapshot: plan_snapshot,
+        planned_sets: thisNaryadTotalSets,
+        batch_index: isPartial ? nextBatchIndex : null,
+        planned_deadline: customDeadline || order.deadline
       }]).select()
 
       const tData = (taskData && taskData.length > 0) ? taskData[0] : null
       if (taskError) throw taskError
 
-      // Process BZ deductions and reservation cards
       for (const upd of bzStockDeductions) {
-        // 1. Списання загальної кількості
         await supabase.from('inventory').update({ total_qty: upd.next_qty }).eq('id', upd.id)
-
-        // 2. Створення завершеної картки резерву для цього наряду
         const invItem = inventory.find(i => i.id === upd.id)
         if (invItem && tData) {
           const usedQty = (Number(invItem.total_qty) || 0) - upd.next_qty
           if (usedQty > 0) {
-            // Створюємо картку
             const { data: bzCardData } = await supabase.from('work_cards').insert([{
               task_id: tData.id,
               order_id: orderId,
@@ -398,10 +419,7 @@ export const MESProvider = ({ children }) => {
               operation: 'Склад БЗ',
               card_info: '[ЗІ СКЛАДУ БЗ]'
             }]).select()
-
             const bzCard = (bzCardData && bzCardData.length > 0) ? bzCardData[0] : null
-
-            // Створюємо історію
             await supabase.from('work_card_history').insert([{
               card_id: bzCard?.id || null,
               nomenclature_id: invItem.nomenclature_id,
@@ -423,7 +441,6 @@ export const MESProvider = ({ children }) => {
         sheets: Number(info.sheets) || 0
       }))
 
-      // --- FILTER FOR SHOP 1: Only Sheets and Cutters ---
       const filteredMaterials = allMaterials.filter(m => 
         m.matName.toLowerCase().includes('лист') || 
         m.matName.toLowerCase().includes('фреза')
@@ -442,7 +459,6 @@ export const MESProvider = ({ children }) => {
         .reduce((acc, m) => acc + (m.sheets || 0), 0)
 
       if (totalActualSheets > 0) {
-        // Filter consumables to only include those relevant to Shop 1 (Cutters)
         nomenclatures.filter(n => 
           n.type === 'consumable' && 
           (Number(n.consumption_per_sheet) || 0) > 0 &&
