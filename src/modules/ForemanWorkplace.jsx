@@ -132,7 +132,7 @@ const ForemanWorkplace = () => {
 
   const relevantTasks = useMemo(() => {
     return tasks
-      .filter(t => t.warehouse_conf && t.engineer_conf && t.director_conf && t.step === 'Лазерна різка')
+      .filter(t => t.warehouse_conf && t.engineer_conf && t.director_conf && t.step === 'Лазерний розкрій')
       .sort((a, b) => {
         // Already transferred → bottom
         if (a.status === 'completed' && b.status !== 'completed') return 1
@@ -204,7 +204,7 @@ const ForemanWorkplace = () => {
 
         const prefix = isRepair ? '[REDO] ' : ''
         cardsBatch.push({
-          operation: 'Лазерна різка',
+          operation: 'Лазерний розкрій',
           machine: selectedMachineName || 'Не вказано',
           estimatedTime: (Number(part.nom?.time_per_unit) || 0) * reqInThisLoading,
           cardInfo: `${prefix}${currentSeq}/${displayTotal} [REQ:${reqInThisLoading}] [BZ:${bzInThisLoading}]`,
@@ -555,7 +555,7 @@ const ForemanWorkplace = () => {
                       <table style={{ width: '100%', minWidth: '1150px', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                         <thead>
                           <tr style={{ background: '#1a1a1a', textAlign: 'left', color: '#555', textTransform: 'uppercase', fontSize: '0.65rem', fontWeight: 900 }}>
-                            <th style={{ padding: '12px 15px', width: '18%' }}>ДЕТАЛЬ В ПОРІЗКУ</th>
+                            <th style={{ padding: '12px 15px', width: '18%' }}>ДЕТАЛЬ В РОЗКРІЙ</th>
                             <th style={{ padding: '12px 15px', textAlign: 'center' }}>ПОТРЕБА</th>
                             <th style={{ padding: '12px 15px', textAlign: 'center' }}>СКЛАД БЗ</th>
                             <th style={{ padding: '12px 15px', textAlign: 'center', color: '#eab308' }}>ПЛАН</th>
@@ -928,7 +928,7 @@ const ForemanWorkplace = () => {
                       const stages = activeCards.reduce((acc, c) => {
                         if (c.status === 'new') acc.waiting++
                         else if (c.status === 'completed') acc.reception++
-                        else if (c.operation?.includes('Різка')) acc.cutting++
+                        else if (c.operation?.includes('Розкрій')) acc.cutting++
                         else if (c.operation?.includes('Галтовка')) acc.tumbling++
                         else if (c.operation?.includes('Прийомка')) acc.reception++
                         return acc
@@ -1379,7 +1379,7 @@ const ForemanWorkplace = () => {
                           <td style={{ border: '1.5px solid #000', width: '8%', fontSize: '5.5pt', lineHeight: 1 }}>Статус<br />виконання<br />☑</td>
                           <td style={{ border: '1.5px solid #000', width: '25%' }}>Операція (2 сторона)</td>
                           <td style={{ border: '1.5px solid #000', width: '8%', fontSize: '5.5pt', lineHeight: 1 }}>Статус<br />виконання<br />☑</td>
-                          <td style={{ border: '1.5px solid #000', width: '25%' }}>Операція (2 сторона вирізка)</td>
+                          <td style={{ border: '1.5px solid #000', width: '25%' }}>Операція (2 сторона розкрій)</td>
                           <td style={{ border: '1.5px solid #000', width: '9%', fontSize: '5.5pt', lineHeight: 1 }}>Статус<br />виконання<br />☑</td>
                         </tr>
                       </thead>

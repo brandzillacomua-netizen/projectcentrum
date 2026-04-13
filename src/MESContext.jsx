@@ -38,7 +38,7 @@ export const MESProvider = ({ children }) => {
   const PAGE_SIZE = 20
 
   const operators = ["Олексій", "Дмитро", "Сергій", "Андрій", "Микола"]
-  const productionStages = ["Різка", "Галтовка", "Пресування", "Фарбування", "Паквання"]
+  const productionStages = ["Розкрій", "Галтовка", "Пресування", "Фарбування", "Паквання"]
 
   const normalize = (s) => (s || '').toLowerCase().trim()
     .replace(/[тt]/g, 't')
@@ -388,7 +388,7 @@ export const MESProvider = ({ children }) => {
 
       const { data: taskData, error: taskError } = await supabase.from('tasks').insert([{
         order_id: orderId, 
-        step: 'Лазерна різка', 
+        step: 'Лазерний розкрій', 
         status: 'waiting', 
         machine_name: machineName || 'Не вказано',
         estimated_time: Math.round(totalMin), 
@@ -998,10 +998,10 @@ export const MESProvider = ({ children }) => {
     const qtyCompleted = Math.max(0, (card.quantity || 0) - totalScrap)
 
     // Ланцюжки виробництва
-    // Цех №1: Різка → Галтовка → Прийомка    (мітка [SHOP:1] у card_info)
-    // Загальний: Різка → Галтовка → Пресування → Фарбування → Паквання
-    const CHAIN_SHOP1 = ['Різка', 'Галтовка', 'Прийомка']
-    const CHAIN_GENERAL = ['Різка', 'Галтовка', 'Пресування', 'Фарбування', 'Паквання']
+    // Цех №1: Розкрій → Галтовка → Прийомка    (мітка [SHOP:1] у card_info)
+    // Загальний: Розкрій → Галтовка → Пресування → Фарбування → Паквання
+    const CHAIN_SHOP1 = ['Розкрій', 'Галтовка', 'Прийомка']
+    const CHAIN_GENERAL = ['Розкрій', 'Галтовка', 'Пресування', 'Фарбування', 'Паквання']
 
     const currentOp = (card.operation || '').trim()
     const isShop1 = (card.card_info || '').includes('[SHOP:1]')
@@ -1029,7 +1029,7 @@ export const MESProvider = ({ children }) => {
       supabase.from('work_card_history').insert([{
         card_id: cardId,
         nomenclature_id: card.nomenclature_id,
-        stage_name: card.operation || 'Різка',
+        stage_name: card.operation || 'Розкрій',
         operator_name: card.operator_name || 'Не вказано',
         qty_at_start: card.quantity,
         qty_completed: qtyCompleted,

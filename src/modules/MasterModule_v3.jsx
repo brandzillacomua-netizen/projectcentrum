@@ -464,7 +464,7 @@ const MasterModule = () => {
                 <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                   <thead>
                     <tr style={{ background: '#111', textAlign: 'left', color: '#555' }} className="print-thr">
-                      <th style={{ padding: '12px 15px', width: '30%', borderBottom: '1.5px solid #222' }}>ДЕТАЛЬ В ПОРІЗКУ</th>
+                      <th style={{ padding: '12px 15px', width: '30%', borderBottom: '1.5px solid #222' }}>ДЕТАЛЬ В РОЗКРІЙ</th>
                       <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%' }}>ПОТРЕБА</th>
                       <th style={{ padding: '12px 15px', textAlign: 'center', width: '10%' }}>СКЛАД БЗ</th>
                       <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%', color: '#ff9000' }}>ПЛАН</th>

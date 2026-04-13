@@ -231,7 +231,7 @@ const Shop2Terminal = () => {
             <div style={{ background: '#8b5cf620', padding: '8px', borderRadius: '10px' }}><Package size={20} color="#8b5cf6" /></div>
             <div>
               <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 1000 }}>БУФЕР ЦЕХУ №2</h2>
-              <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 800, textTransform: 'uppercase' }}>Надходження з дільниці порізки</div>
+              <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 800, textTransform: 'uppercase' }}>Надходження з дільниці розкрою</div>
             </div>
           </div>
           <button onClick={() => setShowStorageExplorer(false)} style={{ background: '#1a1a1a', border: 'none', color: '#fff', width: '40px', height: '40px', borderRadius: '12px', cursor: 'pointer' }}>

@@ -8,9 +8,9 @@ const MasterWorkplace = () => {
   const { tasks, orders, workCards, createWorkCard, completeTaskByMaster } = useMES()
   const [activeTaskId, setActiveTaskId] = useState(null)
   const [showAddCard, setShowAddCard] = useState(false)
-  const [newCard, setNewCard] = useState({ operation: 'Лазерна різка', machine: 'LXS-1', estimatedTime: '' })
+  const [newCard, setNewCard] = useState({ operation: 'Лазерний розкрій', machine: 'LXS-1', estimatedTime: '' })
 
-  const operations = ['Різка', 'Галтовка', 'Пресування', 'Фарбування', 'Паквання']
+  const operations = ['Розкрій', 'Галтовка', 'Пресування', 'Фарбування', 'Паквання']
   const machines = ['LXS-1', 'B-200', 'W-Point 1', 'МК-1', 'Збірна лінія', 'Склад СГП']
 
   // Master only sees tasks that are fully ready for production but not entirely completed
@@ -24,7 +24,7 @@ const MasterWorkplace = () => {
     try {
       await apiService.submitCreateWorkCard(task.id, task.order_id, newCard.operation, newCard.machine, newCard.estimatedTime, createWorkCard)
       setShowAddCard(false)
-      setNewCard({ operation: 'Лазерна різка', machine: 'LXS-1', estimatedTime: '' })
+      setNewCard({ operation: 'Лазерний розкрій', machine: 'LXS-1', estimatedTime: '' })
     } catch(err) {
       alert('Помилка: ' + err.message)
     }

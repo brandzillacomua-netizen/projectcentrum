@@ -71,7 +71,7 @@ const AnalyticsModule = () => {
       : 0
 
     // 5. Shop Load (Active Tasks by Step)
-    const steps = ["Різка", "Галтовка", "Пресування", "Фарбування", "Паквання"]
+    const steps = ["Розкрій", "Галтовка", "Пресування", "Фарбування", "Паквання"]
     const shopLoad = steps.map(step => {
       const activeInStep = tasks.filter(t => t.status !== 'completed' && t.step?.toLowerCase().includes(step.toLowerCase())).length
       // Scale: 0 tasks = 5%, 5+ tasks = 100% (just for visualization)

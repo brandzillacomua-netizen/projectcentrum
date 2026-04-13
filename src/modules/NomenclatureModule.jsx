@@ -365,7 +365,7 @@ const NomenclatureModule = () => {
                 </div>
                 <div className="form-group">
                   <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>
-                    {newNom.type === 'consumable' ? 'РЕСУРС (ПРИБЛИЗНО)' : 'ЧАС ВИРІЗКИ/ШТ (ХВ)'}
+                    {newNom.type === 'consumable' ? 'РЕСУРС (ПРИБЛИЗНО)' : 'ЧАС РОЗКРОЮ/ШТ (ХВ)'}
                   </label>
                   <input type="number" step="0.01" style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.time_per_unit} onChange={e => setNewNom({...newNom, time_per_unit: e.target.value})} />
                 </div>

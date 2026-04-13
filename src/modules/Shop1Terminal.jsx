@@ -5,16 +5,16 @@ import { useMES } from '../MESContext'
 import { supabase } from '../supabase'
 
 // Ланцюжок Цеху №1
-const CHAIN = ['Різка', 'Галтовка', 'Прийомка']
+const CHAIN = ['Розкрій', 'Галтовка', 'Прийомка']
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Правильний статусний потік картки:
 //
-//  new (Різка)
+//  new (Розкрій)
 //    ↓ [Взяти в роботу]
-//  in-progress (Різка)
+//  in-progress (Розкрій)
 //    ↓ [Завершити + брак + оператор]
-//  at-buffer (Різка)          ← БУФЕР РІЗКИ
+//  at-buffer (Розкрій)          ← БУФЕР РОЗКРОЮ
 //    ↓ [Взяти в Галтовку]
 //  in-progress (Галтовка)
 //    ↓ [Завершити + брак + оператор]
@@ -220,7 +220,7 @@ export default function Shop1Terminal() {
 
   // Картки для черги зліва:
   // - нові картки (ще не взяті в роботу) — показуємо ВСІХ нових незалежно від operation
-  //   бо оператор сам призначить першу операцію (Різка)
+  //   бо оператор сам призначить першу операцію (Розкрій)
   // - картки в буфері будь-якого CHAIN етапу (чекають переміщення)
   // - картки що були вже відскановані в цьому сеансі
   const queueCards = workCards.filter(c =>
@@ -234,7 +234,7 @@ export default function Shop1Terminal() {
   )
 
   // ── ДІЯ 1: Взяти в роботу (new → in-progress) ──────────────────────────
-  // Якщо operation не в ланцюжку (наприклад 'Нова') — стартуємо з 'Різка'
+  // Якщо operation не в ланцюжку (наприклад 'Нова') — стартуємо з 'Розкрій'
   const handleStart = async () => {
     if (!currentCard || !selectedOperator) return
     setIsProcessing(true)
@@ -359,13 +359,13 @@ export default function Shop1Terminal() {
       // 3. Записуємо брак на склад
       await updateInventoryStock(currentCard.nomenclature_id, currentCard.quantity, 'scrap')
 
-      // 4. Створюємо НОВУ картку (Різка) для перевипуску
+      // 4. Створюємо НОВУ картку (Розкрій) для перевипуску
       const nom = getNom(currentCard)
       await createWorkCard(
         currentCard.task_id,
         currentCard.order_id,
         currentCard.nomenclature_id,
-        CHAIN[0], // Різка
+        CHAIN[0], // Розкрій
         null,     // Машину обере заново
         0,        // Естімейт
         `[REDO] після ${currentCard.operation}`,
@@ -558,7 +558,7 @@ export default function Shop1Terminal() {
         const active = selectedCardId === card.id
         const isBuffer = card.status === 'at-buffer'
         const statusColor = isBuffer ? '#f59e0b' : '#3b82f6'
-        const statusLabel = isBuffer ? `БУФЕР · ${card.operation}` : `НОВА · ${CHAIN.includes(card.operation) ? card.operation : 'РІЗКА'}`
+        const statusLabel = isBuffer ? `БУФЕР · ${card.operation}` : `НОВА · ${CHAIN.includes(card.operation) ? card.operation : 'РОЗКРІЙ'}`
         
         return (
           <div key={card.id}
@@ -675,7 +675,7 @@ export default function Shop1Terminal() {
                       {operators.map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                   </div>
-                  {displayOp === 'Різка' && (
+                  {displayOp === 'Розкрій' && (
                     <div>
                       <label style={labelStyle}>Верстат / обладнання</label>
                       <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -802,7 +802,7 @@ export default function Shop1Terminal() {
                     </div>
                   </div>
                 ) : (
-                  /* Попередні етапи (Різка → Галтовка) — звичайний перехід */
+                  /* Попередні етапи (Розкрій → Галтовка) — звичайний перехід */
                   <div style={{ background: '#111', padding: '24px', borderRadius: '20px', border: '1px solid #222' }}>
                     <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800, marginBottom: '20px', textTransform: 'uppercase', textAlign: 'center' }}>
                       НАСТУПНИЙ ЕТАП: <span style={{ color: '#f59e0b' }}>{nextOp}</span>
@@ -912,7 +912,7 @@ export default function Shop1Terminal() {
         <div>
           <h2 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 950, letterSpacing: '-0.02em' }}>ЦЕХ №1</h2>
           <p style={{ margin: '3px 0 0', color: '#333', fontSize: '0.68rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-            Різка → Буфер → Галтовка → Буфер → Прийомка
+            Розкрій → Буфер → Галтовка → Буфер → Прийомка
           </p>
         </div>
         <button onClick={() => setIsScanning(true)}
@@ -928,7 +928,7 @@ export default function Shop1Terminal() {
         marginBottom: '36px',
         alignItems: 'stretch'
       }}>
-        {['Різка', 'Галтовка'].map((stage, idx) => {
+        {['Розкрій', 'Галтовка'].map((stage, idx) => {
           const s = stageStats(stage)
           return (
             <React.Fragment key={stage}>
