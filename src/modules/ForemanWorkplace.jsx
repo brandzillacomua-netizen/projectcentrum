@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Factory, ListTodo, Loader2, X, Printer, LayoutDashboard, Layers, User, Clock, Package, Scan, CheckCircle2, AlertTriangle, Camera, Tablet, Menu } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Factory, ListTodo, Loader2, X, Printer, LayoutDashboard, Layers, User, Clock, Package, Scan, CheckCircle2, AlertTriangle, Camera, Tablet, Menu, Shuffle } from 'lucide-react'
 import { useMES } from '../MESContext'
 import { QRCodeSVG } from 'qrcode.react'
 import { apiService } from '../services/apiDispatcher'
@@ -11,8 +11,11 @@ const ForemanWorkplace = () => {
   const [activeTaskId, setActiveTaskId] = useState(null)
   const [activeView, setActiveView] = useState('worksheet')
   const [selectedMachines, setSelectedMachines] = useState({})
+  const [editingSplits, setEditingSplits] = useState({}) // { nomId: [{machine, qty}] }
+  const saveTimeoutRef = useRef(null)
   const [genModal, setGenModal] = useState(null)
   const [printQueue, setPrintQueue] = useState(null)
+  const [partialCounts, setPartialCounts] = useState({}) // For partial generation in modal
   const [isGenerating, setIsGenerating] = useState(false)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
@@ -144,28 +147,59 @@ const ForemanWorkplace = () => {
       })
   }, [tasks, taskReadinessMap, taskShortageMap])
 
-  const handleGenerateFromWorksheet = async (task, part, sheets, selectedMachineName, count, startOffset = 0, totalToReach = 0, isRepair = false) => {
+  const handleGenerateFromWorksheet = async (task, part, sheets, selectedMachineName, count, localGeneratedCount = 0, totalToReach = 0, isRepair = false, globalTotalCards = null, globalSeqOffset = 0) => {
     const machineObj = findMachine(selectedMachineName)
     const capacity = Number(machineObj?.sheet_capacity) || 1
     const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
 
-    const totalCards = Math.ceil(sheets / capacity)
-    const displayTotal = totalCards
+    const maxCardsForThisSplit = Math.ceil(sheets / capacity)
+    const displayTotal = globalTotalCards || maxCardsForThisSplit
+
+    // CLAMP: Don't allow generating more than planned for this specific machine split
+    const finalCount = Math.min(count, maxCardsForThisSplit - localGeneratedCount)
+    if (finalCount <= 0) return
+
+    // DYNAMIC NUMBERING: Find absolute max sequence across ALL machines for this nomenclature
+    const existingNomenclatureCards = (workCards || []).filter(wc => 
+      String(wc.task_id) === String(task.id) &&
+      String(wc.nomenclature_id) === String(part.nom?.id)
+    )
+
+    let maxExistingSeq = 0
+    existingNomenclatureCards.forEach(wc => {
+      const match = (wc.card_info || '').match(/(\d+)\/(\d+)/)
+      if (match) {
+        const seq = parseInt(match[1])
+        if (seq > maxExistingSeq) maxExistingSeq = seq
+      }
+    })
+
+    const startSeqForThisBatch = maxExistingSeq + 1
 
     setIsGenerating(true)
     try {
       const cardsBatch = []
 
-      // Скільки ми вже "пройшли" листів та потреби (якщо генерація частинами)
-      let sheetsLeft = sheets - (startOffset * capacity)
-      let reqLeft = totalToReach - (startOffset * capacity * unitsPerSheet)
-      if (reqLeft < 0) reqLeft = 0
+      // PRECISE PROGRESS TRACKING: Check how many sheets of THIS NOMENCLATURE are already accounted for
+      const globalSheetsMadeTotal = existingNomenclatureCards.reduce((sum, wc) => {
+        if (wc.actualSheets) return sum + Number(wc.actualSheets)
+        return sum + Math.ceil((Number(wc.quantity) || 0) / unitsPerSheet)
+      }, 0)
 
-      for (let i = 1; i <= count; i++) {
-        const currentSeq = startOffset + i
-        const sheetsInThisLoading = Math.min(sheetsLeft, capacity)
-        const qtyInThisLoading = sheetsInThisLoading * unitsPerSheet
-        const reqInThisLoading = Math.min(qtyInThisLoading, reqLeft)
+      // Start calculating for THIS SPLIT
+      // localIdx tracks where we are in CURRENT machine split
+      let sheetsRemainingForThisSplit = sheets - (localGeneratedCount * capacity)
+      let reqRemainingForThisSplit = totalToReach - (localGeneratedCount * capacity * unitsPerSheet)
+      if (reqRemainingForThisSplit < 0) reqRemainingForThisSplit = 0
+
+      for (let i = 1; i <= finalCount; i++) {
+        // Sequential numbering
+        const currentSeq = startSeqForThisBatch + (i - 1)
+        
+        // Use EXACT MIN logic to ensure we don't exceed the split or nomenclature capacity
+        const sheetsInThisLoading = Math.min(sheetsRemainingForThisSplit, capacity)
+        const qtyInThisLoading = Math.ceil(sheetsInThisLoading * unitsPerSheet)
+        const reqInThisLoading = Math.min(qtyInThisLoading, reqRemainingForThisSplit)
         const bzInThisLoading = Math.max(0, qtyInThisLoading - reqInThisLoading)
 
         const prefix = isRepair ? '[REDO] ' : ''
@@ -175,17 +209,17 @@ const ForemanWorkplace = () => {
           estimatedTime: (Number(part.nom?.time_per_unit) || 0) * reqInThisLoading,
           cardInfo: `${prefix}${currentSeq}/${displayTotal} [REQ:${reqInThisLoading}] [BZ:${bzInThisLoading}]`,
           quantity: qtyInThisLoading,
-          bufferQty: bzInThisLoading
+          bufferQty: bzInThisLoading,
+          actualSheets: sheetsInThisLoading
         })
 
-        sheetsLeft -= sheetsInThisLoading
-        reqLeft -= reqInThisLoading
-        if (reqLeft < 0) reqLeft = 0
+        sheetsRemainingForThisSplit -= sheetsInThisLoading
+        reqRemainingForThisSplit -= reqInThisLoading
+        if (reqRemainingForThisSplit < 0) reqRemainingForThisSplit = 0
       }
 
       const createdCards = await apiService.submitCreateWorkCardsBatch(task.id, task.order_id, part.nom.id, cardsBatch, createWorkCard)
       
-      // --- RE-CUT LOOP: Create Material Request for REDO/Shortage ---
       if (isRepair && sheets > 0) {
         const order = orders.find(o => o.id === task.order_id)
         const matName = part.nom?.material_type || part.nom?.name || 'Сировина'
@@ -202,7 +236,7 @@ const ForemanWorkplace = () => {
           task,
           part,
           total: displayTotal,
-          created: startOffset,
+          created: startSeqForThisBatch,
           metadata: createdCards.map((c, idx) => {
             const batchItem = cardsBatch[idx]
             return {
@@ -211,18 +245,15 @@ const ForemanWorkplace = () => {
               qty: batchItem ? batchItem.quantity : 0,
               estimatedTime: (Number(part.nom?.time_per_unit) || 0) * (batchItem ? batchItem.quantity : 0),
               totalLoadings: displayTotal,
-              sheetsPerLoading: capacity,
+              sheetsPerLoading: batchItem ? batchItem.actualSheets : capacity, // Use ACTUAL sheets
               machine: selectedMachineName
             }
           })
         })
-      } else {
-        alert('Помилка: Не вдалося отримати ID створених карток.')
       }
     } catch (err) {
       alert('Помилка: ' + err.message)
     } finally {
-      setIsGenerating(true) // Тримаємо лоадер трохи довше, поки завантажиться черга друку
       setTimeout(() => {
         setIsGenerating(false)
         setGenModal(null)
@@ -259,22 +290,40 @@ const ForemanWorkplace = () => {
     }
   }
 
-  const handleUpdateMachineInSnapshot = async (task, nomId, machineName) => {
+  const handleUpdateMachineInSnapshot = async (task, nomId, machineName = null, splits = null) => {
     if (!task || !nomId) return
     const sId = String(nomId)
     const currentSnapshot = task.plan_snapshot || {}
+    
+    // Construct updated entry
+    const entry = { ...(currentSnapshot[sId] || {}) }
+    if (machineName !== null) entry.machine = machineName
+    if (splits !== null) entry.splits = splits
+
     const updatedSnapshot = {
       ...currentSnapshot,
-      [sId]: {
-        ...(currentSnapshot[sId] || {}),
-        machine: machineName
-      }
+      [sId]: entry
     }
     try {
       const { error } = await supabase.from('tasks').update({ plan_snapshot: updatedSnapshot }).eq('id', task.id)
       if (error) throw error
-      fetchData()
+      // Only fetchData if we are NOT in the middle of a local edit update to avoid flicker
+      if (!saveTimeoutRef.current) fetchData()
     } catch (err) { console.error("Snapshot error:", err) }
+  }
+
+  const debouncedUpdateSplits = (task, nomId, newSplits) => {
+    // 1. Update local state immediately for UI response
+    setEditingSplits(prev => ({ ...prev, [nomId]: newSplits }))
+    
+    // 2. Clear old timeout
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
+    
+    // 3. Set new timeout to sync with DB
+    saveTimeoutRef.current = setTimeout(() => {
+      handleUpdateMachineInSnapshot(task, nomId, null, newSplits)
+      saveTimeoutRef.current = null
+    }, 1000) // 1 second debounce
   }
 
   React.useEffect(() => {
@@ -557,12 +606,28 @@ const ForemanWorkplace = () => {
                               const rowMachineName = (productionCards.length > 0 && productionCards[0].machine && productionCards[0].machine !== 'Не вказано') 
                                 ? productionCards[0].machine 
                                 : ((task.plan_snapshot || {})[String(nomId)]?.machine || selectedMachines[rowId] || '')
+                              
+                              // Use local state if it exists (for fluid typing), fallback to context
+                              const splits = editingSplits[nomId] || (task.plan_snapshot || {})[String(nomId)]?.splits || []
+                              const isSplitMode = splits.length > 0
+                              const totalSheetsNeeded = sheets // This is the total sheets for the whole naryad row
+
                               const machineCapacity = findMachine(rowMachineName)?.sheet_capacity || 1
 
                               const baseLoads = rowMachineName ? Math.ceil(sheets / machineCapacity) : (sheets || 0)
                               const loads = (plan === 0 && existing.some(c => c.operation === 'Склад БЗ')) ? 1 : baseLoads
 
-                              const totalTargetLoads = loads + redoCount
+                              // Split logic for totalTargetLoads
+                              let totalTargetLoads = loads
+                              if (isSplitMode) {
+                                totalTargetLoads = splits.reduce((sum, s) => {
+                                  const cap = findMachine(s.machine)?.sheet_capacity || 1
+                                  const sSheets = Number(s.sheets) || (unitsPerSheet > 0 ? Math.ceil((Number(s.qty) || 0) / unitsPerSheet) : 0)
+                                  return sum + Math.ceil(sSheets / cap)
+                                }, 0)
+                              }
+                              
+                              totalTargetLoads += redoCount
                               const surplus = sheets > 0 ? Math.max(0, (sheets * unitsPerSheet) - plan) : 0
 
                               return (
@@ -575,25 +640,143 @@ const ForemanWorkplace = () => {
                                   <td style={{ padding: '15px', textAlign: 'center', color: '#666' }}>{stockBZ}</td>
                                   <td style={{ padding: '15px', textAlign: 'center', color: '#eab308', fontWeight: 900 }}>{plan}</td>
                                   <td style={{ padding: '15px', textAlign: 'center', color: '#aaa', fontSize: '0.75rem' }}>{part.nom?.material_type || '—'}</td>
-                                  <td style={{ padding: '15px', textAlign: 'center', color: '#444' }}>{unitsPerSheet}</td>
+                                  <td style={{ padding: '15px', textAlign: 'center' }}>{unitsPerSheet}</td>
                                   <td style={{ padding: '15px', textAlign: 'center', color: '#10b981', fontWeight: 1000, fontSize: '1.1rem' }}>{sheets}</td>
                                   <td style={{ padding: '15px' }}>
-                                    <select
-                                      value={rowMachineName || ''}
-                                      disabled={productionCards.length > 0 || plan === 0}
-                                      onChange={(e) => {
-                                        const mName = e.target.value
-                                        setSelectedMachines(p => ({ ...p, [rowId]: mName }))
-                                        handleUpdateMachineInSnapshot(task, nomId, mName)
-                                      }}
-                                      style={{ width: '100%', background: '#000', border: rowMachineName || plan === 0 ? '1px solid #333' : '1px solid #ef4444', color: rowMachineName || plan === 0 ? '#fff' : '#ef4444', padding: '8px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700, opacity: plan === 0 ? 0.3 : 1 }}
-                                    >
-                                      <option value="">{plan === 0 ? 'Не потрібно' : 'Оберіть верстат'}</option>
-                                      {machines.map(m => <option key={m.id} value={m.name}>{m.name} ({m.sheet_capacity} л.)</option>)}
-                                    </select>
+                                    {!isSplitMode ? (
+                                      <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                                        <select
+                                          value={rowMachineName || ''}
+                                          disabled={productionCards.length > 0 || plan === 0}
+                                          onChange={(e) => {
+                                            const mName = e.target.value
+                                            setSelectedMachines(p => ({ ...p, [rowId]: mName }))
+                                            handleUpdateMachineInSnapshot(task, nomId, mName)
+                                          }}
+                                          style={{ flex: 1, background: '#000', border: rowMachineName || plan === 0 ? '1px solid #333' : '1px solid #ef4444', color: rowMachineName || plan === 0 ? '#fff' : '#ef4444', padding: '8px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700, opacity: plan === 0 ? 0.3 : 1 }}
+                                        >
+                                          <option value="">{plan === 0 ? 'Не потрібно' : 'Оберіть верстат'}</option>
+                                          {machines.map(m => <option key={m.id} value={m.name}>{m.name} ({m.sheet_capacity} л.)</option>)}
+                                        </select>
+                                        {plan > 0 && productionCards.length === 0 && (
+                                          <button 
+                                            onClick={() => {
+                                              const initialSplits = [{ machine: rowMachineName || '', qty: plan }]
+                                              handleUpdateMachineInSnapshot(task, nomId, null, initialSplits)
+                                            }}
+                                            title="Розділити на кілька верстатів"
+                                            style={{ background: '#222', border: 'none', color: '#555', cursor: 'pointer', padding: '8px', borderRadius: '8px' }}
+                                          >
+                                            <Shuffle size={16} />
+                                          </button>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        {splits.map((s, sIdx) => {
+                                          const cap = findMachine(s.machine)?.sheet_capacity || 1
+                                          const sh = Math.ceil(Number(s.qty) / (unitsPerSheet || 1))
+                                          const l = Math.ceil(sh / cap)
+                                          return (
+                                            <div key={sIdx} style={{ display: 'flex', gap: '5px', alignItems: 'center', background: '#080808', padding: '5px', borderRadius: '8px', border: '1px solid #151515' }}>
+                                              <input 
+                                                type="number" 
+                                                value={(s.sheets || (unitsPerSheet > 0 ? Math.ceil((s.qty || 0) / unitsPerSheet) : 0)) || ''} 
+                                                placeholder="Л."
+                                                onFocus={(e) => e.target.select()}
+                                                onChange={(e) => {
+                                                  const newSplits = [...splits]
+                                                  const val = e.target.value === '' ? 0 : parseInt(e.target.value) || 0
+                                                  newSplits[sIdx].sheets = val
+                                                  newSplits[sIdx].qty = val * unitsPerSheet
+                                                  debouncedUpdateSplits(task, nomId, newSplits)
+                                                }}
+                                                onBlur={() => {
+                                                  // Force sync on blur
+                                                  if (saveTimeoutRef.current) {
+                                                    clearTimeout(saveTimeoutRef.current)
+                                                    handleUpdateMachineInSnapshot(task, nomId, null, splits)
+                                                    saveTimeoutRef.current = null
+                                                  }
+                                                }}
+                                                style={{ width: '80px', background: '#000', border: '1px solid #333', color: '#fff', padding: '10px 5px', borderRadius: '8px', fontSize: '1rem', fontWeight: 950, textAlign: 'center', outline: 'none' }}
+                                              />
+                                              <select
+                                                value={s.machine || ''}
+                                                onChange={(e) => {
+                                                  const newSplits = [...splits]
+                                                  newSplits[sIdx].machine = e.target.value
+                                                  debouncedUpdateSplits(task, nomId, newSplits)
+                                                }}
+                                                style={{ flex: 1, background: '#000', border: '1px solid #222', color: '#fff', padding: '5px', borderRadius: '6px', fontSize: '0.7rem' }}
+                                              >
+                                                <option value="">Верстат</option>
+                                                {machines.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                                              </select>
+                                              <span style={{ fontSize: '0.65rem', color: '#444', fontWeight: 900, minWidth: '35px' }}>{l} завант.</span>
+                                              <button 
+                                                onClick={() => {
+                                                  const newSplits = splits.filter((_, i) => i !== sIdx)
+                                                  handleUpdateMachineInSnapshot(task, nomId, null, newSplits.length === 0 ? null : newSplits)
+                                                }}
+                                                style={{ background: 'transparent', border: 'none', color: '#444', cursor: 'pointer' }}
+                                              >
+                                                <X size={12} />
+                                              </button>
+                                            </div>
+                                          )
+                                        })}
+                                        <div style={{ display: 'flex', gap: '5px' }}>
+                                          <button 
+                                            onClick={() => {
+                                              const currentSum = splits.reduce((a, b) => a + (Number(b.sheets) || (unitsPerSheet > 0 ? Math.ceil((Number(b.qty) || 0) / unitsPerSheet) : 0)), 0)
+                                              const remaining = Math.max(0, totalSheetsNeeded - currentSum)
+                                              const newSplits = [...splits, { machine: '', sheets: remaining, qty: remaining * unitsPerSheet }]
+                                              handleUpdateMachineInSnapshot(task, nomId, null, newSplits)
+                                            }}
+                                            style={{ flex: 1, background: '#111', border: '1px solid #222', color: '#555', fontSize: '0.6rem', padding: '5px', borderRadius: '6px', cursor: 'pointer', fontWeight: 800 }}
+                                          >
+                                            + ДОДАТИ ВЕРСТАТ
+                                          </button>
+                                          <button 
+                                            onClick={() => handleUpdateMachineInSnapshot(task, nomId, null, [])}
+                                            style={{ background: '#111', border: '1px solid #222', color: '#ef4444', padding: '5px', borderRadius: '6px', cursor: 'pointer' }}
+                                          >
+                                            <X size={12} />
+                                          </button>
+                                        </div>
+                                        {(() => {
+                                          const currentSumSheets = splits.reduce((a, b) => a + (Number(b.sheets) || (unitsPerSheet > 0 ? Math.ceil((Number(b.qty) || 0) / unitsPerSheet) : 0)), 0);
+                                          const isOver = currentSumSheets > totalSheetsNeeded;
+                                          const isExact = currentSumSheets === totalSheetsNeeded;
+                                          const statusColor = isOver ? '#ef4444' : isExact ? '#10b981' : '#ff9000';
+                                          return (
+                                            <div style={{ 
+                                              fontSize: '0.65rem', 
+                                              textAlign: 'center', 
+                                              color: statusColor, 
+                                              fontWeight: 950, 
+                                              background: `${statusColor}11`, 
+                                              padding: '6px', 
+                                              borderRadius: '10px',
+                                              border: `1px solid ${statusColor}33`,
+                                              marginTop: '5px'
+                                            }}>
+                                              {isOver ? (
+                                                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                                                  <AlertTriangle size={10} /> ПЕРЕВИЩЕННЯ: {currentSumSheets} / {totalSheetsNeeded} л.
+                                                </span>
+                                              ) : (
+                                                <span>ПЛАН: {currentSumSheets} / {totalSheetsNeeded} листів</span>
+                                              )}
+                                            </div>
+                                          );
+                                        })()}
+                                      </div>
+                                    )}
                                   </td>
                                   <td style={{ padding: '15px', textAlign: 'center', color: '#3b82f6', fontWeight: 1000, fontSize: '1.2rem' }}>
-                                    {rowMachineName ? (
+                                    {rowMachineName || isSplitMode ? (
                                       <>
                                         <span style={{ color: productionCards.length < totalTargetLoads ? '#444' : '#3b82f6' }}>{productionCards.length}</span>
                                         <span style={{ color: '#222', margin: '0 5px' }}>/</span>
@@ -625,10 +808,40 @@ const ForemanWorkplace = () => {
                                           {(productionCards.length === 0 || productionCards.length < totalTargetLoads) && (
                                             <button
                                               onClick={() => {
-                                                if (!rowMachineName) return;
-                                                setGenModal({ task, part, total: loads, requirement: plan, created: productionCards.length, rowId, machineName: rowMachineName, sheets })
+                                                const currentSumSheets = splits.reduce((a, b) => a + (Number(b.sheets) || (unitsPerSheet > 0 ? Math.ceil((Number(b.qty) || 0) / unitsPerSheet) : 0)), 0);
+                                                if (isSplitMode && currentSumSheets > totalSheetsNeeded) {
+                                                  alert(`Помилка: Ви запланували ${currentSumSheets} листів, що більше за план (${totalSheetsNeeded} л.). Виправте кількість перед генерацією.`);
+                                                  return;
+                                                }
+
+                                                if (isSplitMode) {
+                                                  setGenModal({ 
+                                                    task, part, 
+                                                    total: totalTargetLoads, 
+                                                    requirement: plan, 
+                                                    created: productionCards.length, 
+                                                    rowId, 
+                                                    machineName: rowMachineName || splits[0]?.machine, 
+                                                    sheets,
+                                                    splits: splits 
+                                                  })
+                                                } else {
+                                                  if (!rowMachineName) return;
+                                                  setGenModal({ task, part, total: totalTargetLoads, requirement: plan, created: productionCards.length, rowId, machineName: rowMachineName, sheets })
+                                                }
                                               }}
-                                              style={{ background: rowMachineName ? '#ff9000' : '#222', color: rowMachineName ? '#000' : '#444', border: 'none', padding: '8px 15px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 900, cursor: rowMachineName ? 'pointer' : 'not-allowed', textTransform: 'uppercase' }}
+                                              style={{ 
+                                                background: (rowMachineName || isSplitMode) ? '#ff9000' : '#222', 
+                                                color: (rowMachineName || isSplitMode) ? '#000' : '#444', 
+                                                border: 'none', 
+                                                padding: '8px 15px', 
+                                                borderRadius: '8px', 
+                                                fontSize: '0.65rem', 
+                                                fontWeight: 900, 
+                                                cursor: (rowMachineName || isSplitMode) ? 'pointer' : 'not-allowed', 
+                                                textTransform: 'uppercase',
+                                                opacity: (isSplitMode && splits.reduce((a, b) => a + (Number(b.sheets) || (unitsPerSheet > 0 ? Math.ceil((Number(b.qty) || 0) / unitsPerSheet) : 0)), 0) > totalSheetsNeeded) ? 0.3 : 1
+                                              }}
                                             >
                                               Генерувати
                                             </button>
@@ -847,7 +1060,6 @@ const ForemanWorkplace = () => {
         </div>
       </div>
 
-      {/* ───── МОДАЛ ГЕНЕРАЦІЇ ───── */}
       {genModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(15px)', zIndex: 15000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
           <div style={{ background: '#111', width: '100%', maxWidth: '480px', borderRadius: '32px', border: '1px solid #222', padding: '40px', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
@@ -861,45 +1073,186 @@ const ForemanWorkplace = () => {
             <h2 style={{ fontSize: '1.5rem', fontWeight: 950, margin: '0 0 10px', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '1px' }}>Генерація карток</h2>
             <p style={{ color: '#555', textAlign: 'center', fontSize: '0.9rem', marginBottom: '30px' }}>{genModal.part.nom?.name}</p>
 
-            <div style={{ background: '#080808', padding: '20px', borderRadius: '20px', border: '1px solid #1a1a1a', marginBottom: '30px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
-                <span style={{ color: '#555', fontSize: '0.75rem', fontWeight: 800 }}>СТАТУС:</span>
-                <span style={{ color: '#3b82f6', fontSize: '0.75rem', fontWeight: 900 }}>Згенеровано {genModal.created} з {genModal.total}</span>
-              </div>
-              <div style={{ height: '6px', background: '#1a1a1a', borderRadius: '3px', overflow: 'hidden' }}>
-                <div style={{ width: `${(genModal.created / genModal.total) * 100}%`, height: '100%', background: '#3b82f6', transition: '0.3s' }} />
-              </div>
-            </div>
+            {genModal.splits && genModal.splits.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                <div style={{ fontSize: '0.7rem', color: '#444', fontWeight: 900, marginBottom: '5px' }}>ОБЕРІТЬ ПАРТІЮ ДЛЯ ДРУКУ:</div>
+                {(() => {
+                  const globalTotalLoadings = genModal.splits.reduce((acc, s) => {
+                    const cap = findMachine(s.machine)?.sheet_capacity || 1
+                    const unitsPerSheet = genModal.part.nom?.units_per_sheet || 1
+                    const sSheets = Number(s.sheets) || Math.ceil(s.qty / unitsPerSheet)
+                    return acc + Math.ceil(sSheets / cap)
+                  }, 0)
 
-            <div style={{ marginBottom: '30px' }}>
-              <label style={{ display: 'block', color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px', textAlign: 'center' }}>
-                Скільки ще карт згенерувати?
-              </label>
-              <input
-                type="number"
-                id="gen_count_input"
-                defaultValue={Math.max(1, genModal.total - genModal.created)}
-                min="1"
-                max={Math.max(1, genModal.total - genModal.created)}
-                style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', fontSize: '2.5rem', fontWeight: 950, textAlign: 'center', padding: '15px', borderRadius: '20px', outline: 'none', borderInline: '4px solid #10b981' }}
-              />
-            </div>
+                  let currentGlobalOffset = 0
+                  const existingNomenclatureCards = (workCards || []).filter(wc =>
+                    String(wc.task_id) === String(genModal.task.id) &&
+                    String(wc.nomenclature_id) === String(genModal.part.nom?.id)
+                  )
 
-            <button
-              onClick={() => {
-                const v = parseInt(document.getElementById('gen_count_input').value)
-                if (v > 0) {
-                  handleGenerateFromWorksheet(genModal.task, genModal.part, genModal.sheets, genModal.machineName, v, genModal.created, genModal.requirement, genModal.isRepair)
-                  setGenModal(null)
-                }
-              }}
-              style={{ width: '100%', background: '#10b981', color: '#fff', padding: '22px', borderRadius: '22px', fontSize: '1rem', fontWeight: 950, cursor: 'pointer', border: 'none', textTransform: 'uppercase', letterSpacing: '1px', boxShadow: '0 10px 20px -5px rgba(16, 185, 129, 0.4)' }}
-            >
-              ПІДТВЕРДИТИ ТА ДРУКУВАТИ
-            </button>
+                  return genModal.splits.map((split, sIdx) => {
+                    const cap = findMachine(split.machine)?.sheet_capacity || 1
+                    const unitsPerSheet = genModal.part.nom?.units_per_sheet || 1
+                    const splitSheets = Number(split.sheets) || Math.ceil(split.qty / unitsPerSheet)
+                    const splitLoadings = Math.ceil(splitSheets / cap)
+                    const splitQty = split.qty || (splitSheets * unitsPerSheet)
+                    const qtyPerCard = Math.ceil(splitQty / splitLoadings)
+
+                    // INTELLIGENT FILTERING:
+                    // Instead of exact sheet matching (which fails for partials), 
+                    // we count sheets for THIS MACHINE in order of splits.
+                    
+                    // 1. Get ALL cards for this nomenclature that match the machine name
+                    const machineCards = existingNomenclatureCards
+                      .filter(wc => wc.machine === split.machine)
+                      .sort((a,b) => a.id - b.id)
+
+                    // 2. Determine which cards belong to THIS specific split index
+                    const prevSplitsSameMachine = genModal.splits.slice(0, sIdx).filter(s => s.machine === split.machine)
+                    const sheetsSkipped = prevSplitsSameMachine.reduce((sum, s) => {
+                      const sSheets = Number(s.sheets) || Math.ceil(s.qty / unitsPerSheet)
+                      return sum + sSheets
+                    }, 0)
+
+                    // 3. Select cards that fall within the range of THIS split's sheets
+                    let sheetsUsedInThisSplit = 0
+                    let cardsBelongingToThisSplitCount = 0
+                    let currentGlobalSheets = 0
+                    
+                    machineCards.forEach(wc => {
+                      const cardSheets = Math.ceil((Number(wc.quantity) || 0) / unitsPerSheet)
+                      const cardStart = currentGlobalSheets
+                      const cardEnd = currentGlobalSheets + cardSheets
+                      
+                      const splitStart = sheetsSkipped
+                      const splitEnd = sheetsSkipped + splitSheets
+                      
+                      // If any part of this card falls within this split's range
+                      if (cardEnd > splitStart && cardStart < splitEnd) {
+                        cardsBelongingToThisSplitCount++
+                        sheetsUsedInThisSplit += cardSheets // simplified
+                      }
+                      
+                      currentGlobalSheets += cardSheets
+                    })
+
+                    const generatedCount = cardsBelongingToThisSplitCount
+                    const isGenerated = sheetsUsedInThisSplit >= splitSheets
+                    const remainingCount = Math.max(0, splitLoadings - generatedCount)
+                    
+                    const splitGlobalOffsetForThisMachine = currentGlobalOffset
+                    currentGlobalOffset += splitLoadings
+                    const toGen = partialCounts[`${genModal.part.nom?.id}_${sIdx}`] ?? remainingCount
+
+                    return (
+                      <div key={sIdx} style={{ background: '#080808', padding: '15px', borderRadius: '16px', border: isGenerated ? '1px solid #10b98133' : '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: isGenerated ? 0.8 : 1 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ fontWeight: 900, color: isGenerated ? '#10b981' : '#fff', fontSize: '0.9rem' }}>{split.machine || '—'}</div>
+                            <span style={{ fontSize: '0.65rem', background: isGenerated ? '#10b98133' : '#222', color: isGenerated ? '#10b981' : '#888', padding: '2px 8px', borderRadius: '6px', fontWeight: 900 }}>
+                              {generatedCount} / {splitLoadings} КАРТ.
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '4px' }}>
+                            Листів: {splitSheets} | Деталей: {splitQty}
+                          </div>
+                          {isGenerated && <div style={{ fontSize: '0.55rem', color: '#444', marginTop: '2px' }}>Всі карти згенеровано ✅</div>}
+                        </div>
+
+                        {!isGenerated && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                              <span style={{ fontSize: '0.55rem', color: '#444', fontWeight: 900 }}>ДРУК</span>
+                              <input
+                                type="number"
+                                min="1"
+                                max={remainingCount}
+                                value={toGen}
+                                onChange={(e) => {
+                                  const val = Math.min(remainingCount, Math.max(1, parseInt(e.target.value) || 1))
+                                  setPartialCounts(prev => ({ ...prev, [`${genModal.part.nom?.id}_${sIdx}`]: val }))
+                                }}
+                                style={{ width: '45px', background: '#000', border: '1px solid #333', color: '#fff', textAlign: 'center', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 900, padding: '4px 0' }}
+                              />
+                            </div>
+                            <button
+                              disabled={isGenerating}
+                              onClick={() => {
+                                const finalToGen = Math.min(toGen, remainingCount)
+                                if (finalToGen <= 0) return
+
+                                handleGenerateFromWorksheet(
+                                  genModal.task,
+                                  genModal.part,
+                                  splitSheets,
+                                  split.machine,
+                                  finalToGen,
+                                  generatedCount,
+                                  splitQty,
+                                  genModal.isRepair,
+                                  globalTotalLoadings,
+                                  splitGlobalOffsetForThisMachine
+                                )
+                              }}
+                              style={{ background: isGenerating ? '#333' : '#10b981', color: '#fff', border: 'none', padding: '10px 15px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 950, cursor: isGenerating ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '5px', pointerEvents: isGenerating ? 'none' : 'auto' }}
+                            >
+                              {isGenerating ? <Loader2 size={12} className="animate-spin" /> : <Printer size={12} />}
+                              {isGenerating ? 'ОБРОБКА...' : 'ГЕНЕРУВАТИ'}
+                            </button>
+                          </div>
+                        )}
+                        {isGenerated && (
+                          <div style={{ color: '#444', fontSize: '0.7rem', fontWeight: 800 }}>ГОТОВО</div>
+                        )}
+                      </div>
+                    )
+                  })
+                })()}
+              </div>
+            ) : (
+              <>
+                <div style={{ background: '#080808', padding: '20px', borderRadius: '20px', border: '1px solid #1a1a1a', marginBottom: '30px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+                    <span style={{ color: '#555', fontSize: '0.75rem', fontWeight: 800 }}>СТАТУС:</span>
+                    <span style={{ color: '#3b82f6', fontSize: '0.75rem', fontWeight: 900 }}>Згенеровано {genModal.created} з {genModal.total}</span>
+                  </div>
+                  <div style={{ height: '6px', background: '#1a1a1a', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{ width: `${(genModal.created / genModal.total) * 100}%`, height: '100%', background: '#3b82f6', transition: '0.3s' }} />
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '30px' }}>
+                  <label style={{ display: 'block', color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px', textAlign: 'center' }}>
+                    Скільки ще карт згенерувати?
+                  </label>
+                  <input
+                    type="number"
+                    id="gen_count_input"
+                    defaultValue={Math.max(1, genModal.total - genModal.created)}
+                    min="1"
+                    max={Math.max(1, genModal.total - genModal.created)}
+                    style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', fontSize: '2.5rem', fontWeight: 950, textAlign: 'center', padding: '15px', borderRadius: '20px', outline: 'none', borderInline: '4px solid #10b981' }}
+                  />
+                </div>
+
+                <button
+                  onClick={() => {
+                    const v = parseInt(document.getElementById('gen_count_input').value)
+                    if (v > 0) {
+                      handleGenerateFromWorksheet(genModal.task, genModal.part, genModal.sheets, genModal.machineName, v, genModal.created, genModal.requirement, genModal.isRepair)
+                      setGenModal(null)
+                    }
+                  }}
+                  style={{ width: '100%', background: '#10b981', color: '#fff', padding: '22px', borderRadius: '22px', fontSize: '1rem', fontWeight: 950, cursor: 'pointer', border: 'none', textTransform: 'uppercase', letterSpacing: '1px', boxShadow: '0 10px 20px -5px rgba(16, 185, 129, 0.4)' }}
+                >
+                  ПІДТВЕРДИТИ ТА ДРУКУВАТИ
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
+
 
       {/* ───── ЛОАДЕР ───── */}
       {isGenerating && (
@@ -959,7 +1312,9 @@ const ForemanWorkplace = () => {
                         </div>
                         <div style={{ display: 'flex', height: '26px', borderBottom: '1.5px solid #000', textAlign: 'center', alignItems: 'center' }}>
                           <div style={{ width: '30%', borderRight: '1px solid #000', fontSize: '9pt', fontWeight: 1000 }}>{finishedProduct?.name || '—'}</div>
-                          <div style={{ width: '10%', borderRight: '1px solid #000', fontSize: '13pt', fontWeight: 1000 }}>{m.sheetsPerLoading}</div>
+                          <div style={{ width: '10%', borderRight: '1px solid #000', fontSize: '13pt', fontWeight: 1000 }}>
+                             {Math.ceil(m.qty / (nomenclature?.units_per_sheet || 1))}
+                          </div>
                           <div style={{ width: '12%', borderRight: '1px solid #000', fontSize: '8pt', fontWeight: 1000, lineHeight: 1.1 }}>{nomenclature?.material_type || '—'}</div>
                           <div style={{ width: '15%', borderRight: '1px solid #000', fontSize: '7.5pt', fontWeight: 1000, padding: '0 2px' }}>{m.machine}</div>
                           <div style={{ width: '15%', borderRight: '1px solid #000', fontSize: '11pt', fontWeight: 1000 }}>{m.loading?.split(' [')[0]}</div>

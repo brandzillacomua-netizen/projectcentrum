@@ -283,12 +283,32 @@ const WarehouseModuleV2 = () => {
               </div>
               <button
                 onClick={() => setShowReception(!showReception)}
-                style={{ background: '#0ea5e9', color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', position: 'relative', display: 'flex', alignItems: 'center', gap: '8px' }}
+                style={{ 
+                  background: 'rgba(255,255,255,0.03)', 
+                  color: '#fff', 
+                  border: '1px solid rgba(255,255,255,0.05)', 
+                  padding: '8px 15px', 
+                  borderRadius: '10px', 
+                  fontWeight: 800, 
+                  cursor: 'pointer', 
+                  position: 'relative', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '8px',
+                  transition: '0.2s'
+                }}
               >
                 <Truck size={18} />
                 <span className="hide-mobile">ПРИЙОМКА</span>
                 {pendingDocs.length > 0 && (
-                  <span style={{ background: '#ef4444', height: '18px', width: '18px', borderRadius: '50%', fontSize: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ 
+                    position: 'absolute', top: '-8px', right: '-8px',
+                    background: '#ef4444', height: '20px', width: '20px', 
+                    borderRadius: '50%', fontSize: '0.65rem', fontWeight: 1000,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: '2px solid #080808', boxShadow: '0 4px 10px rgba(239, 68, 68, 0.4)',
+                    animation: 'pulse-red 2s infinite'
+                  }}>
                     {pendingDocs.length}
                   </span>
                 )}

@@ -186,7 +186,13 @@ const ManagerModule = () => {
                   <label>ДЕДЛАЙН</label>
                   <div className="input-wrapper">
                     <Calendar size={16} />
-                    <input type="date" onClick={(e) => e.target.showPicker()} value={orderHeader.deadline} onChange={e => setOrderHeader({...orderHeader, deadline: e.target.value})} />
+                    <input 
+                      type="date" 
+                      onClick={(e) => e.target.showPicker()} 
+                      min={new Date().toISOString().split('T')[0]}
+                      value={orderHeader.deadline} 
+                      onChange={e => setOrderHeader({...orderHeader, deadline: e.target.value})} 
+                    />
                   </div>
                 </div>
               </div>
@@ -344,7 +350,7 @@ const ManagerModule = () => {
         .back-btn-modern:hover { color: #fff; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); }
 
         .order-form-grid-modern {
-          display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 30px;
+          display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px;
         }
 
         .form-group-modern label {
@@ -360,9 +366,13 @@ const ManagerModule = () => {
         .input-wrapper:focus-within { border-color: #ff9000; }
         .input-wrapper input, .input-wrapper select {
           background: transparent; border: none; color: #fff; padding: 10px;
-          flex: 1; outline: none; font-size: 0.9rem;
+          flex: 1; outline: none; font-size: 0.9rem; width: 100%;
         }
-        .input-wrapper svg { color: #444; }
+        .input-wrapper select option {
+          background: #111;
+          color: #fff;
+        }
+        .input-wrapper svg { color: #444; flex-shrink: 0; }
 
         .btn-primary-modern {
           background: #ff9000; color: #000; border: none; padding: 16px 32px;
@@ -434,8 +444,16 @@ const ManagerModule = () => {
         .icon-badge { width: 48px; height: 48px; min-width: 48px; border-radius: 16px; background: rgba(255,144,0,0.1); display: flex; alignItems: center; justifyContent: center; }
         .registration-title { fontSize: 1.8rem; fontWeight: 900; margin: 0; }
 
-        .form-group-modern { width: 100%; }
-        .quantity-deadline-group { display: flex; gap: 20px; }
+        .form-group-modern { width: 100%; min-width: 0; }
+        .quantity-deadline-group { 
+          display: flex; 
+          gap: 20px; 
+          grid-column: span 1;
+          flex-wrap: nowrap;
+        }
+        @media (min-width: 1200px) {
+          .quantity-deadline-group { grid-column: span 1; }
+        }
         .qty-subgroup, .deadline-subgroup { flex: 1; min-width: 0; }
 
         .mobile-order-card {

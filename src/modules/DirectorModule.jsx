@@ -127,7 +127,7 @@ const DirectorModule = () => {
           </div>
 
           <div className="nav-right">
-            <button className="btn-notifications" onClick={() => setIsApprovalsOpen(true)}>
+            <button className="btn-notifications" style={{ position: 'relative' }} onClick={() => setIsApprovalsOpen(true)}>
               <Bell size={20} />
               {pendingTasks.length > 0 && <span className="badge-count anim-pulse">{pendingTasks.length}</span>}
               <span className="btn-label">ПІДТВЕРДЖЕННЯ</span>
@@ -430,12 +430,26 @@ const DirectorModule = () => {
 
         .nav-right { display: flex; gap: 20px; }
         .btn-notifications {
-          display: flex; align-items: center; gap: 8px; background: #ff9000;
-          color: #000; border: none; padding: 8px 18px; border-radius: 12px;
-          font-weight: 1000; font-size: 0.7rem; cursor: pointer; position: relative;
-          box-shadow: 0 0 20px rgba(255,144,0,0.2); transition: transform 0.2s;
+          display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.03);
+          color: #fff; border: 1px solid rgba(255,255,255,0.05); padding: 8px 18px; border-radius: 12px;
+          font-weight: 800; font-size: 0.7rem; cursor: pointer; position: relative;
+          transition: all 0.2s;
         }
-        .btn-notifications:hover { transform: translateY(-2px); }
+        .btn-notifications:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,144,0,0.3); }
+
+        .badge-count {
+          position: absolute; top: -8px; right: -8px; background: #ef4444; color: #fff;
+          min-width: 20px; height: 20px; border-radius: 10px; border: 2px solid #050505;
+          display: flex; align-items: center; justify-content: center; font-size: 0.65rem;
+          font-weight: 1000; box-shadow: 0 4px 10px rgba(239, 68, 68, 0.4);
+        }
+        
+        @keyframes pulse-red {
+          0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+          70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+          100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        .anim-pulse { animation: pulse-red 2s infinite; }
 
         /* BODY — the ONE scroll container for the whole table */
         .dashboard-body { flex: 1; overflow: auto; display: flex; flex-direction: column; width: 100%; }
