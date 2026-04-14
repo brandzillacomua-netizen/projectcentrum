@@ -90,7 +90,7 @@ const Shop2Module = () => {
         machine: '—', // Додаємо для відповідності схемі
         is_rework: false, // Додаємо для відповідності схемі
         estimated_time: 0, // Додаємо для відповідності схемі
-        card_info: `[ЦЕХ №2] [NEED:${item.need || 0}] [BZ:${item.bz || 0}] Наряд №${order?.order_num || task.id}`
+        card_info: `[ЦЕХ №2] [NEED:${item.need || 0}] [BZ:${item.bz || 0}] Наряд №${order?.order_num || ''}${task.batch_index ? `/${task.batch_index}` : ''}`
       }
 
       console.log("Generating card with payload:", payload)
@@ -219,7 +219,7 @@ const Shop2Module = () => {
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontWeight: 800, fontSize: '1rem', color: isCompleted ? '#444' : '#fff' }}>№ {order?.order_num}</div>
+                    <div style={{ fontWeight: 800, fontSize: '1rem', color: isCompleted ? '#444' : '#fff' }}>№ {order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}</div>
                     {isCompleted && <CheckCircle2 size={14} color="#10b981" />}
                   </div>
                   <div style={{ fontSize: '0.75rem', color: isCompleted ? '#222' : '#555', marginTop: '4px' }}>{order?.customer}</div>
@@ -260,13 +260,22 @@ const Shop2Module = () => {
           {activeTaskId ? (() => {
             const task = relevantTasks.find(t => t.id === activeTaskId)
             const order = orders.find(o => o.id === task.order_id)
-            const productNames = order?.order_items?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ')
+            const isReworkOrder = order?.order_num?.startsWith('ВБ')
+            
+            // Fallback for Product Names: if order has no items (internal rework), use snapshot names
+            let productNames = order?.order_items?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ')
+            if (!productNames && task.plan_snapshot) {
+              productNames = Object.values(task.plan_snapshot)
+                .map(s => nomenclatures.find(n => String(n.id) === String(s.id))?.name || s.name)
+                .filter(Boolean)
+                .join(', ')
+            }
             
             return (
               <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '40px' }}>
                   <div>
-                    <h2 style={{ fontSize: '2.5rem', fontWeight: 950, margin: 0 }}>Наряд №{order?.order_num}</h2>
+                    <h2 style={{ fontSize: '2.5rem', fontWeight: 950, margin: 0 }}>Наряд №{order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}</h2>
                     <div style={{ color: '#555', marginTop: '8px', fontSize: '1.1rem', fontWeight: 800 }}>
                       ВИРІБ: <strong style={{ color: '#8b5cf6' }}>{productNames || '—'}</strong> | {order?.customer}
                     </div>
@@ -317,8 +326,12 @@ const Shop2Module = () => {
                           <th style={{ padding: '15px 25px' }}>НОМЕНКЛАТУРА</th>
                           <th style={{ padding: '15px 20px', textAlign: 'center' }}>МАТЕРІАЛ</th>
                           <th style={{ padding: '15px 20px', textAlign: 'center' }}>ПОТРЕБА</th>
-                          <th style={{ padding: '15px 20px', textAlign: 'center', color: '#eab308' }}>БЗ (ЗАПАС)</th>
-                          <th style={{ padding: '15px 20px', textAlign: 'center' }}>ЗАГАЛЬНА КІЛЬКІСТЬ</th>
+                          {!isReworkOrder && (
+                            <>
+                              <th style={{ padding: '15px 20px', textAlign: 'center', color: '#eab308' }}>БЗ (ЗАПАС)</th>
+                              <th style={{ padding: '15px 20px', textAlign: 'center' }}>ЗАГАЛЬНА КІЛЬКІСТЬ</th>
+                            </>
+                          )}
                           <th style={{ padding: '15px 20px' }}>ЕТАП</th>
                           <th style={{ padding: '15px 20px', textAlign: 'center' }}>СТАН</th>
                           <th style={{ padding: '15px 20px', textAlign: 'center' }}>ДІЯ</th>
@@ -367,19 +380,23 @@ const Shop2Module = () => {
                                  <td style={{ padding: '20px', textAlign: 'center', color: '#fff', fontSize: '1.2rem', fontWeight: 600 }}>
                                     {item.need || '0'}
                                  </td>
-                                 <td style={{ padding: '20px', textAlign: 'center', color: '#eab308', fontWeight: 1000, fontSize: '1.4rem' }}>
-                                    {(() => {
-                                       const bzItem = (inventory || []).find(i => String(i.nomenclature_id) === String(item.nom?.id) && (i.type === 'bz_shop2' || i.type === 'bz'))
-                                       return Number(bzItem?.total_qty) || 0
-                                    })()}
-                                 </td>
-                                 <td style={{ padding: '20px', textAlign: 'center', color: '#3b82f6', fontWeight: 1000, fontSize: '1.4rem' }}>
-                                    {(() => {
-                                       const bzItem = (inventory || []).find(i => String(i.nomenclature_id) === String(item.nom?.id) && (i.type === 'bz_shop2' || i.type === 'bz'))
-                                       const bzQty = Number(bzItem?.total_qty) || 0
-                                       return (Number(item.need) || 0) + bzQty
-                                    })()}
-                                 </td>
+                                 {!isReworkOrder && (
+                                    <>
+                                       <td style={{ padding: '20px', textAlign: 'center', color: '#eab308', fontWeight: 1000, fontSize: '1.4rem' }}>
+                                          {(() => {
+                                             const bzItem = (inventory || []).find(i => String(i.nomenclature_id) === String(item.nom?.id) && (i.type === 'bz_shop2' || i.type === 'bz'))
+                                             return Number(bzItem?.total_qty) || 0
+                                          })()}
+                                       </td>
+                                       <td style={{ padding: '20px', textAlign: 'center', color: '#3b82f6', fontWeight: 1000, fontSize: '1.4rem' }}>
+                                          {(() => {
+                                             const bzItem = (inventory || []).find(i => String(i.nomenclature_id) === String(item.nom?.id) && (i.type === 'bz_shop2' || i.type === 'bz'))
+                                             const bzQty = Number(bzItem?.total_qty) || 0
+                                             return (Number(item.need) || 0) + bzQty
+                                          })()}
+                                       </td>
+                                    </>
+                                 )}
                                  <td style={{ padding: '20px' }}>
                                     <select
                                        value={selectedStages[String(item.nom?.id)] || (task.plan_snapshot?.[String(item.nom?.id)]?.shop2_stage) || ''}
@@ -498,84 +515,85 @@ const Shop2Module = () => {
                   </div>
                 )}
 
-                {/* ───── ВХІДНИЙ БУФЕР (З ЦЕХУ №1) ───── */}
-                <div style={{ marginTop: '40px' }}>
-                   <h3 style={{ fontSize: '1.2rem', fontWeight: 950, color: '#444', textTransform: 'uppercase', marginBottom: '25px', borderLeft: '4px solid #10b981', paddingLeft: '15px' }}>
-                     Буфер надходжень (з Цеху №1)
-                   </h3>
-                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '15px' }}>
-                      {(() => {
-                         const snap = task.plan_snapshot || {}
-                         const snapIds = Object.keys(snap).filter(id => id !== 'arrivals')
-                         
-                         let arrivals = []
-
-                         if (snap.arrivals && Array.isArray(snap.arrivals)) {
-                            snap.arrivals.forEach(arr => {
-                               arrivals.push({ 
-                                  id: arr.id, 
-                                  name: arr.name, 
-                                  need: Number(arr.semi) || 0,
-                                  bz: Number(arr.bz) || 0,
-                                  total: (Number(arr.semi) || 0) + (Number(arr.bz) || 0)
-                               })
-                            })
-                         } else {
-                            snapIds.forEach(nomId => {
-                              const nom = (nomenclatures || []).find(n => String(n?.id) === String(nomId))
-                              if (!nom) return
-
-                              const taskCards = (workCards || []).filter(c => String(c.task_id) === String(task.id) && String(c.nomenclature_id) === String(nomId))
-                              let cardsNeedSum = 0
-                              let cardsBzSum = 0
-
-                              taskCards.forEach(c => {
-                                 const bzTag = Number(c.buffer_qty) || Number(c.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
-                                 const needTag = Number(c.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Number(c.quantity) - bzTag)
-                                 cardsNeedSum += Math.max(0, needTag)
-                                 cardsBzSum += Math.max(0, bzTag)
-                              })
-
-                              const invItems = (inventory || []).filter(i => String(i.nomenclature_id) === String(nomId))
-                              const invSemi = invItems.filter(i => i.type === 'semi_shop2').reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
-                              const invBz = invItems.filter(i => i.type === 'bz_shop2' || i.type === 'bz').reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
-
-                              const totSemi = invSemi + cardsNeedSum
-                              const totBz = invBz + cardsBzSum
-
-                              if (totSemi > 0 || totBz > 0) {
-                                arrivals.push({ id: nomId, name: nom.name, need: totSemi, bz: totBz, total: totSemi + totBz })
-                              }
-                            })
-                         }
-
-                         if (arrivals.length === 0) {
-                            return <div style={{ color: '#222', fontSize: '0.85rem', fontWeight: 700, padding: '20px' }}>Буфер порожній. Передайте наряд з Цеху №1...</div>
-                         }
-
-                         return arrivals.map(item => (
-                               <div key={item.id} style={{ background: '#111', borderRadius: '24px', padding: '20px', border: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <div>
-                                     <div style={{ fontWeight: 900, fontSize: '0.9rem', color: '#fff' }}>{item.name}</div>
-                                     <div style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 900, textTransform: 'uppercase', marginTop: '4px' }}>
-                                        НАДХОДЖЕННЯ З ЦЕХУ №1
-                                     </div>
-                                  </div>
-                                  <div style={{ textAlign: 'right' }}>
-                                     <div style={{ fontSize: '1.8rem', fontWeight: 1000, color: '#fff', lineHeight: 1 }}>{item.total || 0}</div>
-                                     <div style={{ fontSize: '0.9rem', fontWeight: 1000, color: '#fff' }}>
-                                        {item.need || 0} 
-                                        <span style={{ color: '#444', fontSize: '0.9rem', margin: '0 5px' }}>+</span> 
-                                        <span style={{ color: '#eab308' }}>{item.bz || 0}</span>
-                                        <span style={{ color: '#eab308', fontSize: '0.7rem', marginLeft: '4px' }}>БЗ</span>
-                                     </div>
-                                     <div style={{ fontSize: '0.55rem', color: '#444', fontWeight: 900 }}>ЗАГАЛЬНА КІЛЬКІСТЬ</div>
-                                  </div>
-                               </div>
-                            ))
-                      })()}
-                   </div>
-                </div>
+                 {!isReworkOrder && (
+                    <div style={{ marginTop: '40px' }}>
+                       <h3 style={{ fontSize: '1.2rem', fontWeight: 950, color: '#444', textTransform: 'uppercase', marginBottom: '25px', borderLeft: '4px solid #10b981', paddingLeft: '15px' }}>
+                         Буфер надходжень (з Цеху №1)
+                       </h3>
+                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '15px' }}>
+                          {(() => {
+                             const snap = task.plan_snapshot || {}
+                             const snapIds = Object.keys(snap).filter(id => id !== 'arrivals')
+                             
+                             let arrivals = []
+    
+                             if (snap.arrivals && Array.isArray(snap.arrivals)) {
+                                snap.arrivals.forEach(arr => {
+                                   arrivals.push({ 
+                                      id: arr.id, 
+                                      name: arr.name, 
+                                      need: Number(arr.semi) || 0,
+                                      bz: Number(arr.bz) || 0,
+                                      total: (Number(arr.semi) || 0) + (Number(arr.bz) || 0)
+                                   })
+                                })
+                             } else {
+                                snapIds.forEach(nomId => {
+                                  const nom = (nomenclatures || []).find(n => String(n?.id) === String(nomId))
+                                  if (!nom) return
+    
+                                  const taskCards = (workCards || []).filter(c => String(c.task_id) === String(task.id) && String(c.nomenclature_id) === String(nomId))
+                                  let cardsNeedSum = 0
+                                  let cardsBzSum = 0
+    
+                                  taskCards.forEach(c => {
+                                     const bzTag = Number(c.buffer_qty) || Number(c.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
+                                     const needTag = Number(c.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Number(c.quantity) - bzTag)
+                                     cardsNeedSum += Math.max(0, needTag)
+                                     cardsBzSum += Math.max(0, bzTag)
+                                  })
+    
+                                  const invItems = (inventory || []).filter(i => String(i.nomenclature_id) === String(nomId))
+                                  const invSemi = invItems.filter(i => i.type === 'semi_shop2').reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
+                                  const invBz = invItems.filter(i => i.type === 'bz_shop2' || i.type === 'bz').reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
+    
+                                  const totSemi = invSemi + cardsNeedSum
+                                  const totBz = invBz + cardsBzSum
+    
+                                  if (totSemi > 0 || totBz > 0) {
+                                    arrivals.push({ id: nomId, name: nom.name, need: totSemi, bz: totBz, total: totSemi + totBz })
+                                  }
+                                })
+                             }
+    
+                             if (arrivals.length === 0) {
+                                return <div style={{ color: '#222', fontSize: '0.85rem', fontWeight: 700, padding: '20px' }}>Буфер порожній. Передайте наряд з Цеху №1...</div>
+                             }
+    
+                             return arrivals.map(item => (
+                                   <div key={item.id} style={{ background: '#111', borderRadius: '24px', padding: '20px', border: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                      <div>
+                                         <div style={{ fontWeight: 900, fontSize: '0.9rem', color: '#fff' }}>{item.name}</div>
+                                         <div style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 900, textTransform: 'uppercase', marginTop: '4px' }}>
+                                            НАДХОДЖЕННЯ З ЦЕХУ №1
+                                         </div>
+                                      </div>
+                                      <div style={{ textAlign: 'right' }}>
+                                         <div style={{ fontSize: '1.8rem', fontWeight: 1000, color: '#fff', lineHeight: 1 }}>{item.total || 0}</div>
+                                         <div style={{ fontSize: '0.9rem', fontWeight: 1000, color: '#fff' }}>
+                                            {item.need || 0} 
+                                            <span style={{ color: '#444', fontSize: '0.9rem', margin: '0 5px' }}>+</span> 
+                                            <span style={{ color: '#eab308' }}>{item.bz || 0}</span>
+                                            <span style={{ color: '#eab308', fontSize: '0.7rem', marginLeft: '4px' }}>БЗ</span>
+                                         </div>
+                                         <div style={{ fontSize: '0.55rem', color: '#444', fontWeight: 900 }}>ЗАГАЛЬНА КІЛЬКІСТЬ</div>
+                                      </div>
+                                   </div>
+                                ))
+                          })()}
+                       </div>
+                    </div>
+                 )}
 
                 {/* ───── АРХІВ РОБОЧИХ КАРТОК (ЦЕХ №2) ───── */}
                 <div style={{ marginTop: '60px' }}>

@@ -13,7 +13,8 @@ import {
   Monitor,
   ShieldCheck,
   Package,
-  TrendingUp
+  TrendingUp,
+  AlertTriangle
 } from 'lucide-react'
 import ManagerModule from './modules/ManagerModule'
 import WarehouseModule from './modules/WarehouseModuleV2'
@@ -34,6 +35,7 @@ import Shop2Module from './modules/Shop2Module'
 import Shop2Terminal from './modules/Shop2Terminal'
 import NomenclatureV2 from './modules/NomenclatureV2'
 import AnalyticsModule from './modules/AnalyticsModule'
+import BrakModule from './modules/BrakModule'
 import { MESProvider, useMES } from './MESContext'
 
 const FileCodeIcon = () => (
@@ -60,12 +62,14 @@ const Portal = () => {
     { id: 'nomenclature', title: 'База', icon: <Settings />, path: '/nomenclature', desc: 'Номенклатура', color: '#6366f1' },
     { id: 'machines', title: 'Станки', icon: <Cpu />, path: '/machines', desc: 'Обладнання', color: '#f97316' },
     { id: 'analytics', title: 'Аналітика', icon: <TrendingUp />, path: '/analytics', desc: 'Статистика та KPI', color: '#8b5cf6' },
+    { id: 'brak', title: 'БРАК', icon: <AlertTriangle />, path: '/brak', desc: 'Класифікація та облік', color: '#ef4444' },
     { id: 'settings', title: 'Система', icon: <Settings />, path: '/settings', desc: 'Конфігурація', color: '#444' }
   ]
 
   const modules = allModules.filter(m => {
     if (m.id === 'shop2' || m.id === 'shop2_terminal') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.shop2;
     if (m.id === 'analytics') return currentUser?.access_rights?.director || currentUser?.access_rights?.master || currentUser?.access_rights?.analytics;
+    if (m.id === 'brak') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.director || currentUser?.access_rights?.brak;
     return currentUser?.access_rights?.[m.id] === true;
   })
 
@@ -138,6 +142,7 @@ const AppContent = () => {
       <Route path="/nomenclature-v2" element={<NomenclatureV2 />} />
       <Route path="/machines" element={<MachinesModule />} />
       <Route path="/analytics" element={<AnalyticsModule />} />
+      <Route path="/brak" element={<BrakModule />} />
       <Route path="/settings" element={<SettingsModule />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

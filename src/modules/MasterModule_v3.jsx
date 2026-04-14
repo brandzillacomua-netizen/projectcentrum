@@ -312,7 +312,7 @@ const MasterModule = () => {
                 return (
                   <div key={task.id} style={{ position: 'relative', background: '#111', padding: '20px', borderRadius: '20px', border: '1px solid #222', borderLeft: '4px solid #ff9000' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <strong style={{ fontSize: '1rem', fontWeight: 900 }}>{order?.order_num} — {order?.customer}</strong>
+                      <strong style={{ fontSize: '1rem', fontWeight: 900 }}>{order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''} — {order?.customer}</strong>
                       <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                         <button onClick={() => handleReprint(task)} style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer' }} title="Друк наряду"><Printer size={20} /></button>
                         {isSkladConfirmed && isTechConfirmed && isDirConfirmed && <div style={{ width: '10px', height: '10px', background: '#22c55e', borderRadius: '2px' }}></div>}
@@ -376,7 +376,7 @@ const MasterModule = () => {
                 return (
                   <div key={task.id} style={{ background: '#0a0a0a', padding: '15px', borderRadius: '16px', border: '1px solid #1a1a1a', opacity: 0.6 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <strong style={{ fontSize: '0.9rem', color: '#fff' }}>№{order?.order_num}</strong>
+                      <strong style={{ fontSize: '0.9rem', color: '#fff' }}>№{order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}</strong>
                       <span style={{ fontSize: '0.65rem', color: '#444' }}>{new Date(task.completed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                     <div style={{ fontSize: '0.75rem', color: '#555', marginBottom: '8px' }}>{order?.customer}</div>
@@ -411,7 +411,7 @@ const MasterModule = () => {
                         const alreadyPlanned = tasks.filter(t => String(t.order_id) === String(activeNaryadOrder.id)).reduce((acc, t) => acc + (Number(t.planned_sets) || 0), 0);
                         
                         if (thisNaryadTotal < totalUnits || alreadyPlanned > 0) {
-                           const idx = tasks.filter(t => t.order_id === activeNaryadOrder.id).length + 1;
+                           const idx = tasks.filter(t => t.order_id === activeNaryadOrder.id && (t.step === 'Лазерний розкрій' || t.step === 'Лазерна різка')).length + 1;
                            return `/${idx}`;
                         }
                         return '';

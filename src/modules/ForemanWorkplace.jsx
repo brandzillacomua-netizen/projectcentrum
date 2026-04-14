@@ -132,7 +132,7 @@ const ForemanWorkplace = () => {
 
   const relevantTasks = useMemo(() => {
     return tasks
-      .filter(t => t.warehouse_conf && t.engineer_conf && t.director_conf && t.step === 'Лазерний розкрій')
+      .filter(t => t.warehouse_conf && t.engineer_conf && t.director_conf && (t.step === 'Лазерний розкрій' || t.step === 'Лазерна різка'))
       .sort((a, b) => {
         // Already transferred → bottom
         if (a.status === 'completed' && b.status !== 'completed') return 1
@@ -189,7 +189,13 @@ const ForemanWorkplace = () => {
       // Start calculating for THIS SPLIT
       // localIdx tracks where we are in CURRENT machine split
       let sheetsRemainingForThisSplit = sheets - (localGeneratedCount * capacity)
-      let reqRemainingForThisSplit = totalToReach - (localGeneratedCount * capacity * unitsPerSheet)
+      
+      // FIX: Use the Snapshot's NEED (e.g. 1000) not just the Plan (e.g. 775)
+      // for the purpose of the REQ/BZ labels on the card.
+      const snapshotEntry = task.plan_snapshot?.[String(part.nom?.id)]
+      const originalNeed = snapshotEntry?.need || totalToReach || 0
+      
+      let reqRemainingForThisSplit = originalNeed - (localGeneratedCount * capacity * unitsPerSheet)
       if (reqRemainingForThisSplit < 0) reqRemainingForThisSplit = 0
 
       for (let i = 1; i <= finalCount; i++) {
@@ -207,7 +213,7 @@ const ForemanWorkplace = () => {
           operation: 'Лазерний розкрій',
           machine: selectedMachineName || 'Не вказано',
           estimatedTime: (Number(part.nom?.time_per_unit) || 0) * reqInThisLoading,
-          cardInfo: `${prefix}${currentSeq}/${displayTotal} [REQ:${reqInThisLoading}] [BZ:${bzInThisLoading}]`,
+          cardInfo: `${prefix}${currentSeq}/${displayTotal}${originalNeed > 0 ? ` [NEED:${originalNeed}]` : ''} [REQ:${reqInThisLoading}] [BZ:${bzInThisLoading}]`,
           quantity: qtyInThisLoading,
           bufferQty: bzInThisLoading,
           actualSheets: sheetsInThisLoading
@@ -412,7 +418,9 @@ const ForemanWorkplace = () => {
                   style={{ padding: '15px', borderLeft: `4px solid ${borderColor}`, background: bgColor, cursor: 'pointer', transition: 'background 0.2s' }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontWeight: 800, fontSize: '0.9rem', color: isCompleted ? '#555' : '#fff' }}>№ {order?.order_num}</div>
+                    <div style={{ fontWeight: 800, fontSize: '0.9rem', color: isCompleted ? '#555' : '#fff' }}>
+                      № {order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}
+                    </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                       {isCompleted && <CheckCircle2 size={14} color="#10b981" />}
                       {isReady && !isCompleted && (
@@ -501,7 +509,16 @@ const ForemanWorkplace = () => {
               const task = relevantTasks.find(t => t.id === activeTaskId)
               const order = orders.find(o => o.id === task.order_id)
               const taskCards = workCards.filter(c => c.task_id === task.id)
-              const productNames = order?.order_items?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ')
+              const isReworkOrder = order?.order_num?.startsWith('ВБ')
+              
+              // Fallback for Product Names: if order has no items (internal rework), use snapshot names
+              let productNames = order?.order_items?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ')
+              if (!productNames && task.plan_snapshot) {
+                productNames = Object.values(task.plan_snapshot)
+                  .map(s => nomenclatures.find(n => String(n.id) === String(s.id))?.name || s.name)
+                  .filter(Boolean)
+                  .join(', ')
+              }
 
               // ПЕРЕВІРКА НА ПОВНЕ ВИКОНАННЯ
               const isTaskComplete = order?.order_items?.every(item => {
@@ -522,9 +539,16 @@ const ForemanWorkplace = () => {
                 <div style={{ maxWidth: '1200px' }} className="anim-fade-in">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
                     <div>
-                      <h2 style={{ fontSize: '2.4rem', fontWeight: 950, margin: 0 }}>Наряд №{order?.order_num}</h2>
+                      <h2 style={{ fontSize: '2.4rem', fontWeight: 950, margin: 0 }}>
+                        Наряд №{order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}
+                      </h2>
                       <div style={{ color: '#555', marginTop: '5px', fontSize: '1.1rem', fontWeight: 800 }}>
                         ВИРІБ: <strong style={{ color: '#ef4444' }}>{productNames || '—'}</strong> | {order?.customer}
+                        {task.batch_index && (
+                          <span style={{ marginLeft: '15px', background: '#eab308', color: '#000', padding: '2px 8px', borderRadius: '6px', fontSize: '0.9rem', fontWeight: 900 }}>
+                            ПАРТІЯ №{task.batch_index}
+                          </span>
+                        )}
                       </div>
                     </div>
                     {(isTaskComplete || task.status === 'completed') && (
@@ -557,14 +581,18 @@ const ForemanWorkplace = () => {
                           <tr style={{ background: '#1a1a1a', textAlign: 'left', color: '#555', textTransform: 'uppercase', fontSize: '0.65rem', fontWeight: 900 }}>
                             <th style={{ padding: '12px 15px', width: '18%' }}>ДЕТАЛЬ В РОЗКРІЙ</th>
                             <th style={{ padding: '12px 15px', textAlign: 'center' }}>ПОТРЕБА</th>
-                            <th style={{ padding: '12px 15px', textAlign: 'center' }}>СКЛАД БЗ</th>
-                            <th style={{ padding: '12px 15px', textAlign: 'center', color: '#eab308' }}>ПЛАН</th>
+                            {!isReworkOrder && (
+                              <>
+                                <th style={{ padding: '12px 15px', textAlign: 'center' }}>СКЛАД БЗ</th>
+                                <th style={{ padding: '12px 15px', textAlign: 'center', color: '#eab308' }}>ПЛАН</th>
+                              </>
+                            )}
                             <th style={{ padding: '12px 15px', textAlign: 'center' }}>МАТЕРІАЛ</th>
                             <th style={{ padding: '12px 15px', textAlign: 'center' }}>ШТ/Л</th>
                             <th style={{ padding: '12px 15px', textAlign: 'center', color: '#10b981' }}>ЛИСТІВ</th>
                             <th style={{ padding: '12px 15px', width: '14%' }}>ВЕРСТАТ</th>
                             <th style={{ padding: '12px 15px', textAlign: 'center', color: '#3b82f6' }}>ЗАВАНТ.</th>
-                            <th style={{ padding: '12px 15px', textAlign: 'center', color: '#ef4444' }}>БЗ</th>
+                            {!isReworkOrder && <th style={{ padding: '12px 15px', textAlign: 'center', color: '#ef4444' }}>БЗ</th>}
                             <th style={{ padding: '12px 15px', textAlign: 'center' }}>ДІЇ</th>
                           </tr>
                         </thead>
@@ -637,8 +665,12 @@ const ForemanWorkplace = () => {
                                     <div style={{ fontSize: '0.65rem', color: '#444' }}>{part.nom?.nomenclature_code || 'БЕЗ КОДУ'}</div>
                                   </td>
                                   <td style={{ padding: '15px', textAlign: 'center', color: '#666' }}>{need}</td>
-                                  <td style={{ padding: '15px', textAlign: 'center', color: '#666' }}>{stockBZ}</td>
-                                  <td style={{ padding: '15px', textAlign: 'center', color: '#eab308', fontWeight: 900 }}>{plan}</td>
+                                  {!isReworkOrder && (
+                                    <>
+                                      <td style={{ padding: '15px', textAlign: 'center', color: '#666' }}>{stockBZ}</td>
+                                      <td style={{ padding: '15px', textAlign: 'center', color: '#eab308', fontWeight: 900 }}>{plan}</td>
+                                    </>
+                                  )}
                                   <td style={{ padding: '15px', textAlign: 'center', color: '#aaa', fontSize: '0.75rem' }}>{part.nom?.material_type || '—'}</td>
                                   <td style={{ padding: '15px', textAlign: 'center' }}>{unitsPerSheet}</td>
                                   <td style={{ padding: '15px', textAlign: 'center', color: '#10b981', fontWeight: 1000, fontSize: '1.1rem' }}>{sheets}</td>
@@ -787,7 +819,9 @@ const ForemanWorkplace = () => {
                                       <span style={{ color: '#222', fontSize: '0.8rem' }}>—</span>
                                     )}
                                   </td>
-                                  <td style={{ padding: '15px', textAlign: 'center', color: '#ef4444', fontWeight: 900 }}>{surplus > 0 ? `+${surplus}` : '0'}</td>
+                                  {!isReworkOrder && (
+                                    <td style={{ padding: '15px', textAlign: 'center', color: '#ef4444', fontWeight: 900 }}>{surplus > 0 ? `+${surplus}` : '0'}</td>
+                                  )}
                                   <td style={{ padding: '15px', textAlign: 'center' }}>
                                     <div style={{ display: 'flex', gap: '5px' }}>
                                       {plan === 0 ? (

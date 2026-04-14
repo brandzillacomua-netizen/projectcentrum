@@ -56,6 +56,10 @@ const WarehouseModuleV2 = () => {
   const filteredInventory = (inventory || []).filter(i => {
     const matchesSearch = (i.name || '').toLowerCase().includes(searchQuery.toLowerCase())
     if (activeTab === 'bz') return i.type === 'bz' && matchesSearch
+    
+    // Брак: показуємо всі типи, що починаються на 'scrap'
+    if (activeTab === 'scrap') return i.type?.startsWith('scrap') && matchesSearch
+    
     // Items without a type default to 'raw'
     const itemType = i.type || 'raw'
     return itemType === activeTab && matchesSearch
@@ -410,8 +414,30 @@ const WarehouseModuleV2 = () => {
                 )}
                 {filteredInventory.map(item => (
                   <tr key={item.id} style={{ borderBottom: '1px solid #151515' }}>
-                    <td className="sticky-col" style={{ padding: '15px', fontWeight: 800 }}>{item.name}</td>
-                    <td style={{ padding: '15px', textAlign: 'center', color: '#ff9000', fontWeight: 900 }}>
+                    <td className="sticky-col" style={{ padding: '15px', fontWeight: 800 }}>
+                      {item.name}
+                      {item.type?.startsWith('scrap') && (() => {
+                        const types = {
+                          'scrap': { label: 'Прийомка', color: '#555' },
+                          'scrap_ready': { label: 'До обробки', color: '#ef4444' },
+                          'scrap_cat_1': { label: 'Кат. 1', color: '#10b981' },
+                          'scrap_cat_2': { label: 'Кат. 2', color: '#eab308' },
+                          'scrap_cat_3': { label: 'Кат. 3', color: '#f97316' },
+                          'scrap_cat_4': { label: 'Кат. 4', color: '#ef4444' },
+                        }
+                        const t = types[item.type] || { label: item.type, color: '#333' }
+                        return (
+                          <span style={{ 
+                            marginLeft: '10px', fontSize: '0.6rem', color: t.color, 
+                            border: `1px solid ${t.color}40`, padding: '2px 6px', 
+                            borderRadius: '4px', textTransform: 'uppercase', fontWeight: 900
+                          }}>
+                            {t.label}
+                          </span>
+                        )
+                      })()}
+                    </td>
+                    <td style={{ padding: '15px', textAlign: 'center', color: activeTab === 'scrap' ? '#ef4444' : '#ff9000', fontWeight: 900 }}>
                       {item.total_qty || 0}{' '}
                       <small style={{ color: '#444', fontWeight: 400 }}>{item.unit}</small>
                     </td>

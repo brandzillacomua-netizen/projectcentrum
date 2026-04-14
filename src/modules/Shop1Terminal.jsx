@@ -752,7 +752,7 @@ export default function Shop1Terminal() {
                 )}
               </div>
 
-                <button onClick={() => { setScrapCount(0); setFinalOperator(currentCard.operator_name || ''); setShowCompleteModal(true) }}
+                <button onClick={() => { setScrapCount(0); setFinalOperator(''); setShowCompleteModal(true) }}
                   style={{ background: '#ec4899', color: '#fff', border: 'none', padding: '22px', width: '100%', borderRadius: '18px', fontSize: '1.3rem', fontWeight: 1000, cursor: 'pointer', boxShadow: '0 10px 30px rgba(236,72,153,0.3)' }}>
                   {isFinal ? '✓ ПРИЙНЯТО' : `ЗАВЕРШИТИ ${opName}`}
                 </button>
@@ -874,20 +874,74 @@ export default function Shop1Terminal() {
           ))}
         </div>
 
+        {activeExplorerTab === 'scrap' && filteredItems.length > 0 && (
+          <div style={{ padding: '0 20px 20px' }}>
+            <button 
+              onClick={async () => {
+                if (!window.confirm(`Перенести всі позиції (${filteredItems.length}) у розділ БРАК?`)) return
+                setIsProcessing(true)
+                try {
+                  const ids = filteredItems.map(i => i.id)
+                  await supabase.from('inventory')
+                    .update({ type: 'scrap_ready', updated_at: new Date().toISOString() })
+                    .in('id', ids)
+                  await fetchData()
+                } catch (e) { alert('Помилка: ' + e.message) }
+                finally { setIsProcessing(false) }
+              }}
+              disabled={isProcessing}
+              style={{ 
+                width: '100%', background: '#ef4444', color: '#000', border: 'none', 
+                padding: '16px', borderRadius: '14px', fontSize: '0.85rem', fontWeight: 1000, 
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                gap: '10px', boxShadow: '0 10px 25px rgba(239, 68, 68, 0.2)' 
+              }}>
+              <AlertTriangle size={18} /> {isProcessing ? 'ПЕРЕНЕСЕННЯ...' : `ПЕРЕНЕСТИ ВСІ ПОЗИЦІЇ (${filteredItems.length}) В РОЗДІЛ БРАК`}
+            </button>
+          </div>
+        )}
+
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '15px' }}>
             {filteredItems.map(item => {
               const nom = nomenclatures.find(n => n.id === item.nomenclature_id)
               return (
-                <div key={item.id} style={{ background: '#111', borderRadius: '18px', padding: '18px', border: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 800, marginBottom: '2px' }}>{nom?.name || item.name}</div>
-                    <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 900 }}>{item.unit || 'од'} | {new Date(item.updated_at).toLocaleDateString()}</div>
+                <div key={item.id} style={{ background: '#111', borderRadius: '18px', padding: '18px', border: '1px solid #1a1a1a' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 800, marginBottom: '2px' }}>{nom?.name || item.name}</div>
+                      <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 900 }}>{item.unit || 'од'} | {new Date(item.updated_at).toLocaleDateString()}</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '1.5rem', fontWeight: 1000, color: explorerTabs.find(t=>t.id===activeExplorerTab).color }}>{item.total_qty}</div>
+                      <div style={{ fontSize: '0.5rem', color: '#333', fontWeight: 900 }}>ЗАЛИШОК</div>
+                    </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 1000, color: explorerTabs.find(t=>t.id===activeExplorerTab).color }}>{item.total_qty}</div>
-                    <div style={{ fontSize: '0.5rem', color: '#333', fontWeight: 900 }}>ЗАЛИШОК</div>
-                  </div>
+                  
+                  {item.type === 'scrap' && (
+                    <button 
+                      onClick={async () => {
+                        setIsProcessing(true)
+                        try {
+                          // Change type to 'scrap_ready' to move it to the Brak module
+                          await supabase.from('inventory').update({ 
+                            type: 'scrap_ready',
+                            updated_at: new Date().toISOString() 
+                          }).eq('id', item.id)
+                          await fetchData()
+                        } catch (e) { alert('Помилка: ' + e.message) }
+                        finally { setIsProcessing(false) }
+                      }}
+                      disabled={isProcessing}
+                      style={{ 
+                        width: '100%', background: '#ef444415', border: '1px solid #ef444430', 
+                        color: '#ef4444', padding: '10px', borderRadius: '10px', 
+                        fontSize: '0.65rem', fontWeight: 900, cursor: 'pointer',
+                        textTransform: 'uppercase', letterSpacing: '0.05em'
+                      }}>
+                      {isProcessing ? 'Перенесення...' : '⚡ ПЕРЕНЕСТИ В РОЗДІЛ БРАК'}
+                    </button>
+                  )}
                 </div>
               )
             })}
