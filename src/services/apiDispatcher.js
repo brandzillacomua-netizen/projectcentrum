@@ -197,6 +197,21 @@ export const apiService = {
     return true;
   },
 
+  submitMachine: async (data, fallback) => {
+    // Для верстатів поки що не використовуємо зовнішній бекенд, працюємо через Supabase
+    console.log("%c--- 📦 BACKEND ACTION: MACHINE ADD ---", "color: #ff9000; font-weight: bold; font-size: 14px; text-decoration: underline;");
+    console.log("JSON Payload:", data);
+    if (typeof fallback === 'function') await fallback(data);
+    return true;
+  },
+
+  submitUpdateMachine: async (id, data, fallback) => {
+    console.log("%c--- 📦 BACKEND ACTION: MACHINE UPDATE ---", "color: #3b82f6; font-weight: bold; font-size: 14px; text-decoration: underline;");
+    console.log("ID:", id, "Data:", data);
+    if (typeof fallback === 'function') await fallback(id, data);
+    return true;
+  },
+
   submitUserAction: async (userData, fallback, token) => {
     // Зовнішній бекенд не використовується — зберігаємо лише в Supabase через MESContext
     if (typeof fallback === 'function') await fallback(userData);

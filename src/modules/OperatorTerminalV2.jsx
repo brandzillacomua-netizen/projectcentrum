@@ -115,7 +115,20 @@ const OperatorTerminal = () => {
     if (!currentCard || !selectedStage || !selectedOperator) return
     setIsProcessing(true)
     try {
-      await apiService.submitOperatorAction('start', currentCard.task_id, currentCard.id, selectedOperator, { stage_name: selectedStage, machine_name: selectedMachine }, startWorkCard)
+      const selectedMachineObj = machines.find(m => m.id === selectedMachine || m.name === selectedMachine)
+      console.log("--- STARTING WORK ---", {
+        taskId: currentCard.task_id,
+        cardId: currentCard.id,
+        operator: selectedOperator,
+        machineId: selectedMachineObj?.id,
+        machineName: selectedMachineObj?.name
+      })
+      
+      await apiService.submitOperatorAction('start', currentCard.task_id, currentCard.id, selectedOperator, { 
+        stage_name: selectedStage, 
+        machine_name: selectedMachineObj?.name || selectedMachine,
+        machine_id: selectedMachineObj?.id || null
+      }, startWorkCard)
       if (!scannedCardIds.includes(currentCard.id)) setScannedCardIds(prev => [...prev, currentCard.id])
     } catch (e) { alert('Помилка при старті: ' + e.message) }
     finally { setIsProcessing(false) }
@@ -125,7 +138,10 @@ const OperatorTerminal = () => {
     if (pin === '555') {
       setIsProcessing(true)
       try {
-        await apiService.submitOperatorAction('start', currentCard.task_id, currentCard.id, 'Оператор Тест (555)', {}, startWorkCard)
+        const selectedMachineObj = machines.find(m => m.id === selectedMachine || m.name === selectedMachine)
+        await apiService.submitOperatorAction('start', currentCard.task_id, currentCard.id, 'Оператор Тест (555)', {
+          machine_id: selectedMachineObj?.id || null
+        }, startWorkCard)
         setShowPinModal(false)
       } finally { setIsProcessing(false) }
     } else { setPinError(true); setPin(''); setTimeout(() => setPinError(false), 1000) }
@@ -259,8 +275,11 @@ const OperatorTerminal = () => {
                       </select>
                     </div>
                     <div>
-                      <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Номер верстата</label>
-                      <input type="text" placeholder="Введіть номер..." value={selectedMachine} onChange={(e) => setSelectedMachine(e.target.value)} style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }} />
+                      <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Виберіть верстат</label>
+                      <select value={selectedMachine} onChange={(e) => setSelectedMachine(e.target.value)} style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
+                        <option value="">— Оберіть обладнання —</option>
+                        {machines.map(m => <option key={m.id} value={m.id}>{m.name} {m.floor ? `(${m.floor} пов.)` : ''}</option>)}
+                      </select>
                     </div>
                     <div>
                       <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Відповідальний оператор</label>

@@ -228,7 +228,7 @@ const ForemanWorkplace = () => {
       
       if (isRepair && sheets > 0) {
         const order = orders.find(o => o.id === task.order_id)
-        const matName = part.nom?.material_type || part.nom?.name || 'Сировина'
+        const matName = part.nom?.material_type || part.nom?.name || 'Склад Оперативний'
         await supabase.from('material_requests').insert([{
           order_id: task.order_id,
           quantity: sheets,

@@ -46,7 +46,7 @@ const WarehouseModuleV2 = () => {
   const [searchQuery, setSearchQuery] = useState('')
 
   const tabs = [
-    { id: 'raw', label: 'Сировина', icon: <Package size={18} /> },
+    { id: 'raw', label: 'Склад Оперативний', icon: <Package size={18} /> },
     { id: 'semi', label: 'Напівфабрикати', icon: <Layers size={18} /> },
     { id: 'finished', label: 'Готова продукція', icon: <Archive size={18} /> },
     { id: 'scrap', label: 'Брак', icon: <AlertTriangle size={18} /> },

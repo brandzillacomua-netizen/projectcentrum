@@ -42,6 +42,9 @@ export const MESProvider = ({ children }) => {
 
   const operators = ["Олексій", "Дмитро", "Сергій", "Андрій", "Микола"]
   const productionStages = ["Розкрій", "Галтовка", "Пресування", "Фарбування", "Паквання"]
+  
+  const CHAIN_SHOP1 = ["Розкрій", "Галтовка", "Прийомка"]
+  const CHAIN_GENERAL = ["Розкрій", "Галтовка", "Пресування", "Фарбування", "Паквання"]
 
   const normalize = (s) => (s || '').toLowerCase().trim()
     .replace(/[тt]/g, 't')
@@ -488,7 +491,7 @@ export const MESProvider = ({ children }) => {
         quantity: info.sheets,
         status: 'pending',
         inventory_id: info.inventory_id,
-        details: `СИРОВИНА: ${info.matName} — ${info.sheets} л. (Разом: ${info.totalUnits} шт | Для: ${info.components.join(', ')})`
+        details: `СКЛАД ОПЕРАТИВНИЙ: ${info.matName} — ${info.sheets} л. (Разом: ${info.totalUnits} шт | Для: ${info.components.join(', ')})`
       }))
 
       const totalActualSheets = allMaterials
@@ -1018,13 +1021,27 @@ export const MESProvider = ({ children }) => {
     if (metadata.stage_name) {
       updateData.operation = metadata.stage_name
     }
+
+    // Якщо передано ID верстата, зберігаємо його для суворої прив'язки
+    if (metadata.machine_id) {
+      updateData.machine_id = metadata.machine_id
+    }
+    
+    // ПЕРЕКОНУЄМОСЯ, що назва матини теж зберігається (для історії)
+    if (metadata.machine_name) {
+      updateData.machine = metadata.machine_name
+    }
     
     await supabase.from('work_cards').update(updateData).eq('id', cardId)
     fetchData()
   }
 
   const completeWorkCard = async (taskId, cardId, operatorName) => {
-    await supabase.from('work_cards').update({ status: 'waiting-buffer', operator_name: operatorName }).eq('id', cardId)
+    await supabase.from('work_cards').update({ 
+      status: 'waiting-buffer', 
+      operator_name: operatorName,
+      completed_at: new Date().toISOString()
+    }).eq('id', cardId)
     fetchData()
   }
 
@@ -1041,7 +1058,6 @@ export const MESProvider = ({ children }) => {
     const isRework = (card.card_info || '').includes('[REWORK]')
 
     // Ланцюжки виробництва
-    // ... (rest same until idx)
     const currentOp = (card.operation || '').trim()
     const isShop1 = (card.card_info || '').includes('[SHOP:1]')
     const isShop2 = (card.card_info || '').includes('[ЦЕХ №2]')
@@ -1061,9 +1077,12 @@ export const MESProvider = ({ children }) => {
       cardUpdate = { status: 'at-buffer', quantity: qtyCompleted }
     } else {
       cardUpdate = nextStage
-        ? { status: 'new', operation: nextStage, quantity: qtyCompleted, started_at: null, operator_name: null }
-        : { status: 'completed', quantity: qtyCompleted }
+        ? { status: 'new', operation: nextStage, quantity: qtyCompleted, started_at: null, operator_name: null, machine: null, machine_id: null }
+        : { status: 'completed', quantity: qtyCompleted, machine: null, machine_id: null }
     }
+
+    const machineTag = `[MACHINE_ID:${card.machine_id || ''}] [MACHINE_NAME:${card.machine || ''}]`;
+    const historyCardInfo = (machineTag + ' ' + (card.card_info || '')).trim();
 
     await Promise.all([
       supabase.from('work_card_history').insert([{
@@ -1071,6 +1090,7 @@ export const MESProvider = ({ children }) => {
         nomenclature_id: card.nomenclature_id,
         stage_name: card.operation || 'Розкрій',
         operator_name: card.operator_name || 'Не вказано',
+        card_info: historyCardInfo,
         qty_at_start: card.quantity,
         qty_completed: qtyCompleted,
         scrap_qty: totalScrap,
@@ -1312,7 +1332,7 @@ export const MESProvider = ({ children }) => {
 
     for (const item of requiredItems) {
       const nomId = item.nomId || item.nomenclature_id
-      // Шукаємо на залишках (Готова продукція або Сировина/Метизи)
+      // Шукаємо на залишках (Готова продукція або Склад Оперативний/Метизи)
       const matches = (inventory || []).filter(inv => String(inv.nomenclature_id) === String(nomId) && (inv.type === 'finished' || inv.type === 'raw'))
       const totalAvailable = matches.reduce((acc, m) => acc + (Number(m.total_qty) || 0) - (Number(m.reserved_qty) || 0), 0)
 
@@ -1391,6 +1411,24 @@ export const MESProvider = ({ children }) => {
     return { error }
   }
 
+  const addMachine = async (machineData) => {
+    const { data, error } = await supabase.from('machines').insert([machineData]).select()
+    if (!error) fetchData()
+    return { data: data?.[0], error }
+  }
+
+  const updateMachine = async (id, updates) => {
+    const { error } = await supabase.from('machines').update(updates).eq('id', id)
+    if (!error) fetchData()
+    return { error }
+  }
+
+  const deleteMachine = async (id) => {
+    const { error } = await supabase.from('machines').delete().eq('id', id)
+    if (!error) setMachines(prev => prev.filter(m => m.id !== id))
+    return { error }
+  }
+
   return (
     <MESContext.Provider value={{
       orders, customers, inventory, tasks, managementTasks, requests, nomenclatures, bomItems,
@@ -1409,6 +1447,7 @@ export const MESProvider = ({ children }) => {
       confirmReceptionDoc: confirmReception,
       receiveInventory, submitPickingRequest, completePackaging,
       addManagementTask, updateManagementTask, deleteManagementTask,
+      addMachine, updateMachine, deleteMachine,
       disposeScrapItem: async (invId, qty) => {
         const item = inventory.find(i => i.id === invId)
         if (!item) return

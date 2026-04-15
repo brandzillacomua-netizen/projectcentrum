@@ -361,7 +361,7 @@ const NomenclatureV2 = () => {
          <form onSubmit={handleCreateType} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             <div className="form-group">
                <label>НАЗВА ТИПУ</label>
-               <input value={newType.name} onChange={e => setNewType({...newType, name: e.target.value})} required placeholder="напр. Сировина" />
+               <input value={newType.name} onChange={e => setNewType({...newType, name: e.target.value})} required placeholder="напр. Склад Оперативний" />
             </div>
             <div className="form-group">
                <label>ОПИС</label>
