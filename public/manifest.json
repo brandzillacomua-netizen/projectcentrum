@@ -1,0 +1,29 @@
+{
+  "name": "CENTRUM MES",
+  "short_name": "CENTRUM",
+  "description": "Система управління виробництвом КУЛИЦЯ",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050505",
+  "theme_color": "#ff9000",
+  "icons": [
+    {
+      "src": "/kulytsya.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/kulytsya.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/kulytsya.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
