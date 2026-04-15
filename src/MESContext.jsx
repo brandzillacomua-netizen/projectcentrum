@@ -23,6 +23,7 @@ export const MESProvider = ({ children }) => {
   const [customers, setCustomers] = useState(cache.customers || [])
   const [inventory, setInventory] = useState(cache.inventory || [])
   const [tasks, setTasks] = useState(cache.tasks || [])
+  const [managementTasks, setManagementTasks] = useState(cache.managementTasks || [])
   const [requests, setRequests] = useState(cache.requests || [])
   const [nomenclatures, setNomenclatures] = useState(cache.nomenclatures || [])
   const [bomItems, setBomItems] = useState(cache.bomItems || [])
@@ -32,7 +33,9 @@ export const MESProvider = ({ children }) => {
   const [workCardHistory, setWorkCardHistory] = useState(cache.workCardHistory || [])
   const [machines, setMachines] = useState(cache.machines || [])
   const [systemUsers, setSystemUsers] = useState(cache.systemUsers || [])
-  const [currentUser, setCurrentUser] = useState(cache.currentUser || null)
+  // Сесія — зберігаємо лише login, права завжди беремо свіжі з Supabase
+  const [currentUser, setCurrentUser] = useState(null)
+  const [sessionLoading, setSessionLoading] = useState(() => !!localStorage.getItem('MES_SESSION_LOGIN'))
   const [loading, setLoading] = useState(false)
   const [hasMoreOrders, setHasMoreOrders] = useState(true)
   const PAGE_SIZE = 20
@@ -128,10 +131,12 @@ export const MESProvider = ({ children }) => {
       const { data: wc } = await supabase.from('work_cards').select('*').order('created_at', { ascending: true })
       const { data: mc } = await supabase.from('machines').select('*').order('name')
       const { data: su } = await supabase.from('system_users').select('*').order('login')
+      const { data: mt } = await supabase.from('management_tasks').select('*').order('created_at', { ascending: false })
 
       if (c) setCustomers(c)
       if (i) setInventory(i)
       if (t) setTasks(t)
+      if (mt) setManagementTasks(mt)
       if (r) setRequests(r)
       if (n) setNomenclatures(n)
       if (b) setBomItems(b)
@@ -159,11 +164,41 @@ export const MESProvider = ({ children }) => {
   // --- PERSISTENCE ---
   useEffect(() => {
     const dataToCache = {
-      orders, customers, inventory, tasks, requests, nomenclatures,
-      bomItems, receptionDocs, purchaseRequests, workCards, workCardHistory, machines, systemUsers, currentUser
+      orders, customers, inventory, tasks, managementTasks, requests, nomenclatures,
+      bomItems, receptionDocs, purchaseRequests, workCards, workCardHistory, machines, systemUsers
+      // currentUser НЕ кешується — завжди завантажуємо свіжі права при старті
     }
     localStorage.setItem(CACHE_KEY, JSON.stringify(dataToCache))
-  }, [orders, customers, inventory, tasks, requests, nomenclatures, bomItems, receptionDocs, purchaseRequests, workCards, workCardHistory, machines, systemUsers, currentUser])
+  }, [orders, customers, inventory, tasks, managementTasks, requests, nomenclatures, bomItems, receptionDocs, purchaseRequests, workCards, workCardHistory, machines, systemUsers])
+
+  // --- ВІДНОВЛЕННЯ СЕСІЇ ТА СИНХРОНІЗАЦІЯ ПРАВ ---
+  // На старті: якщо є збережений login — підтягуємо свіжого користувача з Supabase
+  useEffect(() => {
+    const savedLogin = localStorage.getItem('MES_SESSION_LOGIN')
+    if (savedLogin) {
+      supabase.from('system_users').select('*').eq('login', savedLogin).then(({ data }) => {
+        if (data && data.length > 0) {
+          setCurrentUser(data[0])
+        } else {
+          // Юзера видалили з бази — очищаємо сесію
+          localStorage.removeItem('MES_SESSION_LOGIN')
+        }
+        setSessionLoading(false)
+      })
+    } else {
+      setSessionLoading(false)
+    }
+  }, [])
+
+  // Real-time: коли systemUsers оновлюється — одразу синхронізуємо currentUser
+  useEffect(() => {
+    if (currentUser?.id && systemUsers.length > 0) {
+      const fresh = systemUsers.find(u => u.id === currentUser.id)
+      if (fresh) {
+        setCurrentUser(prev => ({ ...fresh, token: prev?.token }))
+      }
+    }
+  }, [systemUsers])
 
   useEffect(() => {
     fetchData()
@@ -225,6 +260,7 @@ export const MESProvider = ({ children }) => {
       // Додаємо токен до сесії
       const userWithToken = { ...finalUser, token };
       setCurrentUser(userWithToken);
+      localStorage.setItem('MES_SESSION_LOGIN', finalUser.login)
       return { success: true, user: userWithToken };
     }
 
@@ -233,6 +269,7 @@ export const MESProvider = ({ children }) => {
 
   const logout = () => {
     setCurrentUser(null)
+    localStorage.removeItem('MES_SESSION_LOGIN')
   }
 
   const searchCustomers = async (query) => {
@@ -639,7 +676,6 @@ export const MESProvider = ({ children }) => {
     await supabase.from('nomenclatures').delete().eq('id', id)
     fetchData()
   }
-
   const saveBOM = async (parentId, childId, qty) => {
     await supabase.from('bom_items').upsert([{
       parent_id: parentId, child_id: childId, quantity_per_parent: Number(qty)
@@ -1332,11 +1368,34 @@ export const MESProvider = ({ children }) => {
     fetchData()
   }
 
+  // --- MANAGEMENT TASKS (KANBAN) ---
+  const addManagementTask = async (taskPayload) => {
+    const { data, error } = await supabase.from('management_tasks').insert([{
+      ...taskPayload,
+      created_by: currentUser?.login || 'system',
+      created_at: new Date().toISOString()
+    }]).select()
+    if (!error) fetchData()
+    return { data: data?.[0], error }
+  }
+
+  const updateManagementTask = async (taskId, updates) => {
+    const { error } = await supabase.from('management_tasks').update(updates).eq('id', taskId)
+    if (!error) fetchData()
+    return { error }
+  }
+
+  const deleteManagementTask = async (taskId) => {
+    const { error } = await supabase.from('management_tasks').delete().eq('id', taskId)
+    if (!error) setManagementTasks(prev => prev.filter(t => t.id !== taskId))
+    return { error }
+  }
+
   return (
     <MESContext.Provider value={{
-      orders, customers, inventory, tasks, requests, nomenclatures, bomItems,
+      orders, customers, inventory, tasks, managementTasks, requests, nomenclatures, bomItems,
       receptionDocs, purchaseRequests, workCards, workCardHistory, machines,
-      systemUsers, currentUser, loading, hasMoreOrders,
+      systemUsers, currentUser, loading, sessionLoading, hasMoreOrders,
       operators, productionStages,
       login, logout, upsertUser, deleteUser,
       fetchOrders, fetchData,
@@ -1349,6 +1408,7 @@ export const MESProvider = ({ children }) => {
       createReceptionDoc, sendDocToWarehouse, confirmReception,
       confirmReceptionDoc: confirmReception,
       receiveInventory, submitPickingRequest, completePackaging,
+      addManagementTask, updateManagementTask, deleteManagementTask,
       disposeScrapItem: async (invId, qty) => {
         const item = inventory.find(i => i.id === invId)
         if (!item) return

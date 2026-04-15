@@ -38,10 +38,12 @@ const SettingsModule = () => {
     first_name: '',
     last_name: '',
     position: 'Оператор',
+    department: 'Цех №1',
+    shift: 'Зміна 1',
     access_rights: {
       manager: false, master: false, warehouse: false, engineer: false, 
       director: false, foreman: false, operator: true, shipping: false, 
-      supply: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, packaging: false
+      supply: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, packaging: false, kanban: false
     }
   })
   const [userSearch, setUserSearch] = useState('')
@@ -74,8 +76,9 @@ const SettingsModule = () => {
     await upsertUser(userForm)
     
     setUserForm({
-      id: null, login: '', password: '', first_name: '', last_name: '', position: 'Оператор',
-      access_rights: { manager: false, master: false, warehouse: false, engineer: false, director: false, foreman: false, operator: true, shipping: false, supply: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false }
+      id: null, login: '', password: '', first_name: '', last_name: '', 
+      position: 'Оператор', department: 'Цех №1', shift: 'Зміна 1',
+      access_rights: { manager: false, master: false, warehouse: false, engineer: false, director: false, foreman: false, operator: true, shipping: false, supply: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, kanban: false }
     })
   }
 
@@ -108,6 +111,7 @@ const SettingsModule = () => {
   )
 
   const moduleList = [
+    { id: 'kanban', label: 'Задачі (Внутрішні)' },
     { id: 'manager', label: 'Менеджер' },
     { id: 'master', label: 'Мастер (Цех)' },
     { id: 'warehouse', label: 'Склад' },
@@ -195,15 +199,38 @@ const SettingsModule = () => {
                     <input style={inputStyle} value={userForm.last_name} onChange={e => setUserForm({...userForm, last_name: e.target.value})} placeholder="Іванов" />
                   </div>
                 </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                  <div>
+                    <label className="form-label">ЦЕХ / ВІДДІЛ</label>
+                    <select style={inputStyle} value={userForm.department} onChange={e => setUserForm({...userForm, department: e.target.value})}>
+                      <option value="Цех №1">Цех №1</option>
+                      <option value="Цех №2">Цех №2</option>
+                      <option value="Склад">Склад</option>
+                      <option value="Керівництво">Керівництво</option>
+                      <option value="Контроль браку">Контроль браку</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="form-label">ЗМІНА</label>
+                    <select style={inputStyle} value={userForm.shift} onChange={e => setUserForm({...userForm, shift: e.target.value})}>
+                      <option value="Зміна 1">Зміна 1</option>
+                      <option value="Зміна 2">Зміна 2</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div>
                   <label className="form-label">ПОСАДА / РОЛЬ</label>
                   <select style={inputStyle} value={userForm.position} onChange={e => setUserForm({...userForm, position: e.target.value})}>
-                    <option value="Оператор">Оператор</option>
-                    <option value="Майстер">Майстер дільниці</option>
+                    <option value="Директор виробництва">Директор виробництва</option>
                     <option value="Начальник цеху">Начальник цеху</option>
+                    <option value="Майстер цеху">Майстер цеху</option>
+                    <option value="Оператор">Оператор</option>
+                    <option value="Галтовщик">Галтовщик (Ц-1)</option>
+                    <option value="Працівник складу">Працівник складу</option>
+                    <option value="Контроль браку">Контроль браку</option>
                     <option value="Менеджер">Менеджер</option>
                     <option value="Інженер">Інженер</option>
-                    <option value="Директор">Директор</option>
                     <option value="Адмін">Адмін</option>
                   </select>
                 </div>
@@ -252,7 +279,7 @@ const SettingsModule = () => {
                   <Save size={20} /> {userForm.id ? 'ОНОВИТИ ДАНІ' : 'СТВОРИТИ КОРИСТУВАЧА'}
                 </button>
                 {userForm.id && (
-                  <button type="button" onClick={() => setUserForm({ id: null, login: '', password: '', first_name: '', last_name: '', position: 'Оператор', access_rights: {} })} style={{ background: '#222', color: '#fff', border: 'none', padding: '10px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>СКАСУВАТИ</button>
+                  <button type="button" onClick={() => setUserForm({ id: null, login: '', password: '', first_name: '', last_name: '', position: 'Оператор', department: 'Цех №1', shift: 'Зміна 1', access_rights: {} })} style={{ background: '#222', color: '#fff', border: 'none', padding: '10px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>СКАСУВАТИ</button>
                 )}
               </form>
             </section>
@@ -270,7 +297,7 @@ const SettingsModule = () => {
                   <thead>
                     <tr style={{ textAlign: 'left', borderBottom: '1px solid #222', color: '#444', background: '#000' }}>
                       <th style={{ padding: '15px' }}>ПРАЦІВНИК</th>
-                      <th style={{ padding: '15px' }}>ЛОГІН / ПАРОЛЬ</th>
+                      <th style={{ padding: '15px' }}>ЦЕХ / ЗМІНА</th>
                       <th style={{ padding: '15px' }}>РОЛЬ</th>
                       <th style={{ padding: '15px' }}>ДОСТУП</th>
                       <th style={{ padding: '15px', textAlign: 'right' }}>ДІЯ</th>
@@ -284,9 +311,8 @@ const SettingsModule = () => {
                           <div style={{ fontSize: '0.7rem', color: '#444' }}>ID: {u.id}</div>
                         </td>
                         <td style={{ padding: '15px' }}>
-                          <code style={{ color: '#ff9000', background: 'rgba(255,144,0,0.05)', padding: '2px 5px', borderRadius: '4px' }}>{u.login}</code>
-                          <span style={{ margin: '0 5px', color: '#222' }}>|</span>
-                          <span style={{ color: '#555' }}>{u.password}</span>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#ff9000' }}>{u.department || '—'}</div>
+                          <div style={{ fontSize: '0.7rem', color: '#555' }}>{u.shift || '—'}</div>
                         </td>
                         <td style={{ padding: '15px' }}>
                           <span style={{ 

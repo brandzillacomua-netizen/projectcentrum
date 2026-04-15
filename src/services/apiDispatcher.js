@@ -198,26 +198,7 @@ export const apiService = {
   },
 
   submitUserAction: async (userData, fallback, token) => {
-    const payload = requestBuilder.buildExternalUserPayload(userData);
-    console.log("%c--- 👤 BACKEND ACTION: USER SYNC (HYBRID) ---", "color: #ac94f1; font-weight: bold; font-size: 14px; text-decoration: underline;");
-    console.log("JSON Payload to External Backend:", payload);
-
-    try {
-      const res = await fetch(`${baseUrl}/users`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      console.log("External Backend Response:", data);
-    } catch (err) {
-      console.warn("External Backend User Sync failed:", err.message);
-    }
-
-    // Always fallback to local Supabase
+    // Зовнішній бекенд не використовується — зберігаємо лише в Supabase через MESContext
     if (typeof fallback === 'function') await fallback(userData);
     return true;
   },

@@ -14,7 +14,8 @@ import {
   ShieldCheck,
   Package,
   TrendingUp,
-  AlertTriangle
+  AlertTriangle,
+  KanbanSquare
 } from 'lucide-react'
 import ManagerModule from './modules/ManagerModule'
 import WarehouseModule from './modules/WarehouseModuleV2'
@@ -36,6 +37,7 @@ import Shop2Terminal from './modules/Shop2Terminal'
 import NomenclatureV2 from './modules/NomenclatureV2'
 import AnalyticsModule from './modules/AnalyticsModule'
 import BrakModule from './modules/BrakModule'
+import KanbanModule from './modules/KanbanModule'
 import { MESProvider, useMES } from './MESContext'
 
 const FileCodeIcon = () => (
@@ -43,9 +45,17 @@ const FileCodeIcon = () => (
 )
 
 const Portal = () => {
-  const { currentUser } = useMES()
+  const { currentUser, managementTasks } = useMES()
+  
+  // Badge logic for Kanban Module
+  const myPendingTasksCount = (managementTasks || []).filter(t => 
+    t.status !== 'done' && 
+    (t.assigned_to === currentUser?.login || t.created_by === currentUser?.login)
+  ).length
+
   const allModules = [
     { id: 'manager', title: 'Менеджер', icon: <LayoutDashboard />, path: '/manager', desc: 'Замовлення та планування', color: '#ff9000' },
+    { id: 'kanban', title: 'Задачі', icon: <KanbanSquare />, path: '/tasks', desc: 'Внутрішні доручення', color: '#8b5cf6', badge: myPendingTasksCount },
     { id: 'master', title: 'Цех №1', icon: <Monitor />, path: '/master', desc: 'Управління зміною', color: '#3b82f6' },
     { id: 'warehouse', title: 'Склад', icon: <Warehouse />, path: '/warehouse', desc: 'Матеріали та залишки', color: '#10b981' },
     { id: 'engineer', title: 'Інженер', icon: <FileCodeIcon />, path: '/engineer', desc: 'CNC та специфікації', color: '#8b5cf6' },
@@ -85,8 +95,9 @@ const Portal = () => {
       <div className="portal-grid-v2" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', maxWidth: '1200px', margin: '0 auto' }}>
         {modules.map(mod => (
           <Link key={mod.id} to={mod.path} className="portal-card-v2 glass-panel" style={{ textDecoration: 'none', background: '#111', border: '1px solid #1a1a1a', borderRadius: '24px', padding: '25px', display: 'flex', alignItems: 'center', gap: '20px', transition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)', position: 'relative', overflow: 'hidden' }}>
-             <div className="card-icon-v2" style={{ background: '#000', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: mod.color }}>
+             <div className="card-icon-v2" style={{ background: '#000', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: mod.color, position: 'relative' }}>
                 {mod.icon}
+                {mod.badge > 0 && <span className="badge-count anim-pulse" style={{ position: 'absolute', top: -5, right: -5 }}>{mod.badge}</span>}
              </div>
              <div className="card-info-v2" style={{ flex: 1 }}>
                 <h3 style={{ margin: '0 0 4px 0', fontSize: '1.1rem', color: '#fff', fontWeight: 900 }}>{mod.title}</h3>
@@ -108,8 +119,19 @@ const Portal = () => {
 }
 
 const AppContent = () => {
-  const { currentUser } = useMES()
+  const { currentUser, sessionLoading } = useMES()
   const location = useLocation()
+
+  // Поки перевіряємо сесію з Supabase — показуємо спіннер (не редіректимо)
+  if (sessionLoading) {
+    return (
+      <div style={{ background: '#050505', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '20px' }}>
+        <img src="/kulytsya.png" alt="Logo" style={{ height: '60px', filter: 'drop-shadow(0 0 15px rgba(255,144,0,0.4))', animation: 'spin 2s linear infinite' }} />
+        <div style={{ color: '#333', fontSize: '0.7rem', fontWeight: 900, letterSpacing: '0.3em', textTransform: 'uppercase' }}>Завантаження...</div>
+        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      </div>
+    )
+  }
 
   // РЕДИРЕКТ НА /login ЯКЩО НЕ АВТОРИЗОВАНИЙ
   if (!currentUser && location.pathname !== '/login') {
@@ -143,6 +165,7 @@ const AppContent = () => {
       <Route path="/machines" element={<MachinesModule />} />
       <Route path="/analytics" element={<AnalyticsModule />} />
       <Route path="/brak" element={<BrakModule />} />
+      <Route path="/tasks" element={<KanbanModule />} />
       <Route path="/settings" element={<SettingsModule />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
