@@ -1,6 +1,6 @@
 {
-  "name": "CENTRUM MES",
-  "short_name": "CENTRUM",
+  "name": "КУЛИЦЯ MES",
+  "short_name": "КУЛИЦЯ",
   "description": "Система управління виробництвом КУЛИЦЯ",
   "start_url": "/",
   "display": "standalone",
