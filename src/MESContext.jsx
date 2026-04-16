@@ -548,19 +548,18 @@ export const MESProvider = ({ children }) => {
         sheets: Number(info.sheets) || 0
       }))
 
-      const filteredMaterials = allMaterials.filter(m => 
-        m.matName.toLowerCase().includes('лист') || 
-        m.matName.toLowerCase().includes('фреза')
-      )
-
-      const requestsToInsert = filteredMaterials.map(info => ({
-        order_id: orderId,
-        task_id: tData.id,
-        quantity: info.sheets,
-        status: 'pending',
-        inventory_id: info.inventory_id,
-        details: `СКЛАД ОПЕРАТИВНИЙ: ${info.matName} — ${info.sheets} л. (Разом: ${info.totalUnits} шт | Для: ${info.components.join(', ')})`
-      }))
+      const requestsToInsert = allMaterials.map(info => {
+        const qtyToRequest = info.unit === 'ЛИСТІВ' ? info.sheets : info.totalUnits;
+        const unitLabel = info.unit === 'ЛИСТІВ' ? 'л.' : 'од.';
+        return {
+          order_id: orderId,
+          task_id: tData.id,
+          quantity: qtyToRequest,
+          status: 'pending',
+          inventory_id: info.inventory_id,
+          details: `СКЛАД ОПЕРАТИВНИЙ: ${info.matName} — ${qtyToRequest} ${unitLabel} (Разом: ${info.totalUnits} шт | Для: ${info.components.join(', ')})`
+        }
+      })
 
       const totalActualSheets = allMaterials
         .filter(m => m.unit === 'ЛИСТІВ')
@@ -740,9 +739,27 @@ export const MESProvider = ({ children }) => {
 
       if (allSuccess) {
         await supabase.from('reception_docs').update({ status: 'completed' }).eq('id', docId)
-        if (doc.order_id) {
-          await supabase.from('purchase_requests').update({ status: 'completed' }).eq('order_id', doc.order_id)
+        
+        // Mark specific purchase request as completed based on target warehouse routing
+        if (doc.task_id || doc.order_id) {
+          let destWhToComplete = ''
+          if (targetWarehouse === 'production') destWhToComplete = 'procurement'
+          if (targetWarehouse === 'operational') destWhToComplete = 'production'
+          
+          if (destWhToComplete) {
+            let q = supabase.from('purchase_requests')
+              .update({ status: 'completed' })
+              .eq('destination_warehouse', destWhToComplete)
+              
+            if (doc.task_id) {
+              q = q.eq('task_id', doc.task_id)
+            } else {
+              q = q.eq('order_id', doc.order_id)
+            }
+            await q
+          }
         }
+        
         await fetchData()
         alert('Прийомку успішно завершено! Склад оновлено.')
       } else {

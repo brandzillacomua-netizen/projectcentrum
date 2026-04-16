@@ -14,12 +14,13 @@ import {
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
+import { supabase } from '../supabase'
 
 const SupplyModule = ({ isProcurementOnly = false }) => {
   const {
     inventory, nomenclatures, receptionDocs, createReceptionDoc, sendDocToWarehouse,
     purchaseRequests, updatePurchaseRequestStatus, convertRequestToOrder, currentUser,
-    confirmReception
+    confirmReception, fetchData
   } = useMES()
 
   const [activeTab, setActiveTab] = useState('requests') // 'requests', 'registry', 'stock'
@@ -90,9 +91,23 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
     alert('Готово! Документ створено. Не забудьте "Відправити на склад" з Реєстру.')
   }
 
-  const handleForwardToProcurement = async (requestId) => {
-    await updatePurchaseRequestStatus(requestId, 'pending', 'procurement')
-    alert('Запит перенаправлено до відділу Постачання!')
+  const handleForwardToProcurement = async (pr) => {
+    try {
+      const cloneData = {
+        order_id: pr.order_id,
+        task_id: pr.task_id,
+        order_num: pr.order_num,
+        items: pr.items,
+        status: 'pending',
+        destination_warehouse: 'procurement'
+      }
+      const { error } = await supabase.from('purchase_requests').insert([cloneData])
+      if (error) throw error
+      alert('Запит перенаправлено до відділу Постачання!')
+      if (fetchData) fetchData()
+    } catch (err) {
+       alert('Помилка відправки в постачання: ' + err.message)
+    }
   }
 
   // Resolve item name from any possible field structure
@@ -331,7 +346,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                             return (
                               <div style={{ display: 'flex', gap: '8px' }}>
                                 {pr.status === 'pending' && isProcurementOnly && (
-                                  <button onClick={() => updatePurchaseRequestStatus(pr.id, 'accepted')} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 900 }}>
+                                  <button onClick={() => updatePurchaseRequestStatus(pr.id, 'accepted', 'procurement')} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 900 }}>
                                     ПРИЙНЯТИ
                                   </button>
                                 )}
@@ -357,7 +372,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                                 {!isProcurementOnly && (pr.status === 'pending' || pr.status === 'accepted') && (
                                    <button 
                                      disabled={hasActivePRForProcurement}
-                                     onClick={() => handleForwardToProcurement(pr.id)} 
+                                     onClick={() => handleForwardToProcurement(pr)} 
                                      style={{ 
                                        background: (hasDeficit && !hasActivePRForProcurement) ? '#ef4444' : '#1a1a1a', 
                                        color: (hasDeficit && !hasActivePRForProcurement) ? '#fff' : '#444', 
