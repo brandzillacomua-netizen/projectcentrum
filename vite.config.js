@@ -13,6 +13,12 @@ export default defineConfig({
         headers: {
           'ngrok-skip-browser-warning': 'true'
         }
+      },
+      '/fortnet-api': {
+        target: 'http://192.168.1.100:8090',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/fortnet-api/, ''),
+        secure: false
       }
     }
   }

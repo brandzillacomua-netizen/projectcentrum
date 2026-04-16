@@ -29,6 +29,10 @@ const SettingsModule = () => {
 
   // Tabs: users, add_nom, bom, list_nom
   const [activeTab, setActiveTab] = useState('users') 
+  const { 
+    fortnetUrl, updateFortnetUrl, accessLogs
+  } = useMES()
+  const [tempFortnetUrl, setTempFortnetUrl] = useState(fortnetUrl)
   
   // User Form State
   const [userForm, setUserForm] = useState({
@@ -43,7 +47,7 @@ const SettingsModule = () => {
     access_rights: {
       manager: false, master: false, warehouse: false, engineer: false, 
       director: false, foreman: false, operator: true, shipping: false, 
-      supply: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, packaging: false, kanban: false
+      supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, packaging: false, kanban: false
     }
   })
   const [userSearch, setUserSearch] = useState('')
@@ -78,7 +82,7 @@ const SettingsModule = () => {
     setUserForm({
       id: null, login: '', password: '', first_name: '', last_name: '', 
       position: 'Оператор', department: 'Цех №1', shift: 'Зміна 1',
-      access_rights: { manager: false, master: false, warehouse: false, engineer: false, director: false, foreman: false, operator: true, shipping: false, supply: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, kanban: false }
+      access_rights: { manager: false, master: false, warehouse: false, engineer: false, director: false, foreman: false, operator: true, shipping: false, supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, kanban: false }
     })
   }
 
@@ -114,7 +118,7 @@ const SettingsModule = () => {
     { id: 'kanban', label: 'Задачі (Внутрішні)' },
     { id: 'manager', label: 'Менеджер' },
     { id: 'master', label: 'Мастер (Цех)' },
-    { id: 'warehouse', label: 'Склад' },
+    { id: 'warehouse', label: 'Склад Оперативний' },
     { id: 'engineer', label: 'Інженер' },
     { id: 'director', label: 'Директор' },
     { id: 'foreman', label: 'Майстер дільниці' },
@@ -122,11 +126,13 @@ const SettingsModule = () => {
     { id: 'shop1', label: 'Цех №1 (Розкрій→Прийомка)' },
     { id: 'packaging', label: 'Пакування' },
     { id: 'shipping', label: 'Логістика' },
-    { id: 'supply', label: 'Постачання' },
+    { id: 'supply', label: 'Склад Виробництва' },
+    { id: 'procurement', label: 'Постачання (Закупівля)' },
     { id: 'shop2', label: 'Цех №2 (Черга)' },
     { id: 'nomenclature', label: 'База номенклатур (Old)' },
     { id: 'nomenclature_v2', label: 'Номенклатура (Нова)' },
     { id: 'machines', label: 'Налаштування станків' },
+    { id: 'access', label: 'Система Доступу' },
     { id: 'settings', label: 'Система (Адмін)' }
   ]
 
@@ -170,6 +176,7 @@ const SettingsModule = () => {
            <button onClick={() => setActiveTab('add_nom')} className={`tab-btn-v2 ${activeTab === 'add_nom' ? 'active' : ''}`}><Plus size={16} /> НОВА НОМЕНКЛАТУРА</button>
            <button onClick={() => setActiveTab('bom')} className={`tab-btn-v2 ${activeTab === 'bom' ? 'active' : ''}`}><Layers size={16} /> СПЕЦИФІКАЦІЇ (BOM)</button>
            <button onClick={() => setActiveTab('list_nom')} className={`tab-btn-v2 ${activeTab === 'list_nom' ? 'active' : ''}`}><BarChart3 size={16} /> РЕЄСТР</button>
+           {isAdmin && <button onClick={() => setActiveTab('system')} className={`tab-btn-v2 ${activeTab === 'system' ? 'active' : ''}`}><Cpu size={16} /> СИСТЕМА</button>}
         </div>
 
         {activeTab === 'users' && isAdmin && (
@@ -462,6 +469,52 @@ const SettingsModule = () => {
           </section>
         )}
 
+        {activeTab === 'system' && isAdmin && (
+          <section className="settings-panel glass-panel" style={{ background: '#111', padding: '30px', borderRadius: '24px', border: '1px solid #222', maxWidth: '600px' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 900, marginBottom: '25px', display: 'flex', alignItems: 'center', gap: '10px', color: '#ff9000' }}>
+              <Cpu size={20} /> КОНФІГУРАЦІЯ СИСТЕМИ
+            </h3>
+            
+            <div style={{ marginBottom: '30px' }}>
+              <label className="form-label">АДРЕСА СЕРВЕРА FORTNET (API)</label>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <input 
+                  style={inputStyle} 
+                  value={tempFortnetUrl} 
+                  onChange={e => setTempFortnetUrl(e.target.value)} 
+                  placeholder="http://192.168.1.100:8090" 
+                />
+                <button 
+                  onClick={() => {
+                    updateFortnetUrl(tempFortnetUrl)
+                    alert('Адресу оновлено!')
+                  }}
+                  style={{ 
+                    background: '#ff9000', 
+                    color: '#000', 
+                    border: 'none', 
+                    padding: '0 20px', 
+                    borderRadius: '12px', 
+                    fontWeight: 950, 
+                    cursor: 'pointer' 
+                  }}
+                >
+                  ЗБЕРЕГТИ
+                </button>
+              </div>
+              <p style={{ fontSize: '0.65rem', color: '#444', marginTop: '10px' }}>
+                Ця адреса використовується для синхронізації подій проходу працівників через картки.
+              </p>
+            </div>
+
+            <div style={{ borderTop: '1px solid #1a1a1a', paddingTop: '20px' }}>
+              <h4 style={{ fontSize: '0.75rem', fontWeight: 900, color: '#333', marginBottom: '15px' }}>СТАТУС СИНХРОНІЗАЦІЇ</h4>
+              <div style={{ fontSize: '0.8rem', color: '#888' }}>
+                Останніх подій у базі: <strong style={{ color: '#fff' }}>{accessLogs.length}</strong>
+              </div>
+            </div>
+          </section>
+        )}
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: `

@@ -33,6 +33,8 @@ export const MESProvider = ({ children }) => {
   const [workCardHistory, setWorkCardHistory] = useState(cache.workCardHistory || [])
   const [machines, setMachines] = useState(cache.machines || [])
   const [systemUsers, setSystemUsers] = useState(cache.systemUsers || [])
+  const [accessLogs, setAccessLogs] = useState(cache.accessLogs || [])
+  const [fortnetUrl, setFortnetUrl] = useState(localStorage.getItem('FORTNET_API_URL') || 'http://192.168.1.100:8090')
   // Сесія — зберігаємо лише login, права завжди беремо свіжі з Supabase
   const [currentUser, setCurrentUser] = useState(null)
   const [sessionLoading, setSessionLoading] = useState(() => !!localStorage.getItem('MES_SESSION_LOGIN'))
@@ -124,7 +126,7 @@ export const MESProvider = ({ children }) => {
       }
 
       const { data: c } = await supabase.from('customers').select('*').limit(10).order('name')
-      const { data: i } = await supabase.from('inventory').select('*')
+      const { data: i } = await supabase.from('inventory').select('*').order('name')
       const { data: t } = await supabase.from('tasks').select('*').order('created_at', { ascending: false })
       const { data: r } = await supabase.from('material_requests').select('*').order('created_at', { ascending: false })
       const { data: n } = await supabase.from('nomenclatures').select('*')
@@ -151,6 +153,9 @@ export const MESProvider = ({ children }) => {
 
       const { data: wch } = await supabase.from('work_card_history').select('*').order('created_at', { ascending: false })
       if (wch) setWorkCardHistory(wch)
+
+      const { data: al } = await supabase.from('access_logs').select('*').order('event_time', { ascending: false }).limit(200)
+      if (al) setAccessLogs(al)
     } finally {
       setLoading(false)
     }
@@ -168,7 +173,7 @@ export const MESProvider = ({ children }) => {
   useEffect(() => {
     const dataToCache = {
       orders, customers, inventory, tasks, managementTasks, requests, nomenclatures,
-      bomItems, receptionDocs, purchaseRequests, workCards, workCardHistory, machines, systemUsers
+      bomItems, receptionDocs, purchaseRequests, workCards, workCardHistory, machines, systemUsers, accessLogs
       // currentUser НЕ кешується — завжди завантажуємо свіжі права при старті
     }
     localStorage.setItem(CACHE_KEY, JSON.stringify(dataToCache))
@@ -221,6 +226,68 @@ export const MESProvider = ({ children }) => {
       .subscribe()
     return () => supabase.removeChannel(sub)
   }, [])
+
+  // --- FORTNET SYNC LOGIC ---
+  const syncFortnetEvents = async () => {
+    if (!fortnetUrl) return;
+    try {
+      // 1. Fetch from Fortnet (via Vite proxy /fortnet-api/online/)
+      // In production, fortnetUrl would be the actual local IP.
+      // We use /fortnet-api/ as a relative path that Vite proxies.
+      const response = await fetch('/fortnet-api/online/');
+      if (!response.ok) throw new Error('Fortnet offline');
+      const data = await response.json();
+
+      // Check for new events
+      const events = Array.isArray(data) ? data : (data?.Event ? [data.Event] : []);
+      
+      for (const ev of events) {
+        // Parse time: "27.09.2011 19:04:43" -> Date
+        // Note: Fortnet format might vary, but based on docs: DD.MM.YYYY HH:MM:SS
+        const dtParts = ev.DateTime?.split(' ');
+        let eventDate = new Date();
+        if (dtParts && dtParts.length === 2) {
+          const [d, m, y] = dtParts[0].split('.');
+          const [h, min, s] = dtParts[1].split(':');
+          eventDate = new Date(y, m - 1, d, h, min, s);
+        }
+
+        // Check if event already exists (by timestamp and person)
+        const isDuplicate = accessLogs.some(l => 
+          new Date(l.event_time).getTime() === eventDate.getTime() && 
+          l.person_name === ev.person?.FullName
+        );
+
+        if (!isDuplicate) {
+          const newEntry = {
+            event_time: eventDate.toISOString(),
+            card_code: ev.card ? String(ev.card) : 'UNKNOWN',
+            person_name: ev.person?.FullName || 'Unknown',
+            hardware_name: ev.hardware?.Name || 'Door',
+            event_kind: ev.message?.Name || 'Scan'
+          };
+          
+          const { error } = await supabase.from('access_logs').insert([newEntry]);
+          if (!error) {
+            setAccessLogs(prev => [newEntry, ...prev].slice(0, 500));
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Sync Fortnet failed:', err.message);
+    }
+  }
+
+  // Periodic Sync
+  useEffect(() => {
+    const timer = setInterval(syncFortnetEvents, 60000); // Every 60 seconds
+    return () => clearInterval(timer);
+  }, [fortnetUrl, accessLogs]);
+
+  const updateFortnetUrl = (url) => {
+    setFortnetUrl(url);
+    localStorage.setItem('FORTNET_API_URL', url);
+  }
 
   // --- AUTH & USER MANAGEMENT ---
   const login = async (loginName, password) => {
@@ -488,6 +555,7 @@ export const MESProvider = ({ children }) => {
 
       const requestsToInsert = filteredMaterials.map(info => ({
         order_id: orderId,
+        task_id: tData.id,
         quantity: info.sheets,
         status: 'pending',
         inventory_id: info.inventory_id,
@@ -507,7 +575,11 @@ export const MESProvider = ({ children }) => {
           const neededQty = Math.ceil(totalActualSheets * Number(cons.consumption_per_sheet))
           const invItem = inventory.find(i => i.nomenclature_id === cons.id)
           requestsToInsert.push({
-            order_id: orderId, quantity: neededQty, status: 'pending', inventory_id: invItem?.id || null,
+            order_id: orderId, 
+            task_id: tData.id,
+            quantity: neededQty, 
+            status: 'pending', 
+            inventory_id: invItem?.id || null,
             details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ${order.order_num}: ${cons.name} — ${neededQty} од.`
           })
         })
@@ -517,19 +589,37 @@ export const MESProvider = ({ children }) => {
     } catch (err) { console.error('Error creating naryad:', err.message) }
   }
 
-  const createPurchaseRequest = async (orderId, orderNum, items) => {
+  const createPurchaseRequest = async (orderId, orderNum, items, taskId = null) => {
+    // Process items but keep them for the Production Warehouse to review
+    const processedItems = items.map(it => {
+      const invItem = inventory.find(i => 
+        (i.id === it.inventory_id || i.nomenclature_id === it.nomenclature_id) && 
+        i.warehouse === 'production'
+      )
+      const available = invItem ? (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0) : 0
+      const needed = Number(it.needed || it.missingAmount || 0)
+      
+      return {
+        ...it,
+        production_available: available,
+        needs_procurement: available < needed
+      }
+    })
+
     const { error } = await supabase.from('purchase_requests').insert([{
       order_id: orderId,
+      task_id: taskId,
       order_num: orderNum,
-      items: items, // Assuming items is jsonb
-      status: 'pending'
+      items: processedItems,
+      status: 'pending',
+      destination_warehouse: 'production' // Always to Production first
     }])
     if (!error) fetchData()
     return { error }
   }
 
-  const updatePurchaseRequestStatus = async (id, status) => {
-    const { error } = await supabase.from('purchase_requests').update({ status }).eq('id', id)
+  const updatePurchaseRequestStatus = async (id, status, destWarehouse = 'production') => {
+    const { error } = await supabase.from('purchase_requests').update({ status, destination_warehouse: destWarehouse }).eq('id', id)
     if (!error) fetchData()
     return { error }
   }
@@ -539,26 +629,45 @@ export const MESProvider = ({ children }) => {
     const { data: requestData } = await supabase.from('purchase_requests').select('*').eq('id', requestId).single()
     if (!requestData) return { error: 'Запит не знайдено' }
 
-    // 2. Створюємо документ прийомки (з order_id для відстеження!)
+    // 2. Визначаємо маршрут
+    // Якщо destination_warehouse === 'procurement' -> це зовнішня закупівля для Складу Виробництва
+    // Якщо destination_warehouse === 'production' -> це передача зі Складу Виробництва на Оперативний
+    let targetWH = 'production'
+    let sourceWH = null
+    
+    if (requestData.destination_warehouse === 'production') {
+      targetWH = 'operational'
+      sourceWH = 'production'
+    }
+
+    // 3. Створюємо документ прийомки (з маршрутизацією!)
+    // Якщо це зовнішня закупівля (target: production, source: null), 
+    // ставимо статус 'shipped' одразу, щоб вона з'явилася в прийомці на СВ.
     const { error: recError } = await supabase.from('reception_docs').insert([{
       items: requestData.items,
       order_id: requestData.order_id,
-      status: 'ordered',
+      task_id: requestData.task_id,
+      status: targetWH === 'production' && !sourceWH ? 'shipped' : 'ordered',
+      target_warehouse: targetWH,
+      source_warehouse: sourceWH,
       created_at: new Date().toISOString()
     }])
 
     if (recError) return { error: recError }
 
-    // 3. Оновлюємо статус запиту на "Замовлено"
+    // 4. Оновлюємо статус запиту на "Замовлено" (ordered)
+    // Це залишить запит видимим для обох складів як "в процесі"
     const { error } = await supabase.from('purchase_requests').update({ status: 'ordered' }).eq('id', requestId)
     if (!error) fetchData()
     return { error }
   }
 
-  const createReceptionDoc = async (items, status = 'pending') => {
+  const createReceptionDoc = async (items, status = 'pending', orderId = null, taskId = null) => {
     const { data, error } = await supabase.from('reception_docs').insert([{
       items: items,
       status: status,
+      order_id: orderId,
+      task_id: taskId,
       created_at: new Date().toISOString()
     }]).select()
     if (!error) fetchData()
@@ -576,6 +685,9 @@ export const MESProvider = ({ children }) => {
       const doc = (receptionDocs || []).find(d => d.id === docId)
       if (!doc) return console.error('confirmReception: Doc not found', docId)
 
+      const targetWarehouse = doc.target_warehouse || 'production'
+      const sourceWarehouse = doc.source_warehouse || null
+
       let allSuccess = true
       for (const it of (doc.items || [])) {
         const qtyToAdd = Number(it.qty ?? it.missingAmount ?? it.quantity ?? it.needed ?? 0)
@@ -587,11 +699,11 @@ export const MESProvider = ({ children }) => {
         // ШИКАЄМО В БД ДЛЯ НАДІЙНОСТІ
         let existing = null
         if (nomId) {
-          const { data } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomId).eq('type', 'raw').maybeSingle()
+          const { data } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomId).eq('type', 'raw').eq('warehouse', targetWarehouse).maybeSingle()
           existing = data
         }
         if (!existing && itemName) {
-          const { data } = await supabase.from('inventory').select('*').eq('name', itemName).eq('type', 'raw').maybeSingle()
+          const { data } = await supabase.from('inventory').select('*').eq('name', itemName).eq('type', 'raw').eq('warehouse', targetWarehouse).maybeSingle()
           existing = data
         }
 
@@ -601,6 +713,16 @@ export const MESProvider = ({ children }) => {
             updated_at: new Date().toISOString()
           }).eq('id', existing.id)
           if (updErr) { console.error('Reception Update Error:', updErr.message); allSuccess = false; }
+          
+          // DEDUCT FROM SOURCE if specified
+          if (allSuccess && sourceWarehouse) {
+            const { data: srcItem } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomId).eq('type', 'raw').eq('warehouse', sourceWarehouse).maybeSingle()
+            if (srcItem && (Number(srcItem.total_qty) >= qtyToAdd)) {
+               await supabase.from('inventory').update({
+                 total_qty: Number(srcItem.total_qty) - qtyToAdd
+               }).eq('id', srcItem.id)
+            }
+          }
         } else {
           const nom = nomId ? nomenclatures.find(n => n.id === nomId) : null
           const { error: insErr } = await supabase.from('inventory').insert([{
@@ -609,6 +731,7 @@ export const MESProvider = ({ children }) => {
             total_qty: qtyToAdd,
             reserved_qty: 0,
             type: 'raw',
+            warehouse: targetWarehouse,
             unit: nom?.unit || 'шт'
           }])
           if (insErr) { console.error('Reception Insert Error:', insErr.message); allSuccess = false; }
@@ -1435,6 +1558,7 @@ export const MESProvider = ({ children }) => {
       receptionDocs, purchaseRequests, workCards, workCardHistory, machines,
       systemUsers, currentUser, loading, sessionLoading, hasMoreOrders,
       operators, productionStages,
+      accessLogs, fortnetUrl, updateFortnetUrl,
       login, logout, upsertUser, deleteUser,
       fetchOrders, fetchData,
       createNaryad, issueMaterials, approveWarehouse, approveEngineer, approveDirector,

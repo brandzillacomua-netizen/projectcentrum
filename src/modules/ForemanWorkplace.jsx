@@ -231,6 +231,7 @@ const ForemanWorkplace = () => {
         const matName = part.nom?.material_type || part.nom?.name || 'Склад Оперативний'
         await supabase.from('material_requests').insert([{
           order_id: task.order_id,
+          task_id: task.id,
           quantity: sheets,
           status: 'pending',
           details: `ДОЗАПИТ (БРАК/НЕСТАЧА) для ${order?.order_num || '???'}: ${matName} — ${sheets} л.`

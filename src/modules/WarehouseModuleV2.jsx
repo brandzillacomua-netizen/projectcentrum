@@ -46,7 +46,7 @@ const WarehouseModuleV2 = () => {
   const [searchQuery, setSearchQuery] = useState('')
 
   const tabs = [
-    { id: 'raw', label: 'Склад Оперативний', icon: <Package size={18} /> },
+    { id: 'raw', label: 'Оперативний', icon: <Package size={18} /> },
     { id: 'semi', label: 'Напівфабрикати', icon: <Layers size={18} /> },
     { id: 'finished', label: 'Готова продукція', icon: <Archive size={18} /> },
     { id: 'scrap', label: 'Брак', icon: <AlertTriangle size={18} /> },
@@ -55,6 +55,9 @@ const WarehouseModuleV2 = () => {
 
   const filteredInventory = (inventory || []).filter(i => {
     const matchesSearch = (i.name || '').toLowerCase().includes(searchQuery.toLowerCase())
+    const isOperational = i.warehouse === 'operational' || !i.warehouse
+    if (!isOperational) return false
+
     if (activeTab === 'bz') return i.type === 'bz' && matchesSearch
     
     // Брак: показуємо всі типи, що починаються на 'scrap'
@@ -67,20 +70,21 @@ const WarehouseModuleV2 = () => {
 
   // Reception docs that are 'shipped' (sent by supply) OR 'pending' (old flow)
   const pendingDocs = receptionDocs
-    ? receptionDocs.filter(d => d.status === 'shipped' || d.status === 'pending')
+    ? receptionDocs.filter(d => (d.status === 'shipped' || d.status === 'ordered') && d.target_warehouse === 'operational')
     : []
 
   const pendingRequests = (requests || []).filter(r => r.status === 'pending')
 
   const groupedRequests = pendingRequests.reduce((acc, req) => {
-    if (!acc[req.order_id]) acc[req.order_id] = []
-    acc[req.order_id].push(req)
+    const key = req.task_id || `order-${req.order_id}`
+    if (!acc[key]) acc[key] = []
+    acc[key].push(req)
     return acc
   }, {})
 
-  const handleReserveOrder = (orderId, orderNum, reqList) => {
+  const handleReserveOrder = (taskId, orderId, orderNum, reqList) => {
     const hasActivePR = (purchaseRequests || []).some(
-      pr => String(pr.order_id) === String(orderId) && pr.status === 'pending'
+      pr => (pr.task_id ? String(pr.task_id) === String(taskId) : String(pr.order_id) === String(orderId)) && pr.status === 'pending'
     )
     if (hasActivePR) return
 
@@ -88,8 +92,8 @@ const WarehouseModuleV2 = () => {
     reqList.forEach(req => {
       const parsedName = parseMaterialName(req.details)
       const invItem = (inventory || []).find(i =>
-        i.id === req.inventory_id ||
-        (parsedName && normalize(i.name) === normalize(parsedName))
+        (i.id === req.inventory_id || (parsedName && normalize(i.name) === normalize(parsedName))) &&
+        (i.warehouse === 'operational' || !i.warehouse)
       )
       const available = invItem
         ? (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0)
@@ -111,9 +115,8 @@ const WarehouseModuleV2 = () => {
     })
 
     if (missingItems.length > 0) {
-      setShortages({ orderId, orderNum, items: missingItems })
+      setShortages({ orderId, orderNum, taskId, items: missingItems })
     } else {
-      const taskId = (tasks || []).find(t => String(t.order_id) === String(orderId))?.id
       apiService.submitReserveBatch(orderId, reqList, taskId, issueMaterials, approveWarehouse)
     }
   }
@@ -125,6 +128,7 @@ const WarehouseModuleV2 = () => {
         shortages.orderId,
         shortages.orderNum,
         shortages.items,
+        shortages.taskId,
         createPurchaseRequest
       )
       alert('Запит відправлено до відділу постачання!')
@@ -158,8 +162,8 @@ const WarehouseModuleV2 = () => {
         <Link to="/" className="back-link"><ArrowLeft size={18} /> <span className="hide-mobile">Назад</span></Link>
         <div className="module-title-group">
           <WarehouseIcon className="text-secondary" size={24} />
-          <h1 className="hide-mobile">Модуль Складу</h1>
-          <h1 className="mobile-only" style={{ fontSize: '1rem' }}>СКЛАД</h1>
+          <h1 className="hide-mobile">СКЛАД ОПЕРАТИВНИЙ</h1>
+          <h1 className="mobile-only" style={{ fontSize: '1rem' }}>СКЛАД ОПЕРАТИВНИЙ</h1>
         </div>
         <div style={{ fontSize: '0.75rem', color: '#555' }}>
           {currentUser?.first_name} {currentUser?.last_name}
@@ -175,23 +179,30 @@ const WarehouseModuleV2 = () => {
               <Bell size={16} /> ЗАЯВКИ НА КОМПЛЕКТАЦІЮ
             </h3>
             <div style={{ display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px' }}>
-              {Object.entries(groupedRequests).map(([orderId, reqList]) => {
-                const orderNum = (orders || []).find(o => String(o.id) === String(orderId))?.order_num || '???'
+              {Object.entries(groupedRequests).map(([key, reqList]) => {
+                const firstReq = reqList[0]
+                const orderId = firstReq.order_id
+                const taskId = firstReq.task_id
+                
+                const task = (tasks || []).find(t => t.id === taskId)
+                const order = (orders || []).find(o => String(o.id) === String(orderId))
+                const orderNum = order?.order_num || '???'
+                const displayNum = task?.batch_index ? `${orderNum}/${task.batch_index}` : orderNum
 
                 const activePR = (purchaseRequests || []).find(pr =>
-                  String(pr.order_id) === String(orderId) && pr.status === 'pending'
+                  (pr.task_id ? String(pr.task_id) === String(taskId) : String(pr.order_id) === String(orderId)) && pr.status === 'pending'
                 )
                 const acceptedPR = (purchaseRequests || []).find(pr =>
-                  String(pr.order_id) === String(orderId) && pr.status === 'accepted'
+                  (pr.task_id ? String(pr.task_id) === String(taskId) : String(pr.order_id) === String(orderId)) && pr.status === 'accepted'
                 )
                 const orderedPR = (purchaseRequests || []).find(pr =>
-                  String(pr.order_id) === String(orderId) && pr.status === 'ordered'
+                  (pr.task_id ? String(pr.task_id) === String(taskId) : String(pr.order_id) === String(orderId)) && pr.status === 'ordered'
                 )
                 const orderedReception = (receptionDocs || []).find(rd =>
-                  String(rd.order_id) === String(orderId) && rd.status === 'ordered'
+                  (rd.task_id ? String(rd.task_id) === String(taskId) : String(rd.order_id) === String(orderId)) && rd.status === 'ordered'
                 )
                 const pendingReception = (receptionDocs || []).find(rd =>
-                  String(rd.order_id) === String(orderId) && (rd.status === 'pending' || rd.status === 'shipped')
+                  (rd.task_id ? String(rd.task_id) === String(taskId) : String(rd.order_id) === String(orderId)) && (rd.status === 'pending' || rd.status === 'shipped')
                 )
 
                 const missingItems = []
@@ -222,8 +233,8 @@ const WarehouseModuleV2 = () => {
                 const textColor = isAwaiting ? '#444' : '#000'
 
                 return (
-                  <div key={orderId} style={{ minWidth: '300px', background: '#111', padding: '15px', borderRadius: '15px', border: '1px solid #222' }}>
-                    <strong style={{ display: 'block', fontSize: '0.75rem', marginBottom: '10px' }}>НАРЯД #{orderNum}</strong>
+                  <div key={key} style={{ minWidth: '300px', background: '#111', padding: '15px', borderRadius: '15px', border: '1px solid #222' }}>
+                    <strong style={{ display: 'block', fontSize: '0.75rem', marginBottom: '10px' }}>НАРЯД #{displayNum}</strong>
                     <ul style={{ fontSize: '0.8rem', color: '#888', paddingLeft: '15px', marginBottom: '15px' }}>
                       {reqList.map(r => {
                         const parsedName = parseMaterialName(r.details)
@@ -231,7 +242,7 @@ const WarehouseModuleV2 = () => {
                       })}
                     </ul>
                     <button
-                      onClick={() => handleReserveOrder(orderId, orderNum, reqList)}
+                      onClick={() => handleReserveOrder(taskId, orderId, displayNum, reqList)}
                       disabled={!!isAwaiting}
                       style={{
                         width: '100%', padding: '12px',

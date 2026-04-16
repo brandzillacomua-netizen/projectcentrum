@@ -149,11 +149,11 @@ export const apiService = {
     return true;
   },
 
-  submitPurchaseRequest: async (orderId, orderNum, items, fallback) => {
+  submitPurchaseRequest: async (orderId, orderNum, items, taskId, fallback) => {
     const payload = requestBuilder.buildPurchaseRequestPayload(orderId, orderNum, items);
     console.log("%c--- 📦 BACKEND ACTION: PURCHASE REQUEST ---", "color: #ef4444; font-weight: bold; font-size: 14px; text-decoration: underline;");
     console.log("JSON Payload:", payload);
-    if (typeof fallback === 'function') await fallback(orderId, orderNum, items);
+    if (typeof fallback === 'function') await fallback(orderId, orderNum, items, taskId);
     return true;
   },
 
@@ -165,11 +165,11 @@ export const apiService = {
     return true;
   },
 
-  submitCreateReceptionDoc: async (items, fallback) => {
+  submitCreateReceptionDoc: async (items, taskId, fallback) => {
     const payload = requestBuilder.buildCreateReceptionDocPayload(items);
     console.log("%c--- 📦 BACKEND ACTION: CREATE RECEPTION DOC ---", "color: #0ea5e9; font-weight: bold; font-size: 14px; text-decoration: underline;");
     console.log("JSON Payload:", payload);
-    if (typeof fallback === 'function') await fallback(items);
+    if (typeof fallback === 'function') await fallback(items, 'pending', null, taskId);
     return true;
   },
 

@@ -15,7 +15,8 @@ import {
   Package,
   TrendingUp,
   AlertTriangle,
-  KanbanSquare
+  KanbanSquare,
+  ShoppingBag
 } from 'lucide-react'
 import ManagerModule from './modules/ManagerModule'
 import WarehouseModule from './modules/WarehouseModuleV2'
@@ -38,6 +39,8 @@ import NomenclatureV2 from './modules/NomenclatureV2'
 import AnalyticsModule from './modules/AnalyticsModule'
 import BrakModule from './modules/BrakModule'
 import KanbanModule from './modules/KanbanModule'
+import AccessModule from './modules/AccessModule'
+import ProcurementModule from './modules/SupplyModuleV2' // I'll use the same base for now or create a new one
 import { MESProvider, useMES } from './MESContext'
 
 const FileCodeIcon = () => (
@@ -57,7 +60,7 @@ const Portal = () => {
     { id: 'manager', title: 'Менеджер', icon: <LayoutDashboard />, path: '/manager', desc: 'Замовлення та планування', color: '#ff9000' },
     { id: 'kanban', title: 'Задачі', icon: <KanbanSquare />, path: '/tasks', desc: 'Внутрішні доручення', color: '#8b5cf6', badge: myPendingTasksCount },
     { id: 'master', title: 'Цех №1', icon: <Monitor />, path: '/master', desc: 'Управління зміною', color: '#3b82f6' },
-    { id: 'warehouse', title: 'Склад', icon: <Warehouse />, path: '/warehouse', desc: 'Матеріали та залишки', color: '#10b981' },
+    { id: 'warehouse', title: 'Склад Оперативний', icon: <Warehouse />, path: '/warehouse', desc: 'Матеріали та залишки', color: '#10b981' },
     { id: 'engineer', title: 'Інженер', icon: <FileCodeIcon />, path: '/engineer', desc: 'CNC та специфікації', color: '#8b5cf6' },
     { id: 'director', title: 'Директор Виробництва', icon: <ShieldCheck size={24} />, path: '/director', desc: 'Фінальне підтвердження', color: '#10b981' },
     { id: 'foreman', title: 'Майстер', icon: <Users />, path: '/foreman', desc: 'Розподіл нарядів', color: '#f59e0b' },
@@ -67,11 +70,13 @@ const Portal = () => {
     { id: 'shop2_terminal', title: 'Цех №2 · Термінал', icon: <Tablet />, path: '/shop2-terminal', desc: 'Пресування → Фарбування → Доопрацювання', color: '#8b5cf6' },
     { id: 'packaging', title: 'Пакування', icon: <Package />, path: '/packaging', desc: 'Комплектування', color: '#f43f5e' },
     { id: 'shipping', title: 'Логістика', icon: <Truck />, path: '/shipping', desc: 'Відвантаження', color: '#ec4899' },
-    { id: 'supply', title: 'Постачання', icon: <Truck />, path: '/supply', desc: 'Закупівля ТМЦ', color: '#06b6d4' },
+    { id: 'supply', title: 'Склад Виробництва', icon: <Warehouse />, path: '/supply', desc: 'Управління запасами та запити', color: '#06b6d4' },
+    { id: 'procurement', title: 'Постачання', icon: <ShoppingBag />, path: '/procurement', desc: 'Закупівля ТМЦ у постачальників', color: '#ec4899' },
     { id: 'nomenclature_v2', title: 'Номенклатура', icon: <Menu />, path: '/nomenclature-v2', desc: 'Управління каталогом', color: '#8b5cf6' },
     { id: 'nomenclature', title: 'База', icon: <Settings />, path: '/nomenclature', desc: 'Номенклатура', color: '#6366f1' },
     { id: 'machines', title: 'Станки', icon: <Cpu />, path: '/machines', desc: 'Обладнання', color: '#f97316' },
     { id: 'analytics', title: 'Аналітика', icon: <TrendingUp />, path: '/analytics', desc: 'Статистика та KPI', color: '#8b5cf6' },
+    { id: 'access', title: 'Система Доступу', icon: <ShieldCheck />, path: '/access', desc: 'Контроль проходів (Fortnet)', color: '#ff9000' },
     { id: 'brak', title: 'БРАК', icon: <AlertTriangle />, path: '/brak', desc: 'Класифікація та облік', color: '#ef4444' },
     { id: 'settings', title: 'Система', icon: <Settings />, path: '/settings', desc: 'Конфігурація', color: '#444' }
   ]
@@ -166,6 +171,8 @@ const AppContent = () => {
       <Route path="/analytics" element={<AnalyticsModule />} />
       <Route path="/brak" element={<BrakModule />} />
       <Route path="/tasks" element={<KanbanModule />} />
+      <Route path="/access" element={<AccessModule />} />
+      <Route path="/procurement" element={<ProcurementModule isProcurementOnly={true} />} />
       <Route path="/settings" element={<SettingsModule />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
