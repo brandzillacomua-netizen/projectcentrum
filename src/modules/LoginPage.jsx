@@ -77,6 +77,7 @@ const LoginPage = () => {
               style={inputStyle}
               value={formData.login}
               onChange={e => setFormData({ ...formData, login: e.target.value })}
+              autoComplete="username"
               required
             />
           </div>
@@ -88,6 +89,7 @@ const LoginPage = () => {
               style={inputStyle}
               value={formData.password}
               onChange={e => setFormData({ ...formData, password: e.target.value })}
+              autoComplete="current-password"
               required
             />
           </div>

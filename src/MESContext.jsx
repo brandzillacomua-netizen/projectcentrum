@@ -353,6 +353,17 @@ export const MESProvider = ({ children }) => {
   }
 
   const addOrder = async (header, items) => {
+    if (header.customer) {
+      const trimmedName = header.customer.trim()
+      const { data: existing } = await supabase.from('customers').select('id').ilike('name', trimmedName).maybeSingle()
+      if (!existing) {
+        await supabase.from('customers').insert([{
+          name: trimmedName,
+          official_name: header.official_customer?.trim() || ''
+        }])
+      }
+    }
+
     const { data, error } = await supabase.from('orders').insert([{
       order_num: header.orderNum,
       customer: header.customer,

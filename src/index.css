@@ -564,9 +564,6 @@ body {
 .master-grid {
   display: grid;
   grid-template-columns: 280px 1fr;
-  flex: 1;
-  overflow: hidden;
-  height: calc(100vh - 70px);
 }
 
 .side-panel {

@@ -21,7 +21,7 @@ import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
 
 const DirectorModule = () => {
-  const { tasks, orders, approveDirector, nomenclatures } = useMES()
+  const { tasks, orders, approveDirector, nomenclatures, requests, workCards, workCardHistory, inventory } = useMES()
   const [viewDate, setViewDate] = useState(new Date())
   const [isApprovalsOpen, setIsApprovalsOpen] = useState(false)
   const [selectedCell, setSelectedCell] = useState(null)
@@ -258,13 +258,50 @@ const DirectorModule = () => {
                             className={`analysis-cell ${totalQty > 0 ? 'has-data' : ''} ${hoveredPid === p.id ? 'col-highlight' : ''}`}
                             style={totalQty > 0 ? {
                               '--load-intensity': intensity,
-                              backgroundColor: `rgba(255, 144, 0, ${intensity * 0.15})`
+                              backgroundColor: `rgba(255, 144, 0, ${intensity * 0.15})`,
+                              verticalAlign: 'top' // To align lists to the top
                             } : {}}
                             onMouseEnter={() => setHoveredPid(p.id)}
                             onMouseLeave={() => setHoveredPid(null)}
-                            onClick={() => totalQty > 0 && setSelectedCell({ day, product: p, orders: cellOrders })}
                           >
-                            {totalQty > 0 && <span className="qty-analysis-val">{totalQty}</span>}
+                            {totalQty > 0 && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '12px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '8px' }}>
+                                  <span style={{ fontSize: '0.65rem', fontWeight: 900, color: '#ff9000', letterSpacing: '1px' }}>РАЗОМ: <span style={{ fontSize: '1rem', color: '#fff' }}>{totalQty}</span></span>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                  {cellOrders.map((o, idx) => (
+                                    <div 
+                                      key={idx} 
+                                      onClick={(e) => { 
+                                        e.stopPropagation()
+                                        setSelectedCell({ day, product: p, orders: cellOrders })
+                                        setSelectedOrderId(o.id)
+                                      }}
+                                      style={{ 
+                                        background: 'rgba(5,5,5,0.6)', 
+                                        borderRadius: '8px', 
+                                        padding: '10px', 
+                                        display: 'flex', 
+                                        flexDirection: 'column', 
+                                        alignItems: 'flex-start', 
+                                        cursor: 'pointer', 
+                                        border: '1px solid rgba(255,144,0,0.15)',
+                                        transition: 'all 0.2s'
+                                      }}
+                                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,144,0,0.1)'; e.currentTarget.style.borderColor = '#ff9000'; }}
+                                      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(5,5,5,0.6)'; e.currentTarget.style.borderColor = 'rgba(255,144,0,0.15)'; }}
+                                    >
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: '4px' }}>
+                                        <span style={{ fontSize: '0.7rem', color: '#ff9000', fontWeight: 900 }}>#{o.orderNum}</span>
+                                        <span style={{ fontSize: '0.8rem', color: '#fff', fontWeight: 900 }}>{o.qty} шт</span>
+                                      </div>
+                                      <span style={{ fontSize: '0.75rem', color: '#aaa', fontWeight: 600, textAlign: 'left', lineHeight: 1.2 }}>{o.customer}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </td>
                         )
                       })}
@@ -404,34 +441,85 @@ const DirectorModule = () => {
                 </>
               ) : (() => {
                 const orderData = orders.find(o => o.id === selectedOrderId)
-                return (
-                  <div className="order-detailed-view">
-                    <div className="order-top-summary">
-                      <span className="order-id-large">ЗАМОВЛЕННЯ #{orderData?.order_num}</span>
-                      <p className="order-cust-large">{orderData?.customer}</p>
-                    </div>
+                const orderTasks = tasks.filter(t => String(t.order_id) === String(selectedOrderId))
+                const orderReqs = requests.filter(r => String(r.order_id) === String(selectedOrderId))
+                const orderCards = workCards.filter(c => String(c.order_id) === String(selectedOrderId))
 
-                    <div className="items-breakdown">
-                      <span className="section-label">СКЛАД ЗАМОВЛЕННЯ</span>
-                      <div className="items-list-scroll">
-                        {orderData?.order_items?.map((item, id) => {
+                return (
+                  <div className="order-dossier-view" style={{ maxHeight: '75vh', overflowY: 'auto', paddingRight: '10px' }}>
+                     <div className="dossier-header" style={{ marginBottom: '30px', paddingBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                         <div>
+                           <span style={{ fontSize: '0.75rem', color: '#ff9000', fontWeight: 900, letterSpacing: '2px' }}>ДОСЬЄ ЗАМОВЛЕННЯ #{orderData?.order_num}</span>
+                           <h2 style={{ fontSize: '1.8rem', fontWeight: 1000, margin: '5px 0 10px 0', color: '#fff' }}>{orderData?.customer}</h2>
+                         </div>
+                         <div style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '8px 16px', borderRadius: '12px', fontWeight: 900, fontSize: '0.8rem', textTransform: 'uppercase' }}>
+                           {getStatusLabel(orderData?.status)}
+                         </div>
+                       </div>
+                       <div style={{ display: 'flex', gap: '20px', fontSize: '0.8rem', color: '#888', fontWeight: 700, marginTop: '10px' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><Clock size={14} /> СТВОРЕНО: {orderData?.created_at ? new Date(orderData.created_at).toLocaleDateString() : '—'}</span>
+                          <span style={{ color: '#ff9000', display: 'flex', alignItems: 'center', gap: '5px' }}><Calendar size={14} /> ДЕДЛАЙН: {orderData?.deadline ? new Date(orderData.deadline).toLocaleDateString() : '—'}</span>
+                       </div>
+                     </div>
+
+                     <div className="dossier-section" style={{ marginBottom: '30px' }}>
+                       <h4 style={{ fontSize: '0.7rem', color: '#555', letterSpacing: '2px', fontWeight: 900, marginBottom: '15px' }}>1. СКЛАД ЗАМОВЛЕННЯ</h4>
+                       {orderData?.order_items?.map((item, id) => {
                           const nom = nomenclatures.find(n => n.id === item.nomenclature_id)
                           return (
-                            <div key={id} className="detail-item-row">
-                              <span className="item-name">{nom?.name || 'Продкуція'}</span>
-                              <span className="item-qty">{item.quantity} шт</span>
+                            <div key={id} style={{ display: 'flex', justifyContent: 'space-between', background: 'rgba(255,255,255,0.02)', padding: '12px 15px', borderRadius: '12px', marginBottom: '8px' }}>
+                              <span style={{ color: '#aaa', fontWeight: 600, fontSize: '0.85rem' }}>{nom?.name || 'Продкуція'}</span>
+                              <span style={{ color: '#fff', fontWeight: 900, fontSize: '1rem' }}>{item.quantity} шт</span>
                             </div>
                           )
-                        })}
-                      </div>
-                    </div>
+                       })}
+                     </div>
 
-                    <div className="order-status-badge-row">
-                      <span className="status-label">СТАТУС:</span>
-                      <span className={`status-val status-${orderData?.status}`}>
-                        {getStatusLabel(orderData?.status)}
-                      </span>
-                    </div>
+                     <div className="dossier-section" style={{ marginBottom: '30px' }}>
+                       <h4 style={{ fontSize: '0.7rem', color: '#555', letterSpacing: '2px', fontWeight: 900, marginBottom: '15px' }}>2. ВИРОБНИЧІ НАРЯДИ</h4>
+                       {orderTasks.length === 0 ? <div style={{ color: '#555', fontSize: '0.8rem', fontStyle: 'italic' }}>Наряди ще не сформовано...</div> : orderTasks.map(t => (
+                         <div key={t.id} style={{ background: 'rgba(59, 130, 246, 0.05)', border: '1px solid rgba(59, 130, 246, 0.2)', padding: '15px', borderRadius: '14px', marginBottom: '10px' }}>
+                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                             <span style={{ fontSize: '0.75rem', color: '#3b82f6', fontWeight: 900 }}>{new Date(t.created_at).toLocaleString('uk-UA', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                             <span style={{ fontSize: '0.65rem', color: '#fff', fontWeight: 900, background: '#111', padding: '4px 8px', borderRadius: '8px' }}>{t.status.toUpperCase()}</span>
+                           </div>
+                           <div style={{ fontSize: '0.9rem', color: '#ddd', fontWeight: 700 }}>
+                              Наряд на <strong>{t.planned_sets || '—'} од.</strong>
+                           </div>
+                           <div style={{ fontSize: '0.75rem', color: '#888', marginTop: '6px' }}>{t.step} | Верстат: <strong>{t.machine || '—'}</strong></div>
+                         </div>
+                       ))}
+                     </div>
+
+                     <div className="dossier-section" style={{ marginBottom: '30px' }}>
+                       <h4 style={{ fontSize: '0.7rem', color: '#555', letterSpacing: '2px', fontWeight: 900, marginBottom: '15px' }}>3. ЗАПИТИ ДЛЯ СКЛАДУ</h4>
+                       {orderReqs.length === 0 ? <div style={{ color: '#555', fontSize: '0.8rem', fontStyle: 'italic' }}>Запитів немає...</div> : orderReqs.map(r => (
+                         <div key={r.id} style={{ background: 'rgba(255, 144, 0, 0.05)', border: '1px solid rgba(255, 144, 0, 0.2)', padding: '12px 15px', borderRadius: '14px', marginBottom: '10px' }}>
+                           <div style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, marginBottom: '6px', textTransform: 'uppercase' }}>{r.status === 'pending' ? 'В Очікуванні (Склад опрацьовує)' : 'Опрацьовано'}</div>
+                           <div style={{ fontSize: '0.8rem', color: '#ccc', lineHeight: 1.4 }}>{r.details}</div>
+                         </div>
+                       ))}
+                     </div>
+
+                     <div className="dossier-section" style={{ marginBottom: '10px' }}>
+                       <h4 style={{ fontSize: '0.7rem', color: '#555', letterSpacing: '2px', fontWeight: 900, marginBottom: '15px' }}>4. ПОТОЧНИЙ СТАН: АКТИВНІ КАРТКИ</h4>
+                       {orderCards.length === 0 ? <div style={{ color: '#555', fontSize: '0.8rem', fontStyle: 'italic' }}>Немає активних карток у виробництві...</div> : orderCards.map(c => {
+                          const statusColors = { new: '#333', 'in-progress': '#ff9000', 'at-buffer': '#3b82f6', completed: '#10b981' }
+                          return (
+                            <div key={c.id} style={{ display: 'flex', alignItems: 'center', background: '#111', padding: '12px 15px', borderRadius: '12px', marginBottom: '8px', borderLeft: `4px solid ${statusColors[c.status] || '#fff'}` }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: '0.85rem', color: '#fff', fontWeight: 800, marginBottom: '4px' }}>{c.operation}</div>
+                                <div style={{ fontSize: '0.7rem', color: '#888' }}>Оператор: <span style={{ color: '#ccc' }}>{c.operator || 'Без оператора'}</span> | Верстат: <span style={{ color: '#ccc' }}>{c.machine || '—'}</span></div>
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                <span style={{ fontSize: '1.2rem', color: '#ff9000', fontWeight: 900 }}>{c.quantity}</span>
+                                <span style={{ fontSize: '0.6rem', color: '#555', fontWeight: 900, textTransform: 'uppercase' }}>{c.status}</span>
+                              </div>
+                            </div>
+                          )
+                       })}
+                     </div>
                   </div>
                 )
               })()}

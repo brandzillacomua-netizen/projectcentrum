@@ -274,7 +274,7 @@ const MasterModule = () => {
   )
 
   return (
-    <div className="master-module-v2" style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
+    <div className="master-module-v2" style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff' }}>
       <nav className="module-nav no-print" style={{ flexShrink: 0, padding: '0 20px', height: '70px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#000', borderBottom: '1px solid #222' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <Link to="/" className="back-link" style={{ color: '#555', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}><ArrowLeft size={18} /> <span className="hide-mobile">Назад</span></Link>
@@ -287,12 +287,12 @@ const MasterModule = () => {
         <div className="hide-mobile" style={{ fontSize: '0.8rem', color: '#444', fontWeight: 700 }}>СИСТЕМА MES v2.1</div>
       </nav>
 
-      <div className="module-content no-print" style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
+      <div className="module-content no-print" style={{ padding: '20px 20px 80px 20px' }}>
         <div className="hide-mobile">
           {renderAnalytics()}
         </div>
 
-        <div className="master-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 320px) 1fr minmax(280px, 300px)', gap: '25px' }}>
+        <div className="master-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 320px) 1fr minmax(280px, 300px)', gap: '25px', alignItems: 'start' }}>
           <div className="hide-mobile">{renderOrderQueue()}</div>
 
           <section className="grid-col">
@@ -311,21 +311,33 @@ const MasterModule = () => {
 
                 return (
                   <div key={task.id} style={{ position: 'relative', background: '#111', padding: '20px', borderRadius: '20px', border: '1px solid #222', borderLeft: '4px solid #ff9000' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <strong style={{ fontSize: '1rem', fontWeight: 900 }}>{order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''} — {order?.customer}</strong>
-                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                        <button onClick={() => handleReprint(task)} style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer' }} title="Друк наряду"><Printer size={20} /></button>
-                        {isSkladConfirmed && isTechConfirmed && isDirConfirmed && <div style={{ width: '10px', height: '10px', background: '#22c55e', borderRadius: '2px' }}></div>}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                         <strong style={{ fontSize: '1.2rem', fontWeight: 900, color: '#fff', letterSpacing: '-0.5px' }}>№ {order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}</strong>
+                         <span style={{ fontSize: '0.75rem', color: '#888', fontWeight: 700, marginTop: '2px' }}>{order?.customer || 'ПРЯМИЙ'}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-start' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                           <span style={{ fontSize: '0.6rem', color: '#555', fontWeight: 900, letterSpacing: '1px', textTransform: 'uppercase' }}>СТВОРЕНО</span>
+                           <span style={{ fontSize: '0.75rem', color: '#ccc', fontWeight: 800 }}>{new Date(task.created_at).toLocaleString('uk-UA', { day: '2-digit', month: '2-digit', hour: '2-digit', minute:'2-digit' })}</span>
+                        </div>
+                        <button onClick={() => handleReprint(task)} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', padding: '0 0 0 5px' }} title="Друк наряду"><Printer size={22} /></button>
                       </div>
                     </div>
 
-                    <div className="card-product-label" style={{ fontSize: '0.85rem', color: '#fff', fontWeight: 1000, marginBottom: '12px', textTransform: 'uppercase' }}>
-                      {taskProductNames}
-                    </div>
-
-                    <div style={{ fontSize: '0.75rem', color: '#444', fontWeight: 600, marginBottom: '15px', display: 'flex', gap: '10px' }}>
-                      <span>{task.step} |</span>
-                      <span style={{ color: '#ff9000', fontWeight: 800 }}>{task.machine_name}</span>
+                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '12px 15px', borderRadius: '14px', marginBottom: '15px', border: '1px solid rgba(255,255,255,0.02)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                         <span style={{ fontSize: '0.75rem', color: '#bbb', fontWeight: 800, lineHeight: 1.3, flex: 1, paddingRight: '10px' }}>{taskProductNames}</span>
+                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                           <span style={{ fontSize: '0.6rem', color: '#555', fontWeight: 900, letterSpacing: '1px' }}>ТИРАЖ</span>
+                           <span style={{ fontSize: '1.2rem', color: '#ff9000', fontWeight: 950, lineHeight: 1 }}>{task.planned_sets || '—'}<small style={{fontSize: '0.65rem', color: '#666', marginLeft: '2px'}}>ОД.</small></span>
+                         </div>
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800, display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <span style={{ background: '#222', padding: '4px 10px', borderRadius: '8px', color: '#ddd' }}>{task.step}</span>
+                        <span>ВЕРСТАТ:</span>
+                        <span style={{ color: '#ff9000', fontWeight: 900 }}>{task.machine_name || 'НЕ ВКАЗАНО'}</span>
+                      </div>
                     </div>
 
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
