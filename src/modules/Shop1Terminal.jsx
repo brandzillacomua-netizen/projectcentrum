@@ -26,7 +26,7 @@ const CHAIN = ['Розкрій', 'Галтовка', 'Прийомка']
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function Shop1Terminal() {
-  const { workCards, nomenclatures, operators, workCardHistory, inventory, fetchData, createWorkCard, orders, bomItems, tasks } = useMES()
+  const { workCards, nomenclatures, operators, workCardHistory, inventory, fetchData, createWorkCard, orders, bomItems, tasks, currentUser } = useMES()
 
   const [currentTime, setCurrentTime] = useState(new Date())
   const [selectedCardId, setSelectedCardId] = useState(null)
@@ -44,6 +44,8 @@ export default function Shop1Terminal() {
   
   // Форми та модалки
   const [selectedOperator, setSelectedOperator] = useState('')
+  const [selectedManager, setSelectedManager] = useState('')
+  const [selectedShift, setSelectedShift] = useState('')
   const [selectedMachine, setSelectedMachine] = useState('')
   const [machineNumber, setMachineNumber] = useState('')
   const [showCompleteModal, setShowCompleteModal] = useState(false)
@@ -174,6 +176,9 @@ export default function Shop1Terminal() {
   // Автоматичне скидання полів при зміні обраної картки
   useEffect(() => {
     setSelectedOperator('')
+    const name = currentUser?.first_name ? `${currentUser.first_name} ${currentUser.last_name || ''}`.trim() : (currentUser?.login || '')
+    setSelectedManager(name)
+    setSelectedShift('')
     
     const combined = currentCard?.machine || ''
     const match = combined.match(/^(.*?) ?№ ?(\d+)$/)
@@ -236,7 +241,7 @@ export default function Shop1Terminal() {
   // ── ДІЯ 1: Взяти в роботу (new → in-progress) ──────────────────────────
   // Якщо operation не в ланцюжку (наприклад 'Нова') — стартуємо з 'Розкрій'
   const handleStart = async () => {
-    if (!currentCard || !selectedOperator) return
+    if (!currentCard || !selectedOperator || !selectedShift) return
     setIsProcessing(true)
     try {
       const startOp = CHAIN.includes(currentCard.operation) ? currentCard.operation : CHAIN[0]
@@ -245,6 +250,8 @@ export default function Shop1Terminal() {
         operation: startOp,
         started_at: new Date().toISOString(),
         operator_name: selectedOperator,
+        manager_name: selectedManager || 'Не вказано',
+        shift_name: selectedShift,
         machine: machineNumber ? `${selectedMachine} №${machineNumber}`.trim() : (selectedMachine?.trim() || 'Не вказано'),
         card_info: ((currentCard.card_info || '').replace('[SHOP:1]', '').trim() + ' [SHOP:1]').trim()
       }).eq('id', currentCard.id)
@@ -273,7 +280,10 @@ export default function Shop1Terminal() {
         scrap_qty: scrapCount,
         started_at: currentCard.started_at,
         completed_at: new Date().toISOString(),
-        is_archived_scrap: scrapCount > 0 // Автоматично архівуємо брак, бо він вже в інвентар пішов
+        is_archived_scrap: scrapCount > 0, // Автоматично архівуємо брак, бо він вже в інвентар пішов
+        shift_name: currentCard.shift_name,
+        manager_name: currentCard.manager_name,
+        machine_name: currentCard.machine
       }])
 
       // 2. Оновлюємо картку (тільки перехід у буфер, фінальна прийомка далі)
@@ -346,7 +356,10 @@ export default function Shop1Terminal() {
         scrap_qty: currentCard.quantity,
         started_at: currentCard.started_at,
         completed_at: new Date().toISOString(),
-        is_archived_scrap: true
+        is_archived_scrap: true,
+        shift_name: currentCard.shift_name,
+        manager_name: currentCard.manager_name,
+        machine_name: currentCard.machine
       }])
 
       // 2. Оновлюємо поточну картку → completed (з 0 qty)
@@ -404,7 +417,10 @@ export default function Shop1Terminal() {
         scrap_qty: 0,
         started_at: new Date().toISOString(),
         completed_at: new Date().toISOString(),
-        is_archived_scrap: true
+        is_archived_scrap: true,
+        shift_name: currentCard.shift_name,
+        manager_name: currentCard.manager_name,
+        machine_name: currentCard.machine
       }])
 
       // 2. Картка → completed (фініш процесу)
@@ -669,6 +685,26 @@ export default function Shop1Terminal() {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                   <div>
+                    <label style={labelStyle}>Майстер (хто пускає в роботу)</label>
+                    <select value={selectedManager} onChange={e => setSelectedManager(e.target.value)} style={selectStyle}>
+                      <option value="">— Оберіть майстра —</option>
+                      {Array.from(new Set([selectedManager, ...operators])).filter(Boolean).map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={labelStyle}>Зміна</label>
+                    <select value={selectedShift} onChange={e => setSelectedShift(e.target.value)} style={selectStyle}>
+                      <option value="">— Оберіть зміну —</option>
+                      <option value="Зміна 1">Зміна 1</option>
+                      <option value="Зміна 2">Зміна 2</option>
+                      <option value="Зміна 3">Зміна 3</option>
+                      <option value="Зміна 4">Зміна 4</option>
+                      <option value="Без зміни">Без зміни</option>
+                    </select>
+                  </div>
+
+                  <div>
                     <label style={labelStyle}>Відповідальний оператор</label>
                     <select value={selectedOperator} onChange={e => setSelectedOperator(e.target.value)} style={selectStyle}>
                       <option value="">— Оберіть оператора —</option>
@@ -682,9 +718,9 @@ export default function Shop1Terminal() {
                         <input type="text" placeholder="Назва верстата..."
                           value={selectedMachine} onChange={e => setSelectedMachine(e.target.value)}
                           style={{ ...selectStyle, cursor: 'text', flex: 1 }} />
-                        <div style={{ position: 'relative', width: '80px' }}>
+                        <div style={{ position: 'relative', width: '90px' }}>
                           <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#555', fontWeight: 1000, fontSize: '1.1rem' }}>№</span>
-                          <input type="text" placeholder="..."
+                          <input type="text" placeholder="1-88"
                             value={machineNumber} onChange={e => setMachineNumber(e.target.value)}
                             style={{ 
                               ...selectStyle, fontSize: '1.2rem', fontWeight: 1000, color: '#eab308',
@@ -693,7 +729,7 @@ export default function Shop1Terminal() {
                             }} 
                             onKeyDown={e => {
                                 // Якщо натиснуто Enter — це як клік на кнопку START
-                                if (e.key === 'Enter' && selectedOperator && !isProcessing) {
+                                if (e.key === 'Enter' && selectedOperator && selectedShift && !isProcessing) {
                                     handleStart()
                                 }
                             }}
@@ -702,8 +738,8 @@ export default function Shop1Terminal() {
                       </div>
                     </div>
                   )}
-                  <button onClick={handleStart} disabled={!selectedOperator || isProcessing}
-                    style={{ ...btnPrimary, marginTop: '10px', height: '64px', fontSize: '1.2rem', opacity: (!selectedOperator || isProcessing) ? 0.45 : 1 }}>
+                  <button onClick={handleStart} disabled={!selectedOperator || !selectedShift || isProcessing}
+                    style={{ ...btnPrimary, marginTop: '10px', height: '64px', fontSize: '1.2rem', opacity: (!selectedOperator || !selectedShift || isProcessing) ? 0.45 : 1 }}>
                     ▶ ВЗЯТИ В РОБОТУ · {displayOp?.toUpperCase()}
                   </button>
                 </div>
