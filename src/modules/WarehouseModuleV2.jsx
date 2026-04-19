@@ -522,7 +522,7 @@ const WarehouseModuleV2 = () => {
                 onClick={sendPurchaseRequest}
                 style={{ flex: 2, padding: '12px', borderRadius: '10px', background: '#ef4444', color: '#000', border: 'none', fontWeight: 900, cursor: 'pointer' }}
               >
-                ЗАМОВИТИ У ПОСТАЧАЛЬНИКА
+                НАДІСЛАТИ ЗАПИТ НА СВ
               </button>
             </div>
           </div>

@@ -467,7 +467,7 @@ export const MESProvider = ({ children }) => {
             )
             const rawInv = inventory.find(i => rawNom ? (String(i.nomenclature_id) === String(rawNom.id)) : (String(i.nomenclature_id) === String(part.nom.id) && i.type === 'raw'))
             const unit = (part.nom.type === 'hardware' || part.nom.type === 'fastener') ? 'шт' : 'ЛИСТІВ'
-            materialSummary[matKey] = { matName: matKey, sheets: 0, totalUnits: 0, components: [], inventory_id: rawInv?.id || null, unit }
+            materialSummary[matKey] = { matName: matKey, sheets: 0, totalUnits: 0, components: [], inventory_id: rawInv?.id || null, unit, partType: part.nom.type }
           }
           materialSummary[matKey].sheets += sheets
           materialSummary[matKey].totalUnits += totalToProduce
@@ -548,18 +548,20 @@ export const MESProvider = ({ children }) => {
         sheets: Number(info.sheets) || 0
       }))
 
-      const requestsToInsert = allMaterials.map(info => {
-        const qtyToRequest = info.unit === 'ЛИСТІВ' ? info.sheets : info.totalUnits;
-        const unitLabel = info.unit === 'ЛИСТІВ' ? 'л.' : 'од.';
-        return {
-          order_id: orderId,
-          task_id: tData.id,
-          quantity: qtyToRequest,
-          status: 'pending',
-          inventory_id: info.inventory_id,
-          details: `СКЛАД ОПЕРАТИВНИЙ: ${info.matName} — ${qtyToRequest} ${unitLabel} (Разом: ${info.totalUnits} шт | Для: ${info.components.join(', ')})`
-        }
-      })
+      const requestsToInsert = allMaterials
+        .filter(info => info.partType === 'raw' || (info.matName && info.matName.toLowerCase().includes('лист')))
+        .map(info => {
+          const qtyToRequest = info.unit === 'ЛИСТІВ' ? info.sheets : info.totalUnits;
+          const unitLabel = info.unit === 'ЛИСТІВ' ? 'л.' : 'од.';
+          return {
+            order_id: orderId,
+            task_id: tData.id,
+            quantity: qtyToRequest,
+            status: 'pending',
+            inventory_id: info.inventory_id,
+            details: `СКЛАД ОПЕРАТИВНИЙ: ${info.matName} — ${qtyToRequest} ${unitLabel} (Разом: ${info.totalUnits} шт | Для: ${info.components.join(', ')})`
+          }
+        })
 
       const totalActualSheets = allMaterials
         .filter(m => m.unit === 'ЛИСТІВ')
