@@ -16,7 +16,8 @@ import {
   TrendingUp,
   AlertTriangle,
   KanbanSquare,
-  ShoppingBag
+  ShoppingBag,
+  BarChart2
 } from 'lucide-react'
 import ManagerModule from './modules/ManagerModule'
 import WarehouseModule from './modules/WarehouseModuleV2'
@@ -41,6 +42,7 @@ import BrakModule from './modules/BrakModule'
 import KanbanModule from './modules/KanbanModule'
 import AccessModule from './modules/AccessModule'
 import ProcurementModule from './modules/SupplyModuleV2' // I'll use the same base for now or create a new one
+import ReportsModule from './modules/ReportsModule'
 import { MESProvider, useMES } from './MESContext'
 
 const FileCodeIcon = () => (
@@ -78,6 +80,7 @@ const Portal = () => {
     { id: 'analytics', title: 'Аналітика', icon: <TrendingUp />, path: '/analytics', desc: 'Статистика та KPI', color: '#8b5cf6' },
     { id: 'access', title: 'Система Доступу', icon: <ShieldCheck />, path: '/access', desc: 'Контроль проходів (Fortnet)', color: '#ff9000' },
     { id: 'brak', title: 'БРАК', icon: <AlertTriangle />, path: '/brak', desc: 'Класифікація та облік', color: '#ef4444' },
+    { id: 'reports', title: 'Звіти (1С)', icon: <BarChart2 />, path: '/reports', desc: 'Зведена аналітика та звіти', color: '#10b981' },
     { id: 'settings', title: 'Система', icon: <Settings />, path: '/settings', desc: 'Конфігурація', color: '#444' }
   ]
 
@@ -85,6 +88,7 @@ const Portal = () => {
     if (m.id === 'shop2' || m.id === 'shop2_terminal') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.shop2;
     if (m.id === 'analytics') return currentUser?.access_rights?.director || currentUser?.access_rights?.master || currentUser?.access_rights?.analytics;
     if (m.id === 'brak') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.director || currentUser?.access_rights?.brak;
+    if (m.id === 'reports') return currentUser?.access_rights?.director || currentUser?.access_rights?.reports || currentUser?.position === 'Адмін';
     return currentUser?.access_rights?.[m.id] === true;
   })
 
@@ -173,6 +177,7 @@ const AppContent = () => {
       <Route path="/tasks" element={<KanbanModule />} />
       <Route path="/access" element={<AccessModule />} />
       <Route path="/procurement" element={<ProcurementModule isProcurementOnly={true} />} />
+      <Route path="/reports" element={<ReportsModule />} />
       <Route path="/settings" element={<SettingsModule />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

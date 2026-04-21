@@ -31,6 +31,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedDoc, setExpandedDoc] = useState(null)
   const [showReception, setShowReception] = useState(false)
+  const [shortageModal, setShortageModal] = useState(null)
 
   const normalize = (s) => (s || '').toLowerCase().trim()
     .replace(/[тt]/g, 't').replace(/[аa]/g, 'a').replace(/[еe]/g, 'e')
@@ -93,20 +94,103 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
 
   const handleForwardToProcurement = async (pr) => {
     try {
+      const deficitItems = []
+      
+      for (let i = 0; i < (pr.items || []).length; i++) {
+        const it = pr.items[i]
+        const name = resolveItemName(it, i)
+        const parsedName = parseMaterialName(name)
+        const invItem = (inventory || []).find(inv =>
+          inv.warehouse === 'production' &&
+          (
+            (it.nomenclature_id && String(inv.nomenclature_id) === String(it.nomenclature_id)) ||
+            (it.inventory_id && String(inv.id) === String(it.inventory_id)) ||
+            normalize(inv.name) === normalize(parsedName) ||
+            (inv.name && parsedName && normalize(inv.name).includes(normalize(parsedName))) ||
+            (inv.name && parsedName && normalize(parsedName).includes(normalize(inv.name)))
+          )
+        )
+        const available = invItem ? (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0) : 0
+        const needed = Number(resolveItemQty(it))
+        
+        const freeAvailable = Math.max(0, available)
+        const deficitQty = needed > freeAvailable ? needed - freeAvailable : 0
+        
+        if (deficitQty > 0) {
+          deficitItems.push({
+            ...it,
+            qty: deficitQty,
+            name: name, // Store name for modal
+            original_needed: needed,
+            available_in_warehouse: available
+          })
+        }
+      }
+
+      if (deficitItems.length === 0) {
+        alert('Дефіциту не знайдено! Ви можете повністю забезпечити цей наряд зі складу.')
+        return
+      }
+
+      // Замість прямої відправки — показуємо модалку підтвердження
+      setShortageModal({ pr, deficitItems })
+
+    } catch (err) {
+       alert('Помилка аналізу дефіциту: ' + err.message)
+    }
+  }
+
+  const confirmForwardToProcurement = async () => {
+    if (!shortageModal) return
+    const { pr, deficitItems } = shortageModal
+    
+    try {
       const cloneData = {
         order_id: pr.order_id,
         task_id: pr.task_id,
         order_num: pr.order_num,
-        items: pr.items,
+        items: deficitItems.map(d => ({ ...d, name: undefined })), // Clean up name if needed by DB schema
         status: 'pending',
         destination_warehouse: 'procurement'
       }
+      
       const { error } = await supabase.from('purchase_requests').insert([cloneData])
       if (error) throw error
-      alert('Запит перенаправлено до відділу Постачання!')
+
+      // 2. Бронюємо наявні частини на Складі Виробництва
+      for (let i = 0; i < (pr.items || []).length; i++) {
+        const it = pr.items[i]
+        const name = resolveItemName(it, i)
+        const parsedName = parseMaterialName(name)
+        const invItem = (inventory || []).find(inv =>
+          inv.warehouse === 'production' &&
+          (
+            (it.nomenclature_id && String(inv.nomenclature_id) === String(it.nomenclature_id)) ||
+            (it.inventory_id && String(inv.id) === String(it.inventory_id)) ||
+            normalize(inv.name) === normalize(parsedName) ||
+            (inv.name && parsedName && normalize(inv.name).includes(normalize(parsedName))) ||
+            (inv.name && parsedName && normalize(parsedName).includes(normalize(inv.name)))
+          )
+        )
+        
+        if (invItem) {
+          const available = (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0)
+          const needed = Number(resolveItemQty(it))
+          const canReserve = Math.min(needed, Math.max(0, available))
+          
+          if (canReserve > 0) {
+            await supabase.from('inventory').update({
+              reserved_qty: (Number(invItem.reserved_qty) || 0) + canReserve
+            }).eq('id', invItem.id)
+          }
+        }
+      }
+
+      alert('Запит на дефіцит надіслано до Постачання! Наявне заброньовано на СВ.')
+      setShortageModal(null)
       if (fetchData) fetchData()
     } catch (err) {
-       alert('Помилка відправки в постачання: ' + err.message)
+      alert('Помилка відправки: ' + err.message)
     }
   }
 
@@ -330,7 +414,13 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                               const parsedName = parseMaterialName(name)
                               const invItem = (inventory || []).find(i =>
                                 i.warehouse === 'production' &&
-                                (i.id === it.inventory_id || normalize(i.name) === normalize(parsedName))
+                                (
+                                  (it.nomenclature_id && String(i.nomenclature_id) === String(it.nomenclature_id)) ||
+                                  (it.inventory_id && String(i.id) === String(it.inventory_id)) ||
+                                  normalize(i.name) === normalize(parsedName) ||
+                                  (i.name && parsedName && normalize(i.name).includes(normalize(parsedName))) ||
+                                  (i.name && parsedName && normalize(parsedName).includes(normalize(i.name)))
+                                )
                               )
                               const available = invItem ? (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0) : 0
                               return available < Number(resolveItemQty(it))
@@ -399,7 +489,13 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                         const parsedName = parseMaterialName(name)
                         const invItem = (inventory || []).find(i =>
                           i.warehouse === 'production' &&
-                          (i.id === it.inventory_id || normalize(i.name) === normalize(parsedName))
+                          (
+                            (it.nomenclature_id && String(i.nomenclature_id) === String(it.nomenclature_id)) ||
+                            (it.inventory_id && String(i.id) === String(it.inventory_id)) ||
+                            normalize(i.name) === normalize(parsedName) ||
+                            (i.name && parsedName && normalize(i.name).includes(normalize(parsedName))) ||
+                            (i.name && parsedName && normalize(parsedName).includes(normalize(i.name)))
+                          )
                         )
                         const available = invItem ? (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0) : 0
                         const needed = Number(resolveItemQty(it))
@@ -551,6 +647,44 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
 
         </div>
       </div>
+
+      {shortageModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ background: '#111', border: '1px solid #333', borderRadius: '24px', padding: '30px', width: '100%', maxWidth: '450px' }}>
+            <h3 style={{ color: '#ef4444', margin: '0 0 15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <AlertTriangle size={24} /> ПІДТВЕРДЖЕННЯ ЗАКУПІВЛІ
+            </h3>
+            <p style={{ fontSize: '0.85rem', color: '#888', marginBottom: '20px' }}>
+              На СВ не вистачає наступних позицій. Буде надіслано запит у відділ Постачання лише на дефіцитну кількість:
+            </p>
+            <div style={{ background: '#000', padding: '15px', borderRadius: '12px', marginBottom: '25px', maxHeight: '300px', overflowY: 'auto' }}>
+              {shortageModal.deficitItems.map((i, idx) => (
+                <div key={idx} style={{ fontSize: '0.85rem', marginBottom: '10px', borderBottom: '1px solid #111', paddingBottom: '8px' }}>
+                  <div style={{ fontWeight: 700, color: '#aaa' }}>{i.name}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#555' }}>Дефіцит:</span>
+                    <strong style={{ color: '#ef4444' }}>{i.qty} од.</strong>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => setShortageModal(null)}
+                style={{ flex: 1, padding: '12px', borderRadius: '10px', background: '#222', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 800 }}
+              >
+                НАЗАД
+              </button>
+              <button
+                onClick={confirmForwardToProcurement}
+                style={{ flex: 2, padding: '12px', borderRadius: '10px', background: '#ef4444', color: '#fff', border: 'none', fontWeight: 950, cursor: 'pointer' }}
+              >
+                НАДІСЛАТИ ЗАПИТ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style dangerouslySetInnerHTML={{ __html: `
         .tab-btn-m { flex: 1; padding: 12px; border: none; background: transparent; color: #444; font-weight: 900; font-size: 0.7rem; border-radius: 10px; cursor: pointer; transition: 0.3s; }

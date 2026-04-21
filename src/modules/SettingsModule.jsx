@@ -47,7 +47,7 @@ const SettingsModule = () => {
     access_rights: {
       manager: false, master: false, warehouse: false, engineer: false, 
       director: false, foreman: false, operator: true, shipping: false, 
-      supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, packaging: false, kanban: false
+      supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, packaging: false, kanban: false, reports: false
     }
   })
   const [userSearch, setUserSearch] = useState('')
@@ -82,7 +82,7 @@ const SettingsModule = () => {
     setUserForm({
       id: null, login: '', password: '', first_name: '', last_name: '', 
       position: 'Оператор', department: 'Цех №1', shift: 'Зміна 1',
-      access_rights: { manager: false, master: false, warehouse: false, engineer: false, director: false, foreman: false, operator: true, shipping: false, supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, kanban: false }
+      access_rights: { manager: false, master: false, warehouse: false, engineer: false, director: false, foreman: false, operator: true, shipping: false, supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, kanban: false, reports: false }
     })
   }
 
@@ -133,6 +133,7 @@ const SettingsModule = () => {
     { id: 'nomenclature_v2', label: 'Номенклатура (Нова)' },
     { id: 'machines', label: 'Налаштування станків' },
     { id: 'access', label: 'Система Доступу' },
+    { id: 'reports', label: 'Звіти та Аналітика (1C)' },
     { id: 'settings', label: 'Система (Адмін)' }
   ]
 

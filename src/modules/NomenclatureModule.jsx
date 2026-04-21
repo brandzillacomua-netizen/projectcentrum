@@ -57,7 +57,7 @@ const NomenclatureModule = () => {
     { id: 'product', label: 'Готовий виріб', icon: <Box size={16} />, color: '#ff9000' },
     { id: 'part', label: 'Деталь (Лазер)', icon: <Component size={16} />, color: '#3b82f6' },
     { id: 'hardware', label: 'Метизи / Комплектуючі', icon: <Nut size={16} />, color: '#22c55e' },
-    { id: 'raw', label: 'Склад Оперативний', icon: <Layers size={16} />, color: '#eab308' },
+    { id: 'raw', label: 'Сировина (Листи)', icon: <Layers size={16} />, color: '#eab308' },
     { id: 'consumable', label: 'Розхідники', icon: <Trash2 size={16} />, color: '#ef4444' }
   ]
 

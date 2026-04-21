@@ -543,25 +543,53 @@ const MasterModule = () => {
                     })}
                   </tbody>
                   <tfoot style={{ background: 'rgba(255,144,0,0.05)', borderTop: '2px solid #ff9000' }} className="print-tf">
-                    <tr>
-                      <td style={{ padding: '12px 15px', fontWeight: 1000, fontSize: '1.1rem', textTransform: 'uppercase', border: '1px solid #000' }} className="print-txt">ЗАГАЛЬНИЙ ПІДСУМОК:</td>
-                      <td style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.2rem', border: '1px solid #000' }} className="print-txt">
-                        {(activeNaryadOrder.order_items?.reduce((acc, it) => acc + (isReprintMode ? Number(it.quantity) : (naryadQtys[it.id] || 0)), 0) || 0).toString()}
-                      </td>
-                      <td style={{ border: '1px solid #000' }}></td>
-                      <td style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.4rem', color: '#ff9000', border: '1px solid #000' }} className="print-txt">
-                        {(() => {
-                          if (isReprintMode && reprintTask) return (reprintTask.planned_sets || 0).toString();
-                          return (Object.values(naryadQtys).length > 0 ? Math.max(...Object.values(naryadQtys).map(v => Number(v) || 0)) : 0).toString();
-                        })()}
-                      </td>
-                      <td style={{ border: '1px solid #000' }}></td>
-                      <td style={{ border: '1px solid #000' }}></td>
-                      <td style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.6rem', color: '#22c55e', border: '1px solid #000' }} className="print-accent-g">
-                        {materialSummary.reduce((acc, m) => acc + (m.sheets || 0), 0).toString()}
-                      </td>
-                      <td style={{ border: '1px solid #000' }}></td>
-                    </tr>
+                    {(() => {
+                      let totalNeed = 0;
+                      let totalPlan = 0;
+                      let totalSheets = 0;
+
+                      activeNaryadOrder.order_items?.forEach(it => {
+                        const thisNaryadQty = naryadQtys[it.id] || 0;
+                        const parts = getBOMParts(it.nomenclature_id);
+                        const allParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }];
+                        const displayParts = allParts.filter(p => p.nom?.type === 'part');
+                        
+                        displayParts.forEach(part => {
+                          const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)];
+                          const need = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1));
+                          const inStock = snapshot ? snapshot.stock : (() => {
+                            const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz');
+                            return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0;
+                          })();
+                          const plan = snapshot ? snapshot.plan : Math.max(0, need - inStock);
+                          const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1;
+                          const sheets = Math.ceil(plan / unitsPerSheet);
+
+                          totalNeed += need;
+                          totalPlan += plan;
+                          if (plan > 0) totalSheets += sheets;
+                        });
+                      });
+
+                      return (
+                        <tr>
+                          <td style={{ padding: '12px 15px', fontWeight: 1000, fontSize: '1.1rem', textTransform: 'uppercase', border: '1px solid #000' }} className="print-txt">ЗАГАЛЬНИЙ ПІДСУМОК:</td>
+                          <td style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.2rem', border: '1px solid #000' }} className="print-txt">
+                            {totalNeed.toString()}
+                          </td>
+                          <td style={{ border: '1px solid #000' }}></td>
+                          <td style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.4rem', color: '#ff9000', border: '1px solid #000' }} className="print-txt">
+                            {totalPlan.toString()}
+                          </td>
+                          <td style={{ border: '1px solid #000' }}></td>
+                          <td style={{ border: '1px solid #000' }}></td>
+                          <td style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.6rem', color: '#22c55e', border: '1px solid #000' }} className="print-accent-g">
+                            {totalSheets.toString()}
+                          </td>
+                          <td style={{ border: '1px solid #000' }}></td>
+                        </tr>
+                      );
+                    })()}
                   </tfoot>
                 </table>
               </div>

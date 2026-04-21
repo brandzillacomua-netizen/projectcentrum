@@ -27,6 +27,16 @@ const DirectorModule = () => {
   const [selectedCell, setSelectedCell] = useState(null)
   const [hoveredPid, setHoveredPid] = useState(null)
   const [selectedOrderId, setSelectedOrderId] = useState(null)
+  const [expandedReqs, setExpandedReqs] = useState({})
+  const [expandedNaryads, setExpandedNaryads] = useState({})
+
+  const toggleReq = (id) => {
+    setExpandedReqs(prev => ({ ...prev, [id]: !prev[id] }))
+  }
+
+  const toggleNaryad = (id) => {
+    setExpandedNaryads(prev => ({ ...prev, [id]: !prev[id] }))
+  }
 
   // 1. Pending Approvals Data (Only trigger when it's Director's turn)
   const pendingTasks = tasks.filter(t => 
@@ -139,6 +149,38 @@ const DirectorModule = () => {
 
     return map
   }, [orders, tasks])
+
+  const parseRequestDetails = (details) => {
+    if (!details) return { main: '—', sub: '' }
+    // Typical format: "СКЛАД ОПЕРАТИВНИЙ: Лист T300 (3мм) — 6 л. (Разом: 222 шт | Для: ...)"
+    const parts = details.split(': ')
+    const prefix = parts[0] || ''
+    const content = parts[1] || ''
+    
+    if (content.includes(' — ')) {
+      const [mat, rest] = content.split(' — ')
+      const [qtyInfo, metaRaw] = rest.split(' (')
+      
+      let breakdown = []
+      if (metaRaw && metaRaw.includes('Для: ')) {
+         const forPart = metaRaw.split('Для: ')[1]?.replace(')', '')
+         if (forPart) {
+           breakdown = forPart.split(', ').map(item => {
+             const [label, q] = item.split(': ')
+             return { label: label?.trim(), qty: q?.trim() }
+           })
+         }
+      }
+
+      return {
+        prefix,
+        material: mat.trim(),
+        qty: qtyInfo.trim(),
+        breakdown
+      }
+    }
+    return { prefix, material: content, qty: '', breakdown: [] }
+  }
 
   const changeMonth = (offset) => {
     const newDate = new Date(viewDate)
@@ -446,80 +488,245 @@ const DirectorModule = () => {
                 const orderCards = workCards.filter(c => String(c.order_id) === String(selectedOrderId))
 
                 return (
-                  <div className="order-dossier-view" style={{ maxHeight: '75vh', overflowY: 'auto', paddingRight: '10px' }}>
-                     <div className="dossier-header" style={{ marginBottom: '30px', paddingBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                         <div>
-                           <span style={{ fontSize: '0.75rem', color: '#ff9000', fontWeight: 900, letterSpacing: '2px' }}>ДОСЬЄ ЗАМОВЛЕННЯ #{orderData?.order_num}</span>
-                           <h2 style={{ fontSize: '1.8rem', fontWeight: 1000, margin: '5px 0 10px 0', color: '#fff' }}>{orderData?.customer}</h2>
-                         </div>
-                         <div style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '8px 16px', borderRadius: '12px', fontWeight: 900, fontSize: '0.8rem', textTransform: 'uppercase' }}>
-                           {getStatusLabel(orderData?.status)}
-                         </div>
-                       </div>
-                       <div style={{ display: 'flex', gap: '20px', fontSize: '0.8rem', color: '#888', fontWeight: 700, marginTop: '10px' }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><Clock size={14} /> СТВОРЕНО: {orderData?.created_at ? new Date(orderData.created_at).toLocaleDateString() : '—'}</span>
-                          <span style={{ color: '#ff9000', display: 'flex', alignItems: 'center', gap: '5px' }}><Calendar size={14} /> ДЕДЛАЙН: {orderData?.deadline ? new Date(orderData.deadline).toLocaleDateString() : '—'}</span>
-                       </div>
-                     </div>
-
-                     <div className="dossier-section" style={{ marginBottom: '30px' }}>
-                       <h4 style={{ fontSize: '0.7rem', color: '#555', letterSpacing: '2px', fontWeight: 900, marginBottom: '15px' }}>1. СКЛАД ЗАМОВЛЕННЯ</h4>
-                       {orderData?.order_items?.map((item, id) => {
-                          const nom = nomenclatures.find(n => n.id === item.nomenclature_id)
-                          return (
-                            <div key={id} style={{ display: 'flex', justifyContent: 'space-between', background: 'rgba(255,255,255,0.02)', padding: '12px 15px', borderRadius: '12px', marginBottom: '8px' }}>
-                              <span style={{ color: '#aaa', fontWeight: 600, fontSize: '0.85rem' }}>{nom?.name || 'Продкуція'}</span>
-                              <span style={{ color: '#fff', fontWeight: 900, fontSize: '1rem' }}>{item.quantity} шт</span>
+                  <div className="order-dossier-dashboard">
+                    <div className="dossier-main-grid">
+                      {/* LEFT COLUMN: PRIMARY INFO */}
+                      <div className="dossier-left">
+                        <div className="dossier-card header-card">
+                          <div className="dossier-header-top">
+                            <div className="title-group">
+                              <span className="overline">ДОСЬЄ ЗАМОВЛЕННЯ #{orderData?.order_num}</span>
+                              <h2 className="customer-name">{orderData?.customer}</h2>
                             </div>
-                          )
-                       })}
-                     </div>
-
-                     <div className="dossier-section" style={{ marginBottom: '30px' }}>
-                       <h4 style={{ fontSize: '0.7rem', color: '#555', letterSpacing: '2px', fontWeight: 900, marginBottom: '15px' }}>2. ВИРОБНИЧІ НАРЯДИ</h4>
-                       {orderTasks.length === 0 ? <div style={{ color: '#555', fontSize: '0.8rem', fontStyle: 'italic' }}>Наряди ще не сформовано...</div> : orderTasks.map(t => (
-                         <div key={t.id} style={{ background: 'rgba(59, 130, 246, 0.05)', border: '1px solid rgba(59, 130, 246, 0.2)', padding: '15px', borderRadius: '14px', marginBottom: '10px' }}>
-                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                             <span style={{ fontSize: '0.75rem', color: '#3b82f6', fontWeight: 900 }}>{new Date(t.created_at).toLocaleString('uk-UA', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
-                             <span style={{ fontSize: '0.65rem', color: '#fff', fontWeight: 900, background: '#111', padding: '4px 8px', borderRadius: '8px' }}>{t.status.toUpperCase()}</span>
-                           </div>
-                           <div style={{ fontSize: '0.9rem', color: '#ddd', fontWeight: 700 }}>
-                              Наряд на <strong>{t.planned_sets || '—'} од.</strong>
-                           </div>
-                           <div style={{ fontSize: '0.75rem', color: '#888', marginTop: '6px' }}>{t.step} | Верстат: <strong>{t.machine || '—'}</strong></div>
-                         </div>
-                       ))}
-                     </div>
-
-                     <div className="dossier-section" style={{ marginBottom: '30px' }}>
-                       <h4 style={{ fontSize: '0.7rem', color: '#555', letterSpacing: '2px', fontWeight: 900, marginBottom: '15px' }}>3. ЗАПИТИ ДЛЯ СКЛАДУ</h4>
-                       {orderReqs.length === 0 ? <div style={{ color: '#555', fontSize: '0.8rem', fontStyle: 'italic' }}>Запитів немає...</div> : orderReqs.map(r => (
-                         <div key={r.id} style={{ background: 'rgba(255, 144, 0, 0.05)', border: '1px solid rgba(255, 144, 0, 0.2)', padding: '12px 15px', borderRadius: '14px', marginBottom: '10px' }}>
-                           <div style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, marginBottom: '6px', textTransform: 'uppercase' }}>{r.status === 'pending' ? 'В Очікуванні (Склад опрацьовує)' : 'Опрацьовано'}</div>
-                           <div style={{ fontSize: '0.8rem', color: '#ccc', lineHeight: 1.4 }}>{r.details}</div>
-                         </div>
-                       ))}
-                     </div>
-
-                     <div className="dossier-section" style={{ marginBottom: '10px' }}>
-                       <h4 style={{ fontSize: '0.7rem', color: '#555', letterSpacing: '2px', fontWeight: 900, marginBottom: '15px' }}>4. ПОТОЧНИЙ СТАН: АКТИВНІ КАРТКИ</h4>
-                       {orderCards.length === 0 ? <div style={{ color: '#555', fontSize: '0.8rem', fontStyle: 'italic' }}>Немає активних карток у виробництві...</div> : orderCards.map(c => {
-                          const statusColors = { new: '#333', 'in-progress': '#ff9000', 'at-buffer': '#3b82f6', completed: '#10b981' }
-                          return (
-                            <div key={c.id} style={{ display: 'flex', alignItems: 'center', background: '#111', padding: '12px 15px', borderRadius: '12px', marginBottom: '8px', borderLeft: `4px solid ${statusColors[c.status] || '#fff'}` }}>
-                              <div style={{ flex: 1 }}>
-                                <div style={{ fontSize: '0.85rem', color: '#fff', fontWeight: 800, marginBottom: '4px' }}>{c.operation}</div>
-                                <div style={{ fontSize: '0.7rem', color: '#888' }}>Оператор: <span style={{ color: '#ccc' }}>{c.operator || 'Без оператора'}</span> | Верстат: <span style={{ color: '#ccc' }}>{c.machine || '—'}</span></div>
-                              </div>
-                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                                <span style={{ fontSize: '1.2rem', color: '#ff9000', fontWeight: 900 }}>{c.quantity}</span>
-                                <span style={{ fontSize: '0.6rem', color: '#555', fontWeight: 900, textTransform: 'uppercase' }}>{c.status}</span>
+                            <div className={`status-pill status-${orderData?.status}`}>
+                              {getStatusLabel(orderData?.status)}
+                            </div>
+                          </div>
+                          <div className="header-meta">
+                            <div className="meta-item">
+                              <Clock size={16} />
+                              <div className="meta-info">
+                                <span className="m-label">СТВОРЕНО</span>
+                                <span className="m-val">{orderData?.created_at ? new Date(orderData.created_at).toLocaleDateString() : '—'}</span>
                               </div>
                             </div>
-                          )
-                       })}
-                     </div>
+                            <div className="meta-item highlight">
+                              <Calendar size={16} />
+                              <div className="meta-info">
+                                <span className="m-label">ДЕДЛАЙН</span>
+                                <span className="m-val">{orderData?.deadline ? new Date(orderData.deadline).toLocaleDateString() : '—'}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="dossier-card">
+                          <h4 className="section-title"><Package size={16} /> 1. СКЛАД ЗАМОВЛЕННЯ</h4>
+                          <div className="items-grid">
+                            {orderData?.order_items?.map((item, id) => {
+                               const nom = nomenclatures.find(n => n.id === item.nomenclature_id)
+                               return (
+                                 <div key={id} className="item-pill">
+                                   <span className="i-name">{nom?.name || 'Продукція'}</span>
+                                   <span className="i-qty">{item.quantity} шт</span>
+                                 </div>
+                               )
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="dossier-card">
+                          <h4 className="section-title"><Warehouse size={16} /> 3. ЗАПИТИ ДЛЯ СКЛАДУ</h4>
+                          <div className="requests-stack">
+                            {orderReqs.length === 0 ? <div className="empty-hint">Запитів немає...</div> : (() => {
+                              // Grouping by task_id or specific task-related grouping
+                              const groups = {}
+                              orderReqs.forEach(r => {
+                                const key = r.task_id || 'manual'
+                                if (!groups[key]) groups[key] = []
+                                groups[key].push(r)
+                              })
+
+                              return Object.entries(groups).map(([taskId, reqs]) => {
+                                const firstReq = reqs[0]
+                                const isPending = reqs.some(r => r.status === 'pending')
+                                const task = tasks.find(t => String(t.id) === String(taskId))
+                                const taskLabel = task 
+                                  ? `#${orderData?.order_num}${task.batch_index ? `/${task.batch_index}` : ''}`
+                                  : taskId
+                                
+                                return (
+                                  <div key={taskId} className={`request-bar ${isPending ? 'status-pending' : 'status-completed'}`}>
+                                    <div 
+                                      className="r-doc-header" 
+                                      style={{ cursor: 'pointer' }}
+                                      onClick={() => toggleReq(taskId)}
+                                    >
+                                      <div className="r-doc-id">ЗАЯВКА НА СКЛАД {taskId !== 'manual' ? `[НАРЯД ${taskLabel}]` : '[ВИТРАТНІ]'}</div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                        <span className={`r-pill ${isPending ? 'pending' : 'issued'}`}>{isPending ? 'В РОБОТІ' : 'ГОТОВО'}</span>
+                                        {expandedReqs[taskId] ? <ChevronRight size={16} style={{ transform: 'rotate(90deg)', transition: '0.3s' }} /> : <ChevronRight size={16} style={{ transition: '0.3s' }} />}
+                                      </div>
+                                    </div>
+                                    
+                                    {expandedReqs[taskId] && (
+                                      <div className="r-doc-body anim-expand">
+                                        {reqs.map((r, ri) => {
+                                          const p = parseRequestDetails(r.details)
+                                          return (
+                                            <div key={ri} className="r-item-block" style={{ marginBottom: ri < reqs.length - 1 ? '20px' : 0 }}>
+                                              <div className="r-main-row">
+                                                <span className="r-mat-large">{p.material}</span>
+                                                <span className="r-qty-large">{p.qty}</span>
+                                              </div>
+                                              
+                                              {p.breakdown.length > 0 && (
+                                                <div className="r-breakdown-box">
+                                                  {p.breakdown.map((b, bi) => (
+                                                    <div key={bi} className="b-row">
+                                                      <span className="b-label">{b.label}</span>
+                                                      <span className="b-val">{b.qty}</span>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              )}
+                                            </div>
+                                          )
+                                        })}
+                                      </div>
+                                    )}
+                                    
+                                    <div className="r-doc-footer">
+                                      <span>ДАТА: {new Date(firstReq.created_at).toLocaleDateString()}</span>
+                                      <span>КІЛЬКІСТЬ ПОЗИЦІЙ: {reqs.length}</span>
+                                    </div>
+                                  </div>
+                                )
+                              })
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* RIGHT COLUMN: PRODUCTION STATUS */}
+                      <div className="dossier-right">
+                        <div className="dossier-card">
+                          <h4 className="section-title"><Layers size={16} /> 2. ВИРОБНИЧІ НАРЯДИ</h4>
+                          <div className="naryad-stack">
+                            {orderTasks.length === 0 ? <div className="empty-hint">Наряди ще не сформовано...</div> : orderTasks.map(t => {
+                              const isExpanded = expandedNaryads[t.id]
+                              const snapshot = t.plan_snapshot || {}
+                              const materialSummary = snapshot.materialSummary || {}
+                              let materials = Object.values(materialSummary)
+
+                              if (materials.length === 0) {
+                                const snapIds = Object.keys(snapshot).filter(k => !k.startsWith('_') && k !== 'arrivals' && k !== 'materialSummary')
+                                materials = snapIds.map(id => {
+                                  const s = snapshot[id]
+                                  if (!s) return null
+                                  return {
+                                    matName: s.name || 'Деталь',
+                                    totalUnits: s.plan || s.need || 0,
+                                    components: [s.code || 'Без коду']
+                                  }
+                                }).filter(Boolean)
+                              }
+
+                              return (
+                                <div key={t.id} className="naryad-row-container">
+                                  <div 
+                                    className="naryad-row" 
+                                    style={{ cursor: 'pointer' }}
+                                    onClick={() => toggleNaryad(t.id)}
+                                  >
+                                    <div className="n-left">
+                                      <span className="n-date">{new Date(t.created_at).toLocaleString('uk-UA', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                                      <span className="n-info">Наряд <strong>#{orderData?.order_num}{t.batch_index ? `/${t.batch_index}` : ''}</strong> на <strong>{t.planned_sets || '—'} од.</strong></span>
+                                      <span className="n-step">{t.step} | Верстат: {t.machine || '—'}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                      <div className={`n-status status-${t.status}`}>{t.status.toUpperCase()}</div>
+                                      {isExpanded ? <ChevronRight size={16} style={{ transform: 'rotate(90deg)', transition: '0.3s' }} /> : <ChevronRight size={16} style={{ transition: '0.3s' }} />}
+                                    </div>
+                                  </div>
+                                  
+                                  {isExpanded && (
+                                    <div className="naryad-details anim-expand">
+                                      <div className="details-grid">
+                                        <div className="details-col">
+                                          <div className="d-label">ПЛАН МАТЕРІАЛІВ (BOM):</div>
+                                          <div className="bom-list">
+                                            {materials.length === 0 ? (
+                                              <div className="empty-hint">Дані про матеріали відсутні</div>
+                                            ) : (
+                                              <>
+                                                {/* Materials Category */}
+                                                {materials.filter(m => (m.sheets || 0) > 0).length > 0 && (
+                                                  <div className="bom-category">
+                                                    <div className="cat-header">ОСНОВНІ МАТЕРІАЛИ</div>
+                                                    {materials.filter(m => (m.sheets || 0) > 0).map((m, mi) => (
+                                                      <div key={mi} className="bom-item">
+                                                        <div className="m-info">
+                                                          <span className="m-name">{m.matName}</span>
+                                                          <span className="m-tech highlight">
+                                                            {m.sheets} л. <span className="dim">|</span> {m.totalUnits} шт
+                                                          </span>
+                                                        </div>
+                                                        <div className="m-comps">{m.components?.join(', ')}</div>
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                )}
+
+                                                {/* Hardware / Components Category */}
+                                                {materials.filter(m => !(m.sheets || 0)).length > 0 && (
+                                                  <div className="bom-category">
+                                                    <div className="cat-header">КОМПЛЕКТУЮЧІ ТА МЕТИЗИ</div>
+                                                    <div className="hardware-grid">
+                                                      {materials.filter(m => !(m.sheets || 0)).map((m, mi) => (
+                                                        <div key={mi} className="hw-item">
+                                                          <span className="hw-name">{m.matName}</span>
+                                                          <span className="hw-qty">{m.totalUnits} шт</span>
+                                                        </div>
+                                                      ))}
+                                                    </div>
+                                                  </div>
+                                                )}
+                                              </>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="dossier-card flex-1">
+                          <h4 className="section-title"><Clock size={16} /> 4. ПОТОЧНИЙ СТАН: АКТИВНІ КАРТКИ</h4>
+                          <div className="cards-stack">
+                            {orderCards.length === 0 ? <div className="empty-hint">Немає активних карток у виробництві...</div> : orderCards.map(c => {
+                               const statusColors = { new: '#333', 'in-progress': '#ff9000', 'at-buffer': '#3b82f6', completed: '#10b981' }
+                               return (
+                                 <div key={c.id} className="card-mini" style={{ borderLeft: `4px solid ${statusColors[c.status] || '#fff'}` }}>
+                                   <div className="c-info">
+                                     <div className="c-op">{c.operation}</div>
+                                     <div className="c-meta">{c.operator || 'Без оператора'} | {c.machine || '—'}</div>
+                                   </div>
+                                   <div className="c-qty-group">
+                                     <span className="c-qty">{c.quantity}</span>
+                                     <span className="c-status">{c.status}</span>
+                                   </div>
+                                 </div>
+                               )
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )
               })()}
@@ -718,9 +925,127 @@ const DirectorModule = () => {
           overflow: hidden;
         }
 
-        .modal-content { width: 440px; padding: 0; }
-        .modal-header { padding: 25px 30px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; }
-        .modal-body { padding: 30px; }
+        .modal-content { width: 1000px; max-width: 95vw; padding: 0; }
+        .modal-header { padding: 20px 30px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); }
+        .modal-body { padding: 0; }
+
+        /* DOSSIER DASHBOARD */
+        .order-dossier-dashboard { height: 80vh; overflow-y: auto; display: flex; flex-direction: column; background: #050505; }
+        .dossier-main-grid { display: grid; grid-template-columns: 400px 1fr; gap: 2px; background: #111; flex: 1; }
+        .dossier-left, .dossier-right { display: flex; flex-direction: column; gap: 2px; background: #050505; padding: 25px; overflow-y: auto; }
+        
+        .dossier-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.03); border-radius: 20px; padding: 25px; margin-bottom: 20px; }
+        .dossier-card.header-card { background: linear-gradient(135deg, rgba(255,144,0,0.1), transparent); border-color: rgba(255,144,0,0.2); }
+        
+        .dossier-header-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+        .overline { font-size: 0.7rem; color: #ff9000; font-weight: 1000; letter-spacing: 2px; text-transform: uppercase; }
+        .customer-name { font-size: 1.8rem; font-weight: 1000; color: #fff; margin: 5px 0 0 0; line-height: 1.1; }
+        
+        .status-pill { padding: 6px 14px; border-radius: 10px; font-size: 0.75rem; font-weight: 900; text-transform: uppercase; }
+        .status-completed { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+        .status-in-progress { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+        .status-pending { background: #111; color: #555; }
+
+        .header-meta { display: flex; gap: 30px; }
+        .meta-item { display: flex; align-items: center; gap: 12px; }
+        .meta-item svg { color: #444; }
+        .meta-item.highlight svg { color: #ff9000; }
+        .meta-info { display: flex; flex-direction: column; }
+        .m-label { font-size: 0.6rem; color: #555; font-weight: 900; }
+        .m-val { font-size: 0.85rem; color: #fff; font-weight: 800; }
+
+        .section-title { font-size: 0.7rem; color: #555; font-weight: 1000; letter-spacing: 1.5px; margin: 0 0 20px 0; display: flex; align-items: center; gap: 10px; text-transform: uppercase; }
+        
+        .items-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+        .item-pill { background: #111; padding: 10px 18px; border-radius: 12px; display: flex; gap: 15px; align-items: center; border: 1px solid #1a1a1a; }
+        .i-name { font-size: 0.8rem; color: #888; font-weight: 700; }
+        .i-qty { font-size: 0.9rem; color: #fff; font-weight: 1000; }
+
+        .requests-stack, .naryad-stack, .cards-stack { display: flex; flex-direction: column; gap: 15px; }
+        .request-bar { 
+          background: #080808; border: 1px solid #1a1a1a; border-radius: 20px; 
+          overflow: hidden; display: flex; flex-direction: column;
+          box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        .request-bar.status-pending { border-color: rgba(255,144,0,0.3); }
+        
+        .r-doc-header { 
+          background: rgba(255,255,255,0.02); padding: 12px 20px; 
+          display: flex; justify-content: space-between; align-items: center;
+          border-bottom: 1px solid #111;
+        }
+        .r-doc-id { font-size: 0.6rem; font-weight: 1000; color: #444; letter-spacing: 1px; }
+        .r-pill { font-size: 0.55rem; font-weight: 1000; padding: 2px 8px; border-radius: 6px; }
+        .r-pill.pending { background: #ff9000; color: #000; }
+        .r-pill.issued { background: #10b981; color: #000; }
+
+        .r-doc-body { padding: 20px; }
+        .anim-expand { animation: expandDown 0.3s ease-out; }
+        @keyframes expandDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .r-main-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+        .r-item-block { background: rgba(255,255,255,0.01); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.02); }
+        .r-mat-large { font-size: 1rem; color: #fff; font-weight: 800; }
+        .r-qty-large { font-size: 1.1rem; color: #ff9000; font-weight: 1000; }
+
+        .r-breakdown-box { 
+          background: rgba(0,0,0,0.4); border: 1px solid #111; border-radius: 10px; padding: 10px 15px;
+          margin-top: 5px;
+        }
+        .b-title { font-size: 0.6rem; color: #333; font-weight: 900; margin-bottom: 10px; letter-spacing: 1px; }
+        .b-row { display: flex; justify-content: space-between; font-size: 0.75rem; padding: 6px 0; border-bottom: 1px solid #0a0a0a; }
+        .b-row:last-child { border-bottom: none; }
+        .b-label { color: #888; font-weight: 600; }
+        .b-val { color: #fff; font-weight: 800; }
+
+        .r-doc-footer { 
+          padding: 10px 20px; background: rgba(0,0,0,0.2); border-top: 1px solid #111;
+          display: flex; justify-content: space-between; font-size: 0.6rem; color: #333; font-weight: 800;
+        }
+
+        .naryad-row-container { margin-bottom: 12px; }
+        .naryad-row { display: flex; justify-content: space-between; align-items: center; background: #080808; padding: 15px 20px; border-radius: 15px; border: 1px solid #111; }
+        
+        .naryad-details { background: rgba(0,0,0,0.5); padding: 20px; border-radius: 0 0 15px 15px; border: 1px solid #111; border-top: none; }
+        .details-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+        .d-label { font-size: 0.6rem; color: #444; font-weight: 900; margin-bottom: 15px; letter-spacing: 1px; }
+        
+        .bom-list { display: flex; flex-direction: column; gap: 15px; }
+        .bom-category { 
+          background: rgba(255,255,255,0.02); border-radius: 16px; padding: 15px;
+          border: 1px solid rgba(255,255,255,0.05);
+        }
+        .cat-header {
+          font-size: 0.65rem; font-weight: 900; color: #555; letter-spacing: 1px;
+          margin-bottom: 12px; text-transform: uppercase;
+        }
+        .bom-item { margin-bottom: 12px; }
+        .bom-item:last-child { margin-bottom: 0; }
+        .m-info { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+        .m-name { font-weight: 800; font-size: 0.95rem; color: #fff; }
+        .m-tech { font-size: 0.85rem; font-weight: 900; }
+        .m-tech.highlight { color: #ff9000; }
+        .m-tech .dim { color: #333; margin: 0 5px; }
+        .m-comps { font-size: 0.7rem; color: #666; line-height: 1.4; font-weight: 600; }
+
+        .hardware-grid { 
+          display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px;
+        }
+        .hw-item {
+          background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 10px;
+          display: flex; justify-content: space-between; align-items: center;
+          border: 1px solid rgba(255,255,255,0.03);
+        }
+        .hw-name { font-size: 0.8rem; font-weight: 700; color: #aaa; }
+        .hw-qty { font-size: 0.85rem; font-weight: 900; color: #fff; }
+
+        .card-mini { display: flex; justify-content: space-between; align-items: center; background: #0a0a0a; padding: 15px 20px; border-radius: 15px; }
+        .c-op { font-size: 0.9rem; color: #fff; font-weight: 900; }
+        .c-meta { font-size: 0.7rem; color: #444; font-weight: 600; margin-top: 2px; }
+        .c-qty-group { display: flex; flex-direction: column; align-items: flex-end; }
+        .c-qty { font-size: 1.3rem; color: #ff9000; font-weight: 1000; line-height: 1; }
+        .c-status { font-size: 0.6rem; color: #333; font-weight: 900; text-transform: uppercase; margin-top: 3px; }
+
+        .empty-hint { font-size: 0.8rem; color: #333; font-style: italic; }
 
         .modal-meta-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
         .date-badge { background: rgba(255,144,0,0.1); color: #ff9000; padding: 6px 14px; border-radius: 10px; font-size: 0.7rem; font-weight: 900; }

@@ -44,7 +44,7 @@ export const MESProvider = ({ children }) => {
 
   const operators = ["Олексій", "Дмитро", "Сергій", "Андрій", "Микола"]
   const productionStages = ["Розкрій", "Галтовка", "Пресування", "Фарбування", "Паквання"]
-  
+
   const CHAIN_SHOP1 = ["Розкрій", "Галтовка", "Прийомка"]
   const CHAIN_GENERAL = ["Розкрій", "Галтовка", "Пресування", "Фарбування", "Паквання"]
 
@@ -76,13 +76,13 @@ export const MESProvider = ({ children }) => {
       else if (dateRange === 'week') gteDate = new Date(now.setDate(now.getDate() - 7))
       else if (dateRange === 'month') gteDate = new Date(now.setMonth(now.getMonth() - 1))
       else if (dateRange === 'quarter') gteDate = new Date(now.setMonth(now.getMonth() - 3))
-      
+
       if (gteDate) query = query.gte('created_at', gteDate.toISOString())
     }
 
     const start = page * PAGE_SIZE
     const end = start + PAGE_SIZE - 1
-    
+
     const { data, error } = await query.range(start, end)
     if (error) {
       console.error('Fetch orders error:', error)
@@ -240,7 +240,7 @@ export const MESProvider = ({ children }) => {
 
       // Check for new events
       const events = Array.isArray(data) ? data : (data?.Event ? [data.Event] : []);
-      
+
       for (const ev of events) {
         // Parse time: "27.09.2011 19:04:43" -> Date
         // Note: Fortnet format might vary, but based on docs: DD.MM.YYYY HH:MM:SS
@@ -253,8 +253,8 @@ export const MESProvider = ({ children }) => {
         }
 
         // Check if event already exists (by timestamp and person)
-        const isDuplicate = accessLogs.some(l => 
-          new Date(l.event_time).getTime() === eventDate.getTime() && 
+        const isDuplicate = accessLogs.some(l =>
+          new Date(l.event_time).getTime() === eventDate.getTime() &&
           l.person_name === ev.person?.FullName
         );
 
@@ -266,7 +266,7 @@ export const MESProvider = ({ children }) => {
             hardware_name: ev.hardware?.Name || 'Door',
             event_kind: ev.message?.Name || 'Scan'
           };
-          
+
           const { error } = await supabase.from('access_logs').insert([newEntry]);
           if (!error) {
             setAccessLogs(prev => [newEntry, ...prev].slice(0, 500));
@@ -422,10 +422,10 @@ export const MESProvider = ({ children }) => {
       const plan_snapshot = {}
 
       order.order_items?.forEach(item => {
-        const requestedQty = customQuantities && customQuantities[item.id] !== undefined 
-          ? Number(customQuantities[item.id]) 
+        const requestedQty = customQuantities && customQuantities[item.id] !== undefined
+          ? Number(customQuantities[item.id])
           : Number(item.quantity)
-        
+
         if (requestedQty <= 0) return
 
         const parts = bomItems.filter(b => String(b.parent_id) === String(item.nomenclature_id))
@@ -453,7 +453,7 @@ export const MESProvider = ({ children }) => {
             stock: inStockQty,
             plan: totalToProduce,
             units_per_sheet: unitsPerSheet,
-            sheets: sheets, 
+            sheets: sheets,
             material: part.nom.material_type,
             order_item_id: item.id
           }
@@ -491,10 +491,10 @@ export const MESProvider = ({ children }) => {
 
       // --- SMART NUMBERING & DATA LOGIC ---
       const totalUnits = order.order_items?.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0) || 0;
-      const thisNaryadTotalSets = customQuantities 
-          ? Math.max(...Object.values(customQuantities).map(v => Number(v) || 0)) 
-          : totalUnits;
-      
+      const thisNaryadTotalSets = customQuantities
+        ? Math.max(...Object.values(customQuantities).map(v => Number(v) || 0))
+        : totalUnits;
+
       const alreadyPlannedSets = tasks.filter(t => t.order_id === orderId).reduce((acc, t) => acc + (Number(t.planned_sets) || 0), 0);
       const isPartial = (thisNaryadTotalSets < totalUnits) || (alreadyPlannedSets > 0);
       const nextBatchIndex = tasks.filter(t => t.order_id === orderId && (t.step === 'Лазерний розкрій' || t.step === 'Лазерна різка')).length + 1;
@@ -503,15 +503,16 @@ export const MESProvider = ({ children }) => {
         planned_deadline: customDeadline || order.deadline,
         batch_index: isPartial ? nextBatchIndex : null
       }
+      plan_snapshot.materialSummary = materialSummary
 
       const { data: taskData, error: taskError } = await supabase.from('tasks').insert([{
-        order_id: orderId, 
-        step: 'Лазерний розкрій', 
-        status: 'waiting', 
+        order_id: orderId,
+        step: 'Лазерний розкрій',
+        status: 'waiting',
         machine_name: machineName || 'Не вказано',
-        estimated_time: Math.round(totalMin), 
-        engineer_conf: false, 
-        warehouse_conf: false, 
+        estimated_time: Math.round(totalMin),
+        engineer_conf: false,
+        warehouse_conf: false,
         director_conf: false,
         plan_snapshot: plan_snapshot,
         planned_sets: thisNaryadTotalSets,
@@ -579,18 +580,18 @@ export const MESProvider = ({ children }) => {
         .reduce((acc, m) => acc + (m.sheets || 0), 0)
 
       if (totalActualSheets > 0) {
-        nomenclatures.filter(n => 
-          n.type === 'consumable' && 
+        nomenclatures.filter(n =>
+          n.type === 'consumable' &&
           (Number(n.consumption_per_sheet) || 0) > 0 &&
           (n.name.toLowerCase().includes('лист') || n.name.toLowerCase().includes('фреза'))
         ).forEach(cons => {
           const neededQty = Math.ceil(totalActualSheets * Number(cons.consumption_per_sheet))
           const invItem = inventory.find(i => i.nomenclature_id === cons.id)
           requestsToInsert.push({
-            order_id: orderId, 
+            order_id: orderId,
             task_id: tData.id,
-            quantity: neededQty, 
-            status: 'pending', 
+            quantity: neededQty,
+            status: 'pending',
             inventory_id: invItem?.id || null,
             details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ${order.order_num}: ${cons.name} — ${neededQty} од.`
           })
@@ -604,13 +605,13 @@ export const MESProvider = ({ children }) => {
   const createPurchaseRequest = async (orderId, orderNum, items, taskId = null) => {
     // Process items but keep them for the Production Warehouse to review
     const processedItems = items.map(it => {
-      const invItem = inventory.find(i => 
-        (i.id === it.inventory_id || i.nomenclature_id === it.nomenclature_id) && 
+      const invItem = inventory.find(i =>
+        (i.id === it.inventory_id || i.nomenclature_id === it.nomenclature_id) &&
         i.warehouse === 'production'
       )
       const available = invItem ? (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0) : 0
       const needed = Number(it.needed || it.missingAmount || 0)
-      
+
       return {
         ...it,
         production_available: available,
@@ -646,7 +647,7 @@ export const MESProvider = ({ children }) => {
     // Якщо destination_warehouse === 'production' -> це передача зі Складу Виробництва на Оперативний
     let targetWH = 'production'
     let sourceWH = null
-    
+
     if (requestData.destination_warehouse === 'production') {
       targetWH = 'operational'
       sourceWH = 'production'
@@ -708,14 +709,23 @@ export const MESProvider = ({ children }) => {
         const itemName = it.name || it.reqDetails || it.details || ''
         const nomId = it.nomenclature_id || null
 
-        // ШИКАЄМО В БД ДЛЯ НАДІЙНОСТІ
+        // ШУКАЄМО В БД ДЛЯ НАДІЙНОСТІ
         let existing = null
         if (nomId) {
-          const { data } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomId).eq('type', 'raw').eq('warehouse', targetWarehouse).maybeSingle()
+          const { data } = await supabase.from('inventory')
+            .select('*')
+            .eq('nomenclature_id', nomId)
+            .eq('warehouse', targetWarehouse)
+            .maybeSingle()
           existing = data
         }
+
         if (!existing && itemName) {
-          const { data } = await supabase.from('inventory').select('*').eq('name', itemName).eq('type', 'raw').eq('warehouse', targetWarehouse).maybeSingle()
+          const { data } = await supabase.from('inventory')
+            .select('*')
+            .eq('name', itemName)
+            .eq('warehouse', targetWarehouse)
+            .maybeSingle()
           existing = data
         }
 
@@ -725,24 +735,43 @@ export const MESProvider = ({ children }) => {
             updated_at: new Date().toISOString()
           }).eq('id', existing.id)
           if (updErr) { console.error('Reception Update Error:', updErr.message); allSuccess = false; }
-          
+
           // DEDUCT FROM SOURCE if specified
           if (allSuccess && sourceWarehouse) {
-            const { data: srcItem } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomId).eq('type', 'raw').eq('warehouse', sourceWarehouse).maybeSingle()
+            let srcItem = null
+
+            if (nomId) {
+              const { data } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomId).eq('warehouse', sourceWarehouse).maybeSingle()
+              srcItem = data
+            }
+
+            if (!srcItem && it.inventory_id) {
+              const { data } = await supabase.from('inventory').select('*').eq('id', it.inventory_id).eq('warehouse', sourceWarehouse).maybeSingle()
+              srcItem = data
+            }
+
+            if (!srcItem && itemName) {
+              const { data } = await supabase.from('inventory').select('*').eq('name', itemName).eq('warehouse', sourceWarehouse).maybeSingle()
+              srcItem = data
+            }
+
             if (srcItem && (Number(srcItem.total_qty) >= qtyToAdd)) {
-               await supabase.from('inventory').update({
-                 total_qty: Number(srcItem.total_qty) - qtyToAdd
-               }).eq('id', srcItem.id)
+              await supabase.from('inventory').update({
+                total_qty: Number(srcItem.total_qty) - qtyToAdd,
+                reserved_qty: Math.max(0, (Number(srcItem.reserved_qty) || 0) - qtyToAdd)
+              }).eq('id', srcItem.id)
             }
           }
         } else {
           const nom = nomId ? nomenclatures.find(n => n.id === nomId) : null
+          const fullItemName = nom ? `${nom.name}${nom.material_type ? ` (${nom.material_type})` : ''}` : (itemName || 'Прийнята позиція')
+
           const { error: insErr } = await supabase.from('inventory').insert([{
             nomenclature_id: nomId,
-            name: nom?.name || itemName || 'Прийнята позиція',
+            name: fullItemName,
             total_qty: qtyToAdd,
             reserved_qty: 0,
-            type: 'raw',
+            type: nom?.type || 'raw',
             warehouse: targetWarehouse,
             unit: nom?.unit || 'шт'
           }])
@@ -752,18 +781,18 @@ export const MESProvider = ({ children }) => {
 
       if (allSuccess) {
         await supabase.from('reception_docs').update({ status: 'completed' }).eq('id', docId)
-        
+
         // Mark specific purchase request as completed based on target warehouse routing
         if (doc.task_id || doc.order_id) {
           let destWhToComplete = ''
           if (targetWarehouse === 'production') destWhToComplete = 'procurement'
           if (targetWarehouse === 'operational') destWhToComplete = 'production'
-          
+
           if (destWhToComplete) {
             let q = supabase.from('purchase_requests')
               .update({ status: 'completed' })
               .eq('destination_warehouse', destWhToComplete)
-              
+
             if (doc.task_id) {
               q = q.eq('task_id', doc.task_id)
             } else {
@@ -772,7 +801,7 @@ export const MESProvider = ({ children }) => {
             await q
           }
         }
-        
+
         await fetchData()
         alert('Прийомку успішно завершено! Склад оновлено.')
       } else {
@@ -1113,30 +1142,30 @@ export const MESProvider = ({ children }) => {
 
       for (const nomId of allRelatedNoms) {
         // Collect all types of buffer from Shop 2
-        const shop2Stock = (inventory || []).filter(i => 
-          String(i.nomenclature_id) === String(nomId) && 
+        const shop2Stock = (inventory || []).filter(i =>
+          String(i.nomenclature_id) === String(nomId) &&
           (i.type === 'wip_bz' || i.type === 'bz_shop2')
         )
-        
+
         let totalToMove = 0
         for (const s of shop2Stock) {
           totalToMove += (Number(s.total_qty) || 0)
         }
-        
+
         if (totalToMove > 0) {
           const { data: bzItem } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomId).eq('type', 'bz').maybeSingle()
-          
+
           if (bzItem) {
             await supabase.from('inventory').update({ total_qty: (Number(bzItem.total_qty) || 0) + totalToMove }).eq('id', bzItem.id)
           } else {
             const nom = nomenclatures.find(n => n.id === nomId)
-            await supabase.from('inventory').insert([{ 
-              nomenclature_id: nomId, 
-              name: nom?.name || 'BZ Item', 
-              unit: nom?.unit || 'шт', 
-              total_qty: totalToMove, 
-              reserved_qty: 0, 
-              type: 'bz' 
+            await supabase.from('inventory').insert([{
+              nomenclature_id: nomId,
+              name: nom?.name || 'BZ Item',
+              unit: nom?.unit || 'шт',
+              total_qty: totalToMove,
+              reserved_qty: 0,
+              type: 'bz'
             }])
           }
           // Clean up shop 2 buffers
@@ -1164,12 +1193,12 @@ export const MESProvider = ({ children }) => {
   }
 
   const startWorkCard = async (taskId, cardId, operatorName, metadata = {}) => {
-    const updateData = { 
-      status: 'in-progress', 
-      started_at: new Date().toISOString(), 
-      operator_name: operatorName 
+    const updateData = {
+      status: 'in-progress',
+      started_at: new Date().toISOString(),
+      operator_name: operatorName
     }
-    
+
     // Якщо передано назву етапу (метадані), оновлюємо операцію
     if (metadata.stage_name) {
       updateData.operation = metadata.stage_name
@@ -1179,26 +1208,26 @@ export const MESProvider = ({ children }) => {
     if (metadata.machine_id) {
       updateData.machine_id = metadata.machine_id
     }
-    
+
     // ПЕРЕКОНУЄМОСЯ, що назва матини теж зберігається (для історії)
     if (metadata.machine_name) {
       updateData.machine = metadata.machine_name
     }
-    
+
     await supabase.from('work_cards').update(updateData).eq('id', cardId)
     fetchData()
   }
 
   const completeWorkCard = async (taskId, cardId, operatorName) => {
-    await supabase.from('work_cards').update({ 
-      status: 'waiting-buffer', 
+    await supabase.from('work_cards').update({
+      status: 'waiting-buffer',
       operator_name: operatorName,
       completed_at: new Date().toISOString()
     }).eq('id', cardId)
     fetchData()
   }
 
-  const confirmBuffer = async (cardId, scrapData = {}) => {
+  const confirmBuffer = async (cardId, scrapData = {}, cuttersUsed = 0) => {
     const card = workCards.find(c => c.id === cardId)
     if (!card) return
 
@@ -1222,7 +1251,7 @@ export const MESProvider = ({ children }) => {
     const nextStage = idx >= 0 && idx < chain.length - 1 ? chain[idx + 1] : null
 
     let cardUpdate = {}
-    
+
     // Якщо це переробка - завершуємо наряд і відправляємо в БЗ
     if (isRework) {
       cardUpdate = { status: 'completed', quantity: qtyCompleted }
@@ -1247,10 +1276,11 @@ export const MESProvider = ({ children }) => {
         qty_at_start: card.quantity,
         qty_completed: qtyCompleted,
         scrap_qty: totalScrap,
+        cutters_used: Number(cuttersUsed) || 0,
         started_at: card.started_at,
         completed_at: new Date().toISOString()
       }]),
-      supabase.from('work_cards').update(cardUpdate).eq('id', cardId)
+      supabase.from('work_cards').update({ ...cardUpdate, cutters_used: Number(cuttersUsed) || 0 }).eq('id', cardId)
     ])
 
     // Оновлюємо інвентар
@@ -1273,7 +1303,7 @@ export const MESProvider = ({ children }) => {
         // Визначаємо потребу замовлення (пріоритет)
         let totalNeed = Number(card.card_info?.match(/\[NEED:(\d+)\]/)?.[1])
         const plannedReq = Number(card.card_info?.match(/\[REQ:(\d+)\]/)?.[1])
-        
+
         // РОЗШИРЕНИЙ ФОЛБЕК: Якщо тегів немає (стара картка), шукаємо глобальну потребу в замовленні
         if (!totalNeed && card.order_id) {
           const order = orders.find(o => String(o.id) === String(card.order_id))
@@ -1325,26 +1355,111 @@ export const MESProvider = ({ children }) => {
     fetchData()
   } // closes confirmBuffer
 
+  const directHandoverToSGP = async (taskId, nomenclatureId, needQty, bzTotal) => {
+    try {
+      const task = tasks.find(t => String(t.id) === String(taskId))
+      const nom = nomenclatures.find(n => String(n.id) === String(nomenclatureId))
+      const order = orders.find(o => String(o.id) === String(task?.order_id))
+      if (!task || !nom) return
+
+      const totalQty = Number(needQty) + Number(bzTotal)
+      const finishedQty = Number(needQty)
+      const actualBzQty = Number(bzTotal)
+
+      // 1. Створюємо ЗАВЕРШЕНУ картку для історії та архіву
+      const { data: card, error: cardErr } = await supabase.from('work_cards').insert([{
+        task_id: taskId,
+        order_id: task.order_id,
+        nomenclature_id: nomenclatureId,
+        quantity: totalQty,
+        operation: 'Пакування/СГП',
+        status: 'completed',
+        operator_name: 'Система',
+        completed_at: new Date().toISOString(),
+        card_info: `[ЦЕХ №2] [NEED:${needQty}] [BZ:${bzTotal}] Наряд №${order?.order_num || ''}${task.batch_index ? `/${task.batch_index}` : ''} [ПРЯМА ПЕРЕДАЧА]`
+      }]).select().single()
+
+      if (cardErr) throw cardErr
+
+      // 2. Списуємо з Цеху №2 ПРЕЦИЗІЙНО
+      const subFromS2 = async (nid, iqty, itype) => {
+        if (!iqty || iqty <= 0) return
+        let remaining = iqty
+        const { data: rows } = await supabase.from('inventory').select('*').eq('nomenclature_id', nid).eq('type', itype)
+        for (const r of (rows || [])) {
+          const current = Number(r.total_qty) || 0
+          const take = Math.min(current, remaining)
+          if (take > 0) {
+            await supabase.from('inventory').update({ total_qty: current - take }).eq('id', r.id)
+            remaining -= take
+          }
+          if (remaining <= 0) break
+        }
+      }
+
+      await subFromS2(nomenclatureId, finishedQty, 'semi_shop2')
+      await subFromS2(nomenclatureId, actualBzQty, 'bz_shop2')
+
+      // 3. Додаємо на склад готової продукції (finished)
+      if (finishedQty > 0) {
+        const { data: finishedItem } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomenclatureId).eq('type', 'finished').maybeSingle()
+        if (finishedItem) {
+          await supabase.from('inventory').update({ total_qty: (Number(finishedItem.total_qty) || 0) + finishedQty }).eq('id', finishedItem.id)
+        } else {
+          await supabase.from('inventory').insert([{ nomenclature_id: nomenclatureId, name: nom.name, unit: nom.unit || 'шт', total_qty: finishedQty, reserved_qty: 0, type: 'finished' }])
+        }
+      }
+
+      // 4. Додаємо залишок на склад БЗ (bz)
+      if (actualBzQty > 0) {
+        const { data: bzItem } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomenclatureId).eq('type', 'bz').maybeSingle()
+        if (bzItem) {
+          await supabase.from('inventory').update({ total_qty: (Number(bzItem.total_qty) || 0) + actualBzQty }).eq('id', bzItem.id)
+        } else {
+          await supabase.from('inventory').insert([{ nomenclature_id: nomenclatureId, name: nom.name, unit: nom.unit || 'шт', total_qty: actualBzQty, reserved_qty: 0, type: 'bz' }])
+        }
+      }
+
+      // 5. Записуємо в історію
+      await supabase.from('work_card_history').insert([{
+        card_id: card.id,
+        nomenclature_id: nomenclatureId,
+        stage_name: 'Пакування/СГП',
+        operator_name: 'Система (ПРЯМА ПЕРЕДАЧА)',
+        qty_at_start: totalQty,
+        qty_completed: totalQty,
+        scrap_qty: 0,
+        completed_at: new Date().toISOString()
+      }])
+
+      fetchData()
+      return { success: true }
+    } catch (e) {
+      console.error("Direct handover error:", e)
+      throw e
+    }
+  }
+
   const handoverToSGP = async (cardId) => {
     try {
       const card = workCards.find(c => c.id === cardId)
       if (!card) return
 
       const nomId = card.nomenclature_id
-       const totalQty = Number(card.quantity) || 0
-       const bzTotal = Number(card.buffer_qty) || Number(card.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
-       
-       // Визначаємо початкову потребу (те що було для замовлення)
-       const needQty = Number(card.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Math.max(0, totalQty - bzTotal))
-       
-       // Пріоритет - Готова продукція (спочатку закриваємо потребу)
-       const isRework = card.card_info?.includes('[REWORK]')
-       const finishedQty = isRework ? 0 : Math.min(totalQty, needQty)
-       const actualBzQty = isRework ? totalQty : Math.max(0, totalQty - finishedQty)
+      const totalQty = Number(card.quantity) || 0
+      const bzTotal = Number(card.buffer_qty) || Number(card.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
 
-       // 1. Списуємо з Цеху №2 ПРЕЦИЗІЙНО (рівно стільки, скільки було в наряді)
+      // Визначаємо початкову потребу (те що було для замовлення)
+      const needQty = Number(card.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Math.max(0, totalQty - bzTotal))
+
+      // Пріоритет - Готова продукція (спочатку закриваємо потребу)
+      const isRework = card.card_info?.includes('[REWORK]')
+      const finishedQty = isRework ? 0 : Math.min(totalQty, needQty)
+      const actualBzQty = isRework ? totalQty : Math.max(0, totalQty - finishedQty)
+
+      // 1. Списуємо з Цеху №2 ПРЕЦИЗІЙНО (рівно стільки, скільки було в наряді)
       const nomName = card.card_info?.split('\n')[0]?.trim()
-      
+
       const subFromS2 = async (nid, nname, itype, iqty) => {
         if (!iqty || iqty <= 0) return
         let remaining = iqty
@@ -1388,13 +1503,13 @@ export const MESProvider = ({ children }) => {
           await supabase.from('inventory').update({ total_qty: (Number(finishedItem.total_qty) || 0) + finishedQty }).eq('id', finishedItem.id)
         } else {
           const nom = nomenclatures.find(n => n.id === nomId)
-          await supabase.from('inventory').insert([{ 
-            nomenclature_id: nomId, 
-            name: nom?.name || 'Готова продукція', 
-            unit: nom?.unit || 'шт', 
-            total_qty: finishedQty, 
-            reserved_qty: 0, 
-            type: 'finished' 
+          await supabase.from('inventory').insert([{
+            nomenclature_id: nomId,
+            name: nom?.name || 'Готова продукція',
+            unit: nom?.unit || 'шт',
+            total_qty: finishedQty,
+            reserved_qty: 0,
+            type: 'finished'
           }])
         }
       }
@@ -1406,21 +1521,21 @@ export const MESProvider = ({ children }) => {
           await supabase.from('inventory').update({ total_qty: (Number(bzItem.total_qty) || 0) + actualBzQty }).eq('id', bzItem.id)
         } else {
           const nom = nomenclatures.find(n => n.id === nomId)
-          await supabase.from('inventory').insert([{ 
-            nomenclature_id: nomId, 
-            name: nom?.name || 'Запас БЗ', 
-            unit: nom?.unit || 'шт', 
-            total_qty: actualBzQty, 
-            reserved_qty: 0, 
-            type: 'bz' 
+          await supabase.from('inventory').insert([{
+            nomenclature_id: nomId,
+            name: nom?.name || 'Запас БЗ',
+            unit: nom?.unit || 'шт',
+            total_qty: actualBzQty,
+            reserved_qty: 0,
+            type: 'bz'
           }])
         }
       }
 
       // 4. Відмічаємо картку як завершену і передану на СГП
-      await supabase.from('work_cards').update({ 
-        status: 'completed', 
-        operation: 'Паквання/СГП' 
+      await supabase.from('work_cards').update({
+        status: 'completed',
+        operation: 'Пакування/СГП'
       }).eq('id', cardId)
 
       fetchData()
@@ -1495,7 +1610,7 @@ export const MESProvider = ({ children }) => {
       if (totalAvailable > 0) {
         const issuedQty = Math.min(neededQty, totalAvailable)
         const firstMatch = matches.find(m => (Number(m.total_qty) || 0) > (Number(m.reserved_qty) || 0))
-        
+
         if (firstMatch) {
           requestsToInsert.push({
             order_id: orderId,
@@ -1507,8 +1622,8 @@ export const MESProvider = ({ children }) => {
           })
 
           // Оновлюємо резерв у базі
-          await supabase.from('inventory').update({ 
-            reserved_qty: (Number(firstMatch.reserved_qty) || 0) + issuedQty 
+          await supabase.from('inventory').update({
+            reserved_qty: (Number(firstMatch.reserved_qty) || 0) + issuedQty
           }).eq('id', firstMatch.id)
 
           neededQty -= issuedQty
@@ -1593,7 +1708,7 @@ export const MESProvider = ({ children }) => {
       fetchOrders, fetchData,
       createNaryad, issueMaterials, approveWarehouse, approveEngineer, approveDirector,
       upsertNomenclature, deleteNomenclature, saveBOM, removeBOM,
-      createWorkCard, startWorkCard, completeWorkCard, confirmBuffer, completeTaskByMaster, handoverTaskToShop2, cancelHandoverToShop2, completeTaskShop2, fixInventoryTypes, handoverToSGP,
+      createWorkCard, startWorkCard, completeWorkCard, confirmBuffer, completeTaskByMaster, handoverTaskToShop2, cancelHandoverToShop2, completeTaskShop2, fixInventoryTypes, handoverToSGP, directHandoverToSGP,
       searchCustomers, addOrder, reserveBZForTask,
       syncBOM,
       createPurchaseRequest, updatePurchaseRequestStatus, convertRequestToOrder,
@@ -1606,7 +1721,7 @@ export const MESProvider = ({ children }) => {
         const item = inventory.find(i => i.id === invId)
         if (!item) return
         const nextQty = (Number(item.total_qty) || 0) - Number(qty)
-        
+
         if (nextQty > 0) {
           await supabase.from('inventory').update({ total_qty: nextQty, updated_at: new Date().toISOString() }).eq('id', invId)
         } else {
@@ -1625,13 +1740,13 @@ export const MESProvider = ({ children }) => {
             disposed_at: new Date().toISOString()
           }])
         }])
-        
+
         fetchData()
       },
       createReworkNaryad: async (invId, qty, stage) => {
         const scrapItem = inventory.find(i => i.id === invId)
         if (!scrapItem) return
-        
+
         const nomId = scrapItem.nomenclature_id
         const nom = nomenclatures.find(n => n.id === nomId)
 
@@ -1654,9 +1769,9 @@ export const MESProvider = ({ children }) => {
           console.error("Error creating rework order:", orderErr)
           return
         }
-        
+
         const orderId = reworkOrder?.id || null
-        
+
         // 1. Create Standalone Task with proper snapshot for UI
         const plan_snapshot = {
           [nomId]: {
@@ -1682,7 +1797,7 @@ export const MESProvider = ({ children }) => {
           plan_snapshot: plan_snapshot,
           planned_sets: 0
         }]).select()
-        
+
         const newTask = taskData?.[0]
 
         // 2. Create WIP Card for Rework

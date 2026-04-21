@@ -73,7 +73,15 @@ const WarehouseModuleV2 = () => {
     ? receptionDocs.filter(d => (d.status === 'shipped' || d.status === 'ordered') && d.target_warehouse === 'operational')
     : []
 
-  const pendingRequests = (requests || []).filter(r => r.status === 'pending')
+  // Include both pending and issued requests, but only for tasks that aren't fully confirmed yet
+  const pendingRequests = (requests || []).filter(r => {
+    if (r.status === 'pending') return true
+    if (r.status === 'issued') {
+      const task = tasks.find(t => t.id === r.task_id)
+      return task && !task.warehouse_conf
+    }
+    return false
+  })
 
   const groupedRequests = pendingRequests.reduce((acc, req) => {
     const key = req.task_id || `order-${req.order_id}`
@@ -115,7 +123,7 @@ const WarehouseModuleV2 = () => {
     })
 
     if (missingItems.length > 0) {
-      setShortages({ orderId, orderNum, taskId, items: missingItems })
+      setShortages({ orderId, orderNum, taskId, items: missingItems, reqList })
     } else {
       apiService.submitReserveBatch(orderId, reqList, taskId, issueMaterials, approveWarehouse)
     }
@@ -124,6 +132,7 @@ const WarehouseModuleV2 = () => {
   const sendPurchaseRequest = async () => {
     if (!shortages) return
     try {
+      // 1. Надсилаємо запит на дефіцит
       await apiService.submitPurchaseRequest(
         shortages.orderId,
         shortages.orderNum,
@@ -131,7 +140,12 @@ const WarehouseModuleV2 = () => {
         shortages.taskId,
         createPurchaseRequest
       )
-      alert('Запит відправлено до відділу постачання!')
+      
+      // 2. Бронювання тепер виконується ТІЛЬКИ вручну при натисканні "ВИДАТИ", 
+      // щоб уникнути подвійного обліку дефіциту.
+
+
+      alert('Запит на дефіцит відправлено до СВ! Ви зможете видати наряд, коли матеріали надійдуть на склад.')
       setShortages(null)
     } catch (err) {
       alert('Помилка: ' + err.message)
@@ -220,13 +234,16 @@ const WarehouseModuleV2 = () => {
 
                 // Кнопка сіра (заблокована) поки є активний процес
                 const isAwaiting = activePR || acceptedPR || orderedPR || orderedReception || pendingReception
+                const isAllIssued = reqList.every(r => r.status === 'issued')
 
                 let btnLabel = ''
                 if (activePR) btnLabel = 'ЗАПИТ НАДІСЛАНО'
                 else if (acceptedPR) btnLabel = 'ЗАПИТ ПРИЙНЯТО'
                 else if (orderedPR || orderedReception) btnLabel = 'ОЧІКУЄ ПРИЙОМКИ'
                 else if (pendingReception) btnLabel = 'ПРИЙОМКА'
-                else if (missingItems.length === 0) btnLabel = 'ВИДАТИ'
+                else if (missingItems.length === 0) {
+                   btnLabel = isAllIssued ? 'ПІДТВЕРДИТИ ВИДАЧУ' : 'ВИДАТИ'
+                }
                 else btnLabel = 'ЗІБРАТИ ТА ЗАБРОНЮВАТИ'
 
                 const btnColor = isAwaiting ? '#1a1a1a' : '#ff9000'
@@ -242,8 +259,14 @@ const WarehouseModuleV2 = () => {
                       })}
                     </ul>
                     <button
-                      onClick={() => handleReserveOrder(taskId, orderId, displayNum, reqList)}
-                      disabled={!!isAwaiting}
+                      onClick={() => {
+                        if (isAwaiting) return
+                        if (isAllIssued && missingItems.length === 0) {
+                          approveWarehouse(taskId)
+                        } else {
+                          handleReserveOrder(taskId, orderId, displayNum, reqList)
+                        }
+                      }}
                       style={{
                         width: '100%', padding: '12px',
                         background: btnColor, color: textColor,

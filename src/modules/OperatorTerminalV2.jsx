@@ -28,6 +28,7 @@ const OperatorTerminal = () => {
   const [isScanning, setIsScanning] = useState(false)
   const [showScrapModal, setShowScrapModal] = useState(false)
   const [scrapCounts, setScrapCounts] = useState({})
+  const [cuttersUsed, setCuttersUsed] = useState(0)
   const [showPinModal, setShowPinModal] = useState(false)
   const [pin, setPin] = useState('')
   const [pinError, setPinError] = useState(false)
@@ -151,6 +152,7 @@ const OperatorTerminal = () => {
     if (!currentCard) return
     const nom = getNomFromCard(currentCard)
     setScrapCounts({ [nom?.id]: 0 })
+    setCuttersUsed(0)
     setShowScrapModal(true)
   }
 
@@ -158,7 +160,7 @@ const OperatorTerminal = () => {
     if (!currentCard) return
     setIsProcessing(true)
     try {
-      await apiService.submitBufferConfirmation(currentCard.id, scrapCounts, confirmBuffer)
+      await apiService.submitBufferConfirmation(currentCard.id, scrapCounts, confirmBuffer, cuttersUsed)
       setSelectedCardId(null)
       setShowScrapModal(false)
       setScannedCardIds(prev => prev.filter(id => id !== currentCard.id))
@@ -394,19 +396,34 @@ const OperatorTerminal = () => {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.96)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10020, padding: '20px' }}>
           <div style={{ background: '#111', width: '100%', maxWidth: '500px', borderRadius: '32px', border: '1px solid #333', overflow: 'hidden' }}>
             <div style={{ padding: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#1a1a1a' }}>
-              <h3 style={{ margin: 0 }}>ЗАВЕРШИТЬ ЕТАП</h3>
+              <h3 style={{ margin: 0 }}>ЗАВЕРШИТИ — {currentCard.operation?.toUpperCase()}</h3>
               <button onClick={() => setShowScrapModal(false)} style={{ background: 'transparent', border: 'none', color: '#555' }}><X size={26} /></button>
             </div>
             <div style={{ padding: '30px', textAlign: 'center' }}>
               <h2 style={{ margin: '0 0 20px' }}>{getNomFromCard(currentCard)?.name}</h2>
-              <div style={{ background: '#000', padding: '20px', borderRadius: '20px' }}>
-                <label style={{ color: '#ef4444', fontWeight: 900, display: 'block', marginBottom: '15px' }}>КІЛЬКІСТЬ БРАКУ</label>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px' }}>
-                  <button onClick={() => setScrapCounts(p => ({ ...p, [getNomFromCard(currentCard)?.id]: Math.max(0, (p[getNomFromCard(currentCard)?.id] || 0) - 1) }))} style={{ width: '50px', height: '50px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', borderRadius: '12px' }}>-</button>
-                  <input type="number" value={scrapCounts[getNomFromCard(currentCard)?.id] || 0} onChange={e => setScrapCounts({ [getNomFromCard(currentCard)?.id]: parseInt(e.target.value) || 0 })} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '3rem', width: '100px', textAlign: 'center' }} />
-                  <button onClick={() => setScrapCounts(p => ({ ...p, [getNomFromCard(currentCard)?.id]: (p[getNomFromCard(currentCard)?.id] || 0) + 1 }))} style={{ width: '50px', height: '50px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', borderRadius: '12px' }}>+</button>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div style={{ background: '#000', padding: '20px', borderRadius: '20px' }}>
+                  <label style={{ color: '#ef4444', fontWeight: 900, display: 'block', marginBottom: '15px' }}>КІЛЬКІСТЬ БРАКУ</label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px' }}>
+                    <button onClick={() => setScrapCounts(p => ({ ...p, [getNomFromCard(currentCard)?.id]: Math.max(0, (p[getNomFromCard(currentCard)?.id] || 0) - 1) }))} style={{ width: '50px', height: '50px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', borderRadius: '12px' }}>-</button>
+                    <input type="number" value={scrapCounts[getNomFromCard(currentCard)?.id] || 0} onChange={e => setScrapCounts({ [getNomFromCard(currentCard)?.id]: parseInt(e.target.value) || 0 })} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '3rem', width: '100px', textAlign: 'center' }} />
+                    <button onClick={() => setScrapCounts(p => ({ ...p, [getNomFromCard(currentCard)?.id]: (p[getNomFromCard(currentCard)?.id] || 0) + 1 }))} style={{ width: '50px', height: '50px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', borderRadius: '12px' }}>+</button>
+                  </div>
                 </div>
+
+                {matchesStage(currentCard.operation, 'Розкрій') && (
+                  <div style={{ background: '#000', padding: '20px', borderRadius: '20px', border: '1px solid #eab308' }}>
+                    <label style={{ color: '#eab308', fontWeight: 900, display: 'block', marginBottom: '15px' }}>ФАКТИЧНО ФРЕЗ ВИКОРИСТАНО</label>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px' }}>
+                      <button onClick={() => setCuttersUsed(Math.max(0, cuttersUsed - 1))} style={{ width: '50px', height: '50px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', borderRadius: '12px' }}>-</button>
+                      <input type="number" value={cuttersUsed} onChange={e => setCuttersUsed(parseInt(e.target.value) || 0)} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '3rem', width: '100px', textAlign: 'center' }} />
+                      <button onClick={() => setCuttersUsed(cuttersUsed + 1)} style={{ width: '50px', height: '50px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', borderRadius: '12px' }}>+</button>
+                    </div>
+                  </div>
+                )}
               </div>
+
               <button onClick={handleFinalFinish} style={{ width: '100%', background: '#10b981', color: '#fff', border: 'none', padding: '20px', borderRadius: '15px', fontWeight: 900, marginTop: '30px' }}>ПІДТВЕРДИТИ ТА В БУФЕР</button>
             </div>
           </div>
