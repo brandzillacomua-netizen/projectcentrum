@@ -1442,9 +1442,16 @@ export const MESProvider = ({ children }) => {
 
   const handoverToSGP = async (cardId) => {
     try {
-      const card = workCards.find(c => c.id === cardId)
-      if (!card) return
+      // ── ІДЕМПОТЕНТНА ПЕРЕВІРКА: якщо картка вже передана — зупиняємось ──
+      // Запитуємо актуальний статус з БД (не з кешу), щоб уникнути race condition
+      const { data: freshCard } = await supabase.from('work_cards').select('id, status, nomenclature_id, quantity, buffer_qty, card_info, order_id').eq('id', cardId).single()
+      if (!freshCard) return
+      if (freshCard.status === 'completed') {
+        alert('Ця картка вже передана на СГП і завершена. Повторна передача неможлива.')
+        return
+      }
 
+      const card = freshCard
       const nomId = card.nomenclature_id
       const totalQty = Number(card.quantity) || 0
       const bzTotal = Number(card.buffer_qty) || Number(card.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0

@@ -408,7 +408,38 @@ const Shop2Terminal = () => {
               </div>
 
               <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '28px', border: '1px solid #1a1a1a', padding: '40px' }}>
-                {(currentCard.status === 'new' || currentCard.status === 'at-buffer') ? (
+                {currentCard.status === 'completed' ? (
+                  // ── КАРТКА ЗАВЕРШЕНА — не допускаємо жодних дій ──
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ 
+                      width: '80px', height: '80px', borderRadius: '50%', 
+                      background: '#10b98122', border: '2px solid #10b98155',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      margin: '0 auto 25px'
+                    }}>
+                      <CheckCircle size={40} color="#10b981" />
+                    </div>
+                    <div style={{ color: '#10b981', fontSize: '1.6rem', fontWeight: 950, marginBottom: '10px' }}>
+                      ПЕРЕДАНО НА СГП
+                    </div>
+                    <div style={{ color: '#444', fontSize: '0.85rem', fontWeight: 700, marginBottom: '30px' }}>
+                      Ця картка вже завершена і передана на склад готової продукції.
+                    </div>
+                    <div style={{ 
+                      background: '#ef444411', border: '1px solid #ef444433', 
+                      borderRadius: '16px', padding: '15px 20px',
+                      color: '#ef4444', fontSize: '0.8rem', fontWeight: 800
+                    }}>
+                      ⛔ Повторні дії по цій картці заблоковані. Наряд закрито.
+                    </div>
+                    <button 
+                      onClick={() => { setSelectedCardId(null); setScannedCardIds(prev => prev.filter(id => String(id) !== String(currentCard.id))) }}
+                      style={{ marginTop: '25px', background: '#222', border: 'none', color: '#888', padding: '12px 30px', borderRadius: '14px', cursor: 'pointer', fontWeight: 800 }}
+                    >
+                      Закрити
+                    </button>
+                  </div>
+                ) : (currentCard.status === 'new' || currentCard.status === 'at-buffer') ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', maxWidth: '500px', margin: '0 auto' }}>
                     <div>
                       <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Поточний етап (ЦЕХ №2)</label>
@@ -426,13 +457,30 @@ const Shop2Terminal = () => {
                     <button disabled={isProcessing || !selectedOperator} onClick={handleStartOperation} style={{ background: '#8b5cf6', color: '#fff', border: 'none', padding: '22px', borderRadius: '18px', fontSize: '1.4rem', fontWeight: 900, cursor: 'pointer', transition: '0.2s', opacity: (isProcessing || !selectedOperator) ? 0.3 : 1 }}>ВЗЯТИ В РОБОТУ</button>
                     {currentCard.status === 'at-buffer' && (
                       <button 
-                        onClick={() => {
-                          handoverToSGP(currentCard.id)
-                          setSelectedCardId(null)
+                        disabled={isProcessing}
+                        onClick={async () => {
+                          if (isProcessing) return
+                          setIsProcessing(true)
+                          try {
+                            await handoverToSGP(currentCard.id)
+                            setSelectedCardId(null)
+                            setScannedCardIds(prev => prev.filter(id => String(id) !== String(currentCard.id)))
+                          } catch (e) {
+                            alert('Помилка передачі: ' + e.message)
+                          } finally {
+                            setIsProcessing(false)
+                          }
                         }}
-                        style={{ background: '#f43f5e', color: '#fff', border: 'none', padding: '15px', borderRadius: '18px', fontSize: '1rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                        style={{ 
+                          background: isProcessing ? '#555' : '#f43f5e', 
+                          color: '#fff', border: 'none', padding: '15px', 
+                          borderRadius: '18px', fontSize: '1rem', fontWeight: 900, 
+                          cursor: isProcessing ? 'not-allowed' : 'pointer', 
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                          opacity: isProcessing ? 0.5 : 1
+                        }}
                       >
-                        <Package size={18} /> ПЕРЕДАТИ НА СКЛАД СГП
+                        <Package size={18} /> {isProcessing ? 'ПЕРЕДАЧА...' : 'ПЕРЕДАТИ НА СКЛАД СГП'}
                       </button>
                     )}
                     <div style={{ textAlign: 'center', fontSize: '0.7rem', color: '#444', fontWeight: 700 }}>Робоча картка автоматично збережеться в базу</div>
