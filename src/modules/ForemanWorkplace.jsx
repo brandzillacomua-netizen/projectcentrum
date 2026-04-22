@@ -7,7 +7,7 @@ import { apiService } from '../services/apiDispatcher'
 import { supabase } from '../supabase'
 
 const ForemanWorkplace = () => {
-  const { tasks, orders, workCards, createWorkCard, inventory, completeTaskByMaster, handoverTaskToShop2, cancelHandoverToShop2, nomenclatures, bomItems, machines, workCardHistory, confirmBuffer, fetchData, reserveBZForTask } = useMES()
+  const { tasks, orders, workCards, createWorkCard, inventory, completeTaskByMaster, handoverTaskToShop2, cancelHandoverToShop2, nomenclatures, bomItems, machines, workCardHistory, confirmBuffer, fetchData, reserveBZForTask, fetchTaskArchiveCards } = useMES()
   const [activeTaskId, setActiveTaskId] = useState(null)
   const [activeView, setActiveView] = useState('worksheet')
   const [selectedMachines, setSelectedMachines] = useState({})
@@ -17,6 +17,7 @@ const ForemanWorkplace = () => {
   const [printQueue, setPrintQueue] = useState(null)
   const [partialCounts, setPartialCounts] = useState({}) // For partial generation in modal
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isHandingOver, setIsHandingOver] = useState(false) // Захист від подвійного кліку "ПЕРЕВЕСТИ В ЦЕХ №2"
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 8
@@ -24,6 +25,18 @@ const ForemanWorkplace = () => {
   const [isBufferScanning, setIsBufferScanning] = useState(false)
   const [bufferScrapModal, setBufferScrapModal] = useState(null)
   const [bufferScrapCounts, setBufferScrapCounts] = useState({})
+  const [archiveCards, setArchiveCards] = useState([]) // Завершені картки (статус completed) для поточного наряду
+
+  // Підвантажуємо архівні картки при зміні активного наряду
+  useEffect(() => {
+    if (activeTaskId) {
+      fetchTaskArchiveCards(activeTaskId).then(cards => {
+        setArchiveCards(cards || [])
+      })
+    } else {
+      setArchiveCards([])
+    }
+  }, [activeTaskId, workCards]) // workCards — тригер після будь-якого оновлення
 
   const getBOMParts = (nomenclatureId) => {
     return bomItems
@@ -53,16 +66,32 @@ const ForemanWorkplace = () => {
   }
 
   const handleHandoverToShop2 = async (taskId) => {
+    if (isHandingOver) return
+    setIsHandingOver(true)
     try {
       await handoverTaskToShop2(taskId)
       setActiveTaskId(null)
       fetchData()
     } catch (err) {
       alert("Помилка при передачі: " + err.message)
+    } finally {
+      setIsHandingOver(false)
     }
   }
 
   // 0. Per-task readiness: all Shop-1 cards produced >= need
+  // Картка вважається "виробленою" ЛИШЕ після формальної ПРИЙОМКИ на склад Цеху №1
+  // Ланцюжок: Розкрій → at-buffer(Розкрій) → Галтовка → at-buffer(Галтовка) → ПРИЙОМКА → completed
+  // Будь-який проміжний стан (at-buffer, in-progress) — ще НЕ вироблено
+  const countAsProduced = (card) => {
+    // completed + Прийомка = офіційно прийнято на склад ✅
+    if (card.status === 'completed' && card.operation === 'Прийомка') return true
+    // completed без operation = старий формат (до впровадження операцій) ✅
+    if (card.status === 'completed' && !card.operation) return true
+    // Все інше (at-buffer Розкрій, at-buffer Галтовка, in-progress) = ще в роботі ❌
+    return false
+  }
+
   const taskReadinessMap = useMemo(() => {
     const map = {}
     tasks.forEach(task => {
@@ -86,7 +115,7 @@ const ForemanWorkplace = () => {
           if (need === 0) return true
           const produced = taskCards
             .filter(c => String(c.nomenclature_id) === String(part.nom?.id))
-            .reduce((sum, c) => sum + (c.status === 'completed' ? Number(c.quantity) : 0), 0)
+            .reduce((sum, c) => sum + (countAsProduced(c) ? Number(c.quantity) : 0), 0)
           return produced >= need
         })
       })
@@ -132,7 +161,23 @@ const ForemanWorkplace = () => {
 
   const relevantTasks = useMemo(() => {
     return tasks
-      .filter(t => t.warehouse_conf && t.engineer_conf && t.director_conf && (t.step === 'Лазерний розкрій' || t.step === 'Лазерна різка'))
+      .filter(t => {
+        const stepName = (t.step || '').toLowerCase()
+        const isLaser = stepName.includes('лазер') || stepName.includes('розкрій') || stepName.includes('різка')
+        
+        // Якщо наряд АКТИВНИЙ (не завершений)
+        if (t.status !== 'completed') {
+          return t.warehouse_conf && t.engineer_conf && t.director_conf && isLaser
+        }
+
+        // Якщо наряд ЗАВЕРШЕНИЙ (Архів)
+        const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
+        const isRecent = (t.completed_at && new Date(t.completed_at) > threeDaysAgo) || (t.updated_at && new Date(t.updated_at) > threeDaysAgo)
+        
+        // Для архіву Цеху №1 показуємо будь-який нещодавній наряд, який був лазерним
+        // (Або взагалі будь-який завершений нещодавно, щоб нічого не зникло)
+        return isRecent && (isLaser || !t.step)
+      })
       .sort((a, b) => {
         // Already transferred → bottom
         if (a.status === 'completed' && b.status !== 'completed') return 1
@@ -509,7 +554,10 @@ const ForemanWorkplace = () => {
             (() => {
               const task = relevantTasks.find(t => t.id === activeTaskId)
               const order = orders.find(o => o.id === task.order_id)
-              const taskCards = workCards.filter(c => c.task_id === task.id)
+              // Об'єднуємо АКТИВНІ картки (з глобального стейту) + ЗАВЕРШЕНІ (архів для цього наряду)
+              // Це гарантує, що картки НІКОЛИ не зникають після переходу на прийомку/буфер
+              const activeTaskCards = workCards.filter(c => c.task_id === task.id)
+              const taskCards = [...activeTaskCards, ...(archiveCards || []).filter(c => c.task_id === task.id && !activeTaskCards.some(ac => ac.id === c.id))]
               const isReworkOrder = order?.order_num?.startsWith('ВБ')
               
               // Fallback for Product Names: if order has no items (internal rework), use snapshot names
@@ -522,6 +570,7 @@ const ForemanWorkplace = () => {
               }
 
               // ПЕРЕВІРКА НА ПОВНЕ ВИКОНАННЯ
+              // Картки вважаються «виробленими», якщо вони completed, at-buffer або на стадії прийомки
               const isTaskComplete = order?.order_items?.every(item => {
                 const parts = getBOMParts(item.nomenclature_id)
                 const rows = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }]
@@ -531,7 +580,7 @@ const ForemanWorkplace = () => {
                   const need = snapshot ? snapshot.need : (Number(item.quantity) * (Number(part.quantity_per_parent) || 1))
                   const produced = taskCards
                     .filter(c => String(c.nomenclature_id) === String(part.nom?.id))
-                    .reduce((sum, c) => sum + (c.status === 'completed' ? Number(c.quantity) : 0), 0)
+                    .reduce((sum, c) => sum + (countAsProduced(c) ? Number(c.quantity) : 0), 0)
                   return produced >= need
                 })
               })
@@ -540,8 +589,13 @@ const ForemanWorkplace = () => {
                 <div style={{ maxWidth: '1200px' }} className="anim-fade-in">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
                     <div>
-                      <h2 style={{ fontSize: '2.4rem', fontWeight: 950, margin: 0 }}>
+                      <h2 style={{ fontSize: '2.4rem', fontWeight: 950, margin: 0, display: 'flex', alignItems: 'center', gap: '15px' }}>
                         Наряд №{order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}
+                        {task.status === 'completed' && (
+                          <div style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', color: '#10b981', padding: '5px 15px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 950, letterSpacing: '1px' }}>
+                            ВИКОНАНО
+                          </div>
+                        )}
                       </h2>
                       <div style={{ color: '#555', marginTop: '5px', fontSize: '1.1rem', fontWeight: 800 }}>
                         ВИРІБ: <strong style={{ color: '#ef4444' }}>{productNames || '—'}</strong> | {order?.customer}
@@ -553,24 +607,52 @@ const ForemanWorkplace = () => {
                       </div>
                     </div>
                     {(isTaskComplete || task.status === 'completed') && (
-                      <button
-                        onClick={() => handleHandoverToShop2(task.id)}
-                        className="btn-primary"
-                        disabled={task.status === 'completed'}
-                        style={{ 
-                          background: task.status === 'completed' ? '#222' : '#10b981', 
-                          color: task.status === 'completed' ? '#555' : '#fff', 
-                          border: 'none', 
-                          padding: '12px 25px', 
-                          borderRadius: '12px', 
-                          fontWeight: 900, 
-                          cursor: task.status === 'completed' ? 'default' : 'pointer',
-                          boxShadow: task.status !== 'completed' ? '0 10px 20px -5px rgba(16, 185, 129, 0.4)' : 'none',
-                          transition: '0.3s'
-                        }}
-                      >
-                        {task.status === 'completed' ? 'ПЕРЕДАНО В ЦЕХ №2' : 'ПЕРЕВЕСТИ В ЦЕХ №2'}
-                      </button>
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                        {task.status === 'completed' && (
+                          <button
+                            onClick={async () => {
+                              if (!window.confirm('Скасувати передачу в Цех №2? Наряд повернеться в роботу, дані у Цеху №2 буде видалено.')) return
+                              try {
+                                await cancelHandoverToShop2(task.id)
+                                setActiveTaskId(null)
+                              } catch (err) {
+                                alert('Помилка скасування: ' + err.message)
+                              }
+                            }}
+                            style={{
+                              background: 'transparent',
+                              color: '#555',
+                              border: '1px solid #333',
+                              padding: '12px 20px',
+                              borderRadius: '12px',
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              fontSize: '0.75rem'
+                            }}
+                          >
+                            СКАСУВАТИ ПЕРЕДАЧУ
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleHandoverToShop2(task.id)}
+                          className="btn-primary"
+                          disabled={task.status === 'completed' || isHandingOver}
+                          style={{ 
+                            background: (task.status === 'completed' || isHandingOver) ? '#222' : '#10b981', 
+                            color: (task.status === 'completed' || isHandingOver) ? '#555' : '#fff', 
+                            border: 'none', 
+                            padding: '12px 25px', 
+                            borderRadius: '12px', 
+                            fontWeight: 900, 
+                            cursor: (task.status === 'completed' || isHandingOver) ? 'not-allowed' : 'pointer',
+                            boxShadow: (task.status !== 'completed' && !isHandingOver) ? '0 10px 20px -5px rgba(16, 185, 129, 0.4)' : 'none',
+                            transition: '0.3s',
+                            opacity: isHandingOver ? 0.6 : 1
+                          }}
+                        >
+                          {task.status === 'completed' ? 'ПЕРЕДАНО В ЦЕХ №2' : isHandingOver ? 'ОБРОБКА...' : 'ПЕРЕВЕСТИ В ЦЕХ №2'}
+                        </button>
+                      </div>
                     )}
                   </div>
 
@@ -930,7 +1012,8 @@ const ForemanWorkplace = () => {
                       const cardIdsStrings = activeCards.map(c => String(c.id))
                       const groupHistory = workCardHistory.filter(h => h.card_id && cardIdsStrings.includes(String(h.card_id)))
 
-                      const groupProduced = activeCards.reduce((sum, c) => sum + (c.status === 'completed' ? (Number(c.quantity) || 0) : 0), 0)
+                      // Вироблено = всі картки що вже виготовлені (completed, at-buffer, на прийомці)
+                      const groupProduced = activeCards.reduce((sum, c) => sum + (countAsProduced(c) ? (Number(c.quantity) || 0) : 0), 0)
                       const groupScrap = groupHistory.reduce((sum, h) => sum + (Number(h.scrap_qty) || 0), 0)
 
                       const snapshot = task.plan_snapshot?.[nomId] || task.plan_snapshot?.[nom?.id]
@@ -963,6 +1046,7 @@ const ForemanWorkplace = () => {
                       const stages = activeCards.reduce((acc, c) => {
                         if (c.status === 'new') acc.waiting++
                         else if (c.status === 'completed') acc.reception++
+                        else if (c.status === 'at-buffer' || c.status === 'waiting-buffer') acc.reception++ // Буфер = фактично готово
                         else if (c.operation?.includes('Розкрій')) acc.cutting++
                         else if (c.operation?.includes('Галтовка')) acc.tumbling++
                         else if (c.operation?.includes('Прийомка')) acc.reception++

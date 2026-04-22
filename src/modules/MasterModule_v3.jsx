@@ -9,7 +9,8 @@ import {
   Menu,
   X,
   ListChecks,
-  Monitor
+  Monitor,
+  CheckCircle2
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
@@ -382,17 +383,19 @@ const MasterModule = () => {
                 if (t.status !== 'completed' || !t.completed_at) return false
                 const d = new Date(t.completed_at)
                 const now = new Date()
-                return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+                return d.toDateString() === now.toDateString()
               }).sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at)).map(task => {
                 const order = orders.find(o => o.id === task.order_id)
                 return (
-                  <div key={task.id} style={{ background: '#0a0a0a', padding: '15px', borderRadius: '16px', border: '1px solid #1a1a1a', opacity: 0.6 }}>
+                  <div key={task.id} style={{ background: '#0a0a0a', padding: '15px', borderRadius: '16px', border: '1px solid #1a1a1a', opacity: 0.8, borderLeft: '3px solid #10b981' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                       <strong style={{ fontSize: '0.9rem', color: '#fff' }}>№{order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}</strong>
                       <span style={{ fontSize: '0.65rem', color: '#444' }}>{new Date(task.completed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: '#555', marginBottom: '8px' }}>{order?.customer}</div>
-                    <div style={{ fontSize: '0.65rem', color: '#333', fontWeight: 800, textTransform: 'uppercase' }}>{task.step}</div>
+                    <div style={{ fontSize: '0.75rem', color: '#888', marginBottom: '8px' }}>{order?.customer}</div>
+                    <div style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <CheckCircle2 size={10} /> {task.step}
+                    </div>
                   </div>
                 )
               })}

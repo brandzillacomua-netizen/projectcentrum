@@ -44,6 +44,9 @@ const WarehouseModuleV2 = () => {
   const [shortages, setShortages] = useState(null)
   const [newItem, setNewItem] = useState({ name: '', unit: 'шт', total_qty: '', type: 'raw' })
   const [searchQuery, setSearchQuery] = useState('')
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [processingDocs, setProcessingDocs] = useState(new Set())
+  const [processingTasks, setProcessingTasks] = useState(new Set())
 
   const tabs = [
     { id: 'raw', label: 'Оперативний', icon: <Package size={18} /> },
@@ -125,12 +128,21 @@ const WarehouseModuleV2 = () => {
     if (missingItems.length > 0) {
       setShortages({ orderId, orderNum, taskId, items: missingItems, reqList })
     } else {
-      apiService.submitReserveBatch(orderId, reqList, taskId, issueMaterials, approveWarehouse)
+      setProcessingTasks(prev => new Set(prev).add(taskId))
+      apiService.submitReserveBatch(orderId, reqList, taskId, issueMaterials, (tid) => {
+        approveWarehouse(tid)
+        setProcessingTasks(prev => {
+          const next = new Set(prev)
+          next.delete(tid)
+          return next
+        })
+      })
     }
   }
 
   const sendPurchaseRequest = async () => {
-    if (!shortages) return
+    if (!shortages || isProcessing) return
+    setIsProcessing(true)
     try {
       // 1. Надсилаємо запит на дефіцит
       await apiService.submitPurchaseRequest(
@@ -141,33 +153,35 @@ const WarehouseModuleV2 = () => {
         createPurchaseRequest
       )
       
-      // 2. Бронювання тепер виконується ТІЛЬКИ вручну при натисканні "ВИДАТИ", 
-      // щоб уникнути подвійного обліку дефіциту.
-
-
       alert('Запит на дефіцит відправлено до СВ! Ви зможете видати наряд, коли матеріали надійдуть на склад.')
       setShortages(null)
     } catch (err) {
       alert('Помилка: ' + err.message)
+    } finally {
+      setIsProcessing(false)
     }
   }
 
   // Handle adding new inventory item (hybrid: log + save)
   const handleAddInventory = async (e) => {
     e.preventDefault()
-    // Log to backend via apiService
-    await apiService.submitInventory(newItem, async (data) => {
-      // Fallback: add new row to inventory via Supabase through context
-      const { supabase } = await import('../supabase')
-      await supabase.from('inventory').insert([{
-        name: data.name,
-        unit: data.unit,
-        total_qty: Number(data.total_qty) || 0,
-        type: data.type || 'raw'
-      }])
-    })
-    setShowAdd(false)
-    setNewItem({ name: '', unit: 'шт', total_qty: '', type: activeTab })
+    if (isProcessing) return
+    setIsProcessing(true)
+    try {
+      await apiService.submitInventory(newItem, async (data) => {
+        const { supabase } = await import('../supabase')
+        await supabase.from('inventory').insert([{
+          name: data.name,
+          unit: data.unit,
+          total_qty: Number(data.total_qty) || 0,
+          type: data.type || 'raw'
+        }])
+      })
+      setShowAdd(false)
+      setNewItem({ name: '', unit: 'шт', total_qty: '', type: activeTab })
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
   return (
@@ -232,21 +246,34 @@ const WarehouseModuleV2 = () => {
                   if (available < Number(req.quantity)) missingItems.push(req)
                 })
 
-                // Кнопка сіра (заблокована) поки є активний процес
-                const isAwaiting = activePR || acceptedPR || orderedPR || orderedReception || pendingReception
                 const isAllIssued = reqList.every(r => r.status === 'issued')
 
+                // Пріоритетність статусів
                 let btnLabel = ''
-                if (activePR) btnLabel = 'ЗАПИТ НАДІСЛАНО'
-                else if (acceptedPR) btnLabel = 'ЗАПИТ ПРИЙНЯТО'
-                else if (orderedPR || orderedReception) btnLabel = 'ОЧІКУЄ ПРИЙОМКИ'
-                else if (pendingReception) btnLabel = 'ПРИЙОМКА'
-                else if (missingItems.length === 0) {
-                   btnLabel = isAllIssued ? 'ПІДТВЕРДИТИ ВИДАЧУ' : 'ВИДАТИ'
-                }
-                else btnLabel = 'ЗІБРАТИ ТА ЗАБРОНЮВАТИ'
+                let isAwaiting = false
 
-                const btnColor = isAwaiting ? '#1a1a1a' : '#ff9000'
+                if (missingItems.length === 0) {
+                  // Якщо товару достатньо - завжди показуємо кнопку видачі
+                  btnLabel = isAllIssued ? 'ПІДТВЕРДИТИ ВИДАЧУ' : 'ВИДАТИ'
+                  isAwaiting = false 
+                } else if (activePR) {
+                  btnLabel = 'ЗАПИТ НАДІСЛАНО'
+                  isAwaiting = true
+                } else if (acceptedPR) {
+                  btnLabel = 'ЗАПИТ ПРИЙНЯТО'
+                  isAwaiting = true
+                } else if (orderedPR || orderedReception) {
+                  btnLabel = 'ОЧІКУЄ ПРИЙОМКИ'
+                  isAwaiting = true
+                } else if (pendingReception) {
+                  btnLabel = 'ПРИЙОМКА'
+                  isAwaiting = false // Дозволяємо натиснути, щоб відкрити панель
+                } else {
+                  btnLabel = 'ЗІБРАТИ ТА ЗАБРОНЮВАТИ'
+                  isAwaiting = false
+                }
+
+                const btnColor = isAwaiting ? '#1a1a1a' : (btnLabel === 'ПРИЙОМКА' ? '#0ea5e9' : '#ff9000')
                 const textColor = isAwaiting ? '#444' : '#000'
 
                 return (
@@ -259,10 +286,26 @@ const WarehouseModuleV2 = () => {
                       })}
                     </ul>
                     <button
-                      onClick={() => {
-                        if (isAwaiting) return
+                      disabled={isAwaiting || processingTasks.has(taskId)}
+                      onClick={async () => {
+                        if (isAwaiting || processingTasks.has(taskId)) return
+                        
+                        if (btnLabel === 'ПРИЙОМКА') {
+                          setShowReception(true)
+                          return
+                        }
+
                         if (isAllIssued && missingItems.length === 0) {
-                          approveWarehouse(taskId)
+                          setProcessingTasks(prev => new Set(prev).add(taskId))
+                          try {
+                            await approveWarehouse(taskId)
+                          } finally {
+                            setProcessingTasks(prev => {
+                              const next = new Set(prev)
+                              next.delete(taskId)
+                              return next
+                            })
+                          }
                         } else {
                           handleReserveOrder(taskId, orderId, displayNum, reqList)
                         }
@@ -272,11 +315,12 @@ const WarehouseModuleV2 = () => {
                         background: btnColor, color: textColor,
                         border: isAwaiting ? '1px solid #222' : 'none',
                         borderRadius: '10px', fontWeight: 900,
-                        cursor: isAwaiting ? 'not-allowed' : 'pointer',
-                        fontSize: '0.8rem', textTransform: 'uppercase'
+                        cursor: (isAwaiting || processingTasks.has(taskId)) ? 'not-allowed' : 'pointer',
+                        fontSize: '0.8rem', textTransform: 'uppercase',
+                        opacity: processingTasks.has(taskId) ? 0.5 : 1
                       }}
                     >
-                      {btnLabel}
+                      {processingTasks.has(taskId) ? 'ОБРОБКА...' : btnLabel}
                     </button>
                   </div>
                 )
@@ -391,10 +435,22 @@ const WarehouseModuleV2 = () => {
                     </div>
                   </div>
                   <button
-                    onClick={() => confirmReception(doc.id)}
-                    style={{ marginLeft: '15px', background: '#10b981', color: '#000', border: 'none', padding: '10px 20px', borderRadius: '10px', fontWeight: 1000, cursor: 'pointer', fontSize: '0.8rem' }}
+                    disabled={processingDocs.has(doc.id)}
+                    onClick={async () => {
+                      setProcessingDocs(prev => new Set(prev).add(doc.id))
+                      try {
+                        await confirmReception(doc.id)
+                      } finally {
+                        setProcessingDocs(prev => {
+                          const next = new Set(prev)
+                          next.delete(doc.id)
+                          return next
+                        })
+                      }
+                    }}
+                    style={{ marginLeft: '15px', background: '#10b981', color: '#000', border: 'none', padding: '10px 20px', borderRadius: '10px', fontWeight: 1000, cursor: processingDocs.has(doc.id) ? 'not-allowed' : 'pointer', fontSize: '0.8rem', opacity: processingDocs.has(doc.id) ? 0.5 : 1 }}
                   >
-                    ПРИЙНЯТИ
+                    {processingDocs.has(doc.id) ? 'ОБРОБКА...' : 'ПРИЙНЯТИ'}
                   </button>
                 </div>
               ))}
@@ -542,10 +598,11 @@ const WarehouseModuleV2 = () => {
                 НАЗАД
               </button>
               <button
+                disabled={isProcessing}
                 onClick={sendPurchaseRequest}
-                style={{ flex: 2, padding: '12px', borderRadius: '10px', background: '#ef4444', color: '#000', border: 'none', fontWeight: 900, cursor: 'pointer' }}
+                style={{ flex: 2, padding: '12px', borderRadius: '10px', background: '#ef4444', color: '#fff', border: 'none', fontWeight: 900, cursor: isProcessing ? 'not-allowed' : 'pointer', opacity: isProcessing ? 0.5 : 1 }}
               >
-                НАДІСЛАТИ ЗАПИТ НА СВ
+                {isProcessing ? 'ОБРОБКА...' : 'НАДІСЛАТИ ЗАПИТ НА СВ'}
               </button>
             </div>
           </div>

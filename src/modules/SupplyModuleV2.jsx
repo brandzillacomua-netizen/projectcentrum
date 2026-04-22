@@ -32,6 +32,8 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
   const [expandedDoc, setExpandedDoc] = useState(null)
   const [showReception, setShowReception] = useState(false)
   const [shortageModal, setShortageModal] = useState(null)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [processingDocs, setProcessingDocs] = useState(new Set())
 
   const normalize = (s) => (s || '').toLowerCase().trim()
     .replace(/[тt]/g, 't').replace(/[аa]/g, 'a').replace(/[еe]/g, 'e')
@@ -83,13 +85,18 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
   }
 
   const handleSendToWarehouse = async () => {
-    if (draftItems.length === 0) return
-    const items = draftItems.map(d => ({ nomenclature_id: d.nomenclature_id, name: d.name, qty: d.qty }))
-    await apiService.submitCreateReceptionDoc(items, (its) => createReceptionDoc(its, 'ordered', null), null)
-    setDraftItems([])
-    setShowCreate(false)
-    setActiveMobileSection('registry')
-    alert('Готово! Документ створено. Не забудьте "Відправити на склад" з Реєстру.')
+    if (draftItems.length === 0 || isProcessing) return
+    setIsProcessing(true)
+    try {
+      const items = draftItems.map(d => ({ nomenclature_id: d.nomenclature_id, name: d.name, qty: d.qty }))
+      await apiService.submitCreateReceptionDoc(items, (its) => createReceptionDoc(its, 'ordered', null), null)
+      setDraftItems([])
+      setShowCreate(false)
+      setActiveMobileSection('registry')
+      alert('Готово! Документ створено. Не забудьте "Відправити на склад" з Реєстру.')
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
   const handleForwardToProcurement = async (pr) => {
@@ -141,7 +148,8 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
   }
 
   const confirmForwardToProcurement = async () => {
-    if (!shortageModal) return
+    if (!shortageModal || isProcessing) return
+    setIsProcessing(true)
     const { pr, deficitItems } = shortageModal
     
     try {
@@ -191,6 +199,8 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
       if (fetchData) fetchData()
     } catch (err) {
       alert('Помилка відправки: ' + err.message)
+    } finally {
+      setIsProcessing(false)
     }
   }
 
@@ -288,10 +298,22 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
                       <span style={{ fontSize: '0.8rem', color: '#555' }}>Документ #{doc.id.slice(0, 8)}</span>
                       <button 
-                        onClick={() => confirmReception(doc.id)}
-                        style={{ background: '#10b981', color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 900 }}
+                        disabled={processingDocs.has(doc.id)}
+                        onClick={async () => {
+                          setProcessingDocs(prev => new Set(prev).add(doc.id))
+                          try {
+                            await confirmReception(doc.id)
+                          } finally {
+                            setProcessingDocs(prev => {
+                              const next = new Set(prev)
+                              next.delete(doc.id)
+                              return next
+                            })
+                          }
+                        }}
+                        style={{ background: '#10b981', color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 900, opacity: processingDocs.has(doc.id) ? 0.5 : 1, cursor: processingDocs.has(doc.id) ? 'not-allowed' : 'pointer' }}
                       >
-                        ПРИЙНЯТИ НА СКЛАД
+                        {processingDocs.has(doc.id) ? 'ОБРОБКА...' : 'ПРИЙНЯТИ НА СКЛАД'}
                       </button>
                     </div>
                     <div style={{ fontSize: '0.85rem' }}>
@@ -385,8 +407,11 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                 </div>
 
                 {draftItems.length > 0 && (
-                  <button onClick={handleSendToWarehouse} style={{ width: '100%', padding: '22px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '20px', fontWeight: 950, cursor: 'pointer', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', marginTop: '15px', boxShadow: '0 15px 30px rgba(16, 185, 129, 0.2)' }}>
-                    <Send size={22} /> СФОРМУВАТИ ДОКУМЕНТ ТА ПЕРЕДАТИ
+                  <button 
+                    disabled={isProcessing}
+                    onClick={handleSendToWarehouse} 
+                    style={{ width: '100%', padding: '22px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '20px', fontWeight: 950, cursor: isProcessing ? 'not-allowed' : 'pointer', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', marginTop: '15px', boxShadow: '0 15px 30px rgba(16, 185, 129, 0.2)', opacity: isProcessing ? 0.7 : 1 }}>
+                    <Send size={22} /> {isProcessing ? 'СТВОРЕННЯ...' : 'СФОРМУВАТИ ДОКУМЕНТ ТА ПЕРЕДАТИ'}
                   </button>
                 )}
               </div>
@@ -400,124 +425,162 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                 <AlertTriangle size={18} className="text-secondary" /> ДЕФІЦИТ ТА ЗАПИТИ
               </h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                {pendingRequests.map(pr => (
-                  <div key={pr.id} className="request-card" style={{ background: '#111', padding: '25px', borderRadius: '24px', border: '1px solid #222', borderLeft: pr.status === 'accepted' ? '4px solid #3b82f6' : '4px solid #ef4444' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
-                      <strong style={pr.status === 'accepted' ? { color: '#3b82f6', fontSize: '1rem' } : { color: '#ef4444', fontSize: '1rem' }}>
-                        НАРЯД #{pr.order_num}
-                      </strong>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        {pr.items && (
-                          (() => {
-                            const hasDeficit = pr.items.some(it => {
-                              const name = resolveItemName(it, 0)
-                              const parsedName = parseMaterialName(name)
-                              const invItem = (inventory || []).find(i =>
-                                i.warehouse === 'production' &&
-                                (
-                                  (it.nomenclature_id && String(i.nomenclature_id) === String(it.nomenclature_id)) ||
-                                  (it.inventory_id && String(i.id) === String(it.inventory_id)) ||
-                                  normalize(i.name) === normalize(parsedName) ||
-                                  (i.name && parsedName && normalize(i.name).includes(normalize(parsedName))) ||
-                                  (i.name && parsedName && normalize(parsedName).includes(normalize(i.name)))
-                                )
-                              )
-                              const available = invItem ? (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0) : 0
-                              return available < Number(resolveItemQty(it))
-                            })
+                {pendingRequests.map(pr => {
+                  const hasDeficit = (pr.items || []).some(it => {
+                    const name = resolveItemName(it, 0)
+                    const parsedName = parseMaterialName(name)
+                    const invItem = (inventory || []).find(i =>
+                      i.warehouse === 'production' &&
+                      (
+                        (it.nomenclature_id && String(i.nomenclature_id) === String(it.nomenclature_id)) ||
+                        (it.inventory_id && String(i.id) === String(it.inventory_id)) ||
+                        normalize(i.name) === normalize(parsedName) ||
+                        (i.name && parsedName && normalize(i.name).includes(normalize(parsedName))) ||
+                        (i.name && parsedName && normalize(parsedName).includes(normalize(i.name)))
+                      )
+                    )
+                    const available = invItem ? (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0) : 0
+                    return available < Number(resolveItemQty(it))
+                  })
 
-                            const currentTaskId = pr.task_id || `order-${pr.order_id}`
-                            const hasActivePRForProcurement = (purchaseRequests || []).some(
-                              r => (r.task_id ? String(r.task_id) === String(currentTaskId) : String(r.order_id) === String(pr.order_id)) && 
-                              r.destination_warehouse === 'procurement' && 
-                              (r.status === 'pending' || r.status === 'accepted' || r.status === 'ordered')
+                  const currentTaskId = pr.task_id || `order-${pr.order_id}`
+                  const hasActivePRForProcurement = (purchaseRequests || []).some(
+                    r => (r.task_id ? String(r.task_id) === String(currentTaskId) : String(r.order_id) === String(pr.order_id)) && 
+                    r.destination_warehouse === 'procurement' && 
+                    (r.status === 'pending' || r.status === 'accepted' || r.status === 'ordered')
+                  )
+
+                  return (
+                    <div key={pr.id} className="request-card" style={{ background: '#111', padding: '25px', borderRadius: '24px', border: '1px solid #222', borderLeft: pr.status === 'accepted' ? '4px solid #3b82f6' : '4px solid #ef4444' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+                        <strong style={pr.status === 'accepted' ? { color: '#3b82f6', fontSize: '1rem' } : { color: '#ef4444', fontSize: '1rem' }}>
+                          НАРЯД #{pr.order_num}
+                        </strong>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          {pr.status === 'pending' && isProcurementOnly && (
+                            <button 
+                              disabled={processingDocs.has(pr.id)}
+                              onClick={async () => {
+                                setProcessingDocs(prev => new Set(prev).add(pr.id))
+                                try {
+                                  await updatePurchaseRequestStatus(pr.id, 'accepted', 'procurement')
+                                } finally {
+                                  setProcessingDocs(prev => { const next = new Set(prev); next.delete(pr.id); return next; })
+                                }
+                              }} 
+                              style={{ 
+                                background: processingDocs.has(pr.id) ? '#1a1a1a' : '#3b82f6', 
+                                color: processingDocs.has(pr.id) ? '#444' : '#fff', 
+                                border: 'none', 
+                                padding: '8px 15px', 
+                                borderRadius: '10px', 
+                                fontSize: '0.7rem', 
+                                fontWeight: 900,
+                                cursor: processingDocs.has(pr.id) ? 'not-allowed' : 'pointer'
+                              }}
+                            >
+                              {processingDocs.has(pr.id) ? 'ОБРОБКА...' : 'ПРИЙНЯТИ'}
+                            </button>
+                          )}
+                          {(pr.status === 'accepted' || (pr.status === 'pending' && !isProcurementOnly)) && (
+                            <button
+                              onClick={async () => {
+                                setProcessingDocs(prev => new Set(prev).add(pr.id))
+                                try {
+                                  await apiService.submitConvertRequestToOrder(pr.id, convertRequestToOrder)
+                                } finally {
+                                  setProcessingDocs(prev => {
+                                    const next = new Set(prev)
+                                    next.delete(pr.id)
+                                    return next
+                                  })
+                                }
+                              }}
+                              disabled={(!isProcurementOnly && hasDeficit) || pr.status === 'ordered' || processingDocs.has(pr.id)}
+                              style={{ 
+                                background: ((!isProcurementOnly && hasDeficit) || pr.status === 'ordered' || processingDocs.has(pr.id)) ? '#1a1a1a' : '#3b82f622', 
+                                color: ((!isProcurementOnly && hasDeficit) || pr.status === 'ordered' || processingDocs.has(pr.id)) ? '#444' : '#3b82f6', 
+                                border: '1px solid #3b82f644', 
+                                padding: '8px 15px', 
+                                borderRadius: '10px', 
+                                fontSize: '0.7rem', 
+                                fontWeight: 900,
+                                cursor: ((!isProcurementOnly && hasDeficit) || pr.status === 'ordered' || processingDocs.has(pr.id)) ? 'not-allowed' : 'pointer',
+                                opacity: ((!isProcurementOnly && hasDeficit) || pr.status === 'ordered' || processingDocs.has(pr.id)) ? 0.5 : 1
+                              }}
+                            >
+                              {processingDocs.has(pr.id) ? 'ОБРОБКА...' : (pr.status === 'ordered' ? 'ЗАМОВЛЕНО' : (isProcurementOnly ? 'СФОРМУВАТИ ПОСТАВКУ НА СВ' : 'СФОРМУВАТИ ПОСТАВКУ'))}
+                            </button>
+                          )}
+                          {!isProcurementOnly && (pr.status === 'pending' || pr.status === 'accepted') && (
+                             <button 
+                               disabled={hasActivePRForProcurement || processingDocs.has(pr.id)}
+                               onClick={async (e) => {
+                                 e.stopPropagation()
+                                 if (hasDeficit && !hasActivePRForProcurement) {
+                                   handleForwardToProcurement(pr)
+                                 } else {
+                                   setProcessingDocs(prev => new Set(prev).add(pr.id))
+                                   try {
+                                     await apiService.submitUpdatePurchaseRequestStatus(pr.id, 'accepted', updatePurchaseRequestStatus)
+                                   } finally {
+                                     setProcessingDocs(prev => { const next = new Set(prev); next.delete(pr.id); return next; })
+                                   }
+                                 }
+                               }}
+                               style={{ 
+                                 background: (hasDeficit && !hasActivePRForProcurement) ? '#ef4444' : '#1a1a1a', 
+                                 color: (hasDeficit && !hasActivePRForProcurement) ? '#fff' : '#444', 
+                                 border: '1px solid #ef444444', 
+                                 padding: '8px 15px', 
+                                 borderRadius: '10px', 
+                                 fontSize: '0.7rem',
+                                 fontWeight: 950,
+                                 cursor: (hasActivePRForProcurement || processingDocs.has(pr.id)) ? 'not-allowed' : 'pointer',
+                                 opacity: (hasActivePRForProcurement || processingDocs.has(pr.id)) ? 0.5 : 1
+                               }}
+                             >
+                                {processingDocs.has(pr.id) ? 'ОБРОБКА...' : (hasActivePRForProcurement ? 'ОЧІКУЄ ЗАКУПІВЛІ' : 'ЗАКУПИТИ')}
+                             </button>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '0.9rem', color: '#888' }}>
+                        {(pr.items || []).map((it, idx) => {
+                          const name = resolveItemName(it, idx)
+                          const parsedName = parseMaterialName(name)
+                          const invItem = (inventory || []).find(i =>
+                            i.warehouse === 'production' &&
+                            (
+                              (it.nomenclature_id && String(i.nomenclature_id) === String(it.nomenclature_id)) ||
+                              (it.inventory_id && String(i.id) === String(it.inventory_id)) ||
+                              normalize(i.name) === normalize(parsedName) ||
+                              (i.name && parsedName && normalize(i.name).includes(normalize(parsedName))) ||
+                              (i.name && parsedName && normalize(parsedName).includes(normalize(i.name)))
                             )
+                          )
+                          const available = invItem ? (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0) : 0
+                          const needed = Number(resolveItemQty(it))
+                          const isDeficit = !isProcurementOnly && (available < needed)
 
-                            return (
-                              <div style={{ display: 'flex', gap: '8px' }}>
-                                {pr.status === 'pending' && isProcurementOnly && (
-                                  <button onClick={() => updatePurchaseRequestStatus(pr.id, 'accepted', 'procurement')} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 900 }}>
-                                    ПРИЙНЯТИ
-                                  </button>
+                          return (
+                            <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ color: isDeficit ? '#ef4444' : '#888' }}>{name}</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                {!isProcurementOnly && (
+                                  <span style={{ fontSize: '0.65rem', color: isDeficit ? '#ef4444' : '#10b981', fontWeight: 800 }}>
+                                    ({available} в наявності)
+                                  </span>
                                 )}
-                                {(pr.status === 'accepted' || (pr.status === 'pending' && !isProcurementOnly)) && (
-                                  <button
-                                    onClick={() => apiService.submitConvertRequestToOrder(pr.id, convertRequestToOrder)}
-                                    disabled={(!isProcurementOnly && hasDeficit) || pr.status === 'ordered'}
-                                    style={{ 
-                                      background: ((!isProcurementOnly && hasDeficit) || pr.status === 'ordered') ? '#1a1a1a' : '#3b82f622', 
-                                      color: ((!isProcurementOnly && hasDeficit) || pr.status === 'ordered') ? '#444' : '#3b82f6', 
-                                      border: '1px solid #3b82f644', 
-                                      padding: '8px 15px', 
-                                      borderRadius: '10px', 
-                                      fontSize: '0.7rem', 
-                                      fontWeight: 900,
-                                      cursor: ((!isProcurementOnly && hasDeficit) || pr.status === 'ordered') ? 'not-allowed' : 'pointer',
-                                      opacity: ((!isProcurementOnly && hasDeficit) || pr.status === 'ordered') ? 0.5 : 1
-                                    }}
-                                  >
-                                    {pr.status === 'ordered' ? 'ЗАМОВЛЕНО' : (isProcurementOnly ? 'СФОРМУВАТИ ПОСТАВКУ НА СВ' : 'СФОРМУВАТИ ПОСТАВКУ')}
-                                  </button>
-                                )}
-                                {!isProcurementOnly && (pr.status === 'pending' || pr.status === 'accepted') && (
-                                   <button 
-                                     disabled={hasActivePRForProcurement}
-                                     onClick={() => handleForwardToProcurement(pr)} 
-                                     style={{ 
-                                       background: (hasDeficit && !hasActivePRForProcurement) ? '#ef4444' : '#1a1a1a', 
-                                       color: (hasDeficit && !hasActivePRForProcurement) ? '#fff' : '#444', 
-                                       border: '1px solid #ef444444', 
-                                       padding: '8px 15px', 
-                                       borderRadius: '10px', 
-                                       fontSize: '0.7rem', 
-                                       fontWeight: 950,
-                                       cursor: hasActivePRForProcurement ? 'not-allowed' : 'pointer'
-                                     }}
-                                   >
-                                      {hasActivePRForProcurement ? 'ОЧІКУЄ ЗАКУПІВЛІ' : 'ЗАКУПИТИ'}
-                                   </button>
-                                )}
+                                <strong style={{ color: isDeficit ? '#ef4444' : '#fff' }}>{needed}</strong>
                               </div>
-                            )
-                          })()
-                        )}
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
-                    <div style={{ fontSize: '0.9rem', color: '#888' }}>
-                      {(pr.items || []).map((it, idx) => {
-                        const name = resolveItemName(it, idx)
-                        const parsedName = parseMaterialName(name)
-                        const invItem = (inventory || []).find(i =>
-                          i.warehouse === 'production' &&
-                          (
-                            (it.nomenclature_id && String(i.nomenclature_id) === String(it.nomenclature_id)) ||
-                            (it.inventory_id && String(i.id) === String(it.inventory_id)) ||
-                            normalize(i.name) === normalize(parsedName) ||
-                            (i.name && parsedName && normalize(i.name).includes(normalize(parsedName))) ||
-                            (i.name && parsedName && normalize(parsedName).includes(normalize(i.name)))
-                          )
-                        )
-                        const available = invItem ? (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0) : 0
-                        const needed = Number(resolveItemQty(it))
-                        const isDeficit = !isProcurementOnly && (available < needed)
-
-                        return (
-                          <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ color: isDeficit ? '#ef4444' : '#888' }}>{name}</span>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              {!isProcurementOnly && (
-                                <span style={{ fontSize: '0.65rem', color: isDeficit ? '#ef4444' : '#10b981', fontWeight: 800 }}>
-                                  ({available} в наявності)
-                                </span>
-                              )}
-                              <strong style={{ color: isDeficit ? '#ef4444' : '#fff' }}>{needed}</strong>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
                 {pendingRequests.length === 0 && (
                   <div style={{ textAlign: 'center', padding: '60px', color: '#333', fontSize: '0.85rem' }}>Активних дефіцитів не зафіксовано</div>
                 )}
@@ -569,25 +632,41 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
 
                         {doc.status === 'shipped' && !isProcurementOnly && (
                           <button
-                            onClick={(e) => {
+                            disabled={processingDocs.has(doc.id)}
+                            onClick={async (e) => {
                               e.stopPropagation()
-                              apiService.submitConfirmReception(doc.id, () => confirmReception(doc.id, 'production'))
+                              setProcessingDocs(prev => new Set(prev).add(doc.id))
+                              try {
+                                await apiService.submitConfirmReception(doc.id, () => confirmReception(doc.id, 'production'))
+                              } finally {
+                                setProcessingDocs(prev => {
+                                  const next = new Set(prev)
+                                  next.delete(doc.id)
+                                  return next
+                                })
+                              }
                             }}
-                            style={{ width: '100%', padding: '12px', background: '#10b981', color: '#000', border: 'none', borderRadius: '10px', fontWeight: 900, fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
+                            style={{ width: '100%', padding: '12px', background: '#10b981', color: '#000', border: 'none', borderRadius: '10px', fontWeight: 900, fontSize: '0.75rem', cursor: processingDocs.has(doc.id) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', opacity: processingDocs.has(doc.id) ? 0.5 : 1 }}
                           >
-                            <CheckCircle size={16} /> ПРИЙНЯТИ НА СКЛАД
+                            <CheckCircle size={16} /> {processingDocs.has(doc.id) ? 'ПРИЙНЯТТЯ...' : 'ПРИЙНЯТИ НА СКЛАД'}
                           </button>
                         )}
 
                         {doc.status === 'ordered' && (
                           <button
-                            onClick={(e) => {
+                            disabled={processingDocs.has(doc.id)}
+                            onClick={async (e) => {
                               e.stopPropagation()
-                              apiService.submitSendDocToWarehouse(doc.id, sendDocToWarehouse)
+                              setProcessingDocs(prev => new Set(prev).add(doc.id))
+                              try {
+                                await apiService.submitSendDocToWarehouse(doc.id, sendDocToWarehouse)
+                              } finally {
+                                setProcessingDocs(prev => { const next = new Set(prev); next.delete(doc.id); return next; })
+                              }
                             }}
-                            style={{ width: '100%', padding: '12px', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 900, fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
+                            style={{ width: '100%', padding: '12px', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 900, fontSize: '0.75rem', cursor: processingDocs.has(doc.id) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', opacity: processingDocs.has(doc.id) ? 0.5 : 1 }}
                           >
-                            <Warehouse size={16} /> {isProcurementOnly ? 'ВІДПРАВИТИ У ВИРОБНИЦТВО' : 'ПЕРЕДАТИ В ЦЕХ'}
+                            <Warehouse size={16} /> {processingDocs.has(doc.id) ? 'ОБРОБКА...' : (isProcurementOnly ? 'ВІДПРАВИТИ У ВИРОБНИЦТВО' : 'ПЕРЕДАТИ В ЦЕХ')}
                           </button>
                         )}
                       </div>

@@ -9,7 +9,7 @@ import { apiService } from '../services/apiDispatcher'
 import { supabase } from '../supabase'
 
 const Shop2Terminal = () => {
-  const { workCards, orders, nomenclatures, inventory, startWorkCard, confirmBuffer, fetchData, operators, workCardHistory, handoverToSGP } = useMES()
+  const { workCards, orders, nomenclatures, inventory, startWorkCard, confirmBuffer, fetchData, refreshTable, operators, workCardHistory, handoverToSGP } = useMES()
   const [selectedCardId, setSelectedCardId] = useState(null)
   const [selectedStage, setSelectedStage] = useState('')
   const [selectedOperator, setSelectedOperator] = useState('')
@@ -45,23 +45,11 @@ const Shop2Terminal = () => {
     if (card) setSelectedStage(card.operation || '')
   }, [selectedCardId])
   
-  // ── РЕАЛЬНИЙ ЧАС (Підписка на зміни) ──────────────────────────
+  // ── РЕАЛЬНИЙ ЧАС (ЦЕНТРАЛІЗОВАНО В MESContext) ────────────────
   useEffect(() => {
-    const channel = supabase.channel('shop2-terminal-updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_cards' }, () => {
-         console.log('Realtime update: work_cards');
-         if (typeof fetchData === 'function') fetchData()
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, () => {
-         console.log('Realtime update: inventory');
-         if (typeof fetchData === 'function') fetchData()
-      })
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [fetchData])
+    // Оновлення тепер приходять через payload в MESContext миттєво
+    return () => {}
+  }, [])
 
   useEffect(() => {
     let html5QrCode = null
@@ -638,7 +626,21 @@ const Shop2Terminal = () => {
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                                   <div style={{ fontWeight: 1000, fontSize: '1.3rem', color: '#10b981' }}>{c.quantity} <small style={{ fontSize: '0.6rem', opacity: 0.3 }}>шт</small></div>
-                                  <button onClick={() => handoverToSGP(c.id)} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 900, cursor: 'pointer' }}>ВІДПРАВИТИ НА СГП</button>
+                                  <button 
+                                    disabled={isProcessing}
+                                    onClick={async () => {
+                                      if (isProcessing) return
+                                      setIsProcessing(true)
+                                      try {
+                                        await handoverToSGP(c.id)
+                                      } finally {
+                                        setIsProcessing(false)
+                                      }
+                                    }} 
+                                    style={{ background: isProcessing ? '#555' : '#3b82f6', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 900, cursor: isProcessing ? 'not-allowed' : 'pointer', opacity: isProcessing ? 0.7 : 1 }}
+                                  >
+                                    {isProcessing ? 'ПЕРЕДАЧА...' : 'ВІДПРАВИТИ НА СГП'}
+                                  </button>
                                 </div>
                               </div>
                             );

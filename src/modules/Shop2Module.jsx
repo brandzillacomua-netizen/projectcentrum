@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Monitor, ListTodo, X, Clock, CheckCircle2, ChevronRight, Menu, Printer, Tablet } from 'lucide-react'
 import { useMES } from '../MESContext'
@@ -6,19 +6,48 @@ import { supabase } from '../supabase'
 import { QRCodeCanvas } from 'qrcode.react'
 
 const Shop2Module = () => {
-  const { tasks, orders, nomenclatures, bomItems, inventory, workCards, workCardHistory, fetchData, completeTaskShop2, directHandoverToSGP } = useMES()
+  const { 
+    orders, 
+    tasks, 
+    workCards, 
+    inventory, 
+    nomenclatures, 
+    bomItems,
+    fetchData, 
+    completeTaskShop2,
+    directHandoverToSGP,
+    fetchTaskArchiveCards,
+    workCardHistory
+  } = useMES()
+
   const [activeTaskId, setActiveTaskId] = useState(null)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [printModalData, setPrintModalData] = useState(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [selectedStages, setSelectedStages] = useState({})
+  const [archiveCards, setArchiveCards] = useState([])
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [showVictory, setShowVictory] = useState(false)
   const itemsPerPage = 8
+
+  // Завантажуємо завершені карти при зміні наряду
+  useEffect(() => {
+    if (activeTaskId) {
+      const loadArchive = async () => {
+        const cards = await fetchTaskArchiveCards(activeTaskId)
+        setArchiveCards(cards)
+      }
+      loadArchive()
+    } else {
+      setArchiveCards([])
+    }
+  }, [activeTaskId, workCards])
 
   // Фільтруємо наряди для Цеху №2 (Пресування)
   const relevantTasks = useMemo(() => {
     return tasks
-      .filter(t => t.step === 'Пресування')
+      .filter(t => t.step?.includes('Пресування'))
       .sort((a, b) => {
         if (a.status === 'completed' && b.status !== 'completed') return 1
         if (a.status !== 'completed' && b.status === 'completed') return -1
@@ -228,10 +257,53 @@ const Shop2Module = () => {
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ fontWeight: 800, fontSize: '1rem', color: isCompleted ? '#444' : '#fff' }}>№ {order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}</div>
-                    {isCompleted && <CheckCircle2 size={14} color="#10b981" />}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {isCompleted ? (
+                        <CheckCircle2 size={14} color="#10b981" />
+                      ) : (() => {
+                        const snapshot = task.plan_snapshot || {}
+                        const arrivals = snapshot.arrivals || []
+                        const allCards = [...(workCards || []), ...(archiveCards || [])]
+                        
+                        const isAllDone = arrivals.length > 0 && arrivals.every(a => {
+                          return allCards.some(wc => 
+                            String(wc.task_id) === String(task.id) && 
+                            String(wc.nomenclature_id) === String(a.id) && 
+                            wc.status === 'completed'
+                          )
+                        })
+
+                        if (isAllDone) {
+                          return <div style={{ background: '#10b981', color: '#fff', padding: '3px 8px', borderRadius: '8px', fontSize: '0.6rem', fontWeight: 950, boxShadow: '0 0 10px rgba(16, 185, 129, 0.4)' }}>ГОТОВО</div>
+                        }
+                        return null
+                      })()}
+                    </div>
                   </div>
                   <div style={{ fontSize: '0.75rem', color: isCompleted ? '#222' : '#555', marginTop: '4px' }}>{order?.customer}</div>
                   {isCompleted && <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 900, marginTop: '8px' }}>ВИКОНАНО</div>}
+                  {!isCompleted && (() => {
+                        const snapshot = task.plan_snapshot || {}
+                        const arrivals = snapshot.arrivals || []
+                        const allCards = [...(workCards || []), ...(archiveCards || [])]
+                        
+                        const isAllDone = arrivals.length > 0 && arrivals.every(a => {
+                          return allCards.some(wc => 
+                            String(wc.task_id) === String(task.id) && 
+                            String(wc.nomenclature_id) === String(a.id) && 
+                            wc.status === 'completed'
+                          )
+                        })
+
+                        if (isAllDone) {
+                          return (
+                            <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 900, marginTop: '8px', display: 'flex', alignItems: 'center', gap: '4px', animation: 'pulse 2s infinite' }}>
+                              <CheckCircle2 size={10}/> МОЖНА ЗАКРИВАТИ
+                            </div>
+                          )
+                        }
+                        return null
+                  })()}
                 </div>
               )
             })}
@@ -266,8 +338,10 @@ const Shop2Module = () => {
         {/* ───── ЦЕНТРАЛЬНА ЧАСТИНА (ДЕТАЛІЗУЦІЯ) ───── */}
         <div style={{ flex: 1, padding: '40px', overflowY: 'auto' }}>
           {activeTaskId ? (() => {
-            const task = relevantTasks.find(t => t.id === activeTaskId)
+            const task = tasks.find(t => t.id === activeTaskId) // Шукаємо у всіх tasks, не тільки в relevant
+            if (!task) return <div style={{ color: '#333' }}>Наряд не знайдено або він переміщений</div>
             const order = orders.find(o => o.id === task.order_id)
+            if (!order) return <div style={{ color: '#333' }}>Дані замовлення не знайдено</div>
             const isReworkOrder = order?.order_num?.startsWith('ВБ')
 
             // Fallback for Product Names: if order has no items (internal rework), use snapshot names
@@ -283,26 +357,39 @@ const Shop2Module = () => {
               <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '40px' }}>
                   <div>
-                    <h2 style={{ fontSize: '2.5rem', fontWeight: 950, margin: 0 }}>Наряд №{order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}</h2>
+                    <h2 style={{ fontSize: '2.5rem', fontWeight: 950, margin: 0, display: 'flex', alignItems: 'center', gap: '15px' }}>
+                      Наряд №{order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}
+                      {task.status === 'completed' && (
+                        <div style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', color: '#10b981', padding: '5px 15px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 950, letterSpacing: '1px' }}>
+                          ВИКОНАНО
+                        </div>
+                      )}
+                    </h2>
                     <div style={{ color: '#555', marginTop: '8px', fontSize: '1.1rem', fontWeight: 800 }}>
                       ВИРІБ: <strong style={{ color: '#8b5cf6' }}>{productNames || '—'}</strong> | {order?.customer}
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '15px' }}>
                     {(() => {
-                      const taskCards = (workCards || []).filter(c => String(c.task_id) === String(task.id))
+                      // Використовуємо об'єднаний список (активні + архівні) для перевірки готовності наряду
+                      const allCardsForTask = [...(workCards || []), ...(archiveCards || [])]
+                      const taskCards = allCardsForTask.filter(c => String(c.task_id) === String(task.id))
                       const allCardsDone = taskCards.length > 0 && taskCards.every(c => c.status === 'completed')
 
                       if (task.status !== 'completed' && allCardsDone) {
                         return (
                           <button
+                            disabled={isProcessing}
                             onClick={async () => {
                               if (window.confirm('Ви впевнені, що хочете закрити наряд?')) {
+                                setIsProcessing(true)
                                 try {
                                   await completeTaskShop2(task.id);
-                                  alert('Наряд успішно закритий!');
+                                  setShowVictory(true); // ЗАПУСКАЄМО ТРІУМФ!
                                 } catch (e) {
                                   alert('Помилка: ' + e.message);
+                                } finally {
+                                  setIsProcessing(false)
                                 }
                               }
                             }}
@@ -313,11 +400,12 @@ const Shop2Module = () => {
                               padding: '12px 25px',
                               borderRadius: '14px',
                               fontWeight: 900,
-                              cursor: 'pointer',
-                              boxShadow: '0 10px 20px -5px rgba(139, 92, 246, 0.4)'
+                              cursor: isProcessing ? 'not-allowed' : 'pointer',
+                              boxShadow: '0 10px 20px -5px rgba(139, 92, 246, 0.4)',
+                              opacity: isProcessing ? 0.5 : 1
                             }}
                           >
-                            ЗАКРИТИ НАРЯД ЦЕХУ
+                            {isProcessing ? 'ОБРОБКА...' : 'ЗАКРИТИ НАРЯД ЦЕХУ'}
                           </button>
                         )
                       }
@@ -348,18 +436,15 @@ const Shop2Module = () => {
                     <tbody>
                       {(() => {
                         const snapshot = task.plan_snapshot || {}
-                        const snapshotItems = Object.values(snapshot).filter(Boolean)
-
-                        let displayItems = snapshotItems.length > 0 ? snapshotItems.map(s => ({
-                          nom: (nomenclatures || []).find(n => String(n?.id) === String(s?.id)),
-                          need: s?.need,
-                          bz: s?.bz,
-                          stock: s?.stock,
-                          plan: s?.plan,
-                          code: s?.code
+                        const arrivals = snapshot.arrivals || []
+                        
+                        // Пріоритетно беремо дані з того, що фактично приїхало (буфер)
+                        let displayItems = arrivals.length > 0 ? arrivals.map(a => ({
+                          nom: (nomenclatures || []).find(n => String(n?.id) === String(a?.id)),
+                          need: a?.semi || 0,
+                          bz: a?.bz || 0,
+                          code: (nomenclatures || []).find(n => String(n?.id) === String(a?.id))?.nomenclature_code
                         })) : (order?.order_items || []).flatMap(item => {
-                          const bzItem = (inventory || []).find(i => String(i.nomenclature_id) === String(item?.nomenclature_id) && (i.type === 'bz_shop2' || i.type === 'bz'))
-                          const bzQty = Number(bzItem?.total_qty) || 0
                           const parts = getBOMParts(item?.nomenclature_id)
                           return parts.length > 0 ? parts.map(p => ({
                             nom: p.nom,
@@ -369,15 +454,24 @@ const Shop2Module = () => {
                           })) : [{
                             nom: (nomenclatures || []).find(n => String(n?.id) === String(item?.nomenclature_id)),
                             need: (Number(item?.quantity) || 0),
-                            bz: bzQty,
+                            bz: 0,
                             code: (nomenclatures || []).find(n => String(n?.id) === String(item?.nomenclature_id))?.nomenclature_code
                           }]
                         })
 
                         displayItems = (displayItems || []).filter(item => item.nom?.type === 'part')
 
-                        return (displayItems || []).map((item, idx) => (
-                          <tr key={idx} style={{ borderBottom: '1px solid #1a1a1a' }}>
+                        return (displayItems || []).map((item, idx) => {
+                          const stage = selectedStages[String(item.nom?.id)] || task.plan_snapshot?.[String(item.nom?.id)]?.shop2_stage
+                          const allCardsForCheck = [...(workCards || []), ...(archiveCards || [])]
+                          const existingCard = allCardsForCheck.find(wc => {
+                            const idMatch = String(wc.task_id) === String(task.id) && String(wc.nomenclature_id) === String(item.nom?.id)
+                            const opMatch = String(wc.operation || '').toLowerCase().trim() === String(stage || '').toLowerCase().trim()
+                            return idMatch && opMatch
+                          })
+
+                          return (
+                            <tr key={idx} style={{ borderBottom: '1px solid #1a1a1a', opacity: (existingCard && existingCard.status === 'completed') ? 0.7 : 1 }}>
                             <td style={{ padding: '20px' }}>
                               <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#fff' }}>{item.nom?.name || '—'}</div>
                               <div style={{ fontSize: '0.7rem', color: '#444', marginTop: '2px' }}>{item.code || 'БЕЗ КОДУ'}</div>
@@ -388,35 +482,23 @@ const Shop2Module = () => {
                             {(() => {
                               const snap = task.plan_snapshot || {}
                               const arrival = (snap.arrivals || []).find(a => String(a.id) === String(item.nom?.id))
-                              const initialNeed = arrival ? (Number(arrival.semi) || 0) : (Number(item.need) || 0)
-                              const initialBz = arrival ? (Number(arrival.bz) || 0) : 0
-
-                              const taskCards = (workCards || []).filter(c => String(c.task_id) === String(task.id) && String(c.nomenclature_id) === String(item.nom?.id))
-                              const assignedTotal = taskCards.reduce((a, c) => a + (Number(c.quantity) || 0), 0)
-                              const scrapTotal = (workCardHistory || []).filter(h => taskCards.some(tc => tc.id === h.card_id)).reduce((a, h) => a + (Number(h.scrap_qty) || 0), 0)
-
-                              let remainingNeed = initialNeed
-                              let remainingBz = initialBz
-                              let toDeduct = assignedTotal + scrapTotal
-
-                              const deductFromNeed = Math.min(remainingNeed, toDeduct)
-                              remainingNeed -= deductFromNeed
-                              toDeduct -= deductFromNeed
-                              const deductFromBz = Math.min(remainingBz, toDeduct)
-                              remainingBz -= deductFromBz
+                              
+                              // Завжди показуємо ОРИГІНАЛЬНІ цифри (те, що приїхало з цеху 1)
+                              const displayNeed = arrival ? (Number(arrival.semi) || 0) : (Number(item.need) || 0)
+                              const displayBz = arrival ? (Number(arrival.bz) || 0) : 0
 
                               return (
                                 <>
                                   <td style={{ padding: '20px', textAlign: 'center', color: '#fff', fontSize: '1.2rem', fontWeight: 600 }}>
-                                    {remainingNeed}
+                                    {displayNeed}
                                   </td>
                                   {!isReworkOrder && (
                                     <>
                                       <td style={{ padding: '20px', textAlign: 'center', color: '#eab308', fontWeight: 1000, fontSize: '1.4rem' }}>
-                                        {remainingBz}
+                                        {displayBz}
                                       </td>
                                       <td style={{ padding: '20px', textAlign: 'center', color: '#3b82f6', fontWeight: 1000, fontSize: '1.4rem' }}>
-                                        {remainingNeed + remainingBz}
+                                        {displayNeed + displayBz}
                                       </td>
                                     </>
                                   )}
@@ -457,12 +539,17 @@ const Shop2Module = () => {
                               {(() => {
                                 const stage = selectedStages[String(item.nom?.id)] || task.plan_snapshot?.[String(item.nom?.id)]?.shop2_stage
 
-                                // Робимо порівняння максимально стійким
-                                const existingCard = (workCards || []).find(wc => {
+                                // Обчислюємо, чи вже була згенерована картка (з активних або архівних)
+                                const allCardsForCheck = [...(workCards || []), ...(archiveCards || [])]
+                                const existingCard = allCardsForCheck.find(wc => {
                                   const idMatch = String(wc.task_id) === String(task.id) && String(wc.nomenclature_id) === String(item.nom?.id)
                                   const opMatch = String(wc.operation || '').toLowerCase().trim() === String(stage || '').toLowerCase().trim()
                                   return idMatch && opMatch
                                 })
+
+                                if (task.status === 'completed' || (existingCard && existingCard.status === 'completed')) {
+                                  return <div style={{ color: '#10b981', fontSize: '0.7rem', fontWeight: 900 }}>ГОТОВО</div>
+                                }
 
                                 if (existingCard) {
                                   return (
@@ -503,7 +590,7 @@ const Shop2Module = () => {
                                 const initNeed2 = arrival2 ? (Number(arrival2.semi) || 0) : (Number(item.need) || 0)
                                 const initBz2 = arrival2 ? (Number(arrival2.bz) || 0) : 0
 
-                                const rowCards = (workCards || []).filter(c => String(c.task_id) === String(task.id) && String(c.nomenclature_id) === String(item.nom?.id))
+                                const rowCards = allCardsForCheck.filter(c => String(c.task_id) === String(task.id) && String(c.nomenclature_id) === String(item.nom?.id))
                                 const assigned2 = rowCards.reduce((a, c) => a + (Number(c.quantity) || 0), 0)
                                 const scrap2 = (workCardHistory || []).filter(h => rowCards.some(tc => tc.id === h.card_id)).reduce((a, h) => a + (Number(h.scrap_qty) || 0), 0)
 
@@ -558,16 +645,79 @@ const Shop2Module = () => {
                               })()}
                             </td>
                           </tr>
-                        ))
+                          )
+                        })
                       })()}
                     </tbody>
                   </table>
                 </div>
 
-                {task.status === 'completed' && (
-                  <div style={{ marginTop: '40px', padding: '30px', borderRadius: '24px', background: '#10b98111', border: '1px solid #10b98122', textAlign: 'center' }}>
-                    <div style={{ color: '#10b981', fontSize: '1.5rem', fontWeight: 950 }}>НАРЯД ПОВНІСТЮ ВИКОНАНО</div>
-                    <div style={{ color: '#10b981', opacity: 0.7, fontSize: '0.9rem', marginTop: '5px' }}>Всі деталі успішно пройшли обробку v Цеху №2</div>
+                {(() => {
+                  const snapshot = task.plan_snapshot || {}
+                  const arrivals = snapshot.arrivals || []
+                  const allCards = [...(workCards || []), ...(archiveCards || [])]
+                  
+                  const isAllDone = arrivals.length > 0 && arrivals.every(a => {
+                    return allCards.some(wc => 
+                      String(wc.task_id) === String(task.id) && 
+                      String(wc.nomenclature_id) === String(a.id) && 
+                      wc.status === 'completed'
+                    )
+                  })
+
+                  if (isAllDone && task.status !== 'completed') {
+                    return (
+                      <div style={{ 
+                        marginTop: '40px', 
+                        padding: '40px', 
+                        borderRadius: '32px', 
+                        background: 'linear-gradient(135deg, #10b98122 0%, #10b98144 100%)', 
+                        border: '2px solid #10b981', 
+                        textAlign: 'center', 
+                        boxShadow: '0 0 40px rgba(16, 185, 129, 0.2)',
+                        animation: 'pulse 2s infinite' 
+                      }}>
+                        <div style={{ color: '#10b981', fontSize: '1.8rem', fontWeight: 950, marginBottom: '10px' }}>🏆 ЛЕГЕНДА ЦЕХУ, ЦЕ ПЕРЕМОГА!</div>
+                        <div style={{ color: '#fff', fontSize: '1.1rem', fontWeight: 600, opacity: 0.9 }}>
+                          Всі деталі на СГП, план розірвано в шматки! 🚀<br/>
+                          Тисніть на фіолетову кнопку зверху і отримайте порцію слави!
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  if (task.status === 'completed') {
+                    return (
+                      <div style={{ marginTop: '40px', padding: '30px', borderRadius: '24px', background: '#10b98111', border: '1px solid #10b98122', textAlign: 'center' }}>
+                        <div style={{ color: '#10b981', fontSize: '1.5rem', fontWeight: 950 }}>НАРЯД ПОВНІСТЮ ВИКОНАНО</div>
+                        <div style={{ color: '#10b981', opacity: 0.7, fontSize: '0.9rem', marginTop: '5px' }}>Всі деталі успішно пройшли обробку у Цеху №2</div>
+                      </div>
+                    )
+                  }
+                  return null
+                })()}
+
+                {/* ───── ВІКНО ТРІУМФУ ───── */}
+                {showVictory && (
+                  <div style={{ 
+                    position: 'fixed', inset: 0, zIndex: 9999, 
+                    background: 'rgba(0,0,0,0.95)', 
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    animation: 'fadeIn 0.5s ease-out'
+                  }}>
+                    <div style={{ fontSize: '150px', marginBottom: '20px', animation: 'bounce 1s infinite' }}>🏆</div>
+                    <h1 style={{ color: '#fff', fontSize: '5rem', fontWeight: 950, textAlign: 'center', margin: 0, textShadow: '0 0 50px #8b5cf6' }}>ВИ — ЧЕМПІОН!</h1>
+                    <p style={{ color: '#8b5cf6', fontSize: '2rem', fontWeight: 800, marginTop: '20px' }}>Цех №2 пишається своїм лідером! 🚀</p>
+                    <button 
+                      onClick={() => setShowVictory(false)}
+                      style={{ marginTop: '50px', background: '#fff', color: '#000', padding: '15px 40px', borderRadius: '20px', fontWeight: 900, cursor: 'pointer', border: 'none' }}
+                    >
+                      ПРОДОВЖИТИ ПІДКОРЕННЯ СВІТУ
+                    </button>
+                    <style>{`
+                      @keyframes bounce { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-30px) scale(1.1); } }
+                      @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+                    `}</style>
                   </div>
                 )}
 
@@ -657,14 +807,22 @@ const Shop2Module = () => {
                     Архів робочих карток (Цех №2)
                   </h3>
 
-                  {(() => {
-                    const taskCards = (workCards || []).filter(c => {
-                      const oMatch = String(c.order_id) === String(task.order_id)
-                      const tMatch = String(c.task_id) === String(task.id)
-                      // Херистіка для фантомних карток (пошук за текстом "Наряд №" у card_info)
-                      const infoMatch = c.card_info?.includes(`Наряд №${task.order_id}`) || c.card_info?.includes(`Наряд №${task.id}`)
-                      return (oMatch || tMatch || infoMatch) && c.card_info?.includes('[ЦЕХ №2]')
-                    })
+                    {(() => {
+                      // Об'єднуємо АКТИВНІ (з глобального стейту) та ЗАВЕРШЕНІ (локально завантажені) карти
+                      // Використовуємо Map для гарантованої унікальності за ID
+                      const uniqueCardsMap = new Map();
+                      [...(workCards || []), ...(archiveCards || [])].forEach(c => {
+                        if (c?.id) uniqueCardsMap.set(c.id, c);
+                      });
+
+                      const allUniqueCards = Array.from(uniqueCardsMap.values());
+                      
+                      const taskCards = allUniqueCards.filter(c => {
+                        const oMatch = String(c.order_id) === String(task.order_id)
+                        const tMatch = String(c.task_id) === String(task.id)
+                        const infoMatch = c.card_info?.includes(`Наряд №${task.order_id}`) || c.card_info?.includes(`Наряд №${task.id}`)
+                        return (oMatch || tMatch || infoMatch) && c.card_info?.includes('[ЦЕХ №2]')
+                      })
 
                     // DEBUG для Архіву
                     if (taskCards.length > 0) {

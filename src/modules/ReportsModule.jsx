@@ -21,16 +21,42 @@ const ReportsModule = () => {
   const { 
     inventory, 
     systemUsers, 
-    workCardHistory, 
+    workCardHistory: initialHistory, 
     tasks, 
     orders, 
     nomenclatures,
-    accessLogs
+    accessLogs,
+    fetchHistoryRange
   } = useMES()
 
   const [activeTab, setActiveTab] = useState('warehouse')
   const [dateRange, setDateRange] = useState('all') // all, month, week, today
   const [searchQuery, setSearchQuery] = useState('')
+  const [workCardHistory, setWorkCardHistory] = useState(initialHistory)
+  const [isSyncing, setIsSyncing] = useState(false)
+
+  // Функція для завантаження даних за період (ОПТИМІЗАЦІЯ ДЛЯ 10к-20к записів)
+  const syncHistory = async (range) => {
+    setIsSyncing(true)
+    let start = null
+    const now = new Date()
+    if (range === 'today') start = new Date(now.setHours(0,0,0,0)).toISOString()
+    if (range === 'week') start = new Date(now.setDate(now.getDate() - 7)).toISOString()
+    if (range === 'month') start = new Date(now.setMonth(now.getMonth() - 1)).toISOString()
+    
+    const data = await fetchHistoryRange(start, null)
+    setWorkCardHistory(data)
+    setIsSyncing(false)
+  }
+
+  // Слідкуємо за зміною періоду
+  React.useEffect(() => {
+    if (dateRange !== 'all') {
+      syncHistory(dateRange)
+    } else {
+      setWorkCardHistory(initialHistory)
+    }
+  }, [dateRange, initialHistory])
 
   // Date Filtering Logic
   const filterByDate = (dateString) => {

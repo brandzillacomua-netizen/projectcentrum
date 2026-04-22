@@ -101,9 +101,15 @@ export const MESProvider = ({ children }) => {
     setHasMoreOrders((data || []).length === PAGE_SIZE)
   }
 
-  const fetchData = async () => {
+  const [lastFetchTime, setLastFetchTime] = useState(0)
+
+  const fetchData = async (force = false) => {
+    // THROTTLING: Забороняємо часті повні перезавантаження (мінімум 10 сек між запитами)
+    if (!force && Date.now() - lastFetchTime < 10000) return 
+    
     if (orders.length === 0) setLoading(true)
     try {
+      setLastFetchTime(Date.now())
       // Refresh first page smartly to avoid full list reset
       const { data: latest, error: oErr } = await supabase
         .from('orders')
@@ -125,18 +131,31 @@ export const MESProvider = ({ children }) => {
         })
       }
 
-      const { data: c } = await supabase.from('customers').select('*').limit(10).order('name')
+      // ОПТИМІЗАЦІЯ ДЛЯ ВЕЛИКИХ ДАНИХ (10к-20к записів):
+      // Завантажуємо тільки АКТИВНІ (не завершені) дані для оперативної роботи
+      const { data: c } = await supabase.from('customers').select('*').limit(50).order('name')
       const { data: i } = await supabase.from('inventory').select('*').order('name')
-      const { data: t } = await supabase.from('tasks').select('*').order('created_at', { ascending: false })
-      const { data: r } = await supabase.from('material_requests').select('*').order('created_at', { ascending: false })
+      const threeDaysAgoTasks = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+      const { data: t } = await supabase.from('tasks')
+        .select('*')
+        .or(`status.neq.completed,completed_at.gte.${threeDaysAgoTasks},updated_at.gte.${threeDaysAgoTasks}`)
+        .order('created_at', { ascending: false })
+      const { data: r } = await supabase.from('material_requests').select('*').neq('status', 'completed').order('created_at', { ascending: false })
       const { data: n } = await supabase.from('nomenclatures').select('*')
       const { data: b } = await supabase.from('bom_items').select('*')
-      const { data: rec } = await supabase.from('reception_docs').select('*').order('created_at', { ascending: false })
-      const { data: pr } = await supabase.from('purchase_requests').select('*').order('created_at', { ascending: false })
-      const { data: wc } = await supabase.from('work_cards').select('*').order('created_at', { ascending: true })
+      const { data: rec } = await supabase.from('reception_docs').select('*').neq('status', 'completed').order('created_at', { ascending: false })
+      const { data: pr } = await supabase.from('purchase_requests').select('*').neq('status', 'completed').order('created_at', { ascending: false })
+      
+      // Активні + нещодавно завершені картки (за 3 дні) — потрібно для taskReadinessMap після перезавантаження
+      const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+      const { data: wc } = await supabase.from('work_cards')
+        .select('*')
+        .or(`status.neq.completed,created_at.gte.${threeDaysAgo}`)
+        .order('created_at', { ascending: true })
+
       const { data: mc } = await supabase.from('machines').select('*').order('name')
       const { data: su } = await supabase.from('system_users').select('*').order('login')
-      const { data: mt } = await supabase.from('management_tasks').select('*').order('created_at', { ascending: false })
+      const { data: mt } = await supabase.from('management_tasks').select('*').neq('status', 'completed').order('created_at', { ascending: false })
 
       if (c) setCustomers(c)
       if (i) setInventory(i)
@@ -151,7 +170,8 @@ export const MESProvider = ({ children }) => {
       if (pr) setPurchaseRequests(pr)
       if (wc) setWorkCards(wc)
 
-      const { data: wch } = await supabase.from('work_card_history').select('*').order('created_at', { ascending: false })
+      // Обмежуємо історію тільки останніми 200 записами для віджета активності
+      const { data: wch } = await supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(200)
       if (wch) setWorkCardHistory(wch)
 
       const { data: al } = await supabase.from('access_logs').select('*').order('event_time', { ascending: false }).limit(200)
@@ -161,11 +181,85 @@ export const MESProvider = ({ children }) => {
     }
   }
 
+  // ОПТИМІЗОВАНЕ ЗАВАНТАЖЕННЯ АРХІВУ (для звітів)
+  const fetchHistoryRange = async (startDate, endDate) => {
+    try {
+      let query = supabase.from('work_card_history').select('*').order('created_at', { ascending: false })
+      if (startDate) query = query.gte('completed_at', startDate)
+      if (endDate) query = query.lte('completed_at', endDate)
+      
+      const { data, error } = await query.limit(2000) // Обмежуємо розумним лімітом для одного звіту
+      if (error) throw error
+      return data || []
+    } catch (e) {
+      console.error('Error fetching history range:', e)
+      return []
+    }
+  }
+
+  // Завантаження ЗАВЕРШЕНИХ карток для конкретного наряду (для Архіву в модулях)
+  const fetchTaskArchiveCards = async (taskId) => {
+    try {
+      const { data, error } = await supabase.from('work_cards')
+        .select('*')
+        .eq('task_id', taskId)
+        .eq('status', 'completed')
+      if (error) throw error
+      return data || []
+    } catch (e) {
+      console.error('Error fetching task archive cards:', e)
+      return []
+    }
+  }
+
+  // Гранулярне оновлення окремих таблиць (набагато швидше за fetchData)
+  const refreshTable = async (tableName) => {
+    try {
+      if (tableName === 'work_cards') {
+        const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
+        const { data } = await supabase.from('work_cards')
+          .select('*')
+          .or(`status.neq.completed,created_at.gte.${twoDaysAgo}`)
+          .order('created_at', { ascending: true })
+        if (data) setWorkCards(data)
+      } else if (tableName === 'inventory') {
+        const { data } = await supabase.from('inventory').select('*').order('name')
+        if (data) setInventory(data)
+      } else if (tableName === 'tasks') {
+        // Тільки не закриті наряди (або нещодавні за 3 дні)
+        const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+        const { data } = await supabase.from('tasks')
+          .select('*')
+          .or(`status.neq.completed,completed_at.gte.${threeDaysAgo},updated_at.gte.${threeDaysAgo}`)
+          .order('created_at', { ascending: false })
+        if (data) setTasks(data)
+      } else if (tableName === 'orders') {
+        const { data } = await supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).range(0, 50)
+        if (data) setOrders(prev => {
+          const next = [...prev]
+          data.forEach(item => {
+            const idx = next.findIndex(o => o.id === item.id)
+            if (idx >= 0) next[idx] = item
+            else next.unshift(item)
+          })
+          return next.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        })
+      }
+    } catch (e) { console.error(`Error refreshing ${tableName}:`, e) }
+  }
+
 
   const productionData = useMemo(() => {
+    // РАХУЄМО ТІЛЬКИ ФІНАЛЬНІ ЕТАПИ (те що реально пішло на склад СГП або БЗ)
+    const finishingStages = ['пакування/сгп', 'прийомка', 'склад бз', 'сгп', 'пакування']
+    
+    const finalRecords = (workCardHistory || []).filter(h => 
+      finishingStages.includes((h.stage_name || '').toLowerCase().trim())
+    )
+
     return {
-      totalProduced: workCardHistory.reduce((acc, h) => acc + (Number(h.qty_completed) || 0), 0),
-      totalScrap: workCardHistory.reduce((acc, h) => acc + (Number(h.scrap_qty) || 0), 0)
+      totalProduced: finalRecords.reduce((acc, h) => acc + (Number(h.qty_completed) || 0), 0),
+      totalScrap: (workCardHistory || []).reduce((acc, h) => acc + (Number(h.scrap_qty) || 0), 0)
     }
   }, [workCardHistory])
 
@@ -178,6 +272,74 @@ export const MESProvider = ({ children }) => {
     }
     localStorage.setItem(CACHE_KEY, JSON.stringify(dataToCache))
   }, [orders, customers, inventory, tasks, managementTasks, requests, nomenclatures, bomItems, receptionDocs, purchaseRequests, workCards, workCardHistory, machines, systemUsers])
+
+  // --- ГЛОБАЛЬНИЙ РЕАЛ-ТАЙМ (МИТТЄВЕ ОНОВЛЕННЯ БЕЗ RE-FETCH) ---
+  useEffect(() => {
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
+
+    const channel = supabase.channel('mes-global-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_cards' }, (payload) => {
+        if (payload.eventType === 'UPDATE') {
+          // Якщо карту завершено — залишаємо в стейті якщо вона свіжа (для taskReadinessMap)
+          // Видаляємо тільки якщо вона старша за 3 дні (оптимізація пам'яті)
+          if (payload.new.status === 'completed') {
+            const cardDate = new Date(payload.new.created_at || payload.new.updated_at || Date.now())
+            if (cardDate > threeDaysAgo) {
+              // Оновлюємо в стейті (не видаляємо) — потрібно для taskReadinessMap
+              setWorkCards(prev => prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c))
+              // Якщо картки не було в стейті — додаємо (наприклад, прийнята через інший пристрій)
+              setWorkCards(prev => prev.some(c => c.id === payload.new.id) ? prev : [payload.new, ...prev])
+            } else {
+              setWorkCards(prev => prev.filter(c => c.id !== payload.new.id))
+            }
+          } else {
+            setWorkCards(prev => prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c))
+          }
+        } else if (payload.eventType === 'INSERT') {
+          // Додаємо будь-яку нову картку (активну або свіжу completed)
+          const cardDate = new Date(payload.new.created_at || Date.now())
+          if (payload.new.status !== 'completed' || cardDate > threeDaysAgo) {
+            setWorkCards(prev => {
+              if (prev.some(c => c.id === payload.new.id)) return prev
+              return [payload.new, ...prev]
+            })
+          }
+        } else if (payload.eventType === 'DELETE') {
+          setWorkCards(prev => prev.filter(c => c.id !== payload.old.id))
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (payload) => {
+        // Оновлення нарядів в реальному часі — для миттєвого сортування в сайдбарі
+        if (payload.eventType === 'UPDATE') {
+          setTasks(prev => prev.map(t => t.id === payload.new.id ? { ...t, ...payload.new } : t))
+          // Якщо наряд з'явився (наприклад, новий від Цеху 2) — додаємо
+          setTasks(prev => prev.some(t => t.id === payload.new.id) ? prev : [payload.new, ...prev])
+        } else if (payload.eventType === 'INSERT') {
+          setTasks(prev => {
+            if (prev.some(t => t.id === payload.new.id)) return prev
+            return [payload.new, ...prev]
+          })
+        } else if (payload.eventType === 'DELETE') {
+          setTasks(prev => prev.filter(t => t.id !== payload.old.id))
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, (payload) => {
+        if (payload.eventType === 'UPDATE') {
+          setInventory(prev => prev.map(i => i.id === payload.new.id ? { ...i, ...payload.new } : i))
+        } else if (payload.eventType === 'INSERT') {
+          setInventory(prev => [payload.new, ...prev])
+        }
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'work_card_history' }, (payload) => {
+        // Новий запис в історії (брак, завершення) — оновлюємо для taskShortageMap
+        setWorkCardHistory(prev => {
+          if (prev.some(h => h.id === payload.new.id)) return prev
+          return [payload.new, ...prev].slice(0, 300) // Обмежуємо 300 записами
+        })
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [])
 
   // --- ВІДНОВЛЕННЯ СЕСІЇ ТА СИНХРОНІЗАЦІЯ ПРАВ ---
   // На старті: якщо є збережений login — підтягуємо свіжого користувача з Supabase
@@ -497,7 +659,9 @@ export const MESProvider = ({ children }) => {
 
       const alreadyPlannedSets = tasks.filter(t => t.order_id === orderId).reduce((acc, t) => acc + (Number(t.planned_sets) || 0), 0);
       const isPartial = (thisNaryadTotalSets < totalUnits) || (alreadyPlannedSets > 0);
-      const nextBatchIndex = tasks.filter(t => t.order_id === orderId && (t.step === 'Лазерний розкрій' || t.step === 'Лазерна різка')).length + 1;
+      const orderTasks = tasks.filter(t => String(t.order_id) === String(orderId))
+      const maxBatchIndex = orderTasks.reduce((max, t) => Math.max(max, Number(t.batch_index) || 0), 0)
+      const nextBatchIndex = maxBatchIndex + 1;
 
       plan_snapshot._metadata = {
         planned_deadline: customDeadline || order.deadline,
@@ -638,9 +802,20 @@ export const MESProvider = ({ children }) => {
   }
 
   const convertRequestToOrder = async (requestId) => {
-    // 1. Отримуємо дані запиту
-    const { data: requestData } = await supabase.from('purchase_requests').select('*').eq('id', requestId).single()
-    if (!requestData) return { error: 'Запит не знайдено' }
+    // 1. АТОМАРНЕ БЛОКУВАННЯ (Захист від подвійного кліку)
+    const { data: lockedReqs, error: lockErr } = await supabase
+      .from('purchase_requests')
+      .update({ status: 'ordered' })
+      .eq('id', requestId)
+      .neq('status', 'ordered')
+      .select()
+
+    if (lockErr || !lockedReqs || lockedReqs.length === 0) {
+      console.warn('Request already converted or lock failed:', requestId)
+      return { error: 'Запит вже обробляється або завершений' }
+    }
+
+    const requestData = lockedReqs[0]
 
     // 2. Визначаємо маршрут
     // Якщо destination_warehouse === 'procurement' -> це зовнішня закупівля для Складу Виробництва
@@ -666,13 +841,14 @@ export const MESProvider = ({ children }) => {
       created_at: new Date().toISOString()
     }])
 
-    if (recError) return { error: recError }
+    if (recError) {
+      // Відкат статусу у разі помилки
+      await supabase.from('purchase_requests').update({ status: 'accepted' }).eq('id', requestId)
+      return { error: recError }
+    }
 
-    // 4. Оновлюємо статус запиту на "Замовлено" (ordered)
-    // Це залишить запит видимим для обох складів як "в процесі"
-    const { error } = await supabase.from('purchase_requests').update({ status: 'ordered' }).eq('id', requestId)
-    if (!error) fetchData()
-    return { error }
+    fetchData()
+    return { success: true }
   }
 
   const createReceptionDoc = async (items, status = 'pending', orderId = null, taskId = null) => {
@@ -695,121 +871,168 @@ export const MESProvider = ({ children }) => {
 
   const confirmReception = async (docId) => {
     try {
-      const doc = (receptionDocs || []).find(d => d.id === docId)
-      if (!doc) return console.error('confirmReception: Doc not found', docId)
+      // 1. АТОМАРНЕ БЛОКУВАННЯ (Захист від подвійного кліку)
+      // Намагаємося змінити статус на 'in-progress' тільки якщо він не 'completed' і не 'in-progress'
+      const { data: lockedDocs, error: lockErr } = await supabase
+        .from('reception_docs')
+        .update({ status: 'in-progress' })
+        .eq('id', docId)
+        .neq('status', 'completed')
+        .neq('status', 'in-progress')
+        .select()
 
+      if (lockErr) throw new Error('Помилка блокування документа: ' + lockErr.message)
+      if (!lockedDocs || lockedDocs.length === 0) {
+        // Документ уже обробляється або завершений
+        console.warn('Document already being processed or completed:', docId)
+        return
+      }
+
+      const doc = lockedDocs[0]
       const targetWarehouse = doc.target_warehouse || 'production'
       const sourceWarehouse = doc.source_warehouse || null
+      const items = doc.items || []
 
-      let allSuccess = true
-      for (const it of (doc.items || [])) {
+      if (items.length === 0) {
+        await supabase.from('reception_docs').update({ status: 'completed' }).eq('id', docId)
+        fetchData()
+        return
+      }
+
+      // 2. ОПТИМІЗАЦІЯ: Завантажуємо необхідний інвентар
+      const nomIds = items.map(it => it.nomenclature_id).filter(Boolean)
+      const names = items.map(it => it.name || it.reqDetails || it.details || '').filter(Boolean)
+
+      const buildInventoryQuery = (wh) => {
+        let q = supabase.from('inventory').select('*').eq('warehouse', wh)
+        const filters = []
+        if (nomIds.length > 0) filters.push(`nomenclature_id.in.(${nomIds.join(',')})`)
+        if (names.length > 0) {
+          // Екрануємо лапки для PostgREST
+          const escapedNames = names.map(n => n.replace(/"/g, '""'))
+          filters.push(`name.in.("${escapedNames.join('","')}")`)
+        }
+        if (filters.length > 0) q = q.or(filters.join(','))
+        return q
+      }
+
+      const { data: targetInv, error: tInvErr } = await buildInventoryQuery(targetWarehouse)
+      if (tInvErr) throw tInvErr
+
+      let sourceInv = []
+      if (sourceWarehouse) {
+        const { data: sInvData, error: sInvErr } = await buildInventoryQuery(sourceWarehouse)
+        if (sInvErr) throw sInvErr
+        sourceInv = sInvData || []
+      }
+
+      // 3. АГРЕГАЦІЯ В ПАМ'ЯТІ (Захист від duplicate keys в пакетному запиті)
+      const updatesMap = new Map() // key: inventory_id, value: { id, total_qty, reserved_qty }
+      const insertsMap = new Map() // key: name + nomenclature_id, value: row object
+
+      for (const it of items) {
         const qtyToAdd = Number(it.qty ?? it.missingAmount ?? it.quantity ?? it.needed ?? 0)
-        if (!qtyToAdd || qtyToAdd <= 0) continue
+        if (isNaN(qtyToAdd) || qtyToAdd <= 0) continue
 
+        const nomId = it.nomenclature_id
         const itemName = it.name || it.reqDetails || it.details || ''
-        const nomId = it.nomenclature_id || null
 
-        // ШУКАЄМО В БД ДЛЯ НАДІЙНОСТІ
-        let existing = null
-        if (nomId) {
-          const { data } = await supabase.from('inventory')
-            .select('*')
-            .eq('nomenclature_id', nomId)
-            .eq('warehouse', targetWarehouse)
-            .maybeSingle()
-          existing = data
-        }
-
-        if (!existing && itemName) {
-          const { data } = await supabase.from('inventory')
-            .select('*')
-            .eq('name', itemName)
-            .eq('warehouse', targetWarehouse)
-            .maybeSingle()
-          existing = data
-        }
+        // Шукаємо в цільовому складі
+        let existing = (targetInv || []).find(i => 
+          (nomId && String(i.nomenclature_id) === String(nomId)) || 
+          (itemName && normalize(i.name) === normalize(itemName))
+        )
 
         if (existing) {
-          const { error: updErr } = await supabase.from('inventory').update({
-            total_qty: (Number(existing.total_qty) || 0) + qtyToAdd,
-            updated_at: new Date().toISOString()
-          }).eq('id', existing.id)
-          if (updErr) { console.error('Reception Update Error:', updErr.message); allSuccess = false; }
-
-          // DEDUCT FROM SOURCE if specified
-          if (allSuccess && sourceWarehouse) {
-            let srcItem = null
-
-            if (nomId) {
-              const { data } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomId).eq('warehouse', sourceWarehouse).maybeSingle()
-              srcItem = data
-            }
-
-            if (!srcItem && it.inventory_id) {
-              const { data } = await supabase.from('inventory').select('*').eq('id', it.inventory_id).eq('warehouse', sourceWarehouse).maybeSingle()
-              srcItem = data
-            }
-
-            if (!srcItem && itemName) {
-              const { data } = await supabase.from('inventory').select('*').eq('name', itemName).eq('warehouse', sourceWarehouse).maybeSingle()
-              srcItem = data
-            }
-
-            if (srcItem && (Number(srcItem.total_qty) >= qtyToAdd)) {
-              await supabase.from('inventory').update({
-                total_qty: Number(srcItem.total_qty) - qtyToAdd,
-                reserved_qty: Math.max(0, (Number(srcItem.reserved_qty) || 0) - qtyToAdd)
-              }).eq('id', srcItem.id)
-            }
+          const currentUpdate = updatesMap.get(existing.id) || { 
+            ...existing 
           }
+          currentUpdate.total_qty = (Number(currentUpdate.total_qty) || 0) + qtyToAdd
+          updatesMap.set(existing.id, currentUpdate)
+          
+          // Важливо: оновлюємо локальну копію, якщо в одному документі цей товар зустрічається двічі
+          existing.total_qty = currentUpdate.total_qty
         } else {
           const nom = nomId ? nomenclatures.find(n => n.id === nomId) : null
-          const fullItemName = nom ? `${nom.name}${nom.material_type ? ` (${nom.material_type})` : ''}` : (itemName || 'Прийнята позиція')
-
-          const { error: insErr } = await supabase.from('inventory').insert([{
+          // Забезпечуємо, що ім'я ніколи не буде null
+          const baseName = nom?.name || itemName || 'Прийнята позиція'
+          const fullItemName = nom ? `${baseName}${nom.material_type ? ` (${nom.material_type})` : ''}` : baseName
+          const insertKey = `${nomId || ''}_${normalize(fullItemName)}`
+          
+          const currentInsert = insertsMap.get(insertKey) || {
             nomenclature_id: nomId,
             name: fullItemName,
-            total_qty: qtyToAdd,
+            total_qty: 0,
             reserved_qty: 0,
             type: nom?.type || 'raw',
             warehouse: targetWarehouse,
             unit: nom?.unit || 'шт'
-          }])
-          if (insErr) { console.error('Reception Insert Error:', insErr.message); allSuccess = false; }
+          }
+          currentInsert.total_qty += qtyToAdd
+          insertsMap.set(insertKey, currentInsert)
         }
-      }
 
-      if (allSuccess) {
-        await supabase.from('reception_docs').update({ status: 'completed' }).eq('id', docId)
-
-        // Mark specific purchase request as completed based on target warehouse routing
-        if (doc.task_id || doc.order_id) {
-          let destWhToComplete = ''
-          if (targetWarehouse === 'production') destWhToComplete = 'procurement'
-          if (targetWarehouse === 'operational') destWhToComplete = 'production'
-
-          if (destWhToComplete) {
-            let q = supabase.from('purchase_requests')
-              .update({ status: 'completed' })
-              .eq('destination_warehouse', destWhToComplete)
-
-            if (doc.task_id) {
-              q = q.eq('task_id', doc.task_id)
-            } else {
-              q = q.eq('order_id', doc.order_id)
+        // Обробка складу-відправника (якщо є)
+        if (sourceWarehouse) {
+          let srcItem = sourceInv.find(i => 
+            (nomId && String(i.nomenclature_id) === String(nomId)) || 
+            (itemName && normalize(i.name) === normalize(itemName)) ||
+            (it.inventory_id && String(i.id) === String(it.inventory_id))
+          )
+          if (srcItem) {
+            const currentUpdate = updatesMap.get(srcItem.id) || { 
+              ...srcItem
             }
-            await q
+            currentUpdate.total_qty = Math.max(0, (Number(currentUpdate.total_qty) || 0) - qtyToAdd)
+            currentUpdate.reserved_qty = Math.max(0, (Number(currentUpdate.reserved_qty) || 0) - qtyToAdd)
+            updatesMap.set(srcItem.id, currentUpdate)
+            
+            srcItem.total_qty = currentUpdate.total_qty
+            srcItem.reserved_qty = currentUpdate.reserved_qty
           }
         }
-
-        await fetchData()
-        alert('Прийомку успішно завершено! Склад оновлено.')
-      } else {
-        alert('Помилка при оновленні складу. Перевірте консоль (F12).')
       }
+
+      // 4. ПАКЕТНЕ ЗБЕРЕЖЕННЯ З ПЕРЕВІРКОЮ ПОМИЛОК
+      const finalUpdates = Array.from(updatesMap.values())
+      const finalInserts = Array.from(insertsMap.values())
+
+      if (finalUpdates.length > 0) {
+        const { error: upErr } = await supabase.from('inventory').upsert(finalUpdates)
+        if (upErr) throw upErr
+      }
+      if (finalInserts.length > 0) {
+        const { error: insErr } = await supabase.from('inventory').insert(finalInserts)
+        if (insErr) throw insErr
+      }
+
+      // 5. ФІНАЛІЗАЦІЯ СТАТУСУ
+      const { error: docFinalErr } = await supabase.from('reception_docs').update({ status: 'completed' }).eq('id', docId)
+      if (docFinalErr) throw docFinalErr
+
+      // Автоматичне закриття пов'язаних запитів на закупівлю
+      if (doc.task_id || doc.order_id) {
+        let destWhToComplete = ''
+        if (targetWarehouse === 'production') destWhToComplete = 'procurement'
+        if (targetWarehouse === 'operational') destWhToComplete = 'production'
+
+        if (destWhToComplete) {
+          let q = supabase.from('purchase_requests').update({ status: 'completed' }).eq('destination_warehouse', destWhToComplete)
+          if (doc.task_id) q = q.eq('task_id', doc.task_id)
+          else q = q.eq('order_id', doc.order_id)
+          await q
+        }
+      }
+
+      refreshTable('inventory')
+      refreshTable('reception_docs')
+      refreshTable('purchase_requests')
+      alert('Прийомку успішно завершено! Склад оновлено.')
     } catch (err) {
       console.error('CRITICAL: confirmReception crash:', err)
-      alert('Критична помилка прийомки. Подробиці в консолі.')
+      // У разі помилки намагаємося повернути статус 'shipped', щоб можна було спробувати ще раз
+      await supabase.from('reception_docs').update({ status: 'shipped' }).eq('id', docId).neq('status', 'completed')
+      alert('Помилка прийомки: ' + (err.message || 'Невідома помилка'))
     }
   }
 
@@ -908,21 +1131,28 @@ export const MESProvider = ({ children }) => {
       if (!task) return
 
       // 1. Завершуємо поточний наряд у Цеху №1
-      await supabase.from('tasks').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', taskId)
+      await supabase.from('tasks').update({ 
+        status: 'completed',
+        completed_at: new Date().toISOString()
+      }).eq('id', taskId)
 
       // --- АВТОМАТИЧНЕ СПИСАННЯ МАТЕРІАЛІВ (ШОП 1) ---
       try {
         const issuedReqs = (requests || []).filter(r => String(r.order_id) === String(task.order_id) && r.status === 'issued')
         if (issuedReqs.length > 0) {
+          const invUpdates = []
+          const reqUpdates = []
           for (const req of issuedReqs) {
             const inv = (inventory || []).find(i => String(i.id) === String(req.inventory_id))
             if (inv) {
               const nextTotal = Math.max(0, (Number(inv.total_qty) || 0) - Number(req.quantity))
               const nextReserved = Math.max(0, (Number(inv.reserved_qty) || 0) - Number(req.quantity))
-              await supabase.from('inventory').update({ total_qty: nextTotal, reserved_qty: nextReserved }).eq('id', inv.id)
-              await supabase.from('material_requests').update({ status: 'completed' }).eq('id', req.id)
+              invUpdates.push({ id: inv.id, total_qty: nextTotal, reserved_qty: nextReserved })
+              reqUpdates.push(req.id)
             }
           }
+          if (invUpdates.length > 0) await supabase.from('inventory').upsert(invUpdates)
+          if (reqUpdates.length > 0) await supabase.from('material_requests').update({ status: 'completed' }).in('id', reqUpdates)
         }
       } catch (e) {
         console.error("Material deduction error:", e)
@@ -1025,8 +1255,9 @@ export const MESProvider = ({ children }) => {
         // 2. Створюємо новий наряд для Цеху №2 з замороженими даними
         await supabase.from('tasks').insert([{
           order_id: task.order_id,
-          step: 'Пресування',
+          step: 'Пресування [ЦЕХ №2]',
           status: 'waiting',
+          planned_sets: task.planned_sets || 0, // Копіюємо тираж (шт)
           estimated_time: task.estimated_time || 0,
           engineer_conf: true,
           warehouse_conf: true,
@@ -1042,8 +1273,10 @@ export const MESProvider = ({ children }) => {
         console.error("BZ/Transfer error:", e)
       }
 
-      if (window.fetchData) window.fetchData() // На всяк випадок
-      fetchData()
+      refreshTable('inventory')
+      refreshTable('tasks')
+      refreshTable('reception_docs')
+      refreshTable('material_requests')
     } catch (err) {
       console.error('Handover error:', err)
       throw err
@@ -1179,7 +1412,8 @@ export const MESProvider = ({ children }) => {
         }
       }
 
-      fetchData()
+      refreshTable('inventory')
+      refreshTable('tasks')
     } catch (err) {
       console.error('Error completing Shop 2 task:', err)
       throw err
@@ -1214,17 +1448,31 @@ export const MESProvider = ({ children }) => {
       updateData.machine = metadata.machine_name
     }
 
-    await supabase.from('work_cards').update(updateData).eq('id', cardId)
-    fetchData()
+    // ОПТИМІСТИЧНЕ ОНОВЛЕННЯ
+    setWorkCards(prev => prev.map(c => c.id === cardId ? { ...c, ...updateData } : c))
+
+    const { error } = await supabase.from('work_cards').update(updateData).eq('id', cardId)
+    if (error) {
+      console.error('Error starting card:', error)
+      refreshTable('work_cards')
+    }
   }
 
   const completeWorkCard = async (taskId, cardId, operatorName) => {
-    await supabase.from('work_cards').update({
+    const updateData = {
       status: 'waiting-buffer',
       operator_name: operatorName,
       completed_at: new Date().toISOString()
-    }).eq('id', cardId)
-    fetchData()
+    }
+
+    // ОПТИМІСТИЧНЕ ОНОВЛЕННЯ
+    setWorkCards(prev => prev.map(c => c.id === cardId ? { ...c, ...updateData } : c))
+
+    const { error } = await supabase.from('work_cards').update(updateData).eq('id', cardId)
+    if (error) {
+      console.error('Error completing card:', error)
+      refreshTable('work_cards')
+    }
   }
 
   const confirmBuffer = async (cardId, scrapData = {}, cuttersUsed = 0) => {
@@ -1324,9 +1572,11 @@ export const MESProvider = ({ children }) => {
           }
         }
 
-        // Пріоритет: NEED -> REQ -> FALLBACK (quantity - BZ)
-        const effectiveReq = totalNeed || plannedReq ||
-          Math.max(0, (Number(card.quantity) - (Number(card.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0)))
+        // Пріоритет: NEED -> REQ -> FALLBACK (quantity - bufferQty)
+        let effectiveReq = totalNeed || plannedReq
+        if (!effectiveReq) {
+          effectiveReq = Math.max(0, Number(card.quantity) - (Number(card.buffer_qty) || 0))
+        }
 
         const netQtyForOrder = Math.min(qtyCompleted, effectiveReq)
         const actualBuffer = Math.max(0, qtyCompleted - netQtyForOrder)
@@ -1341,18 +1591,47 @@ export const MESProvider = ({ children }) => {
           }
         }
 
-        // 2. Оновлюємо wip_bz (реальний залишок понад потребу, після врахування всього скрапу)
+        // 2. Оновлюємо wip_bz (реальний залишок понад потребу)
         if (actualBuffer > 0) {
           const { data: wip } = await supabase.from('inventory').select('*').eq('nomenclature_id', nom.id).eq('type', 'wip_bz').maybeSingle()
           if (wip) {
-            await supabase.from('inventory').update({ total_qty: (Number(wip.total_qty) || 0) + actualBuffer }).eq('id', wip.id)
+            // ВАЖЛИВО: додаємо до існуючого, а не перезаписуємо
+            await supabase.from('inventory').update({ 
+              total_qty: (Number(wip.total_qty) || 0) + actualBuffer 
+            }).eq('id', wip.id)
           } else {
-            await supabase.from('inventory').insert([{ nomenclature_id: nom.id, name: nom.name, unit: nom.unit || 'шт', total_qty: actualBuffer, reserved_qty: 0, type: 'wip_bz' }])
+            await supabase.from('inventory').insert([{ 
+              nomenclature_id: nom.id, 
+              name: nom.name, 
+              unit: nom.unit || 'шт', 
+              total_qty: actualBuffer, 
+              reserved_qty: 0, 
+              type: 'wip_bz' 
+            }])
           }
         }
       }
     }
-    fetchData()
+    // ОПТИМІСТИЧНО ОНОВЛЮЄМО ЛОКАЛЬНИЙ СТАН КАРТКИ
+    setWorkCards(prev => prev.map(c => c.id === cardId ? { ...c, ...cardUpdate } : c))
+    
+    // Оновлюємо історію локально
+    const historyRow = {
+      card_id: cardId,
+      nomenclature_id: card.nomenclature_id,
+      stage_name: card.operation || 'Розкрій',
+      operator_name: card.operator_name || 'Не вказано',
+      card_info: historyCardInfo,
+      qty_at_start: card.quantity,
+      qty_completed: qtyCompleted,
+      scrap_qty: totalScrap,
+      started_at: card.started_at,
+      completed_at: new Date().toISOString()
+    }
+    setWorkCardHistory(prev => [historyRow, ...prev])
+
+    refreshTable('work_cards')
+    refreshTable('inventory')
   } // closes confirmBuffer
 
   const directHandoverToSGP = async (taskId, nomenclatureId, needQty, bzTotal) => {
@@ -1382,6 +1661,8 @@ export const MESProvider = ({ children }) => {
       if (cardErr) throw cardErr
 
       // 2. Списуємо з Цеху №2 ПРЕЦИЗІЙНО
+      const inventoryUpdates = []
+      
       const subFromS2 = async (nid, iqty, itype) => {
         if (!iqty || iqty <= 0) return
         let remaining = iqty
@@ -1390,7 +1671,7 @@ export const MESProvider = ({ children }) => {
           const current = Number(r.total_qty) || 0
           const take = Math.min(current, remaining)
           if (take > 0) {
-            await supabase.from('inventory').update({ total_qty: current - take }).eq('id', r.id)
+            inventoryUpdates.push({ ...r, total_qty: current - take })
             remaining -= take
           }
           if (remaining <= 0) break
@@ -1404,7 +1685,7 @@ export const MESProvider = ({ children }) => {
       if (finishedQty > 0) {
         const { data: finishedItem } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomenclatureId).eq('type', 'finished').maybeSingle()
         if (finishedItem) {
-          await supabase.from('inventory').update({ total_qty: (Number(finishedItem.total_qty) || 0) + finishedQty }).eq('id', finishedItem.id)
+          inventoryUpdates.push({ ...finishedItem, total_qty: (Number(finishedItem.total_qty) || 0) + finishedQty })
         } else {
           await supabase.from('inventory').insert([{ nomenclature_id: nomenclatureId, name: nom.name, unit: nom.unit || 'шт', total_qty: finishedQty, reserved_qty: 0, type: 'finished' }])
         }
@@ -1414,10 +1695,15 @@ export const MESProvider = ({ children }) => {
       if (actualBzQty > 0) {
         const { data: bzItem } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomenclatureId).eq('type', 'bz').maybeSingle()
         if (bzItem) {
-          await supabase.from('inventory').update({ total_qty: (Number(bzItem.total_qty) || 0) + actualBzQty }).eq('id', bzItem.id)
+          inventoryUpdates.push({ ...bzItem, total_qty: (Number(bzItem.total_qty) || 0) + actualBzQty })
         } else {
           await supabase.from('inventory').insert([{ nomenclature_id: nomenclatureId, name: nom.name, unit: nom.unit || 'шт', total_qty: actualBzQty, reserved_qty: 0, type: 'bz' }])
         }
+      }
+
+      // Виконуємо всі оновлення інвентарю одним батчем
+      if (inventoryUpdates.length > 0) {
+        await supabase.from('inventory').upsert(inventoryUpdates)
       }
 
       // 5. Записуємо в історію
@@ -1432,7 +1718,8 @@ export const MESProvider = ({ children }) => {
         completed_at: new Date().toISOString()
       }])
 
-      fetchData()
+      refreshTable('inventory')
+      refreshTable('tasks')
       return { success: true }
     } catch (e) {
       console.error("Direct handover error:", e)
@@ -1442,9 +1729,11 @@ export const MESProvider = ({ children }) => {
 
   const handoverToSGP = async (cardId) => {
     try {
-      // ── ІДЕМПОТЕНТНА ПЕРЕВІРКА: якщо картка вже передана — зупиняємось ──
       // Запитуємо актуальний статус з БД (не з кешу), щоб уникнути race condition
-      const { data: freshCard } = await supabase.from('work_cards').select('id, status, nomenclature_id, quantity, buffer_qty, card_info, order_id').eq('id', cardId).single()
+      const { data: freshCard } = await supabase.from('work_cards')
+        .select('id, status, nomenclature_id, quantity, card_info, order_id')
+        .eq('id', cardId)
+        .single()
       if (!freshCard) return
       if (freshCard.status === 'completed') {
         alert('Ця картка вже передана на СГП і завершена. Повторна передача неможлива.')
@@ -1454,7 +1743,7 @@ export const MESProvider = ({ children }) => {
       const card = freshCard
       const nomId = card.nomenclature_id
       const totalQty = Number(card.quantity) || 0
-      const bzTotal = Number(card.buffer_qty) || Number(card.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
+      const bzTotal = Number(card.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
 
       // Визначаємо початкову потребу (те що було для замовлення)
       const needQty = Number(card.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Math.max(0, totalQty - bzTotal))
@@ -1540,12 +1829,41 @@ export const MESProvider = ({ children }) => {
       }
 
       // 4. Відмічаємо картку як завершену і передану на СГП
-      await supabase.from('work_cards').update({
-        status: 'completed',
-        operation: 'Пакування/СГП'
-      }).eq('id', cardId)
+      await Promise.all([
+        supabase.from('work_card_history').insert([{
+          card_id: cardId,
+          nomenclature_id: nomId,
+          stage_name: 'Пакування/СГП',
+          operator_name: 'Система (ТЕРМІНАЛ)',
+          qty_at_start: totalQty,
+          qty_completed: totalQty,
+          scrap_qty: 0,
+          completed_at: new Date().toISOString()
+        }]),
+        supabase.from('work_cards').update({
+          status: 'completed',
+          operation: 'Пакування/СГП'
+        }).eq('id', cardId)
+      ])
 
-      fetchData()
+      // ОПТИМІСТИЧНО ВИДАЛЯЄМО / ОНОВЛЮЄМО
+      setWorkCards(prev => prev.filter(c => c.id !== cardId))
+      
+      // Додаємо в історію локально
+      const historyRow = {
+        card_id: cardId,
+        nomenclature_id: nomId,
+        stage_name: 'Пакування/СГП',
+        operator_name: 'Система (ТЕРМІНАЛ)',
+        qty_at_start: totalQty,
+        qty_completed: totalQty,
+        scrap_qty: 0,
+        completed_at: new Date().toISOString()
+      }
+      setWorkCardHistory(prev => [historyRow, ...prev])
+
+      refreshTable('work_cards')
+      refreshTable('inventory')
       alert("Деталі успішно передані на Склад Готової Продукції!")
     } catch (e) {
       console.error("Помилка передачі на СГП:", e)
@@ -1712,7 +2030,7 @@ export const MESProvider = ({ children }) => {
       operators, productionStages,
       accessLogs, fortnetUrl, updateFortnetUrl,
       login, logout, upsertUser, deleteUser,
-      fetchOrders, fetchData,
+      fetchOrders, fetchData, refreshTable, fetchHistoryRange, fetchTaskArchiveCards,
       createNaryad, issueMaterials, approveWarehouse, approveEngineer, approveDirector,
       upsertNomenclature, deleteNomenclature, saveBOM, removeBOM,
       createWorkCard, startWorkCard, completeWorkCard, confirmBuffer, completeTaskByMaster, handoverTaskToShop2, cancelHandoverToShop2, completeTaskShop2, fixInventoryTypes, handoverToSGP, directHandoverToSGP,
@@ -1730,7 +2048,7 @@ export const MESProvider = ({ children }) => {
         const nextQty = (Number(item.total_qty) || 0) - Number(qty)
 
         if (nextQty > 0) {
-          await supabase.from('inventory').update({ total_qty: nextQty, updated_at: new Date().toISOString() }).eq('id', invId)
+          await supabase.from('inventory').update({ total_qty: nextQty }).eq('id', invId)
         } else {
           await supabase.from('inventory').delete().eq('id', invId)
         }
@@ -1824,7 +2142,7 @@ export const MESProvider = ({ children }) => {
         // 3. Deduct from specific scrap inventory item
         const nextQty = (Number(scrapItem.total_qty) || 0) - Number(qty)
         if (nextQty > 0) {
-          await supabase.from('inventory').update({ total_qty: nextQty, updated_at: new Date().toISOString() }).eq('id', scrapItem.id)
+          await supabase.from('inventory').update({ total_qty: nextQty }).eq('id', scrapItem.id)
         } else {
           await supabase.from('inventory').delete().eq('id', scrapItem.id)
         }
