@@ -40,11 +40,19 @@ const MasterModule = () => {
     const item = orders.flatMap(o => o.order_items || []).find(it => it.id === orderItemId)
     if (!item) return 0
     
-    // Simplest and most reliable logic: sum planned_sets from all tasks for this order
-    // Since a task represents a batch of sets for the entire order
-    return tasks
-      .filter(t => String(t.order_id) === String(item.order_id))
-      .reduce((acc, t) => acc + (Number(t.planned_sets) || 0), 0)
+    const orderTasks = tasks.filter(t => String(t.order_id) === String(item.order_id))
+    
+    // Групуємо наряди за індексом партії (batch_index), щоб не рахувати одну й ту саму партію двічі на різних етапах
+    const batches = {}
+    orderTasks.forEach(t => {
+      const key = t.batch_index || `task_${t.id}`
+      const qty = Number(t.planned_sets) || 0
+      if (!batches[key] || qty > batches[key]) {
+        batches[key] = qty
+      }
+    })
+    
+    return Object.values(batches).reduce((acc, q) => acc + q, 0)
   }
 
   const pendingOrders = orders.filter(o => {
@@ -257,6 +265,47 @@ const MasterModule = () => {
                 )
               })}
             </div>
+            
+            {/* СПИСОК ВЖЕ СТВОРЕНИХ НАРЯДІВ */}
+            {(() => {
+               const orderTasks = tasks.filter(t => String(t.order_id) === String(order.id));
+               if (orderTasks.length === 0) return null;
+               
+               // Групуємо за індексом, щоб не було дублів плашок /1 /1
+               const uniqueBatches = {};
+               orderTasks.forEach(t => {
+                 const idx = t.batch_index || '1';
+                 if (!uniqueBatches[idx]) {
+                   uniqueBatches[idx] = { 
+                     index: idx, 
+                     isAllCompleted: true // припустимо що так, поки не знайдемо незавершений
+                   };
+                 }
+                 if (t.status !== 'completed') {
+                   uniqueBatches[idx].isAllCompleted = false;
+                 }
+               });
+
+               return (
+                 <div style={{ marginBottom: '12px', padding: '8px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid #222' }}>
+                   <div style={{ fontSize: '0.55rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', marginBottom: '5px' }}>Створені наряди:</div>
+                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                     {Object.values(uniqueBatches).sort((a,b) => a.index - b.index).map(b => (
+                       <span key={b.index} style={{ 
+                         fontSize: '0.6rem', 
+                         padding: '2px 6px', 
+                         background: b.isAllCompleted ? '#064e3b' : '#1a1a1a', 
+                         color: b.isAllCompleted ? '#10b981' : '#888', 
+                         borderRadius: '4px', 
+                         border: '1px solid #222' 
+                       }}>
+                         /{b.index}
+                       </span>
+                     ))}
+                   </div>
+                 </div>
+               );
+            })()}
             <button 
               onClick={() => {
                 setQuickPlanOrder(order);
@@ -377,31 +426,66 @@ const MasterModule = () => {
           </section>
 
           <section className="grid-col">
-            <h3 style={{ fontSize: '0.85rem', color: '#555', marginBottom: '15px' }}><History size={16} /> АРХІВ СЬОГОДНІ</h3>
+            <h3 style={{ fontSize: '0.85rem', color: '#555', marginBottom: '15px' }}><History size={16} /> АРХІВ (ОСТАННІ 3 ДНІ)</h3>
             <div className="v-stack" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {tasks.filter(t => {
-                if (t.status !== 'completed' || !t.completed_at) return false
-                const d = new Date(t.completed_at)
-                const now = new Date()
-                return d.toDateString() === now.toDateString()
-              }).sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at)).map(task => {
-                const order = orders.find(o => o.id === task.order_id)
-                return (
-                  <div key={task.id} style={{ background: '#0a0a0a', padding: '15px', borderRadius: '16px', border: '1px solid #1a1a1a', opacity: 0.8, borderLeft: '3px solid #10b981' }}>
+              {(() => {
+                const archiveTasks = tasks.filter(t => {
+                  if (t.status !== 'completed' || !t.completed_at) return false
+                  const d = new Date(t.completed_at)
+                  const threeDaysAgo = new Date()
+                  threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
+                  return d >= threeDaysAgo
+                });
+
+                if (archiveTasks.length === 0) return <div style={{ textAlign: 'center', padding: '20px', color: '#222', fontSize: '0.75rem' }}>Архів порожній</div>;
+
+                // ГРУПУЄМО ЗА НОМЕРОМ НАРЯДУ
+                const groups = {};
+                archiveTasks.forEach(task => {
+                  const order = orders.find(o => o.id === task.order_id);
+                  const key = `${task.order_id}_${task.batch_index || '1'}`;
+                  if (!groups[key]) {
+                    groups[key] = {
+                      orderNum: order?.order_num || '?',
+                      customer: order?.customer || '?',
+                      batchIndex: task.batch_index || '1',
+                      lastCompletedAt: task.completed_at,
+                      stages: []
+                    };
+                  }
+                  let shopName = task.step;
+                  if (task.step?.includes('Лазерн') || task.step?.includes('Різка')) {
+                    shopName = 'ЦЕХ №1';
+                  } else if (task.step?.includes('Пресування') || task.step?.includes('№2') || task.step?.includes('Фарбування')) {
+                    shopName = 'ЦЕХ №2';
+                  }
+
+                  if (!groups[key].stages.includes(shopName)) {
+                    groups[key].stages.push(shopName);
+                  }
+                  if (new Date(task.completed_at) > new Date(groups[key].lastCompletedAt)) {
+                    groups[key].lastCompletedAt = task.completed_at;
+                  }
+                });
+
+                return Object.values(groups).sort((a, b) => new Date(b.lastCompletedAt) - new Date(a.lastCompletedAt)).map((group, gIdx) => (
+                  <div key={gIdx} style={{ background: '#0a0a0a', padding: '15px', borderRadius: '16px', border: '1px solid #1a1a1a', borderLeft: '3px solid #10b981', marginBottom: '8px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <strong style={{ fontSize: '0.9rem', color: '#fff' }}>№{order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}</strong>
-                      <span style={{ fontSize: '0.65rem', color: '#444' }}>{new Date(task.completed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      <strong style={{ fontSize: '0.9rem', color: '#fff' }}>№{group.orderNum}/{group.batchIndex}</strong>
+                      <span style={{ fontSize: '0.65rem', color: '#444' }}>{new Date(group.lastCompletedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: '#888', marginBottom: '8px' }}>{order?.customer}</div>
-                    <div style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <CheckCircle2 size={10} /> {task.step}
+                    <div style={{ fontSize: '0.75rem', color: '#888', marginBottom: '10px' }}>{group.customer}</div>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                       {group.stages.map((s, sIdx) => (
+                         <div key={sIdx} style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                           <CheckCircle2 size={10} /> {s}
+                         </div>
+                       ))}
                     </div>
                   </div>
-                )
-              })}
-              {tasks.filter(t => t.status === 'completed' && new Date(t.completed_at).toDateString() === new Date().toDateString()).length === 0 && (
-                <div style={{ textAlign: 'center', padding: '20px', color: '#222', fontSize: '0.75rem' }}>Сьогодні ще немає завершених нарядів</div>
-              )}
+                ));
+              })()}
             </div>
           </section>
         </div>
@@ -426,8 +510,9 @@ const MasterModule = () => {
                         const alreadyPlanned = tasks.filter(t => String(t.order_id) === String(activeNaryadOrder.id)).reduce((acc, t) => acc + (Number(t.planned_sets) || 0), 0);
                         
                         if (thisNaryadTotal < totalUnits || alreadyPlanned > 0) {
-                           const idx = tasks.filter(t => t.order_id === activeNaryadOrder.id && (t.step === 'Лазерний розкрій' || t.step === 'Лазерна різка')).length + 1;
-                           return `/${idx}`;
+                           // Рахуємо всі наряди цього замовлення для коректного індексу
+                           const orderTasksCount = tasks.filter(t => String(t.order_id) === String(activeNaryadOrder.id)).length;
+                           return `/${orderTasksCount + 1}`;
                         }
                         return '';
                       })()}

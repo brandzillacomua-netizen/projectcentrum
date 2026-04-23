@@ -10,7 +10,8 @@ import {
   Layers,
   Archive,
   AlertTriangle,
-  Search
+  Search,
+  History
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
@@ -18,7 +19,7 @@ import { apiService } from '../services/apiDispatcher'
 
 const WarehouseModuleV2 = () => {
   const {
-    inventory, requests, issueMaterials,
+    inventory, requests, issueMaterials, issueMaterialsBatch,
     nomenclatures, receptionDocs, confirmReception,
     orders, tasks, approveWarehouse, createPurchaseRequest,
     purchaseRequests, receiveInventory, currentUser
@@ -47,13 +48,15 @@ const WarehouseModuleV2 = () => {
   const [isProcessing, setIsProcessing] = useState(false)
   const [processingDocs, setProcessingDocs] = useState(new Set())
   const [processingTasks, setProcessingTasks] = useState(new Set())
+  const [expandedDoc, setExpandedDoc] = useState(null)
 
   const tabs = [
     { id: 'raw', label: 'Оперативний', icon: <Package size={18} /> },
     { id: 'semi', label: 'Напівфабрикати', icon: <Layers size={18} /> },
     { id: 'finished', label: 'Готова продукція', icon: <Archive size={18} /> },
     { id: 'scrap', label: 'Брак', icon: <AlertTriangle size={18} /> },
-    { id: 'bz', label: 'БЗ', icon: <CheckCircle2 size={18} /> }
+    { id: 'bz', label: 'БЗ', icon: <CheckCircle2 size={18} /> },
+    { id: 'registry', label: 'Реєстр', icon: <History size={18} /> }
   ]
 
   const filteredInventory = (inventory || []).filter(i => {
@@ -102,23 +105,31 @@ const WarehouseModuleV2 = () => {
     const missingItems = []
     reqList.forEach(req => {
       const parsedName = parseMaterialName(req.details)
+      
+      // EXCLUSION: If it's a finished product (IP- prefix or type 'finished'), 
+      // the Operational Warehouse doesn't handle its kitting.
+      const nameLower = parsedName.toLowerCase()
       const invItem = (inventory || []).find(i =>
-        (i.id === req.inventory_id || (parsedName && normalize(i.name) === normalize(parsedName))) &&
-        (i.warehouse === 'operational' || !i.warehouse)
+        (i.id === req.inventory_id || (parsedName && normalize(i.name) === normalize(parsedName)))
       )
-      const available = invItem
-        ? (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0)
+      const isSgp = nameLower.startsWith('іп-') || invItem?.type === 'finished' || invItem?.type === 'semi'
+      if (isSgp) return
+
+      const operationalItem = invItem && (invItem.warehouse === 'operational' || !invItem.warehouse) ? invItem : null
+      
+      const available = operationalItem
+        ? (Number(operationalItem.total_qty) || 0) - (Number(operationalItem.reserved_qty) || 0)
         : 0
       const needed = Number(req.quantity)
       if (available < needed) {
         const missingAmount = needed - available
         const reqDescription = parsedName || 'Невідома деталь'
-        const nomenclature_id = invItem?.nomenclature_id ||
+        const nomenclature_id = operationalItem?.nomenclature_id ||
           (nomenclatures || []).find(n => normalize(n.name) === normalize(parsedName))?.id || null
         missingItems.push({
           reqDetails: reqDescription,
           missingAmount,
-          inventory_id: invItem?.id || req.inventory_id,
+          inventory_id: operationalItem?.id || req.inventory_id,
           nomenclature_id,
           needed
         })
@@ -129,11 +140,10 @@ const WarehouseModuleV2 = () => {
       setShortages({ orderId, orderNum, taskId, items: missingItems, reqList })
     } else {
       setProcessingTasks(prev => new Set(prev).add(taskId))
-      apiService.submitReserveBatch(orderId, reqList, taskId, issueMaterials, (tid) => {
-        approveWarehouse(tid)
+      apiService.submitReserveBatch(orderId, reqList, taskId, issueMaterialsBatch).then(() => {
         setProcessingTasks(prev => {
           const next = new Set(prev)
-          next.delete(tid)
+          next.delete(taskId)
           return next
         })
       })
@@ -236,10 +246,17 @@ const WarehouseModuleV2 = () => {
                 const missingItems = []
                 reqList.forEach(req => {
                   const parsedName = parseMaterialName(req.details)
+                  const nameLower = parsedName.toLowerCase()
+                  
                   const invItem = (inventory || []).find(i =>
                     i.id === req.inventory_id ||
                     (parsedName && normalize(i.name) === normalize(parsedName))
                   )
+
+                  // Skip SGP/Finished items in Operational Warehouse deficit check
+                  const isSgp = nameLower.startsWith('іп-') || invItem?.type === 'finished' || invItem?.type === 'semi'
+                  if (isSgp) return
+
                   const available = invItem
                     ? (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0)
                     : 0
@@ -483,93 +500,152 @@ const WarehouseModuleV2 = () => {
             </form>
           )}
 
-          {/* DESKTOP TABLE */}
-          <div className="table-responsive-container hide-mobile">
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid #222', textAlign: 'left' }}>
-                  <th className="sticky-col" style={{ padding: '15px', fontSize: '0.7rem', color: '#555' }}>НАЙМЕНУВАННЯ</th>
-                  <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'center' }}>НАЯВНІСТЬ</th>
-                  <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'center' }}>РЕЗЕРВ</th>
-                  <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'right' }}>ОСТАННЄ ОНОВЛЕННЯ</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredInventory.length === 0 && (
-                  <tr>
-                    <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: '#333', fontSize: '0.85rem' }}>
-                      Позицій не знайдено
-                    </td>
-                  </tr>
-                )}
-                {filteredInventory.map(item => (
-                  <tr key={item.id} style={{ borderBottom: '1px solid #151515' }}>
-                    <td className="sticky-col" style={{ padding: '15px', fontWeight: 800 }}>
-                      {item.name}
-                      {item.type?.startsWith('scrap') && (() => {
-                        const types = {
-                          'scrap': { label: 'Прийомка', color: '#555' },
-                          'scrap_ready': { label: 'До обробки', color: '#ef4444' },
-                          'scrap_cat_1': { label: 'Кат. 1', color: '#10b981' },
-                          'scrap_cat_2': { label: 'Кат. 2', color: '#eab308' },
-                          'scrap_cat_3': { label: 'Кат. 3', color: '#f97316' },
-                          'scrap_cat_4': { label: 'Кат. 4', color: '#ef4444' },
-                        }
-                        const t = types[item.type] || { label: item.type, color: '#333' }
-                        return (
-                          <span style={{ 
-                            marginLeft: '10px', fontSize: '0.6rem', color: t.color, 
-                            border: `1px solid ${t.color}40`, padding: '2px 6px', 
-                            borderRadius: '4px', textTransform: 'uppercase', fontWeight: 900
-                          }}>
-                            {t.label}
-                          </span>
-                        )
-                      })()}
-                    </td>
-                    <td style={{ padding: '15px', textAlign: 'center', color: activeTab === 'scrap' ? '#ef4444' : '#ff9000', fontWeight: 900 }}>
-                      {item.total_qty || 0}{' '}
-                      <small style={{ color: '#444', fontWeight: 400 }}>{item.unit}</small>
-                    </td>
-                    <td style={{ padding: '15px', textAlign: 'center', color: Number(item.reserved_qty) > 0 ? '#3b82f6' : '#222', fontWeight: 800 }}>
-                      {item.reserved_qty || 0}
-                    </td>
-                    <td style={{ padding: '15px', textAlign: 'right', color: '#333', fontSize: '0.7rem' }}>
-                      {item.updated_at
-                        ? `${new Date(item.updated_at).toLocaleDateString()} ${new Date(item.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                        : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* MOBILE CARDS */}
-          <div className="mobile-only">
-            {filteredInventory.map(item => (
-              <div key={item.id} style={{ background: '#111', padding: '15px', borderRadius: '16px', border: '1px solid #222', marginBottom: '10px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                  <strong>{item.name}</strong>
-                  <span style={{ fontSize: '0.7rem', color: '#444' }}>{item.unit}</span>
-                </div>
-                <div style={{ display: 'flex', gap: '20px' }}>
-                  <div>
-                    <div style={{ fontSize: '0.6rem', color: '#555' }}>НАЯВНІСТЬ</div>
-                    <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#ff9000' }}>
-                      {item.total_qty || 0}
+          {/* REGISTRY VIEW */}
+          {activeTab === 'registry' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              {(receptionDocs || [])
+                .filter(d => d.target_warehouse === 'operational' || d.source_warehouse === 'operational')
+                .map(doc => (
+                <div key={doc.id} style={{ background: '#111', borderRadius: '20px', border: '1px solid #222', overflow: 'hidden' }}>
+                  <div 
+                    onClick={() => setExpandedDoc(expandedDoc === doc.id ? null : doc.id)}
+                    style={{ padding: '20px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                  >
+                    <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                      <div style={{ background: '#0a0a0a', padding: '12px', borderRadius: '12px', color: doc.status === 'completed' ? '#10b981' : '#ff9000' }}>
+                        <Package size={20} />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>#{String(doc.id).substring(0, 8)}</div>
+                        <div style={{ fontSize: '0.65rem', color: '#444' }}>{new Date(doc.created_at).toLocaleDateString()}</div>
+                      </div>
+                    </div>
+                    <div style={{ 
+                      fontSize: '0.6rem', fontWeight: 900, textTransform: 'uppercase', 
+                      padding: '5px 12px', borderRadius: '20px', 
+                      background: doc.status === 'completed' ? '#10b98122' : '#ff900022',
+                      color: doc.status === 'completed' ? '#10b981' : '#ff9000'
+                    }}>
+                      {doc.status === 'completed' ? 'ВИКОНАНО' : 'В ДОРОЗІ'}
                     </div>
                   </div>
-                  {activeTab !== 'bz' && (
-                    <div>
-                      <div style={{ fontSize: '0.6rem', color: '#555' }}>РЕЗЕРВ</div>
-                      <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#3b82f6' }}>{item.reserved_qty || 0}</div>
+                  
+                  {expandedDoc === doc.id && (
+                    <div style={{ padding: '20px', background: '#0a0a0a', borderTop: '1px solid #222' }}>
+                      <div style={{ marginBottom: '15px' }}>
+                        {(Array.isArray(doc.items) ? doc.items : []).map((it, idx) => {
+                          const nom = (nomenclatures || []).find(n => n.id === it.nomenclature_id)
+                          const itemName = nom ? (nom.name + (nom.material_type ? ` (${nom.material_type})` : '')) : (it.reqDetails || it.details || it.name || `Позиція ${idx + 1}`)
+                          const itemQty = it.qty ?? it.missingAmount ?? it.needed ?? it.quantity ?? '?'
+                          return (
+                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #111' }}>
+                              <span style={{ fontSize: '0.8rem', color: '#888' }}>{itemName}</span>
+                              <strong style={{ fontSize: '0.8rem', color: '#fff' }}>{itemQty}</strong>
+                            </div>
+                          )
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>
+              ))}
+              {(receptionDocs || []).filter(d => d.target_warehouse === 'operational' || d.source_warehouse === 'operational').length === 0 && (
+                <div style={{ textAlign: 'center', padding: '60px', color: '#333', fontSize: '0.85rem' }}>Історія порожня</div>
+              )}
+            </div>
+          )}
+
+          {/* DESKTOP TABLE */}
+          {activeTab !== 'registry' && (
+            <>
+              <div className="table-responsive-container hide-mobile">
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #222', textAlign: 'left' }}>
+                      <th className="sticky-col" style={{ padding: '15px', fontSize: '0.7rem', color: '#555' }}>НАЙМЕНУВАННЯ</th>
+                      <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'center' }}>НАЯВНІСТЬ</th>
+                      <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'center' }}>РЕЗЕРВ</th>
+                      <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'right' }}>ОСТАННЄ ОНОВЛЕННЯ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredInventory.length === 0 && (
+                      <tr>
+                        <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: '#333', fontSize: '0.85rem' }}>
+                          Позицій не знайдено
+                        </td>
+                      </tr>
+                    )}
+                    {filteredInventory.map(item => (
+                      <tr key={item.id} style={{ borderBottom: '1px solid #151515' }}>
+                        <td className="sticky-col" style={{ padding: '15px', fontWeight: 800 }}>
+                          {item.name}
+                          {item.type?.startsWith('scrap') && (() => {
+                            const types = {
+                              'scrap': { label: 'Прийомка', color: '#555' },
+                              'scrap_ready': { label: 'До обробки', color: '#ef4444' },
+                              'scrap_cat_1': { label: 'Кат. 1', color: '#10b981' },
+                              'scrap_cat_2': { label: 'Кат. 2', color: '#eab308' },
+                              'scrap_cat_3': { label: 'Кат. 3', color: '#f97316' },
+                              'scrap_cat_4': { label: 'Кат. 4', color: '#ef4444' },
+                            }
+                            const t = types[item.type] || { label: item.type, color: '#333' }
+                            return (
+                              <span style={{ 
+                                marginLeft: '10px', fontSize: '0.6rem', color: t.color, 
+                                border: `1px solid ${t.color}40`, padding: '2px 6px', 
+                                borderRadius: '4px', textTransform: 'uppercase', fontWeight: 900
+                              }}>
+                                {t.label}
+                              </span>
+                            )
+                          })()}
+                        </td>
+                        <td style={{ padding: '15px', textAlign: 'center', color: activeTab === 'scrap' ? '#ef4444' : '#ff9000', fontWeight: 900 }}>
+                          {item.total_qty || 0}{' '}
+                          <small style={{ color: '#444', fontWeight: 400 }}>{item.unit}</small>
+                        </td>
+                        <td style={{ padding: '15px', textAlign: 'center', color: Number(item.reserved_qty) > 0 ? '#3b82f6' : '#222', fontWeight: 800 }}>
+                          {item.reserved_qty || 0}
+                        </td>
+                        <td style={{ padding: '15px', textAlign: 'right', color: '#333', fontSize: '0.7rem' }}>
+                          {item.updated_at
+                            ? `${new Date(item.updated_at).toLocaleDateString()} ${new Date(item.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                            : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            ))}
-          </div>
+
+              {/* MOBILE CARDS */}
+              <div className="mobile-only">
+                {filteredInventory.map(item => (
+                  <div key={item.id} style={{ background: '#111', padding: '15px', borderRadius: '16px', border: '1px solid #222', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                      <strong>{item.name}</strong>
+                      <span style={{ fontSize: '0.7rem', color: '#444' }}>{item.unit}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '20px' }}>
+                      <div>
+                        <div style={{ fontSize: '0.6rem', color: '#555' }}>НАЯВНІСТЬ</div>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#ff9000' }}>
+                          {item.total_qty || 0}
+                        </div>
+                      </div>
+                      {activeTab !== 'bz' && (
+                        <div>
+                          <div style={{ fontSize: '0.6rem', color: '#555' }}>РЕЗЕРВ</div>
+                          <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#3b82f6' }}>{item.reserved_qty || 0}</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
 

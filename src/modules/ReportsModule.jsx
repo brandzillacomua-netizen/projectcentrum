@@ -88,10 +88,11 @@ const ReportsModule = () => {
 
   // Options for Dropdowns
   const warehouseOptions = useMemo(() => {
-    const whs = new Set(['operational', 'production', 'spg', 'sz', 'scrap'])
+    const whs = new Set(['operational', 'production', 'sgp', 'sz', 'scrap'])
     inventory.forEach(i => {
       if (i.warehouse) whs.add(i.warehouse)
-      else if (i.type === 'bz') whs.add('operational')
+      else if (i.type === 'bz') whs.add('sz')
+      else if (i.type === 'finished' || i.type === 'product') whs.add('sgp')
       else if (i.type === 'raw') whs.add('production')
     })
     return Array.from(whs)
@@ -139,9 +140,18 @@ const ReportsModule = () => {
     if (whFilter !== 'all') {
       data = data.filter(i => {
         let w = i.warehouse
+        // Якщо склад не вказаний, визначаємо за типом
         if (!w) {
-          if (i.type === 'bz') w = 'operational'
-          if (i.type === 'raw') w = 'production'
+          if (i.type === 'bz') w = 'sz'
+          else if (i.type === 'finished' || i.type === 'product') w = 'sgp'
+          else if (i.type === 'raw') w = 'production'
+          else if (i.type?.startsWith('scrap')) w = 'scrap'
+          else w = 'operational'
+        } else {
+          // Пріоритетні мапінги для звітів
+          if (i.type === 'bz') w = 'sz'
+          if (i.type === 'finished' || i.type === 'product') w = 'sgp'
+          if (i.type?.startsWith('scrap')) w = 'scrap'
         }
         return w === whFilter
       })
@@ -161,13 +171,29 @@ const ReportsModule = () => {
       data = data.filter(i => String(i.nomenclature_id) === String(itemFilter))
     }
 
+    // Прибираємо нулі (щоб не засмічувати звіт), 
+    // але залишаємо ті, де є резерв, навіть якщо фізично 0 (на всяк випадок)
+    data = data.filter(i => (Number(i.total_qty) || 0) > 0 || (Number(i.reserved_qty) || 0) > 0)
+
     // Grouping by Warehouse -> Type for a professional view
     const grouped = {}
     let totalQtyAll = 0
     let totalResAll = 0
 
     data.forEach(item => {
-      let w = item.warehouse || (item.type === 'bz' ? 'operational' : item.type === 'raw' ? 'production' : 'other')
+      let w = item.warehouse
+      if (!w) {
+        if (item.type === 'bz') w = 'sz'
+        else if (item.type === 'finished' || item.type === 'product') w = 'sgp'
+        else if (item.type?.startsWith('scrap')) w = 'scrap'
+        else if (item.type === 'raw') w = 'production'
+        else w = 'operational'
+      } else {
+        if (item.type === 'bz') w = 'sz'
+        if (item.type === 'finished' || item.type === 'product') w = 'sgp'
+        if (item.type?.startsWith('scrap')) w = 'scrap'
+      }
+
       const nom = nomenclatures.find(n => String(n.id) === String(item.nomenclature_id))
       const t = (nom && nom.type) ? nom.type : (item.type || 'Без групи')
 
@@ -282,11 +308,11 @@ const ReportsModule = () => {
     switch (activeTab) {
       case 'warehouse':
         const whNameMap = { 
-          operational: 'Оперативний', 
-          production: 'Склад Виробництва', 
-          spg: 'СПГ (Склад Готової Продукції)',
+          operational: 'Оперативний (СО)', 
+          production: 'Склад Виробництва (СВ)', 
+          sgp: 'СГП (Склад Готової Продукції)',
           sz: 'СЗ (Склад Залишків)',
-          scrap: 'Брак (Ізолятор)', 
+          scrap: 'СБ (Брак / Ізолятор)', 
           other: 'Інше' 
         }
         return (
@@ -383,10 +409,19 @@ const ReportsModule = () => {
                       Фільтри: Склад ({whFilter === 'all' ? 'Всі' : (whNameMap[whFilter] || whFilter)}) | Група ({typeFilter === 'all' ? 'Всі' : (typeNameMap[typeFilter] || typeFilter)}) | Деталь ({itemFilter === 'all' ? 'Всі' : 'Вибрана'})
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '0.7rem', color: '#666', textTransform: 'uppercase', fontWeight: 800 }}>Загальний підсумок (шт/л)</div>
-                    <div style={{ fontSize: '2rem', fontWeight: 950, color: '#22c55e', lineHeight: 1.2 }}>{generatedReport.totalQtyAll - generatedReport.totalResAll}</div>
-                    <div style={{ fontSize: '0.8rem', color: '#ff9000', fontWeight: 700 }}>+ {generatedReport.totalResAll} в резерві</div>
+                  <div style={{ textAlign: 'right', display: 'flex', gap: '30px', alignItems: 'flex-end' }}>
+                    <div>
+                      <div style={{ fontSize: '0.65rem', color: '#666', textTransform: 'uppercase', fontWeight: 800 }}>Фізичний залишок</div>
+                      <div style={{ fontSize: '1.5rem', fontWeight: 950, color: '#fff', lineHeight: 1.2 }}>{generatedReport.totalQtyAll}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.65rem', color: '#666', textTransform: 'uppercase', fontWeight: 800 }}>В резерві</div>
+                      <div style={{ fontSize: '1.5rem', fontWeight: 950, color: '#ff9000', lineHeight: 1.2 }}>{generatedReport.totalResAll}</div>
+                    </div>
+                    <div style={{ paddingLeft: '20px', borderLeft: '1px solid #222' }}>
+                      <div style={{ fontSize: '0.7rem', color: '#666', textTransform: 'uppercase', fontWeight: 800 }}>ДОСТУПНО (ВІЛЬНО)</div>
+                      <div style={{ fontSize: '2.5rem', fontWeight: 950, color: '#22c55e', lineHeight: 1 }}>{generatedReport.totalQtyAll - generatedReport.totalResAll}</div>
+                    </div>
                   </div>
                 </div>
 

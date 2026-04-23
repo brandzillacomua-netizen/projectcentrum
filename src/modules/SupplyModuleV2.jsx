@@ -434,9 +434,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                       (
                         (it.nomenclature_id && String(i.nomenclature_id) === String(it.nomenclature_id)) ||
                         (it.inventory_id && String(i.id) === String(it.inventory_id)) ||
-                        normalize(i.name) === normalize(parsedName) ||
-                        (i.name && parsedName && normalize(i.name).includes(normalize(parsedName))) ||
-                        (i.name && parsedName && normalize(parsedName).includes(normalize(i.name)))
+                        (normalize(i.name) === normalize(parsedName))
                       )
                     )
                     const available = invItem ? (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0) : 0
@@ -554,9 +552,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                             (
                               (it.nomenclature_id && String(i.nomenclature_id) === String(it.nomenclature_id)) ||
                               (it.inventory_id && String(i.id) === String(it.inventory_id)) ||
-                              normalize(i.name) === normalize(parsedName) ||
-                              (i.name && parsedName && normalize(i.name).includes(normalize(parsedName))) ||
-                              (i.name && parsedName && normalize(parsedName).includes(normalize(i.name)))
+                              (normalize(i.name) === normalize(parsedName))
                             )
                           )
                           const available = invItem ? (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0) : 0
@@ -595,7 +591,17 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                 <History size={18} className="text-secondary" /> РЕЄСТР ПОСТАВОК
               </h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {(receptionDocs || []).map(doc => (
+                {(receptionDocs || [])
+                  .filter(doc => {
+                    if (isProcurementOnly) {
+                      // Procurement sees everything related to supply/procurement chain
+                      return doc.target_warehouse === 'production' || !doc.target_warehouse || doc.type === 'purchase'
+                    } else {
+                      // Production Warehouse sees what it received OR what it sent out
+                      return doc.target_warehouse === 'production' || doc.source_warehouse === 'production' || doc.type === 'internal_transfer'
+                    }
+                  })
+                  .map(doc => (
                   <div key={doc.id} className="doc-card" style={{ background: '#111', borderRadius: '20px', border: '1px solid #222', overflow: 'hidden' }}>
                     <div
                       onClick={() => setExpandedDoc(expandedDoc === doc.id ? null : doc.id)}

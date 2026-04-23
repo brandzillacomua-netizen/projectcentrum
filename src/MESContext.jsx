@@ -138,16 +138,23 @@ export const MESProvider = ({ children }) => {
       const threeDaysAgoTasks = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
       const { data: t } = await supabase.from('tasks')
         .select('*')
-        .or(`status.neq.completed,completed_at.gte.${threeDaysAgoTasks},updated_at.gte.${threeDaysAgoTasks}`)
+        .or(`status.neq.completed,completed_at.gte.${threeDaysAgoTasks}`)
         .order('created_at', { ascending: false })
       const { data: r } = await supabase.from('material_requests').select('*').neq('status', 'completed').order('created_at', { ascending: false })
       const { data: n } = await supabase.from('nomenclatures').select('*')
       const { data: b } = await supabase.from('bom_items').select('*')
-      const { data: rec } = await supabase.from('reception_docs').select('*').neq('status', 'completed').order('created_at', { ascending: false })
-      const { data: pr } = await supabase.from('purchase_requests').select('*').neq('status', 'completed').order('created_at', { ascending: false })
+      
+      const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+      const { data: rec } = await supabase.from('reception_docs')
+        .select('*')
+        .or(`status.neq.completed,created_at.gte.${threeDaysAgo}`)
+        .order('created_at', { ascending: false })
+      const { data: pr } = await supabase.from('purchase_requests')
+        .select('*')
+        .or(`status.neq.completed,created_at.gte.${threeDaysAgo}`)
+        .order('created_at', { ascending: false })
       
       // Активні + нещодавно завершені картки (за 3 дні) — потрібно для taskReadinessMap після перезавантаження
-      const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
       const { data: wc } = await supabase.from('work_cards')
         .select('*')
         .or(`status.neq.completed,created_at.gte.${threeDaysAgo}`)
@@ -230,7 +237,7 @@ export const MESProvider = ({ children }) => {
         const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
         const { data } = await supabase.from('tasks')
           .select('*')
-          .or(`status.neq.completed,completed_at.gte.${threeDaysAgo},updated_at.gte.${threeDaysAgo}`)
+          .or(`status.neq.completed,completed_at.gte.${threeDaysAgo}`)
           .order('created_at', { ascending: false })
         if (data) setTasks(data)
       } else if (tableName === 'orders') {
@@ -1041,12 +1048,83 @@ export const MESProvider = ({ children }) => {
     if (!req) return
     let parsedName = ''
     try { parsedName = req.details?.split(': ')[1]?.split(' — ')[0]?.trim() } catch (e) { }
-    const invItem = inventory.find(i => i.id === req.inventory_id || (req.nomenclature_id && i.nomenclature_id === req.nomenclature_id) || (parsedName && normalize(i.name) === normalize(parsedName)))
+    const invItem = inventory.find(i => i.id === req.inventory_id || (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) || (parsedName && normalize(i.name) === normalize(parsedName)))
     if (invItem) {
       await supabase.from('inventory').update({ reserved_qty: (Number(invItem.reserved_qty) || 0) + Number(req.quantity) }).eq('id', invItem.id)
       await supabase.from('material_requests').update({ status: 'issued', inventory_id: invItem.id }).eq('id', requestId)
     } else {
       await supabase.from('material_requests').update({ status: 'issued' }).eq('id', requestId)
+    }
+  }
+
+  const issueMaterialsBatch = async (requestIds, taskId = null) => {
+    console.log("🚀 issueMaterialsBatch START:", { requestIds, taskId });
+    try {
+      const relevantRequests = (requests || []).filter(r => requestIds.includes(r.id))
+      console.log("📦 Found relevant requests:", relevantRequests.length);
+      
+      const inventoryUpdateMap = {} // id -> additional_reserved_qty
+      const requestUpdateList = []
+
+      relevantRequests.forEach(req => {
+        if (req.status === 'issued') {
+          console.log("⚠️ Request already issued:", req.id);
+          return
+        }
+
+        let parsedName = ''
+        try { parsedName = req.details?.split(': ')[1]?.split(' — ')[0]?.trim() } catch (e) { }
+        
+        const invItem = inventory.find(i => 
+          String(i.id) === String(req.inventory_id) || 
+          (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) || 
+          (parsedName && normalize(i.name) === normalize(parsedName))
+        )
+
+        if (invItem) {
+          console.log(`✅ Match found for ${req.id}: ${invItem.name} (ID: ${invItem.id})`);
+          inventoryUpdateMap[invItem.id] = (inventoryUpdateMap[invItem.id] || 0) + Number(req.quantity)
+          requestUpdateList.push({ id: req.id, status: 'issued', inventory_id: invItem.id })
+        } else {
+          console.log(`❌ No inventory match for request ${req.id} (${parsedName || req.details})`);
+          requestUpdateList.push({ id: req.id, status: 'issued' })
+        }
+      })
+
+      console.log("🔄 Inventory updates to perform:", inventoryUpdateMap);
+
+      // Виконуємо оновлення інвентарю
+      const invPromises = Object.entries(inventoryUpdateMap).map(async ([id, addQty]) => {
+        const item = inventory.find(i => String(i.id) === String(id))
+        if (!item) return
+        console.log(`💾 Updating inventory ${id}: +${addQty}`);
+        return supabase.from('inventory').update({ 
+          reserved_qty: (Number(item.reserved_qty) || 0) + addQty 
+        }).eq('id', id)
+      })
+
+      // Виконуємо оновлення запитів
+      console.log(`💾 Updating ${requestUpdateList.length} requests...`);
+      const reqPromises = requestUpdateList.map(upd => 
+        supabase.from('material_requests').update({ 
+          status: upd.status, 
+          inventory_id: upd.inventory_id 
+        }).eq('id', upd.id)
+      )
+
+      const results = await Promise.all([...invPromises, ...reqPromises])
+      console.log("🏁 Batch update results:", results);
+
+      if (taskId) {
+        console.log(`🎯 Closing task: ${taskId}`);
+        await supabase.from('tasks').update({ warehouse_conf: true }).eq('id', taskId)
+      }
+
+      console.log("♻️ Triggering fetchData...");
+      fetchData()
+    } catch (err) {
+      console.error("❌ Batch issue error:", err)
+      throw err
     }
   }
 
@@ -1925,47 +2003,19 @@ export const MESProvider = ({ children }) => {
 
     for (const item of requiredItems) {
       const nomId = item.nomId || item.nomenclature_id
-      // Шукаємо на залишках (Готова продукція або Склад Оперативний/Метизи)
-      const matches = (inventory || []).filter(inv => String(inv.nomenclature_id) === String(nomId) && (inv.type === 'finished' || inv.type === 'raw'))
-      const totalAvailable = matches.reduce((acc, m) => acc + (Number(m.total_qty) || 0) - (Number(m.reserved_qty) || 0), 0)
+      const neededQty = Number(item.qty) || 0
 
-      let neededQty = Number(item.qty) || 0
-
-      // 1. Якщо щось є в наявності - видаємо (резервуємо)
-      if (totalAvailable > 0) {
-        const issuedQty = Math.min(neededQty, totalAvailable)
-        const firstMatch = matches.find(m => (Number(m.total_qty) || 0) > (Number(m.reserved_qty) || 0))
-
-        if (firstMatch) {
-          requestsToInsert.push({
-            order_id: orderId,
-            nomenclature_id: nomId,
-            quantity: issuedQty,
-            status: 'issued', // Автоматично видано зі складу
-            inventory_id: firstMatch.id,
-            details: `ВИДАНО З СКЛАДУ (${order?.order_num || ''}): ${item.name} — ${issuedQty} шт.`
-          })
-
-          // Оновлюємо резерв у базі
-          await supabase.from('inventory').update({
-            reserved_qty: (Number(firstMatch.reserved_qty) || 0) + issuedQty
-          }).eq('id', firstMatch.id)
-
-          neededQty -= issuedQty
-        }
-      }
-
-      // 2. Якщо все ще потрібно (або нічого не було) - створюємо запит на постачання
-      if (neededQty > 0) {
-        requestsToInsert.push({
-          order_id: orderId,
-          nomenclature_id: nomId,
-          quantity: neededQty,
-          status: 'pending', // Чекає на постачання
-          inventory_id: null,
-          details: `ЗАПИТ НА ПОСТАЧАННЯ (${order?.order_num || ''}): ${item.name} — ${neededQty} шт.`
-        })
-      }
+      // СПРОЩЕННЯ: Ми більше не резервуємо товар автоматично при створенні запиту.
+      // Всі запити створюються як 'pending'. Резервування відбудеться ТІЛЬКИ 
+      // коли комірник натисне "ВИДАТИ" в модулі Склад Оперативний.
+      requestsToInsert.push({
+        order_id: orderId,
+        nomenclature_id: nomId,
+        quantity: neededQty,
+        status: 'pending',
+        inventory_id: null,
+        details: `ЗАПИТ НА КОМПЛЕКТУВАННЯ (${order?.order_num || ''}): ${item.name} — ${neededQty} шт.`
+      })
     }
 
     if (requestsToInsert.length > 0) {
@@ -2031,7 +2081,7 @@ export const MESProvider = ({ children }) => {
       accessLogs, fortnetUrl, updateFortnetUrl,
       login, logout, upsertUser, deleteUser,
       fetchOrders, fetchData, refreshTable, fetchHistoryRange, fetchTaskArchiveCards,
-      createNaryad, issueMaterials, approveWarehouse, approveEngineer, approveDirector,
+      createNaryad, issueMaterials, issueMaterialsBatch, approveWarehouse, approveEngineer, approveDirector,
       upsertNomenclature, deleteNomenclature, saveBOM, removeBOM,
       createWorkCard, startWorkCard, completeWorkCard, confirmBuffer, completeTaskByMaster, handoverTaskToShop2, cancelHandoverToShop2, completeTaskShop2, fixInventoryTypes, handoverToSGP, directHandoverToSGP,
       searchCustomers, addOrder, reserveBZForTask,

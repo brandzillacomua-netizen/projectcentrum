@@ -69,12 +69,13 @@ export const apiService = {
     return true;
   },
 
-  submitReserveBatch: async (orderId, reqList, taskId, cbIssue, cbApprove) => {
+  submitReserveBatch: async (orderId, reqList, taskId, cbIssueBatch) => {
     const payload = requestBuilder.buildReserveBatchPayload(orderId, reqList, taskId);
     console.log("%c--- 📦 BACKEND ACTION: RESERVE BATCH (WAREHOUSE) ---", "color: #f59e0b; font-weight: bold; font-size: 16px; text-decoration: underline;");
     console.log("JSON Payload:", payload);
-    for (const r of reqList) if (typeof cbIssue === 'function') await cbIssue(r.id);
-    if (taskId && typeof cbApprove === 'function') await cbApprove(taskId);
+    if (typeof cbIssueBatch === 'function') {
+      await cbIssueBatch(reqList.map(r => r.id), taskId);
+    }
     return true;
   },
 
