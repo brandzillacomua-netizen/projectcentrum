@@ -1075,11 +1075,32 @@ export const MESProvider = ({ children }) => {
         let parsedName = ''
         try { parsedName = req.details?.split(': ')[1]?.split(' — ')[0]?.trim() } catch (e) { }
         
-        const invItem = inventory.find(i => 
-          String(i.id) === String(req.inventory_id) || 
-          (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) || 
-          (parsedName && normalize(i.name) === normalize(parsedName))
-        )
+        // Визначаємо, чи це виріб (СГП) чи сировина (СО)
+        const isSgpItem = parsedName?.toLowerCase().startsWith('іп-') || 
+                          (req.nomenclature_id && nomenclatures.find(n => String(n.id) === String(req.nomenclature_id))?.type === 'part')
+
+        // Пріоритетний пошук у відповідному складі
+        let invItem = inventory.find(i => {
+          const baseMatch = String(i.id) === String(req.inventory_id) || 
+                            (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) || 
+                            (parsedName && normalize(i.name) === normalize(parsedName))
+          if (!baseMatch) return false
+          
+          if (isSgpItem) {
+            return i.type === 'finished' || i.type === 'semi' || i.warehouse === 'sgp'
+          } else {
+            return i.type !== 'finished' && i.type !== 'semi' && i.warehouse !== 'sgp'
+          }
+        })
+
+        // Фолбек: якщо в пріоритетному складі не знайдено, шукаємо будь-де
+        if (!invItem) {
+          invItem = inventory.find(i => 
+            String(i.id) === String(req.inventory_id) || 
+            (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) || 
+            (parsedName && normalize(i.name) === normalize(parsedName))
+          )
+        }
 
         if (invItem) {
           console.log(`✅ Match found for ${req.id}: ${invItem.name} (ID: ${invItem.id})`);
@@ -1120,7 +1141,20 @@ export const MESProvider = ({ children }) => {
         await supabase.from('tasks').update({ warehouse_conf: true }).eq('id', taskId)
       }
 
-      console.log("♻️ Triggering fetchData...");
+      console.log("♻️ Triggering fetchData and local state update...");
+      
+      // Оптимістичне оновлення локального стейту
+      if (typeof setRequests === 'function') {
+        setRequests(prev => prev.map(r => {
+          const upd = requestUpdateList.find(u => u.id === r.id)
+          if (upd) return { ...r, status: upd.status, inventory_id: upd.inventory_id }
+          return r
+        }))
+      }
+      if (taskId && typeof setTasks === 'function') {
+        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, warehouse_conf: true } : t))
+      }
+
       fetchData()
     } catch (err) {
       console.error("❌ Batch issue error:", err)
@@ -1215,26 +1249,7 @@ export const MESProvider = ({ children }) => {
       }).eq('id', taskId)
 
       // --- АВТОМАТИЧНЕ СПИСАННЯ МАТЕРІАЛІВ (ШОП 1) ---
-      try {
-        const issuedReqs = (requests || []).filter(r => String(r.order_id) === String(task.order_id) && r.status === 'issued')
-        if (issuedReqs.length > 0) {
-          const invUpdates = []
-          const reqUpdates = []
-          for (const req of issuedReqs) {
-            const inv = (inventory || []).find(i => String(i.id) === String(req.inventory_id))
-            if (inv) {
-              const nextTotal = Math.max(0, (Number(inv.total_qty) || 0) - Number(req.quantity))
-              const nextReserved = Math.max(0, (Number(inv.reserved_qty) || 0) - Number(req.quantity))
-              invUpdates.push({ id: inv.id, total_qty: nextTotal, reserved_qty: nextReserved })
-              reqUpdates.push(req.id)
-            }
-          }
-          if (invUpdates.length > 0) await supabase.from('inventory').upsert(invUpdates)
-          if (reqUpdates.length > 0) await supabase.from('material_requests').update({ status: 'completed' }).in('id', reqUpdates)
-        }
-      } catch (e) {
-        console.error("Material deduction error:", e)
-      }
+      await deductIssuedMaterialsForTask(taskId)
 
       // --- ФІНАЛІЗАЦІЯ БЗ ТА СТВОРЕННЯ ДОКУМЕНТА НА ПЕРЕМІЩЕННЯ (ФАКТИЧНІ ЗАЛИШКИ) ---
       try {
@@ -1432,7 +1447,43 @@ export const MESProvider = ({ children }) => {
     }
   }
 
+  const deductIssuedMaterialsForTask = async (taskId) => {
+    try {
+      const { data: issuedReqs } = await supabase
+        .from('material_requests')
+        .select('*')
+        .eq('task_id', taskId)
+        .eq('status', 'issued')
+
+      if (!issuedReqs || issuedReqs.length === 0) return
+
+      const updates = {}
+      for (const req of issuedReqs) {
+        if (req.inventory_id) {
+          updates[req.inventory_id] = (updates[req.inventory_id] || 0) + Number(req.quantity)
+        }
+      }
+
+      for (const [invId, qty] of Object.entries(updates)) {
+        const { data: item } = await supabase.from('inventory').select('*').eq('id', invId).maybeSingle()
+        if (item) {
+          const nextTotal = Math.max(0, (Number(item.total_qty) || 0) - qty)
+          const nextReserved = Math.max(0, (Number(item.reserved_qty) || 0) - qty)
+          await supabase.from('inventory').update({ 
+            total_qty: nextTotal, 
+            reserved_qty: nextReserved 
+          }).eq('id', invId)
+        }
+      }
+
+      await supabase.from('material_requests').update({ status: 'completed' }).eq('task_id', taskId).eq('status', 'issued')
+    } catch (e) {
+      console.error("Error deducting materials for task:", e)
+    }
+  }
+
   const completeTaskByMaster = async (taskId) => {
+    await deductIssuedMaterialsForTask(taskId)
     await supabase.from('tasks').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', taskId)
     fetchData()
   }
@@ -1442,6 +1493,9 @@ export const MESProvider = ({ children }) => {
       const task = tasks.find(t => String(t.id) === String(taskId))
       const order = orders.find(o => String(o.id) === String(task?.order_id))
       if (!task || !order) return
+
+      // 0. Deduct issued materials (raw, consumables, etc.)
+      await deductIssuedMaterialsForTask(taskId)
 
       // 1. Mark task as completed
       await supabase.from('tasks').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', taskId)
@@ -1997,24 +2051,24 @@ export const MESProvider = ({ children }) => {
     }
   }
 
-  const submitPickingRequest = async (orderId, requiredItems) => {
+  const submitPickingRequest = async (orderId, requiredItems, taskId = null) => {
     const order = orders.find(o => o.id === orderId)
+    const task = (tasks || []).find(t => t.id === taskId)
+    const batchSuffix = task?.batch_index ? `/${task.batch_index}` : ''
     const requestsToInsert = []
 
     for (const item of requiredItems) {
       const nomId = item.nomId || item.nomenclature_id
       const neededQty = Number(item.qty) || 0
 
-      // СПРОЩЕННЯ: Ми більше не резервуємо товар автоматично при створенні запиту.
-      // Всі запити створюються як 'pending'. Резервування відбудеться ТІЛЬКИ 
-      // коли комірник натисне "ВИДАТИ" в модулі Склад Оперативний.
       requestsToInsert.push({
         order_id: orderId,
+        task_id: taskId,
         nomenclature_id: nomId,
         quantity: neededQty,
         status: 'pending',
         inventory_id: null,
-        details: `ЗАПИТ НА КОМПЛЕКТУВАННЯ (${order?.order_num || ''}): ${item.name} — ${neededQty} шт.`
+        details: `ЗАПИТ НА КОМПЛЕКТУВАННЯ (${order?.order_num || ''}${batchSuffix}): ${item.name} — ${neededQty} шт.`
       })
     }
 
@@ -2074,7 +2128,7 @@ export const MESProvider = ({ children }) => {
 
   return (
     <MESContext.Provider value={{
-      orders, customers, inventory, tasks, managementTasks, requests, nomenclatures, bomItems,
+      orders, customers, inventory, tasks, managementTasks, requests, nomenclatures, bomItems, supabase,
       receptionDocs, purchaseRequests, workCards, workCardHistory, machines,
       systemUsers, currentUser, loading, sessionLoading, hasMoreOrders,
       operators, productionStages,
@@ -2084,6 +2138,7 @@ export const MESProvider = ({ children }) => {
       createNaryad, issueMaterials, issueMaterialsBatch, approveWarehouse, approveEngineer, approveDirector,
       upsertNomenclature, deleteNomenclature, saveBOM, removeBOM,
       createWorkCard, startWorkCard, completeWorkCard, confirmBuffer, completeTaskByMaster, handoverTaskToShop2, cancelHandoverToShop2, completeTaskShop2, fixInventoryTypes, handoverToSGP, directHandoverToSGP,
+      deductIssuedMaterialsForTask,
       searchCustomers, addOrder, reserveBZForTask,
       syncBOM,
       createPurchaseRequest, updatePurchaseRequestStatus, convertRequestToOrder,

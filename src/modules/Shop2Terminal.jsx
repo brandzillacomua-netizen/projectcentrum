@@ -442,7 +442,24 @@ const Shop2Terminal = () => {
                         {operators.map(o => <option key={o} value={o}>{o}</option>)}
                       </select>
                     </div>
-                    <button disabled={isProcessing || !selectedOperator} onClick={handleStartOperation} style={{ background: '#8b5cf6', color: '#fff', border: 'none', padding: '22px', borderRadius: '18px', fontSize: '1.4rem', fontWeight: 900, cursor: 'pointer', transition: '0.2s', opacity: (isProcessing || !selectedOperator) ? 0.3 : 1 }}>ВЗЯТИ В РОБОТУ</button>
+                    <button 
+                      disabled={isProcessing || !selectedOperator || (currentCard.status === 'at-buffer' && (selectedStage || currentCard.operation) === currentCard.operation)} 
+                      onClick={handleStartOperation} 
+                      style={{ 
+                        background: '#8b5cf6', 
+                        color: '#fff', 
+                        border: 'none', 
+                        padding: '22px', 
+                        borderRadius: '18px', 
+                        fontSize: '1.4rem', 
+                        fontWeight: 900, 
+                        cursor: (isProcessing || !selectedOperator || (currentCard.status === 'at-buffer' && (selectedStage || currentCard.operation) === currentCard.operation)) ? 'not-allowed' : 'pointer', 
+                        transition: '0.2s', 
+                        opacity: (isProcessing || !selectedOperator || (currentCard.status === 'at-buffer' && (selectedStage || currentCard.operation) === currentCard.operation)) ? 0.3 : 1 
+                      }}
+                    >
+                      {currentCard.status === 'at-buffer' && (selectedStage || currentCard.operation) === currentCard.operation ? 'ЕТАП ЗАВЕРШЕНО (В БУФЕРІ)' : 'ВЗЯТИ В РОБОТУ'}
+                    </button>
                     {currentCard.status === 'at-buffer' && (
                       <button 
                         disabled={isProcessing}

@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 
 const PackagingModule = () => {
-  const { orders, tasks, nomenclatures, bomItems, submitPickingRequest, requests, supabase, fetchData, completePackaging } = useMES()
+  const { orders, tasks, nomenclatures, bomItems, submitPickingRequest, requests, supabase, fetchData, completePackaging, deductIssuedMaterialsForTask } = useMES()
   const [selectedBatch, setSelectedBatch] = useState(null) // { orderId, batchIndex }
   const [isProcessing, setIsProcessing] = useState(false)
 
@@ -53,10 +53,23 @@ const PackagingModule = () => {
       });
 
       // Знаходимо запити для цього наряду
-      const batchReqs = (requests || []).filter(r => 
-        String(r.order_id) === String(batch.orderId) && 
-        (r.task_id === batch.tasks[0]?.id || r.details?.includes(`/${batch.batchIndex}`))
-      );
+      const batchReqs = (requests || []).filter(r => {
+        const orderMatch = String(r.order_id) === String(batch.orderId);
+        if (!orderMatch) return false;
+        
+        const taskIdMatch = r.task_id && batch.tasks.some(t => String(t.id) === String(r.task_id));
+        const detailsMatch = r.details?.includes(`/${batch.batchIndex}`);
+        
+        if (taskIdMatch || detailsMatch) return true;
+
+        // Фолбек для старих запитів (без ID або індексу): 
+        // якщо в замовленні лише одна партія, відносимо всі запити на комплектування до неї.
+        const allTasksForThisOrder = tasks.filter(t => String(t.order_id) === String(batch.orderId));
+        const isOnlyBatch = allTasksForThisOrder.length <= 1;
+        if (isOnlyBatch && r.details?.includes('КОМПЛЕКТУВАННЯ')) return true;
+
+        return false;
+      });
 
       let packStatus = 'waiting'; // waiting, processing, ready, completed
       if (batch.isPackaged) {
@@ -210,6 +223,10 @@ const PackagingModule = () => {
       setIsProcessing(true);
       
       for (const task of activeBatchData.tasks) {
+        // 1. Списуємо матеріали зі складу (видані запити)
+        await deductIssuedMaterialsForTask(task.id);
+
+        // 2. Оновлюємо статус пакування в метаданих наряду
         const newSnapshot = { 
           ...(task.plan_snapshot || {}), 
           _metadata: { 

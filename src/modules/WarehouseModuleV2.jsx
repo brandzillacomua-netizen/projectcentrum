@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import {
   Warehouse as WarehouseIcon,
   ArrowLeft,
@@ -50,14 +50,53 @@ const WarehouseModuleV2 = () => {
   const [processingTasks, setProcessingTasks] = useState(new Set())
   const [expandedDoc, setExpandedDoc] = useState(null)
 
-  const tabs = [
-    { id: 'raw', label: 'Оперативний', icon: <Package size={18} /> },
-    { id: 'semi', label: 'Напівфабрикати', icon: <Layers size={18} /> },
-    { id: 'finished', label: 'Готова продукція', icon: <Archive size={18} /> },
-    { id: 'scrap', label: 'Брак', icon: <AlertTriangle size={18} /> },
-    { id: 'bz', label: 'БЗ', icon: <CheckCircle2 size={18} /> },
-    { id: 'registry', label: 'Реєстр', icon: <History size={18} /> }
-  ]
+  const tabs = useMemo(() => {
+    const getCount = (tabId) => {
+      const filtered = (requests || []).filter(r => {
+        if (r.status !== 'pending' && r.status !== 'issued') return false
+        if (r.status === 'issued') {
+          const task = tasks.find(t => t.id === r.task_id)
+          if (!task || task.warehouse_conf) return false
+        }
+        const parsedName = parseMaterialName(r.details)
+        const nameLower = parsedName.toLowerCase()
+        const invItem = (inventory || []).find(i => (i.id === r.inventory_id || (parsedName && normalize(i.name) === normalize(parsedName))))
+        
+        // Пріоритет вибору складу: СГП > Напівфабрикати > БЗ > Брак > Оперативний
+        const isSgp = nameLower.startsWith('іп-') || nameLower.startsWith('ip-') || invItem?.type === 'finished' || invItem?.warehouse === 'sgp'
+        const isSemi = !isSgp && (invItem?.type === 'semi' || invItem?.warehouse === 'production')
+        const isBz = !isSgp && !isSemi && (invItem?.type === 'bz' || invItem?.warehouse === 'sz')
+        const isScrap = !isSgp && !isSemi && !isBz && (invItem?.type?.startsWith('scrap') || invItem?.warehouse === 'scrap')
+
+        if (tabId === 'finished') return isSgp
+        if (tabId === 'semi') return isSemi
+        if (tabId === 'bz') return isBz
+        if (tabId === 'scrap') return isScrap
+        if (tabId === 'raw') return !isSgp && !isSemi && !isBz && !isScrap
+        return false
+      })
+
+      // Рахуємо унікальні "документи" (завдання або замовлення)
+      const uniqueDocs = new Set(filtered.map(r => r.task_id || `order-${r.order_id}`))
+      
+      // Додаємо кількість документів на прийомку (тільки для оперативного складу поки що)
+      let receptionCount = 0
+      if (tabId === 'raw') {
+        receptionCount = (receptionDocs || []).filter(d => (d.status === 'shipped' || d.status === 'ordered') && d.target_warehouse === 'operational').length
+      }
+
+      return uniqueDocs.size + receptionCount
+    }
+
+    return [
+      { id: 'raw', label: 'Оперативний', icon: <Package size={18} />, count: getCount('raw') },
+      { id: 'semi', label: 'Напівфабрикати', icon: <Layers size={18} />, count: getCount('semi') },
+      { id: 'finished', label: 'Готова продукція', icon: <Archive size={18} />, count: getCount('finished') },
+      { id: 'scrap', label: 'Брак', icon: <AlertTriangle size={18} />, count: getCount('scrap') },
+      { id: 'bz', label: 'БЗ', icon: <CheckCircle2 size={18} />, count: getCount('bz') },
+      { id: 'registry', label: 'Реєстр', icon: <History size={18} /> }
+    ]
+  }, [requests, inventory, tasks])
 
   const filteredInventory = (inventory || []).filter(i => {
     const matchesSearch = (i.name || '').toLowerCase().includes(searchQuery.toLowerCase())
@@ -79,13 +118,29 @@ const WarehouseModuleV2 = () => {
     ? receptionDocs.filter(d => (d.status === 'shipped' || d.status === 'ordered') && d.target_warehouse === 'operational')
     : []
 
-  // Include both pending and issued requests, but only for tasks that aren't fully confirmed yet
+  // Фільтруємо запити відповідно до активної вкладки складу
   const pendingRequests = (requests || []).filter(r => {
-    if (r.status === 'pending') return true
+    if (r.status !== 'pending' && r.status !== 'issued') return false
     if (r.status === 'issued') {
       const task = tasks.find(t => t.id === r.task_id)
-      return task && !task.warehouse_conf
+      if (!task || task.warehouse_conf) return false
     }
+
+    const parsedName = parseMaterialName(r.details)
+    const nameLower = parsedName.toLowerCase()
+    const invItem = (inventory || []).find(i => (i.id === r.inventory_id || (parsedName && normalize(i.name) === normalize(parsedName))))
+    
+    const isSgp = nameLower.startsWith('іп-') || nameLower.startsWith('ip-') || invItem?.type === 'finished' || invItem?.warehouse === 'sgp'
+    const isSemi = !isSgp && (invItem?.type === 'semi' || invItem?.warehouse === 'production')
+    const isBz = !isSgp && !isSemi && (invItem?.type === 'bz' || invItem?.warehouse === 'sz')
+    const isScrap = !isSgp && !isSemi && !isBz && (invItem?.type?.startsWith('scrap') || invItem?.warehouse === 'scrap')
+
+    if (activeTab === 'finished') return isSgp
+    if (activeTab === 'semi') return isSemi
+    if (activeTab === 'bz') return isBz
+    if (activeTab === 'scrap') return isScrap
+    if (activeTab === 'raw') return !isSgp && !isSemi && !isBz && !isScrap
+
     return false
   })
 
@@ -210,8 +265,8 @@ const WarehouseModuleV2 = () => {
 
       <div className="module-content" style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
 
-        {/* ЗАЯВКИ НА КОМПЛЕКТАЦІЮ */}
-        {activeTab === 'raw' && pendingRequests.length > 0 && (
+        {/* ЗАЯВКИ НА КОМПЛЕКТАЦІЮ (Тільки для відповідного складу) */}
+        {pendingRequests.length > 0 && (
           <div className="content-card glass-panel" style={{ borderLeft: '4px solid #ff9000', marginBottom: '30px', padding: '20px' }}>
             <h3 style={{ fontSize: '0.8rem', color: '#ff9000', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Bell size={16} /> ЗАЯВКИ НА КОМПЛЕКТАЦІЮ
@@ -347,20 +402,46 @@ const WarehouseModuleV2 = () => {
         )}
 
         {/* TABS */}
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '25px', overflowX: 'auto' }}>
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '25px', overflowX: 'auto', paddingBottom: '5px' }}>
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => { setActiveTab(tab.id); setNewItem({ ...newItem, type: tab.id }) }}
               style={{
+                position: 'relative',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
                 background: activeTab === tab.id ? '#ff9000' : '#111',
                 color: activeTab === tab.id ? '#000' : '#555',
-                border: '1px solid #222', padding: '12px 20px', borderRadius: '14px',
-                fontSize: '0.85rem', fontWeight: 800, cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: '10px', whiteSpace: 'nowrap'
+                border: '1px solid #222',
+                padding: '12px 20px',
+                borderRadius: '14px',
+                fontSize: '0.85rem',
+                fontWeight: 800,
+                cursor: 'pointer',
+                transition: '0.2s',
+                whiteSpace: 'nowrap'
               }}
             >
-              {tab.icon} {tab.label}
+              {tab.icon}
+              <span>{tab.label}</span>
+              {tab.count > 0 && (
+                <span style={{
+                  marginLeft: '5px',
+                  background: activeTab === tab.id ? '#000' : '#ff9000',
+                  color: activeTab === tab.id ? '#ff9000' : '#000',
+                  fontSize: '0.7rem',
+                  padding: '2px 8px',
+                  borderRadius: '8px',
+                  minWidth: '20px',
+                  textAlign: 'center',
+                  fontWeight: 1000,
+                  boxShadow: activeTab === tab.id ? 'none' : '0 2px 5px rgba(255,144,0,0.3)'
+                }}>
+                  {tab.count}
+                </span>
+              )}
             </button>
           ))}
         </div>
