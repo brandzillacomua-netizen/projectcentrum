@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { Package, ArrowLeft, ClipboardList, CheckCircle2, Box, Send, AlertCircle, Wrench, FileArchive, Zap, ListChecks, Layers, Clock, Scan } from 'lucide-react'
+import { Package, ArrowLeft, ClipboardList, CheckCircle2, Box, Send, AlertCircle, Wrench, FileArchive, Zap, ListChecks, Layers, Clock, Scan, Loader2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 
@@ -247,13 +247,17 @@ const PackagingModule = () => {
         .select('id, status, plan_snapshot')
         .eq('order_id', activeBatchData.orderId);
 
-      const remainingNonPackaged = (freshTasks || []).filter(t => 
-        t.status === 'completed' && 
-        t.plan_snapshot?._metadata?.is_packaged !== true
-      );
-
-      if (remainingNonPackaged.length === 0) {
+      // Перевіряємо, чи всі заплановані наряди запаковані ТА чи все замовлення взагалі заплановано
+      const allTasksPackaged = (freshTasks || []).every(t => t.plan_snapshot?._metadata?.is_packaged === true);
+      
+      const totalPlanned = (freshTasks || []).reduce((acc, t) => acc + (Number(t.planned_sets) || 0), 0);
+      const totalOrderQty = orders.find(o => o.id === activeBatchData.orderId)?.order_items?.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0) || 0;
+      
+      if (allTasksPackaged && totalPlanned >= totalOrderQty) {
         await completePackaging(activeBatchData.orderId);
+      } else {
+        // Якщо ще є що планувати або пакувати — ставимо (або лишаємо) в статус 'in-progress'
+        await supabase.from('orders').update({ status: 'in-progress' }).eq('id', activeBatchData.orderId);
       }
     } catch (e) {
       console.error(e);
@@ -498,25 +502,38 @@ const PackagingModule = () => {
 
                   <button 
                     onClick={handleCompletePackaging}
-                    disabled={!isReadyToFinalize || isProcessing}
+                    disabled={!isReadyToFinalize || isProcessing || activeBatchData.isPackaged}
                     style={{ 
                       padding: '25px', 
-                      background: isReadyToFinalize ? '#10b981' : '#111', 
-                      color: isReadyToFinalize ? '#000' : '#444', 
-                      border: 'none', 
+                      background: activeBatchData.isPackaged ? '#1a1a1a' : (isReadyToFinalize ? '#10b981' : '#111'), 
+                      color: activeBatchData.isPackaged ? '#555' : (isReadyToFinalize ? '#000' : '#444'), 
+                      border: activeBatchData.isPackaged ? '1px solid #333' : 'none', 
                       borderRadius: '20px', 
                       fontWeight: 1000, 
-                      cursor: (isReadyToFinalize && !isProcessing) ? 'pointer' : 'not-allowed', 
+                      cursor: (isReadyToFinalize && !isProcessing && !activeBatchData.isPackaged) ? 'pointer' : 'not-allowed', 
                       display: 'flex', 
                       alignItems: 'center', 
                       justifyContent: 'center', 
                       gap: '12px', 
                       fontSize: '1rem', 
-                      boxShadow: isReadyToFinalize ? '0 15px 35px rgba(16,185,129,0.25)' : 'none',
-                      transition: '0.3s'
+                      boxShadow: (isReadyToFinalize && !activeBatchData.isPackaged) ? '0 15px 35px rgba(16,185,129,0.25)' : 'none',
+                      transition: '0.3s',
+                      flex: 1
                     }}
                   >
-                    <Package size={24} /> {isProcessing ? 'ЗБЕРЕЖЕННЯ...' : 'ЗАВЕРШИТИ ПАКУВАННЯ'}
+                    {activeBatchData.isPackaged ? (
+                      <>
+                        <CheckCircle2 size={24} color="#10b981" /> ЗАПАКОВАНО
+                      </>
+                    ) : isProcessing ? (
+                      <>
+                        <Loader2 size={24} className="anim-spin" /> ОБРОБКА...
+                      </>
+                    ) : (
+                      <>
+                        <Package size={24} /> ЗАВЕРШИТИ ПАКУВАННЯ
+                      </>
+                    )}
                   </button>
                 </div>
 
@@ -549,6 +566,8 @@ const PackagingModule = () => {
         }
         .anim-pulse { animation: pulse 2s infinite; }
         @keyframes pulse { 0% { transform: scale(1); opacity: 0.1; } 50% { transform: scale(1.1); opacity: 0.2; } 100% { transform: scale(1); opacity: 0.1; } }
+        .anim-spin { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #1a1a1a; border-radius: 10px; }

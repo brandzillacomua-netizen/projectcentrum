@@ -2126,6 +2126,51 @@ export const MESProvider = ({ children }) => {
     return { error }
   }
 
+  const getOrderProductionProgress = (orderId) => {
+    const order = orders.find(o => String(o.id) === String(orderId))
+    if (!order) return { total: 0, planned: 0, produced: 0, packaged: 0, status: 'unknown' }
+
+    const totalQty = order.order_items?.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0) || 0
+    const orderTasks = tasks.filter(t => String(t.order_id) === String(orderId))
+    
+    const batches = {}
+    orderTasks.forEach(t => {
+      const key = t.batch_index || `task_${t.id}`
+      const qty = Number(t.planned_sets) || 0
+      const isPackaged = t.plan_snapshot?._metadata?.is_packaged === true
+      // Produced - if completed laser cutting or further stages
+      const isProduced = t.status === 'completed' || t.step.includes('ЦЕХ №2') || t.step.includes('Паквання')
+
+      if (!batches[key]) {
+        batches[key] = { qty, isPackaged, isProduced }
+      } else {
+        if (qty > batches[key].qty) batches[key].qty = qty
+        if (isPackaged) batches[key].isPackaged = true
+        if (isProduced) batches[key].isProduced = true
+      }
+    })
+
+    const planned = Object.values(batches).reduce((acc, b) => acc + b.qty, 0)
+    const packaged = Object.values(batches).filter(b => b.isPackaged).reduce((acc, b) => acc + b.qty, 0)
+    const produced = Object.values(batches).filter(b => b.isProduced).reduce((acc, b) => acc + b.qty, 0)
+
+    let status = order.status
+    if (packaged >= totalQty && totalQty > 0) status = 'packaged'
+    else if (produced > 0 || planned > 0) {
+      if (status !== 'shipped' && status !== 'completed') status = 'in-progress'
+    }
+    
+    return {
+      total: totalQty,
+      planned,
+      produced,
+      packaged,
+      isFullyPackaged: packaged >= totalQty && totalQty > 0,
+      isFullyPlanned: planned >= totalQty && totalQty > 0,
+      status
+    }
+  }
+
   return (
     <MESContext.Provider value={{
       orders, customers, inventory, tasks, managementTasks, requests, nomenclatures, bomItems, supabase,
@@ -2139,7 +2184,7 @@ export const MESProvider = ({ children }) => {
       upsertNomenclature, deleteNomenclature, saveBOM, removeBOM,
       createWorkCard, startWorkCard, completeWorkCard, confirmBuffer, completeTaskByMaster, handoverTaskToShop2, cancelHandoverToShop2, completeTaskShop2, fixInventoryTypes, handoverToSGP, directHandoverToSGP,
       deductIssuedMaterialsForTask,
-      searchCustomers, addOrder, reserveBZForTask,
+      searchCustomers, addOrder, reserveBZForTask, getOrderProductionProgress,
       syncBOM,
       createPurchaseRequest, updatePurchaseRequestStatus, convertRequestToOrder,
       createReceptionDoc, sendDocToWarehouse, confirmReception,

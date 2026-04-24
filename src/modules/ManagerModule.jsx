@@ -19,7 +19,7 @@ import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
 
 const ManagerModule = () => {
-  const { nomenclatures, addOrder, orders, fetchOrders, hasMoreOrders, customers, searchCustomers, currentUser, loading } = useMES()
+  const { nomenclatures, addOrder, orders, fetchOrders, hasMoreOrders, customers, searchCustomers, currentUser, loading, getOrderProductionProgress } = useMES()
   const [isSubmitting, setIsSubmitting] = useState(false)
   
   // Filtering & Pagination State
@@ -244,18 +244,23 @@ const ManagerModule = () => {
                      </tr>
                    </thead>
                    <tbody>
-                      {orders.map(order => (
-                        <tr key={order.id} onClick={() => setSelectedOrder(order)}>
-                           <td className="order-num-cell">#{order.order_num}</td>
-                           <td className="customer-cell">{order.customer}</td>
-                           <td className="product-cell">{nomenclatures.find(n => n.id === order.order_items?.[0]?.nomenclature_id)?.name || '—'}</td>
-                           <td className="qty-cell"><strong>{order.order_items?.[0]?.quantity}</strong> {order.unit || 'шт'}</td>
-                           <td className="date-cell">{order.deadline ? new Date(order.deadline).toLocaleDateString() : '—'}</td>
-                           <td style={{ textAlign: 'right' }}>
-                              <span className={`status-pill ${order.status}`}>{getStatusLabel(order.status)}</span>
-                           </td>
-                        </tr>
-                      ))}
+                        {orders.map(order => {
+                          const progress = getOrderProductionProgress(order.id)
+                          return (
+                            <tr key={order.id} onClick={() => setSelectedOrder(order)}>
+                               <td className="order-num-cell">#{order.order_num}</td>
+                               <td className="customer-cell">{order.customer}</td>
+                               <td className="product-cell">{nomenclatures.find(n => n.id === order.order_items?.[0]?.nomenclature_id)?.name || '—'}</td>
+                               <td className="qty-cell">
+                                 <strong>{progress.packaged} / {progress.total}</strong> шт
+                               </td>
+                               <td className="date-cell">{order.deadline ? new Date(order.deadline).toLocaleDateString() : '—'}</td>
+                               <td style={{ textAlign: 'right' }}>
+                                  <span className={`status-pill ${progress.status}`}>{getStatusLabel(progress.status)}</span>
+                               </td>
+                            </tr>
+                          )
+                        })}
                    </tbody>
                 </table>
              </div>

@@ -56,12 +56,18 @@ const MasterModule = () => {
   }
 
   const pendingOrders = orders.filter(o => {
+    // Якщо замовлення в архіві або відвантажено - не показуємо
+    if (o.status === 'completed' || o.status === 'shipped') return false
+    
+    // Якщо нове (pending) - показуємо
     if (o.status === 'pending') return true
-    if (o.status === 'in-progress') {
-      // Check if any order item has unplanned balance
-      return o.order_items?.some(it => getPlannedQty(it.id) < Number(it.quantity))
-    }
-    return false
+    
+    // Для всіх інших (in-progress, packaged) - перевіряємо чи є що ще планувати
+    return o.order_items?.some(it => {
+      const planned = getPlannedQty(it.id)
+      const total = Number(it.quantity) || 0
+      return planned < total
+    })
   })
   const filteredPending = pendingOrders.filter(o =>
     o.order_num?.toLowerCase().includes(searchQuery.toLowerCase()) ||

@@ -104,10 +104,17 @@ const DirectorModule = () => {
       const orderDeadline = toLocalISO(o.deadline)
       if (!orderDeadline) return
 
-      // Find all tasks related to this order to calculate planned sets
-      const totalPlanned = tasks
-        .filter(t => String(t.order_id) === String(o.id))
-        .reduce((acc, t) => acc + (Number(t.planned_sets) || 0), 0)
+      // Find all tasks related to this order to calculate planned sets (grouping by batch to avoid double counting stages)
+      const orderTasks = tasks.filter(t => String(t.order_id) === String(o.id))
+      const batches = {}
+      orderTasks.forEach(t => {
+        const key = t.batch_index || `task_${t.id}`
+        const qty = Number(t.planned_sets) || 0
+        if (!batches[key] || qty > batches[key]) {
+          batches[key] = qty
+        }
+      })
+      const totalPlanned = Object.values(batches).reduce((acc, q) => acc + q, 0)
 
       o.order_items?.forEach(item => {
         const totalQty = Number(item.quantity) || 0
