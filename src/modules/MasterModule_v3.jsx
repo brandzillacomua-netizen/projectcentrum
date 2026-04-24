@@ -516,9 +516,9 @@ const MasterModule = () => {
                         const alreadyPlanned = tasks.filter(t => String(t.order_id) === String(activeNaryadOrder.id)).reduce((acc, t) => acc + (Number(t.planned_sets) || 0), 0);
                         
                         if (thisNaryadTotal < totalUnits || alreadyPlanned > 0) {
-                           // Рахуємо всі наряди цього замовлення для коректного індексу
-                           const orderTasksCount = tasks.filter(t => String(t.order_id) === String(activeNaryadOrder.id)).length;
-                           return `/${orderTasksCount + 1}`;
+                           const orderTasks = tasks.filter(t => String(t.order_id) === String(activeNaryadOrder.id));
+                           const maxBatchIndex = orderTasks.reduce((max, t) => Math.max(max, Number(t.batch_index) || 0), 0);
+                           return `/${maxBatchIndex + 1}`;
                         }
                         return '';
                       })()}
