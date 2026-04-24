@@ -30,6 +30,7 @@ const NomenclatureModule = () => {
   } = useMES()
   
   const [activeTab, setActiveTab] = useState('all')
+  const [filterType, setFilterType] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedParent, setSelectedParent] = useState('')
   const [isEditing, setIsEditing] = useState(false)
@@ -229,9 +230,9 @@ const NomenclatureModule = () => {
   }
 
   const filteredNomenclatures = nomenclatures.filter(n => {
-    const matchesTab = (activeTab === 'all' || activeTab === 'import') || n.type === activeTab
+    const matchesFilter = filterType === 'all' || n.type === filterType
     const matchesSearch = n.name.toLowerCase().includes(searchQuery.toLowerCase())
-    return matchesTab && matchesSearch
+    return matchesFilter && matchesSearch
   })
 
   return (
@@ -344,9 +345,28 @@ const NomenclatureModule = () => {
                 <div className="form-group">
                   <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>МАТЕРІАЛ / ТОВЩИНА</label>
                   {newNom.type === 'part' ? (
-                    <select style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px', appearance: 'none' }} value={newNom.material_type} onChange={e => setNewNom({...newNom, material_type: e.target.value})} required>
+                    <select 
+                      style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px', appearance: 'none' }} 
+                      value={newNom.material_type} 
+                      onChange={e => setNewNom({...newNom, material_type: e.target.value})} 
+                      required
+                    >
                       <option value="">Оберіть сировину...</option>
-                      {nomenclatures.filter(n => n.type === 'raw').map(n => <option key={n.id} value={n.name}>{n.name}</option>)}
+                      {(() => {
+                        const rawOptions = nomenclatures.filter(n => n.type === 'raw').map(n => {
+                          const label = n.material_type ? `${n.name} (${n.material_type})` : n.name
+                          return { id: n.id, value: label, label }
+                        })
+                        
+                        // Якщо поточний матеріал не в списку сировини, додаємо його як опцію, щоб він не зникав
+                        if (newNom.material_type && !rawOptions.some(opt => opt.value === newNom.material_type)) {
+                          rawOptions.unshift({ id: 'current', value: newNom.material_type, label: newNom.material_type })
+                        }
+                        
+                        return rawOptions.map(opt => (
+                          <option key={opt.id} value={opt.value}>{opt.label}</option>
+                        ))
+                      })()}
                     </select>
                   ) : <input style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.material_type} onChange={e => setNewNom({...newNom, material_type: e.target.value})} placeholder="..." />}
                 </div>
@@ -414,8 +434,28 @@ const NomenclatureModule = () => {
           </div>
 
           <div className="content-card full-width glass-panel" style={{ padding: '25px', borderRadius: '24px', background: 'rgba(20,20,20,0.6)', border: '1px solid #222', marginTop: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
-               <h3 style={{ margin: 0 }}>Реєстр номенклатури</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '20px' }}>
+               <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
+                  <h3 style={{ margin: 0 }}>Реєстр номенклатури</h3>
+                  <div className="filter-pills" style={{ display: 'flex', gap: '8px', background: 'rgba(0,0,0,0.4)', padding: '4px', borderRadius: '12px', border: '1px solid #111', overflowX: 'auto', maxWidth: '100%' }}>
+                    <button 
+                      onClick={() => setFilterType('all')}
+                      className={`filter-pill ${filterType === 'all' ? 'active' : ''}`}
+                    >
+                      УСІ
+                    </button>
+                    {types.map(t => (
+                      <button 
+                        key={t.id} 
+                        onClick={() => setFilterType(t.id)}
+                        className={`filter-pill ${filterType === t.id ? 'active' : ''}`}
+                        style={{ '--active-color': t.color }}
+                      >
+                        {t.label.split(' ')[0].toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+               </div>
                <div style={{ position: 'relative' }}>
                   <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#555' }} />
                   <input style={{ background: '#000', border: '1px solid #222', padding: '10px 15px 10px 40px', borderRadius: '10px', color: '#fff', width: '250px' }} placeholder="Пошук за назвою..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
@@ -485,6 +525,29 @@ const NomenclatureModule = () => {
       <style dangerouslySetInnerHTML={{ __html: `
         .nomenclature-grid-responsive { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; }
         .full-width { grid-column: 1 / -1; }
+        
+        .filter-pill {
+          background: transparent;
+          border: none;
+          color: #444;
+          padding: 6px 14px;
+          border-radius: 8px;
+          font-size: 0.65rem;
+          font-weight: 900;
+          cursor: pointer;
+          transition: 0.3s;
+          white-space: nowrap;
+        }
+        .filter-pill.active {
+          background: var(--active-color, #ff9000);
+          color: #000;
+          box-shadow: 0 4px 12px -2px rgba(0,0,0,0.5);
+        }
+        .filter-pill:hover:not(.active) {
+          color: #888;
+          background: rgba(255,255,255,0.02);
+        }
+
         @media (max-width: 1024px) {
           .nomenclature-grid-responsive { grid-template-columns: 1fr; }
         }
