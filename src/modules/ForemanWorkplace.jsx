@@ -257,7 +257,7 @@ const ForemanWorkplace = () => {
         cardsBatch.push({
           operation: 'Лазерний розкрій',
           machine: selectedMachineName || 'Не вказано',
-          estimatedTime: (Number(part.nom?.time_per_unit) || 0) * reqInThisLoading,
+          estimatedTime: (Number(part.nom?.time_per_unit) || 0) * reqInThisLoading * 60,
           cardInfo: `${prefix}${currentSeq}/${displayTotal}${originalNeed > 0 ? ` [NEED:${originalNeed}]` : ''} [REQ:${reqInThisLoading}] [BZ:${bzInThisLoading}]`,
           quantity: qtyInThisLoading,
           bufferQty: bzInThisLoading,
@@ -295,7 +295,7 @@ const ForemanWorkplace = () => {
               id: c.id,
               loading: c.card_info,
               qty: batchItem ? batchItem.quantity : 0,
-              estimatedTime: (Number(part.nom?.time_per_unit) || 0) * (batchItem ? batchItem.quantity : 0),
+              estimatedTime: (Number(part.nom?.time_per_unit) || 0) * (batchItem ? batchItem.quantity : 0) * 60,
               totalLoadings: displayTotal,
               sheetsPerLoading: batchItem ? batchItem.actualSheets : capacity, // Use ACTUAL sheets
               machine: selectedMachineName
@@ -977,7 +977,7 @@ const ForemanWorkplace = () => {
                                               machine: c.machine,
                                               totalLoadings: loads,
                                               sheetsPerLoading: findMachine(c.machine)?.sheet_capacity || 1,
-                                              estimatedTime: (Number(part.nom?.time_per_unit) || 0) * (Number(c.quantity) || 0)
+                                              estimatedTime: (Number(part.nom?.time_per_unit) || 0) * (Number(c.quantity) || 0) * 60
                                             }))
                                           })}
                                           style={{ background: '#10b981', color: '#fff', border: 'none', padding: '8px', borderRadius: '10px', cursor: 'pointer' }}
@@ -1140,7 +1140,7 @@ const ForemanWorkplace = () => {
                                       machine: card.machine || snapshot?.machine,
                                       totalLoadings: '—',
                                       sheetsPerLoading: findMachine(card.machine || snapshot?.machine)?.sheet_capacity || 1,
-                                      estimatedTime: (Number(nom?.time_per_unit) || 0) * (Number(card.quantity) || 0)
+                                      estimatedTime: (Number(nom?.time_per_unit) || 0) * (Number(card.quantity) || 0) * 60
                                     }]
                                   })}
                                 >
@@ -1400,8 +1400,8 @@ const ForemanWorkplace = () => {
             const formatTime = (seconds) => {
               const h = Math.floor(seconds / 3600)
               const min = Math.floor((seconds % 3600) / 60)
-              const s = Math.floor(seconds % 60)
-              return [h, min, s].map(v => v.toString().padStart(2, '0')).join(':')
+              if (h > 0) return `${h}год ${min}хв`
+              return `${min}хв`
             }
             return (
               <div key={i} className="a4-page" style={{ width: '210mm', height: '297mm', background: '#fff', padding: '10mm', margin: '0 auto 40px auto', pageBreakAfter: 'always', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>

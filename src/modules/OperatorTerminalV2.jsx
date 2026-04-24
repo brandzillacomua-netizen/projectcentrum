@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import {
   Tablet, ArrowLeft, Play, CheckCircle, Scan, Timer, AlertTriangle,
   X, ClipboardList, Camera, Menu, Fingerprint, RefreshCw, Search,
-  Box, Layers, FileCode, Gauge
+  Box, Layers, FileCode, Gauge, Eye
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
@@ -13,6 +13,8 @@ const OperatorTerminal = () => {
   const [selectedCardId, setSelectedCardId] = useState(null)
   const [selectedStage, setSelectedStage] = useState('')
   const [selectedOperator, setSelectedOperator] = useState('')
+  const [selectedMaster, setSelectedMaster] = useState('')
+  const [selectedShift, setSelectedShift] = useState('')
   const [selectedMachine, setSelectedMachine] = useState('')
   const [currentTime, setCurrentTime] = useState(new Date())
   const [isProcessing, setIsProcessing] = useState(false)
@@ -45,7 +47,7 @@ const OperatorTerminal = () => {
       html5QrCode = new window.Html5Qrcode("reader")
       const config = { fps: 15, qrbox: { width: 260, height: 260 } }
       const stopAndClose = async () => {
-        if (html5QrCode && html5QrCode.isScanning) await html5QrCode.stop().catch(() => {})
+        if (html5QrCode && html5QrCode.isScanning) await html5QrCode.stop().catch(() => { })
         setIsScanning(false)
       }
       html5QrCode.start({ facingMode: "environment" }, config, async (decodedText) => {
@@ -55,7 +57,7 @@ const OperatorTerminal = () => {
           let foundCard = workCards.find(c => String(c.id).trim() === cardIdStr)
           if (!foundCard) {
             setIsSyncing(true)
-            try { if (typeof fetchData === 'function') await fetchData() } catch (e) {}
+            try { if (typeof fetchData === 'function') await fetchData() } catch (e) { }
             setIsSyncing(false)
             setScanError(`Картку №${cardIdStr} не знайдено. Спробуйте відсканувати ще раз.`)
           } else {
@@ -67,7 +69,7 @@ const OperatorTerminal = () => {
         }
       }).catch(err => { setScanError("Помилка камери: " + err); setIsScanning(false) })
     }
-    return () => { if (html5QrCode && html5QrCode.isScanning) html5QrCode.stop().catch(() => {}) }
+    return () => { if (html5QrCode && html5QrCode.isScanning) html5QrCode.stop().catch(() => { }) }
   }, [isScanning, workCards])
 
   const currentCard = workCards.find(c => c.id === selectedCardId)
@@ -99,12 +101,35 @@ const OperatorTerminal = () => {
     const s = (diff % 60).toString().padStart(2, '0')
     return `${h}:${m}:${s}`
   }
+  const formatPlanned = (mins) => {
+    if (!mins || mins <= 0) return '—'
+    const h = Math.floor(mins / 60)
+    const m = Math.round(mins % 60)
+    if (h > 0) return `${h}год ${m}хв`
+    return `${m}хв`
+  }
+  const getPlannedTime = (card) => {
+    if (!card) return 0
+    // Priority 1: Direct estimated time (if in minutes)
+    if (card.estimated_time) return Number(card.estimated_time)
+    // Priority 2: estimated_seconds (from machine module logic)
+    if (card.estimated_seconds) return Number(card.estimated_seconds) / 60
+    // Priority 3: Calculation from nomenclature
+    const nom = getNomFromCard(card)
+    if (nom?.time_per_unit) return (Number(nom.time_per_unit) * Number(card.quantity))
+    return 0
+  }
 
   // Helper: bidirectional stage matching
   const matchesStage = (cardOp, stageName) => {
     const op = (cardOp || '').toLowerCase()
     const sk = (stageName || '').toLowerCase()
     return op === sk || op.includes(sk) || sk.includes(op)
+  }
+  const formatMachine = (name) => {
+    if (!name) return '—'
+    const match = name.match(/№\s*(\d+)/)
+    return match ? `№${match[1]}` : name
   }
 
   const queuedCards = workCards.filter(c =>
@@ -124,11 +149,13 @@ const OperatorTerminal = () => {
         machineId: selectedMachineObj?.id,
         machineName: selectedMachineObj?.name
       })
-      
-      await apiService.submitOperatorAction('start', currentCard.task_id, currentCard.id, selectedOperator, { 
-        stage_name: selectedStage, 
+
+      await apiService.submitOperatorAction('start', currentCard.task_id, currentCard.id, selectedOperator, {
+        stage_name: selectedStage || currentCard.operation,
         machine_name: selectedMachineObj?.name || selectedMachine,
-        machine_id: selectedMachineObj?.id || null
+        machine_id: selectedMachineObj?.id || null,
+        manager_name: selectedMaster,
+        shift_name: selectedShift
       }, startWorkCard)
       if (!scannedCardIds.includes(currentCard.id)) setScannedCardIds(prev => [...prev, currentCard.id])
     } catch (e) { alert('Помилка при старті: ' + e.message) }
@@ -141,7 +168,9 @@ const OperatorTerminal = () => {
       try {
         const selectedMachineObj = machines.find(m => m.id === selectedMachine || m.name === selectedMachine)
         await apiService.submitOperatorAction('start', currentCard.task_id, currentCard.id, 'Оператор Тест (555)', {
-          machine_id: selectedMachineObj?.id || null
+          machine_id: selectedMachineObj?.id || null,
+          manager_name: selectedMaster,
+          shift_name: selectedShift
         }, startWorkCard)
         setShowPinModal(false)
       } finally { setIsProcessing(false) }
@@ -201,7 +230,12 @@ const OperatorTerminal = () => {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
               <span style={{ fontSize: '0.6rem', background: isActive ? 'rgba(0,0,0,0.2)' : 'rgba(234, 179, 8, 0.1)', color: isActive ? '#000' : '#eab308', padding: '2px 6px', borderRadius: '4px', fontWeight: 900, textTransform: 'uppercase' }}>{card.status === 'in-progress' ? 'У РОБОТІ' : 'ОЧІКУЄ'}</span>
-              <span style={{ fontSize: '0.65rem', fontWeight: 800 }}>{card.estimated_time || 0} хв</span>
+              <span style={{ fontSize: '0.65rem', fontWeight: 800 }}>{(() => {
+                const totalMin = Math.round((Number(card.estimated_time) || 0) / 60)
+                const h = Math.floor(totalMin / 60)
+                const m = totalMin % 60
+                return h > 0 ? `${h}год ${m}хв` : `${m}хв`
+              })()}</span>
             </div>
           </div>
         )
@@ -247,7 +281,7 @@ const OperatorTerminal = () => {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
                     <div style={{ background: currentCard.status === 'new' ? '#ef4444' : '#3b82f6', color: 'white', padding: '4px 10px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 900 }}>{currentCard.status === 'new' ? 'НОВА КАРТА' : 'РОБОЧА КАРТА'}</div>
                     <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800 }}>
-                      ЗАМОВЛЕННЯ №{orders?.find(o => o.id === currentCard.order_id)?.order_num || '—'} | КАРТКА #{currentCard.id.slice(0,8).toUpperCase()}... | {(() => {
+                      ЗАМОВЛЕННЯ №{orders?.find(o => o.id === currentCard.order_id)?.order_num || '—'} | КАРТКА #{currentCard.id.slice(0, 8).toUpperCase()}... | {(() => {
                         const bz = Number(currentCard.buffer_qty) || Number(currentCard.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
                         const need = Number(currentCard.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Number(currentCard.quantity) - bz)
                         if (bz > 0) return `${currentCard.quantity} ШТ (${need}+${bz} БЗ)`
@@ -281,6 +315,22 @@ const OperatorTerminal = () => {
                       <select value={selectedMachine} onChange={(e) => setSelectedMachine(e.target.value)} style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
                         <option value="">— Оберіть обладнання —</option>
                         {machines.map(m => <option key={m.id} value={m.id}>{m.name} {m.floor ? `(${m.floor} пов.)` : ''}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Майстер</label>
+                      <select value={selectedMaster} onChange={(e) => setSelectedMaster(e.target.value)} style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
+                        <option value="">— Оберіть майстра —</option>
+                        {operators.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Зміна</label>
+                      <select value={selectedShift} onChange={(e) => setSelectedShift(e.target.value)} style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
+                        <option value="">— Оберіть зміну —</option>
+                        <option value="Зміна 1">Зміна 1</option>
+                        <option value="Зміна 2">Зміна 2</option>
+                        <option value="Нічна зміна">Нічна зміна</option>
                       </select>
                     </div>
                     <div>
@@ -342,24 +392,34 @@ const OperatorTerminal = () => {
                 })}
               </div>
 
-              <div style={{ background: '#111', borderRadius: '24px', border: '1px solid #222', overflow: 'hidden' }}>
-                <div style={{ padding: '25px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900 }}>В РОБОТІ ТА БУФЕРІ</h3>
-                  {isSyncing && <div style={{ fontSize: '0.7rem', color: '#eab308', display: 'flex', alignItems: 'center', gap: '8px' }}><RefreshCw className="animate-spin" size={12} /> ОНОВЛЕННЯ...</div>}
-                </div>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <div style={{ background: '#111', borderRadius: '24px', border: '1px solid #222', overflowX: 'auto' }}>
+                  <div style={{ padding: '25px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900 }}>В РОБОТІ ТА БУФЕРІ</h3>
+                    {isSyncing && <div style={{ fontSize: '0.7rem', color: '#eab308', display: 'flex', alignItems: 'center', gap: '8px' }}><RefreshCw className="animate-spin" size={12} /> ОНОВЛЕННЯ...</div>}
+                  </div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '1200px' }}>
                   <thead style={{ background: '#0a0a0a', fontSize: '0.65rem', fontWeight: 900, color: '#555', textTransform: 'uppercase' }}>
-                    <tr><th style={{ padding: '15px 25px' }}>ДЕТАЛЬ</th><th style={{ padding: '15px 25px' }}>ЕТАП</th><th style={{ padding: '15px 25px' }}>К-СТЬ</th><th style={{ padding: '15px 25px' }}>ОПЕРАТОР</th><th style={{ padding: '15px 25px' }}>ЧАС</th><th style={{ padding: '15px 25px' }}></th></tr>
+                    <tr><th style={{ padding: '12px 15px' }}>ДЕТАЛЬ</th><th style={{ padding: '12px 15px' }}>ЕТАП</th><th style={{ padding: '12px 15px' }}>К-СТЬ</th><th style={{ padding: '12px 15px' }}>МАЙСТЕР</th><th style={{ padding: '12px 15px' }}>ЗМІНА</th><th style={{ padding: '12px 15px' }}>ОПЕРАТОР</th><th style={{ padding: '12px 15px' }}>ВЕРСТАТ</th><th style={{ padding: '12px 15px' }}>ПЛАН. ЧАС</th><th style={{ padding: '12px 15px' }}>ЧАС</th><th style={{ padding: '12px 15px' }}></th></tr>
                   </thead>
                   <tbody>
                     {workCards.filter(c => c.status === 'in-progress' || c.status === 'at-buffer').map(card => (
                       <tr key={card.id} style={{ borderBottom: '1px solid #1a1a1a', fontSize: '0.85rem' }}>
-                        <td style={{ padding: '15px 25px', fontWeight: 800 }}>{getNomFromCard(card)?.name}</td>
-                        <td style={{ padding: '15px 25px' }}><span style={{ color: card.status === 'at-buffer' ? '#10b981' : '#3b82f6', fontWeight: 900, fontSize: '0.7rem' }}>{card.status === 'at-buffer' ? 'БУФЕР' : card.operation?.toUpperCase()}</span></td>
-                        <td style={{ padding: '15px 25px', fontWeight: 900 }}>{card.quantity} шт</td>
-                        <td style={{ padding: '15px 25px', color: '#aaa' }}>{card.operator_name || '—'}</td>
-                        <td style={{ padding: '15px 25px', color: '#10b981' }}>{formatElapsedTime(card.started_at)}</td>
-                        <td style={{ padding: '15px 25px', textAlign: 'right' }}><button onClick={() => setSelectedCardId(card.id)} style={{ background: '#222', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.7rem' }}>ВІДКРИТИ</button></td>
+                        <td style={{ padding: '12px 15px', fontWeight: 800, whiteSpace: 'nowrap', fontSize: '0.75rem' }}>{getNomFromCard(card)?.name}</td>
+                        <td style={{ padding: '12px 15px' }}><span style={{ color: card.status === 'at-buffer' ? '#10b981' : '#8b5cf6', fontWeight: 900, fontSize: '0.7rem' }}>{card.status === 'at-buffer' ? 'БУФЕР' : card.operation?.toUpperCase()}</span></td>
+                        <td style={{ padding: '12px 15px', fontWeight: 900 }}>{card.quantity} шт</td>
+                        <td style={{ padding: '12px 15px', color: '#888' }}>{card.manager_name || '—'}</td>
+                        <td style={{ padding: '12px 15px', color: '#888' }}>{card.shift_name || '—'}</td>
+                        <td style={{ padding: '12px 15px', color: '#aaa' }}>{card.operator_name || '—'}</td>
+                        <td style={{ padding: '12px 15px', color: '#eab308', fontWeight: 800 }}>{formatMachine(machines.find(m => String(m.id) === String(card.machine_id))?.name || card.machine)}</td>
+                        <td style={{ padding: '12px 15px', color: '#3b82f6', fontWeight: 700 }}>{formatPlanned(getPlannedTime(card))}</td>
+                        <td style={{ padding: '12px 15px', color: '#10b981' }}>{formatElapsedTime(card.started_at)}</td>
+                        <td style={{ padding: '12px 15px', textAlign: 'right' }}>
+                          <button onClick={() => setSelectedCardId(card.id)}
+                            style={{ background: '#eab308', border: 'none', color: '#000', padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            title="Відкрити">
+                            <Eye size={18} />
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -382,7 +442,7 @@ const OperatorTerminal = () => {
           <div style={{ width: '100%', maxWidth: '350px', textAlign: 'center' }}>
             <div style={{ background: '#111', padding: '20px', borderRadius: '24px', fontSize: '3rem', fontWeight: 1000, marginBottom: '30px', border: `3px solid ${pinError ? '#ef4444' : '#222'}` }}>{pin.split('').map(() => '*').join('')}</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px' }}>
-              {[1,2,3,4,5,6,7,8,9].map(num => <button key={num} onClick={() => setPin(pin + num)} style={{ background: '#1a1a1a', color: '#fff', border: '1px solid #333', fontSize: '2rem', padding: '20px', borderRadius: '15px' }}>{num}</button>)}
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => <button key={num} onClick={() => setPin(pin + num)} style={{ background: '#1a1a1a', color: '#fff', border: '1px solid #333', fontSize: '2rem', padding: '20px', borderRadius: '15px' }}>{num}</button>)}
               <button onClick={() => setPin('')} style={{ background: '#1a1a1a', color: '#ef4444', fontSize: '2rem', borderRadius: '15px' }}>C</button>
               <button onClick={() => setPin(pin + '0')} style={{ background: '#1a1a1a', color: '#fff', fontSize: '2rem', borderRadius: '15px' }}>0</button>
               <button onClick={validatePin} style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '15px', fontSize: '1.2rem' }}>OK</button>
@@ -401,7 +461,7 @@ const OperatorTerminal = () => {
             </div>
             <div style={{ padding: '30px', textAlign: 'center' }}>
               <h2 style={{ margin: '0 0 20px' }}>{getNomFromCard(currentCard)?.name}</h2>
-              
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <div style={{ background: '#000', padding: '20px', borderRadius: '20px' }}>
                   <label style={{ color: '#ef4444', fontWeight: 900, display: 'block', marginBottom: '15px' }}>КІЛЬКІСТЬ БРАКУ</label>
@@ -488,7 +548,8 @@ const OperatorTerminal = () => {
         </div>
       )}
 
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         .stage-card-hover:hover { background: #181818 !important; transform: translateY(-5px); }
         .stage-card-hover { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important; }
         .animate-spin { animation: spin 1s linear infinite; }

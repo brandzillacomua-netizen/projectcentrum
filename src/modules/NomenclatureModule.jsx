@@ -470,6 +470,7 @@ const NomenclatureModule = () => {
                     <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Тип</th>
                     <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Матеріал</th>
                     <th style={{ padding: '15px', textAlign: 'center', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Норма</th>
+                    <th style={{ padding: '15px', textAlign: 'center', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Час (хв)</th>
                     <th style={{ padding: '15px', textAlign: 'center', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Дії</th>
                   </tr>
                 </thead>
@@ -488,6 +489,10 @@ const NomenclatureModule = () => {
                              <span style={{ color: '#555' }}>{n.units_per_sheet || 0}</span>
                            )}
                            <span style={{ fontSize: '0.6rem', color: '#333', marginLeft: '5px' }}>/лист</span>
+                        </td>
+                        <td style={{ padding: '15px', textAlign: 'center' }}>
+                            <span style={{ color: '#555', fontWeight: 800 }}>{n.time_per_unit || 0}</span>
+                            <span style={{ fontSize: '0.6rem', color: '#333', marginLeft: '5px' }}>хв</span>
                         </td>
                         <td style={{ padding: '15px', textAlign: 'center' }}>
                            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>

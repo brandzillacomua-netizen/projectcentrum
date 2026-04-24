@@ -9,7 +9,7 @@ import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
 
 const MachinesModule = () => {
-  const { machines, addMachine, updateMachine, deleteMachine, workCards, workCardHistory, nomenclatures, orders, loading } = useMES()
+  const { machines, addMachine, updateMachine, deleteMachine, workCards, workCardHistory, nomenclatures, orders, tasks, loading } = useMES()
   const [showAdd, setShowAdd] = useState(false)
   const [selectedMachineId, setSelectedMachineId] = useState(null)
   const [form, setForm] = useState({ id: null, name: '', capacity: '1', inventory_no: '', floor: '', description: '' })
@@ -194,6 +194,14 @@ const MachinesModule = () => {
     return `${h}:${m}:${s}`
   }
 
+  const formatPlanned = (minutes) => {
+    if (!minutes) return '—'
+    const h = Math.floor(minutes / 60)
+    const m = Math.round(minutes % 60)
+    if (h > 0) return `${h}год ${m}хв`
+    return `${m}хв`
+  }
+
   return (
     <div className="machines-module-v3" style={{ background: '#050505', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
       <nav className="module-nav" style={{ 
@@ -285,7 +293,29 @@ const MachinesModule = () => {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '25px' }}>
               {machines.map(m => {
                 const activeTask = activeWorkForMachine(m)
-                const nomName = nomenclatures.find(n => n.id === activeTask?.nomenclature_id)?.name
+                // Пошук батьківського наряду для отримання планового часу
+                const parentTask = activeTask ? tasks.find(t => String(t.id).trim() === String(activeTask.task_id).trim()) : null
+                const nomName = nomenclatures.find(n => String(n.id) === String(activeTask?.nomenclature_id))?.name
+                
+                // Пріоритет розрахунку часу:
+                // 1. Беремо з самої картки (там тепер у секундах після останнього фіксу)
+                // 2. Якщо в картці порожньо, беремо з наряду (там у хвилинах)
+                // 3. Якщо і там немає — пробуємо розрахувати на льоту (кількість * час_на_од)
+                let estimatedMin = 0
+                if (activeTask?.estimated_time) {
+                  estimatedMin = Math.round(Number(activeTask.estimated_time) / 60)
+                } else if (parentTask?.estimated_time) {
+                  estimatedMin = Number(parentTask.estimated_time)
+                } else if (activeTask?.quantity) {
+                  const nom = nomenclatures.find(n => String(n.id) === String(activeTask.nomenclature_id))
+                  if (nom?.time_per_unit) {
+                    estimatedMin = Math.round(Number(activeTask.quantity) * Number(nom.time_per_unit))
+                  }
+                }
+
+                const elapsedMs = activeTask ? (currentTime - new Date(activeTask.started_at)) : 0
+                const elapsedMin = Math.floor(elapsedMs / 60000)
+                const progressPercent = estimatedMin > 0 ? Math.min(100, (elapsedMin / estimatedMin) * 100) : 0
                 
                 return (
                   <div key={m.id} className={`machine-card-v3 ${activeTask ? 'is-busy' : 'is-idle'}`} onClick={() => setSelectedMachineId(m.id)}>
@@ -312,14 +342,27 @@ const MachinesModule = () => {
                     <div className="card-footer">
                       {activeTask ? (
                         <div className="active-work-info">
-                          <div className="work-header">
-                            <span className="task-type">У РОБОТІ</span>
-                            <span className="timer"><Clock size={12} /> {formatElapsed(activeTask.started_at)}</span>
+                          <div className="work-header" style={{ marginBottom: '15px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <span className="task-type">У РОБОТІ</span>
+                              <span className="timer" style={{ fontSize: '1.4rem', marginTop: '5px' }}><Clock size={16} /> {formatElapsed(activeTask.started_at)}</span>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                              <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 1000, textTransform: 'uppercase' }}>Плановий час</div>
+                              <div style={{ fontSize: '1rem', color: '#ff9000', fontWeight: 900 }}>{formatPlanned(estimatedMin)}</div>
+                            </div>
                           </div>
                           <div className="work-detail">{nomName || 'Деталізація...'}</div>
                           <div className="work-operator"><User size={12} /> {activeTask.operator_name || 'Оператор'}</div>
                           <div className="work-progress">
-                            <div className="progress-bar-inner animate-pulse" style={{ width: '100%' }} />
+                            <div 
+                              className={`progress-bar-inner ${progressPercent < 100 ? 'animate-pulse' : ''}`} 
+                              style={{ 
+                                width: `${estimatedMin > 0 ? progressPercent : 100}%`,
+                                background: progressPercent >= 100 ? '#10b981' : '#ef4444',
+                                boxShadow: progressPercent >= 100 ? '0 0 10px #10b981' : '0 0 10px #ef4444'
+                              }} 
+                            />
                           </div>
                         </div>
                       ) : (
