@@ -170,12 +170,9 @@ const WarehouseModuleV2 = () => {
       const isSgp = nameLower.startsWith('іп-') || matching.some(i => i.type === 'finished' || i.type === 'semi')
       if (isSgp) return
 
-      const operationalItem = matching.find(i => i.warehouse === 'operational' || !i.warehouse)
-      const invItem = operationalItem || matching[0]
-      
-      const available = operationalItem
-        ? (Number(operationalItem.total_qty) || 0) - (Number(operationalItem.reserved_qty) || 0)
-        : 0
+      const operationalItems = matching.filter(i => i.warehouse === 'operational' || !i.warehouse)
+      const available = operationalItems.reduce((sum, i) => sum + (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0), 0)
+      const invItem = operationalItems[0] || matching[0]
       
       // Calculate Global Availability for context
       const globalAvailable = (inventory || []).filter(i => 
@@ -334,18 +331,15 @@ const WarehouseModuleV2 = () => {
                   const parsedName = parseMaterialName(req.details)
                   const nameLower = parsedName.toLowerCase()
                   
-                  const invItem = (inventory || []).find(i =>
-                    i.id === req.inventory_id ||
-                    (parsedName && normalize(i.name) === normalize(parsedName))
+                  const matchingInv = (inventory || []).filter(i => 
+                    (i.warehouse === 'operational' || !i.warehouse) && 
+                    (i.id === req.inventory_id || (parsedName && normalize(i.name) === normalize(parsedName)))
                   )
-
-                  // Skip SGP/Finished items in Operational Warehouse deficit check
-                  const isSgp = nameLower.startsWith('іп-') || invItem?.type === 'finished' || invItem?.type === 'semi'
+                  
+                  const totalOnWh = matchingInv.reduce((sum, i) => sum + (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0), 0)
+                  
+                  const isSgp = nameLower.startsWith('іп-') || matchingInv.some(i => i.type === 'finished' || i.type === 'semi')
                   if (isSgp) return
-
-                  const totalOnWh = invItem
-                    ? (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0)
-                    : 0
                   
                   // Додаємо те, що вже видано (зарезервовано) саме для цього наряду
                   const alreadyIssuedForThis = (reqList || []).filter(r => r.id === req.id && r.status === 'issued')
