@@ -20,7 +20,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
   const {
     inventory, nomenclatures, receptionDocs, createReceptionDoc, sendDocToWarehouse,
     purchaseRequests, updatePurchaseRequestStatus, convertRequestToOrder, currentUser,
-    confirmReception, fetchData
+    confirmReception, fetchData, normalize, 
   } = useMES()
 
   const [activeTab, setActiveTab] = useState('requests') // 'requests', 'registry', 'stock'
@@ -35,18 +35,6 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
   const [isProcessing, setIsProcessing] = useState(false)
   const [processingDocs, setProcessingDocs] = useState(new Set())
 
-  const normalize = (s) => (s || '').toLowerCase().trim()
-    .replace(/[тt]/g, 't').replace(/[аa]/g, 'a').replace(/[еe]/g, 'e')
-    .replace(/[оo]/g, 'o').replace(/[рp]/g, 'p').replace(/[сc]/g, 'c')
-    .replace(/[хx]/g, 'x')
-    .replace(/[іi]/g, 'i')
-    .replace(/[уy]/g, 'y')
-    .replace(/[кk]/g, 'k')
-    .replace(/[мm]/g, 'm')
-    .replace(/[нn]/g, 'n')
-    .replace(/[вv]/g, 'v')
-    .replace(/[и]/g, 'y')
-    .replace(/\s/g, '')
 
   const parseMaterialName = (details) => {
     if (!details) return ''
@@ -58,8 +46,10 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
   }
 
   const pendingRequests = (purchaseRequests || []).filter(pr => {
-    if (isProcurementOnly) return (pr.status === 'pending' || pr.status === 'accepted' || pr.status === 'ordered') && pr.destination_warehouse === 'procurement'
-    return (pr.status === 'pending' || pr.status === 'accepted' || pr.status === 'ordered') && (pr.destination_warehouse === 'production' || !pr.destination_warehouse)
+    // Всі замовлення (і для СВ, і для виробництва) мають бути видимі у відділі Постачання
+    const isRelevantStatus = (pr.status === 'pending' || pr.status === 'accepted' || pr.status === 'ordered')
+    if (isProcurementOnly) return isRelevantStatus && pr.destination_warehouse === 'procurement'
+    return isRelevantStatus && (pr.destination_warehouse === 'production' || !pr.destination_warehouse)
   })
 
   // Badge for new reception docs
@@ -69,6 +59,58 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
   ).length
   
   const availableNoms = (nomenclatures || []).filter(n => n.type !== 'part' && n.type !== 'product' && n.type !== 'finished')
+  const isDocAvailable = (doc) => {
+    if (!doc.items || doc.items.length === 0) return true
+    
+    // Розраховуємо "віртуальну броню" від інших документів, які очікують на СВ
+    const otherDocs = (receptionDocs || []).filter(d => 
+      d.id !== doc.id && 
+      d.status === 'ordered' && 
+      d.target_warehouse === 'production'
+    )
+    
+    const virtualReservedMap = {}
+    otherDocs.forEach(d => {
+      (d.items || []).forEach(it => {
+        const key = it.nomenclature_id ? String(it.nomenclature_id) : normalize(it.name || it.reqDetails || it.details)
+        virtualReservedMap[key] = (virtualReservedMap[key] || 0) + (Number(it.qty || it.needed || it.quantity) || 0)
+      })
+    })
+
+    return doc.items.every((it, idx) => {
+      const name = resolveItemName(it, idx)
+      const parsedName = parseMaterialName(name)
+      const nomId = it.nomenclature_id
+      
+      const matching = (inventory || []).filter(inv =>
+        inv.warehouse === 'production' &&
+        (
+          (nomId && String(inv.nomenclature_id) === String(nomId)) ||
+          normalize(inv.name) === normalize(parsedName)
+        )
+      )
+      
+      const totalStock = matching.reduce((acc, i) => acc + (Number(i.total_qty) || 0), 0)
+      const dbReserved = matching.reduce((acc, i) => acc + (Number(i.reserved_qty) || 0), 0)
+      
+      const vKey = nomId ? String(nomId) : normalize(parsedName)
+      const vReserved = virtualReservedMap[vKey] || 0
+      
+      const free = Math.max(0, totalStock - dbReserved - vReserved)
+      const alreadyReserved = Number(it.reserved_from_stock) || 0
+      const available = free + alreadyReserved
+      
+      return available >= Number(resolveItemQty(it))
+    })
+  }
+
+  const getDocDisplayId = (doc) => {
+    if (doc.order_id === null && doc.task_id === null) {
+      return `№РП-${String(doc.id).substring(0, 6).toUpperCase()}`
+    }
+    return `#${String(doc.id).substring(0, 6)}`
+  }
+
   const getNomLabel = (n) => `${n.name}${n.material_type ? ` (${n.material_type})` : ''}`
 
   const getStatusLabel = (status) => {
@@ -94,14 +136,43 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
 
   const handleSendToWarehouse = async () => {
     if (draftItems.length === 0 || isProcessing) return
+    
+    // Перевірка наявності на Складі Виробництва (СВ)
+    const deficitItems = []
+    if (!isProcurementOnly) {
+      draftItems.forEach(d => {
+        const matching = (inventory || []).filter(i => 
+          i.warehouse === 'production' && 
+          (i.nomenclature_id === d.nomenclature_id || normalize(i.name) === normalize(d.name))
+        )
+        const totalStock = matching.reduce((acc, i) => acc + (Number(i.total_qty) || 0), 0)
+        const totalReserved = matching.reduce((acc, i) => acc + (Number(i.reserved_qty) || 0), 0)
+        const available = Math.max(0, totalStock - totalReserved)
+        const needed = Number(d.qty)
+        
+        if (available < needed) {
+          deficitItems.push({ ...d, missing: needed - available, available })
+        }
+      })
+    }
+
+    if (deficitItems.length > 0) {
+      setShortageModal({ deficitItems, draftItems })
+      return
+    }
+
     setIsProcessing(true)
     try {
       const items = draftItems.map(d => ({ nomenclature_id: d.nomenclature_id, name: d.name, qty: d.qty }))
-      await apiService.submitCreateReceptionDoc(items, null, (its) => createReceptionDoc(its, 'ordered', null, null, 'production'))
+      // Для ручної прийомки спочатку створюємо документ на СВ (production)
+      // Він з'явиться в реєстрі СВ, і його можна буде "Передати на СО" тільки коли буде наявність
+      const targetWh = 'production'
+      const sourceWh = null
+      await apiService.submitCreateReceptionDoc(items, null, (its) => createReceptionDoc(its, 'ordered', null, null, targetWh, sourceWh), targetWh, sourceWh)
       setDraftItems([])
       setShowCreate(false)
       setActiveMobileSection('registry')
-      alert('Готово! Документ створено. Не забудьте "Відправити на склад" з Реєстру.')
+      alert('Готово! Документ створено в Реєстрі. Коли товар буде в наявності, ви зможете "Передати на СО".')
     } finally {
       setIsProcessing(false)
     }
@@ -184,6 +255,68 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
     } catch (err) {
       console.error('Procurement analyze error:', err)
       alert('Помилка аналізу дефіциту: ' + err.message)
+    }
+  }
+  
+  const handleManualShortagePR = async () => {
+    if (!shortageModal || isProcessing) return
+    setIsProcessing(true)
+    const { deficitItems, draftItems } = shortageModal
+    
+    try {
+      const orderNum = `№РП-${new Date().getTime().toString().slice(-6)}`
+      
+      // 1. Запит на закупівлю лише для дефіциту
+      const prItems = deficitItems.map(it => ({
+        nomenclature_id: it.nomenclature_id,
+        name: it.name,
+        needed: it.qty,
+        missingAmount: it.missing,
+        production_available: it.available,
+        reserved_from_stock: it.available,
+        needs_procurement: true
+      }))
+      
+      const { error: prErr } = await supabase.from('purchase_requests').insert([{
+        order_id: null,
+        task_id: null,
+        order_num: orderNum,
+        items: prItems,
+        status: 'pending',
+        destination_warehouse: 'production'
+      }])
+      
+      if (prErr) throw prErr
+
+      // 2. Резервуємо та створюємо прийомку для того, що ВЖЕ Є в наявності
+      const availableItemsToReserve = deficitItems
+        .filter(i => i.available > 0)
+        .map(i => ({ nomenclature_id: i.nomenclature_id, name: i.name, qty: i.available }))
+      
+      // Також додаємо товари з чернетки, яких взагалі немає в списку дефіциту (вони повністю в наявності)
+      const fullyAvailableItems = draftItems
+        .filter(d => !deficitItems.some(di => di.nomenclature_id === d.nomenclature_id || di.name === d.name))
+        .map(d => ({ nomenclature_id: d.nomenclature_id, name: d.name, qty: d.qty }))
+      
+      const allToReserve = [...availableItemsToReserve, ...fullyAvailableItems]
+      
+      if (allToReserve.length > 0) {
+        // Резервуємо в БД
+        // Removed 
+        // Створюємо прийомку (статус ordered — очікує передачі на СО)
+        // Додаємо reserved_from_stock: it.qty щоб система бачила, що ці товари вже зарезервовані саме під цей документ
+        const itemsWithReservation = allToReserve.map(it => ({ ...it, reserved_from_stock: it.qty }))
+        await apiService.submitCreateReceptionDoc(itemsWithReservation, null, (its) => createReceptionDoc(its, 'ordered', null, null, 'production', null), 'production', null)
+      }
+      
+      setDraftItems([])
+      setShowCreate(false)
+      setShortageModal(null)
+      alert(`Створено наряд ${orderNum}! Дефіцит (якщо є) надіслано в Постачання. Те що було в наявності — зарезервовано.`)
+    } catch (err) {
+      alert('Помилка: ' + err.message)
+    } finally {
+      setIsProcessing(false)
     }
   }
 
@@ -274,7 +407,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
 
   // Resolve quantity from any possible field
   const resolveItemQty = (it) => {
-    const val = it.qty ?? it.missingAmount ?? it.needed ?? it.quantity
+    const val = it.qty ?? it.needed ?? it.missingAmount ?? it.quantity
     return val !== undefined && val !== null ? val : '—'
   }
 
@@ -604,32 +737,50 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                         {(() => {
                           const items = pr.items || []
                           const aggregated = []
+                          
+                          // Розраховуємо "віртуальну броню" для відображення
+                          const otherManualDocs = (receptionDocs || []).filter(d => d.status === 'ordered' && d.source_warehouse === 'production')
+                          const virtualReservedMap = {}
+                          otherManualDocs.forEach(d => {
+                            (d.items || []).forEach(item => {
+                              const k = item.nomenclature_id ? String(item.nomenclature_id) : normalize(item.name || item.reqDetails || item.details)
+                              virtualReservedMap[k] = (virtualReservedMap[k] || 0) + (Number(item.qty || item.needed || item.quantity) || 0)
+                            })
+                          })
+
                           items.forEach((it, idx) => {
                             const name = resolveItemName(it, idx)
                             const parsedName = parseMaterialName(name)
-                            const key = it.nomenclature_id || normalize(parsedName)
+                            const nomId = it.nomenclature_id
                             
-                            const existing = aggregated.find(a => (a.nomenclature_id && a.nomenclature_id === it.nomenclature_id) || normalize(a.parsedName) === normalize(parsedName))
+                            const existing = aggregated.find(a => (a.nomenclature_id && a.nomenclature_id === nomId) || normalize(a.parsedName) === normalize(parsedName))
                             if (existing) {
                               existing.needed += Number(resolveItemQty(it)) || 0
                             } else {
                               const matchingItems = (inventory || []).filter(i =>
-                                i.warehouse === 'production' &&
+                                (i.warehouse === 'production' || !i.warehouse) &&
                                 (
-                                  (it.nomenclature_id && String(i.nomenclature_id) === String(it.nomenclature_id)) ||
-                                  (it.inventory_id && String(i.id) === String(it.inventory_id)) ||
-                                  (normalize(i.name) === normalize(parsedName))
+                                  (nomId && String(i.nomenclature_id) === String(nomId)) ||
+                                  (normalize(i.name) === normalize(parsedName)) ||
+                                  (i.name && parsedName && normalize(i.name).includes(normalize(parsedName))) ||
+                                  (i.name && parsedName && normalize(parsedName).includes(normalize(i.name))) ||
+                                  (it.inventory_id && String(i.id) === String(it.inventory_id))
                                 )
                               )
-                              const globalAvailable = matchingItems.reduce((acc, i) => acc + (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0), 0)
+                              const totalStock = matchingItems.reduce((acc, i) => acc + (Number(i.total_qty) || 0), 0)
+                              const dbReserved = matchingItems.reduce((acc, i) => acc + (Number(i.reserved_qty) || 0), 0)
+                              const vKey = it.nomenclature_id ? String(it.nomenclature_id) : normalize(parsedName)
+                              const vReserved = virtualReservedMap[vKey] || 0
+                              
+                              const freeStock = Math.max(0, totalStock - dbReserved - vReserved)
                               const alreadyReserved = Number(it.reserved_from_stock) || 0
-                              const available = globalAvailable + alreadyReserved
+                              const available = freeStock + alreadyReserved
                               aggregated.push({
                                 ...it,
                                 name,
                                 parsedName,
                                 available,
-                                needed: Number(resolveItemQty(it)) || 0
+                                needed: isProcurementOnly ? (Number(it.missingAmount || it.qty || it.needed) || 0) : (Number(resolveItemQty(it)) || 0)
                               })
                             }
                           })
@@ -690,7 +841,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                           <Package size={20} />
                         </div>
                         <div>
-                          <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>#{String(doc.id).substring(0, 6)}</div>
+                          <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>{getDocDisplayId(doc)}</div>
                           <div style={{ fontSize: '0.65rem', color: '#444' }}>{new Date(doc.created_at).toLocaleDateString()}</div>
                         </div>
                       </div>
@@ -737,21 +888,48 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                         )}
 
                         {doc.status === 'ordered' && (
-                          <button
-                            disabled={processingDocs.has(doc.id)}
-                            onClick={async (e) => {
-                              e.stopPropagation()
-                              setProcessingDocs(prev => new Set(prev).add(doc.id))
-                              try {
-                                await apiService.submitSendDocToWarehouse(doc.id, sendDocToWarehouse)
-                              } finally {
-                                setProcessingDocs(prev => { const next = new Set(prev); next.delete(doc.id); return next; })
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            <button
+                              disabled={processingDocs.has(doc.id) || !isDocAvailable(doc)}
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                setProcessingDocs(prev => new Set(prev).add(doc.id))
+                                try {
+                                  const newTarget = isProcurementOnly ? 'production' : 'operational'
+                                  const newSource = isProcurementOnly ? null : 'production'
+                                  await apiService.submitSendDocToWarehouse(doc.id, sendDocToWarehouse, newTarget, newSource)
+                                } finally {
+                                  setProcessingDocs(prev => { const next = new Set(prev); next.delete(doc.id); return next; })
+                                }
+                              }}
+                              style={{ 
+                                width: '100%', 
+                                padding: '12px', 
+                                background: isDocAvailable(doc) ? '#0ea5e9' : '#333', 
+                                color: isDocAvailable(doc) ? '#fff' : '#666', 
+                                border: 'none', 
+                                borderRadius: '10px', 
+                                fontWeight: 900, 
+                                fontSize: '0.75rem', 
+                                cursor: (processingDocs.has(doc.id) || !isDocAvailable(doc)) ? 'not-allowed' : 'pointer', 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center', 
+                                gap: '10px', 
+                                opacity: processingDocs.has(doc.id) ? 0.5 : 1 
+                              }}
+                            >
+                              <Warehouse size={16} /> 
+                              {processingDocs.has(doc.id) ? 'ОБРОБКА...' : 
+                               (isProcurementOnly ? 'ВІДПРАВИТИ У ВИРОБНИЦТВО' : 'ПЕРЕДАТИ НА СО')
                               }
-                            }}
-                            style={{ width: '100%', padding: '12px', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 900, fontSize: '0.75rem', cursor: processingDocs.has(doc.id) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', opacity: processingDocs.has(doc.id) ? 0.5 : 1 }}
-                          >
-                            <Warehouse size={16} /> {processingDocs.has(doc.id) ? 'ОБРОБКА...' : (isProcurementOnly ? 'ВІДПРАВИТИ У ВИРОБНИЦТВО' : 'ПЕРЕДАТИ В ЦЕХ')}
-                          </button>
+                            </button>
+                            {!isDocAvailable(doc) && (
+                              <div style={{ fontSize: '0.65rem', color: '#ef4444', textAlign: 'center', fontWeight: 800 }}>
+                                НЕМАЄ НА СКЛАДІ (ОЧІКУЙТЕ ПОСТАЧАННЯ)
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
                     )}
@@ -823,10 +1001,14 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
             <div style={{ background: '#000', padding: '15px', borderRadius: '12px', marginBottom: '25px', maxHeight: '300px', overflowY: 'auto' }}>
               {shortageModal.deficitItems.map((i, idx) => (
                 <div key={idx} style={{ fontSize: '0.85rem', marginBottom: '10px', borderBottom: '1px solid #111', paddingBottom: '8px' }}>
-                  <div style={{ fontWeight: 700, color: '#aaa' }}>{i.name}</div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
-                    <span style={{ fontSize: '0.7rem', color: '#555' }}>Дефіцит:</span>
-                    <strong style={{ color: '#ef4444' }}>{i.qty} од.</strong>
+                  <div style={{ fontWeight: 700, color: '#aaa', marginBottom: '5px' }}>{i.name}</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px' }}>
+                    <div style={{ fontSize: '0.7rem', color: '#555' }}>Потрібно: <strong style={{ color: '#888' }}>{Number(i.qty || i.needed || 0)}</strong></div>
+                    <div style={{ fontSize: '0.7rem', color: '#555' }}>В наявності: <strong style={{ color: '#10b981' }}>{Number(i.available ?? i.stock ?? 0)}</strong></div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', paddingTop: '5px', borderTop: '1px dashed #222' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 900, color: '#666' }}>ДЕФІЦИТ (ДО ЗАКУПІВЛІ):</span>
+                    <strong style={{ color: '#ef4444', fontSize: '0.9rem' }}>{Number(i.missing || i.missingAmount || 0)} од.</strong>
                   </div>
                 </div>
               ))}
@@ -839,10 +1021,10 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                 НАЗАД
               </button>
               <button
-                onClick={confirmForwardToProcurement}
+                onClick={shortageModal.draftItems ? handleManualShortagePR : confirmForwardToProcurement}
                 style={{ flex: 2, padding: '12px', borderRadius: '10px', background: '#ef4444', color: '#fff', border: 'none', fontWeight: 950, cursor: 'pointer' }}
               >
-                НАДІСЛАТИ ЗАПИТ
+                {isProcessing ? 'ОБРОБКА...' : 'НАДІСЛАТИ ЗАПИТ'}
               </button>
             </div>
           </div>

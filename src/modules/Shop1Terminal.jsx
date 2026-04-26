@@ -226,7 +226,7 @@ export default function Shop1Terminal() {
         .select('*')
         .eq('nomenclature_id', nomId)
         .eq('type', type)
-        .maybeSingle()
+        .limit(1).maybeSingle()
 
       if (existing) {
         await supabase.from('inventory').update({
@@ -938,17 +938,23 @@ export default function Shop1Terminal() {
           ))}
         </div>
 
-        {activeExplorerTab === 'scrap' && filteredItems.length > 0 && (
+        {activeExplorerTab === 'scrap' && filteredItems.filter(i => Number(i.total_qty) > 0).length > 0 && (
           <div style={{ padding: '0 20px 20px' }}>
             <button
               onClick={async () => {
-                if (!window.confirm(`Перенести всі позиції (${filteredItems.length}) у розділ БРАК?`)) return
+                const scrapItemsToMove = filteredItems.filter(i => Number(i.total_qty) > 0)
+                if (!window.confirm(`Перенести всі позиції (${scrapItemsToMove.length}) у розділ БРАК?`)) return
                 setIsProcessing(true)
                 try {
-                  const ids = filteredItems.map(i => i.id)
-                  await supabase.from('inventory')
-                    .update({ type: 'scrap_ready', updated_at: new Date().toISOString() })
-                    .in('id', ids)
+                  for (const item of scrapItemsToMove) {
+                    const { data: existing } = await supabase.from('inventory').select('*').eq('nomenclature_id', item.nomenclature_id).eq('type', 'scrap_ready').limit(1).maybeSingle()
+                    if (existing) {
+                      await supabase.from('inventory').update({ total_qty: (Number(existing.total_qty) || 0) + (Number(item.total_qty) || 0), updated_at: new Date().toISOString() }).eq('id', existing.id)
+                      await supabase.from('inventory').delete().eq('id', item.id)
+                    } else {
+                      await supabase.from('inventory').update({ type: 'scrap_ready', updated_at: new Date().toISOString() }).eq('id', item.id)
+                    }
+                  }
                   await fetchData()
                 } catch (e) { alert('Помилка: ' + e.message) }
                 finally { setIsProcessing(false) }
@@ -960,14 +966,24 @@ export default function Shop1Terminal() {
                 cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 gap: '10px', boxShadow: '0 10px 25px rgba(239, 68, 68, 0.2)'
               }}>
-              <AlertTriangle size={18} /> {isProcessing ? 'ПЕРЕНЕСЕННЯ...' : `ПЕРЕНЕСТИ ВСІ ПОЗИЦІЇ (${filteredItems.length}) В РОЗДІЛ БРАК`}
+              <AlertTriangle size={18} /> {isProcessing ? 'ПЕРЕНЕСЕННЯ...' : `ПЕРЕНЕСТИ ВСІ ПОЗИЦІЇ (${filteredItems.filter(i => Number(i.total_qty) > 0).length}) В РОЗДІЛ БРАК`}
             </button>
           </div>
         )}
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '15px' }}>
-            {filteredItems.map(item => {
+            {Object.values(filteredItems.reduce((acc, item) => {
+              if (!acc[item.nomenclature_id]) {
+                acc[item.nomenclature_id] = { ...item }
+              } else {
+                acc[item.nomenclature_id].total_qty = (Number(acc[item.nomenclature_id].total_qty) || 0) + (Number(item.total_qty) || 0)
+                if (new Date(item.updated_at) > new Date(acc[item.nomenclature_id].updated_at)) {
+                  acc[item.nomenclature_id].updated_at = item.updated_at
+                }
+              }
+              return acc
+            }, {})).filter(item => Number(item.total_qty) > 0).map(item => {
               const nom = nomenclatures.find(n => n.id === item.nomenclature_id)
               return (
                 <div key={item.id} style={{ background: '#111', borderRadius: '18px', padding: '18px', border: '1px solid #1a1a1a' }}>
@@ -987,11 +1003,13 @@ export default function Shop1Terminal() {
                       onClick={async () => {
                         setIsProcessing(true)
                         try {
-                          // Change type to 'scrap_ready' to move it to the Brak module
-                          await supabase.from('inventory').update({
-                            type: 'scrap_ready',
-                            updated_at: new Date().toISOString()
-                          }).eq('id', item.id)
+                          const { data: existing } = await supabase.from('inventory').select('*').eq('nomenclature_id', item.nomenclature_id).eq('type', 'scrap_ready').limit(1).maybeSingle()
+                          if (existing) {
+                            await supabase.from('inventory').update({ total_qty: (Number(existing.total_qty) || 0) + (Number(item.total_qty) || 0), updated_at: new Date().toISOString() }).eq('id', existing.id)
+                            await supabase.from('inventory').delete().eq('id', item.id)
+                          } else {
+                            await supabase.from('inventory').update({ type: 'scrap_ready', updated_at: new Date().toISOString() }).eq('id', item.id)
+                          }
                           await fetchData()
                         } catch (e) { alert('Помилка: ' + e.message) }
                         finally { setIsProcessing(false) }

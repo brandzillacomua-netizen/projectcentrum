@@ -166,11 +166,11 @@ export const apiService = {
     return true;
   },
 
-  submitCreateReceptionDoc: async (items, taskId, fallback) => {
+  submitCreateReceptionDoc: async (items, taskId, fallback, targetWarehouse = 'production', sourceWarehouse = null) => {
     const payload = requestBuilder.buildCreateReceptionDocPayload(items);
     console.log("%c--- 📦 BACKEND ACTION: CREATE RECEPTION DOC ---", "color: #0ea5e9; font-weight: bold; font-size: 14px; text-decoration: underline;");
     console.log("JSON Payload:", payload);
-    if (typeof fallback === 'function') await fallback(items, 'pending', null, taskId);
+    if (typeof fallback === 'function') await fallback(items, 'pending', null, taskId, targetWarehouse, sourceWarehouse);
     return true;
   },
 
@@ -182,11 +182,11 @@ export const apiService = {
     return true;
   },
 
-  submitSendDocToWarehouse: async (docId, fallback) => {
-    const payload = { action: 'SEND_TO_WAREHOUSE', docId };
+  submitSendDocToWarehouse: async (docId, fallback, newTarget = null, newSource = null) => {
+    const payload = { action: 'SEND_TO_WAREHOUSE', docId, newTarget, newSource };
     console.log("%c--- 📦 BACKEND ACTION: NOTIFY WAREHOUSE ---", "color: #0ea5e9; font-weight: bold; font-size: 14px; text-decoration: underline;");
     console.log("JSON Payload:", payload);
-    if (typeof fallback === 'function') await fallback(docId);
+    if (typeof fallback === 'function') await fallback(docId, newTarget, newSource);
     return true;
   },
 

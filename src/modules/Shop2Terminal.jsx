@@ -274,7 +274,17 @@ const Shop2Terminal = () => {
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '15px' }}>
-            {filteredItems.map(item => {
+            {Object.values(filteredItems.reduce((acc, item) => {
+              if (!acc[item.nomenclature_id]) {
+                acc[item.nomenclature_id] = { ...item }
+              } else {
+                acc[item.nomenclature_id].total_qty = (Number(acc[item.nomenclature_id].total_qty) || 0) + (Number(item.total_qty) || 0)
+                if (new Date(item.updated_at) > new Date(acc[item.nomenclature_id].updated_at)) {
+                  acc[item.nomenclature_id].updated_at = item.updated_at
+                }
+              }
+              return acc
+            }, {})).filter(item => Number(item.total_qty) > 0).map(item => {
               const nom = nomenclatures.find(n => n.id === item.nomenclature_id)
               return (
                 <div key={item.id} style={{ background: '#111', borderRadius: '18px', padding: '18px', border: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

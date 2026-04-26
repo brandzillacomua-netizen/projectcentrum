@@ -54,7 +54,7 @@ export default function BrakModule() {
           .select('*')
           .eq('nomenclature_id', selectedItem.nomenclature_id)
           .eq('type', type)
-          .maybeSingle()
+          .limit(1).maybeSingle()
           
         if (existing) {
           await supabase.from('inventory').update({

@@ -36,6 +36,7 @@ const WarehouseModuleV2 = () => {
     .replace(/[нn]/g, 'n')
     .replace(/[вv]/g, 'v')
     .replace(/[и]/g, 'y')
+    .replace(/[зz]/g, 'z')
     .replace(/\s/g, '')
 
   const parseMaterialName = (details) => {
@@ -58,6 +59,36 @@ const WarehouseModuleV2 = () => {
   const [processingTasks, setProcessingTasks] = useState(new Set())
   const [expandedDoc, setExpandedDoc] = useState(null)
 
+  const getMaterialType = (r) => {
+    const parsedName = parseMaterialName(r.details)
+    const nameLower = parsedName.toLowerCase()
+    const invItem = (inventory || []).find(i => (i.id === r.inventory_id || (parsedName && normalize(i.name) === normalize(parsedName))))
+    const nom = (nomenclatures || []).find(n => n.id === r.nomenclature_id)
+    const normName = normalize(nameLower)
+    
+    const isRawNom = nom?.type === 'raw' || invItem?.type === 'raw' || 
+                     nameLower.includes('лист') || nameLower.includes('фреза') || 
+                     nameLower.includes('пластина') || nameLower.includes('профіль') ||
+                     nameLower.includes('труба') || nameLower.includes('клей') ||
+                     nameLower.includes('гвинт') || nameLower.includes('гайка') ||
+                     nameLower.includes('шайба') || nameLower.includes('саморіз') ||
+                     nameLower.includes('заклепка') || nameLower.includes('болт') ||
+                     nameLower.includes('метиз') || nameLower.includes('кріпленн') ||
+                     normName.includes('lyst') || normName.includes('freza') || 
+                     normName.includes('plastyna') || normName.includes('profyl') ||
+                     normName.includes('truba') || normName.includes('klei') ||
+                     normName.includes('hvynt') || normName.includes('haika') ||
+                     normName.includes('shaiba') || normName.includes('samoriz') ||
+                     normName.includes('zaklepka') || normName.includes('bolt') ||
+                     normName.includes('metiz') || normName.includes('kriplenn')
+
+    if (!isRawNom && (nameLower.startsWith('іп-') || nameLower.startsWith('ip-') || invItem?.type === 'finished' || invItem?.warehouse === 'sgp')) return 'finished'
+    if (!isRawNom && (invItem?.type === 'semi' || invItem?.warehouse === 'production')) return 'semi'
+    if (!isRawNom && (invItem?.type === 'bz' || invItem?.warehouse === 'sz')) return 'bz'
+    if (!isRawNom && (invItem?.type?.startsWith('scrap') || invItem?.warehouse === 'scrap')) return 'scrap'
+    return 'raw'
+  }
+
   const tabs = useMemo(() => {
     const getCount = (tabId) => {
       const filtered = (requests || []).filter(r => {
@@ -66,36 +97,15 @@ const WarehouseModuleV2 = () => {
           const task = tasks.find(t => t.id === r.task_id)
           if (!task || task.warehouse_conf) return false
         }
-        const parsedName = parseMaterialName(r.details)
-        const nameLower = parsedName.toLowerCase()
-        const invItem = (inventory || []).find(i => (i.id === r.inventory_id || (parsedName && normalize(i.name) === normalize(parsedName))))
-        
-        // Пріоритет вибору складу: СГП > Напівфабрикати > БЗ > Брак > Оперативний
-        const isSgp = nameLower.startsWith('іп-') || nameLower.startsWith('ip-') || invItem?.type === 'finished' || invItem?.warehouse === 'sgp'
-        const isSemi = !isSgp && (invItem?.type === 'semi' || invItem?.warehouse === 'production')
-        const isBz = !isSgp && !isSemi && (invItem?.type === 'bz' || invItem?.warehouse === 'sz')
-        const isScrap = !isSgp && !isSemi && !isBz && (invItem?.type?.startsWith('scrap') || invItem?.warehouse === 'scrap')
-
-        if (tabId === 'finished') return isSgp
-        if (tabId === 'semi') return isSemi
-        if (tabId === 'bz') return isBz
-        if (tabId === 'scrap') return isScrap
-        if (tabId === 'raw') return !isSgp && !isSemi && !isBz && !isScrap
-        return false
+        return getMaterialType(r) === tabId
       })
-
-      // Рахуємо унікальні "документи" (завдання або замовлення)
       const uniqueDocs = new Set(filtered.map(r => r.task_id || `order-${r.order_id}`))
-      
-      // Додаємо кількість документів на прийомку (тільки для оперативного складу поки що)
       let receptionCount = 0
       if (tabId === 'raw') {
         receptionCount = (receptionDocs || []).filter(d => (d.status === 'shipped' || d.status === 'ordered') && d.target_warehouse === 'operational').length
       }
-
       return uniqueDocs.size + receptionCount
     }
-
     return [
       { id: 'raw', label: 'Оперативний', icon: <Package size={18} />, count: getCount('raw') },
       { id: 'semi', label: 'Напівфабрикати', icon: <Layers size={18} />, count: getCount('semi') },
@@ -104,52 +114,30 @@ const WarehouseModuleV2 = () => {
       { id: 'bz', label: 'БЗ', icon: <CheckCircle2 size={18} />, count: getCount('bz') },
       { id: 'registry', label: 'Реєстр', icon: <History size={18} /> }
     ]
-  }, [requests, inventory, tasks])
-
+  }, [requests, inventory, tasks, receptionDocs, nomenclatures])
   const filteredInventory = (inventory || []).filter(i => {
     const matchesSearch = (i.name || '').toLowerCase().includes(searchQuery.toLowerCase())
     const isOperational = i.warehouse === 'operational' || !i.warehouse
     if (!isOperational) return false
 
     if (activeTab === 'bz') return i.type === 'bz' && matchesSearch
-    
-    // Брак: показуємо всі типи, що починаються на 'scrap'
     if (activeTab === 'scrap') return i.type?.startsWith('scrap') && matchesSearch
     
-    // Items without a type default to 'raw'
     const itemType = i.type || 'raw'
     return itemType === activeTab && matchesSearch
   })
 
-  // Reception docs that are 'shipped' (sent by supply) OR 'pending' (old flow)
   const pendingDocs = receptionDocs
     ? receptionDocs.filter(d => (d.status === 'shipped' || d.status === 'ordered') && d.target_warehouse === 'operational')
     : []
 
-  // Фільтруємо запити відповідно до активної вкладки складу
   const pendingRequests = (requests || []).filter(r => {
     if (r.status !== 'pending' && r.status !== 'issued') return false
     if (r.status === 'issued') {
       const task = tasks.find(t => t.id === r.task_id)
       if (!task || task.warehouse_conf) return false
     }
-
-    const parsedName = parseMaterialName(r.details)
-    const nameLower = parsedName.toLowerCase()
-    const invItem = (inventory || []).find(i => (i.id === r.inventory_id || (parsedName && normalize(i.name) === normalize(parsedName))))
-    
-    const isSgp = nameLower.startsWith('іп-') || nameLower.startsWith('ip-') || invItem?.type === 'finished' || invItem?.warehouse === 'sgp'
-    const isSemi = !isSgp && (invItem?.type === 'semi' || invItem?.warehouse === 'production')
-    const isBz = !isSgp && !isSemi && (invItem?.type === 'bz' || invItem?.warehouse === 'sz')
-    const isScrap = !isSgp && !isSemi && !isBz && (invItem?.type?.startsWith('scrap') || invItem?.warehouse === 'scrap')
-
-    if (activeTab === 'finished') return isSgp
-    if (activeTab === 'semi') return isSemi
-    if (activeTab === 'bz') return isBz
-    if (activeTab === 'scrap') return isScrap
-    if (activeTab === 'raw') return !isSgp && !isSemi && !isBz && !isScrap
-
-    return false
+    return getMaterialType(r) === activeTab
   })
 
   const groupedRequests = pendingRequests.reduce((acc, req) => {
@@ -161,7 +149,8 @@ const WarehouseModuleV2 = () => {
 
   const handleReserveOrder = (taskId, orderId, orderNum, reqList) => {
     const hasActivePR = (purchaseRequests || []).some(
-      pr => (pr.task_id ? String(pr.task_id) === String(taskId) : String(pr.order_id) === String(orderId)) && pr.status === 'pending'
+      pr => (pr.task_id ? String(pr.task_id) === String(taskId) : String(pr.order_id) === String(orderId)) && 
+            ['pending', 'accepted', 'ordered'].includes(pr.status)
     )
     if (hasActivePR) return
 
@@ -172,17 +161,28 @@ const WarehouseModuleV2 = () => {
       // EXCLUSION: If it's a finished product (IP- prefix or type 'finished'), 
       // the Operational Warehouse doesn't handle its kitting.
       const nameLower = parsedName.toLowerCase()
-      const invItem = (inventory || []).find(i =>
-        (i.id === req.inventory_id || (parsedName && normalize(i.name) === normalize(parsedName)))
+      const matching = (inventory || []).filter(i =>
+        (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) ||
+        (i.id === req.inventory_id) ||
+        (parsedName && normalize(i.name) === normalize(parsedName))
       )
-      const isSgp = nameLower.startsWith('іп-') || invItem?.type === 'finished' || invItem?.type === 'semi'
+      
+      const isSgp = nameLower.startsWith('іп-') || matching.some(i => i.type === 'finished' || i.type === 'semi')
       if (isSgp) return
 
-      const operationalItem = invItem && (invItem.warehouse === 'operational' || !invItem.warehouse) ? invItem : null
+      const operationalItem = matching.find(i => i.warehouse === 'operational' || !i.warehouse)
+      const invItem = operationalItem || matching[0]
       
       const available = operationalItem
         ? (Number(operationalItem.total_qty) || 0) - (Number(operationalItem.reserved_qty) || 0)
         : 0
+      
+      // Calculate Global Availability for context
+      const globalAvailable = (inventory || []).filter(i => 
+        (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) ||
+        (parsedName && normalize(i.name) === normalize(parsedName))
+      ).reduce((acc, i) => acc + (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0), 0)
+
       const needed = Number(req.quantity)
       if (available < needed) {
         const missingAmount = needed - available
@@ -200,6 +200,7 @@ const WarehouseModuleV2 = () => {
           missingItems.push({
             reqDetails: parsedName,
             missingAmount,
+            globalAvailable,
             inventory_id: invItem?.id || req.inventory_id,
             nomenclature_id,
             needed,
@@ -225,13 +226,25 @@ const WarehouseModuleV2 = () => {
 
   const sendPurchaseRequest = async () => {
     if (!shortages || isProcessing) return
+    
+    // Safety check: don't send if a PR for this order/task was created while modal was open
+    const alreadySent = (purchaseRequests || []).some(
+      pr => (shortages.taskId ? String(pr.task_id) === String(shortages.taskId) : String(pr.order_id) === String(shortages.orderId)) && 
+            ['pending', 'accepted', 'ordered'].includes(pr.status)
+    )
+    if (alreadySent) {
+      alert('Запит для цього наряду вже був надісланий раніше.')
+      setShortages(null)
+      return
+    }
+
     setIsProcessing(true)
     try {
-      // 1. Надсилаємо запит на дефіцит
+      // 2. Надсилаємо запит тільки на різницю (дефіцит)
       await apiService.submitPurchaseRequest(
         shortages.orderId,
         shortages.orderNum,
-        shortages.items,
+        shortages.items, // Тут уже missingAmount завдяки моїй правці в useWarehouse
         shortages.taskId,
         createPurchaseRequest
       )
@@ -330,10 +343,17 @@ const WarehouseModuleV2 = () => {
                   const isSgp = nameLower.startsWith('іп-') || invItem?.type === 'finished' || invItem?.type === 'semi'
                   if (isSgp) return
 
-                  const available = invItem
+                  const totalOnWh = invItem
                     ? (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0)
                     : 0
-                  if (available < Number(req.quantity)) missingItems.push(req)
+                  
+                  // Додаємо те, що вже видано (зарезервовано) саме для цього наряду
+                  const alreadyIssuedForThis = (reqList || []).filter(r => r.id === req.id && r.status === 'issued')
+                    .reduce((sum, r) => sum + Number(r.quantity), 0)
+                  
+                  const effectiveAvailable = totalOnWh + alreadyIssuedForThis
+
+                  if (effectiveAvailable < Number(req.quantity)) missingItems.push(req)
                 })
 
                 const isAllIssued = reqList.every(r => r.status === 'issued')
@@ -760,8 +780,17 @@ const WarehouseModuleV2 = () => {
             </p>
             <div style={{ background: '#000', padding: '15px', borderRadius: '12px', marginBottom: '25px', maxHeight: '200px', overflowY: 'auto' }}>
               {shortages.items.map((i, idx) => (
-                <div key={idx} style={{ fontSize: '0.85rem', marginBottom: '8px', borderBottom: '1px solid #111', paddingBottom: '5px' }}>
-                  {i.reqDetails}: <strong style={{ color: '#ef4444' }}>{i.missingAmount}шт</strong>
+                <div key={idx} style={{ fontSize: '0.85rem', marginBottom: '12px', borderBottom: '1px solid #111', paddingBottom: '8px' }}>
+                  <div style={{ fontWeight: 800, color: '#aaa', marginBottom: '5px' }}>{i.reqDetails}</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px', opacity: 0.8 }}>
+                    <div style={{ fontSize: '0.65rem', color: '#555' }}>Потрібно: <strong style={{ color: '#888' }}>{Number(i.needed || 0)}</strong></div>
+                    <div style={{ fontSize: '0.65rem', color: '#555' }}>На СО: <strong style={{ color: '#10b981' }}>{Number(i.needed - i.missingAmount)}</strong></div>
+                    <div style={{ fontSize: '0.65rem', color: '#555' }}>На СВ (вільно): <strong style={{ color: '#3b82f6' }}>{Number(i.globalAvailable || 0)}</strong></div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', paddingTop: '5px', borderTop: '1px dashed #222' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 900, color: '#666' }}>ДЕФІЦИТ (ЗАПИТ НА СВ):</span>
+                    <strong style={{ color: '#ef4444', fontSize: '0.85rem' }}>{Number(i.missingAmount || 0)} од.</strong>
+                  </div>
                 </div>
               ))}
             </div>

@@ -13,7 +13,8 @@ import {
   TrendingUp,
   PackageCheck,
   Search,
-  X
+  X,
+  Truck
 } from 'lucide-react'
 import { useMES } from '../MESContext'
 
@@ -26,7 +27,10 @@ const ReportsModule = () => {
     orders, 
     nomenclatures,
     accessLogs,
-    fetchHistoryRange
+    fetchHistoryRange,
+    receptionDocs,
+    requests,
+    normalize
   } = useMES()
 
   const [activeTab, setActiveTab] = useState('warehouse')
@@ -304,6 +308,57 @@ const ReportsModule = () => {
     };
   }, [tasks, orders, workCardHistory, dateRange])
 
+  const parseMaterialName = (details) => {
+    if (!details) return ''
+    if (details.includes('ВИТРАТНІ МАТЕРІАЛИ')) {
+      const match = details.match(/:\s*(.+)\s*—/)
+      return match ? match[1].trim() : details
+    }
+    return details.split(': ')[1]?.split(' — ')[0]?.trim() || details
+  }
+
+  // 5. Supply Report
+  const supplyStats = useMemo(() => {
+    const stats = {};
+    
+    // Process Reception Docs (Supplied) - Only External Supplies (where source_warehouse is empty)
+    (receptionDocs || []).filter(d => d.status === 'completed' && !d.source_warehouse && filterByDate(d.created_at)).forEach(doc => {
+      (doc.items || []).forEach(item => {
+        const nomId = item.nomenclature_id || (nomenclatures.find(n => normalize(n.name) === normalize(item.name || parseMaterialName(item.reqDetails || item.details)))?.id);
+        const name = nomenclatures.find(n => String(n.id) === String(nomId))?.name || item.name || parseMaterialName(item.reqDetails || item.details) || 'Невідомий матеріал';
+        
+        const key = nomId ? String(nomId) : normalize(name);
+        if (!stats[key]) stats[key] = { id: nomId, name, supplied: 0, used: 0, actual: 0 };
+        stats[key].supplied += Number(item.qty || item.quantity || item.needed || 0);
+      });
+    });
+
+    // Process Requests (Used)
+    (requests || []).filter(r => (r.status === 'issued' || r.status === 'completed') && filterByDate(r.created_at)).forEach(r => {
+      const nom = nomenclatures.find(n => String(n.id) === String(r.nomenclature_id));
+      const name = nom ? nom.name : parseMaterialName(r.details);
+      
+      const key = r.nomenclature_id ? String(r.nomenclature_id) : normalize(name || 'Невідомий матеріал');
+      if (!stats[key]) stats[key] = { id: r.nomenclature_id, name: name || 'Невідомий матеріал', supplied: 0, used: 0, actual: 0 };
+      stats[key].used += Number(r.quantity || 0);
+    });
+
+    // Calculate actual inventory balances
+    Object.keys(stats).forEach(key => {
+        const stat = stats[key];
+        const invItems = (inventory || []).filter(i => {
+          if (stat.id) return String(i.nomenclature_id) === String(stat.id);
+          const nomName = nomenclatures.find(n => String(n.id) === String(i.nomenclature_id))?.name || i.name || '';
+          return normalize(nomName) === normalize(stat.name);
+        });
+        stat.actual = invItems.reduce((acc, curr) => acc + (Number(curr.total_qty) || 0), 0);
+    });
+
+    return Object.values(stats)
+      .filter(s => (s.supplied > 0 || s.used > 0) && (!searchQuery || s.name.toLowerCase().includes(searchQuery.toLowerCase())))
+      .sort((a, b) => b.supplied - a.supplied);
+  }, [receptionDocs, requests, inventory, nomenclatures, dateRange, searchQuery])
+
   const renderTabContent = () => {
     switch (activeTab) {
       case 'warehouse':
@@ -567,6 +622,59 @@ const ReportsModule = () => {
           </div>
         );
 
+      case 'supplies':
+        return (
+          <div className="glass-panel" style={{ background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid #222' }}>
+            <h3 style={{ margin: '0 0 20px', color: '#ff9000', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '10px', textTransform: 'uppercase' }}>
+              <Truck size={20} /> Рух матеріалів (Поставки та Витрати)
+            </h3>
+            
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+              <thead>
+                <tr style={{ background: '#0a0a0a', color: '#666', textAlign: 'left' }}>
+                  <th style={{ padding: '15px', borderBottom: '1px solid #222', width: '35%' }}>Матеріал / Номенклатура</th>
+                  <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #222' }}>Поставлено</th>
+                  <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #222' }}>Витрачено</th>
+                  <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #222' }}>Розрахунковий Залишок</th>
+                  <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #222' }}>Фактично на Складі</th>
+                  <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #222' }}>Розбіжність</th>
+                </tr>
+              </thead>
+              <tbody>
+                {supplyStats.map((stat, idx) => {
+                  const calculatedBalance = stat.supplied - stat.used;
+                  const diff = stat.actual - calculatedBalance;
+                  return (
+                    <tr key={idx} style={{ borderBottom: '1px solid #1a1a1a', background: 'rgba(255,255,255,0.01)' }}>
+                      <td style={{ padding: '15px', fontWeight: 800, color: '#fff' }}>{stat.name}</td>
+                      <td style={{ padding: '15px', textAlign: 'center', color: '#3b82f6', fontWeight: 900 }}>{stat.supplied > 0 ? `+${stat.supplied}` : 0}</td>
+                      <td style={{ padding: '15px', textAlign: 'center', color: '#ef4444', fontWeight: 900 }}>{stat.used > 0 ? `-${stat.used}` : 0}</td>
+                      <td style={{ padding: '15px', textAlign: 'center', fontWeight: 900, color: '#ff9000' }}>{calculatedBalance}</td>
+                      <td style={{ padding: '15px', textAlign: 'center', fontWeight: 900, color: '#22c55e' }}>{stat.actual}</td>
+                      <td style={{ padding: '15px', textAlign: 'center' }}>
+                        {diff === 0 ? (
+                          <span style={{ color: '#555', fontWeight: 700 }}>ОК</span>
+                        ) : diff > 0 ? (
+                          <span style={{ color: '#22c55e', fontWeight: 900, background: 'rgba(34,197,94,0.1)', padding: '4px 8px', borderRadius: '4px' }}>+{diff} (Надлишок)</span>
+                        ) : (
+                          <span style={{ color: '#ef4444', fontWeight: 900, background: 'rgba(239,68,68,0.1)', padding: '4px 8px', borderRadius: '4px' }}>{diff} (Дефіцит)</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+                {supplyStats.length === 0 && (
+                  <tr>
+                    <td colSpan="6" style={{ padding: '30px', textAlign: 'center', color: '#555', fontSize: '0.9rem' }}>
+                      Немає даних про поставки або витрати матеріалів за обраний період.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        );
+
       case 'analytics':
         return (
           <div className="analytics-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
@@ -632,6 +740,9 @@ const ReportsModule = () => {
             </button>
             <button onClick={() => setActiveTab('scrap')} className={`report-tab ${activeTab === 'scrap' ? 'active' : ''}`} style={tabStyle(activeTab === 'scrap')}>
               <AlertTriangle size={16} /> БРАК
+            </button>
+            <button onClick={() => setActiveTab('supplies')} className={`report-tab ${activeTab === 'supplies' ? 'active' : ''}`} style={tabStyle(activeTab === 'supplies')}>
+              <Truck size={16} /> ПОСТАВКИ
             </button>
             <button onClick={() => setActiveTab('analytics')} className={`report-tab ${activeTab === 'analytics' ? 'active' : ''}`} style={tabStyle(activeTab === 'analytics')}>
               <TrendingUp size={16} /> АНАЛІТИКА
