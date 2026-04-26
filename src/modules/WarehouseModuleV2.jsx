@@ -28,7 +28,15 @@ const WarehouseModuleV2 = () => {
   const normalize = (s) => (s || '').toLowerCase().trim()
     .replace(/[тt]/g, 't').replace(/[аa]/g, 'a').replace(/[еe]/g, 'e')
     .replace(/[оo]/g, 'o').replace(/[рp]/g, 'p').replace(/[сc]/g, 'c')
-    .replace(/[хx]/g, 'x').replace(/\s/g, '')
+    .replace(/[хx]/g, 'x')
+    .replace(/[іi]/g, 'i')
+    .replace(/[уy]/g, 'y')
+    .replace(/[кk]/g, 'k')
+    .replace(/[мm]/g, 'm')
+    .replace(/[нn]/g, 'n')
+    .replace(/[вv]/g, 'v')
+    .replace(/[и]/g, 'y')
+    .replace(/\s/g, '')
 
   const parseMaterialName = (details) => {
     if (!details) return ''
@@ -178,16 +186,26 @@ const WarehouseModuleV2 = () => {
       const needed = Number(req.quantity)
       if (available < needed) {
         const missingAmount = needed - available
-        const reqDescription = parsedName || 'Невідома деталь'
-        const nomenclature_id = operationalItem?.nomenclature_id ||
-          (nomenclatures || []).find(n => normalize(n.name) === normalize(parsedName))?.id || null
-        missingItems.push({
-          reqDetails: reqDescription,
-          missingAmount,
-          inventory_id: operationalItem?.id || req.inventory_id,
-          nomenclature_id,
-          needed
-        })
+        const nomenclature_id = invItem?.nomenclature_id ||
+          (nomenclatures || []).find(n => normalize(n.name) === normalize(parsedName))?.id || 
+          req.nomenclature_id || null
+        
+        const itemKey = nomenclature_id || normalize(parsedName)
+        const existing = missingItems.find(it => (it.nomenclature_id && it.nomenclature_id === nomenclature_id) || normalize(it.name) === normalize(parsedName))
+        
+        if (existing) {
+          existing.missingAmount += missingAmount
+          existing.needed += needed
+        } else {
+          missingItems.push({
+            reqDetails: parsedName,
+            missingAmount,
+            inventory_id: invItem?.id || req.inventory_id,
+            nomenclature_id,
+            needed,
+            name: parsedName
+          })
+        }
       }
     })
 

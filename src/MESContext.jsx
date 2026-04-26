@@ -56,6 +56,13 @@ export const MESProvider = ({ children }) => {
     .replace(/[рp]/g, 'p')
     .replace(/[сc]/g, 'c')
     .replace(/[хx]/g, 'x')
+    .replace(/[іi]/g, 'i')
+    .replace(/[уy]/g, 'y')
+    .replace(/[кk]/g, 'k')
+    .replace(/[мm]/g, 'm')
+    .replace(/[нn]/g, 'n')
+    .replace(/[вv]/g, 'v')
+    .replace(/[и]/g, 'y')
     .replace(/\s/g, '')
 
   const fetchOrders = async (page = 0, append = false, options = {}) => {
@@ -633,25 +640,42 @@ export const MESProvider = ({ children }) => {
 
           if (totalToProduce <= 0) return
 
-          const matKey = (part.nom.material_type || part.nom.name || 'Інше').trim()
-          const normalizeStr = (s) => s?.toLowerCase().replace(/[\s-]/g, '')
-          sheets = Math.ceil(totalToProduce / unitsPerSheet)
-
-          if (!materialSummary[matKey]) {
-            const rawNom = nomenclatures.find(n =>
-              n.type === 'raw' && (
-                normalizeStr(n.material_type) === normalizeStr(matKey) ||
-                normalizeStr(n.name).includes(normalizeStr(matKey)) ||
-                normalizeStr(matKey).includes(normalizeStr(n.name))
-              )
+          const matKeyBase = (part.nom.material_type || part.nom.name || 'Інше').trim()
+          const matKey = normalize(matKeyBase)
+          
+          // Шукаємо відповідну сировину (Raw Material) - ТІЛЬКИ точний збіг назви, щоб не зливати різні товщини
+          const rawNom = nomenclatures.find(n =>
+            (n.type === 'raw' || n.type === 'material') && (
+              normalize(n.name) === matKey ||
+              normalize(n.material_type) === matKey
             )
-            const rawInv = inventory.find(i => rawNom ? (String(i.nomenclature_id) === String(rawNom.id)) : (String(i.nomenclature_id) === String(part.nom.id) && i.type === 'raw'))
+          )
+
+          // Якщо точного збігу немає, використовуємо matKey як частину ID, щоб позиції залишалися окремими
+          const matId = rawNom?.id || (part.nom.type === 'raw' ? part.nom.id : 'unknown-' + matKey)
+
+          if (!materialSummary[matId]) {
             const unit = (part.nom.type === 'hardware' || part.nom.type === 'fastener') ? 'шт' : 'ЛИСТІВ'
-            materialSummary[matKey] = { matName: matKey, sheets: 0, totalUnits: 0, components: [], inventory_id: rawInv?.id || null, unit, partType: part.nom.type }
+            materialSummary[matId] = { 
+              matName: rawNom?.name || matKeyBase, 
+              sheets: 0, 
+              totalUnits: 0, 
+              components: [], 
+              inventory_id: null, // Буде знайдено нижче
+              nomenclature_id: rawNom?.id || (part.nom.type === 'raw' ? part.nom.id : null),
+              unit, 
+              partType: rawNom?.type || (part.nom.type === 'raw' ? 'raw' : 'unknown') 
+            }
+            
+            // Пошук в інвентарі за ID номенклатури
+            if (materialSummary[matId].nomenclature_id) {
+              const inv = inventory.find(i => String(i.nomenclature_id) === String(materialSummary[matId].nomenclature_id))
+              materialSummary[matId].inventory_id = inv?.id || null
+            }
           }
-          materialSummary[matKey].sheets += sheets
-          materialSummary[matKey].totalUnits += totalToProduce
-          materialSummary[matKey].components.push(`${part.nom.name}: ${totalToProduce}шт`)
+          materialSummary[matId].sheets += sheets
+          materialSummary[matId].totalUnits += totalToProduce
+          materialSummary[matId].components.push(`${part.nom.name}: ${totalToProduce}шт`)
           totalMin += totalToProduce * (Number(part.nom.time_per_unit) || 0)
         })
       })
@@ -732,7 +756,13 @@ export const MESProvider = ({ children }) => {
       }))
 
       const requestsToInsert = allMaterials
-        .filter(info => info.partType === 'raw' || (info.matName && info.matName.toLowerCase().includes('лист')))
+        .filter(info => 
+          info.partType === 'raw' || 
+          (info.matName && (
+            normalize(info.matName).includes(normalize('лист')) || 
+            normalize(info.matName).includes(normalize('фреза'))
+          ))
+        )
         .map(info => {
           const qtyToRequest = info.unit === 'ЛИСТІВ' ? info.sheets : info.totalUnits;
           const unitLabel = info.unit === 'ЛИСТІВ' ? 'л.' : 'од.';
@@ -742,6 +772,7 @@ export const MESProvider = ({ children }) => {
             quantity: qtyToRequest,
             status: 'pending',
             inventory_id: info.inventory_id,
+            nomenclature_id: info.nomenclature_id,
             details: `СКЛАД ОПЕРАТИВНИЙ: ${info.matName} — ${qtyToRequest} ${unitLabel} (Разом: ${info.totalUnits} шт | Для: ${info.components.join(', ')})`
           }
         })
@@ -764,6 +795,7 @@ export const MESProvider = ({ children }) => {
             quantity: neededQty,
             status: 'pending',
             inventory_id: invItem?.id || null,
+            nomenclature_id: cons.id,
             details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ${order.order_num}: ${cons.name} — ${neededQty} од.`
           })
         })
@@ -835,9 +867,42 @@ export const MESProvider = ({ children }) => {
       sourceWH = 'production'
     }
 
-    // 3. Створюємо документ прийомки (з маршрутизацією!)
-    // Якщо це зовнішня закупівля (target: production, source: null), 
-    // ставимо статус 'shipped' одразу, щоб вона з'явилася в прийомці на СВ.
+    // 3. Бронювання на складі-відправнику (SV), якщо це переміщення
+    if (sourceWH) {
+      try {
+        const { data: invData } = await supabase.from('inventory').select('*').eq('warehouse', sourceWH)
+        const inventory = invData || []
+        
+        for (const it of (requestData.items || [])) {
+          const qty = Number(it.qty ?? it.quantity ?? it.needed ?? 0)
+          if (qty <= 0) continue
+
+          const nomId = it.nomenclature_id
+          const itemName = it.name || it.details || ''
+
+          // Пріоритет ID номенклатури
+          let matches = []
+          if (nomId) {
+            matches = inventory.filter(i => String(i.nomenclature_id) === String(nomId))
+          }
+          if (matches.length === 0 && itemName) {
+            matches = inventory.filter(i => i.name && i.name.toLowerCase().trim() === itemName.toLowerCase().trim())
+          }
+
+          if (matches.length > 0) {
+            // Беремо запис з найбільшим залишком
+            const best = matches.sort((a, b) => (Number(b.total_qty) || 0) - (Number(a.total_qty) || 0))[0]
+            await supabase.from('inventory').update({
+              reserved_qty: (Number(best.reserved_qty) || 0) + qty
+            }).eq('id', best.id)
+          }
+        }
+      } catch (err) {
+        console.error("Error reserving items during transfer:", err)
+      }
+    }
+
+    // 4. Створюємо документ прийомки (з маршрутизацією!)
     const { error: recError } = await supabase.from('reception_docs').insert([{
       items: requestData.items,
       order_id: requestData.order_id,
@@ -858,12 +923,14 @@ export const MESProvider = ({ children }) => {
     return { success: true }
   }
 
-  const createReceptionDoc = async (items, status = 'pending', orderId = null, taskId = null) => {
+  const createReceptionDoc = async (items, status = 'pending', orderId = null, taskId = null, targetWH = null, sourceWH = null) => {
     const { data, error } = await supabase.from('reception_docs').insert([{
       items: items,
       status: status,
       order_id: orderId,
       task_id: taskId,
+      target_warehouse: targetWH,
+      source_warehouse: sourceWH,
       created_at: new Date().toISOString()
     }]).select()
     if (!error) fetchData()
@@ -944,11 +1011,22 @@ export const MESProvider = ({ children }) => {
         const nomId = it.nomenclature_id
         const itemName = it.name || it.reqDetails || it.details || ''
 
-        // Шукаємо в цільовому складі
-        let existing = (targetInv || []).find(i => 
-          (nomId && String(i.nomenclature_id) === String(nomId)) || 
-          (itemName && normalize(i.name) === normalize(itemName))
-        )
+        // ПРІОРИТЕТ 1: За ID номенклатури (найточніше)
+        let matches = []
+        if (nomId) {
+          matches = (targetInv || []).filter(i => String(i.nomenclature_id) === String(nomId))
+        }
+        
+        // ПРІОРИТЕТ 2: За нормалізованим ім'ям (якщо ID немає або не знайдено)
+        if (matches.length === 0 && itemName) {
+          matches = (targetInv || []).filter(i => normalize(i.name) === normalize(itemName))
+        }
+
+        let existing = null
+        if (matches.length > 0) {
+          // Якщо є дублікати, вибираємо той запис, де вже є залишок (щоб не плодити порожні)
+          existing = matches.sort((a, b) => (Number(b.total_qty) || 0) - (Number(a.total_qty) || 0))[0]
+        }
 
         if (existing) {
           const currentUpdate = updatesMap.get(existing.id) || { 
