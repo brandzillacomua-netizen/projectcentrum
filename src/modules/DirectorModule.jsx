@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import {
   ShieldCheck,
   ArrowLeft,
@@ -21,7 +21,7 @@ import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
 
 const DirectorModule = () => {
-  const { tasks, orders, approveDirector, nomenclatures, requests, workCards, workCardHistory, inventory } = useMES()
+  const { tasks, orders, approveDirector, nomenclatures, requests, workCards, workCardHistory, inventory, supabase } = useMES()
   const [viewDate, setViewDate] = useState(new Date())
   const [isApprovalsOpen, setIsApprovalsOpen] = useState(false)
   const [selectedCell, setSelectedCell] = useState(null)
@@ -29,6 +29,36 @@ const DirectorModule = () => {
   const [selectedOrderId, setSelectedOrderId] = useState(null)
   const [expandedReqs, setExpandedReqs] = useState({})
   const [expandedNaryads, setExpandedNaryads] = useState({})
+  const [allOrdersMap, setAllOrdersMap] = useState({})
+
+  // ── Load orders for ALL tasks in state (pagination-independent) ───────────────
+  useEffect(() => {
+    if (!tasks || tasks.length === 0) return;
+    const neededOrderIds = [...new Set(tasks.map(t => t.order_id).filter(Boolean))];
+    const missingIds = neededOrderIds.filter(id => 
+      !orders.find(o => String(o.id) === String(id)) && 
+      !allOrdersMap[id]
+    );
+    if (missingIds.length === 0) return;
+
+    supabase
+      .from('orders')
+      .select('*, order_items(*)')
+      .in('id', missingIds)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('DirectorModule: Error fetching missing orders:', error);
+          return;
+        }
+        if (data && data.length > 0) {
+          setAllOrdersMap(prev => {
+            const next = { ...prev };
+            data.forEach(o => { next[o.id] = o; });
+            return next;
+          });
+        }
+      });
+  }, [tasks, orders, supabase]);
 
   const toggleReq = (id) => {
     setExpandedReqs(prev => ({ ...prev, [id]: !prev[id] }))
@@ -84,8 +114,12 @@ const DirectorModule = () => {
     orders.forEach(o => {
       o.order_items?.forEach(item => productIdsInOrders.add(item.nomenclature_id))
     })
+    // Also check allOrdersMap
+    Object.values(allOrdersMap).forEach(o => {
+      o.order_items?.forEach(item => productIdsInOrders.add(item.nomenclature_id))
+    })
     return nomenclatures.filter(n => n.type === 'product' && productIdsInOrders.has(n.id))
-  }, [orders, nomenclatures])
+  }, [orders, allOrdersMap, nomenclatures])
 
   // Map orders to (Date, Product) - Intelligent scheduling logic
   const matrixData = useMemo(() => {
@@ -99,8 +133,16 @@ const DirectorModule = () => {
        map[dateKey][pid].push(entry)
     }
 
+    // Combine current orders and our local cache
+    const combinedOrders = [...orders];
+    Object.values(allOrdersMap).forEach(o => {
+      if (!combinedOrders.find(co => co.id === o.id)) {
+        combinedOrders.push(o);
+      }
+    });
+
     // Step 1: Process Orders (Remaining Balance)
-    orders.forEach(o => {
+    combinedOrders.forEach(o => {
       const orderDeadline = toLocalISO(o.deadline)
       if (!orderDeadline) return
 
@@ -137,7 +179,7 @@ const DirectorModule = () => {
       const taskDeadline = toLocalISO(t.planned_deadline || t.created_at)
       if (!taskDeadline) return
       
-      const order = orders.find(o => String(o.id) === String(t.order_id))
+      const order = combinedOrders.find(o => String(o.id) === String(t.order_id))
       const batchQty = Number(t.planned_sets) || 0
       
       if (order && batchQty > 0) {
@@ -155,7 +197,7 @@ const DirectorModule = () => {
     })
 
     return map
-  }, [orders, tasks])
+  }, [orders, allOrdersMap, tasks])
 
   const parseRequestDetails = (details) => {
     if (!details) return { main: '—', sub: '' }

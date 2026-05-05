@@ -29,18 +29,30 @@ const ForemanWorkplace = () => {
   // Local cache: orders for ALL relevant tasks, bypasses global pagination (PAGE_SIZE=20)
   const [allOrdersMap, setAllOrdersMap] = useState({})
 
-  // ── Load orders for ALL active tasks (pagination-independent) ──────────────
+  // ── Load orders for ALL relevant tasks (pagination-independent) ──────────────
   useEffect(() => {
-    const activeTasks = tasks.filter(t => t.status !== 'completed' && t.status !== 'pending');
-    if (activeTasks.length === 0) return;
-    const neededIds = [...new Set(activeTasks.map(t => t.order_id).filter(Boolean))];
-    const missingIds = neededIds.filter(id => !orders.find(o => o.id === id));
+    if (tasks.length === 0) return;
+    
+    // Get all order IDs from tasks that might be shown in the UI
+    const neededIds = [...new Set(tasks.map(t => t.order_id).filter(Boolean))];
+    
+    // Find IDs that are neither in the global orders list nor in our local allOrdersMap cache
+    const missingIds = neededIds.filter(id => 
+      !orders.find(o => String(o.id) === String(id)) && 
+      !allOrdersMap[id]
+    );
+
     if (missingIds.length === 0) return;
+
     supabase
       .from('orders')
       .select('*, order_items(*)')
       .in('id', missingIds)
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Error fetching missing orders for Foreman:', error);
+          return;
+        }
         if (data && data.length > 0) {
           setAllOrdersMap(prev => {
             const next = { ...prev };
@@ -49,7 +61,7 @@ const ForemanWorkplace = () => {
           });
         }
       });
-  }, [tasks.length, orders.length]);
+  }, [tasks, orders]);
 
   // Підвантажуємо архівні картки при зміні активного наряду
   useEffect(() => {
@@ -146,7 +158,7 @@ const ForemanWorkplace = () => {
       map[task.id] = Boolean(isReady)
     })
     return map
-  }, [tasks, orders, workCards, nomenclatures, bomItems])
+  }, [tasks, orders, allOrdersMap, workCards, nomenclatures, bomItems])
 
   // 0b. Per-task shortage map — needs ДОВИПУСК (scrap exceeded BZ buffer, no REDO card yet)
   const taskShortageMap = useMemo(() => {

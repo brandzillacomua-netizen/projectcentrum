@@ -39,22 +39,30 @@ const MasterModule = () => {
   const [tempSets, setTempSets] = useState(0)
   const [tempDeadline, setTempDeadline] = useState('')
 
-  // ── Fetch orders for ALL active tasks (pagination-independent) ───────────────
+  // ── Fetch orders for ALL tasks in state (pagination-independent) ───────────────
   // This ensures that tasks created before today are never orphaned
   useEffect(() => {
-    const activeTasks = tasks.filter(t => t.status !== 'completed' && t.status !== 'pending');
-    if (activeTasks.length === 0) return;
+    if (tasks.length === 0) return;
 
-    const neededOrderIds = [...new Set(activeTasks.map(t => t.order_id).filter(Boolean))];
-    // Filter out IDs already in global orders context
-    const missingIds = neededOrderIds.filter(id => !orders.find(o => o.id === id));
+    const neededOrderIds = [...new Set(tasks.map(t => t.order_id).filter(Boolean))];
+    
+    // Find IDs that are neither in the global orders context nor in our local allOrdersMap cache
+    const missingIds = neededOrderIds.filter(id => 
+      !orders.find(o => String(o.id) === String(id)) && 
+      !allOrdersMap[id]
+    );
+
     if (missingIds.length === 0) return;
 
     supabase
       .from('orders')
       .select('*, order_items(*)')
       .in('id', missingIds)
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Error fetching missing orders for Master:', error);
+          return;
+        }
         if (data && data.length > 0) {
           setAllOrdersMap(prev => {
             const next = { ...prev };
