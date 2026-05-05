@@ -17,6 +17,7 @@ import {
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
+import { nomenclatureService } from '../services/nomenclatureService'
 
 const ManagerModule = () => {
   const { nomenclatures, addOrder, orders, fetchOrders, hasMoreOrders, customers, searchCustomers, currentUser, loading, getOrderProductionProgress } = useMES()
@@ -41,12 +42,76 @@ const ManagerModule = () => {
   
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [showCustomerHints, setShowCustomerHints] = useState(false)
+  const [rustProducts, setRustProducts] = useState([])
+  const [rustOrders, setRustOrders] = useState([])
+  const [rustCounterparties, setRustCounterparties] = useState([])
+  // Map: characteristic_id → nomenclature_name  (built once on load, O(1) lookup)
+  const [charToNomMap, setCharToNomMap] = useState(new Map())
+  // Map: customer_id → customer_name
+  const [custMap, setCustMap] = useState(new Map())
+  const [activeTab, setActiveTab] = useState('supabase') // 'supabase' or 'rust'
+  const [isRustLoading, setIsRustLoading] = useState(false)
 
   // Fetch orders when filters change
   useEffect(() => {
     setCurrentPage(0)
     fetchOrders(0, false, { searchQuery, dateRange: dateFilter })
   }, [dateFilter, searchQuery])
+
+  const loadRustData = async () => {
+    setIsRustLoading(true)
+    try {
+      const token = localStorage.getItem('BACKEND_TOKEN') || '';
+      const authH = { 'Authorization': `Bearer ${token}` };
+
+      // Load nomenclature, orders, counterparties in parallel
+      const [itemsData, ordersRes, cpData] = await Promise.all([
+        nomenclatureService.getNomenclature(),
+        fetch('/api/orders', { headers: authH }),
+        fetch('/api/counterparties', { headers: authH }).then(r => r.json())
+      ]);
+
+      if (!ordersRes.ok) {
+        console.error('Rust orders error:', ordersRes.status);
+        return;
+      }
+
+      const ordersData = await ordersRes.json();
+      const items = itemsData.items || itemsData || [];
+      const counterparties = cpData.items || cpData || [];
+      const orders = ordersData.items || ordersData || [];
+
+      // ── Build characteristic_id → nomenclature_name Map ────────────────────────
+      // Fetch characteristics for each nomenclature item in parallel
+      const charMap = new Map();
+      await Promise.all(
+        items.map(async (nom) => {
+          try {
+            const charData = await nomenclatureService.getCharacteristics(nom.id);
+            const chars = charData.items || charData || [];
+            chars.forEach(char => charMap.set(char.id, nom.name));
+          } catch (_) { /* skip if no characteristics */ }
+        })
+      );
+
+      // ── Build customer_id → name Map ──────────────────────────────────
+      const cMap = new Map(counterparties.map(c => [c.id, c.name]));
+
+      setRustProducts(items);
+      setRustOrders(orders);
+      setRustCounterparties(counterparties);
+      setCharToNomMap(charMap);
+      setCustMap(cMap);
+    } catch (err) {
+      console.warn('⚠️ Rust data load failed:', err.message);
+    } finally {
+      setIsRustLoading(false)
+    }
+  };
+
+  useEffect(() => {
+    loadRustData();
+  }, []);
 
   const getStatusLabel = (s) => {
     const map = {
@@ -83,8 +148,11 @@ const ManagerModule = () => {
     
     setIsSubmitting(true)
     try {
+      const selectedProduct = rustProducts.find(p => String(p.id) === String(orderHeader.nomenclature_id));
+      const headerWithInfo = { ...orderHeader, productName: selectedProduct?.name || '' };
+      
       const items = [{ nomenclature_id: orderHeader.nomenclature_id, quantity: orderHeader.quantity }]
-      await apiService.submitOrder(orderHeader, items, addOrder, currentUser?.token)
+      await apiService.submitOrder(headerWithInfo, items, addOrder, currentUser?.token)
       
       setOrderHeader({ 
         ...orderHeader,
@@ -164,13 +232,15 @@ const ManagerModule = () => {
                 </div>
               </div>
 
-              <div className="form-group-modern">
-                <label>ВИРІБ</label>
+               <div className="form-group-modern">
+                <label>ВИРІБ (Нова База)</label>
                 <div className="input-wrapper">
                   <Layers size={16} />
                   <select value={orderHeader.nomenclature_id} onChange={e => setOrderHeader({...orderHeader, nomenclature_id: e.target.value})}>
-                     <option value="">Оберіть виріб...</option>
-                     {nomenclatures.filter(n => n.type === 'product').map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+                     <option value="">Оберіть готовий виріб...</option>
+                     {rustProducts
+                       .filter(p => !orderHeader.targetGroupId || p.group_id === orderHeader.targetGroupId)
+                       .map(n => <option key={n.id} value={n.id}>{n.name} ({n.nomenclature_code})</option>)}
                   </select>
                 </div>
               </div>
@@ -211,7 +281,11 @@ const ManagerModule = () => {
           <div className="registry-header-modern">
              <div className="registry-title-group">
                 <Layers className="text-orange" size={28} />
-                <h3>РЕЄСТР ЗАМОВЛЕНЬ <span className="count-badge">{orders.length}</span></h3>
+                <h3>РЕЄСТР ЗАМОВЛЕНЬ</h3>
+                <div className="tab-switcher" style={{ display: 'flex', gap: '5px', background: '#111', padding: '4px', borderRadius: '12px', marginLeft: '20px' }}>
+                  <button onClick={() => setActiveTab('supabase')} style={{ padding: '6px 12px', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 600, background: activeTab === 'supabase' ? '#ff9000' : 'transparent', color: activeTab === 'supabase' ? '#000' : '#888' }}>CRM (Supabase)</button>
+                  <button onClick={() => setActiveTab('rust')} style={{ padding: '6px 12px', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 600, background: activeTab === 'rust' ? '#3b82f6' : 'transparent', color: activeTab === 'rust' ? '#fff' : '#888' }}>НОВА БАЗА (Rust)</button>
+                </div>
              </div>
 
              <div className="filters-container-modern">
@@ -244,23 +318,40 @@ const ManagerModule = () => {
                      </tr>
                    </thead>
                    <tbody>
-                        {orders.map(order => {
-                          const progress = getOrderProductionProgress(order.id)
-                          return (
-                            <tr key={order.id} onClick={() => setSelectedOrder(order)}>
-                               <td className="order-num-cell">#{order.order_num}</td>
-                               <td className="customer-cell">{order.customer}</td>
-                               <td className="product-cell">{nomenclatures.find(n => n.id === order.order_items?.[0]?.nomenclature_id)?.name || '—'}</td>
-                               <td className="qty-cell">
-                                 <strong>{progress.packaged} / {progress.total}</strong> шт
-                               </td>
-                               <td className="date-cell">{order.deadline ? new Date(order.deadline).toLocaleDateString() : '—'}</td>
-                               <td style={{ textAlign: 'right' }}>
-                                  <span className={`status-pill ${progress.status}`}>{getStatusLabel(progress.status)}</span>
-                               </td>
-                            </tr>
-                          )
-                        })}
+                         {activeTab === 'supabase' ? (
+                           orders.map(order => {
+                             const nom = nomenclatures.find(n => String(n.id) === String(order.nomenclature_id));
+                             const prodName = nom ? nom.name : (order.accessories || '—');
+                             const ordQty = order.quantity || 0;
+                             const prog = getOrderProductionProgress(order.id);
+                             return (
+                               <tr key={order.id} onClick={() => setSelectedOrder(order)}>
+                                 <td className="order-num-cell">#{order.order_num}</td>
+                                 <td className="customer-cell">{order.customer}</td>
+                                 <td className="product-cell">{prodName}</td>
+                                 <td className="qty-cell"><strong>{prog.packaged} / {ordQty}</strong> шт</td>
+                                 <td className="date-cell">{order.deadline ? new Date(order.deadline).toLocaleDateString() : '—'}</td>
+                                 <td style={{ textAlign: 'right' }}><span className={`status-pill ${prog.status}`}>{getStatusLabel(prog.status)}</span></td>
+                               </tr>
+                             )
+                           })
+                         ) : (
+                            rustOrders.map(order => {
+                              // O(1) Map lookups — no .find() loops, no text parsing
+                              const prodName = charToNomMap.get(order.characteristic_id) ?? '—';
+                              const custName = custMap.get(order.customer_id) ?? '—';
+                              return (
+                                <tr key={order.id}>
+                                  <td className="order-num-cell" style={{ color: '#3b82f6' }}>{order.number}</td>
+                                  <td className="customer-cell">{custName}</td>
+                                  <td className="product-cell">{prodName}</td>
+                                  <td className="qty-cell"><strong>0 / {order.qty_ordered}</strong> шт</td>
+                                  <td className="date-cell">{order.planned_ship_date ? new Date(order.planned_ship_date).toLocaleDateString() : '—'}</td>
+                                  <td style={{ textAlign: 'right' }}><span className={`status-pill ${order.status || 'new'}`}>{String(order.status || 'new').toUpperCase()}</span></td>
+                                </tr>
+                              )
+                            })
+                         )}
                    </tbody>
                 </table>
              </div>

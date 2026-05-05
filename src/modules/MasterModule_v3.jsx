@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import {
   ClipboardCheck,
   ArrowLeft,
@@ -15,6 +15,7 @@ import {
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
+import { supabase } from '../supabase'
 
 const MasterModule = () => {
   const {
@@ -30,11 +31,39 @@ const MasterModule = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [reprintTask, setReprintTask] = useState(null)
+  // Local cache of ALL orders needed for active tasks (bypasses pagination)
+  const [allOrdersMap, setAllOrdersMap] = useState({})
   
   // Quick Plan state
   const [quickPlanOrder, setQuickPlanOrder] = useState(null)
   const [tempSets, setTempSets] = useState(0)
   const [tempDeadline, setTempDeadline] = useState('')
+
+  // ── Fetch orders for ALL active tasks (pagination-independent) ───────────────
+  // This ensures that tasks created before today are never orphaned
+  useEffect(() => {
+    const activeTasks = tasks.filter(t => t.status !== 'completed' && t.status !== 'pending');
+    if (activeTasks.length === 0) return;
+
+    const neededOrderIds = [...new Set(activeTasks.map(t => t.order_id).filter(Boolean))];
+    // Filter out IDs already in global orders context
+    const missingIds = neededOrderIds.filter(id => !orders.find(o => o.id === id));
+    if (missingIds.length === 0) return;
+
+    supabase
+      .from('orders')
+      .select('*, order_items(*)')
+      .in('id', missingIds)
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setAllOrdersMap(prev => {
+            const next = { ...prev };
+            data.forEach(o => { next[o.id] = o; });
+            return next;
+          });
+        }
+      });
+  }, [tasks, orders]);
 
   const getPlannedQty = (orderItemId) => {
     const item = orders.flatMap(o => o.order_items || []).find(it => it.id === orderItemId)
@@ -155,7 +184,7 @@ const MasterModule = () => {
   }
 
   const handleReprint = (task) => {
-    const order = orders.find(o => o.id === task.order_id)
+    const order = orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
     if (order) {
       setIsReprintMode(true)
       setReprintTask(task)
@@ -355,7 +384,7 @@ const MasterModule = () => {
             <h3 style={{ fontSize: '0.85rem', color: '#555', marginBottom: '15px' }}><Play size={16} fill="currentColor" /> АКТИВНІ В ЦЕХУ</h3>
             <div className="v-stack" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {tasks.filter(t => t.status !== 'completed' && t.status !== 'pending').map(task => {
-                const order = orders.find(o => o.id === task.order_id)
+                const order = orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
                 const taskProductNames = order?.order_items
                   ?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name)
                   .filter(Boolean)
@@ -448,7 +477,7 @@ const MasterModule = () => {
                 // ГРУПУЄМО ЗА НОМЕРОМ НАРЯДУ
                 const groups = {};
                 archiveTasks.forEach(task => {
-                  const order = orders.find(o => o.id === task.order_id);
+                  const order = orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id];
                   const key = `${task.order_id}_${task.batch_index || '1'}`;
                   if (!groups[key]) {
                     groups[key] = {

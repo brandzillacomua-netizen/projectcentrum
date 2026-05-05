@@ -253,7 +253,10 @@ export function useData() {
     const savedLogin = localStorage.getItem('MES_SESSION_LOGIN')
     if (savedLogin) {
       supabase.from('system_users').select('*').eq('login', savedLogin).then(({ data }) => {
-        if (data && data.length > 0) setCurrentUser(data[0])
+        if (data && data.length > 0) {
+          const token = localStorage.getItem('BACKEND_TOKEN')
+          setCurrentUser({ ...data[0], token })
+        }
         else localStorage.removeItem('MES_SESSION_LOGIN')
         setSessionLoading(false)
       })

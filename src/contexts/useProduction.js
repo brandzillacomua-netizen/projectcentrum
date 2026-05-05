@@ -26,15 +26,49 @@ export function createProductionActions({
   }
 
   const addOrder = async (header, items) => {
+    // 1. Upsert customer in the customers directory
     if (header.customer) {
       const trimmedName = header.customer.trim()
       const { data: existing } = await supabase.from('customers').select('id').ilike('name', trimmedName).maybeSingle()
       if (!existing) await supabase.from('customers').insert([{ name: trimmedName, official_name: header.official_customer?.trim() || '' }])
     }
-    const { data, error } = await supabase.from('orders').insert([{ order_num: header.orderNum, customer: header.customer, official_customer: header.official_customer, deadline: header.deadline, status: 'pending' }]).select()
+
+    // 2. Resolve Supabase-native nomenclature_id by product name (NOT Rust UUID)
+    let supaNomenclatureId = null;
+    if (header.productName) {
+      const { data: nomRow } = await supabase
+        .from('nomenclatures')
+        .select('id')
+        .ilike('name', header.productName.trim())
+        .maybeSingle();
+      if (nomRow) supaNomenclatureId = nomRow.id;
+    }
+
+    // 3. Insert order with quantity and nomenclature_id stored directly
+    const orderedQty = items?.[0]?.quantity || header.quantity || 0;
+    const { data, error } = await supabase.from('orders').insert([{
+      order_num: header.orderNum,
+      customer: header.customer,
+      official_customer: header.official_customer,
+      deadline: header.deadline,
+      status: 'pending',
+      source: header.source || 'Виробництво',
+      nomenclature_id: supaNomenclatureId,  // Supabase-native UUID or null
+      quantity: Number(orderedQty),
+      accessories: header.productName || '', // Store product name as plain text backup
+    }]).select()
     if (error) throw error
-    const newOrderId = data[0].id
-    await supabase.from('order_items').insert(items.map(it => ({ order_id: newOrderId, nomenclature_id: it.nomenclature_id, quantity: Number(it.quantity) })))
+
+    // 4. Insert order_items only if we have a valid Supabase nomenclature_id
+    const newOrderId = data[0].id;
+    if (supaNomenclatureId && items?.length > 0) {
+      await supabase.from('order_items').insert(
+        items.map(it => ({ order_id: newOrderId, nomenclature_id: supaNomenclatureId, quantity: Number(orderedQty) }))
+      ).then(({ error: itemErr }) => {
+        if (itemErr) console.warn('order_items insert skipped (non-critical):', itemErr.message);
+      });
+    }
+
     fetchData()
   }
 

@@ -17,10 +17,14 @@ import {
   MoreVertical,
   Activity,
   Check,
-  AlertCircle
+  AlertCircle,
+  FileUp,
+  Clock,
+  Loader2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { nomenclatureService } from '../services/nomenclatureService';
+import { useMES } from '../MESContext';
 
 const GroupItem = ({ group, allGroups, depth = 0 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -82,7 +86,10 @@ const NomenclatureV2 = () => {
 
   const [newGroup, setNewGroup] = useState({ name: '', code: '', parent_id: null });
   const [newType, setNewType] = useState({ name: '', description: '' });
-  const [newItem, setNewItem] = useState({ base_code: '', name: '', group_id: '', unit_of_measure: 'шт' });
+  const [newItem, setNewItem] = useState({ base_code: '', name: '', group_id: '', unit: 'шт' });
+
+  const [importLogs, setImportLogs] = useState([]);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -96,9 +103,9 @@ const NomenclatureV2 = () => {
         nomenclatureService.getTypes(),
         nomenclatureService.getNomenclature()
       ]);
-      setGroups(g);
-      setTypes(t);
-      setItems(i);
+      setGroups(g.items || g || []);
+      setTypes(t.items || t || []);
+      setItems(i.items || i || []);
     } catch (err) {
       console.error('Failed to load data:', err);
     } finally {
@@ -131,7 +138,7 @@ const NomenclatureV2 = () => {
     try {
       await nomenclatureService.createNomenclature({...newItem, base_code: Number(newItem.base_code)});
       setIsItemModalOpen(false);
-      setNewItem({ base_code: '', name: '', group_id: '', unit_of_measure: 'шт' });
+      setNewItem({ base_code: '', name: '', group_id: '', unit: 'шт' });
       loadData();
     } catch (err) { alert(err.message); }
   };
@@ -142,13 +149,196 @@ const NomenclatureV2 = () => {
     if (q.length > 2) {
       try {
         const results = await nomenclatureService.searchNomenclature(q);
-        setItems(results);
+        setItems(results.items || results || []);
       } catch (err) {
         console.error('Search failed:', err);
       }
     } else if (q.length === 0) {
       loadData();
     }
+  };
+
+  const parseSpecCSV = (text) => {
+    const cleanedText = text.replace(/"([^"]*)"/g, (m, p1) => `"${p1.replace(/\r?\n/g, ' ')}"`)
+    const lines = cleanedText.split(/\r?\n/).filter(line => line.trim() !== '')
+    if (lines.length === 0) return null
+    
+    // First line is the spec name
+    const firstLineMatch = lines[0].match(/"?Специфікація\s+""([^""]+)""/i) || lines[0].match(/"?Специфікація\s+([^,]+)/i);
+    const specName = firstLineMatch ? firstLineMatch[1].trim() : "Нова специфікація";
+    
+    const result = { productName: specName, components: [] }
+    let currentGroupName = 'Деталі' // Default for structural parts
+
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim()
+      if (!line) continue;
+      
+      const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.trim().replace(/^"|"$/g, ''))
+      
+      // Перевірка чи це заголовок групи (напр. "Метизи,,,,,,,")
+      const isGroupHeader = cols[0] && isNaN(parseInt(cols[0])) && cols.slice(1).every(c => !c || c === '');
+      if (isGroupHeader) {
+        currentGroupName = cols[0];
+        continue;
+      }
+
+      // Перевірка чи це рядок даних
+      const indexNum = parseInt(cols[0])
+      if (!isNaN(indexNum) && cols[1]) {
+        const nomName = cols[1];
+        const characteristics = cols[2] || '';
+        const desc = cols[3] || '';
+        const qty = parseFloat(cols[4]) || 1;
+
+        result.components.push({
+          name: nomName,
+          characteristics: characteristics,
+          description: desc,
+          qtyPerOne: qty,
+          groupName: currentGroupName
+        })
+      }
+    }
+    return result
+  }
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setIsProcessing(true); setImportLogs(['⏳ Початок інтелектуального імпорту...'])
+    const reader = new FileReader()
+    reader.onload = async (event) => {
+      try {
+        const text = event.target.result
+        const parsed = parseSpecCSV(text)
+        if (!parsed) throw new Error("Не вдалося розпізнати CSV")
+        
+        // 1. Попереднє завантаження груп
+        const groupsRes = await nomenclatureService.getGroups();
+        const currentGroups = groupsRes.items || groupsRes || [];
+        const groupCache = {};
+        currentGroups.forEach(g => groupCache[g.name.toLowerCase()] = g);
+
+        // 2. Допоміжна функція для отримання/створення групи
+        let groupCodeCounter = currentGroups.length + 1;
+        const getGroup = async (name) => {
+          const key = name.toLowerCase();
+          if (groupCache[key]) return groupCache[key];
+          
+          setImportLogs(prev => [...prev, `📂 Створення групи: ${name}...`]);
+          const newG = await nomenclatureService.createGroup({
+            name: name,
+            code: name.substring(0,3).toUpperCase() + String(groupCodeCounter++).padStart(3, '0'),
+            parent_id: null
+          });
+          groupCache[key] = newG;
+          return newG;
+        };
+
+        // 3. Завантаження існуючої номенклатури
+        const itemsRes = await nomenclatureService.getNomenclature();
+        const currentItems = itemsRes.items || itemsRes || [];
+
+        // ── Послідовний лічильник: продовжуємо від максимального існуючого коду ──
+        const maxExistingCode = currentItems.reduce((max, n) => {
+          const c = Number(n.base_code) || 0;
+          return c > max ? c : max;
+        }, 0);
+        let codeCounter = maxExistingCode + 1;
+
+        // ── Helper: створити або знайти позицію (100% ідемпотентний) ─────────────
+        // При 409 (код зайнятий) → пробуємо наступний код
+        // При збігу імені → повертаємо існуючу позицію
+        const createOrFind = async (name, extraPayload) => {
+          // 0. Перевіряємо локальний кеш по імені
+          const cached = currentItems.find(n => n.name.trim() === name.trim());
+          if (cached) {
+            setImportLogs(prev => [...prev, `✅ Вже є: ${name}`]);
+            return cached;
+          }
+
+          // 1. Пробуємо створити зі збільшенням коду при конфлікті
+          let attempt = 0;
+          while (attempt < 200) {
+            const currentCode = codeCounter++;
+            try {
+              const created = await nomenclatureService.createNomenclature({
+                base_code: currentCode,
+                name,
+                ...extraPayload
+              });
+              setImportLogs(prev => [...prev, `🔍 [${currentCode}] Зареєстровано: ${name}`]);
+              return created.nomenclature || created;
+            } catch (err) {
+              if (err.message.includes('409') || err.message.includes('вже існує')) {
+                // Код зайнятий — шукаємо чи це наша позиція по імені
+                try {
+                  const searchRes = await nomenclatureService.searchNomenclature(name);
+                  const found = (searchRes.items || searchRes || [])
+                    .find(n => n.name.trim() === name.trim());
+                  if (found) {
+                    setImportLogs(prev => [...prev, `ℹ️ Знайдено існуючу: ${name}`]);
+                    return found;
+                  }
+                } catch (_) {}
+                // Код зайнятий іншою позицією → пробуємо наступний
+                attempt++;
+                continue;
+              }
+              throw err; // інші помилки (422, 500...) — пробрасуємо
+            }
+          }
+          throw new Error(`Не вдалося зареєструвати: ${name} (всі коди зайняті)`);
+        };
+
+        // 4. Імпорт компонентів
+        for (const comp of parsed.components) {
+          const fullName = comp.characteristics ? `${comp.name} ${comp.characteristics}`.trim() : comp.name.trim();
+          const targetGroup = await getGroup(comp.groupName);
+
+          const typeKeyword = comp.groupName.includes('Метизи') ? 'Комплектуючі' : 'Деталь';
+          const typeObj = types.find(t => t.name.includes(typeKeyword)) || types[0];
+
+          const baseNom = await createOrFind(fullName, {
+            group_id: targetGroup.id,
+            nom_type_id: typeObj?.id,
+            unit: 'шт'
+          });
+
+          // ОБОВ'ЯЗКОВО створюємо базову характеристику
+          await nomenclatureService.createCharacteristic(baseNom.id, {
+            name: "Базова",
+            code: "BASE",
+            is_base: true
+          }).catch(() => {}); // Ігноруємо якщо вже є
+        }
+
+        // 5. Створення головного виробу
+        const parentGroup = await getGroup("Готові вироби");
+        const specName = parsed.productName;
+        const typeObjParent = types.find(t => t.name.includes('Готовий')) || types[0];
+        const parentNom = await createOrFind(specName, {
+          group_id: parentGroup.id,
+          nom_type_id: typeObjParent?.id,
+          unit: 'шт'
+        });
+
+        await nomenclatureService.createCharacteristic(parentNom.id, {
+          name: "Базова",
+          code: "BASE",
+          is_base: true
+        }).catch(() => {});
+
+        setImportLogs(prev => [...prev, '✅ ІМПОРТ ЗАВЕРШЕНО УСПІШНО!']);
+        loadData();
+      } catch (err) {
+        setImportLogs(prev => [...prev, `❌ Помилка: ${err.message}`]);
+      } finally {
+        setIsProcessing(false);
+      }
+    };
+    reader.readAsText(file);
   };
 
   return (
@@ -201,6 +391,12 @@ const NomenclatureV2 = () => {
               >
                 <Type size={20} /> Типи номенклатури
               </button>
+              <button 
+                onClick={() => setActiveTab('import')}
+                style={{ background: activeTab === 'import' ? 'rgba(255,144,0,0.1)' : 'transparent', color: activeTab === 'import' ? '#ff9000' : '#555', border: 'none', borderRadius: '12px', padding: '15px', textAlign: 'left', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: '0.3s' }}
+              >
+                <FileUp size={20} /> Імпорт CSV (Sync)
+              </button>
             </div>
           </div>
           <div style={{ padding: '20px', borderTop: '1px solid #1a1a1a' }}>
@@ -211,10 +407,11 @@ const NomenclatureV2 = () => {
         {/* Main Area */}
         <main style={{ flex: 1, padding: '30px', overflowY: 'auto', background: '#050505' }}>
            {/* Mobile Tabs */}
-           <div className="mobile-only" style={{ display: 'flex', gap: '10px', marginBottom: '25px' }}>
+           <div className="mobile-only" style={{ display: 'flex', gap: '10px', marginBottom: '25px', overflowX: 'auto' }}>
               <button onClick={() => setActiveTab('registry')} style={{ flex: 1, background: activeTab === 'registry' ? '#ff9000' : '#111', color: activeTab === 'registry' ? '#000' : '#555', border: 'none', borderRadius: '10px', padding: '10px', fontSize: '0.7rem', fontWeight: 900 }}>РЕЄСТР</button>
               <button onClick={() => setActiveTab('groups')} style={{ flex: 1, background: activeTab === 'groups' ? '#ff9000' : '#111', color: activeTab === 'groups' ? '#000' : '#555', border: 'none', borderRadius: '10px', padding: '10px', fontSize: '0.7rem', fontWeight: 900 }}>ГРУПИ</button>
               <button onClick={() => setActiveTab('types')} style={{ flex: 1, background: activeTab === 'types' ? '#ff9000' : '#111', color: activeTab === 'types' ? '#000' : '#555', border: 'none', borderRadius: '10px', padding: '10px', fontSize: '0.7rem', fontWeight: 900 }}>ТИПИ</button>
+              <button onClick={() => setActiveTab('import')} style={{ flex: 1, background: activeTab === 'import' ? '#ff9000' : '#111', color: activeTab === 'import' ? '#000' : '#555', border: 'none', borderRadius: '10px', padding: '10px', fontSize: '0.7rem', fontWeight: 900 }}>CSV</button>
            </div>
 
            {activeTab === 'registry' && (
@@ -258,7 +455,7 @@ const NomenclatureV2 = () => {
                                 <td style={{ padding: '18px 25px', fontWeight: 700, color: isActive ? '#ff9000' : '#444' }}>{item.base_code || item.id.substring(0,8)}</td>
                                 <td style={{ padding: '18px 25px', fontWeight: 800 }}>{item.name}</td>
                                 <td style={{ padding: '18px 25px', color: '#666' }}>{groups.find(g => g.id === item.group_id)?.name || '—'}</td>
-                                <td style={{ padding: '18px 25px', color: '#888' }}>{item.unit_of_measure || 'шт'}</td>
+                                <td style={{ padding: '18px 25px', color: '#888' }}>{item.unit || 'шт'}</td>
                                 <td style={{ padding: '18px 25px', textAlign: 'center' }}>
                                    <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
                                       <button 
@@ -332,6 +529,56 @@ const NomenclatureV2 = () => {
                 </div>
              </div>
            )}
+
+            {activeTab === 'import' && (
+              <div className="view-import anim-fade-in" style={{ maxWidth: '800px', margin: '0 auto' }}>
+                 <div className="glass-panel" style={{ padding: '60px', borderRadius: '24px', textAlign: 'center', border: '2px dashed #333', background: 'rgba(20,20,20,0.4)' }}>
+                    <FileUp size={48} color="#ff9000" style={{ marginBottom: '20px', opacity: 0.5 }} />
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: 900, marginBottom: '10px' }}>Імпорт на Rust-бекенд</h2>
+                    <p style={{ color: '#555', marginBottom: '30px', fontSize: '0.9rem' }}>Завантажте CSV-файл. Система автоматично створить номенклатуру <br/> та базові характеристики для роботи із замовленнями.</p>
+                    
+                    <input 
+                      type="file" 
+                      accept=".csv" 
+                      id="rust-csv-upload" 
+                      hidden 
+                      onChange={handleFileUpload}
+                      disabled={isProcessing}
+                    />
+                    <label htmlFor="rust-csv-upload" style={{ 
+                      display: 'inline-flex', 
+                      alignItems: 'center', 
+                      gap: '12px', 
+                      background: '#ff9000', 
+                      color: '#000', 
+                      padding: '15px 35px', 
+                      borderRadius: '14px', 
+                      fontWeight: 900, 
+                      cursor: isProcessing ? 'default' : 'pointer',
+                      opacity: isProcessing ? 0.5 : 1
+                    }}>
+                      {isProcessing ? <Loader2 className="spin" size={20} /> : <Plus size={20} />} ОБРАТИ ФАЙЛ ДЛЯ СИНХРОНІЗАЦІЇ
+                    </label>
+                 </div>
+
+                 {importLogs.length > 0 && (
+                   <div style={{ marginTop: '30px', background: '#000', borderRadius: '16px', border: '1px solid #1a1a1a', padding: '20px', maxHeight: '400px', overflowY: 'auto' }}>
+                      <h4 style={{ margin: '0 0 15px', color: '#555', display: 'flex', alignItems: 'center', gap: '8px' }}><Clock size={16}/> Процес синхронізації:</h4>
+                      {importLogs.map((log, i) => (
+                        <div key={i} style={{ 
+                          fontSize: '0.8rem', 
+                          padding: '8px 0', 
+                          borderBottom: '1px solid #111',
+                          color: log.includes('✅') ? '#10b981' : log.includes('❌') ? '#ef4444' : '#888',
+                          fontWeight: log.startsWith('📦') || log.startsWith('🔍') || log.startsWith('✨') ? 800 : 400
+                        }}>
+                          {log}
+                        </div>
+                      ))}
+                   </div>
+                 )}
+              </div>
+            )}
         </main>
       </div>
 
@@ -390,7 +637,7 @@ const NomenclatureV2 = () => {
             </div>
             <div className="form-group">
                <label>ОДИНИЦЯ ВИМІРУ</label>
-               <select value={newItem.unit_of_measure} onChange={e => setNewItem({...newItem, unit_of_measure: e.target.value})}>
+               <select value={newItem.unit} onChange={e => setNewItem({...newItem, unit: e.target.value})}>
                   <option value="шт">Штуки (шт)</option>
                   <option value="кг">Кілограми (кг)</option>
                   <option value="м">Метри (м)</option>

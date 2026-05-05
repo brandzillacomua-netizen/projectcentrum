@@ -35,6 +35,7 @@ export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers,
         finalUser = created
       }
       const userWithToken = { ...finalUser, token }
+      if (token) localStorage.setItem('BACKEND_TOKEN', token)
       setCurrentUser(userWithToken)
       localStorage.setItem('MES_SESSION_LOGIN', finalUser.login)
       return { success: true, user: userWithToken }
@@ -45,6 +46,7 @@ export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers,
   const logout = () => {
     setCurrentUser(null)
     localStorage.removeItem('MES_SESSION_LOGIN')
+    localStorage.removeItem('BACKEND_TOKEN')
   }
 
   const upsertUser = async (userData) => {

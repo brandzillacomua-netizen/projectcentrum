@@ -7,12 +7,8 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'https://8ff5-37-248-226-236.ngrok-free.app',
+        target: 'http://localhost:8080',
         changeOrigin: true,
-        secure: false,
-        headers: {
-          'ngrok-skip-browser-warning': 'true'
-        }
       },
       '/fortnet-api': {
         target: 'http://192.168.1.100:8090',

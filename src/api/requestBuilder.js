@@ -16,27 +16,18 @@ export const requestBuilder = {
   /**
    * Побудова корисного навантаження (payload) для нового замовлення
    */
-  buildOrderPayload: (orderHeader, items) => {
+  buildOrderPayload: (orderHeader, items, characteristicId) => {
+    // В CRM зараз завжди один товар в замовленні (items[0])
+    const nomenclature_id = orderHeader.nomenclature_id || (items && items.length > 0 ? items[0].nomenclature_id : null);
+    const qty_ordered = orderHeader.quantity ? Number(orderHeader.quantity) : (items && items.length > 0 ? Number(items[0].quantity) : 0);
+    
     return {
-      order_date: parseValue(orderHeader.orderDate),
-      order_num: parseValue(orderHeader.orderNum),
-      customer: parseValue(orderHeader.customer),
-      official_customer: parseValue(orderHeader.official_customer),
-      nomenclature_id: parseValue(orderHeader.nomenclature_id),
-      unit: parseValue(orderHeader.unit),
-      quantity: parseValue(orderHeader.quantity) ? Number(orderHeader.quantity) : null,
-      entered_by: parseValue(orderHeader.entered_by),
-      responsible_person: parseValue(orderHeader.responsible_person),
-      deadline: parseValue(orderHeader.deadline),
-      actual_date: parseValue(orderHeader.actual_date),
-      source: parseValue(orderHeader.source),
-      report: parseValue(orderHeader.report),
-      accessories: parseValue(orderHeader.accessories),
-      // Тут можна додати логіку для items, якщо на бекенді вони теж потрібні в певному форматі
-      items: items ? items.map(item => ({
-        nomenclature_id: parseValue(item.nomenclature_id),
-        quantity: parseValue(item.quantity) ? Number(item.quantity) : null
-      })) : []
+      number: orderHeader.orderNum || "",
+      characteristic_id: characteristicId,
+      nomenclature_id: nomenclature_id,
+      qty_ordered: qty_ordered,
+      customer_id: orderHeader.customer_id || "00000000-0000-0000-0000-000000000000",
+      notes: `Клієнт: ${orderHeader.customer || 'Не вказано'} | Виріб: ${orderHeader.productName || ''}`
     };
   },
 

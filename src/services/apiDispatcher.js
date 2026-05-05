@@ -4,36 +4,74 @@ const baseUrl = '/api';
 
 export const apiService = {
   submitOrder: async (header, items, fallback, token) => {
-    const payload = requestBuilder.buildOrderPayload(header, items);
+    const nomenclatureId = header.nomenclature_id || (items?.length > 0 ? items[0].nomenclature_id : null);
+    let characteristicId = '00000000-0000-0000-0000-000000000000';
+    let customerId = '00000000-0000-0000-0000-000000000000';
 
-    console.log("%c--- 📦 BACKEND ACTION: CREATE ORDER (HYBRID) ---", "color: #3b82f6; font-weight: bold; font-size: 14px; text-decoration: underline;");
-    console.log("JSON Payload to Backend:", payload);
+    const activeToken = token || localStorage.getItem('BACKEND_TOKEN') || '';
+    const authHeaders = { 'Authorization': activeToken ? `Bearer ${activeToken}` : '', 'Content-Type': 'application/json' };
 
-    // 1. Sync with External Backend
+    // ── PATH 1: Rust backend (Master of Record for production) ──────────────
     try {
-      const res = await fetch(`${baseUrl}/orders`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        },
-        body: JSON.stringify(payload)
-      });
-      if (res.ok) {
-        const data = await res.json();
-        console.log("External Backend Response:", data);
+      if (nomenclatureId && activeToken) {
+        // 1a. Resolve Characteristic
+        const charRes = await fetch(`${baseUrl}/nomenclature/${nomenclatureId}/characteristics`, { headers: authHeaders });
+        if (charRes.ok) {
+          const charData = await charRes.json();
+          const charItems = charData.items || charData || [];
+          if (charItems.length > 0) {
+            characteristicId = charItems[0].id;
+          } else {
+            // Auto-create base characteristic
+            const newCharRes = await fetch(`${baseUrl}/nomenclature/${nomenclatureId}/characteristics`, {
+              method: 'POST', headers: authHeaders,
+              body: JSON.stringify({ name: 'Базова', code: 'BASE-' + Date.now().toString().slice(-4), is_base: true })
+            });
+            if (newCharRes.ok) characteristicId = (await newCharRes.json()).id;
+          }
+        }
+
+        // 1b. Resolve Counterparty — EXACT name match (enterprise standard)
+        const cpRes = await fetch(`${baseUrl}/counterparties`, { headers: authHeaders });
+        if (cpRes.ok) {
+          const counterparties = (await cpRes.json()).items || [];
+          const customerName = (header.customer || '').toLowerCase().trim();
+          
+          // Exact match first
+          let found = counterparties.find(c => c.name.toLowerCase().trim() === customerName);
+          
+          // If not found — create new counterparty
+          if (!found) {
+            const newCpRes = await fetch(`${baseUrl}/counterparties`, {
+              method: 'POST', headers: authHeaders,
+              body: JSON.stringify({ name: header.customer.trim(), type: 'customer', code: 'CL-' + Date.now().toString().slice(-6) })
+            });
+            if (newCpRes.ok) found = await newCpRes.json();
+          }
+          if (found) customerId = found.id;
+        }
+
+        // 1c. Build & Send order to Rust
+        const payload = requestBuilder.buildOrderPayload({ ...header, customer_id: customerId }, items, characteristicId);
+        const res = await fetch(`${baseUrl}/orders`, { method: 'POST', headers: authHeaders, body: JSON.stringify(payload) });
+        if (!res.ok) {
+          const errText = await res.text();
+          console.error('❌ Rust order failed:', res.status, errText);
+        }
       }
     } catch (err) {
-      if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
-        console.warn("⚠️ Backend Offline (ngrok link expired or server down). Sync skipped, using Supabase fallback.");
-      } else {
-        console.error("Backend Sync error:", err.message);
-      }
+      console.warn('⚠️ Rust sync failed (non-blocking):', err.message);
     }
 
-    // 2. Save to local Supabase via fallback
-    if (typeof fallback === 'function') await fallback(header, items);
-    
+    // ── PATH 2: Supabase CRM (parallel write, never blocks) ─────────────────
+    try {
+      // Pass productName so addOrder() can resolve it to a Supabase nomenclature UUID
+      await fallback(header, items);
+    } catch (err) {
+      console.error('❌ Supabase sync error:', err.message);
+      throw err; // Re-throw so UI shows the error
+    }
+
     return true;
   },
 

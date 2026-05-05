@@ -1,0 +1,1730 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>API Documentation</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #13161e;
+    --surface2: #1a1e28;
+    --border: #252a38;
+    --accent: #5b8af0;
+    --accent2: #7c5bf0;
+    --green: #3ecf8e;
+    --orange: #f0a35b;
+    --red: #f05b5b;
+    --yellow: #f0d15b;
+    --purple: #a05bf0;
+    --text: #e2e8f7;
+    --text-muted: #6b7a99;
+    --text-dim: #3d4760;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* ── Sidebar ── */
+  #sidebar {
+    width: 260px;
+    min-width: 260px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sidebar-header {
+    padding: 24px 20px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-logo {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+
+  .sidebar-version {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .sidebar-search {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-search input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    outline: none;
+  }
+
+  .sidebar-search input:focus {
+    border-color: var(--accent);
+  }
+
+  .sidebar-nav {
+    flex: 1;
+    padding: 8px 0;
+  }
+
+  .nav-group-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    padding: 12px 20px 4px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 20px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: all 0.15s;
+    border-left: 2px solid transparent;
+  }
+
+  .nav-item:hover {
+    color: var(--text);
+    background: var(--surface2);
+    border-left-color: var(--border);
+  }
+
+  .nav-item.active {
+    color: var(--accent);
+    background: rgba(91, 138, 240, 0.08);
+    border-left-color: var(--accent);
+  }
+
+  /* ── Main ── */
+  #main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 40px 48px;
+    max-width: 960px;
+  }
+
+  /* ── Section ── */
+  .section {
+    margin-bottom: 64px;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-icon {
+    font-size: 20px;
+  }
+
+  .section-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .section-desc {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+    line-height: 1.6;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    margin-bottom: 64px;
+    padding: 40px;
+    background: linear-gradient(135deg, rgba(91,138,240,0.08), rgba(124,91,240,0.06));
+    border: 1px solid rgba(91,138,240,0.2);
+    border-radius: 12px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -60px;
+    right: -60px;
+    width: 200px;
+    height: 200px;
+    background: radial-gradient(circle, rgba(91,138,240,0.15), transparent 70%);
+    pointer-events: none;
+  }
+
+  .hero-tag {
+    display: inline-block;
+    background: rgba(91,138,240,0.15);
+    border: 1px solid rgba(91,138,240,0.3);
+    border-radius: 4px;
+    padding: 3px 10px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+    margin-bottom: 16px;
+  }
+
+  .hero h1 {
+    font-size: 36px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    margin-bottom: 12px;
+    background: linear-gradient(135deg, #e2e8f7, var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero p {
+    font-size: 15px;
+    color: var(--text-muted);
+    line-height: 1.6;
+    max-width: 520px;
+  }
+
+  .hero-meta {
+    display: flex;
+    gap: 24px;
+    margin-top: 24px;
+  }
+
+  .hero-meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .hero-meta-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .hero-meta-value {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text);
+  }
+
+  /* ── Auth banner ── */
+  .auth-banner {
+    background: rgba(240,163,91,0.08);
+    border: 1px solid rgba(240,163,91,0.25);
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--orange);
+  }
+
+  /* ── Endpoint ── */
+  .endpoint {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+
+  .endpoint-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s;
+  }
+
+  .endpoint-header:hover {
+    background: var(--surface2);
+  }
+
+  .endpoint.open .endpoint-header {
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .method {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    padding: 3px 8px;
+    border-radius: 4px;
+    min-width: 52px;
+    text-align: center;
+  }
+
+  .method.GET    { background: rgba(62,207,142,0.12); color: var(--green); border: 1px solid rgba(62,207,142,0.25); }
+  .method.POST   { background: rgba(91,138,240,0.12); color: var(--accent); border: 1px solid rgba(91,138,240,0.25); }
+  .method.PATCH  { background: rgba(240,163,91,0.12); color: var(--orange); border: 1px solid rgba(240,163,91,0.25); }
+  .method.PUT    { background: rgba(160,91,240,0.12); color: var(--purple); border: 1px solid rgba(160,91,240,0.25); }
+  .method.DELETE { background: rgba(240,91,91,0.12); color: var(--red); border: 1px solid rgba(240,91,91,0.25); }
+
+  .endpoint-path {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text);
+    flex: 1;
+  }
+
+  .endpoint-path .path-param {
+    color: var(--orange);
+  }
+
+  .endpoint-summary {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .endpoint-chevron {
+    color: var(--text-dim);
+    transition: transform 0.2s;
+    font-size: 12px;
+  }
+
+  .endpoint.open .endpoint-chevron {
+    transform: rotate(180deg);
+    color: var(--accent);
+  }
+
+  .endpoint-body {
+    display: none;
+    padding: 20px 20px 20px;
+  }
+
+  .endpoint.open .endpoint-body {
+    display: block;
+  }
+
+  /* ── Subsections ── */
+  .ep-section-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    margin-top: 16px;
+  }
+
+  .ep-section-label:first-child { margin-top: 0; }
+
+  /* ── Params table ── */
+  .params-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .params-table th {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    text-align: left;
+    padding: 0 12px 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .params-table td {
+    padding: 8px 12px 8px 0;
+    vertical-align: top;
+    border-bottom: 1px solid rgba(37,42,56,0.5);
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  .params-table td:first-child {
+    color: var(--orange);
+    font-weight: 500;
+  }
+
+  .type-badge {
+    display: inline-block;
+    background: rgba(37,42,56,0.8);
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-size: 11px;
+    color: var(--purple);
+  }
+
+  .req-badge {
+    display: inline-block;
+    background: rgba(240,91,91,0.1);
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-size: 10px;
+    color: var(--red);
+    border: 1px solid rgba(240,91,91,0.2);
+  }
+
+  .opt-badge {
+    display: inline-block;
+    background: rgba(107,122,153,0.1);
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-size: 10px;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+  }
+
+  /* ── Code blocks ── */
+  .code-block {
+    background: #0a0c10;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .code-block-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    background: rgba(255,255,255,0.02);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .code-lang {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .copy-btn {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 10px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+    transition: all 0.15s;
+  }
+
+  .copy-btn:hover {
+    color: var(--text);
+    background: var(--surface2);
+  }
+
+  pre {
+    padding: 16px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text);
+  }
+
+  .kw  { color: #c792ea; }
+  .str { color: #c3e88d; }
+  .num { color: #f78c6c; }
+  .key { color: #82aaff; }
+  .com { color: #546e7a; font-style: italic; }
+  .brace { color: var(--text-muted); }
+
+  /* ── Permission badge ── */
+  .perm-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(160,91,240,0.1);
+    border: 1px solid rgba(160,91,240,0.25);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--purple);
+  }
+
+  .perm-badge::before {
+    content: '🔐';
+    font-size: 10px;
+  }
+
+  /* ── Response codes ── */
+  .responses {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .response-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+
+  .response-item.ok   { background: rgba(62,207,142,0.06); border: 1px solid rgba(62,207,142,0.15); }
+  .response-item.err  { background: rgba(240,91,91,0.06);  border: 1px solid rgba(240,91,91,0.15);  }
+  .response-item.warn { background: rgba(240,163,91,0.06); border: 1px solid rgba(240,163,91,0.15); }
+
+  .response-code {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    min-width: 36px;
+  }
+
+  .response-item.ok   .response-code { color: var(--green); }
+  .response-item.err  .response-code { color: var(--red);   }
+  .response-item.warn .response-code { color: var(--orange); }
+
+  .response-desc { color: var(--text-muted); line-height: 1.5; }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  /* ── Divider ── */
+  hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+
+  /* ── Tags ── */
+  .tag {
+    display: inline-block;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-family: var(--mono);
+  }
+
+  .tag-info { background: rgba(91,138,240,0.1); color: var(--accent); }
+  .tag-warn { background: rgba(240,163,91,0.1); color: var(--orange); }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<nav id="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-logo">API Docs</div>
+    <div class="sidebar-version">v1.0 · REST · JWT</div>
+  </div>
+  <div class="sidebar-search">
+    <input type="text" id="searchInput" placeholder="Пошук ендпоінтів..." oninput="filterNav(this.value)">
+  </div>
+  <div class="sidebar-nav" id="navList">
+    <div class="nav-group-label">Загальне</div>
+    <a class="nav-item" href="#overview">📖 Огляд</a>
+    <a class="nav-item" href="#auth-info">🔑 Аутентифікація</a>
+    <a class="nav-item" href="#errors">⚠️ Помилки</a>
+
+    <div class="nav-group-label">Ендпоінти</div>
+    <a class="nav-item" href="#s-health">💚 Health</a>
+    <a class="nav-item" href="#s-auth">🔐 Auth</a>
+    <a class="nav-item" href="#s-users">👤 Users</a>
+    <a class="nav-item" href="#s-rbac">🛡 RBAC</a>
+    <a class="nav-item" href="#s-nomenclature">🏷 Nomenclature</a>
+    <a class="nav-item" href="#s-bom">📐 BOM</a>
+    <a class="nav-item" href="#s-orders">📦 Customer Orders</a>
+    <a class="nav-item" href="#s-production">🏭 Production Orders</a>
+    <a class="nav-item" href="#s-workcards">🔧 Work Cards</a>
+    <a class="nav-item" href="#s-equipment">⚙️ Equipment</a>
+    <a class="nav-item" href="#s-counterparties">🤝 Counterparties</a>
+    <a class="nav-item" href="#s-warehouses">🏪 Warehouses</a>
+    <a class="nav-item" href="#s-stock-docs">📋 Stock Documents</a>
+    <a class="nav-item" href="#s-stock-balances">⚖️ Stock Balances</a>
+    <a class="nav-item" href="#s-purchase">🛒 Purchase Orders</a>
+    <a class="nav-item" href="#s-print">🖨 Print / Download</a>
+    <a class="nav-item" href="#s-docstruct">🌳 Document Structure</a>
+    <a class="nav-item" href="#s-monitor">📡 Monitor</a>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main id="main">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-tag">REST API</div>
+    <h1>Backend API Documentation</h1>
+    <p>Повна документація REST API для виробничого бекенду. Всі ендпоінти захищені JWT-токеном (окрім <code>/health</code> та <code>/api/auth/login</code>).</p>
+    <div class="hero-meta">
+      <div class="hero-meta-item">
+        <span class="hero-meta-label">Base URL</span>
+        <span class="hero-meta-value">https://api.your-domain.com</span>
+      </div>
+      <div class="hero-meta-item">
+        <span class="hero-meta-label">Auth</span>
+        <span class="hero-meta-value">Bearer JWT</span>
+      </div>
+      <div class="hero-meta-item">
+        <span class="hero-meta-label">Format</span>
+        <span class="hero-meta-value">application/json</span>
+      </div>
+      <div class="hero-meta-item">
+        <span class="hero-meta-label">Framework</span>
+        <span class="hero-meta-value">Axum (Rust)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- OVERVIEW -->
+  <div class="section" id="overview">
+    <div class="section-header">
+      <span class="section-icon">📖</span>
+      <h2 class="section-title">Огляд</h2>
+    </div>
+    <p class="section-desc">API побудований на фреймворку Axum (Rust). Всі відповіді повертаються у форматі JSON. Ідентифікатори — UUID v4. Дати — ISO 8601 UTC.</p>
+    <p class="section-desc">Доступ до ресурсів контролюється через RBAC (Role-Based Access Control). Кожен ендпоінт вимагає конкретний дозвіл у форматі <code>module:action</code>. Дозволи вбудовані у JWT-токен і не потребують додаткових запитів до БД на кожному запиті.</p>
+  </div>
+
+  <!-- AUTH INFO -->
+  <div class="section" id="auth-info">
+    <div class="section-header">
+      <span class="section-icon">🔑</span>
+      <h2 class="section-title">Аутентифікація</h2>
+    </div>
+    <p class="section-desc">Усі захищені ендпоінти вимагають заголовок <code>Authorization</code> з Bearer-токеном.</p>
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="code-lang">HTTP Header</span>
+        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+      </div>
+      <pre>Authorization: Bearer &lt;jwt_token&gt;</pre>
+    </div>
+    <br>
+    <p class="section-desc">JWT payload містить:</p>
+    <div class="code-block">
+      <div class="code-block-header"><span class="code-lang">JWT Claims</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+      <pre><span class="brace">{</span>
+  <span class="key">"sub"</span>: <span class="str">"uuid"</span>,           <span class="com">// User ID</span>
+  <span class="key">"email"</span>: <span class="str">"string"</span>,
+  <span class="key">"full_name"</span>: <span class="str">"string"</span>,
+  <span class="key">"roles"</span>: <span class="brace">[</span><span class="str">"shop_chief"</span>, <span class="str">"operator"</span><span class="brace">]</span>,
+  <span class="key">"permissions"</span>: <span class="brace">[</span><span class="str">"warehouse:reserve"</span>, <span class="str">"orders:read"</span><span class="brace">]</span>,
+  <span class="key">"iat"</span>: <span class="num">1700000000</span>,
+  <span class="key">"exp"</span>: <span class="num">1700086400</span>
+<span class="brace">}</span></pre>
+    </div>
+  </div>
+
+  <!-- ERRORS -->
+  <div class="section" id="errors">
+    <div class="section-header">
+      <span class="section-icon">⚠️</span>
+      <h2 class="section-title">Стандартні помилки</h2>
+    </div>
+    <div class="responses">
+      <div class="response-item ok"><span class="response-code">200</span><span class="response-desc">OK — успішний запит</span></div>
+      <div class="response-item ok"><span class="response-code">201</span><span class="response-desc">Created — ресурс успішно створено</span></div>
+      <div class="response-item err"><span class="response-code">400</span><span class="response-desc">Bad Request — невірні параметри або бізнес-логіка відхилила запит</span></div>
+      <div class="response-item err"><span class="response-code">401</span><span class="response-desc">Unauthorized — відсутній або невалідний JWT-токен</span></div>
+      <div class="response-item err"><span class="response-code">403</span><span class="response-desc">Forbidden — недостатньо прав (відсутній дозвіл)</span></div>
+      <div class="response-item err"><span class="response-code">404</span><span class="response-desc">Not Found — ресурс не знайдено</span></div>
+      <div class="response-item warn"><span class="response-code">409</span><span class="response-desc">Conflict — дублікат ресурсу (напр. email або код)</span></div>
+      <div class="response-item err"><span class="response-code">500</span><span class="response-desc">Internal Server Error — внутрішня помилка сервера</span></div>
+    </div>
+  </div>
+
+  <!-- ── HEALTH ── -->
+  <div class="section" id="s-health">
+    <div class="section-header"><span class="section-icon">💚</span><h2 class="section-title">Health</h2></div>
+    <div class="endpoint" id="ep-health">
+      <div class="endpoint-header" onclick="toggle('ep-health')">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/health</span>
+        <span class="endpoint-summary">Перевірка стану сервісу</span>
+        <span class="endpoint-chevron">▼</span>
+      </div>
+      <div class="endpoint-body">
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px">Публічний ендпоінт без аутентифікації. Використовується для health check проксі, load balancer тощо.</p>
+        <div class="ep-section-label">Відповідь 200</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span> <span class="key">"status"</span>: <span class="str">"ok"</span> <span class="brace">}</span></pre></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── AUTH ── -->
+  <div class="section" id="s-auth">
+    <div class="section-header"><span class="section-icon">🔐</span><h2 class="section-title">Auth</h2></div>
+
+    <!-- LOGIN -->
+    <div class="endpoint" id="ep-login">
+      <div class="endpoint-header" onclick="toggle('ep-login')">
+        <span class="method POST">POST</span>
+        <span class="endpoint-path">/api/auth/login</span>
+        <span class="endpoint-summary">Вхід у систему</span>
+        <span class="endpoint-chevron">▼</span>
+      </div>
+      <div class="endpoint-body">
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px">Публічний ендпоінт. Повертає JWT-токен та інформацію про користувача.</p>
+        <div class="ep-section-label">Request Body</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span>
+  <span class="key">"email"</span>: <span class="str">"admin@example.com"</span>,    <span class="com">// required</span>
+  <span class="key">"password"</span>: <span class="str">"secret"</span>              <span class="com">// required</span>
+<span class="brace">}</span></pre></div>
+
+        <div class="ep-section-label">Відповідь 200</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span>
+  <span class="key">"token"</span>: <span class="str">"eyJhbGci..."</span>,
+  <span class="key">"user"</span>: <span class="brace">{</span>
+    <span class="key">"id"</span>: <span class="str">"uuid"</span>,
+    <span class="key">"email"</span>: <span class="str">"admin@example.com"</span>,
+    <span class="key">"full_name"</span>: <span class="str">"John Doe"</span>,
+    <span class="key">"roles"</span>: <span class="brace">[</span><span class="str">"admin"</span><span class="brace">]</span>
+  <span class="brace">}</span>
+<span class="brace">}</span></pre></div>
+
+        <div class="ep-section-label">Відповіді</div>
+        <div class="responses">
+          <div class="response-item ok"><span class="response-code">200</span><span class="response-desc">Успішна аутентифікація</span></div>
+          <div class="response-item err"><span class="response-code">401</span><span class="response-desc">Невірний email або пароль</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ME -->
+    <div class="endpoint" id="ep-me">
+      <div class="endpoint-header" onclick="toggle('ep-me')">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/api/auth/me</span>
+        <span class="endpoint-summary">Поточний користувач</span>
+        <span class="endpoint-chevron">▼</span>
+      </div>
+      <div class="endpoint-body">
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px">Повертає інформацію про поточного авторизованого користувача з токена. Не робить запитів до БД.</p>
+        <div class="ep-section-label">Відповідь 200</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span> <span class="key">"id"</span>: <span class="str">"uuid"</span>, <span class="key">"email"</span>: <span class="str">"..."</span>, <span class="key">"full_name"</span>: <span class="str">"..."</span>, <span class="key">"roles"</span>: <span class="brace">[]</span> <span class="brace">}</span></pre></div>
+      </div>
+    </div>
+
+    <!-- REFRESH -->
+    <div class="endpoint" id="ep-refresh">
+      <div class="endpoint-header" onclick="toggle('ep-refresh')">
+        <span class="method POST">POST</span>
+        <span class="endpoint-path">/api/auth/refresh</span>
+        <span class="endpoint-summary">Оновлення токена</span>
+        <span class="endpoint-chevron">▼</span>
+      </div>
+      <div class="endpoint-body">
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px">Видає новий токен з оновленим терміном дії та актуальними permissions з БД. Body не потрібен — авторизація через поточний токен.</p>
+        <div class="ep-section-label">Відповідь 200</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span> <span class="key">"token"</span>: <span class="str">"eyJhbGci..."</span> <span class="brace">}</span></pre></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── USERS ── -->
+  <div class="section" id="s-users">
+    <div class="section-header"><span class="section-icon">👤</span><h2 class="section-title">Users</h2></div>
+    <div class="auth-banner">🔐 Всі ендпоінти вимагають дозвіл <strong>users:manage</strong></div>
+
+    <div class="endpoint" id="ep-users-list">
+      <div class="endpoint-header" onclick="toggle('ep-users-list')">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/api/users</span>
+        <span class="endpoint-summary">Список користувачів (пагінація)</span>
+        <span class="endpoint-chevron">▼</span>
+      </div>
+      <div class="endpoint-body">
+        <div class="ep-section-label">Query Params</div>
+        <table class="params-table">
+          <tr><th>Параметр</th><th>Тип</th><th>Обов'язковість</th><th>Опис</th></tr>
+          <tr><td>page</td><td><span class="type-badge">int</span></td><td><span class="opt-badge">optional</span></td><td>Номер сторінки (default: 1)</td></tr>
+          <tr><td>per_page</td><td><span class="type-badge">int</span></td><td><span class="opt-badge">optional</span></td><td>К-сть на сторінці (default: 20)</td></tr>
+        </table>
+        <div class="ep-section-label">Відповідь 200</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span>
+  <span class="key">"items"</span>: <span class="brace">[{</span> <span class="key">"id"</span>: <span class="str">"uuid"</span>, <span class="key">"email"</span>: <span class="str">"..."</span>, <span class="key">"full_name"</span>: <span class="str">"..."</span>, <span class="key">"is_active"</span>: <span class="kw">true</span>, <span class="key">"department"</span>: <span class="str">"..."</span> <span class="brace">}]</span>,
+  <span class="key">"total"</span>: <span class="num">42</span>,
+  <span class="key">"page"</span>: <span class="num">1</span>,
+  <span class="key">"per_page"</span>: <span class="num">20</span>
+<span class="brace">}</span></pre></div>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-users-create">
+      <div class="endpoint-header" onclick="toggle('ep-users-create')">
+        <span class="method POST">POST</span>
+        <span class="endpoint-path">/api/users</span>
+        <span class="endpoint-summary">Створити користувача</span>
+        <span class="endpoint-chevron">▼</span>
+      </div>
+      <div class="endpoint-body">
+        <div class="ep-section-label">Request Body</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span>
+  <span class="key">"full_name"</span>: <span class="str">"John Doe"</span>,      <span class="com">// required</span>
+  <span class="key">"email"</span>: <span class="str">"john@example.com"</span>, <span class="com">// required, унікальний</span>
+  <span class="key">"password"</span>: <span class="str">"secret123"</span>,    <span class="com">// required</span>
+  <span class="key">"department"</span>: <span class="str">"Workshop 1"</span>   <span class="com">// optional</span>
+<span class="brace">}</span></pre></div>
+        <div class="ep-section-label">Відповіді</div>
+        <div class="responses">
+          <div class="response-item ok"><span class="response-code">200</span><span class="response-desc">Повертає створеного користувача</span></div>
+          <div class="response-item warn"><span class="response-code">409</span><span class="response-desc">Email вже існує</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-users-get">
+      <div class="endpoint-header" onclick="toggle('ep-users-get')">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/api/users/<span class="path-param">:id</span></span>
+        <span class="endpoint-summary">Отримати користувача за ID</span>
+        <span class="endpoint-chevron">▼</span>
+      </div>
+      <div class="endpoint-body">
+        <div class="ep-section-label">Path Params</div>
+        <table class="params-table">
+          <tr><th>Параметр</th><th>Тип</th><th>Опис</th></tr>
+          <tr><td>id</td><td><span class="type-badge">UUID</span></td><td>ID користувача</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-users-deactivate">
+      <div class="endpoint-header" onclick="toggle('ep-users-deactivate')">
+        <span class="method PATCH">PATCH</span>
+        <span class="endpoint-path">/api/users/<span class="path-param">:id</span>/deactivate</span>
+        <span class="endpoint-summary">Деактивувати користувача</span>
+        <span class="endpoint-chevron">▼</span>
+      </div>
+      <div class="endpoint-body">
+        <p style="color:var(--text-muted);font-size:13px;">Не можна деактивувати себе. Body не потрібен.</p>
+        <div class="ep-section-label">Відповідь 200</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span> <span class="key">"id"</span>: <span class="str">"uuid"</span>, <span class="key">"is_active"</span>: <span class="kw">false</span> <span class="brace">}</span></pre></div>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-users-roles-get">
+      <div class="endpoint-header" onclick="toggle('ep-users-roles-get')">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/api/users/<span class="path-param">:id</span>/roles</span>
+        <span class="endpoint-summary">Ролі користувача</span>
+        <span class="endpoint-chevron">▼</span>
+      </div>
+      <div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Повертає масив ролей призначених користувачу.</p></div>
+    </div>
+
+    <div class="endpoint" id="ep-users-roles-set">
+      <div class="endpoint-header" onclick="toggle('ep-users-roles-set')">
+        <span class="method PUT">PUT</span>
+        <span class="endpoint-path">/api/users/<span class="path-param">:id</span>/roles</span>
+        <span class="endpoint-summary">Призначити ролі (повна заміна)</span>
+        <span class="endpoint-chevron">▼</span>
+      </div>
+      <div class="endpoint-body">
+        <div class="ep-section-label">Request Body</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span> <span class="key">"role_ids"</span>: <span class="brace">[</span><span class="str">"uuid1"</span>, <span class="str">"uuid2"</span><span class="brace">]</span> <span class="brace">}</span></pre></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RBAC ── -->
+  <div class="section" id="s-rbac">
+    <div class="section-header"><span class="section-icon">🛡</span><h2 class="section-title">RBAC — Ролі та дозволи</h2></div>
+    <div class="auth-banner">🔐 Всі ендпоінти вимагають дозвіл <strong>users:manage</strong></div>
+    <p class="section-desc">Управління ролями та їхніми дозволами. Дозволи мають вигляд <code>module:action</code>.</p>
+
+    <div class="endpoint" id="ep-rbac-roles"><div class="endpoint-header" onclick="toggle('ep-rbac-roles')"><span class="method GET">GET</span><span class="endpoint-path">/api/rbac/roles</span><span class="endpoint-summary">Всі ролі</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Повертає <code>Role[]</code> — масив всіх ролей системи.</p></div></div>
+
+    <div class="endpoint" id="ep-rbac-roles-create"><div class="endpoint-header" onclick="toggle('ep-rbac-roles-create')"><span class="method POST">POST</span><span class="endpoint-path">/api/rbac/roles</span><span class="endpoint-summary">Створити роль</span><span class="endpoint-chevron">▼</span></div>
+    <div class="endpoint-body">
+      <div class="ep-section-label">Request Body</div>
+      <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+      <pre><span class="brace">{</span> <span class="key">"code"</span>: <span class="str">"shop_chief"</span>, <span class="key">"name"</span>: <span class="str">"Начальник цеху"</span>, <span class="key">"description"</span>: <span class="str">"..."</span> <span class="brace">}</span></pre></div>
+    </div></div>
+
+    <div class="endpoint" id="ep-rbac-role-get"><div class="endpoint-header" onclick="toggle('ep-rbac-role-get')"><span class="method GET">GET</span><span class="endpoint-path">/api/rbac/roles/<span class="path-param">:id</span></span><span class="endpoint-summary">Роль з дозволами</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Повертає <code>RoleWithPermissions</code> — роль з повним списком дозволів.</p></div></div>
+
+    <div class="endpoint" id="ep-rbac-role-put"><div class="endpoint-header" onclick="toggle('ep-rbac-role-put')"><span class="method PUT">PUT</span><span class="endpoint-path">/api/rbac/roles/<span class="path-param">:id</span></span><span class="endpoint-summary">Оновити роль</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Оновлює назву або опис ролі.</p></div></div>
+
+    <div class="endpoint" id="ep-rbac-role-del"><div class="endpoint-header" onclick="toggle('ep-rbac-role-del')"><span class="method DELETE">DELETE</span><span class="endpoint-path">/api/rbac/roles/<span class="path-param">:id</span></span><span class="endpoint-summary">Видалити роль</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Системні ролі видалити не можна (повертає 400).</p></div></div>
+
+    <div class="endpoint" id="ep-rbac-perms"><div class="endpoint-header" onclick="toggle('ep-rbac-perms')"><span class="method GET">GET</span><span class="endpoint-path">/api/rbac/permissions</span><span class="endpoint-summary">Всі дозволи системи</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Повертає повний список дозволів <code>Permission[]</code>.</p></div></div>
+
+    <div class="endpoint" id="ep-rbac-role-perms-get"><div class="endpoint-header" onclick="toggle('ep-rbac-role-perms-get')"><span class="method GET">GET</span><span class="endpoint-path">/api/rbac/roles/<span class="path-param">:id</span>/permissions</span><span class="endpoint-summary">Дозволи ролі</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Повертає <code>Permission[]</code> для вказаної ролі.</p></div></div>
+
+    <div class="endpoint" id="ep-rbac-role-perms-set">
+      <div class="endpoint-header" onclick="toggle('ep-rbac-role-perms-set')"><span class="method PUT">PUT</span><span class="endpoint-path">/api/rbac/roles/<span class="path-param">:id</span>/permissions</span><span class="endpoint-summary">Встановити дозволи ролі</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">Повна заміна — передані ID замінять всі існуючі дозволи ролі.</p>
+        <div class="ep-section-label">Request Body</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span> <span class="key">"permission_ids"</span>: <span class="brace">[</span><span class="str">"uuid1"</span>, <span class="str">"uuid2"</span><span class="brace">]</span> <span class="brace">}</span></pre></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── NOMENCLATURE ── -->
+  <div class="section" id="s-nomenclature">
+    <div class="section-header"><span class="section-icon">🏷</span><h2 class="section-title">Nomenclature</h2></div>
+    <div class="auth-banner">🔐 Read: <strong>nomenclature:read</strong> · Write: <strong>nomenclature:write</strong></div>
+    <p class="section-desc">Номенклатура, групи, типи, характеристики та атрибути (EAV). Кожна номенклатурна одиниця має базовий код та автоматично отримує базову характеристику при створенні.</p>
+
+    <div class="endpoint" id="ep-nom-groups-list"><div class="endpoint-header" onclick="toggle('ep-nom-groups-list')"><span class="method GET">GET</span><span class="endpoint-path">/api/nomenclature/groups</span><span class="endpoint-summary">Всі групи номенклатури</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="ep-section-label">Відповідь 200</div><div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><pre><span class="brace">{</span> <span class="key">"items"</span>: <span class="brace">[]</span>, <span class="key">"total"</span>: <span class="num">0</span> <span class="brace">}</span></pre></div></div></div>
+
+    <div class="endpoint" id="ep-nom-groups-create">
+      <div class="endpoint-header" onclick="toggle('ep-nom-groups-create')"><span class="method POST">POST</span><span class="endpoint-path">/api/nomenclature/groups</span><span class="endpoint-summary">Створити групу</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <div class="ep-section-label">Request Body</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span>
+  <span class="key">"name"</span>: <span class="str">"Метали"</span>,         <span class="com">// required</span>
+  <span class="key">"parent_id"</span>: <span class="kw">null</span>,      <span class="com">// optional UUID</span>
+  <span class="key">"sort_order"</span>: <span class="num">1</span>          <span class="com">// optional</span>
+<span class="brace">}</span></pre></div>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-nom-types-list"><div class="endpoint-header" onclick="toggle('ep-nom-types-list')"><span class="method GET">GET</span><span class="endpoint-path">/api/nomenclature/types</span><span class="endpoint-summary">Типи номенклатури</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Повертає <code>{ items, total }</code> — перелік типів.</p></div></div>
+
+    <div class="endpoint" id="ep-nom-types-create"><div class="endpoint-header" onclick="toggle('ep-nom-types-create')"><span class="method POST">POST</span><span class="endpoint-path">/api/nomenclature/types</span><span class="endpoint-summary">Створити тип</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Тіло відповідає <code>CreateNomTypeDto</code>.</p></div></div>
+
+    <div class="endpoint" id="ep-nom-types-del"><div class="endpoint-header" onclick="toggle('ep-nom-types-del')"><span class="method DELETE">DELETE</span><span class="endpoint-path">/api/nomenclature/types/<span class="path-param">:id</span></span><span class="endpoint-summary">Видалити тип</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="ep-section-label">Відповідь 200</div><div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><pre><span class="brace">{</span> <span class="key">"id"</span>: <span class="str">"uuid"</span>, <span class="key">"deleted"</span>: <span class="kw">true</span> <span class="brace">}</span></pre></div></div></div>
+
+    <div class="endpoint" id="ep-nom-list">
+      <div class="endpoint-header" onclick="toggle('ep-nom-list')"><span class="method GET">GET</span><span class="endpoint-path">/api/nomenclature</span><span class="endpoint-summary">Список номенклатури</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <div class="ep-section-label">Query Params</div>
+        <table class="params-table">
+          <tr><th>Параметр</th><th>Тип</th><th>Обов'язковість</th><th>Опис</th></tr>
+          <tr><td>group_id</td><td><span class="type-badge">UUID</span></td><td><span class="opt-badge">optional</span></td><td>Фільтр по групі</td></tr>
+          <tr><td>active_only</td><td><span class="type-badge">bool</span></td><td><span class="opt-badge">optional</span></td><td>Тільки активні (default: true)</td></tr>
+          <tr><td>limit</td><td><span class="type-badge">int</span></td><td><span class="opt-badge">optional</span></td><td>Макс. 200 (default: 50)</td></tr>
+          <tr><td>offset</td><td><span class="type-badge">int</span></td><td><span class="opt-badge">optional</span></td><td>Зміщення (default: 0)</td></tr>
+        </table>
+        <div class="ep-section-label">Відповідь 200</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span> <span class="key">"items"</span>: <span class="brace">[]</span>, <span class="key">"total"</span>: <span class="num">0</span> <span class="brace">}</span></pre></div>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-nom-create">
+      <div class="endpoint-header" onclick="toggle('ep-nom-create')"><span class="method POST">POST</span><span class="endpoint-path">/api/nomenclature</span><span class="endpoint-summary">Створити номенклатуру</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">При створенні автоматично створюється базова характеристика. Код має бути унікальним.</p>
+        <div class="ep-section-label">Request Body — <code>CreateNomenclatureDto</code></div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span>
+  <span class="key">"base_code"</span>: <span class="num">10001</span>,          <span class="com">// required, унікальний 5-значний int</span>
+  <span class="key">"name"</span>: <span class="str">"Алюміній А5"</span>,       <span class="com">// required</span>
+  <span class="key">"group_id"</span>: <span class="str">"uuid"</span>,           <span class="com">// optional</span>
+  <span class="key">"nom_type_id"</span>: <span class="str">"uuid"</span>,        <span class="com">// optional</span>
+  <span class="key">"unit"</span>: <span class="str">"шт"</span>,                 <span class="com">// optional</span>
+  <span class="key">"description"</span>: <span class="str">"..."</span>          <span class="com">// optional</span>
+<span class="brace">}</span></pre></div>
+        <div class="ep-section-label">Відповідь 201</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span>
+  <span class="key">"nomenclature"</span>: <span class="brace">{}</span>,
+  <span class="key">"base_characteristic"</span>: <span class="brace">{}</span>,
+  <span class="key">"message"</span>: <span class="str">"Створено. Базовий код: 10001000..."</span>
+<span class="brace">}</span></pre></div>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-nom-search"><div class="endpoint-header" onclick="toggle('ep-nom-search')"><span class="method GET">GET</span><span class="endpoint-path">/api/nomenclature/search</span><span class="endpoint-summary">Пошук (мін. 2 символи)</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="ep-section-label">Query Params</div><table class="params-table"><tr><th>Параметр</th><th>Тип</th><th>Обов'язковість</th><th>Опис</th></tr><tr><td>q</td><td><span class="type-badge">string</span></td><td><span class="req-badge">required</span></td><td>Пошуковий запит (мін. 2 символи)</td></tr><tr><td>limit</td><td><span class="type-badge">int</span></td><td><span class="opt-badge">optional</span></td><td>Макс. 100 (default: 20)</td></tr></table></div></div>
+
+    <div class="endpoint" id="ep-nom-get"><div class="endpoint-header" onclick="toggle('ep-nom-get')"><span class="method GET">GET</span><span class="endpoint-path">/api/nomenclature/<span class="path-param">:id</span></span><span class="endpoint-summary">Номенклатура + характеристики</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="ep-section-label">Відповідь 200</div><div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><pre><span class="brace">{</span> <span class="key">"nomenclature"</span>: <span class="brace">{}</span>, <span class="key">"characteristics"</span>: <span class="brace">[]</span> <span class="brace">}</span></pre></div></div></div>
+
+    <div class="endpoint" id="ep-nom-deactivate"><div class="endpoint-header" onclick="toggle('ep-nom-deactivate')"><span class="method PATCH">PATCH</span><span class="endpoint-path">/api/nomenclature/<span class="path-param">:id</span>/deactivate</span><span class="endpoint-summary">Деактивувати</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><pre><span class="brace">{</span> <span class="key">"id"</span>: <span class="str">"uuid"</span>, <span class="key">"is_active"</span>: <span class="kw">false</span> <span class="brace">}</span></pre></div></div></div>
+
+    <div class="endpoint" id="ep-nom-activate"><div class="endpoint-header" onclick="toggle('ep-nom-activate')"><span class="method PATCH">PATCH</span><span class="endpoint-path">/api/nomenclature/<span class="path-param">:id</span>/activate</span><span class="endpoint-summary">Активувати</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><pre><span class="brace">{</span> <span class="key">"id"</span>: <span class="str">"uuid"</span>, <span class="key">"is_active"</span>: <span class="kw">true</span> <span class="brace">}</span></pre></div></div></div>
+
+    <div class="endpoint" id="ep-nom-delete"><div class="endpoint-header" onclick="toggle('ep-nom-delete')"><span class="method DELETE">DELETE</span><span class="endpoint-path">/api/nomenclature/<span class="path-param">:id</span></span><span class="endpoint-summary">Hard delete</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Повне видалення. Якщо є залежності — повертає <code>409 Conflict</code>.</p></div></div>
+
+    <hr>
+    <p style="font-weight:600;margin:16px 0 12px;font-size:14px;">Характеристики</p>
+
+    <div class="endpoint" id="ep-chars-list"><div class="endpoint-header" onclick="toggle('ep-chars-list')"><span class="method GET">GET</span><span class="endpoint-path">/api/nomenclature/<span class="path-param">:id</span>/characteristics</span><span class="endpoint-summary">Характеристики номенклатури</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="ep-section-label">Відповідь 200</div><div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><pre><span class="brace">{</span> <span class="key">"items"</span>: <span class="brace">[]</span>, <span class="key">"total"</span>: <span class="num">0</span> <span class="brace">}</span></pre></div></div></div>
+
+    <div class="endpoint" id="ep-chars-create">
+      <div class="endpoint-header" onclick="toggle('ep-chars-create')"><span class="method POST">POST</span><span class="endpoint-path">/api/nomenclature/<span class="path-param">:id</span>/characteristics</span><span class="endpoint-summary">Додати характеристику</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">Сервер сам визначає <code>char_index</code> та <code>full_code</code>.</p>
+        <div class="ep-section-label">Request Body — <code>CreateCharacteristicDto</code></div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span>
+  <span class="key">"name"</span>: <span class="str">"1.5мм × 1000×2000"</span>,    <span class="com">// required</span>
+  <span class="key">"description"</span>: <span class="str">"..."</span>          <span class="com">// optional</span>
+<span class="brace">}</span></pre></div>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-chars-get"><div class="endpoint-header" onclick="toggle('ep-chars-get')"><span class="method GET">GET</span><span class="endpoint-path">/api/characteristics/<span class="path-param">:id</span></span><span class="endpoint-summary">Характеристика + атрибути</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><pre><span class="brace">{</span> <span class="key">"characteristic"</span>: <span class="brace">{}</span>, <span class="key">"attributes"</span>: <span class="brace">[]</span> <span class="brace">}</span></pre></div></div></div>
+
+    <div class="endpoint" id="ep-chars-update"><div class="endpoint-header" onclick="toggle('ep-chars-update')"><span class="method PATCH">PATCH</span><span class="endpoint-path">/api/characteristics/<span class="path-param">:id</span></span><span class="endpoint-summary">Оновити характеристику</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Базову характеристику (char_index=0) змінити не можна.</p></div></div>
+
+    <div class="endpoint" id="ep-chars-deactivate"><div class="endpoint-header" onclick="toggle('ep-chars-deactivate')"><span class="method PATCH">PATCH</span><span class="endpoint-path">/api/characteristics/<span class="path-param">:id</span>/deactivate</span><span class="endpoint-summary">Деактивувати характеристику</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><pre><span class="brace">{</span> <span class="key">"id"</span>: <span class="str">"uuid"</span>, <span class="key">"is_active"</span>: <span class="kw">false</span> <span class="brace">}</span></pre></div></div></div>
+
+    <hr>
+    <p style="font-weight:600;margin:16px 0 12px;font-size:14px;">Атрибути (EAV)</p>
+
+    <div class="endpoint" id="ep-attrs-list"><div class="endpoint-header" onclick="toggle('ep-attrs-list')"><span class="method GET">GET</span><span class="endpoint-path">/api/characteristics/<span class="path-param">:id</span>/attributes</span><span class="endpoint-summary">Атрибути характеристики</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><pre><span class="brace">{</span> <span class="key">"items"</span>: <span class="brace">[{</span> <span class="key">"key"</span>: <span class="str">"thickness"</span>, <span class="key">"value"</span>: <span class="str">"1.5"</span> <span class="brace">}]</span> <span class="brace">}</span></pre></div></div></div>
+
+    <div class="endpoint" id="ep-attrs-upsert">
+      <div class="endpoint-header" onclick="toggle('ep-attrs-upsert')"><span class="method PUT">PUT</span><span class="endpoint-path">/api/characteristics/<span class="path-param">:id</span>/attributes</span><span class="endpoint-summary">Upsert атрибут</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <div class="ep-section-label">Request Body</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span> <span class="key">"key"</span>: <span class="str">"thickness"</span>, <span class="key">"value"</span>: <span class="str">"2.0"</span> <span class="brace">}</span></pre></div>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-attrs-delete"><div class="endpoint-header" onclick="toggle('ep-attrs-delete')"><span class="method DELETE">DELETE</span><span class="endpoint-path">/api/characteristics/<span class="path-param">:id</span>/attributes</span><span class="endpoint-summary">Видалити атрибут</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="ep-section-label">Query Params</div><table class="params-table"><tr><th>Параметр</th><th>Тип</th><th>Обов'язковість</th><th>Опис</th></tr><tr><td>key</td><td><span class="type-badge">string</span></td><td><span class="req-badge">required</span></td><td>Ключ атрибуту</td></tr></table></div></div>
+  </div>
+
+  <!-- ── BOM ── -->
+  <div class="section" id="s-bom">
+    <div class="section-header"><span class="section-icon">📐</span><h2 class="section-title">BOM — Специфікації</h2></div>
+    <div class="auth-banner">🔐 Read: <strong>nomenclature:read</strong> · Write: <strong>nomenclature:write</strong></div>
+    <p class="section-desc">Bill of Materials — специфікації виробництва. BOM прив'язується до характеристики та описує з яких компонентів і в якій кількості виготовляється продукт.</p>
+
+    <div class="endpoint" id="ep-bom-list"><div class="endpoint-header" onclick="toggle('ep-bom-list')"><span class="method GET">GET</span><span class="endpoint-path">/api/bom</span><span class="endpoint-summary">Список BOM</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="ep-section-label">Query Params</div><table class="params-table"><tr><th>Параметр</th><th>Тип</th><th>Обов'язковість</th><th>Опис</th></tr><tr><td>characteristic_id</td><td><span class="type-badge">UUID</span></td><td><span class="opt-badge">optional</span></td><td>Фільтр по характеристиці</td></tr></table><div class="ep-section-label" style="margin-top:12px">Відповідь 200</div><div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><pre><span class="brace">{</span> <span class="key">"items"</span>: <span class="brace">[]</span> <span class="brace">}</span></pre></div></div></div>
+
+    <div class="endpoint" id="ep-bom-create">
+      <div class="endpoint-header" onclick="toggle('ep-bom-create')"><span class="method POST">POST</span><span class="endpoint-path">/api/bom</span><span class="endpoint-summary">Створити BOM</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">Мінімум одна лінія. Всі qty повинні бути > 0.</p>
+        <div class="ep-section-label">Request Body — <code>CreateBomHeaderDto</code></div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span>
+  <span class="key">"characteristic_id"</span>: <span class="str">"uuid"</span>,    <span class="com">// required — продукт (що виробляємо)</span>
+  <span class="key">"output_qty"</span>: <span class="num">10</span>,               <span class="com">// required — к-сть на виході</span>
+  <span class="key">"name"</span>: <span class="str">"BOM v1"</span>,              <span class="com">// optional</span>
+  <span class="key">"lines"</span>: <span class="brace">[{</span>
+    <span class="key">"component_char_id"</span>: <span class="str">"uuid"</span>, <span class="com">// required — компонент</span>
+    <span class="key">"qty"</span>: <span class="num">2.5</span>                   <span class="com">// required — к-сть споживання</span>
+  <span class="brace">}]</span>
+<span class="brace">}</span></pre></div>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-bom-get"><div class="endpoint-header" onclick="toggle('ep-bom-get')"><span class="method GET">GET</span><span class="endpoint-path">/api/bom/<span class="path-param">:id</span></span><span class="endpoint-summary">BOM за ID</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Повертає BOM з усіма лініями.</p></div></div>
+    <div class="endpoint" id="ep-bom-update"><div class="endpoint-header" onclick="toggle('ep-bom-update')"><span class="method PATCH">PATCH</span><span class="endpoint-path">/api/bom/<span class="path-param">:id</span></span><span class="endpoint-summary">Оновити заголовок BOM</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Оновлює <code>name</code>, <code>output_qty</code>, <code>is_active</code>.</p></div></div>
+    <div class="endpoint" id="ep-bom-addline">
+      <div class="endpoint-header" onclick="toggle('ep-bom-addline')"><span class="method POST">POST</span><span class="endpoint-path">/api/bom/<span class="path-param">:id</span>/lines</span><span class="endpoint-summary">Додати рядок BOM</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <div class="ep-section-label">Request Body</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span> <span class="key">"component_char_id"</span>: <span class="str">"uuid"</span>, <span class="key">"qty"</span>: <span class="num">1.5</span> <span class="brace">}</span></pre></div>
+      </div>
+    </div>
+    <div class="endpoint" id="ep-bom-delline"><div class="endpoint-header" onclick="toggle('ep-bom-delline')"><span class="method DELETE">DELETE</span><span class="endpoint-path">/api/bom/<span class="path-param">:id</span>/lines/<span class="path-param">:lid</span></span><span class="endpoint-summary">Видалити рядок BOM</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><pre><span class="brace">{</span> <span class="key">"deleted"</span>: <span class="kw">true</span> <span class="brace">}</span></pre></div></div></div>
+  </div>
+
+  <!-- ── ORDERS ── -->
+  <div class="section" id="s-orders">
+    <div class="section-header"><span class="section-icon">📦</span><h2 class="section-title">Customer Orders</h2></div>
+    <div class="auth-banner">🔐 Read: <strong>orders:read</strong> · Create: <strong>orders:create</strong> · Update: <strong>orders:cancel</strong></div>
+
+    <div class="endpoint" id="ep-orders-list">
+      <div class="endpoint-header" onclick="toggle('ep-orders-list')"><span class="method GET">GET</span><span class="endpoint-path">/api/orders</span><span class="endpoint-summary">Список замовлень клієнтів</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <div class="ep-section-label">Query Params</div>
+        <table class="params-table">
+          <tr><th>Параметр</th><th>Тип</th><th>Обов'язковість</th><th>Опис</th></tr>
+          <tr><td>status</td><td><span class="type-badge">string</span></td><td><span class="opt-badge">optional</span></td><td><code>new | confirmed | in_production | shipped | cancelled</code></td></tr>
+          <tr><td>limit</td><td><span class="type-badge">int</span></td><td><span class="opt-badge">optional</span></td><td>Default: 50</td></tr>
+          <tr><td>offset</td><td><span class="type-badge">int</span></td><td><span class="opt-badge">optional</span></td><td>Default: 0</td></tr>
+        </table>
+        <div class="ep-section-label">Відповідь 200</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">[{</span>
+  <span class="key">"id"</span>: <span class="str">"uuid"</span>,
+  <span class="key">"number"</span>: <span class="str">"ORD-20241201-1234"</span>,
+  <span class="key">"status"</span>: <span class="str">"new"</span>,
+  <span class="key">"characteristic_id"</span>: <span class="str">"uuid"</span>,
+  <span class="key">"nomenclature_id"</span>: <span class="str">"uuid"</span>,
+  <span class="key">"qty_ordered"</span>: <span class="num">100</span>,
+  <span class="key">"created_by"</span>: <span class="str">"uuid"</span>,
+  <span class="key">"created_at"</span>: <span class="str">"2024-01-01T00:00:00Z"</span>
+<span class="brace">}]</span></pre></div>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-orders-create">
+      <div class="endpoint-header" onclick="toggle('ep-orders-create')"><span class="method POST">POST</span><span class="endpoint-path">/api/orders</span><span class="endpoint-summary">Створити замовлення</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">Номер генерується автоматично (<code>ORD-YYYYMMDD-XXXX</code>).</p>
+        <div class="ep-section-label">Request Body — <code>CreateOrderDto</code></div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span>
+  <span class="key">"characteristic_id"</span>: <span class="str">"uuid"</span>, <span class="com">// required</span>
+  <span class="key">"nomenclature_id"</span>: <span class="str">"uuid"</span>,   <span class="com">// required</span>
+  <span class="key">"qty_ordered"</span>: <span class="num">100</span>,           <span class="com">// required</span>
+  <span class="key">"counterparty_id"</span>: <span class="str">"uuid"</span>,   <span class="com">// optional</span>
+  <span class="key">"notes"</span>: <span class="str">"..."</span>                <span class="com">// optional</span>
+<span class="brace">}</span></pre></div>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-orders-get"><div class="endpoint-header" onclick="toggle('ep-orders-get')"><span class="method GET">GET</span><span class="endpoint-path">/api/orders/<span class="path-param">:id</span></span><span class="endpoint-summary">Замовлення за ID</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Повертає повний об'єкт <code>Order</code>.</p></div></div>
+
+    <div class="endpoint" id="ep-orders-status">
+      <div class="endpoint-header" onclick="toggle('ep-orders-status')"><span class="method PATCH">PATCH</span><span class="endpoint-path">/api/orders/<span class="path-param">:id</span>/status</span><span class="endpoint-summary">Змінити статус</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <div class="ep-section-label">Request Body</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span> <span class="key">"status"</span>: <span class="str">"confirmed"</span> <span class="brace">}</span></pre></div>
+        <p style="color:var(--text-muted);font-size:12px;margin-top:8px">Допустимі: <code>new | confirmed | in_production | shipped | cancelled</code></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PRODUCTION ORDERS ── -->
+  <div class="section" id="s-production">
+    <div class="section-header"><span class="section-icon">🏭</span><h2 class="section-title">Production Orders</h2></div>
+    <div class="auth-banner">🔐 Read: <strong>prod_orders:read</strong> · Create: <strong>prod_orders:create</strong> · Approve: <strong>prod_orders:approve</strong> · Cancel: <strong>prod_orders:cancel</strong></div>
+    <p class="section-desc">Виробничі наряди. При створенні автоматично генерується складський документ "розхід" для списання матеріалів з складу.</p>
+
+    <div class="endpoint" id="ep-po-list">
+      <div class="endpoint-header" onclick="toggle('ep-po-list')"><span class="method GET">GET</span><span class="endpoint-path">/api/production-orders</span><span class="endpoint-summary">Список виробничих нарядів</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <div class="ep-section-label">Query Params</div>
+        <table class="params-table">
+          <tr><th>Параметр</th><th>Тип</th><th>Обов'язковість</th><th>Опис</th></tr>
+          <tr><td>status</td><td><span class="type-badge">string</span></td><td><span class="opt-badge">optional</span></td><td><code>draft | pending | approving | ready | in_production | done | cancelled</code></td></tr>
+          <tr><td>page</td><td><span class="type-badge">int</span></td><td><span class="opt-badge">optional</span></td><td>Default: 1</td></tr>
+          <tr><td>per_page</td><td><span class="type-badge">int</span></td><td><span class="opt-badge">optional</span></td><td>Макс. 200, default: 50</td></tr>
+        </table>
+        <div class="ep-section-label">Відповідь 200</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span> <span class="key">"items"</span>: <span class="brace">[]</span>, <span class="key">"total"</span>: <span class="num">0</span> <span class="brace">}</span></pre></div>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-po-create">
+      <div class="endpoint-header" onclick="toggle('ep-po-create')"><span class="method POST">POST</span><span class="endpoint-path">/api/production-orders</span><span class="endpoint-summary">Створити наряд</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">Перевіряє наявність матеріалів на складі перед створенням. Автоматично створює stock document "issue".</p>
+        <div class="ep-section-label">Request Body</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span>
+  <span class="key">"order_id"</span>: <span class="str">"uuid"</span>,           <span class="com">// required — customer order</span>
+  <span class="key">"warehouse_id"</span>: <span class="str">"uuid"</span>,        <span class="com">// required — склад матеріалів</span>
+  <span class="key">"bom_header_id"</span>: <span class="str">"uuid"</span>,       <span class="com">// optional</span>
+  <span class="key">"lines"</span>: <span class="brace">[{</span>
+    <span class="key">"source_characteristic_id"</span>: <span class="str">"uuid"</span>,  <span class="com">// required</span>
+    <span class="key">"target_characteristic_id"</span>: <span class="str">"uuid"</span>,  <span class="com">// optional</span>
+    <span class="key">"qty_to_produce"</span>: <span class="num">100</span>,               <span class="com">// required</span>
+    <span class="key">"source_qty"</span>: <span class="num">10</span>,                    <span class="com">// optional — к-сть листів</span>
+    <span class="key">"yield_per_source"</span>: <span class="num">9.5</span>              <span class="com">// optional — вихід з листа</span>
+  <span class="brace">}]</span>
+<span class="brace">}</span></pre></div>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-po-get">
+      <div class="endpoint-header" onclick="toggle('ep-po-get')"><span class="method GET">GET</span><span class="endpoint-path">/api/production-orders/<span class="path-param">:id</span></span><span class="endpoint-summary">Деталі наряду</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <div class="ep-section-label">Відповідь 200</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span>
+  <span class="key">"order"</span>: <span class="brace">{}</span>,
+  <span class="key">"lines"</span>: <span class="brace">[]</span>,
+  <span class="key">"work_cards"</span>: <span class="brace">[]</span>,
+  <span class="key">"requirements"</span>: <span class="brace">{</span>
+    <span class="key">"stock_confirmed"</span>: <span class="kw">false</span>,  <span class="com">// складський документ проведено</span>
+    <span class="key">"cnc_approved"</span>: <span class="kw">false</span>       <span class="com">// ЧПУ-програми затверджені</span>
+  <span class="brace">}</span>
+<span class="brace">}</span></pre></div>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-po-approve">
+      <div class="endpoint-header" onclick="toggle('ep-po-approve')"><span class="method PATCH">PATCH</span><span class="endpoint-path">/api/production-orders/<span class="path-param">:id</span>/approve</span><span class="endpoint-summary">Затвердити наряд</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">Переводить наряд у статус <code>ready</code>. Умови:</p>
+        <ul style="color:var(--text-muted);font-size:13px;padding-left:20px;line-height:1.8">
+          <li>Статус — <code>draft</code> або <code>approving</code></li>
+          <li>Складський документ "issue" — <code>confirmed</code></li>
+          <li>Всі ЧПУ-програми — <code>approved</code></li>
+        </ul>
+        <div class="ep-section-label" style="margin-top:12px">Відповідь 200</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span> <span class="key">"status"</span>: <span class="str">"ready"</span> <span class="brace">}</span></pre></div>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-po-cards">
+      <div class="endpoint-header" onclick="toggle('ep-po-cards')"><span class="method POST">POST</span><span class="endpoint-path">/api/production-orders/<span class="path-param">:id</span>/generate-cards</span><span class="endpoint-summary">Генерувати маршрутні картки</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">Ручна генерація маршрутних карток. Переводить наряд у <code>in_production</code>. Розраховує <code>expected_qty</code> з BOM.</p>
+        <div class="ep-section-label">Request Body</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span>
+  <span class="key">"cards"</span>: <span class="brace">[{</span>
+    <span class="key">"prod_order_line_id"</span>: <span class="str">"uuid"</span>,          <span class="com">// required</span>
+    <span class="key">"machine_id"</span>: <span class="str">"uuid"</span>,                 <span class="com">// required — станок</span>
+    <span class="key">"cycle_number"</span>: <span class="num">1</span>,                    <span class="com">// required, унікальний</span>
+    <span class="key">"sheets_in_cycle"</span>: <span class="num">5</span>,                 <span class="com">// required ≤ sheet_capacity станка</span>
+    <span class="key">"target_characteristic_id"</span>: <span class="str">"uuid"</span>,  <span class="com">// optional</span>
+    <span class="key">"manual_expected_qty"</span>: <span class="kw">null</span>           <span class="com">// optional — перевизначити розрахунок</span>
+  <span class="brace">}]</span>
+<span class="brace">}</span></pre></div>
+        <div class="ep-section-label">Відповідь 200</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span> <span class="key">"generated_cards"</span>: <span class="num">3</span>, <span class="key">"message"</span>: <span class="str">"..."</span> <span class="brace">}</span></pre></div>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-po-defects">
+      <div class="endpoint-header" onclick="toggle('ep-po-defects')"><span class="method POST">POST</span><span class="endpoint-path">/api/production-orders/<span class="path-param">:id</span>/defect-aggregation</span><span class="endpoint-summary">Агрегувати дефекти</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">Реєструє кількість браку — збільшує дозволений ліміт карток.</p>
+        <div class="ep-section-label">Request Body</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span> <span class="key">"missing_qty"</span>: <span class="num">5</span>, <span class="key">"description"</span>: <span class="str">"Пошкоджені листи"</span> <span class="brace">}</span></pre></div>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-po-cancel"><div class="endpoint-header" onclick="toggle('ep-po-cancel')"><span class="method PATCH">PATCH</span><span class="endpoint-path">/api/production-orders/<span class="path-param">:id</span>/cancel</span><span class="endpoint-summary">Скасувати наряд</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><pre><span class="brace">{</span> <span class="key">"status"</span>: <span class="str">"cancelled"</span> <span class="brace">}</span></pre></div></div></div>
+
+    <div class="endpoint" id="ep-po-workcards"><div class="endpoint-header" onclick="toggle('ep-po-workcards')"><span class="method GET">GET</span><span class="endpoint-path">/api/production-orders/<span class="path-param">:id</span>/work-cards</span><span class="endpoint-summary">Маршрутні картки наряду</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><pre><span class="brace">{</span> <span class="key">"items"</span>: <span class="brace">[]</span> <span class="brace">}</span></pre></div></div></div>
+
+    <div class="endpoint" id="ep-po-cnc"><div class="endpoint-header" onclick="toggle('ep-po-cnc')"><span class="method POST">POST</span><span class="endpoint-path">/api/production-orders/<span class="path-param">:id</span>/cnc/approve</span><span class="endpoint-summary">Затвердити ЧПУ-програми</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Потребує <strong>cnc_programs:approve</strong>. Позначає всі лінії наряду як затверджені інженером.</p><div class="ep-section-label" style="margin-top:12px">Відповідь 200</div><div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><pre><span class="brace">{</span> <span class="key">"status"</span>: <span class="str">"cnc_approved"</span> <span class="brace">}</span></pre></div></div></div>
+  </div>
+
+  <!-- ── WORK CARDS ── -->
+  <div class="section" id="s-workcards">
+    <div class="section-header"><span class="section-icon">🔧</span><h2 class="section-title">Work Cards — Маршрутні картки</h2></div>
+    <div class="auth-banner">🔐 Read: <strong>work_cards:read</strong> · Write: <strong>work_cards:write</strong></div>
+    <p class="section-desc">Маршрутні картки відстежують прогрес виробництва. При переході у деякі статуси автоматично створюються та підтверджуються складські документи.</p>
+
+    <div class="endpoint" id="ep-wc-list">
+      <div class="endpoint-header" onclick="toggle('ep-wc-list')"><span class="method GET">GET</span><span class="endpoint-path">/api/work-cards</span><span class="endpoint-summary">Список карток</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <div class="ep-section-label">Query Params</div>
+        <table class="params-table">
+          <tr><th>Параметр</th><th>Тип</th><th>Обов'язковість</th><th>Опис</th></tr>
+          <tr><td>status</td><td><span class="type-badge">string</span></td><td><span class="opt-badge">optional</span></td><td><code>printed | in_progress | in_buffer | tumbling | transferred | done</code></td></tr>
+          <tr><td>production_order_id</td><td><span class="type-badge">UUID</span></td><td><span class="opt-badge">optional</span></td><td>Фільтр по наряду</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-wc-qr"><div class="endpoint-header" onclick="toggle('ep-wc-qr')"><span class="method GET">GET</span><span class="endpoint-path">/api/work-cards/qr/<span class="path-param">:qr_code</span></span><span class="endpoint-summary">Картка за QR-кодом</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Використовується при скануванні QR. Повертає повний контекст картки.</p></div></div>
+
+    <div class="endpoint" id="ep-wc-id"><div class="endpoint-header" onclick="toggle('ep-wc-id')"><span class="method GET">GET</span><span class="endpoint-path">/api/work-cards/<span class="path-param">:id</span></span><span class="endpoint-summary">Картка за ID</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Повертає WorkCard з усіма полями включно з <code>target_name</code>.</p></div></div>
+
+    <div class="endpoint" id="ep-wc-advance">
+      <div class="endpoint-header" onclick="toggle('ep-wc-advance')"><span class="method PATCH">PATCH</span><span class="endpoint-path">/api/work-cards/<span class="path-param">:id</span>/advance-stage</span><span class="endpoint-summary">Перевести на наступний етап</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">Автоматично створює складські документи:</p>
+        <ul style="color:var(--text-muted);font-size:13px;padding-left:20px;line-height:1.8">
+          <li><strong>InBuffer</strong> → <code>production_in</code> до буферного складу</li>
+          <li><strong>Tumbling</strong> → <code>issue</code> з буферного складу</li>
+          <li><strong>Transferred</strong> → <code>receipt</code> до складу приймання</li>
+        </ul>
+        <div class="ep-section-label" style="margin-top:12px">Request Body</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span>
+  <span class="key">"status"</span>: <span class="str">"in_progress"</span>,      <span class="com">// required</span>
+  <span class="key">"operator_id"</span>: <span class="str">"uuid"</span>,        <span class="com">// optional</span>
+  <span class="key">"actual_qty"</span>: <span class="num">95</span>              <span class="com">// optional — фактична кількість</span>
+<span class="brace">}</span></pre></div>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-wc-defect">
+      <div class="endpoint-header" onclick="toggle('ep-wc-defect')"><span class="method POST">POST</span><span class="endpoint-path">/api/work-cards/<span class="path-param">:id</span>/defect</span><span class="endpoint-summary">Зареєструвати брак</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">Автоматично створює <code>production_in</code> документ на склад браку.</p>
+        <div class="ep-section-label">Request Body</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span>
+  <span class="key">"qty"</span>: <span class="num">3</span>,                      <span class="com">// required, > 0</span>
+  <span class="key">"operator_id"</span>: <span class="str">"uuid"</span>,        <span class="com">// optional</span>
+  <span class="key">"reason"</span>: <span class="str">"Подряпини"</span>          <span class="com">// optional</span>
+<span class="brace">}</span></pre></div>
+        <div class="ep-section-label">Відповідь 200</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span> <span class="key">"id"</span>: <span class="str">"uuid"</span>, <span class="key">"defect_qty"</span>: <span class="num">3</span> <span class="brace">}</span></pre></div>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-wc-defects-list"><div class="endpoint-header" onclick="toggle('ep-wc-defects-list')"><span class="method GET">GET</span><span class="endpoint-path">/api/work-cards/<span class="path-param">:id</span>/defects</span><span class="endpoint-summary">Список браку по картці</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><pre><span class="brace">{</span> <span class="key">"items"</span>: <span class="brace">[{</span> <span class="key">"id"</span>: <span class="str">"uuid"</span>, <span class="key">"qty"</span>: <span class="num">3</span>, <span class="key">"reason"</span>: <span class="str">"..."</span>, <span class="key">"created_at"</span>: <span class="str">"..."</span> <span class="brace">}]</span> <span class="brace">}</span></pre></div></div></div>
+
+    <div class="endpoint" id="ep-wc-operators-list"><div class="endpoint-header" onclick="toggle('ep-wc-operators-list')"><span class="method GET">GET</span><span class="endpoint-path">/api/work-cards/<span class="path-param">:id</span>/operators</span><span class="endpoint-summary">Оператори по картці</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><pre><span class="brace">{</span> <span class="key">"items"</span>: <span class="brace">[{</span> <span class="key">"operator_id"</span>: <span class="str">"uuid"</span>, <span class="key">"assigned_at"</span>: <span class="str">"..."</span> <span class="brace">}]</span> <span class="brace">}</span></pre></div></div></div>
+  </div>
+
+  <!-- ── EQUIPMENT ── -->
+  <div class="section" id="s-equipment">
+    <div class="section-header"><span class="section-icon">⚙️</span><h2 class="section-title">Equipment — Обладнання</h2></div>
+    <div class="auth-banner">🔐 Read: <strong>equipment:read</strong> · Write: <strong>equipment:write</strong></div>
+
+    <p style="font-weight:600;margin-bottom:12px;font-size:14px">Моделі станків</p>
+
+    <div class="endpoint" id="ep-eq-models-list"><div class="endpoint-header" onclick="toggle('ep-eq-models-list')"><span class="method GET">GET</span><span class="endpoint-path">/api/equipment-models</span><span class="endpoint-summary">Всі моделі</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><pre><span class="brace">{</span> <span class="key">"items"</span>: <span class="brace">[]</span> <span class="brace">}</span></pre></div></div></div>
+
+    <div class="endpoint" id="ep-eq-models-create">
+      <div class="endpoint-header" onclick="toggle('ep-eq-models-create')"><span class="method POST">POST</span><span class="endpoint-path">/api/equipment-models</span><span class="endpoint-summary">Створити модель</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <div class="ep-section-label">Request Body — <code>CreateEquipmentModelDto</code></div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span>
+  <span class="key">"name"</span>: <span class="str">"Trumpf TruLaser 3030"</span>,   <span class="com">// required, не може бути пустим</span>
+  <span class="key">"description"</span>: <span class="str">"..."</span>,            <span class="com">// optional</span>
+  <span class="key">"capacities"</span>: <span class="brace">[{</span>
+    <span class="key">"characteristic_id"</span>: <span class="str">"uuid"</span>,
+    <span class="key">"sheet_capacity"</span>: <span class="num">10</span>           <span class="com">// > 0</span>
+  <span class="brace">}]</span>
+<span class="brace">}</span></pre></div>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-eq-models-get"><div class="endpoint-header" onclick="toggle('ep-eq-models-get')"><span class="method GET">GET</span><span class="endpoint-path">/api/equipment-models/<span class="path-param">:id</span></span><span class="endpoint-summary">Модель за ID</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Повертає модель з ємностями по характеристиках.</p></div></div>
+    <div class="endpoint" id="ep-eq-models-patch"><div class="endpoint-header" onclick="toggle('ep-eq-models-patch')"><span class="method PATCH">PATCH</span><span class="endpoint-path">/api/equipment-models/<span class="path-param">:id</span></span><span class="endpoint-summary">Оновити модель</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Оновлює назву, опис або ємності. При передачі <code>capacities</code> — повна заміна.</p></div></div>
+    <div class="endpoint" id="ep-eq-models-del"><div class="endpoint-header" onclick="toggle('ep-eq-models-del')"><span class="method DELETE">DELETE</span><span class="endpoint-path">/api/equipment-models/<span class="path-param">:id</span></span><span class="endpoint-summary">Видалити модель</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><pre><span class="brace">{</span> <span class="key">"deleted"</span>: <span class="kw">true</span> <span class="brace">}</span></pre></div></div></div>
+
+    <p style="font-weight:600;margin:16px 0 12px;font-size:14px">Фізичне обладнання</p>
+
+    <div class="endpoint" id="ep-eq-list">
+      <div class="endpoint-header" onclick="toggle('ep-eq-list')"><span class="method GET">GET</span><span class="endpoint-path">/api/equipment</span><span class="endpoint-summary">Список обладнання</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <div class="ep-section-label">Query Params</div>
+        <table class="params-table"><tr><th>Параметр</th><th>Тип</th><th>Обов'язковість</th><th>Опис</th></tr><tr><td>active_only</td><td><span class="type-badge">bool</span></td><td><span class="opt-badge">optional</span></td><td>Тільки активні (default: false)</td></tr></table>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-eq-create">
+      <div class="endpoint-header" onclick="toggle('ep-eq-create')"><span class="method POST">POST</span><span class="endpoint-path">/api/equipment</span><span class="endpoint-summary">Створити обладнання</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <div class="ep-section-label">Request Body — <code>CreateEquipmentDto</code></div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span>
+  <span class="key">"name"</span>: <span class="str">"Лазер #1"</span>,         <span class="com">// required</span>
+  <span class="key">"model_id"</span>: <span class="str">"uuid"</span>,          <span class="com">// required</span>
+  <span class="key">"serial_number"</span>: <span class="str">"SN-001"</span>,  <span class="com">// optional</span>
+  <span class="key">"location"</span>: <span class="str">"Цех 1"</span>         <span class="com">// optional</span>
+<span class="brace">}</span></pre></div>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-eq-get"><div class="endpoint-header" onclick="toggle('ep-eq-get')"><span class="method GET">GET</span><span class="endpoint-path">/api/equipment/<span class="path-param">:id</span></span><span class="endpoint-summary">Обладнання за ID</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Повертає обладнання з моделлю та ємностями.</p></div></div>
+    <div class="endpoint" id="ep-eq-patch"><div class="endpoint-header" onclick="toggle('ep-eq-patch')"><span class="method PATCH">PATCH</span><span class="endpoint-path">/api/equipment/<span class="path-param">:id</span></span><span class="endpoint-summary">Оновити обладнання</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Оновлює будь-яке поле <code>UpdateEquipmentDto</code>.</p></div></div>
+  </div>
+
+  <!-- ── COUNTERPARTIES ── -->
+  <div class="section" id="s-counterparties">
+    <div class="section-header"><span class="section-icon">🤝</span><h2 class="section-title">Counterparties — Контрагенти</h2></div>
+    <div class="auth-banner">🔐 Read: <strong>counterparties:read</strong> · Write: <strong>counterparties:write</strong></div>
+
+    <div class="endpoint" id="ep-cp-list">
+      <div class="endpoint-header" onclick="toggle('ep-cp-list')"><span class="method GET">GET</span><span class="endpoint-path">/api/counterparties</span><span class="endpoint-summary">Список контрагентів</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <div class="ep-section-label">Query Params</div>
+        <table class="params-table">
+          <tr><th>Параметр</th><th>Тип</th><th>Обов'язковість</th><th>Опис</th></tr>
+          <tr><td>cp_type</td><td><span class="type-badge">string</span></td><td><span class="opt-badge">optional</span></td><td>Тип контрагента</td></tr>
+          <tr><td>active_only</td><td><span class="type-badge">bool</span></td><td><span class="opt-badge">optional</span></td><td>Default: true</td></tr>
+          <tr><td>limit</td><td><span class="type-badge">int</span></td><td><span class="opt-badge">optional</span></td><td>Макс. 200, default: 50</td></tr>
+          <tr><td>offset</td><td><span class="type-badge">int</span></td><td><span class="opt-badge">optional</span></td><td>Default: 0</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-cp-search"><div class="endpoint-header" onclick="toggle('ep-cp-search')"><span class="method GET">GET</span><span class="endpoint-path">/api/counterparties/search</span><span class="endpoint-summary">Пошук контрагентів</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="ep-section-label">Query Params</div><table class="params-table"><tr><th>Параметр</th><th>Тип</th><th>Обов'язковість</th><th>Опис</th></tr><tr><td>q</td><td><span class="type-badge">string</span></td><td><span class="req-badge">required</span></td><td>Мін. 2 символи</td></tr><tr><td>limit</td><td><span class="type-badge">int</span></td><td><span class="opt-badge">optional</span></td><td>Макс. 100, default: 20</td></tr></table></div></div>
+
+    <div class="endpoint" id="ep-cp-get"><div class="endpoint-header" onclick="toggle('ep-cp-get')"><span class="method GET">GET</span><span class="endpoint-path">/api/counterparties/<span class="path-param">:id</span></span><span class="endpoint-summary">Контрагент + контакти</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><pre><span class="brace">{</span> <span class="key">"counterparty"</span>: <span class="brace">{}</span>, <span class="key">"contacts"</span>: <span class="brace">[]</span> <span class="brace">}</span></pre></div></div></div>
+
+    <div class="endpoint" id="ep-cp-create">
+      <div class="endpoint-header" onclick="toggle('ep-cp-create')"><span class="method POST">POST</span><span class="endpoint-path">/api/counterparties</span><span class="endpoint-summary">Створити контрагента</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">Код генерується автоматично (<code>CP-YYYYMMDD-XXXX</code>). Відповідь: 201.</p>
+        <div class="ep-section-label">Request Body — <code>CreateCounterpartyDto</code></div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span>
+  <span class="key">"name"</span>: <span class="str">"ТОВ Металіст"</span>,      <span class="com">// required</span>
+  <span class="key">"cp_type"</span>: <span class="str">"supplier"</span>,       <span class="com">// optional</span>
+  <span class="key">"edrpou"</span>: <span class="str">"12345678"</span>,        <span class="com">// optional</span>
+  <span class="key">"address"</span>: <span class="str">"..."</span>             <span class="com">// optional</span>
+<span class="brace">}</span></pre></div>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-cp-update"><div class="endpoint-header" onclick="toggle('ep-cp-update')"><span class="method PATCH">PATCH</span><span class="endpoint-path">/api/counterparties/<span class="path-param">:id</span></span><span class="endpoint-summary">Оновити контрагента</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Оновлює будь-яке поле <code>UpdateCounterpartyDto</code>.</p></div></div>
+
+    <div class="endpoint" id="ep-cp-contact">
+      <div class="endpoint-header" onclick="toggle('ep-cp-contact')"><span class="method POST">POST</span><span class="endpoint-path">/api/counterparties/<span class="path-param">:id</span>/contacts</span><span class="endpoint-summary">Додати контакт</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <div class="ep-section-label">Request Body — <code>CreateContactDto</code></div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span>
+  <span class="key">"name"</span>: <span class="str">"Іван Петров"</span>,    <span class="com">// required</span>
+  <span class="key">"phone"</span>: <span class="str">"+38050..."</span>,    <span class="com">// optional</span>
+  <span class="key">"email"</span>: <span class="str">"..."</span>,          <span class="com">// optional</span>
+  <span class="key">"position"</span>: <span class="str">"Директор"</span>  <span class="com">// optional</span>
+<span class="brace">}</span></pre></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── WAREHOUSES ── -->
+  <div class="section" id="s-warehouses">
+    <div class="section-header"><span class="section-icon">🏪</span><h2 class="section-title">Warehouses — Склади</h2></div>
+    <div class="auth-banner">🔐 Read: <strong>warehouse_mgmt:read</strong> · Create: <strong>warehouse_mgmt:create</strong> · Manage: <strong>warehouse_mgmt:manage</strong></div>
+
+    <div class="endpoint" id="ep-wh-list"><div class="endpoint-header" onclick="toggle('ep-wh-list')"><span class="method GET">GET</span><span class="endpoint-path">/api/warehouses</span><span class="endpoint-summary">Список складів</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="ep-section-label">Query Params</div><table class="params-table"><tr><th>Параметр</th><th>Тип</th><th>Обов'язковість</th><th>Опис</th></tr><tr><td>active_only</td><td><span class="type-badge">bool</span></td><td><span class="opt-badge">optional</span></td><td>Default: true</td></tr></table></div></div>
+
+    <div class="endpoint" id="ep-wh-create">
+      <div class="endpoint-header" onclick="toggle('ep-wh-create')"><span class="method POST">POST</span><span class="endpoint-path">/api/warehouses</span><span class="endpoint-summary">Створити склад</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">Код генерується автоматично (<code>WH-XXXX</code>). Відповідь: 201.</p>
+        <div class="ep-section-label">Request Body — <code>CreateWarehouseDto</code></div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span>
+  <span class="key">"name"</span>: <span class="str">"Основний склад"</span>,  <span class="com">// required</span>
+  <span class="key">"wh_type"</span>: <span class="str">"main"</span>,         <span class="com">// optional: main | buffer_zone | defect | reception</span>
+  <span class="key">"address"</span>: <span class="str">"..."</span>           <span class="com">// optional</span>
+<span class="brace">}</span></pre></div>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-wh-get"><div class="endpoint-header" onclick="toggle('ep-wh-get')"><span class="method GET">GET</span><span class="endpoint-path">/api/warehouses/<span class="path-param">:id</span></span><span class="endpoint-summary">Склад + локації</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><pre><span class="brace">{</span> <span class="key">"warehouse"</span>: <span class="brace">{}</span>, <span class="key">"locations"</span>: <span class="brace">[]</span> <span class="brace">}</span></pre></div></div></div>
+
+    <div class="endpoint" id="ep-wh-deactivate"><div class="endpoint-header" onclick="toggle('ep-wh-deactivate')"><span class="method PATCH">PATCH</span><span class="endpoint-path">/api/warehouses/<span class="path-param">:id</span>/deactivate</span><span class="endpoint-summary">Деактивувати склад</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Основний склад деактивувати не можна (400).</p></div></div>
+
+    <div class="endpoint" id="ep-wh-locs"><div class="endpoint-header" onclick="toggle('ep-wh-locs')"><span class="method GET">GET</span><span class="endpoint-path">/api/warehouses/<span class="path-param">:id</span>/locations</span><span class="endpoint-summary">Локації складу</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><pre><span class="brace">{</span> <span class="key">"items"</span>: <span class="brace">[]</span>, <span class="key">"total"</span>: <span class="num">0</span> <span class="brace">}</span></pre></div></div></div>
+
+    <div class="endpoint" id="ep-wh-locs-create">
+      <div class="endpoint-header" onclick="toggle('ep-wh-locs-create')"><span class="method POST">POST</span><span class="endpoint-path">/api/warehouses/<span class="path-param">:id</span>/locations</span><span class="endpoint-summary">Створити локацію</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <div class="ep-section-label">Request Body — <code>CreateLocationDto</code></div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span> <span class="key">"code"</span>: <span class="str">"A-01-01"</span>, <span class="key">"name"</span>: <span class="str">"Секція A, ряд 1, місце 1"</span> <span class="brace">}</span></pre></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── STOCK DOCS ── -->
+  <div class="section" id="s-stock-docs">
+    <div class="section-header"><span class="section-icon">📋</span><h2 class="section-title">Stock Documents — Складські документи</h2></div>
+    <div class="auth-banner">🔐 Read: <strong>stock_docs:read</strong> · Create: <strong>stock_docs:create</strong> · Confirm: <strong>stock_docs:confirm</strong> · Cancel: <strong>stock_docs:cancel</strong></div>
+    <p class="section-desc">Документи регулюють рухи товарів на складі. При підтвердженні PostgreSQL тригер автоматично оновлює залишки.</p>
+
+    <div class="endpoint" id="ep-sd-list">
+      <div class="endpoint-header" onclick="toggle('ep-sd-list')"><span class="method GET">GET</span><span class="endpoint-path">/api/stock/documents</span><span class="endpoint-summary">Список документів</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <div class="ep-section-label">Query Params</div>
+        <table class="params-table">
+          <tr><th>Параметр</th><th>Тип</th><th>Обов'язковість</th><th>Опис</th></tr>
+          <tr><td>warehouse_id</td><td><span class="type-badge">UUID</span></td><td><span class="opt-badge">optional</span></td><td>Фільтр по складу</td></tr>
+          <tr><td>doc_type</td><td><span class="type-badge">string</span></td><td><span class="opt-badge">optional</span></td><td>Тип документу</td></tr>
+          <tr><td>status</td><td><span class="type-badge">string</span></td><td><span class="opt-badge">optional</span></td><td><code>draft | confirmed | cancelled</code></td></tr>
+          <tr><td>limit</td><td><span class="type-badge">int</span></td><td><span class="opt-badge">optional</span></td><td>Макс. 200, default: 50</td></tr>
+          <tr><td>offset</td><td><span class="type-badge">int</span></td><td><span class="opt-badge">optional</span></td><td>Default: 0</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-sd-create">
+      <div class="endpoint-header" onclick="toggle('ep-sd-create')"><span class="method POST">POST</span><span class="endpoint-path">/api/stock/documents</span><span class="endpoint-summary">Створити документ (Draft)</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">Документ типу <code>transfer</code> вимагає <code>warehouse_dest_id</code>. Статус після створення: <code>draft</code>.</p>
+        <div class="ep-section-label">Request Body — <code>CreateDocumentDto</code></div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span>
+  <span class="key">"doc_type"</span>: <span class="str">"receipt"</span>,           <span class="com">// required: receipt | issue | transfer | adjustment | write_off | production_in | production_out | return_to_supplier | return_from_customer | inventory</span>
+  <span class="key">"warehouse_id"</span>: <span class="str">"uuid"</span>,           <span class="com">// required</span>
+  <span class="key">"warehouse_dest_id"</span>: <span class="kw">null</span>,        <span class="com">// required for transfer</span>
+  <span class="key">"counterparty_id"</span>: <span class="kw">null</span>,          <span class="com">// optional</span>
+  <span class="key">"production_order_id"</span>: <span class="kw">null</span>,      <span class="com">// optional</span>
+  <span class="key">"purchase_order_id"</span>: <span class="kw">null</span>,        <span class="com">// optional</span>
+  <span class="key">"doc_date"</span>: <span class="kw">null</span>,                 <span class="com">// optional ISO date</span>
+  <span class="key">"notes"</span>: <span class="str">"Прихід від постачальника"</span>,<span class="com">// optional</span>
+  <span class="key">"lines"</span>: <span class="brace">[{</span>
+    <span class="key">"characteristic_id"</span>: <span class="str">"uuid"</span>,   <span class="com">// required</span>
+    <span class="key">"qty"</span>: <span class="num">100</span>,                     <span class="com">// required</span>
+    <span class="key">"unit_price"</span>: <span class="num">150.00</span>,           <span class="com">// optional</span>
+    <span class="key">"currency"</span>: <span class="str">"UAH"</span>,             <span class="com">// optional</span>
+    <span class="key">"location_id"</span>: <span class="kw">null</span>,            <span class="com">// optional</span>
+    <span class="key">"location_dest_id"</span>: <span class="kw">null</span>        <span class="com">// optional for transfer</span>
+  <span class="brace">}]</span>
+<span class="brace">}</span></pre></div>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-sd-get"><div class="endpoint-header" onclick="toggle('ep-sd-get')"><span class="method GET">GET</span><span class="endpoint-path">/api/stock/documents/<span class="path-param">:id</span></span><span class="endpoint-summary">Документ + рядки</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><pre><span class="brace">{</span> <span class="key">"document"</span>: <span class="brace">{}</span>, <span class="key">"lines"</span>: <span class="brace">[]</span> <span class="brace">}</span></pre></div></div></div>
+
+    <div class="endpoint" id="ep-sd-confirm">
+      <div class="endpoint-header" onclick="toggle('ep-sd-confirm')"><span class="method PATCH">PATCH</span><span class="endpoint-path">/api/stock/documents/<span class="path-param">:id</span>/confirm</span><span class="endpoint-summary">Провести документ</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px"><code>confirmed_by</code> береться з JWT — фронтенд не може підмінити. PostgreSQL тригер оновлює <code>stock_balances</code>.</p>
+        <div class="ep-section-label">Відповідь 200</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span> <span class="key">"document"</span>: <span class="brace">{}</span>, <span class="key">"message"</span>: <span class="str">"Документ DOC-001 проведено..."</span> <span class="brace">}</span></pre></div>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-sd-cancel">
+      <div class="endpoint-header" onclick="toggle('ep-sd-cancel')"><span class="method PATCH">PATCH</span><span class="endpoint-path">/api/stock/documents/<span class="path-param">:id</span>/cancel</span><span class="endpoint-summary">Скасувати документ</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">Підтверджені документи скасувати не можна.</p>
+        <div class="ep-section-label">Request Body</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span> <span class="key">"reason"</span>: <span class="str">"Помилка при введенні"</span> <span class="brace">}</span></pre></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── STOCK BALANCES ── -->
+  <div class="section" id="s-stock-balances">
+    <div class="section-header"><span class="section-icon">⚖️</span><h2 class="section-title">Stock Balances — Залишки</h2></div>
+    <div class="auth-banner">🔐 Balances: <strong>stock_docs:read</strong> · Movements: <strong>stock_reports:read</strong></div>
+
+    <div class="endpoint" id="ep-bal-list">
+      <div class="endpoint-header" onclick="toggle('ep-bal-list')"><span class="method GET">GET</span><span class="endpoint-path">/api/stock/balances</span><span class="endpoint-summary">Залишки по складах</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <div class="ep-section-label">Query Params</div>
+        <table class="params-table">
+          <tr><th>Параметр</th><th>Тип</th><th>Обов'язковість</th><th>Опис</th></tr>
+          <tr><td>warehouse_id</td><td><span class="type-badge">UUID</span></td><td><span class="opt-badge">optional</span></td><td>Фільтр по складу</td></tr>
+          <tr><td>characteristic_id</td><td><span class="type-badge">UUID</span></td><td><span class="opt-badge">optional</span></td><td>Фільтр по характеристиці</td></tr>
+          <tr><td>with_zero</td><td><span class="type-badge">bool</span></td><td><span class="opt-badge">optional</span></td><td>Включати нульові (default: false)</td></tr>
+          <tr><td>limit</td><td><span class="type-badge">int</span></td><td><span class="opt-badge">optional</span></td><td>Макс. 500, default: 100</td></tr>
+          <tr><td>offset</td><td><span class="type-badge">int</span></td><td><span class="opt-badge">optional</span></td><td>Default: 0</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-bal-char"><div class="endpoint-header" onclick="toggle('ep-bal-char')"><span class="method GET">GET</span><span class="endpoint-path">/api/stock/balances/<span class="path-param">:wh</span>/<span class="path-param">:ch</span></span><span class="endpoint-summary">Залишок для конкретної характеристики</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;"><code>:wh</code> — warehouse UUID, <code>:ch</code> — characteristic UUID. Повертає об'єкт балансу або null.</p></div></div>
+
+    <div class="endpoint" id="ep-movements">
+      <div class="endpoint-header" onclick="toggle('ep-movements')"><span class="method GET">GET</span><span class="endpoint-path">/api/stock/movements</span><span class="endpoint-summary">Рухи товарів</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <div class="ep-section-label">Query Params</div>
+        <table class="params-table">
+          <tr><th>Параметр</th><th>Тип</th><th>Обов'язковість</th><th>Опис</th></tr>
+          <tr><td>warehouse_id</td><td><span class="type-badge">UUID</span></td><td><span class="opt-badge">optional</span></td><td></td></tr>
+          <tr><td>characteristic_id</td><td><span class="type-badge">UUID</span></td><td><span class="opt-badge">optional</span></td><td></td></tr>
+          <tr><td>source_type</td><td><span class="type-badge">string</span></td><td><span class="opt-badge">optional</span></td><td>Тип джерела руху</td></tr>
+          <tr><td>actor_id</td><td><span class="type-badge">UUID</span></td><td><span class="opt-badge">optional</span></td><td>Хто зробив рух</td></tr>
+          <tr><td>limit</td><td><span class="type-badge">int</span></td><td><span class="opt-badge">optional</span></td><td>Макс. 500, default: 100</td></tr>
+          <tr><td>offset</td><td><span class="type-badge">int</span></td><td><span class="opt-badge">optional</span></td><td></td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PURCHASE ORDERS ── -->
+  <div class="section" id="s-purchase">
+    <div class="section-header"><span class="section-icon">🛒</span><h2 class="section-title">Purchase Orders — Замовлення постачальнику</h2></div>
+    <div class="auth-banner">🔐 Read: <strong>purchase_orders:read</strong> · Create: <strong>purchase_orders:create</strong> · Confirm: <strong>purchase_orders:confirm</strong></div>
+
+    <div class="endpoint" id="ep-pur-list">
+      <div class="endpoint-header" onclick="toggle('ep-pur-list')"><span class="method GET">GET</span><span class="endpoint-path">/api/purchase-orders</span><span class="endpoint-summary">Список замовлень</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <div class="ep-section-label">Query Params</div>
+        <table class="params-table">
+          <tr><th>Параметр</th><th>Тип</th><th>Обов'язковість</th><th>Опис</th></tr>
+          <tr><td>status</td><td><span class="type-badge">string</span></td><td><span class="opt-badge">optional</span></td><td><code>draft | sent | partial | received | cancelled</code></td></tr>
+          <tr><td>counterparty_id</td><td><span class="type-badge">UUID</span></td><td><span class="opt-badge">optional</span></td><td>Фільтр по постачальнику</td></tr>
+          <tr><td>limit</td><td><span class="type-badge">int</span></td><td><span class="opt-badge">optional</span></td><td>Макс. 200, default: 50</td></tr>
+          <tr><td>offset</td><td><span class="type-badge">int</span></td><td><span class="opt-badge">optional</span></td><td></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-pur-create">
+      <div class="endpoint-header" onclick="toggle('ep-pur-create')"><span class="method POST">POST</span><span class="endpoint-path">/api/purchase-orders</span><span class="endpoint-summary">Створити замовлення</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <div class="ep-section-label">Request Body — <code>CreatePurchaseOrderDto</code></div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span>
+  <span class="key">"counterparty_id"</span>: <span class="str">"uuid"</span>,    <span class="com">// required — постачальник</span>
+  <span class="key">"warehouse_id"</span>: <span class="str">"uuid"</span>,       <span class="com">// required — склад отримання</span>
+  <span class="key">"expected_date"</span>: <span class="str">"2024-02-01"</span>,<span class="com">// optional</span>
+  <span class="key">"notes"</span>: <span class="str">"..."</span>,               <span class="com">// optional</span>
+  <span class="key">"lines"</span>: <span class="brace">[{</span>
+    <span class="key">"characteristic_id"</span>: <span class="str">"uuid"</span>,<span class="com">// required</span>
+    <span class="key">"qty_ordered"</span>: <span class="num">50</span>,           <span class="com">// required</span>
+    <span class="key">"unit_price"</span>: <span class="num">200.00</span>,        <span class="com">// optional</span>
+    <span class="key">"currency"</span>: <span class="str">"UAH"</span>           <span class="com">// optional</span>
+  <span class="brace">}]</span>
+<span class="brace">}</span></pre></div>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-pur-get"><div class="endpoint-header" onclick="toggle('ep-pur-get')"><span class="method GET">GET</span><span class="endpoint-path">/api/purchase-orders/<span class="path-param">:id</span></span><span class="endpoint-summary">Замовлення + рядки</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><pre><span class="brace">{</span> <span class="key">"order"</span>: <span class="brace">{}</span>, <span class="key">"lines"</span>: <span class="brace">[]</span> <span class="brace">}</span></pre></div></div></div>
+
+    <div class="endpoint" id="ep-pur-confirm"><div class="endpoint-header" onclick="toggle('ep-pur-confirm')"><span class="method PATCH">PATCH</span><span class="endpoint-path">/api/purchase-orders/<span class="path-param">:id</span>/confirm</span><span class="endpoint-summary">Відправити замовлення (sent)</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><pre><span class="brace">{</span> <span class="key">"id"</span>: <span class="str">"uuid"</span>, <span class="key">"status"</span>: <span class="str">"sent"</span> <span class="brace">}</span></pre></div></div></div>
+
+    <div class="endpoint" id="ep-pur-cancel"><div class="endpoint-header" onclick="toggle('ep-pur-cancel')"><span class="method PATCH">PATCH</span><span class="endpoint-path">/api/purchase-orders/<span class="path-param">:id</span>/cancel</span><span class="endpoint-summary">Скасувати</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><pre><span class="brace">{</span> <span class="key">"id"</span>: <span class="str">"uuid"</span>, <span class="key">"status"</span>: <span class="str">"cancelled"</span> <span class="brace">}</span></pre></div></div></div>
+
+    <div class="endpoint" id="ep-pur-receive">
+      <div class="endpoint-header" onclick="toggle('ep-pur-receive')"><span class="method PATCH">PATCH</span><span class="endpoint-path">/api/purchase-orders/<span class="path-param">:id</span>/receive</span><span class="endpoint-summary">Прийняти товар</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">Замовлення має бути у статусі <code>sent</code> або <code>partial</code>. Автоматично створює та підтверджує складський документ <code>receipt</code>.</p>
+        <div class="ep-section-label">Відповідь 200</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span> <span class="key">"id"</span>: <span class="str">"uuid"</span>, <span class="key">"status"</span>: <span class="str">"received"</span>, <span class="key">"document_number"</span>: <span class="str">"DOC-..."</span> <span class="brace">}</span></pre></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PRINT ── -->
+  <div class="section" id="s-print">
+    <div class="section-header"><span class="section-icon">🖨</span><h2 class="section-title">Print / Download</h2></div>
+    <p class="section-desc">Завантаження PDF/DOCX документів. Відповідь — бінарний файл з відповідними заголовками <code>Content-Type</code> та <code>Content-Disposition</code>.</p>
+
+    <div class="endpoint" id="ep-print-po"><div class="endpoint-header" onclick="toggle('ep-print-po')"><span class="method GET">GET</span><span class="endpoint-path">/api/documents/production-order/<span class="path-param">:id</span>/download</span><span class="endpoint-summary">Завантажити виробничий наряд</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Повертає PDF або DOCX файл виробничого наряду з усіма маршрутними картками.</p></div></div>
+
+    <div class="endpoint" id="ep-print-pur"><div class="endpoint-header" onclick="toggle('ep-print-pur')"><span class="method GET">GET</span><span class="endpoint-path">/api/documents/purchase-order/<span class="path-param">:id</span>/download</span><span class="endpoint-summary">Завантажити замовлення постачальнику</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Повертає PDF/DOCX замовлення постачальнику.</p></div></div>
+
+    <div class="endpoint" id="ep-print-co"><div class="endpoint-header" onclick="toggle('ep-print-co')"><span class="method GET">GET</span><span class="endpoint-path">/api/documents/customer-order/<span class="path-param">:id</span>/download</span><span class="endpoint-summary">Завантажити замовлення клієнта</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Повертає PDF/DOCX замовлення клієнта.</p></div></div>
+
+    <div class="endpoint" id="ep-print-sd"><div class="endpoint-header" onclick="toggle('ep-print-sd')"><span class="method GET">GET</span><span class="endpoint-path">/api/documents/stock-document/<span class="path-param">:id</span>/download</span><span class="endpoint-summary">Завантажити складський документ</span><span class="endpoint-chevron">▼</span></div><div class="endpoint-body"><p style="color:var(--text-muted);font-size:13px;">Повертає PDF/DOCX складського документу.</p></div></div>
+  </div>
+
+  <!-- ── DOCUMENT STRUCTURE ── -->
+  <div class="section" id="s-docstruct">
+    <div class="section-header"><span class="section-icon">🌳</span><h2 class="section-title">Document Structure</h2></div>
+    <p class="section-desc">Повертає дерево пов'язаних документів для відображення ланцюжка від замовлення клієнта до складських операцій.</p>
+
+    <div class="endpoint" id="ep-docstruct">
+      <div class="endpoint-header" onclick="toggle('ep-docstruct')"><span class="method GET">GET</span><span class="endpoint-path">/api/document-structure/<span class="path-param">:type</span>/<span class="path-param">:id</span></span><span class="endpoint-summary">Дерево документів</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <div class="ep-section-label">Path Params</div>
+        <table class="params-table">
+          <tr><th>Параметр</th><th>Тип</th><th>Опис</th></tr>
+          <tr><td>type</td><td><span class="type-badge">string</span></td><td><code>customer_order | production_order | work_card | stock_document | purchase_order</code></td></tr>
+          <tr><td>id</td><td><span class="type-badge">UUID</span></td><td>ID документу</td></tr>
+        </table>
+        <div class="ep-section-label">Відповідь 200 — <code>DocumentNode</code></div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span>
+  <span class="key">"key"</span>: <span class="str">"co-uuid"</span>,
+  <span class="key">"doc_type"</span>: <span class="str">"customer_order"</span>,
+  <span class="key">"icon"</span>: <span class="str">"📦"</span>,
+  <span class="key">"number"</span>: <span class="str">"ORD-20241201-1234"</span>,
+  <span class="key">"label"</span>: <span class="str">"Замовлення клієнта — Алюміній А5"</span>,
+  <span class="key">"status"</span>: <span class="str">"in_production"</span>,
+  <span class="key">"id"</span>: <span class="str">"uuid"</span>,
+  <span class="key">"children"</span>: <span class="brace">[{</span>
+    <span class="key">"doc_type"</span>: <span class="str">"production_order"</span>,
+    <span class="key">"children"</span>: <span class="brace">[...]</span>
+  <span class="brace">}]</span>
+<span class="brace">}</span></pre></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MONITOR ── -->
+  <div class="section" id="s-monitor">
+    <div class="section-header"><span class="section-icon">📡</span><h2 class="section-title">Monitor</h2></div>
+
+    <div class="endpoint" id="ep-monitor">
+      <div class="endpoint-header" onclick="toggle('ep-monitor')"><span class="method GET">GET</span><span class="endpoint-path">/api/monitor/active</span><span class="endpoint-summary">Активні виробничі операції</span><span class="endpoint-chevron">▼</span></div>
+      <div class="endpoint-body">
+        <p style="color:var(--text-muted);font-size:13px;">Real-time дані про активні наряди та картки. Призначений для моніторингового екрану цеху.</p>
+        <div class="ep-section-label">Відповідь 200</div>
+        <div class="code-block"><div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><span class="brace">{</span>
+  <span class="key">"active_orders"</span>: <span class="brace">[]</span>,
+  <span class="key">"active_cards"</span>: <span class="brace">[]</span>
+<span class="brace">}</span></pre></div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+function toggle(id) {
+  const el = document.getElementById(id);
+  el.classList.toggle('open');
+}
+
+function copyCode(btn) {
+  const pre = btn.closest('.code-block').querySelector('pre');
+  navigator.clipboard.writeText(pre.innerText).then(() => {
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 1500);
+  });
+}
+
+function filterNav(q) {
+  const items = document.querySelectorAll('.nav-item');
+  items.forEach(item => {
+    item.style.display = q === '' || item.textContent.toLowerCase().includes(q.toLowerCase()) ? '' : 'none';
+  });
+}
+
+// Highlight active nav on scroll
+const sections = document.querySelectorAll('.section, .hero');
+const navItems = document.querySelectorAll('.nav-item');
+
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      navItems.forEach(n => n.classList.remove('active'));
+      const id = entry.target.id;
+      const link = document.querySelector(`.nav-item[href="#${id}"]`);
+      if (link) link.classList.add('active');
+    }
+  });
+}, { threshold: 0.3 });
+
+sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

@@ -26,6 +26,30 @@ const ForemanWorkplace = () => {
   const [bufferScrapModal, setBufferScrapModal] = useState(null)
   const [bufferScrapCounts, setBufferScrapCounts] = useState({})
   const [archiveCards, setArchiveCards] = useState([]) // Завершені картки (статус completed) для поточного наряду
+  // Local cache: orders for ALL relevant tasks, bypasses global pagination (PAGE_SIZE=20)
+  const [allOrdersMap, setAllOrdersMap] = useState({})
+
+  // ── Load orders for ALL active tasks (pagination-independent) ──────────────
+  useEffect(() => {
+    const activeTasks = tasks.filter(t => t.status !== 'completed' && t.status !== 'pending');
+    if (activeTasks.length === 0) return;
+    const neededIds = [...new Set(activeTasks.map(t => t.order_id).filter(Boolean))];
+    const missingIds = neededIds.filter(id => !orders.find(o => o.id === id));
+    if (missingIds.length === 0) return;
+    supabase
+      .from('orders')
+      .select('*, order_items(*)')
+      .in('id', missingIds)
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setAllOrdersMap(prev => {
+            const next = { ...prev };
+            data.forEach(o => { next[o.id] = o; });
+            return next;
+          });
+        }
+      });
+  }, [tasks.length, orders.length]);
 
   // Підвантажуємо архівні картки при зміні активного наряду
   useEffect(() => {
@@ -96,7 +120,7 @@ const ForemanWorkplace = () => {
     const map = {}
     tasks.forEach(task => {
       if (task.status === 'completed') { map[task.id] = false; return }
-      const order = orders.find(o => o.id === task.order_id)
+      const order = orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
       const taskCards = workCards.filter(c => c.task_id === task.id)
       const isReady = order?.order_items?.every(item => {
         const parts = bomItems
@@ -272,7 +296,7 @@ const ForemanWorkplace = () => {
       const createdCards = await apiService.submitCreateWorkCardsBatch(task.id, task.order_id, part.nom.id, cardsBatch, createWorkCard)
       
       if (isRepair && sheets > 0) {
-        const order = orders.find(o => o.id === task.order_id)
+        const order = orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
         const matName = part.nom?.material_type || part.nom?.name || 'Склад Оперативний'
         await supabase.from('material_requests').insert([{
           order_id: task.order_id,
@@ -435,7 +459,7 @@ const ForemanWorkplace = () => {
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {relevantTasks.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(task => {
-              const order = orders.find(o => o.id === task.order_id)
+              const order = orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
               const isActive = activeTaskId === task.id
               const isReady = taskReadinessMap[task.id]
               const isShortage = taskShortageMap[task.id]
@@ -553,7 +577,7 @@ const ForemanWorkplace = () => {
           {activeTaskId ? (
             (() => {
               const task = relevantTasks.find(t => t.id === activeTaskId)
-              const order = orders.find(o => o.id === task.order_id)
+              const order = orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
               // Об'єднуємо АКТИВНІ картки (з глобального стейту) + ЗАВЕРШЕНІ (архів для цього наряду)
               // Це гарантує, що картки НІКОЛИ не зникають після переходу на прийомку/буфер
               const activeTaskCards = workCards.filter(c => c.task_id === task.id)
@@ -1017,7 +1041,7 @@ const ForemanWorkplace = () => {
                       const groupScrap = groupHistory.reduce((sum, h) => sum + (Number(h.scrap_qty) || 0), 0)
 
                       const snapshot = task.plan_snapshot?.[nomId] || task.plan_snapshot?.[nom?.id]
-                      const orderRef = orders.find(o => o.id === task.order_id)
+                      const orderRef = orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
 
                       let need = 0
                       if (snapshot) {
@@ -1393,7 +1417,7 @@ const ForemanWorkplace = () => {
           </div>
 
           {printQueue.metadata.map((m, i) => {
-            const order = orders.find(o => o.id === printQueue.task.order_id)
+            const order = orders.find(o => o.id === printQueue.task.order_id) || allOrdersMap[printQueue.task.order_id]
             const nomenclature = nomenclatures.find(n => n.id === (printQueue.part.nomenclature_id || printQueue.part.nom?.id))
             const currentDate = new Date().toLocaleDateString('uk-UA')
             const finishedProduct = order?.order_items?.[0] ? nomenclatures.find(n => n.id === order.order_items[0].nomenclature_id) : null
