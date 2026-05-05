@@ -392,13 +392,13 @@ export function createProductionActions({
     try {
       const task = tasks.find(t => String(t.id) === String(taskId))
       if (!task) return
-      const shop2Task = tasks.find(t => String(t.order_id) === String(task.order_id) && t.step === 'Пресування' && String(t.id) !== String(task.id))
+      const shop2Task = tasks.find(t => String(t.order_id) === String(task.order_id) && t.step === 'Пресування [ЦЕХ №2]' && t.batch_index === task.batch_index)
       const snapshotPartsArr = Object.keys(task.plan_snapshot || {})
       const { data: freshInventory } = await supabase.from('inventory').select('*')
       const currentInventory = freshInventory || inventory
       for (const nomId of snapshotPartsArr) {
         const nom = nomenclatures.find(n => String(n.id) === String(nomId))
-        const { data: taskCards } = await supabase.from('work_cards').select('quantity').eq('task_id', taskId).eq('status', 'completed')
+        const { data: taskCards } = await supabase.from('work_cards').select('nomenclature_id, quantity').eq('task_id', taskId).eq('status', 'completed')
         const nomCards = (taskCards || []).filter(c => String(c.nomenclature_id) === String(nomId))
         const totalToMoveBack = nomCards.reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
         const snapshotNeed = Number(task.plan_snapshot[nomId]?.need) || 0
