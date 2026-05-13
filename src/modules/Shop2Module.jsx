@@ -44,16 +44,19 @@ const Shop2Module = () => {
     }
   }, [activeTaskId, workCards])
 
-  // Фільтруємо наряди для Цеху №2 (Пресування)
+  // Фільтруємо наряди для Цеху №2 (Пресування/ЦЕХ №2)
   const relevantTasks = useMemo(() => {
     return tasks
-      .filter(t => t.step?.includes('Пресування'))
+      .filter(t => t.step?.includes('Пресування') || t.step?.includes('ЦЕХ №2'))
       .sort((a, b) => {
         if (a.status === 'completed' && b.status !== 'completed') return 1
         if (a.status !== 'completed' && b.status === 'completed') return -1
+        if (a.status === 'waiting' && b.status !== 'waiting') return 1
+        if (a.status !== 'waiting' && b.status === 'waiting') return -1
         return new Date(b.created_at) - new Date(a.created_at)
       })
   }, [tasks])
+
 
   const getBOMParts = (nomenclatureId) => {
     return bomItems
@@ -63,6 +66,35 @@ const Shop2Module = () => {
         nom: nomenclatures.find(n => n.id === b.child_id)
       }))
   }
+
+  const getTaskDisplayItems = (task, orderObj) => {
+    if (!task) return []
+    const snapshot = task.plan_snapshot || {}
+    const arrivals = snapshot.arrivals || []
+    
+    let items = arrivals.length > 0 ? arrivals.map(a => ({
+      nom: (nomenclatures || []).find(n => String(n?.id) === String(a?.id)),
+      need: a?.semi || 0,
+      bz: a?.bz || 0,
+      code: (nomenclatures || []).find(n => String(n?.id) === String(a?.id))?.nomenclature_code
+    })) : (orderObj?.order_items || []).flatMap(item => {
+      const parts = getBOMParts(item?.nomenclature_id)
+      return parts.length > 0 ? parts.map(p => ({
+        nom: p.nom,
+        need: (Number(item?.quantity) || 0) * (Number(p.quantity_per_parent) || 1),
+        bz: 0,
+        code: p.nom?.nomenclature_code
+      })) : [{
+        nom: (nomenclatures || []).find(n => String(n?.id) === String(item?.nomenclature_id)),
+        need: (Number(item?.quantity) || 0),
+        bz: 0,
+        code: (nomenclatures || []).find(n => String(n?.id) === String(item?.nomenclature_id))?.nomenclature_code
+      }]
+    })
+
+    return (items || []).filter(item => item.nom?.type === 'part')
+  }
+
 
   const handleUpdateStage = async (task, nomId, stageName) => {
     if (!task || !nomId) return
@@ -107,15 +139,28 @@ const Shop2Module = () => {
 
     setIsGenerating(true)
     try {
-      const userQty = prompt(`Вкажіть кількість для картки:`, totalQty)
+      const userQty = prompt(`Вкажіть кількість для картки (макс: ${totalQty}):`, totalQty)
       if (userQty === null) return 
       const finalQty = Number(userQty) || 0
       if (finalQty <= 0) {
         alert("Кількість має бути більшою за 0")
         return
       }
+      if (finalQty > totalQty) {
+        alert(`Кількість (${finalQty}) перевищує залишок у буфері (${totalQty})`)
+        return
+      }
 
       const order = orders.find(o => o.id === task.order_id)
+
+      // Знаходимо at-shop2-buffer картки для цієї номенклатури (source картки)
+      const sourceCards = (workCards || [])
+        .filter(c =>
+          String(c.order_id) === String(task.order_id) &&
+          String(c.nomenclature_id) === String(nomId) &&
+          c.status === 'at-shop2-buffer'
+        )
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
 
       const payload = {
         task_id: task.id,
@@ -130,13 +175,24 @@ const Shop2Module = () => {
         card_info: `[ЦЕХ №2] [NEED:${item.need || 0}] [BZ:${item.bz || 0}] Наряд №${order?.order_num || ''}${task.batch_index ? `/${task.batch_index}` : ''}`
       }
 
-      console.log("Generating card with payload:", payload)
-
       const { data, error } = await supabase.from('work_cards').insert([payload]).select().single()
 
       if (error) {
         console.error("Supabase insert error:", error)
         throw error
+      }
+
+      // Оновлюємо used_in_shop2_qty на source-картках (розподіляємо по черзі)
+      let remaining = finalQty
+      for (const srcCard of sourceCards) {
+        if (remaining <= 0) break
+        const available = (Number(srcCard.quantity) || 0) - (Number(srcCard.used_in_shop2_qty) || 0)
+        if (available <= 0) continue
+        const toUse = Math.min(available, remaining)
+        await supabase.from('work_cards')
+          .update({ used_in_shop2_qty: (Number(srcCard.used_in_shop2_qty) || 0) + toUse })
+          .eq('id', srcCard.id)
+        remaining -= toUse
       }
 
       setPrintModalData({
@@ -155,6 +211,7 @@ const Shop2Module = () => {
       fetchData()
     }
   }
+
 
   return (
     <div className="shop2-module" style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
@@ -252,23 +309,25 @@ const Shop2Module = () => {
                     background: isActive ? '#1a1a1a' : 'transparent',
                     cursor: 'pointer',
                     transition: '0.2s',
-                    borderBottom: '1px solid #1a1a1a'
+                    borderBottom: '1px solid #1a1a1a',
+                    opacity: task.status === 'waiting' ? 0.5 : 1
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontWeight: 800, fontSize: '1rem', color: isCompleted ? '#444' : '#fff' }}>№ {order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}</div>
+                    <div style={{ fontWeight: 800, fontSize: '1rem', color: isCompleted ? '#444' : task.status === 'waiting' ? '#555' : '#fff' }}>№ {order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       {isCompleted ? (
                         <CheckCircle2 size={14} color="#10b981" />
+                      ) : task.status === 'waiting' ? (
+                        <div style={{ background: '#333', color: '#666', padding: '3px 8px', borderRadius: '8px', fontSize: '0.6rem', fontWeight: 950 }}>ОЧІКУЄ</div>
                       ) : (() => {
-                        const snapshot = task.plan_snapshot || {}
-                        const arrivals = snapshot.arrivals || []
+                        const itemsToCheck = getTaskDisplayItems(task, order)
                         const allCards = [...(workCards || []), ...(archiveCards || [])]
                         
-                        const isAllDone = arrivals.length > 0 && arrivals.every(a => {
+                        const isAllDone = itemsToCheck.length > 0 && itemsToCheck.every(a => {
                           return allCards.some(wc => 
                             String(wc.task_id) === String(task.id) && 
-                            String(wc.nomenclature_id) === String(a.id) && 
+                            String(wc.nomenclature_id) === String(a.nom?.id) && 
                             wc.status === 'completed'
                           )
                         })
@@ -281,8 +340,12 @@ const Shop2Module = () => {
                     </div>
                   </div>
                   <div style={{ fontSize: '0.75rem', color: isCompleted ? '#222' : '#555', marginTop: '4px' }}>{order?.customer}</div>
+                  {task.status === 'waiting' && (
+                    <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 900, marginTop: '8px' }}>ЧЕК. ДЕТАЛІ З ЦЕХ №1</div>
+                  )}
                   {isCompleted && <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 900, marginTop: '8px' }}>ВИКОНАНО</div>}
-                  {!isCompleted && (() => {
+                  {!isCompleted && task.status !== 'waiting' && (() => {
+
                         const snapshot = task.plan_snapshot || {}
                         const arrivals = snapshot.arrivals || []
                         const allCards = [...(workCards || []), ...(archiveCards || [])]
@@ -435,31 +498,7 @@ const Shop2Module = () => {
                     </thead>
                     <tbody>
                       {(() => {
-                        const snapshot = task.plan_snapshot || {}
-                        const arrivals = snapshot.arrivals || []
-                        
-                        // Пріоритетно беремо дані з того, що фактично приїхало (буфер)
-                        let displayItems = arrivals.length > 0 ? arrivals.map(a => ({
-                          nom: (nomenclatures || []).find(n => String(n?.id) === String(a?.id)),
-                          need: a?.semi || 0,
-                          bz: a?.bz || 0,
-                          code: (nomenclatures || []).find(n => String(n?.id) === String(a?.id))?.nomenclature_code
-                        })) : (order?.order_items || []).flatMap(item => {
-                          const parts = getBOMParts(item?.nomenclature_id)
-                          return parts.length > 0 ? parts.map(p => ({
-                            nom: p.nom,
-                            need: (Number(item?.quantity) || 0) * (Number(p.quantity_per_parent) || 1),
-                            bz: 0,
-                            code: p.nom?.nomenclature_code
-                          })) : [{
-                            nom: (nomenclatures || []).find(n => String(n?.id) === String(item?.nomenclature_id)),
-                            need: (Number(item?.quantity) || 0),
-                            bz: 0,
-                            code: (nomenclatures || []).find(n => String(n?.id) === String(item?.nomenclature_id))?.nomenclature_code
-                          }]
-                        })
-
-                        displayItems = (displayItems || []).filter(item => item.nom?.type === 'part')
+                        const displayItems = getTaskDisplayItems(task, order)
 
                         return (displayItems || []).map((item, idx) => {
                           const stage = selectedStages[String(item.nom?.id)] || task.plan_snapshot?.[String(item.nom?.id)]?.shop2_stage
@@ -470,6 +509,33 @@ const Shop2Module = () => {
                             return idMatch && opMatch
                           })
 
+                          // Планова потреба з BOM
+                          const plannedNeed = Number(item.need) || 0
+                          
+                          // Реально прийшло в буфер Цеху №2 з сортування
+                          const s2CardsForNom = (workCards || []).filter(c => 
+                            String(c.order_id) === String(task.order_id) && 
+                            String(c.nomenclature_id) === String(item.nom?.id) &&
+                            c.status === 'at-shop2-buffer'
+                          )
+                          const totalArrived = s2CardsForNom.reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+                          
+                          // Перевіряємо старий масив arrivals, якщо він був заповнений
+                          const snap = task.plan_snapshot || {}
+                          const arrival = (snap.arrivals || []).find(a => String(a.id) === String(item.nom?.id))
+                          
+                          const actualArrived = arrival ? (Number(arrival.semi) || 0) + (Number(arrival.bz) || 0) : totalArrived
+                          
+                          const displayNeed = plannedNeed
+                          const displayBz = arrival ? (Number(arrival.bz) || 0) : (totalArrived > plannedNeed ? totalArrived - plannedNeed : 0)
+                          const displayTotal = displayNeed + displayBz
+
+                          // Загальна кількість деталей, яка вже пішла в процес (згенеровані робочі карти в Цеху №2)
+                          const allShop2CardsForNom = [...(workCards || []), ...(archiveCards || [])].filter(c =>
+                            String(c.task_id) === String(task.id) && String(c.nomenclature_id) === String(item.nom?.id)
+                          )
+                          const totalInProcess = allShop2CardsForNom.reduce((s, c) => s + (Number(c.quantity) || 0), 0)
+
                           return (
                             <tr key={idx} style={{ borderBottom: '1px solid #1a1a1a', opacity: (existingCard && existingCard.status === 'completed') ? 0.7 : 1 }}>
                             <td style={{ padding: '20px' }}>
@@ -479,32 +545,24 @@ const Shop2Module = () => {
                             <td style={{ padding: '20px', textAlign: 'center' }}>
                               <div style={{ color: '#666', fontSize: '0.85rem', fontWeight: 700 }}>{item.nom?.material_type || '—'}</div>
                             </td>
-                            {(() => {
-                              const snap = task.plan_snapshot || {}
-                              const arrival = (snap.arrivals || []).find(a => String(a.id) === String(item.nom?.id))
-                              
-                              // Завжди показуємо ОРИГІНАЛЬНІ цифри (те, що приїхало з цеху 1)
-                              const displayNeed = arrival ? (Number(arrival.semi) || 0) : (Number(item.need) || 0)
-                              const displayBz = arrival ? (Number(arrival.bz) || 0) : 0
-
-                              return (
-                                <>
-                                  <td style={{ padding: '20px', textAlign: 'center', color: '#fff', fontSize: '1.2rem', fontWeight: 600 }}>
-                                    {displayNeed}
-                                  </td>
-                                  {!isReworkOrder && (
-                                    <>
-                                      <td style={{ padding: '20px', textAlign: 'center', color: '#eab308', fontWeight: 1000, fontSize: '1.4rem' }}>
-                                        {displayBz}
-                                      </td>
-                                      <td style={{ padding: '20px', textAlign: 'center', color: '#3b82f6', fontWeight: 1000, fontSize: '1.4rem' }}>
-                                        {displayNeed + displayBz}
-                                      </td>
-                                    </>
+                            <td style={{ padding: '20px', textAlign: 'center', color: '#fff', fontSize: '1.2rem', fontWeight: 600 }}>
+                              {displayNeed}
+                            </td>
+                            {!isReworkOrder && (
+                              <>
+                                <td style={{ padding: '20px', textAlign: 'center', color: '#eab308', fontWeight: 1000, fontSize: '1.4rem' }}>
+                                  {displayBz}
+                                </td>
+                                <td style={{ padding: '20px', textAlign: 'center', color: '#3b82f6', fontWeight: 1000, fontSize: '1.4rem' }}>
+                                  <div>{actualArrived}/{displayTotal}</div>
+                                  {totalInProcess > 0 && (
+                                    <span style={{ fontSize: '0.75rem', color: '#10b981', display: 'block', marginTop: '4px', fontWeight: 800 }}>
+                                      ({totalInProcess} в роботі)
+                                    </span>
                                   )}
-                                </>
-                              )
-                            })()}
+                                </td>
+                              </>
+                            )}
                             <td style={{ padding: '20px' }}>
                               <select
                                 value={selectedStages[String(item.nom?.id)] || (task.plan_snapshot?.[String(item.nom?.id)]?.shop2_stage) || ''}
@@ -547,67 +605,55 @@ const Shop2Module = () => {
                                   return idMatch && opMatch
                                 })
 
+                                // Залишок буфера з at-shop2-buffer карток
+                                const bufSrcCards = (workCards || []).filter(c =>
+                                  String(c.order_id) === String(task.order_id) &&
+                                  String(c.nomenclature_id) === String(item.nom?.id) &&
+                                  c.status === 'at-shop2-buffer'
+                                )
+                                const bufTotal = bufSrcCards.reduce((s, c) => s + (Number(c.quantity) || 0), 0)
+                                const bufUsed = bufSrcCards.reduce((s, c) => s + (Number(c.used_in_shop2_qty) || 0), 0)
+                                const total2 = bufTotal - bufUsed
+
                                 if (task.status === 'completed' || (existingCard && existingCard.status === 'completed')) {
                                   return <div style={{ color: '#10b981', fontSize: '0.7rem', fontWeight: 900 }}>ГОТОВО</div>
                                 }
 
-                                if (existingCard) {
-                                  return (
-                                    <button
-                                      onClick={() => {
-                                        const order = orders.find(o => o.id === task.order_id)
-                                        setPrintModalData({
-                                          cardId: existingCard.id,
-                                          nomName: item.nom?.name,
-                                          qty: existingCard.quantity,
-                                          stage: existingCard.operation,
-                                          orderNum: order?.order_num || '—',
-                                          customer: order?.customer || '—'
-                                        })
-                                      }}
-                                      style={{
-                                        background: '#10b981',
-                                        color: '#fff',
-                                        border: 'none',
-                                        padding: '10px',
-                                        borderRadius: '12px',
-                                        cursor: 'pointer',
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
-                                      }}
-                                      title="Друкувати повторно"
-                                    >
-                                      <Printer size={16} />
-                                    </button>
-                                  )
-                                }
+                                const remNeed2 = Math.min(total2, displayNeed)
+                                const remBz2 = Math.max(0, total2 - remNeed2)
 
-                                // Обчислюємо залишок для відображення кнопки
-                                const snap2 = task.plan_snapshot || {}
-                                const arrival2 = (snap2.arrivals || []).find(a => String(a.id) === String(item.nom?.id))
-                                const initNeed2 = arrival2 ? (Number(arrival2.semi) || 0) : (Number(item.need) || 0)
-                                const initBz2 = arrival2 ? (Number(arrival2.bz) || 0) : 0
+                                const printBtn = existingCard ? (
+                                  <button
+                                    onClick={() => {
+                                      const order = orders.find(o => o.id === task.order_id)
+                                      setPrintModalData({
+                                        cardId: existingCard.id,
+                                        nomName: item.nom?.name,
+                                        qty: existingCard.quantity,
+                                        stage: existingCard.operation,
+                                        orderNum: order?.order_num || '—',
+                                        customer: order?.customer || '—'
+                                      })
+                                    }}
+                                    style={{
+                                      background: '#10b981',
+                                      color: '#fff',
+                                      border: 'none',
+                                      padding: '10px',
+                                      borderRadius: '12px',
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+                                    }}
+                                    title="Друкувати повторно"
+                                  >
+                                    <Printer size={16} />
+                                  </button>
+                                ) : null
 
-                                const rowCards = allCardsForCheck.filter(c => String(c.task_id) === String(task.id) && String(c.nomenclature_id) === String(item.nom?.id))
-                                const assigned2 = rowCards.reduce((a, c) => a + (Number(c.quantity) || 0), 0)
-                                const scrap2 = (workCardHistory || []).filter(h => rowCards.some(tc => tc.id === h.card_id)).reduce((a, h) => a + (Number(h.scrap_qty) || 0), 0)
-
-                                let remNeed2 = initNeed2
-                                let remBz2 = initBz2
-                                let toDeduct2 = assigned2 + scrap2
-                                const ded2 = Math.min(remNeed2, toDeduct2)
-                                remNeed2 -= ded2
-                                toDeduct2 -= ded2
-                                remBz2 -= Math.min(remBz2, toDeduct2)
-                                const total2 = remNeed2 + remBz2
-
-                                if (total2 <= 0) {
-                                  return <div style={{ color: '#10b981', fontSize: '0.7rem', fontWeight: 900 }}>ГОТОВО</div>
-                                }
-
-                                return (
+                                const genBtn = total2 > 0 ? (
                                   <button
                                     onClick={async () => {
                                       if (stage === 'Пакування/СГП') {
@@ -638,10 +684,23 @@ const Shop2Module = () => {
                                       cursor: 'pointer',
                                       opacity: (task.status === 'completed' || isGenerating || !stage) ? 0.3 : 1
                                     }}
+                                    title={`Генерувати ще на ${total2} шт.`}
                                   >
-                                    {isGenerating ? '...' : (stage === 'Пакування/СГП' ? 'ВІДПРАВИТИ НА СГП' : 'ГЕНЕРУВАТИ')}
+                                    {isGenerating ? '...' : (stage === 'Пакування/СГП' ? 'ВІДПРАВИТИ НА СГП' : '+ ГЕНЕРУВАТИ')}
                                   </button>
-                                )
+                                ) : null
+
+                                if (printBtn || genBtn) {
+                                  return (
+                                    <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
+                                      {printBtn}
+                                      {genBtn}
+                                    </div>
+                                  )
+                                }
+
+                                if (bufTotal === 0) return <div style={{ color: '#444', fontSize: '0.65rem', fontWeight: 700 }}>Очікує буфер</div>
+                                return <div style={{ color: '#10b981', fontSize: '0.7rem', fontWeight: 900 }}>ГОТОВО</div>
                               })()}
                             </td>
                           </tr>
@@ -653,14 +712,13 @@ const Shop2Module = () => {
                 </div>
 
                 {(() => {
-                  const snapshot = task.plan_snapshot || {}
-                  const arrivals = snapshot.arrivals || []
+                  const itemsToCheck = getTaskDisplayItems(task, order)
                   const allCards = [...(workCards || []), ...(archiveCards || [])]
                   
-                  const isAllDone = arrivals.length > 0 && arrivals.every(a => {
+                  const isAllDone = itemsToCheck.length > 0 && itemsToCheck.every(a => {
                     return allCards.some(wc => 
                       String(wc.task_id) === String(task.id) && 
-                      String(wc.nomenclature_id) === String(a.id) && 
+                      String(wc.nomenclature_id) === String(a.nom?.id) && 
                       wc.status === 'completed'
                     )
                   })
@@ -723,83 +781,89 @@ const Shop2Module = () => {
 
                 {!isReworkOrder && (
                   <div style={{ marginTop: '40px' }}>
-                    <h3 style={{ fontSize: '1.2rem', fontWeight: 950, color: '#444', textTransform: 'uppercase', marginBottom: '25px', borderLeft: '4px solid #10b981', paddingLeft: '15px' }}>
-                      Буфер надходжень (з Цеху №1)
+                    <h3 style={{ fontSize: '1.2rem', fontWeight: 950, color: '#444', textTransform: 'uppercase', marginBottom: '25px', borderLeft: '4px solid #8b5cf6', paddingLeft: '15px' }}>
+                      🔵 Буфер надходжень (з Цеху №1)
                     </h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '15px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '15px' }}>
                       {(() => {
-                        const snap = task.plan_snapshot || {}
-                        const snapIds = Object.keys(snap).filter(id => id !== 'arrivals')
+                        // Читаємо at-shop2-buffer картки з Shop1 для цього наряду
+                        // Шукаємо за order_id (task.order_id), бо ці картки належать задачі Цеху №1
+                        const shop2BufferCards = (workCards || []).filter(c =>
+                          String(c.order_id) === String(task.order_id) &&
+                          c.status === 'at-shop2-buffer'
+                        )
 
-                        let arrivals = []
+                        // Групуємо по nomenclature_id
+                        const byNom = {}
+                        shop2BufferCards.forEach(c => {
+                          const nid = String(c.nomenclature_id)
+                          if (!byNom[nid]) byNom[nid] = { cards: [], totalArrived: 0, totalUsed: 0 }
+                          byNom[nid].cards.push(c)
+                          byNom[nid].totalArrived += (Number(c.quantity) || 0)
+                          byNom[nid].totalUsed += (Number(c.used_in_shop2_qty) || 0)
+                        })
 
-                        if (snap.arrivals && Array.isArray(snap.arrivals)) {
-                          snap.arrivals.forEach(arr => {
-                            arrivals.push({
-                              id: arr.id,
-                              name: arr.name,
-                              need: Number(arr.semi) || 0,
-                              bz: Number(arr.bz) || 0,
-                              total: (Number(arr.semi) || 0) + (Number(arr.bz) || 0)
-                            })
-                          })
-                        } else {
-                          snapIds.forEach(nomId => {
-                            const nom = (nomenclatures || []).find(n => String(n?.id) === String(nomId))
-                            if (!nom) return
-
-                            const arrival = (snap.arrivals || []).find(a => String(a.id) === String(nomId))
-                            const initialNeed = arrival ? (Number(arrival.semi) || 0) : (snap[nomId]?.need || 0)
-                            const initialBz = arrival ? (Number(arrival.bz) || 0) : 0
-
-                            const taskCards = (workCards || []).filter(c => String(c.task_id) === String(task.id) && String(c.nomenclature_id) === String(nomId))
-                            const assignedTotal = taskCards.reduce((a, c) => a + (Number(c.quantity) || 0), 0)
-                            const scrapTotal = (workCardHistory || []).filter(h => taskCards.some(tc => tc.id === h.card_id)).reduce((a, h) => a + (Number(h.scrap_qty) || 0), 0)
-
-                            let remainingNeed = initialNeed
-                            let remainingBz = initialBz
-                            let toDeduct = assignedTotal + scrapTotal
-
-                            const deductFromNeed = Math.min(remainingNeed, toDeduct)
-                            remainingNeed -= deductFromNeed
-                            toDeduct -= deductFromNeed
-                            const deductFromBz = Math.min(remainingBz, toDeduct)
-                            remainingBz -= deductFromBz
-
-                            if (remainingNeed > 0 || remainingBz > 0) {
-                              arrivals.push({ id: nomId, name: nom.name, need: remainingNeed, bz: remainingBz, total: remainingNeed + remainingBz })
-                            }
-                          })
+                        if (Object.keys(byNom).length === 0) {
+                          return (
+                            <div style={{ color: '#222', fontSize: '0.85rem', fontWeight: 700, padding: '20px', gridColumn: '1/-1' }}>
+                              {task.status === 'waiting'
+                                ? '⏳ Очікуємо надходження деталей з Цеху №1...'
+                                : 'Буфер порожній — всі деталі вже в роботі'}
+                            </div>
+                          )
                         }
 
-                        if (arrivals.length === 0) {
-                          return <div style={{ color: '#222', fontSize: '0.85rem', fontWeight: 700, padding: '20px' }}>Буфер порожній. Передайте наряд з Цеху №1...</div>
-                        }
+                        return Object.entries(byNom).map(([nomId, data]) => {
+                          const nom = (nomenclatures || []).find(n => String(n?.id) === nomId)
+                          const remaining = data.totalArrived - data.totalUsed
+                          const shop2Cards = [...(workCards || []), ...(archiveCards || [])].filter(c =>
+                            String(c.task_id) === String(task.id) && String(c.nomenclature_id) === nomId
+                          )
+                          const inWork = shop2Cards.reduce((s, c) => s + (Number(c.quantity) || 0), 0)
 
-                        return arrivals.map(item => (
-                          <div key={item.id} style={{ background: '#111', borderRadius: '24px', padding: '20px', border: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div>
-                              <div style={{ fontWeight: 900, fontSize: '0.9rem', color: '#fff' }}>{item.name}</div>
-                              <div style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 900, textTransform: 'uppercase', marginTop: '4px' }}>
-                                НАДХОДЖЕННЯ З ЦЕХУ №1
+                          // Потреба з BOM (через getTaskDisplayItems)
+                          const snap = task.plan_snapshot || {}
+                          const arrival = (snap.arrivals || []).find(a => String(a.id) === nomId)
+                          const displayItemsForNeed = getTaskDisplayItems(task, order)
+                          const matchedDi = displayItemsForNeed.find(di => String(di.nom?.id) === nomId)
+                          const need = arrival ? (Number(arrival.semi) || 0) + (Number(arrival.bz) || 0)
+                            : (matchedDi ? Number(matchedDi.need) : 0)
+
+                          return (
+                            <div key={nomId} style={{ background: '#111', borderRadius: '24px', padding: '22px', border: remaining > 0 ? '1px solid #8b5cf644' : '1px solid #1a1a1a', boxShadow: remaining > 0 ? '0 0 20px rgba(139,92,246,0.1)' : 'none' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
+                                <div>
+                                  <div style={{ fontWeight: 900, fontSize: '0.9rem', color: '#fff' }}>{nom?.name || 'Деталь'}</div>
+                                  <div style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 900, textTransform: 'uppercase', marginTop: '4px' }}>
+                                    БУФЕР ЦЕХУ №2
+                                  </div>
+                                </div>
+                                <div style={{ textAlign: 'right' }}>
+                                  <div style={{ fontSize: '0.6rem', color: '#555', fontWeight: 900 }}>В РОБОТІ / ПОТРЕБА</div>
+                                  <div style={{ fontSize: '1.4rem', fontWeight: 1000, color: inWork > 0 ? '#3b82f6' : '#fff' }}>
+                                    {inWork}<span style={{ fontSize: '0.8rem', color: '#444' }}> / {need}</span>
+                                  </div>
+                                  {remaining > 0 && (
+                                    <div style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 900, marginTop: '2px' }}>
+                                      ({remaining} очікують на генерацію РК)
+                                    </div>
+                                  )}
+                                </div>
                               </div>
+                              {remaining > 0 && (
+                                <div style={{ fontSize: '0.65rem', color: '#555', textAlign: 'center', padding: '8px', background: '#0a0a0a', borderRadius: '10px' }}>
+                                  Оберіть етап у таблиці та натисніть ГЕНЕРУВАТИ
+                                </div>
+                              )}
                             </div>
-                            <div style={{ textAlign: 'right' }}>
-                              <div style={{ fontSize: '1.8rem', fontWeight: 1000, color: '#fff', lineHeight: 1 }}>{item.total || 0}</div>
-                              <div style={{ fontSize: '0.9rem', fontWeight: 1000, color: '#fff' }}>
-                                {item.need || 0}
-                                <span style={{ color: '#444', fontSize: '0.9rem', margin: '0 5px' }}>+</span>
-                                <span style={{ color: '#eab308' }}>{item.bz || 0}</span>
-                                <span style={{ color: '#eab308', fontSize: '0.7rem', marginLeft: '4px' }}>БЗ</span>
-                              </div>
-                              <div style={{ fontSize: '0.55rem', color: '#444', fontWeight: 900 }}>ЗАГАЛЬНА КІЛЬКІСТЬ</div>
-                            </div>
-                          </div>
-                        ))
+                          )
+                        })
                       })()}
                     </div>
                   </div>
                 )}
+
+
 
                 {/* ───── АРХІВ РОБОЧИХ КАРТОК (ЦЕХ №2) ───── */}
                 <div style={{ marginTop: '60px' }}>

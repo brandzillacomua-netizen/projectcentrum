@@ -100,15 +100,15 @@ export function useData() {
       const { data: c } = await supabase.from('customers').select('*').limit(50).order('name')
       const { data: i } = await supabase.from('inventory').select('*').order('name')
       const threeDaysAgoTasks = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
-      const { data: t } = await supabase.from('tasks').select('*').or(`status.neq.completed,completed_at.gte.${threeDaysAgoTasks}`).order('created_at', { ascending: false })
+      const { data: t } = await supabase.from('tasks').select('*, orders(*, order_items(*))').or(`status.neq.completed,completed_at.gte.${threeDaysAgoTasks}`).order('created_at', { ascending: false })
       const { data: r } = await supabase.from('material_requests').select('*').neq('status', 'completed').order('created_at', { ascending: false })
       const { data: n } = await supabase.from('nomenclatures').select('*')
       const { data: b } = await supabase.from('bom_items').select('*')
       
       const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
-      const { data: rec } = await supabase.from('reception_docs').select('*').or(`status.neq.completed,created_at.gte.${threeDaysAgo}`).order('created_at', { ascending: false })
-      const { data: pr } = await supabase.from('purchase_requests').select('*').or(`status.neq.completed,created_at.gte.${threeDaysAgo}`).order('created_at', { ascending: false })
-      const { data: wc } = await supabase.from('work_cards').select('*').or(`status.neq.completed,created_at.gte.${threeDaysAgo}`).order('created_at', { ascending: true })
+      const { data: rec } = await supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300)
+      const { data: pr } = await supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300)
+      const { data: wc } = await supabase.from('work_cards').select('*').neq('status', 'completed').order('created_at', { ascending: true })
 
       const { data: mc } = await supabase.from('machines').select('*').order('name')
       const { data: su } = await supabase.from('system_users').select('*').order('login')
@@ -159,14 +159,14 @@ export function useData() {
     try {
       if (tableName === 'work_cards') {
         const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
-        const { data } = await supabase.from('work_cards').select('*').or(`status.neq.completed,created_at.gte.${twoDaysAgo}`).order('created_at', { ascending: true })
+        const { data } = await supabase.from('work_cards').select('*').neq('status', 'completed').order('created_at', { ascending: true })
         if (data) setWorkCards(data)
       } else if (tableName === 'inventory') {
         const { data } = await supabase.from('inventory').select('*').order('name')
         if (data) setInventory(data)
       } else if (tableName === 'tasks') {
         const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
-        const { data } = await supabase.from('tasks').select('*').or(`status.neq.completed,completed_at.gte.${threeDaysAgo}`).order('created_at', { ascending: false })
+        const { data } = await supabase.from('tasks').select('*, orders(*, order_items(*))').or(`status.neq.completed,completed_at.gte.${threeDaysAgo}`).order('created_at', { ascending: false })
         if (data) setTasks(data)
       } else if (tableName === 'orders') {
         const { data } = await supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).range(0, 50)

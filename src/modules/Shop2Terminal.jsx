@@ -566,6 +566,10 @@ const Shop2Terminal = () => {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px', marginBottom: '50px' }}>
                 {/* ───── КАРТКА ВХІДНОГО БУФЕРА ───── */}
                 {(() => {
+                  const streamingIncoming = (workCards || [])
+                    .filter(c => c.status === 'at-shop2-buffer')
+                    .reduce((a, c) => a + (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0), 0)
+
                   const totalIncoming = (inventory || [])
                     .filter(i => i.type === 'semi_shop2' || i.type === 'bz_shop2')
                     .reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
@@ -574,7 +578,7 @@ const Shop2Terminal = () => {
                     .filter(c => c.card_info?.includes('[ЦЕХ №2]') && (c.status === 'in-progress' || c.status === 'at-buffer' || c.status === 'waiting-buffer'))
                     .reduce((a, c) => a + (c.quantity || 0), 0)
 
-                  const bufferQty = Math.max(0, totalIncoming - totalTaken)
+                  const bufferQty = streamingIncoming + Math.max(0, totalIncoming - totalTaken)
 
                   return (
                     <div onClick={() => setShowStorageExplorer(true)} style={{ background: '#111', border: '1px solid #8b5cf644', borderRadius: '24px', padding: '20px', cursor: 'pointer', transition: '0.3s', boxShadow: '0 10px 30px -10px rgba(139, 92, 246, 0.2)' }}>
@@ -588,8 +592,10 @@ const Shop2Terminal = () => {
                           <div style={{ fontSize: '1.8rem', fontWeight: 1000, color: '#fff', lineHeight: 1 }}>{bufferQty}</div>
                         </div>
                         <div style={{ borderLeft: '1px solid #222', paddingLeft: '8px', gridColumn: 'span 2' }}>
-                          <div style={{ fontSize: '0.55rem', color: '#555', fontWeight: 800 }}>ДЕТАЛЕЙ ОЧІКУЄ</div>
-                          <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#444', marginTop: '4px' }}>На складі дільниці</div>
+                          <div style={{ fontSize: '0.55rem', color: '#555', fontWeight: 800 }}>СТАН БУФЕРА</div>
+                          <div style={{ fontSize: '0.75rem', fontWeight: 800, color: bufferQty > 0 ? '#8b5cf6' : '#444', marginTop: '4px' }}>
+                            {bufferQty > 0 ? 'Готові до генерації РК' : 'Буфер порожній'}
+                          </div>
                         </div>
                       </div>
                     </div>

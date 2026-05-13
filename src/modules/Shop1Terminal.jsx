@@ -5,24 +5,20 @@ import { useMES } from '../MESContext'
 import { supabase } from '../supabase'
 
 // Ланцюжок Цеху №1
-const CHAIN = ['Розкрій', 'Галтовка', 'Прийомка']
+const CHAIN = ['Розкрій', 'Галтовка', 'Прийомка', 'Сортування']
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Правильний статусний потік картки:
+// Статусний потік картки:
 //
-//  new (Розкрій)
-//    ↓ [Взяти в роботу]
-//  in-progress (Розкрій)
-//    ↓ [Завершити + брак + оператор]
-//  at-buffer (Розкрій)          ← БУФЕР РОЗКРОЮ
+//  new (Розкрій) → in-progress → at-buffer (Розкрій)
 //    ↓ [Взяти в Галтовку]
-//  in-progress (Галтовка)
-//    ↓ [Завершити + брак + оператор]
-//  at-buffer (Галтовка)       ← БУФЕР ГАЛТОВКИ
-//    ↓ [Взяти в Прийомку]
+//  in-progress (Галтовка) → at-buffer (Галтовка)
+//    ↓ [Прийняти на склад НФ → тепер: перевести в Прийомку]
 //  in-progress (Прийомка)
-//    ↓ [Прийнято]
-//  completed                  ← зникає з дашборду
+//    ↓ [Прийнято → at-buffer (Сортування)]
+//  at-buffer (Сортування)     ← фізично в прийомці, чекає сканування
+//    ↓ [Скановано на Сортуванні]
+//  at-shop2-buffer             ← видно начальнику Цеху №2, генерує картки
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function Shop1Terminal() {
@@ -107,11 +103,12 @@ export default function Shop1Terminal() {
             card = freshCard
           }
 
-          // Дозволяємо картки "Нова" або ті, що вже в ланцюжку Цеху №1
+          // Дозволяємо картки "Нова", ті що в ланцюжку Цеху №1, або в буфері Сортування
           const isNew = card.status === 'new' || !card.operation || card.operation === 'Нова'
           const isInChain = CHAIN.includes(card.operation)
+          const isSortування = card.status === 'at-buffer' && card.operation === 'Сортування'
 
-          if (!isNew && !isInChain) {
+          if (!isNew && !isInChain && !isSortування) {
             setScanError(`Картка #${id} — не для Цеху №1 (${card.operation})`)
             return
           }
@@ -254,6 +251,7 @@ export default function Shop1Terminal() {
   const queueCards = workCards.filter(c =>
     c.status !== 'completed' &&
     c.status !== 'in-progress' &&
+    c.status !== 'at-shop2-buffer' &&   // вже передано в Цех №2 — не показуємо
     (
       c.status === 'new' ||                          // будь-яка нова картка
       (c.status === 'at-buffer' && CHAIN.includes(c.operation)) || // буфер Цеху №1
@@ -420,7 +418,82 @@ export default function Shop1Terminal() {
     } finally { setIsProcessing(false) }
   }
 
-  // ── ПРИЙНЯТИ НА СКЛАД (з буфера Галтовки без in-progress) ─────────────
+  // ── СОРТУВАННЯ → at-shop2-buffer ────────────────────────────────────────
+  // Викликається при скануванні картки at-buffer(Сортування) — переводить в буфер Цеху №2
+  const handleSortToShop2 = async () => {
+    if (!currentCard) return
+    setIsProcessing(true)
+    try {
+      const qtyDone = currentCard.quantity || 0
+      const op = selectedOperator || currentCard.operator_name || 'Сортування'
+
+      // 1. Записуємо history
+      await supabase.from('work_card_history').insert([{
+        card_id: currentCard.id,
+        nomenclature_id: currentCard.nomenclature_id,
+        stage_name: 'Сортування',
+        operator_name: op,
+        qty_at_start: qtyDone,
+        qty_completed: qtyDone,
+        scrap_qty: 0,
+        started_at: new Date().toISOString(),
+        completed_at: new Date().toISOString(),
+        is_archived_scrap: false,
+        shift_name: currentCard.shift_name,
+        manager_name: currentCard.manager_name,
+        machine_name: currentCard.machine
+      }])
+
+      // 2. Картка → at-shop2-buffer
+      await supabase.from('work_cards').update({
+        status: 'at-shop2-buffer',
+        operation: 'Сортування',
+        used_in_shop2_qty: 0
+      }).eq('id', currentCard.id)
+
+      // 3. Знаходимо задачу Цеху №2 і активуємо її (waiting → in-progress)
+      const { data: shop2Tasks } = await supabase
+        .from('tasks')
+        .select('id, status')
+        .eq('order_id', currentCard.order_id)
+        .ilike('step', '%ЦЕХ №2%')
+        .neq('status', 'completed')
+
+      if (!shop2Tasks || shop2Tasks.length === 0) {
+        // Задачі Цеху №2 ще немає (для старих нарядів), створюємо її автоматично як in-progress!
+        const { data: s1TaskData } = await supabase.from('tasks').select('*').eq('id', currentCard.task_id).maybeSingle()
+        if (s1TaskData) {
+          await supabase.from('tasks').insert([{
+            order_id: currentCard.order_id,
+            step: 'Пресування [ЦЕХ №2]',
+            status: 'in-progress',
+            planned_sets: s1TaskData.planned_sets || 0,
+            estimated_time: s1TaskData.estimated_time || 0,
+            engineer_conf: true,
+            warehouse_conf: true,
+            director_conf: true,
+            batch_index: s1TaskData.batch_index || null,
+            plan_snapshot: { ...(s1TaskData.plan_snapshot || {}), arrivals: [] }
+          }])
+        }
+      } else {
+        const waitingTask = shop2Tasks.find(t => t.status === 'waiting')
+        if (waitingTask) {
+          await supabase.from('tasks').update({ status: 'in-progress' }).eq('id', waitingTask.id)
+        }
+      }
+
+      setSelectedCardId(null)
+      setScannedIds(prev => prev.filter(id => id !== currentCard.id))
+      await fetchData()
+      alert(`✅ ${qtyDone} шт відправлено в буфер Цеху №2!`)
+    } catch (e) {
+      console.error('Sort to shop2 error:', e)
+      alert('Помилка сортування: ' + e.message)
+    } finally { setIsProcessing(false) }
+  }
+
+  // ── ПРИЙНЯТИ НА СКЛАД (з буфера Галтовки → тепер переводить в Прийомку) ─
   const handleAcceptToStock = async () => {
     if (!currentCard) return
     setIsProcessing(true)
@@ -446,98 +519,17 @@ export default function Shop1Terminal() {
         machine_name: currentCard.machine
       }])
 
-      // 2. Картка → completed (фініш процесу)
+      // 2. Картка → at-buffer(Сортування) — чекає фінального сортування
       const { error: cardErr } = await supabase.from('work_cards').update({
-        status: 'completed',
-        operation: 'Прийомка'
+        status: 'at-buffer',
+        operation: 'Сортування',
+        operator_name: op
       }).eq('id', currentCard.id)
 
       if (cardErr) throw cardErr
 
-      // Одразу закриваємо інтерфейс картки, щоб не "зависати", навіть якщо далі буде помилка складу
-      setSelectedCardId(null)
-      setScannedIds(prev => prev.filter(id => id !== currentCard.id))
-
-      // 3. Оновлюємо склад (напів-фабрикати та БЗ) - ПРІОРИТЕТНА ЛОГІКА ТУТ
-      if (qtyDone > 0 && nom) {
-        // [Dynamic Balancing]: Перевіряємо, чи це остання картка цнієї номенклатури в наряді
-        const otherActive = workCards.filter(c =>
-          String(c.order_id) === String(currentCard.order_id) &&
-          String(c.nomenclature_id) === String(currentCard.nomenclature_id) &&
-          String(c.id) !== String(currentCard.id) &&
-          c.status !== 'completed'
-        )
-        const isLastCard = otherActive.length === 0
-
-        if (!isLastCard) {
-          // Якщо не остання — все йде в напівфабрикати (мітка потреби)
-          await updateInventoryStock(nom.id, qtyDone, 'semi')
-        } else {
-          // Якщо остання — робимо фінальний розрахунок БЗ
-
-          // 1. Шукаємо потребу ПРАВИЛЬНИМ шляхом (перебором ключів для надійності)
-          const taskRef = tasks.find(t => String(t.id) === String(currentCard.task_id))
-          let totalNeed = 0
-          let initialStockBZ = 0 // Початковий БЗ, який був врахований у ПЛАНІ
-
-          if (taskRef?.plan_snapshot) {
-            // Шукаємо в снапшоті (може бути ключ як число або рядок)
-            const snEntries = Object.entries(taskRef.plan_snapshot)
-            const match = snEntries.find(([k, v]) => String(k) === String(nom.id) || String(v.id) === String(nom.id))
-            if (match) {
-              totalNeed = Number(match[1].need) || 0
-              // ВРАХОВУЄМО: Скільки БЗ ми вже мали на момент ПЛАНУВАННЯ
-              initialStockBZ = Number(match[1].stock) || 0
-            }
-          }
-
-          // Fallback якщо в снапшоті не знайшли (наприклад, стара картка)
-          if (totalNeed === 0) {
-            const orderRef = orders.find(o => String(o.id) === String(currentCard.order_id))
-            const directItem = orderRef?.order_items?.find(it => String(it.nomenclature_id) === String(nom.id))
-            if (directItem) {
-              totalNeed = Number(directItem.quantity) || 0
-            } else {
-              // BOM fallback
-              orderRef?.order_items?.forEach(oi => {
-                const bItem = bomItems.find(b => String(b.parent_id) === String(oi.nomenclature_id) && String(b.child_id) === String(nom.id))
-                if (bItem) totalNeed += (Number(oi.quantity) || 0) * (Number(bItem.quantity_per_parent) || 1)
-              })
-            }
-          }
-
-          // 2. Отримуємо історію виробництва (тільки фінальну стадію Прийомка, щоб не рахувати Різку/Галтовку двічі)
-          const allHistory = workCardHistory.filter(h =>
-            String(h.nomenclature_id) === String(nom.id) &&
-            h.stage_name === 'Прийомка' &&
-            workCards.find(c => String(c.id) === String(h.card_id))?.order_id === currentCard.order_id
-          )
-          const previouslyCompleted = allHistory.reduce((sum, h) => sum + (Number(h.qty_completed) || 0), 0)
-
-          // ВАЖЛИВО: totalProduced — це все, що ми СЬОГОДНІ прийняли на склад (вже завершені + ця карта)
-          const totalProducedWithThis = previouslyCompleted + qtyDone
-
-          // 3. Розраховуємо БЗ
-          // Якщо ми не знайшли потребу (totalNeed == 0), то краще вважати, що ВСЕ йде в НФ (semi), 
-          // щоб не "ховати" деталі в БЗ поки замовлення не підтверджено.
-          let bzQty = 0
-          let semiQtyForThisCard = qtyDone
-
-          if (totalNeed > 0) {
-            // ПЛАН в наряді = Потреба - Початковий БЗ.
-            // Ми маємо додавати в БЗ все, що понад цей ПЛАН.
-            const surplus = Math.max(0, totalProducedWithThis - (totalNeed - initialStockBZ))
-            bzQty = Math.min(qtyDone, surplus)
-            semiQtyForThisCard = Math.max(0, qtyDone - bzQty)
-          }
-
-          console.log(`[Dynamic Acceptance] Nom: ${nom.name}, Need: ${totalNeed}, Prev: ${previouslyCompleted}, This: ${qtyDone}, BZ: ${bzQty}, NF: ${semiQtyForThisCard}`)
-
-          if (semiQtyForThisCard > 0) await updateInventoryStock(nom.id, semiQtyForThisCard, 'semi')
-          if (bzQty > 0) await updateInventoryStock(nom.id, bzQty, 'bz')
-        }
-      }
-
+      // Картка тепер у буфері Сортування — показуємо в черзі для сканування
+      // НЕ закриваємо картку — щоб оператор одразу бачив що вона чекає Сортування
       await fetchData()
     } catch (e) {
       console.error('Acceptance error:', e)
@@ -824,8 +816,49 @@ export default function Shop1Terminal() {
             )
           })()}
 
-          {/* ── СТАН: AT-BUFFER → Прийняти або взяти в наступний етап ──────── */}
-          {status === 'at-buffer' && (() => {
+          {/* ── СТАН: AT-BUFFER(Сортування) → Відправити в Цех №2 ─────────── */}
+          {status === 'at-buffer' && currentCard.operation === 'Сортування' && (() => {
+            return (
+              <div style={{ maxWidth: '460px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '22px' }}>
+                <div style={{ background: '#8b5cf610', border: '1px solid #8b5cf630', borderRadius: '24px', padding: '24px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.65rem', fontWeight: 950, color: '#8b5cf6', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '8px' }}>
+                    🔵 СОРТУВАННЯ — ГОТОВО ДО ВІДПРАВКИ В ЦЕХ №2
+                  </div>
+                  <div style={{ fontSize: '3.5rem', fontWeight: 1000, color: '#fff', lineHeight: 1 }}>
+                    {currentCard.quantity} <small style={{ fontSize: '1.2rem', opacity: 0.3 }}>шт</small>
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: '#8b5cf6', marginTop: '8px', fontWeight: 700 }}>
+                    Відскануйте картку для підтвердження сортування
+                  </div>
+                </div>
+                <div style={{ background: '#111', padding: '24px', borderRadius: '20px', border: '1px solid #8b5cf622' }}>
+                  <div style={{ marginBottom: '20px' }}>
+                    <label style={labelStyle}>Відповідальний за сортування</label>
+                    <select value={selectedOperator} onChange={e => setSelectedOperator(e.target.value)} style={selectStyle}>
+                      <option value="">— Оберіть оператора —</option>
+                      {operators.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </div>
+                  <button onClick={handleSortToShop2} disabled={!selectedOperator || isProcessing}
+                    style={{
+                      background: '#8b5cf6', color: '#fff', border: 'none', width: '100%',
+                      height: '64px', borderRadius: '16px', fontSize: '1.2rem', fontWeight: 1000,
+                      cursor: 'pointer', transition: 'all 0.2s',
+                      boxShadow: '0 10px 30px rgba(139,92,246,0.3)',
+                      opacity: (!selectedOperator || isProcessing) ? 0.5 : 1
+                    }}>
+                    🚀 {isProcessing ? 'ВІДПРАВКА...' : 'ВІДПРАВИТИ В БУФЕР ЦЕХУ №2'}
+                  </button>
+                  <div style={{ textAlign: 'center', marginTop: '14px', fontSize: '0.65rem', color: '#444', fontWeight: 600 }}>
+                    Картка зникне з черги Цеху №1 і з'явиться у начальника Цеху №2
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* ── СТАН: AT-BUFFER (інші) → Прийняти або взяти в наступний етап ── */}
+          {status === 'at-buffer' && currentCard.operation !== 'Сортування' && (() => {
             const isLastBeforeReception = nextStageFor(currentCard) === 'Прийомка'
             const nextOp = nextStageFor(currentCard)
             return (
@@ -834,14 +867,14 @@ export default function Shop1Terminal() {
                 {/* Великий бейдж кількості в буфері */}
                 <div style={{ background: isLastBeforeReception ? '#10b98110' : '#f59e0b10', border: `1px solid ${isLastBeforeReception ? '#10b98130' : '#f59e0b30'}`, borderRadius: '24px', padding: '24px', textAlign: 'center', marginBottom: '8px' }}>
                   <div style={{ fontSize: '0.65rem', fontWeight: 950, color: isLastBeforeReception ? '#10b981' : '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '8px' }}>
-                    {isLastBeforeReception ? 'ГОТОВО ДО ПЕРЕДАЧІ' : `В БУФЕРІ: ${currentCard.operation?.toUpperCase()}`}
+                    {isLastBeforeReception ? 'ГОТОВО ДО ПРИЙОМКИ' : `В БУФЕРІ: ${currentCard.operation?.toUpperCase()}`}
                   </div>
                   <div style={{ fontSize: '3.5rem', fontWeight: 1000, color: '#fff', lineHeight: 1 }}>
                     {currentCard.quantity} <small style={{ fontSize: '1.2rem', opacity: 0.3 }}>шт</small>
                   </div>
                 </div>
 
-                {/* Прийомка: одним кліком на склад */}
+                {/* Прийомка: кнопка переводить в at-buffer(Сортування) */}
                 {isLastBeforeReception ? (
                   <div style={{ background: '#111', padding: '24px', borderRadius: '20px', border: '1px solid #10b98122' }}>
                     <div style={{ marginBottom: '20px' }}>
@@ -859,10 +892,10 @@ export default function Shop1Terminal() {
                         boxShadow: '0 10px 30px rgba(16,185,129,0.2)',
                         opacity: (!selectedOperator || isProcessing) ? 0.5 : 1
                       }}>
-                      ✅ ПРИЙНЯТИ НА СКЛАД НФ
+                      ✅ ПРИЙНЯТИ → СОРТУВАННЯ
                     </button>
                     <div style={{ textAlign: 'center', marginTop: '14px', fontSize: '0.65rem', color: '#444', fontWeight: 600 }}>
-                      Фінальний крок: деталь отримає статус "Виконано" та з'явиться в стоку Цеху №2
+                      Картка перейде на Сортування, де буде відскановано для відправки в Цех №2
                     </div>
                   </div>
                 ) : (
@@ -890,6 +923,7 @@ export default function Shop1Terminal() {
               </div>
             )
           })()}
+
 
         </div>
       </div>
@@ -1130,25 +1164,70 @@ export default function Shop1Terminal() {
 
         {/* ─── ПРИЙОМКА / СКЛАД (Фінальна стадія) ─── */}
         {(() => {
+          // Картки на Сортуванні = фізично знаходяться в Прийомці
+          const sortingCards = (workCards || []).filter(c =>
+            c.status === 'at-buffer' && c.operation === 'Сортування'
+          )
+          const sortingQty = sortingCards.reduce((a, c) => a + (Number(c.quantity) || 0), 0)
+
+          // Інвентар складу НФ (вже прийняті на склад)
           const semiQty = (inventory || []).filter(i => i.type === 'semi' && (i.nomenclature_id !== null && i.nomenclature_id !== undefined)).reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
           const bzQty = (inventory || []).filter(i => (i.type === 'bz' || i.type === 'wip_bz')).reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
           const scrapQty = (inventory || []).filter(i => i.type === 'scrap').reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
 
+          const isActive = sortingQty > 0
+
           return (
             <div onClick={() => setShowStorageExplorer(true)}
               style={{
-                background: 'linear-gradient(145deg, #0d1a15 0%, #050a08 100%)',
-                border: '1px solid #10b98130', borderTop: '4px solid #10b981',
+                background: isActive
+                  ? 'linear-gradient(145deg, #0f1a20 0%, #050a0e 100%)'
+                  : 'linear-gradient(145deg, #0d1a15 0%, #050a08 100%)',
+                border: isActive ? '1px solid #8b5cf630' : '1px solid #10b98130',
+                borderTop: isActive ? '4px solid #8b5cf6' : '4px solid #10b981',
                 borderRadius: '22px', padding: '20px 16px', cursor: 'pointer',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                boxShadow: isActive ? '0 8px 24px rgba(139,92,246,0.15)' : '0 8px 24px rgba(0,0,0,0.3)',
                 transition: 'all 0.2s ease',
                 gridArea: 'storage'
               }}
               className="s1-stage-card-storage s1-stage-hover">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <span style={{ fontSize: '0.65rem', fontWeight: 1000, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.12em' }}>ПРИЙОМКА / СКЛАД</span>
-                <ClipboardList size={14} color="#10b981" style={{ opacity: 0.5 }} />
+                <span style={{ fontSize: '0.65rem', fontWeight: 1000, color: isActive ? '#8b5cf6' : '#10b981', textTransform: 'uppercase', letterSpacing: '0.12em' }}>ПРИЙОМКА / СКЛАД</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {isActive && (
+                    <div style={{
+                      background: '#8b5cf6', color: '#fff',
+                      padding: '2px 8px', borderRadius: '6px',
+                      fontSize: '0.5rem', fontWeight: 950, letterSpacing: '0.5px'
+                    }}>
+                      {sortingCards.length} карт. на сорт.
+                    </div>
+                  )}
+                  <ClipboardList size={14} color={isActive ? '#8b5cf6' : '#10b981'} style={{ opacity: 0.5 }} />
+                </div>
               </div>
+
+              {/* Рядок: деталі що зараз у прийомці (Сортування) */}
+              {isActive && (
+                <div style={{
+                  background: '#8b5cf610', border: '1px solid #8b5cf620',
+                  borderRadius: '10px', padding: '8px 12px', marginBottom: '12px',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                }}>
+                  <div>
+                    <div style={{ fontSize: '0.5rem', color: '#8b5cf6', fontWeight: 1000, textTransform: 'uppercase' }}>В ПРИЙОМЦІ (СОРТУВАННЯ)</div>
+                    <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '2px' }}>
+                      {sortingCards.map(c => {
+                        const n = (nomenclatures || []).find(n => String(n.id) === String(c.nomenclature_id))
+                        return `${n?.name || '—'}: ${c.quantity} шт`
+                      }).join(' · ')}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '1.8rem', fontWeight: 1000, color: '#8b5cf6', lineHeight: 1 }}>
+                    {sortingQty}<small style={{ fontSize: '0.45rem', opacity: 0.4, marginLeft: '2px' }}>шт</small>
+                  </div>
+                </div>
+              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '6px' }}>
                 {[
@@ -1170,6 +1249,7 @@ export default function Shop1Terminal() {
             </div>
           )
         })()}
+
       </div>
 
       {/* Таблиця активних карток */}
@@ -1206,11 +1286,11 @@ export default function Shop1Terminal() {
                       <td style={{ padding: '12px 15px' }}>
                         <span style={{
                           fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase',
-                          background: inBuf ? '#f59e0b18' : '#3b82f618',
-                          color: inBuf ? '#f59e0b' : '#3b82f6',
+                          background: (inBuf && card.operation === 'Сортування') ? '#8b5cf618' : inBuf ? '#f59e0b18' : '#3b82f618',
+                          color: (inBuf && card.operation === 'Сортування') ? '#8b5cf6' : inBuf ? '#f59e0b' : '#3b82f6',
                           padding: '4px 10px', borderRadius: '6px'
                         }}>
-                          {inBuf ? '▣ БУФЕР' : '▶ РОБОТА'}
+                          {(inBuf && card.operation === 'Сортування') ? '🟣 БУФЕР' : inBuf ? '▣ БУФЕР' : '▶ РОБОТА'}
                         </span>
                       </td>
                       <td style={{ padding: '12px 15px', fontWeight: 900 }}>{card.quantity} шт</td>

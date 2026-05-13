@@ -5,10 +5,11 @@ import { supabase } from '../supabase'
  * Returns all purchase request, reception doc, and inventory actions
  */
 export function createWarehouseActions({
-  inventory, nomenclatures, requests, tasks,
+  inventory, nomenclatures, requests, tasks, orders,
   setInventory, setRequests, setTasks,
   normalize, refreshTable, fetchData
 }) {
+
 
   // ── PURCHASE REQUESTS ──────────────────────────────────────────────────────
 

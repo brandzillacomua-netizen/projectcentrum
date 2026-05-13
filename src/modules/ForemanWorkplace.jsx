@@ -28,6 +28,7 @@ const ForemanWorkplace = () => {
   const [archiveCards, setArchiveCards] = useState([]) // Завершені картки (статус completed) для поточного наряду
   // Local cache: orders for ALL relevant tasks, bypasses global pagination (PAGE_SIZE=20)
   const [allOrdersMap, setAllOrdersMap] = useState({})
+  const [productionCache, setProductionCache] = useState({}) // { taskId: { nomId: producedQty } }
 
   // ── Load orders for ALL relevant tasks (pagination-independent) ──────────────
   useEffect(() => {
@@ -43,7 +44,7 @@ const ForemanWorkplace = () => {
     );
 
     if (missingIds.length === 0) return;
-
+    
     supabase
       .from('orders')
       .select('*, order_items(*)')
@@ -62,6 +63,38 @@ const ForemanWorkplace = () => {
         }
       });
   }, [tasks, orders]);
+
+  // ── Load production progress for ALL relevant tasks ──────────────
+  useEffect(() => {
+    if (tasks.length === 0) return;
+    
+    const taskIds = tasks.filter(t => t.status !== 'completed').map(t => t.id);
+    if (taskIds.length === 0) return;
+
+    // Fetch ALL completed/shop2-buffer cards for these tasks to get accurate progress
+    supabase
+      .from('work_cards')
+      .select('task_id, nomenclature_id, quantity, operation, status')
+      .in('task_id', taskIds)
+      .in('status', ['completed', 'at-shop2-buffer'])
+
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Error fetching production cache:', error);
+          return;
+        }
+        
+        const cache = {};
+        data.forEach(card => {
+          if (!countAsProduced(card)) return;
+          if (!cache[card.task_id]) cache[card.task_id] = {};
+          const tid = card.task_id;
+          const nid = String(card.nomenclature_id);
+          cache[tid][nid] = (cache[tid][nid] || 0) + (Number(card.quantity) || 0);
+        });
+        setProductionCache(cache);
+      });
+  }, [tasks, workCards]); // Update when tasks change or global cards update (real-time)
 
   // Підвантажуємо архівні картки при зміні активного наряду
   useEffect(() => {
@@ -124,16 +157,23 @@ const ForemanWorkplace = () => {
     if (card.status === 'completed' && card.operation === 'Прийомка') return true
     // completed без operation = старий формат (до впровадження операцій) ✅
     if (card.status === 'completed' && !card.operation) return true
+    // at-shop2-buffer = пройшло Прийомку та Сортування, передано в буфер Цеху №2 ✅
+    if (card.status === 'at-shop2-buffer') return true
     // Все інше (at-buffer Розкрій, at-buffer Галтовка, in-progress) = ще в роботі ❌
     return false
   }
+
 
   const taskReadinessMap = useMemo(() => {
     const map = {}
     tasks.forEach(task => {
       if (task.status === 'completed') { map[task.id] = false; return }
-      const order = orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
-      const taskCards = workCards.filter(c => c.task_id === task.id)
+      const order = task.orders || orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
+      
+      // Combine global workCards (active) + our productionCache (completed)
+      const taskCache = productionCache[task.id] || {}
+      const activeCards = workCards.filter(c => c.task_id === task.id)
+      
       const isReady = order?.order_items?.every(item => {
         const parts = bomItems
           .filter(b => b.parent_id === item.nomenclature_id)
@@ -144,21 +184,25 @@ const ForemanWorkplace = () => {
         const shop1Parts = rows.filter(r => r.nom?.type === 'part')
         if (shop1Parts.length === 0) return true
         return shop1Parts.every(part => {
-          const snapshot = task.plan_snapshot?.[String(part.nom?.id)]
+          const nomId = String(part.nom?.id)
+          const snapshot = task.plan_snapshot?.[nomId]
           const need = snapshot
             ? snapshot.need
             : (Number(item.quantity) * (Number(part.quantity_per_parent) || 1))
           if (need === 0) return true
-          const produced = taskCards
-            .filter(c => String(c.nomenclature_id) === String(part.nom?.id))
+          
+          const producedInCache = taskCache[nomId] || 0
+          const producedInActive = activeCards
+            .filter(c => String(c.nomenclature_id) === nomId)
             .reduce((sum, c) => sum + (countAsProduced(c) ? Number(c.quantity) : 0), 0)
-          return produced >= need
+          
+          return (producedInCache + producedInActive) >= need
         })
       })
       map[task.id] = Boolean(isReady)
     })
     return map
-  }, [tasks, orders, allOrdersMap, workCards, nomenclatures, bomItems])
+  }, [tasks, orders, allOrdersMap, workCards, nomenclatures, bomItems, productionCache])
 
   // 0b. Per-task shortage map — needs ДОВИПУСК (scrap exceeded BZ buffer, no REDO card yet)
   const taskShortageMap = useMemo(() => {
@@ -308,7 +352,7 @@ const ForemanWorkplace = () => {
       const createdCards = await apiService.submitCreateWorkCardsBatch(task.id, task.order_id, part.nom.id, cardsBatch, createWorkCard)
       
       if (isRepair && sheets > 0) {
-        const order = orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
+        const order = task.orders || orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
         const matName = part.nom?.material_type || part.nom?.name || 'Склад Оперативний'
         await supabase.from('material_requests').insert([{
           order_id: task.order_id,
@@ -471,33 +515,43 @@ const ForemanWorkplace = () => {
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {relevantTasks.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(task => {
-              const order = orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
+              const order = task.orders || orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
               const isActive = activeTaskId === task.id
               const isReady = taskReadinessMap[task.id]
               const isShortage = taskShortageMap[task.id]
               const isCompleted = task.status === 'completed'
 
-              const borderColor = isActive
-                ? '#ef4444'
-                : isReady && !isCompleted
-                  ? '#10b981'
-                  : isShortage && !isCompleted
-                    ? '#f97316'
+              const borderColor = isReady && !isCompleted
+                ? '#10b981'
+                : isShortage && !isCompleted
+                  ? '#ef4444'
+                  : isActive
+                    ? '#fff'
                     : 'transparent'
 
+              const borderSize = isActive ? '6px' : '4px'
+
               const bgColor = isActive
-                ? '#1a1a1a'
+                ? 'rgba(255,255,255,0.08)'
                 : isReady && !isCompleted
-                  ? 'rgba(16, 185, 129, 0.06)'
+                  ? 'rgba(16, 185, 129, 0.08)'
                   : isShortage && !isCompleted
-                    ? 'rgba(249, 115, 22, 0.06)'
+                    ? 'rgba(239, 68, 68, 0.08)'
                     : 'transparent'
 
               return (
                 <div
                   key={task.id}
                   onClick={() => { setActiveTaskId(task.id); setIsDrawerOpen(false); }}
-                  style={{ padding: '15px', borderLeft: `4px solid ${borderColor}`, background: bgColor, cursor: 'pointer', transition: 'background 0.2s' }}
+                  style={{ 
+                    padding: '18px 15px', 
+                    borderLeft: `${borderSize} solid ${borderColor}`, 
+                    background: bgColor, 
+                    cursor: 'pointer', 
+                    transition: 'all 0.2s',
+                    marginBottom: '1px',
+                    position: 'relative'
+                  }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ fontWeight: 800, fontSize: '0.9rem', color: isCompleted ? '#555' : '#fff' }}>
@@ -506,15 +560,15 @@ const ForemanWorkplace = () => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                       {isCompleted && <CheckCircle2 size={14} color="#10b981" />}
                       {isReady && !isCompleted && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '3px', background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px', padding: '2px 7px' }}>
-                          <ArrowRight size={9} color="#10b981" />
-                          <span style={{ fontSize: '0.55rem', fontWeight: 900, color: '#10b981', letterSpacing: '0.5px' }}>ЦЕХ №2</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#10b981', borderRadius: '6px', padding: '3px 8px', boxShadow: '0 4px 10px rgba(16,185,129,0.3)' }}>
+                          <ArrowRight size={10} color="#fff" />
+                          <span style={{ fontSize: '0.6rem', fontWeight: 950, color: '#fff', letterSpacing: '0.5px' }}>ГОТОВО</span>
                         </div>
                       )}
                       {isShortage && !isCompleted && !isReady && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '3px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: '6px', padding: '2px 7px' }}>
-                          <AlertTriangle size={9} color="#ef4444" />
-                          <span style={{ fontSize: '0.55rem', fontWeight: 900, color: '#ef4444', letterSpacing: '0.5px' }}>НЕСТАЧА</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#ef4444', borderRadius: '6px', padding: '3px 8px', boxShadow: '0 4px 10px rgba(239,68,68,0.3)' }}>
+                          <AlertTriangle size={10} color="#fff" />
+                          <span style={{ fontSize: '0.6rem', fontWeight: 950, color: '#fff', letterSpacing: '0.5px' }}>НЕСТАЧА</span>
                         </div>
                       )}
                     </div>
@@ -589,7 +643,7 @@ const ForemanWorkplace = () => {
           {activeTaskId ? (
             (() => {
               const task = relevantTasks.find(t => t.id === activeTaskId)
-              const order = orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
+              const order = task.orders || orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
               // Об'єднуємо АКТИВНІ картки (з глобального стейту) + ЗАВЕРШЕНІ (архів для цього наряду)
               // Це гарантує, що картки НІКОЛИ не зникають після переходу на прийомку/буфер
               const activeTaskCards = workCards.filter(c => c.task_id === task.id)
@@ -1053,7 +1107,7 @@ const ForemanWorkplace = () => {
                       const groupScrap = groupHistory.reduce((sum, h) => sum + (Number(h.scrap_qty) || 0), 0)
 
                       const snapshot = task.plan_snapshot?.[nomId] || task.plan_snapshot?.[nom?.id]
-                      const orderRef = orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
+                      const orderRef = task.orders || orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
 
                       let need = 0
                       if (snapshot) {

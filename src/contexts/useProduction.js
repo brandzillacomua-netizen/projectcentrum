@@ -9,7 +9,32 @@ export function createProductionActions({
 
   const approveWarehouse = async (taskId) => { await supabase.from('tasks').update({ warehouse_conf: true }).eq('id', taskId); fetchData() }
   const approveEngineer  = async (taskId) => { await supabase.from('tasks').update({ engineer_conf: true }).eq('id', taskId); fetchData() }
-  const approveDirector  = async (taskId) => { await supabase.from('tasks').update({ director_conf: true }).eq('id', taskId); fetchData() }
+  const approveDirector  = async (taskId) => {
+    await supabase.from('tasks').update({ director_conf: true }).eq('id', taskId);
+    const targetTask = tasks.find(t => String(t.id) === String(taskId))
+    if (targetTask && targetTask.order_id) {
+      const existingShop2 = tasks.find(t => 
+        String(t.order_id) === String(targetTask.order_id) && 
+        t.step?.includes('Пресування') && 
+        t.batch_index === targetTask.batch_index
+      )
+      if (!existingShop2) {
+        await supabase.from('tasks').insert([{
+          order_id: targetTask.order_id,
+          step: 'Пресування [ЦЕХ №2]',
+          status: 'waiting',
+          planned_sets: targetTask.planned_sets || 0,
+          estimated_time: targetTask.estimated_time || 0,
+          engineer_conf: true,
+          warehouse_conf: true,
+          director_conf: true,
+          batch_index: targetTask.batch_index || null,
+          plan_snapshot: { ...(targetTask.plan_snapshot || {}), arrivals: [] }
+        }])
+      }
+    }
+    fetchData()
+  }
 
   const upsertNomenclature = async (nom) => { await supabase.from('nomenclatures').upsert([nom]); fetchData() }
   const deleteNomenclature = async (id)  => { await supabase.from('nomenclatures').delete().eq('id', id); fetchData() }
@@ -382,7 +407,12 @@ export function createProductionActions({
           }
         }
         const { data: moveDoc } = await supabase.from('reception_docs').insert([{ doc_num: `T-S1-S2-${Date.now().toString().slice(-6)}`, type: 'internal_transfer', status: 'completed', order_id: task.order_id, details: JSON.stringify(arrivals) }]).select().single()
-        await supabase.from('tasks').insert([{ order_id: task.order_id, step: 'Пресування [ЦЕХ №2]', status: 'waiting', planned_sets: task.planned_sets || 0, estimated_time: task.estimated_time || 0, engineer_conf: true, warehouse_conf: true, director_conf: true, batch_index: task.batch_index || null, plan_snapshot: { ...task.plan_snapshot, arrival_doc_id: moveDoc?.id || null, arrivals: arrivals } }])
+        const existingShop2Task = tasks.find(t => String(t.order_id) === String(task.order_id) && t.step?.includes('Пресування') && t.batch_index === task.batch_index)
+        if (existingShop2Task) {
+          await supabase.from('tasks').update({ plan_snapshot: { ...(existingShop2Task.plan_snapshot || {}), arrival_doc_id: moveDoc?.id || null, arrivals: arrivals } }).eq('id', existingShop2Task.id)
+        } else {
+          await supabase.from('tasks').insert([{ order_id: task.order_id, step: 'Пресування [ЦЕХ №2]', status: 'waiting', planned_sets: task.planned_sets || 0, estimated_time: task.estimated_time || 0, engineer_conf: true, warehouse_conf: true, director_conf: true, batch_index: task.batch_index || null, plan_snapshot: { ...task.plan_snapshot, arrival_doc_id: moveDoc?.id || null, arrivals: arrivals } }])
+        }
       } catch (e) { console.error("BZ/Transfer error:", e) }
       refreshTable('inventory'); refreshTable('tasks'); refreshTable('reception_docs'); refreshTable('material_requests')
     } catch (err) { console.error('Handover error:', err); throw err }

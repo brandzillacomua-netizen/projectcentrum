@@ -58,60 +58,16 @@ const ManagerModule = () => {
     fetchOrders(0, false, { searchQuery, dateRange: dateFilter })
   }, [dateFilter, searchQuery])
 
+  // Rust data loading disabled as per user request
+  /*
   const loadRustData = async () => {
-    setIsRustLoading(true)
-    try {
-      const token = localStorage.getItem('BACKEND_TOKEN') || '';
-      const authH = { 'Authorization': `Bearer ${token}` };
-
-      // Load nomenclature, orders, counterparties in parallel
-      const [itemsData, ordersRes, cpData] = await Promise.all([
-        nomenclatureService.getNomenclature(),
-        fetch('/api/orders', { headers: authH }),
-        fetch('/api/counterparties', { headers: authH }).then(r => r.json())
-      ]);
-
-      if (!ordersRes.ok) {
-        console.error('Rust orders error:', ordersRes.status);
-        return;
-      }
-
-      const ordersData = await ordersRes.json();
-      const items = itemsData.items || itemsData || [];
-      const counterparties = cpData.items || cpData || [];
-      const orders = ordersData.items || ordersData || [];
-
-      // ── Build characteristic_id → nomenclature_name Map ────────────────────────
-      // Fetch characteristics for each nomenclature item in parallel
-      const charMap = new Map();
-      await Promise.all(
-        items.map(async (nom) => {
-          try {
-            const charData = await nomenclatureService.getCharacteristics(nom.id);
-            const chars = charData.items || charData || [];
-            chars.forEach(char => charMap.set(char.id, nom.name));
-          } catch (_) { /* skip if no characteristics */ }
-        })
-      );
-
-      // ── Build customer_id → name Map ──────────────────────────────────
-      const cMap = new Map(counterparties.map(c => [c.id, c.name]));
-
-      setRustProducts(items);
-      setRustOrders(orders);
-      setRustCounterparties(counterparties);
-      setCharToNomMap(charMap);
-      setCustMap(cMap);
-    } catch (err) {
-      console.warn('⚠️ Rust data load failed:', err.message);
-    } finally {
-      setIsRustLoading(false)
-    }
+    ...
   };
 
   useEffect(() => {
     loadRustData();
   }, []);
+  */
 
   const getStatusLabel = (s) => {
     const map = {
@@ -148,7 +104,7 @@ const ManagerModule = () => {
     
     setIsSubmitting(true)
     try {
-      const selectedProduct = rustProducts.find(p => String(p.id) === String(orderHeader.nomenclature_id));
+      const selectedProduct = nomenclatures.find(p => String(p.id) === String(orderHeader.nomenclature_id));
       const headerWithInfo = { ...orderHeader, productName: selectedProduct?.name || '' };
       
       const items = [{ nomenclature_id: orderHeader.nomenclature_id, quantity: orderHeader.quantity }]
@@ -233,14 +189,14 @@ const ManagerModule = () => {
               </div>
 
                <div className="form-group-modern">
-                <label>ВИРІБ (Нова База)</label>
+                <label>ГОТОВИЙ ВИРІБ</label>
                 <div className="input-wrapper">
                   <Layers size={16} />
                   <select value={orderHeader.nomenclature_id} onChange={e => setOrderHeader({...orderHeader, nomenclature_id: e.target.value})}>
                      <option value="">Оберіть готовий виріб...</option>
-                     {rustProducts
-                       .filter(p => !orderHeader.targetGroupId || p.group_id === orderHeader.targetGroupId)
-                       .map(n => <option key={n.id} value={n.id}>{n.name} ({n.nomenclature_code})</option>)}
+                     {nomenclatures
+                       .filter(n => n.type === 'product')
+                       .map(n => <option key={n.id} value={n.id}>{n.name} {n.code ? `(${n.code})` : ''}</option>)}
                   </select>
                 </div>
               </div>
@@ -282,10 +238,6 @@ const ManagerModule = () => {
              <div className="registry-title-group">
                 <Layers className="text-orange" size={28} />
                 <h3>РЕЄСТР ЗАМОВЛЕНЬ</h3>
-                <div className="tab-switcher" style={{ display: 'flex', gap: '5px', background: '#111', padding: '4px', borderRadius: '12px', marginLeft: '20px' }}>
-                  <button onClick={() => setActiveTab('supabase')} style={{ padding: '6px 12px', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 600, background: activeTab === 'supabase' ? '#ff9000' : 'transparent', color: activeTab === 'supabase' ? '#000' : '#888' }}>CRM (Supabase)</button>
-                  <button onClick={() => setActiveTab('rust')} style={{ padding: '6px 12px', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 600, background: activeTab === 'rust' ? '#3b82f6' : 'transparent', color: activeTab === 'rust' ? '#fff' : '#888' }}>НОВА БАЗА (Rust)</button>
-                </div>
              </div>
 
              <div className="filters-container-modern">
@@ -318,40 +270,22 @@ const ManagerModule = () => {
                      </tr>
                    </thead>
                    <tbody>
-                         {activeTab === 'supabase' ? (
-                           orders.map(order => {
-                             const nom = nomenclatures.find(n => String(n.id) === String(order.nomenclature_id));
-                             const prodName = nom ? nom.name : (order.accessories || '—');
-                             const ordQty = order.quantity || 0;
-                             const prog = getOrderProductionProgress(order.id);
-                             return (
-                               <tr key={order.id} onClick={() => setSelectedOrder(order)}>
-                                 <td className="order-num-cell">#{order.order_num}</td>
-                                 <td className="customer-cell">{order.customer}</td>
-                                 <td className="product-cell">{prodName}</td>
-                                 <td className="qty-cell"><strong>{prog.packaged} / {ordQty}</strong> шт</td>
-                                 <td className="date-cell">{order.deadline ? new Date(order.deadline).toLocaleDateString() : '—'}</td>
-                                 <td style={{ textAlign: 'right' }}><span className={`status-pill ${prog.status}`}>{getStatusLabel(prog.status)}</span></td>
-                               </tr>
-                             )
-                           })
-                         ) : (
-                            rustOrders.map(order => {
-                              // O(1) Map lookups — no .find() loops, no text parsing
-                              const prodName = charToNomMap.get(order.characteristic_id) ?? '—';
-                              const custName = custMap.get(order.customer_id) ?? '—';
-                              return (
-                                <tr key={order.id}>
-                                  <td className="order-num-cell" style={{ color: '#3b82f6' }}>{order.number}</td>
-                                  <td className="customer-cell">{custName}</td>
-                                  <td className="product-cell">{prodName}</td>
-                                  <td className="qty-cell"><strong>0 / {order.qty_ordered}</strong> шт</td>
-                                  <td className="date-cell">{order.planned_ship_date ? new Date(order.planned_ship_date).toLocaleDateString() : '—'}</td>
-                                  <td style={{ textAlign: 'right' }}><span className={`status-pill ${order.status || 'new'}`}>{String(order.status || 'new').toUpperCase()}</span></td>
-                                </tr>
-                              )
-                            })
-                         )}
+                         {orders.map(order => {
+                           const nom = nomenclatures.find(n => String(n.id) === String(order.nomenclature_id));
+                           const prodName = nom ? nom.name : (order.accessories || '—');
+                           const ordQty = order.quantity || 0;
+                           const prog = getOrderProductionProgress(order.id);
+                           return (
+                             <tr key={order.id} onClick={() => setSelectedOrder(order)}>
+                               <td className="order-num-cell">#{order.order_num}</td>
+                               <td className="customer-cell">{order.customer}</td>
+                               <td className="product-cell">{prodName}</td>
+                               <td className="qty-cell"><strong>{prog.packaged} / {ordQty}</strong> шт</td>
+                               <td className="date-cell">{order.deadline ? new Date(order.deadline).toLocaleDateString() : '—'}</td>
+                               <td style={{ textAlign: 'right' }}><span className={`status-pill ${prog.status}`}>{getStatusLabel(prog.status)}</span></td>
+                             </tr>
+                           )
+                         })}
                    </tbody>
                 </table>
              </div>
