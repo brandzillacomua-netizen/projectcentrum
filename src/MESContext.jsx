@@ -74,7 +74,66 @@ export const MESProvider = ({ children }) => {
     deductIssuedMaterialsForTask: warehouseActions.deductIssuedMaterialsForTask
   })
 
-  const operators = ["Олексій", "Дмитро", "Сергій", "Андрій", "Микола"]
+  const formatUserName = (u) => {
+    const fullName = [u.first_name, u.last_name].filter(Boolean).join(' ')
+    const displayName = fullName || u.login
+    return u.position ? `${displayName} (${u.position})` : displayName
+  }
+
+  const operators = (data.systemUsers || [])
+    .filter(u => ['Оператор', 'Галтовщик', 'Пресувальник', 'Маляр', 'Слюсар'].includes(u.position))
+    .map(formatUserName)
+    .filter(Boolean)
+
+  const getFilteredOperators = (department, shift, stage = null) => {
+    let list = (data.systemUsers || [])
+    
+    // 1. Filter by Department
+    if (department) {
+      list = list.filter(u => u.department === department)
+    }
+    
+    // 2. Filter by Shift
+    if (shift && shift !== 'Без зміни') {
+      list = list.filter(u => u.shift === shift || u.shift === 'Без зміни')
+    }
+
+    // 3. Filter by Position (Stage)
+    if (stage === 'Галтовка') {
+      list = list.filter(u => u.position === 'Галтовщик')
+    } else if (stage === 'Розкрій') {
+      list = list.filter(u => u.position === 'Оператор')
+    } else if (stage === 'Пресування') {
+      list = list.filter(u => u.position === 'Пресувальник')
+    } else if (stage === 'Фарбування') {
+      list = list.filter(u => u.position === 'Маляр (Фарбування)')
+    } else if (stage === 'Доопрацювання') {
+      list = list.filter(u => u.position === 'Слюсар (Доопрацювання)')
+    } else {
+      // Default production operators
+      list = list.filter(u => ['Оператор', 'Галтовщик', 'Пресувальник', 'Маляр', 'Слюсар'].includes(u.position))
+    }
+
+    return list.map(formatUserName).filter(Boolean)
+  }
+
+  const getFilteredManagers = (department) => {
+    let list = (data.systemUsers || [])
+    if (department) {
+      list = list.filter(u => u.department === department || u.department === 'Керівництво')
+    }
+    return list
+      .filter(u => ['Адмін', 'Директор виробництва', 'Начальник цеху', 'Майстер цеху'].includes(u.position))
+      .map(formatUserName)
+      .filter(Boolean)
+  }
+
+  const managers = (data.systemUsers || [])
+    .filter(u => 
+      ['Адмін', 'Директор виробництва', 'Начальник цеху', 'Майстер цеху'].includes(u.position)
+    )
+    .map(formatUserName)
+    .filter(Boolean)
   const productionStages = ["Розкрій", "Галтовка", "Пресування", "Фарбування", "Паквання"]
 
   return (
@@ -89,6 +148,9 @@ export const MESProvider = ({ children }) => {
       totalProduced: data.productionData.totalProduced,
       totalScrapCount: data.productionData.totalScrap,
       operators,
+      getFilteredOperators,
+      getFilteredManagers,
+      managers,
       productionStages,
       supabase
     }}>

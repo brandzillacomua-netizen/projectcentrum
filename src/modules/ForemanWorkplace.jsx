@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Factory, ListTodo, Loader2, X, Printer, LayoutDashboard, Layers, User, Clock, Package, Scan, CheckCircle2, AlertTriangle, Camera, Tablet, Menu, Shuffle } from 'lucide-react'
 import { useMES } from '../MESContext'
 import { QRCodeSVG } from 'qrcode.react'
@@ -7,8 +7,9 @@ import { apiService } from '../services/apiDispatcher'
 import { supabase } from '../supabase'
 
 const ForemanWorkplace = () => {
+  const location = useLocation()
   const { tasks, orders, workCards, createWorkCard, inventory, completeTaskByMaster, handoverTaskToShop2, cancelHandoverToShop2, nomenclatures, bomItems, machines, workCardHistory, confirmBuffer, fetchData, reserveBZForTask, fetchTaskArchiveCards } = useMES()
-  const [activeTaskId, setActiveTaskId] = useState(null)
+  const [activeTaskId, setActiveTaskId] = useState(location.state?.taskId || null)
   const [activeView, setActiveView] = useState('worksheet')
   const [selectedMachines, setSelectedMachines] = useState({})
   const [editingSplits, setEditingSplits] = useState({}) // { nomId: [{machine, qty}] }
@@ -95,6 +96,12 @@ const ForemanWorkplace = () => {
         setProductionCache(cache);
       });
   }, [tasks, workCards]); // Update when tasks change or global cards update (real-time)
+
+  useEffect(() => {
+    if (location.state?.taskId) {
+      setActiveTaskId(location.state.taskId)
+    }
+  }, [location.state?.taskId])
 
   // Підвантажуємо архівні картки при зміні активного наряду
   useEffect(() => {
@@ -633,7 +640,7 @@ const ForemanWorkplace = () => {
               <ListTodo size={18} /> РОБОЧІ НАРЯДИ
             </button>
             <Link
-              to="/operator-terminal"
+              to="/shop1"
               style={{ background: 'rgba(234, 179, 8, 0.1)', border: '1px solid #eab308', color: '#eab308', fontSize: '0.8rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 15px', borderRadius: '10px', textDecoration: 'none', marginLeft: 'auto' }}
             >
               <Tablet size={16} /> ВІДКРИТИ ТЕРМІНАЛ ЦЕХУ
@@ -642,7 +649,8 @@ const ForemanWorkplace = () => {
 
           {activeTaskId ? (
             (() => {
-              const task = relevantTasks.find(t => t.id === activeTaskId)
+              const task = relevantTasks.find(t => t.id === activeTaskId) || tasks.find(t => t.id === activeTaskId)
+              if (!task) return <div style={{ padding: '20px', color: '#888', fontSize: '0.9rem' }}>Завдання не знайдено або завантажується...</div>
               const order = task.orders || orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
               // Об'єднуємо АКТИВНІ картки (з глобального стейту) + ЗАВЕРШЕНІ (архів для цього наряду)
               // Це гарантує, що картки НІКОЛИ не зникають після переходу на прийомку/буфер

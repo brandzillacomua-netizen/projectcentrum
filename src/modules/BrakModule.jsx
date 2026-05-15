@@ -1,16 +1,140 @@
-import React, { useState } from 'react'
-import { ArrowLeft, AlertTriangle, CheckCircle2, Package, Layers, ChevronRight, Info } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { ArrowLeft, AlertTriangle, CheckCircle2, Package, Layers, ChevronRight, Info, Camera, X, Scan } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { supabase } from '../supabase'
 
 export default function BrakModule() {
-  const { inventory, nomenclatures, fetchData, currentUser, disposeScrapItem, createReworkNaryad, productionStages } = useMES()
+  const { inventory, nomenclatures, fetchData, currentUser, disposeScrapItem, createReworkNaryad, productionStages, workCards, orders } = useMES()
   const [isProcessing, setIsProcessing] = useState(false)
   const [selectedItem, setSelectedItem] = useState(null)
   const [distribution, setDistribution] = useState({ 1: 0, 2: 0, 3: 0, 4: 0 })
   const [viewingCategory, setViewingCategory] = useState(null)
   const [stepToRework, setStepToRework] = useState(null)
+
+  const [isScanning, setIsScanning] = useState(false)
+  const [scanError, setScanError] = useState(null)
+  const [scannedCard, setScannedCard] = useState(null)
+  const [qcInspector, setQcInspector] = useState('')
+  const [qcScrapCount, setQcScrapCount] = useState(0)
+
+  // Обробка сканера QR
+  useEffect(() => {
+    let html5QrCode = null
+    if (isScanning && window.Html5Qrcode) {
+      html5QrCode = new window.Html5Qrcode("qc-reader")
+      const config = { fps: 15, qrbox: { width: 260, height: 260 } }
+      const stopAndClose = async () => {
+        if (html5QrCode && html5QrCode.isScanning) await html5QrCode.stop().catch(() => { })
+        setIsScanning(false)
+      }
+      html5QrCode.start({ facingMode: "environment" }, config, async (decodedText) => {
+        try {
+          let cardIdStr = decodedText
+          try {
+            const qrData = JSON.parse(decodedText)
+            if (qrData.id) cardIdStr = qrData.id
+          } catch (e) { }
+
+          await stopAndClose()
+          const foundCard = (workCards || []).find(c => String(c.id).trim() === String(cardIdStr).trim() || String(c.id).endsWith(String(cardIdStr).trim()))
+          if (!foundCard) {
+            setScanError(`Картку №${cardIdStr} не знайдено в базі.`)
+          } else {
+            setScannedCard(foundCard)
+            setQcScrapCount(0)
+            setScanError(null)
+          }
+        } catch (e) {
+          setScanError("Невірний формат QR або помилка зчитування.")
+        }
+      }).catch(err => { setScanError("Помилка камери: " + err); setIsScanning(false) })
+    }
+    return () => {
+      if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().catch(() => {})
+      }
+    }
+  }, [isScanning, workCards])
+
+  // Уніфікована функція запису в інвентар
+  const updateInventoryStock = async (nomId, qty, type = 'scrap') => {
+    if (!nomId || qty <= 0) return
+    try {
+      const { data: existing } = await supabase.from('inventory')
+        .select('*')
+        .eq('nomenclature_id', nomId)
+        .eq('type', type)
+        .limit(1).maybeSingle()
+
+      if (existing) {
+        await supabase.from('inventory').update({
+          total_qty: (Number(existing.total_qty) || 0) + Number(qty),
+          updated_at: new Date().toISOString()
+        }).eq('id', existing.id)
+      } else {
+        const nom = (nomenclatures || []).find(n => n.id === nomId)
+        await supabase.from('inventory').insert([{
+          name: nom?.name || 'Деталь',
+          unit: nom?.unit || 'шт',
+          total_qty: Number(qty),
+          type: type,
+          nomenclature_id: nomId
+        }])
+      }
+    } catch (e) { console.warn(`Stock update failed for type ${type}:`, e) }
+  }
+
+  // Обробник списання додаткового браку ВКЯ
+  const handleQCScrapOverride = async () => {
+    if (!scannedCard || qcScrapCount <= 0) return
+    if (qcScrapCount > scannedCard.quantity) {
+      alert('Кількість браку не може перевищувати поточну кількість деталей у картці!')
+      return
+    }
+    setIsProcessing(true)
+    try {
+      const op = qcInspector ? `ВКЯ (${qcInspector})` : 'Інспектор ВКЯ'
+      const newQty = Math.max(0, scannedCard.quantity - qcScrapCount)
+
+      // 1. Запис у work_card_history
+      await supabase.from('work_card_history').insert([{
+        card_id: scannedCard.id,
+        nomenclature_id: scannedCard.nomenclature_id,
+        stage_name: 'Контроль ВКЯ',
+        operator_name: op,
+        qty_at_start: scannedCard.quantity,
+        qty_completed: newQty,
+        scrap_qty: qcScrapCount,
+        started_at: new Date().toISOString(),
+        completed_at: new Date().toISOString(),
+        is_archived_scrap: true,
+        shift_name: scannedCard.shift_name,
+        manager_name: scannedCard.manager_name,
+        machine_name: scannedCard.machine
+      }])
+
+      // 2. Оновлюємо кількість картки
+      const updatePayload = { quantity: newQty }
+      if (newQty === 0) {
+        updatePayload.status = 'completed'
+      }
+      await supabase.from('work_cards').update(updatePayload).eq('id', scannedCard.id)
+
+      // 3. Записуємо виявлений брак на склад
+      await updateInventoryStock(scannedCard.nomenclature_id, qcScrapCount, 'scrap')
+
+      const recordedScrap = qcScrapCount
+      setScannedCard(null)
+      setQcScrapCount(0)
+      setQcInspector('')
+      await fetchData()
+      alert(`✅ Успішно списано ${recordedScrap} шт у брак за рішенням відділу ВКЯ!`)
+    } catch (e) {
+      console.error('QC error:', e)
+      alert('Помилка фіксації браку ВКЯ: ' + e.message)
+    } finally { setIsProcessing(false) }
+  }
 
   // Reset distribution when selected item changes
   React.useEffect(() => {
@@ -21,7 +145,7 @@ export default function BrakModule() {
   const remainingInBatch = selectedItem ? Number(selectedItem.total_qty) - totalDistributed : 0
 
   // Filter for items ready for classification
-  const readyItems = (inventory || []).filter(i => i.type === 'scrap_ready')
+  const readyItems = (inventory || []).filter(i => i.type === 'scrap_ready' && (Number(i.total_qty) > 0))
   
   // Stats for categorized scrap
   const categorizedStats = {
@@ -32,7 +156,7 @@ export default function BrakModule() {
   }
 
   const itemsInCat = viewingCategory 
-    ? (inventory || []).filter(i => i.type === `scrap_cat_${viewingCategory}`)
+    ? (inventory || []).filter(i => i.type === `scrap_cat_${viewingCategory}` && (Number(i.total_qty) > 0))
     : []
 
   const handleBulkClassify = async () => {
@@ -124,13 +248,23 @@ export default function BrakModule() {
           <div style={{ width: '2px', height: '24px', background: '#1a1a1a' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <AlertTriangle color="#ef4444" size={22} />
-            <h1 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 900, letterSpacing: '-0.5px' }}>Круте управління БРАКОМ</h1>
+            <h1 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 900, letterSpacing: '-0.5px' }}>ВКЯ · Управління Якістю</h1>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <button
+            onClick={() => setIsScanning(true)}
+            style={{
+              background: '#ef444420', border: '1px solid #ef444455', color: '#ef4444',
+              padding: '8px 16px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 900,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'
+            }}
+          >
+            <Camera size={18} /> СКАНУВАТИ КАРТКУ
+          </button>
           <div style={{ textAlign: 'right', lineHeight: 1.2 }}>
             <div style={{ fontSize: '0.85rem', fontWeight: 800 }}>{currentUser?.first_name} {currentUser?.last_name}</div>
-            <div style={{ fontSize: '0.65rem', color: '#555', textTransform: 'uppercase', fontWeight: 900 }}>Класифікатор</div>
+            <div style={{ fontSize: '0.65rem', color: '#555', textTransform: 'uppercase', fontWeight: 900 }}>Інспектор ВКЯ</div>
           </div>
         </div>
       </nav>
@@ -414,6 +548,91 @@ export default function BrakModule() {
           </div>
         </div>
       </div>
+
+      {/* ── МОДАЛКА СКАНЕРА QR ── */}
+      {isScanning && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10050, padding: '20px' }}>
+          <div style={{ background: '#111', width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid #333', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '20px', background: '#1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444', fontWeight: 900, fontSize: '0.9rem' }}>
+                <Scan size={18} /> СКАНУВАННЯ КАРТКИ
+              </div>
+              <button onClick={() => setIsScanning(false)} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer' }}><X size={22} /></button>
+            </div>
+            <div style={{ padding: 0, position: 'relative', background: '#000', minHeight: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div id="qc-reader" style={{ width: '100%', border: 'none' }} />
+            </div>
+            <div style={{ padding: '20px', textAlign: 'center', fontSize: '0.75rem', color: '#666' }}>
+              Наведіть камеру на QR-код виробничої картки
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── МОДАЛКА ОФОРМЛЕННЯ БРАКУ З КАРТКИ ── */}
+      {scannedCard && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10060, padding: '20px' }}>
+          <div style={{ background: '#111', width: '100%', maxWidth: '460px', borderRadius: '26px', border: '1px solid #ef444440', overflow: 'hidden', boxShadow: '0 20px 60px rgba(239,68,68,0.15)' }}>
+            <div style={{ padding: '20px 22px', background: '#161616', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ef444420' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 950, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  🛡️ ВІДДІЛ ВКЯ · ФІКСАЦІЯ БРАКУ
+                </h3>
+                <div style={{ fontSize: '0.6rem', color: '#888', marginTop: '2px' }}>
+                  Замовлення №{orders?.find(o => o.id === scannedCard.order_id)?.order_num || '—'} · Картка #{scannedCard.id.slice(0, 8).toUpperCase()}
+                </div>
+              </div>
+              <button onClick={() => setScannedCard(null)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}><X size={22} /></button>
+            </div>
+            <div style={{ padding: '24px 22px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900 }}>
+                {(nomenclatures || []).find(n => n.id === scannedCard.nomenclature_id)?.name || 'Деталь'}
+              </h3>
+
+              {/* Інспектор ВКЯ */}
+              <div>
+                <label style={{ color: '#888', fontWeight: 800, fontSize: '0.7rem', display: 'block', marginBottom: '8px' }}>ПІБ Інспектора ВКЯ (або відповідального)</label>
+                <input
+                  type="text"
+                  placeholder="Введіть ваше прізвище..."
+                  value={qcInspector}
+                  onChange={e => setQcInspector(e.target.value)}
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #333', background: '#000', color: '#fff', fontSize: '0.9rem', fontWeight: 800, boxSizing: 'border-box', outline: 'none' }}
+                />
+              </div>
+
+              {/* Лічильник додаткового браку */}
+              <div style={{ background: '#0d0d0d', borderRadius: '14px', padding: '18px', textAlign: 'center', border: '1px solid #ef444422' }}>
+                <label style={{ color: '#ef4444', fontWeight: 900, fontSize: '0.7rem', textTransform: 'uppercase', display: 'block', marginBottom: '12px' }}>
+                  КІЛЬКІСТЬ ВИЯВЛЕНОГО БРАКУ
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
+                  <button onClick={() => setQcScrapCount(v => Math.max(0, v - 1))}
+                    style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
+                  <input type="number" min={0} max={scannedCard.quantity} value={qcScrapCount}
+                    onChange={e => setQcScrapCount(Math.max(0, Math.min(scannedCard.quantity, parseInt(e.target.value) || 0)))}
+                    style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '3.2rem', width: '90px', textAlign: 'center', fontWeight: 900, outline: 'none' }} />
+                  <button onClick={() => setQcScrapCount(v => Math.min(scannedCard.quantity, v + 1))}
+                    style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
+                </div>
+                <div style={{ marginTop: '10px', fontSize: '0.72rem', color: '#555' }}>
+                  Залишиться в картці: <strong style={{ color: '#10b981' }}>{Math.max(0, (scannedCard.quantity || 0) - qcScrapCount)} шт</strong>
+                </div>
+              </div>
+
+              <button onClick={handleQCScrapOverride} disabled={isProcessing || qcScrapCount <= 0}
+                style={{
+                  background: '#ef4444', color: '#fff', border: 'none', padding: '16px', borderRadius: '14px',
+                  fontSize: '1.05rem', fontWeight: 1000, cursor: 'pointer',
+                  boxShadow: '0 10px 30px rgba(239,68,68,0.3)',
+                  opacity: (isProcessing || qcScrapCount <= 0) ? 0.5 : 1
+                }}>
+                {isProcessing ? 'ЗБЕРЕЖЕННЯ...' : '⚠️ СПИСАТИ У БРАК ВКЯ'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style dangerouslySetInnerHTML={{ __html: `
         .glass-panel { backdrop-filter: blur(10px); }

@@ -1,26 +1,27 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { ArrowLeft, Monitor, ListTodo, X, Clock, CheckCircle2, ChevronRight, Menu, Printer, Tablet } from 'lucide-react'
 import { useMES } from '../MESContext'
 import { supabase } from '../supabase'
 import { QRCodeCanvas } from 'qrcode.react'
 
 const Shop2Module = () => {
-  const { 
-    orders, 
-    tasks, 
-    workCards, 
-    inventory, 
-    nomenclatures, 
+  const location = useLocation()
+  const {
+    orders,
+    tasks,
+    workCards,
+    inventory,
+    nomenclatures,
     bomItems,
-    fetchData, 
+    fetchData,
     completeTaskShop2,
     directHandoverToSGP,
     fetchTaskArchiveCards,
     workCardHistory
   } = useMES()
 
-  const [activeTaskId, setActiveTaskId] = useState(null)
+  const [activeTaskId, setActiveTaskId] = useState(location.state?.taskId || null)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [printModalData, setPrintModalData] = useState(null)
@@ -30,6 +31,12 @@ const Shop2Module = () => {
   const [isProcessing, setIsProcessing] = useState(false)
   const [showVictory, setShowVictory] = useState(false)
   const itemsPerPage = 8
+
+  useEffect(() => {
+    if (location.state?.taskId) {
+      setActiveTaskId(location.state.taskId)
+    }
+  }, [location.state?.taskId])
 
   // Завантажуємо завершені карти при зміні наряду
   useEffect(() => {
@@ -71,22 +78,22 @@ const Shop2Module = () => {
     if (!task) return []
     const snapshot = task.plan_snapshot || {}
     const arrivals = snapshot.arrivals || []
-    
+
     let items = arrivals.length > 0 ? arrivals.map(a => ({
       nom: (nomenclatures || []).find(n => String(n?.id) === String(a?.id)),
-      need: a?.semi || 0,
+      need: snapshot[String(a?.id)]?.need !== undefined ? Number(snapshot[String(a?.id)]?.need) : (a?.semi || 0),
       bz: a?.bz || 0,
       code: (nomenclatures || []).find(n => String(n?.id) === String(a?.id))?.nomenclature_code
     })) : (orderObj?.order_items || []).flatMap(item => {
       const parts = getBOMParts(item?.nomenclature_id)
       return parts.length > 0 ? parts.map(p => ({
         nom: p.nom,
-        need: (Number(item?.quantity) || 0) * (Number(p.quantity_per_parent) || 1),
+        need: snapshot[String(p.nom?.id)]?.need !== undefined ? Number(snapshot[String(p.nom?.id)]?.need) : (Number(item?.quantity) || 0) * (Number(p.quantity_per_parent) || 1),
         bz: 0,
         code: p.nom?.nomenclature_code
       })) : [{
         nom: (nomenclatures || []).find(n => String(n?.id) === String(item?.nomenclature_id)),
-        need: (Number(item?.quantity) || 0),
+        need: snapshot[String(item?.nomenclature_id)]?.need !== undefined ? Number(snapshot[String(item?.nomenclature_id)]?.need) : (Number(item?.quantity) || 0),
         bz: 0,
         code: (nomenclatures || []).find(n => String(n?.id) === String(item?.nomenclature_id))?.nomenclature_code
       }]
@@ -140,7 +147,7 @@ const Shop2Module = () => {
     setIsGenerating(true)
     try {
       const userQty = prompt(`Вкажіть кількість для картки (макс: ${totalQty}):`, totalQty)
-      if (userQty === null) return 
+      if (userQty === null) return
       const finalQty = Number(userQty) || 0
       if (finalQty <= 0) {
         alert("Кількість має бути більшою за 0")
@@ -323,11 +330,11 @@ const Shop2Module = () => {
                       ) : (() => {
                         const itemsToCheck = getTaskDisplayItems(task, order)
                         const allCards = [...(workCards || []), ...(archiveCards || [])]
-                        
+
                         const isAllDone = itemsToCheck.length > 0 && itemsToCheck.every(a => {
-                          return allCards.some(wc => 
-                            String(wc.task_id) === String(task.id) && 
-                            String(wc.nomenclature_id) === String(a.nom?.id) && 
+                          return allCards.some(wc =>
+                            String(wc.task_id) === String(task.id) &&
+                            String(wc.nomenclature_id) === String(a.nom?.id) &&
                             wc.status === 'completed'
                           )
                         })
@@ -346,26 +353,26 @@ const Shop2Module = () => {
                   {isCompleted && <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 900, marginTop: '8px' }}>ВИКОНАНО</div>}
                   {!isCompleted && task.status !== 'waiting' && (() => {
 
-                        const snapshot = task.plan_snapshot || {}
-                        const arrivals = snapshot.arrivals || []
-                        const allCards = [...(workCards || []), ...(archiveCards || [])]
-                        
-                        const isAllDone = arrivals.length > 0 && arrivals.every(a => {
-                          return allCards.some(wc => 
-                            String(wc.task_id) === String(task.id) && 
-                            String(wc.nomenclature_id) === String(a.id) && 
-                            wc.status === 'completed'
-                          )
-                        })
+                    const snapshot = task.plan_snapshot || {}
+                    const arrivals = snapshot.arrivals || []
+                    const allCards = [...(workCards || []), ...(archiveCards || [])]
 
-                        if (isAllDone) {
-                          return (
-                            <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 900, marginTop: '8px', display: 'flex', alignItems: 'center', gap: '4px', animation: 'pulse 2s infinite' }}>
-                              <CheckCircle2 size={10}/> МОЖНА ЗАКРИВАТИ
-                            </div>
-                          )
-                        }
-                        return null
+                    const isAllDone = arrivals.length > 0 && arrivals.every(a => {
+                      return allCards.some(wc =>
+                        String(wc.task_id) === String(task.id) &&
+                        String(wc.nomenclature_id) === String(a.id) &&
+                        wc.status === 'completed'
+                      )
+                    })
+
+                    if (isAllDone) {
+                      return (
+                        <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 900, marginTop: '8px', display: 'flex', alignItems: 'center', gap: '4px', animation: 'pulse 2s infinite' }}>
+                          <CheckCircle2 size={10} /> МОЖНА ЗАКРИВАТИ
+                        </div>
+                      )
+                    }
+                    return null
                   })()}
                 </div>
               )
@@ -511,21 +518,21 @@ const Shop2Module = () => {
 
                           // Планова потреба з BOM
                           const plannedNeed = Number(item.need) || 0
-                          
+
                           // Реально прийшло в буфер Цеху №2 з сортування
-                          const s2CardsForNom = (workCards || []).filter(c => 
-                            String(c.order_id) === String(task.order_id) && 
+                          const s2CardsForNom = (workCards || []).filter(c =>
+                            String(c.order_id) === String(task.order_id) &&
                             String(c.nomenclature_id) === String(item.nom?.id) &&
                             c.status === 'at-shop2-buffer'
                           )
                           const totalArrived = s2CardsForNom.reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-                          
+
                           // Перевіряємо старий масив arrivals, якщо він був заповнений
                           const snap = task.plan_snapshot || {}
                           const arrival = (snap.arrivals || []).find(a => String(a.id) === String(item.nom?.id))
-                          
+
                           const actualArrived = arrival ? (Number(arrival.semi) || 0) + (Number(arrival.bz) || 0) : totalArrived
-                          
+
                           const displayNeed = plannedNeed
                           const displayBz = arrival ? (Number(arrival.bz) || 0) : (totalArrived > plannedNeed ? totalArrived - plannedNeed : 0)
                           const displayTotal = displayNeed + displayBz
@@ -538,172 +545,172 @@ const Shop2Module = () => {
 
                           return (
                             <tr key={idx} style={{ borderBottom: '1px solid #1a1a1a', opacity: (existingCard && existingCard.status === 'completed') ? 0.7 : 1 }}>
-                            <td style={{ padding: '20px' }}>
-                              <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#fff' }}>{item.nom?.name || '—'}</div>
-                              <div style={{ fontSize: '0.7rem', color: '#444', marginTop: '2px' }}>{item.code || 'БЕЗ КОДУ'}</div>
-                            </td>
-                            <td style={{ padding: '20px', textAlign: 'center' }}>
-                              <div style={{ color: '#666', fontSize: '0.85rem', fontWeight: 700 }}>{item.nom?.material_type || '—'}</div>
-                            </td>
-                            <td style={{ padding: '20px', textAlign: 'center', color: '#fff', fontSize: '1.2rem', fontWeight: 600 }}>
-                              {displayNeed}
-                            </td>
-                            {!isReworkOrder && (
-                              <>
-                                <td style={{ padding: '20px', textAlign: 'center', color: '#eab308', fontWeight: 1000, fontSize: '1.4rem' }}>
-                                  {displayBz}
-                                </td>
-                                <td style={{ padding: '20px', textAlign: 'center', color: '#3b82f6', fontWeight: 1000, fontSize: '1.4rem' }}>
-                                  <div>{actualArrived}/{displayTotal}</div>
-                                  {totalInProcess > 0 && (
-                                    <span style={{ fontSize: '0.75rem', color: '#10b981', display: 'block', marginTop: '4px', fontWeight: 800 }}>
-                                      ({totalInProcess} в роботі)
-                                    </span>
-                                  )}
-                                </td>
-                              </>
-                            )}
-                            <td style={{ padding: '20px' }}>
-                              <select
-                                value={selectedStages[String(item.nom?.id)] || (task.plan_snapshot?.[String(item.nom?.id)]?.shop2_stage) || ''}
-                                disabled={task.status === 'completed'}
-                                onChange={(e) => handleUpdateStage(task, item.nom?.id, e.target.value)}
-                                style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '10px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700 }}
-                              >
-                                <option value="" disabled hidden>Оберіть етап</option>
-                                <option value="Пресування">Пресування</option>
-                                <option value="Фарбування">Фарбування</option>
-                                <option value="Доопрацювання">Доопрацювання</option>
-                                <option value="Пакування/СГП">Пакування/СГП</option>
-                              </select>
-                            </td>
-                            <td style={{ padding: '20px', textAlign: 'center' }}>
-                              <div style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                background: task.status === 'completed' ? '#10b98122' : '#8b5cf611',
-                                color: task.status === 'completed' ? '#10b981' : '#8b5cf6',
-                                padding: '6px 14px',
-                                borderRadius: '12px',
-                                fontSize: '0.75rem',
-                                fontWeight: 800
-                              }}>
-                                {task.status === 'completed' ? <CheckCircle2 size={14} /> : <Clock size={14} />}
-                                {task.status === 'completed' ? 'ГОТОВО' : 'НА ПРИЙОМЦІ'}
-                              </div>
-                            </td>
-                            <td style={{ padding: '20px', textAlign: 'center' }}>
-                              {(() => {
-                                const stage = selectedStages[String(item.nom?.id)] || task.plan_snapshot?.[String(item.nom?.id)]?.shop2_stage
+                              <td style={{ padding: '20px' }}>
+                                <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#fff' }}>{item.nom?.name || '—'}</div>
+                                <div style={{ fontSize: '0.7rem', color: '#444', marginTop: '2px' }}>{item.code || 'БЕЗ КОДУ'}</div>
+                              </td>
+                              <td style={{ padding: '20px', textAlign: 'center' }}>
+                                <div style={{ color: '#666', fontSize: '0.85rem', fontWeight: 700 }}>{item.nom?.material_type || '—'}</div>
+                              </td>
+                              <td style={{ padding: '20px', textAlign: 'center', color: '#fff', fontSize: '1.2rem', fontWeight: 600 }}>
+                                {displayNeed}
+                              </td>
+                              {!isReworkOrder && (
+                                <>
+                                  <td style={{ padding: '20px', textAlign: 'center', color: '#eab308', fontWeight: 1000, fontSize: '1.4rem' }}>
+                                    {displayBz}
+                                  </td>
+                                  <td style={{ padding: '20px', textAlign: 'center', color: '#3b82f6', fontWeight: 1000, fontSize: '1.4rem' }}>
+                                    <div>{actualArrived}/{displayTotal}</div>
+                                    {totalInProcess > 0 && (
+                                      <span style={{ fontSize: '0.75rem', color: '#10b981', display: 'block', marginTop: '4px', fontWeight: 800 }}>
+                                        ({totalInProcess} в роботі)
+                                      </span>
+                                    )}
+                                  </td>
+                                </>
+                              )}
+                              <td style={{ padding: '20px' }}>
+                                <select
+                                  value={selectedStages[String(item.nom?.id)] || (task.plan_snapshot?.[String(item.nom?.id)]?.shop2_stage) || ''}
+                                  disabled={task.status === 'completed'}
+                                  onChange={(e) => handleUpdateStage(task, item.nom?.id, e.target.value)}
+                                  style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '10px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700 }}
+                                >
+                                  <option value="" disabled hidden>Оберіть етап</option>
+                                  <option value="Пресування">Пресування</option>
+                                  <option value="Фарбування">Фарбування</option>
+                                  <option value="Доопрацювання">Доопрацювання</option>
+                                  <option value="Пакування/СГП">Пакування/СГП</option>
+                                </select>
+                              </td>
+                              <td style={{ padding: '20px', textAlign: 'center' }}>
+                                <div style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  background: task.status === 'completed' ? '#10b98122' : '#8b5cf611',
+                                  color: task.status === 'completed' ? '#10b981' : '#8b5cf6',
+                                  padding: '6px 14px',
+                                  borderRadius: '12px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 800
+                                }}>
+                                  {task.status === 'completed' ? <CheckCircle2 size={14} /> : <Clock size={14} />}
+                                  {task.status === 'completed' ? 'ГОТОВО' : 'НА ПРИЙОМЦІ'}
+                                </div>
+                              </td>
+                              <td style={{ padding: '20px', textAlign: 'center' }}>
+                                {(() => {
+                                  const stage = selectedStages[String(item.nom?.id)] || task.plan_snapshot?.[String(item.nom?.id)]?.shop2_stage
 
-                                // Обчислюємо, чи вже була згенерована картка (з активних або архівних)
-                                const allCardsForCheck = [...(workCards || []), ...(archiveCards || [])]
-                                const existingCard = allCardsForCheck.find(wc => {
-                                  const idMatch = String(wc.task_id) === String(task.id) && String(wc.nomenclature_id) === String(item.nom?.id)
-                                  const opMatch = String(wc.operation || '').toLowerCase().trim() === String(stage || '').toLowerCase().trim()
-                                  return idMatch && opMatch
-                                })
+                                  // Обчислюємо, чи вже була згенерована картка (з активних або архівних)
+                                  const allCardsForCheck = [...(workCards || []), ...(archiveCards || [])]
+                                  const existingCard = allCardsForCheck.find(wc => {
+                                    const idMatch = String(wc.task_id) === String(task.id) && String(wc.nomenclature_id) === String(item.nom?.id)
+                                    const opMatch = String(wc.operation || '').toLowerCase().trim() === String(stage || '').toLowerCase().trim()
+                                    return idMatch && opMatch
+                                  })
 
-                                // Залишок буфера з at-shop2-buffer карток
-                                const bufSrcCards = (workCards || []).filter(c =>
-                                  String(c.order_id) === String(task.order_id) &&
-                                  String(c.nomenclature_id) === String(item.nom?.id) &&
-                                  c.status === 'at-shop2-buffer'
-                                )
-                                const bufTotal = bufSrcCards.reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-                                const bufUsed = bufSrcCards.reduce((s, c) => s + (Number(c.used_in_shop2_qty) || 0), 0)
-                                const total2 = bufTotal - bufUsed
-
-                                if (task.status === 'completed' || (existingCard && existingCard.status === 'completed')) {
-                                  return <div style={{ color: '#10b981', fontSize: '0.7rem', fontWeight: 900 }}>ГОТОВО</div>
-                                }
-
-                                const remNeed2 = Math.min(total2, displayNeed)
-                                const remBz2 = Math.max(0, total2 - remNeed2)
-
-                                const printBtn = existingCard ? (
-                                  <button
-                                    onClick={() => {
-                                      const order = orders.find(o => o.id === task.order_id)
-                                      setPrintModalData({
-                                        cardId: existingCard.id,
-                                        nomName: item.nom?.name,
-                                        qty: existingCard.quantity,
-                                        stage: existingCard.operation,
-                                        orderNum: order?.order_num || '—',
-                                        customer: order?.customer || '—'
-                                      })
-                                    }}
-                                    style={{
-                                      background: '#10b981',
-                                      color: '#fff',
-                                      border: 'none',
-                                      padding: '10px',
-                                      borderRadius: '12px',
-                                      cursor: 'pointer',
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
-                                    }}
-                                    title="Друкувати повторно"
-                                  >
-                                    <Printer size={16} />
-                                  </button>
-                                ) : null
-
-                                const genBtn = total2 > 0 ? (
-                                  <button
-                                    onClick={async () => {
-                                      if (stage === 'Пакування/СГП') {
-                                        if (window.confirm(`Відправити ${total2} шт. (Потреба: ${remNeed2} + БЗ: ${remBz2}) прямо на СГП?`)) {
-                                          try {
-                                            setIsGenerating(true)
-                                            await directHandoverToSGP(task.id, item.nom?.id, remNeed2, remBz2)
-                                            alert('Передано на СГП успішно!')
-                                          } catch (err) {
-                                            alert('Помилка: ' + err.message)
-                                          } finally {
-                                            setIsGenerating(false)
-                                          }
-                                        }
-                                      } else {
-                                        handleGenerateCard(task, item, total2)
-                                      }
-                                    }}
-                                    disabled={task.status === 'completed' || isGenerating || !stage}
-                                    style={{ 
-                                      background: stage === 'Пакування/СГП' ? '#10b981' : '#8b5cf6', 
-                                      color: '#fff', 
-                                      border: 'none', 
-                                      padding: '8px 15px', 
-                                      borderRadius: '10px', 
-                                      fontSize: '0.65rem', 
-                                      fontWeight: 900, 
-                                      cursor: 'pointer',
-                                      opacity: (task.status === 'completed' || isGenerating || !stage) ? 0.3 : 1
-                                    }}
-                                    title={`Генерувати ще на ${total2} шт.`}
-                                  >
-                                    {isGenerating ? '...' : (stage === 'Пакування/СГП' ? 'ВІДПРАВИТИ НА СГП' : '+ ГЕНЕРУВАТИ')}
-                                  </button>
-                                ) : null
-
-                                if (printBtn || genBtn) {
-                                  return (
-                                    <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
-                                      {printBtn}
-                                      {genBtn}
-                                    </div>
+                                  // Залишок буфера з at-shop2-buffer карток
+                                  const bufSrcCards = (workCards || []).filter(c =>
+                                    String(c.order_id) === String(task.order_id) &&
+                                    String(c.nomenclature_id) === String(item.nom?.id) &&
+                                    c.status === 'at-shop2-buffer'
                                   )
-                                }
+                                  const bufTotal = bufSrcCards.reduce((s, c) => s + (Number(c.quantity) || 0), 0)
+                                  const bufUsed = bufSrcCards.reduce((s, c) => s + (Number(c.used_in_shop2_qty) || 0), 0)
+                                  const total2 = bufTotal - bufUsed
 
-                                if (bufTotal === 0) return <div style={{ color: '#444', fontSize: '0.65rem', fontWeight: 700 }}>Очікує буфер</div>
-                                return <div style={{ color: '#10b981', fontSize: '0.7rem', fontWeight: 900 }}>ГОТОВО</div>
-                              })()}
-                            </td>
-                          </tr>
+                                  if (task.status === 'completed' || (existingCard && existingCard.status === 'completed')) {
+                                    return <div style={{ color: '#10b981', fontSize: '0.7rem', fontWeight: 900 }}>ГОТОВО</div>
+                                  }
+
+                                  const remNeed2 = Math.min(total2, displayNeed)
+                                  const remBz2 = Math.max(0, total2 - remNeed2)
+
+                                  const printBtn = existingCard ? (
+                                    <button
+                                      onClick={() => {
+                                        const order = orders.find(o => o.id === task.order_id)
+                                        setPrintModalData({
+                                          cardId: existingCard.id,
+                                          nomName: item.nom?.name,
+                                          qty: existingCard.quantity,
+                                          stage: existingCard.operation,
+                                          orderNum: order?.order_num || '—',
+                                          customer: order?.customer || '—'
+                                        })
+                                      }}
+                                      style={{
+                                        background: '#10b981',
+                                        color: '#fff',
+                                        border: 'none',
+                                        padding: '10px',
+                                        borderRadius: '12px',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+                                      }}
+                                      title="Друкувати повторно"
+                                    >
+                                      <Printer size={16} />
+                                    </button>
+                                  ) : null
+
+                                  const genBtn = total2 > 0 ? (
+                                    <button
+                                      onClick={async () => {
+                                        if (stage === 'Пакування/СГП') {
+                                          if (window.confirm(`Відправити ${total2} шт. (Потреба: ${remNeed2} + БЗ: ${remBz2}) прямо на СГП?`)) {
+                                            try {
+                                              setIsGenerating(true)
+                                              await directHandoverToSGP(task.id, item.nom?.id, remNeed2, remBz2)
+                                              alert('Передано на СГП успішно!')
+                                            } catch (err) {
+                                              alert('Помилка: ' + err.message)
+                                            } finally {
+                                              setIsGenerating(false)
+                                            }
+                                          }
+                                        } else {
+                                          handleGenerateCard(task, item, total2)
+                                        }
+                                      }}
+                                      disabled={task.status === 'completed' || isGenerating || !stage}
+                                      style={{
+                                        background: stage === 'Пакування/СГП' ? '#10b981' : '#8b5cf6',
+                                        color: '#fff',
+                                        border: 'none',
+                                        padding: '8px 15px',
+                                        borderRadius: '10px',
+                                        fontSize: '0.65rem',
+                                        fontWeight: 900,
+                                        cursor: 'pointer',
+                                        opacity: (task.status === 'completed' || isGenerating || !stage) ? 0.3 : 1
+                                      }}
+                                      title={`Генерувати ще на ${total2} шт.`}
+                                    >
+                                      {isGenerating ? '...' : (stage === 'Пакування/СГП' ? 'ВІДПРАВИТИ НА СГП' : '+ ГЕНЕРУВАТИ')}
+                                    </button>
+                                  ) : null
+
+                                  if (printBtn || genBtn) {
+                                    return (
+                                      <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
+                                        {printBtn}
+                                        {genBtn}
+                                      </div>
+                                    )
+                                  }
+
+                                  if (bufTotal === 0) return <div style={{ color: '#444', fontSize: '0.65rem', fontWeight: 700 }}>Очікує буфер</div>
+                                  return <div style={{ color: '#10b981', fontSize: '0.7rem', fontWeight: 900 }}>ГОТОВО</div>
+                                })()}
+                              </td>
+                            </tr>
                           )
                         })
                       })()}
@@ -714,30 +721,30 @@ const Shop2Module = () => {
                 {(() => {
                   const itemsToCheck = getTaskDisplayItems(task, order)
                   const allCards = [...(workCards || []), ...(archiveCards || [])]
-                  
+
                   const isAllDone = itemsToCheck.length > 0 && itemsToCheck.every(a => {
-                    return allCards.some(wc => 
-                      String(wc.task_id) === String(task.id) && 
-                      String(wc.nomenclature_id) === String(a.nom?.id) && 
+                    return allCards.some(wc =>
+                      String(wc.task_id) === String(task.id) &&
+                      String(wc.nomenclature_id) === String(a.nom?.id) &&
                       wc.status === 'completed'
                     )
                   })
 
                   if (isAllDone && task.status !== 'completed') {
                     return (
-                      <div style={{ 
-                        marginTop: '40px', 
-                        padding: '40px', 
-                        borderRadius: '32px', 
-                        background: 'linear-gradient(135deg, #10b98122 0%, #10b98144 100%)', 
-                        border: '2px solid #10b981', 
-                        textAlign: 'center', 
+                      <div style={{
+                        marginTop: '40px',
+                        padding: '40px',
+                        borderRadius: '32px',
+                        background: 'linear-gradient(135deg, #10b98122 0%, #10b98144 100%)',
+                        border: '2px solid #10b981',
+                        textAlign: 'center',
                         boxShadow: '0 0 40px rgba(16, 185, 129, 0.2)',
-                        animation: 'pulse 2s infinite' 
+                        animation: 'pulse 2s infinite'
                       }}>
                         <div style={{ color: '#10b981', fontSize: '1.8rem', fontWeight: 950, marginBottom: '10px' }}>🏆 ЛЕГЕНДА ЦЕХУ, ЦЕ ПЕРЕМОГА!</div>
                         <div style={{ color: '#fff', fontSize: '1.1rem', fontWeight: 600, opacity: 0.9 }}>
-                          Всі деталі на СГП, план розірвано в шматки! 🚀<br/>
+                          Всі деталі на СГП, план розірвано в шматки! 🚀<br />
                           Тисніть на фіолетову кнопку зверху і отримайте порцію слави!
                         </div>
                       </div>
@@ -757,16 +764,16 @@ const Shop2Module = () => {
 
                 {/* ───── ВІКНО ТРІУМФУ ───── */}
                 {showVictory && (
-                  <div style={{ 
-                    position: 'fixed', inset: 0, zIndex: 9999, 
-                    background: 'rgba(0,0,0,0.95)', 
+                  <div style={{
+                    position: 'fixed', inset: 0, zIndex: 9999,
+                    background: 'rgba(0,0,0,0.95)',
                     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                     animation: 'fadeIn 0.5s ease-out'
                   }}>
                     <div style={{ fontSize: '150px', marginBottom: '20px', animation: 'bounce 1s infinite' }}>🏆</div>
                     <h1 style={{ color: '#fff', fontSize: '5rem', fontWeight: 950, textAlign: 'center', margin: 0, textShadow: '0 0 50px #8b5cf6' }}>ВИ — ЧЕМПІОН!</h1>
                     <p style={{ color: '#8b5cf6', fontSize: '2rem', fontWeight: 800, marginTop: '20px' }}>Цех №2 пишається своїм лідером! 🚀</p>
-                    <button 
+                    <button
                       onClick={() => setShowVictory(false)}
                       style={{ marginTop: '50px', background: '#fff', color: '#000', padding: '15px 40px', borderRadius: '20px', fontWeight: 900, cursor: 'pointer', border: 'none' }}
                     >
@@ -871,22 +878,22 @@ const Shop2Module = () => {
                     Архів робочих карток (Цех №2)
                   </h3>
 
-                    {(() => {
-                      // Об'єднуємо АКТИВНІ (з глобального стейту) та ЗАВЕРШЕНІ (локально завантажені) карти
-                      // Використовуємо Map для гарантованої унікальності за ID
-                      const uniqueCardsMap = new Map();
-                      [...(workCards || []), ...(archiveCards || [])].forEach(c => {
-                        if (c?.id) uniqueCardsMap.set(c.id, c);
-                      });
+                  {(() => {
+                    // Об'єднуємо АКТИВНІ (з глобального стейту) та ЗАВЕРШЕНІ (локально завантажені) карти
+                    // Використовуємо Map для гарантованої унікальності за ID
+                    const uniqueCardsMap = new Map();
+                    [...(workCards || []), ...(archiveCards || [])].forEach(c => {
+                      if (c?.id) uniqueCardsMap.set(c.id, c);
+                    });
 
-                      const allUniqueCards = Array.from(uniqueCardsMap.values());
-                      
-                      const taskCards = allUniqueCards.filter(c => {
-                        const oMatch = String(c.order_id) === String(task.order_id)
-                        const tMatch = String(c.task_id) === String(task.id)
-                        const infoMatch = c.card_info?.includes(`Наряд №${task.order_id}`) || c.card_info?.includes(`Наряд №${task.id}`)
-                        return (oMatch || tMatch || infoMatch) && c.card_info?.includes('[ЦЕХ №2]')
-                      })
+                    const allUniqueCards = Array.from(uniqueCardsMap.values());
+
+                    const taskCards = allUniqueCards.filter(c => {
+                      const oMatch = String(c.order_id) === String(task.order_id)
+                      const tMatch = String(c.task_id) === String(task.id)
+                      const infoMatch = c.card_info?.includes(`Наряд №${task.order_id}`) || c.card_info?.includes(`Наряд №${task.id}`)
+                      return (oMatch || tMatch || infoMatch) && c.card_info?.includes('[ЦЕХ №2]')
+                    })
 
                     // DEBUG для Архіву
                     if (taskCards.length > 0) {

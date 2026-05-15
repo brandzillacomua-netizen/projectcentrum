@@ -9,7 +9,7 @@ import { apiService } from '../services/apiDispatcher'
 import { supabase } from '../supabase'
 
 const Shop2Terminal = () => {
-  const { workCards, orders, nomenclatures, inventory, startWorkCard, confirmBuffer, fetchData, refreshTable, operators, workCardHistory, handoverToSGP } = useMES()
+  const { workCards, orders, nomenclatures, inventory, startWorkCard, confirmBuffer, fetchData, refreshTable, operators, getFilteredOperators, getFilteredManagers, managers, workCardHistory, handoverToSGP, currentUser } = useMES()
   const [selectedCardId, setSelectedCardId] = useState(null)
   const [selectedStage, setSelectedStage] = useState('')
   const [selectedOperator, setSelectedOperator] = useState('')
@@ -41,11 +41,14 @@ const Shop2Terminal = () => {
   useEffect(() => { localStorage.setItem('centrum_shop2_scanned', JSON.stringify(scannedCardIds)) }, [scannedCardIds])
   useEffect(() => { const timer = setInterval(() => setCurrentTime(new Date()), 1000); return () => clearInterval(timer) }, [])
 
-  // Скидаємо вибір етапу при зміні карти
+  // Скидаємо вибір етапу та підставляємо майстра при зміні карти
   useEffect(() => {
     const card = workCards.find(c => String(c.id) === String(selectedCardId))
-    if (card) setSelectedStage(card.operation || '')
-  }, [selectedCardId])
+    if (card) {
+      setSelectedStage(card.operation || '')
+      if (currentUser?.login) setSelectedManager(currentUser.login)
+    }
+  }, [selectedCardId, currentUser])
 
   // ── РЕАЛЬНИЙ ЧАС (ЦЕНТРАЛІЗОВАНО В MESContext) ────────────────
   useEffect(() => {
@@ -415,7 +418,20 @@ const Shop2Terminal = () => {
                     {getNomFromCard(currentCard)?.name || (currentCard.card_info?.split('] ').pop() || `Картка #${currentCard.id.slice(0, 8)}`)}
                   </h2>
                 </div>
-                <button onClick={() => setSelectedCardId(null)} style={{ background: '#111', border: 'none', color: '#555', padding: '10px', borderRadius: '12px', cursor: 'pointer' }}><X size={24} /></button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {currentCard.task_id && (
+                    <Link
+                      to="/shop2"
+                      state={{ taskId: currentCard.task_id }}
+                      style={{ background: '#8b5cf615', border: '1px solid #8b5cf640', color: '#8b5cf6', padding: '10px 14px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none' }}
+                      title="Перейти до батьківського наряду">
+                      📋 <span className="hide-mobile">НАРЯД</span>
+                    </Link>
+                  )}
+                  <button onClick={() => setSelectedCardId(null)} style={{ background: '#111', border: 'none', color: '#555', padding: '10px', borderRadius: '12px', cursor: 'pointer' }}>
+                    <X size={24} />
+                  </button>
+                </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '30px' }}>
@@ -479,7 +495,7 @@ const Shop2Terminal = () => {
                       <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Майстер</label>
                       <select value={selectedManager} onChange={(e) => setSelectedManager(e.target.value)} style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
                         <option value="">— Оберіть майстра —</option>
-                        {operators.map(o => <option key={o} value={o}>{o}</option>)}
+                        {getFilteredManagers('Цех №2').map(o => <option key={o} value={o}>{o}</option>)}
                       </select>
                     </div>
                     <div>
@@ -488,14 +504,16 @@ const Shop2Terminal = () => {
                         <option value="">— Оберіть зміну —</option>
                         <option value="Зміна 1">Зміна 1</option>
                         <option value="Зміна 2">Зміна 2</option>
-                        <option value="Нічна зміна">Нічна зміна</option>
+                        <option value="Зміна 3">Зміна 3</option>
+                        <option value="Зміна 4">Зміна 4</option>
+                        <option value="Без зміни">Без зміни</option>
                       </select>
                     </div>
                     <div>
                       <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Відповідальний оператор</label>
-                      <select value={selectedOperator} onChange={(e) => setSelectedOperator(e.target.value)} style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
-                        <option value="">— Оберіть себе —</option>
-                        {operators.map(o => <option key={o} value={o}>{o}</option>)}
+                      <select value={selectedOperator} onChange={(e) => setSelectedOperator(e.target.value)} disabled={!selectedShift} style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700, opacity: selectedShift ? 1 : 0.5, cursor: selectedShift ? 'pointer' : 'not-allowed' }}>
+                        <option value="">{selectedShift ? '— Оберіть оператора —' : '— Спочатку оберіть зміну —'}</option>
+                        {getFilteredOperators('Цех №2', selectedShift, selectedStage || currentCard.operation).map(o => <option key={o} value={o}>{o}</option>)}
                       </select>
                     </div>
                     <button

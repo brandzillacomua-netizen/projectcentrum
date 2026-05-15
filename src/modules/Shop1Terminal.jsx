@@ -22,7 +22,7 @@ const CHAIN = ['Розкрій', 'Галтовка', 'Прийомка', 'Сор
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function Shop1Terminal() {
-  const { workCards, nomenclatures, operators, workCardHistory, inventory, fetchData, createWorkCard, orders, bomItems, tasks, currentUser } = useMES()
+  const { workCards, nomenclatures, operators, getFilteredOperators, getFilteredManagers, managers, workCardHistory, inventory, fetchData, createWorkCard, orders, bomItems, tasks, currentUser } = useMES()
 
   const [currentTime, setCurrentTime] = useState(new Date())
   const [selectedCardId, setSelectedCardId] = useState(null)
@@ -47,6 +47,11 @@ export default function Shop1Terminal() {
   const [showCompleteModal, setShowCompleteModal] = useState(false)
   const [finalOperator, setFinalOperator] = useState('')
   const [scrapCount, setScrapCount] = useState(0)
+
+  // Корекція браку ВКЯ
+  const [showQCModal, setShowQCModal] = useState(false)
+  const [qcScrapCount, setQcScrapCount] = useState(0)
+  const [qcInspector, setQcInspector] = useState('')
 
   // Детальна статистика етапу
   const [detailStage, setDetailStage] = useState(null)
@@ -212,6 +217,8 @@ export default function Shop1Terminal() {
 
     setFinalOperator('')
     setScrapCount(0)
+    setQcScrapCount(0)
+    setQcInspector('')
   }, [selectedCardId, currentCard])
 
 
@@ -248,16 +255,30 @@ export default function Shop1Terminal() {
   //   бо оператор сам призначить першу операцію (Розкрій)
   // - картки в буфері будь-якого CHAIN етапу (чекають переміщення)
   // - картки що були вже відскановані в цьому сеансі
-  const queueCards = workCards.filter(c =>
-    c.status !== 'completed' &&
-    c.status !== 'in-progress' &&
-    c.status !== 'at-shop2-buffer' &&   // вже передано в Цех №2 — не показуємо
-    (
-      c.status === 'new' ||                          // будь-яка нова картка
-      (c.status === 'at-buffer' && CHAIN.includes(c.operation)) || // буфер Цеху №1
-      scannedIds.includes(c.id)                     // відскановані в цьому сеансі
-    )
-  )
+  const queueCards = workCards.filter(c => {
+    // 1. Обов'язкові виключення
+    if (c.status === 'completed' || c.status === 'in-progress' || c.status === 'at-shop2-buffer') return false
+    
+    // 2. Виключення за маркерами Shop 2
+    const info = String(c.card_info || '')
+    if (info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')) return false
+
+    // 3. Перевірка батьківського наряду
+    const parentTask = tasks.find(t => String(t.id) === String(c.task_id))
+    if (parentTask) {
+      // Якщо наряд уже завершений (переданий в інший цех або закритий) — ховаємо його картки
+      if (parentTask.status === 'completed') return false
+      // Якщо наряд явно належить Цеху №2
+      if (String(parentTask.step || '').includes('[ЦЕХ №2]')) return false
+    }
+
+    // 4. Дозволені статуси та операції для Цеху №1
+    const isNewForShop1 = c.status === 'new' && (CHAIN.includes(c.operation) || !c.operation || c.operation === 'Нова' || c.operation === 'Розкрій' || c.operation === 'Лазерний розкрій')
+    const isInBufferForShop1 = c.status === 'at-buffer' && CHAIN.includes(c.operation)
+    const isScanned = scannedIds.includes(c.id)
+
+    return isNewForShop1 || isInBufferForShop1 || isScanned
+  })
 
   // ── ДІЯ 1: Взяти в роботу (new → in-progress) ──────────────────────────
   // Якщо operation не в ланцюжку (наприклад 'Нова') — стартуємо з 'Розкрій'
@@ -424,7 +445,9 @@ export default function Shop1Terminal() {
     if (!currentCard) return
     setIsProcessing(true)
     try {
-      const qtyDone = currentCard.quantity || 0
+      const totalQty = currentCard.quantity || 0
+      const scrapQty = scrapCount
+      const goodQty = Math.max(0, totalQty - scrapQty)
       const op = selectedOperator || currentCard.operator_name || 'Сортування'
 
       // 1. Записуємо history
@@ -433,12 +456,12 @@ export default function Shop1Terminal() {
         nomenclature_id: currentCard.nomenclature_id,
         stage_name: 'Сортування',
         operator_name: op,
-        qty_at_start: qtyDone,
-        qty_completed: qtyDone,
-        scrap_qty: 0,
+        qty_at_start: totalQty,
+        qty_completed: goodQty,
+        scrap_qty: scrapQty,
         started_at: new Date().toISOString(),
         completed_at: new Date().toISOString(),
-        is_archived_scrap: false,
+        is_archived_scrap: scrapQty > 0,
         shift_name: currentCard.shift_name,
         manager_name: currentCard.manager_name,
         machine_name: currentCard.machine
@@ -448,10 +471,16 @@ export default function Shop1Terminal() {
       await supabase.from('work_cards').update({
         status: 'at-shop2-buffer',
         operation: 'Сортування',
+        quantity: goodQty,
         used_in_shop2_qty: 0
       }).eq('id', currentCard.id)
 
-      // 3. Знаходимо задачу Цеху №2 і активуємо її (waiting → in-progress)
+      // 3. Якщо є брак — записуємо його в інвентар окремим типом
+      if (scrapQty > 0) {
+        await updateInventoryStock(currentCard.nomenclature_id, scrapQty, 'scrap')
+      }
+
+      // 4. Знаходимо задачу Цеху №2 і активуємо її (waiting → in-progress)
       const { data: shop2Tasks } = await supabase
         .from('tasks')
         .select('id, status')
@@ -483,10 +512,11 @@ export default function Shop1Terminal() {
         }
       }
 
+      setScrapCount(0)
       setSelectedCardId(null)
       setScannedIds(prev => prev.filter(id => id !== currentCard.id))
       await fetchData()
-      alert(`✅ ${qtyDone} шт відправлено в буфер Цеху №2!`)
+      alert(`✅ ${goodQty} шт відправлено в буфер Цеху №2!${scrapQty > 0 ? ` (Брак: ${scrapQty} шт)` : ''}`)
     } catch (e) {
       console.error('Sort to shop2 error:', e)
       alert('Помилка сортування: ' + e.message)
@@ -534,6 +564,60 @@ export default function Shop1Terminal() {
     } catch (e) {
       console.error('Acceptance error:', e)
       alert('Помилка прийомки: ' + (e.message || 'Невідома помилка'))
+    } finally { setIsProcessing(false) }
+  }
+
+  // ── КОРЕКЦІЯ БРАКУ ВІД ВІДДІЛУ ВКЯ ──────────────────────────────────────
+  const handleQCScrapOverride = async () => {
+    if (!currentCard || qcScrapCount <= 0) return
+    if (qcScrapCount > currentCard.quantity) {
+      alert('Кількість браку не може перевищувати поточну кількість деталей у картці!')
+      return
+    }
+    setIsProcessing(true)
+    try {
+      const op = qcInspector ? `ВКЯ (${qcInspector})` : 'Інспектор ВКЯ'
+      const newQty = Math.max(0, currentCard.quantity - qcScrapCount)
+
+      // 1. Запис у work_card_history
+      await supabase.from('work_card_history').insert([{
+        card_id: currentCard.id,
+        nomenclature_id: currentCard.nomenclature_id,
+        stage_name: 'Контроль ВКЯ',
+        operator_name: op,
+        qty_at_start: currentCard.quantity,
+        qty_completed: newQty,
+        scrap_qty: qcScrapCount,
+        started_at: new Date().toISOString(),
+        completed_at: new Date().toISOString(),
+        is_archived_scrap: true, // Одразу переводимо в архівний стан на склад браку
+        shift_name: currentCard.shift_name,
+        manager_name: currentCard.manager_name,
+        machine_name: currentCard.machine
+      }])
+
+      // 2. Оновлюємо кількість картки (якщо залишилося 0, закриваємо її)
+      const updatePayload = { quantity: newQty }
+      if (newQty === 0) {
+        updatePayload.status = 'completed'
+      }
+      await supabase.from('work_cards').update(updatePayload).eq('id', currentCard.id)
+
+      // 3. Записуємо виявлений брак на склад для класифікації
+      await updateInventoryStock(currentCard.nomenclature_id, qcScrapCount, 'scrap')
+
+      setShowQCModal(false)
+      setQcScrapCount(0)
+      setQcInspector('')
+      await fetchData()
+      if (newQty === 0) {
+        setSelectedCardId(null)
+        setScannedIds(prev => prev.filter(id => id !== currentCard.id))
+      }
+      alert(`✅ Успішно списано ${qcScrapCount} шт у брак за рішенням ВКЯ!`)
+    } catch (e) {
+      console.error('QC error:', e)
+      alert('Помилка фіксації браку ВКЯ: ' + e.message)
     } finally { setIsProcessing(false) }
   }
 
@@ -677,10 +761,26 @@ export default function Shop1Terminal() {
               })()}
             </div>
           </div>
-          <button onClick={() => setSelectedCardId(null)}
-            style={{ background: '#111', border: 'none', color: '#555', padding: '10px', borderRadius: '12px', cursor: 'pointer', marginLeft: '10px' }}>
-            <X size={22} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {currentCard.task_id && (
+              <Link
+                to="/foreman"
+                state={{ taskId: currentCard.task_id }}
+                style={{ background: '#3b82f615', border: '1px solid #3b82f640', color: '#3b82f6', padding: '10px 14px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none' }}
+                title="Перейти до батьківського наряду">
+                📋 <span className="hide-mobile">НАРЯД</span>
+              </Link>
+            )}
+            <button onClick={() => setShowQCModal(true)}
+              style={{ background: '#ef444415', border: '1px solid #ef444440', color: '#ef4444', padding: '10px 14px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+              title="Внести додатковий брак ВКЯ">
+              🛡️ <span className="hide-mobile">БРАК ВКЯ</span>
+            </button>
+            <button onClick={() => setSelectedCardId(null)}
+              style={{ background: '#111', border: 'none', color: '#555', padding: '10px', borderRadius: '12px', cursor: 'pointer' }}>
+              <X size={22} />
+            </button>
+          </div>
         </div>
 
         <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '24px', border: '1px solid #1a1a1a', padding: '25px 20px' }}>
@@ -708,7 +808,7 @@ export default function Shop1Terminal() {
                     <label style={labelStyle}>Майстер (хто пускає в роботу)</label>
                     <select value={selectedManager} onChange={e => setSelectedManager(e.target.value)} style={selectStyle}>
                       <option value="">— Оберіть майстра —</option>
-                      {Array.from(new Set([selectedManager, ...operators])).filter(Boolean).map(o => <option key={o} value={o}>{o}</option>)}
+                      {getFilteredManagers('Цех №1').map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                   </div>
 
@@ -726,9 +826,9 @@ export default function Shop1Terminal() {
 
                   <div>
                     <label style={labelStyle}>Відповідальний оператор</label>
-                    <select value={selectedOperator} onChange={e => setSelectedOperator(e.target.value)} style={selectStyle}>
-                      <option value="">— Оберіть оператора —</option>
-                      {operators.map(o => <option key={o} value={o}>{o}</option>)}
+                    <select value={selectedOperator} onChange={e => setSelectedOperator(e.target.value)} disabled={!selectedShift} style={{ ...selectStyle, opacity: selectedShift ? 1 : 0.5, cursor: selectedShift ? 'pointer' : 'not-allowed' }}>
+                      <option value="">{selectedShift ? '— Оберіть оператора —' : '— Спочатку оберіть зміну —'}</option>
+                      {getFilteredOperators('Цех №1', selectedShift, displayOp).map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                   </div>
                   {displayOp === 'Розкрій' && (
@@ -831,6 +931,27 @@ export default function Shop1Terminal() {
                     Відскануйте картку для підтвердження сортування
                   </div>
                 </div>
+
+                {/* Лічильник браку при сортуванні */}
+                <div style={{ background: '#0d0d0d', borderRadius: '20px', padding: '20px', textAlign: 'center', border: '1px solid #ef444422' }}>
+                  <label style={{ color: '#ef4444', fontWeight: 900, fontSize: '0.7rem', textTransform: 'uppercase', display: 'block', marginBottom: '12px' }}>
+                    КІЛЬКІСТЬ БРАКУ ПРИ СОРТУВАННІ
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
+                    <button onClick={() => setScrapCount(v => Math.max(0, v - 1))}
+                      style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
+                    <input type="number" min={0} max={currentCard.quantity} value={scrapCount}
+                      onChange={e => setScrapCount(Math.max(0, Math.min(currentCard.quantity, parseInt(e.target.value) || 0)))}
+                      style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '3.2rem', width: '90px', textAlign: 'center', fontWeight: 900 }} />
+                    <button onClick={() => setScrapCount(v => Math.min(currentCard.quantity, v + 1))}
+                      style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
+                  </div>
+                  <div style={{ marginTop: '10px', fontSize: '0.72rem', color: '#555' }}>
+                    Добре: <strong style={{ color: '#10b981' }}>{Math.max(0, (currentCard.quantity || 0) - scrapCount)} шт</strong>
+                    {' · '}Брак: <strong style={{ color: '#ef4444' }}>{scrapCount} шт</strong>
+                  </div>
+                </div>
+
                 <div style={{ background: '#111', padding: '24px', borderRadius: '20px', border: '1px solid #8b5cf622' }}>
                   <div style={{ marginBottom: '20px' }}>
                     <label style={labelStyle}>Відповідальний за сортування</label>
@@ -906,9 +1027,9 @@ export default function Shop1Terminal() {
                     </div>
                     <div style={{ marginBottom: '20px' }}>
                       <label style={labelStyle}>Оператор</label>
-                      <select value={selectedOperator} onChange={e => setSelectedOperator(e.target.value)} style={selectStyle}>
-                        <option value="">— Оберіть оператора —</option>
-                        {operators.map(o => <option key={o} value={o}>{o}</option>)}
+                      <select value={selectedOperator} onChange={e => setSelectedOperator(e.target.value)} disabled={!currentCard?.shift_name} style={{ ...selectStyle, opacity: currentCard?.shift_name ? 1 : 0.5, cursor: currentCard?.shift_name ? 'pointer' : 'not-allowed' }}>
+                        <option value="">{currentCard?.shift_name ? '— Оберіть оператора —' : '— Помилка: Зміна не вказана —'}</option>
+                        {getFilteredOperators('Цех №1', currentCard?.shift_name, nextOp).map(o => <option key={o} value={o}>{o}</option>)}
                       </select>
                     </div>
                     <button onClick={handleStartNext} disabled={!selectedOperator || isProcessing}
@@ -1277,37 +1398,48 @@ export default function Shop1Terminal() {
             </thead>
             <tbody>
               {workCards
-                .filter(c => CHAIN.includes(c.operation) && (c.status === 'in-progress' || c.status === 'at-buffer'))
+                .filter(c => {
+                  const info = String(c.card_info || '')
+                  if (info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')) return false
+
+                  const parentTask = tasks.find(t => String(t.id) === String(c.task_id))
+                  if (parentTask) {
+                    if (parentTask.status === 'completed') return false
+                    if (String(parentTask.step || '').includes('[ЦЕХ №2]')) return false
+                  }
+
+                  return CHAIN.includes(c.operation) && (c.status === 'in-progress' || c.status === 'at-buffer')
+                })
                 .map(card => {
                   const inBuf = card.status === 'at-buffer'
-                  return (                    <tr key={card.id} style={{ borderBottom: '1px solid #1a1a1a', fontSize: '0.85rem' }}>
-                      <td style={{ padding: '12px 15px', fontWeight: 800, whiteSpace: 'nowrap', fontSize: '0.75rem' }}>{getNom(card)?.name || '—'}</td>
-                      <td style={{ padding: '12px 15px' }}>{card.operation}</td>
-                      <td style={{ padding: '12px 15px' }}>
-                        <span style={{
-                          fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase',
-                          background: (inBuf && card.operation === 'Сортування') ? '#8b5cf618' : inBuf ? '#f59e0b18' : '#3b82f618',
-                          color: (inBuf && card.operation === 'Сортування') ? '#8b5cf6' : inBuf ? '#f59e0b' : '#3b82f6',
-                          padding: '4px 10px', borderRadius: '6px'
-                        }}>
-                          {(inBuf && card.operation === 'Сортування') ? '🟣 БУФЕР' : inBuf ? '▣ БУФЕР' : '▶ РОБОТА'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px 15px', fontWeight: 900 }}>{card.quantity} шт</td>
-                      <td style={{ padding: '12px 15px', color: '#888' }}>{card.manager_name || '—'}</td>
-                      <td style={{ padding: '12px 15px', color: '#888' }}>{card.shift_name || '—'}</td>
-                      <td style={{ padding: '12px 15px', color: '#aaa' }}>{card.operator_name || '—'}</td>
-                      <td style={{ padding: '12px 15px', color: '#eab308', fontWeight: 800 }}>{formatMachine(card.machine)}</td>
-                      <td style={{ padding: '12px 15px', color: '#3b82f6', fontWeight: 700 }}>{formatPlanned(getPlannedTime(card))}</td>
-                      <td style={{ padding: '12px 15px', color: '#10b981', fontFamily: 'monospace', fontWeight: 700 }}>{formatTime(card.started_at)}</td>
-                      <td style={{ padding: '12px 15px', textAlign: 'right' }}>
-                        <button onClick={() => { setSelectedCardId(card.id); setSelectedOperator('') }}
-                          style={{ background: '#eab308', border: 'none', color: '#000', padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                          title="Відкрити">
-                          <Eye size={18} />
-                        </button>
-                      </td>
-                    </tr>
+                  return (<tr key={card.id} style={{ borderBottom: '1px solid #1a1a1a', fontSize: '0.85rem' }}>
+                    <td style={{ padding: '12px 15px', fontWeight: 800, whiteSpace: 'nowrap', fontSize: '0.75rem' }}>{getNom(card)?.name || '—'}</td>
+                    <td style={{ padding: '12px 15px' }}>{card.operation}</td>
+                    <td style={{ padding: '12px 15px' }}>
+                      <span style={{
+                        fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase',
+                        background: (inBuf && card.operation === 'Сортування') ? '#8b5cf618' : inBuf ? '#f59e0b18' : '#3b82f618',
+                        color: (inBuf && card.operation === 'Сортування') ? '#8b5cf6' : inBuf ? '#f59e0b' : '#3b82f6',
+                        padding: '4px 10px', borderRadius: '6px'
+                      }}>
+                        {(inBuf && card.operation === 'Сортування') ? '🟣 БУФЕР' : inBuf ? '▣ БУФЕР' : '▶ РОБОТА'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px 15px', fontWeight: 900 }}>{card.quantity} шт</td>
+                    <td style={{ padding: '12px 15px', color: '#888' }}>{card.manager_name || '—'}</td>
+                    <td style={{ padding: '12px 15px', color: '#888' }}>{card.shift_name || '—'}</td>
+                    <td style={{ padding: '12px 15px', color: '#aaa' }}>{card.operator_name || '—'}</td>
+                    <td style={{ padding: '12px 15px', color: '#eab308', fontWeight: 800 }}>{formatMachine(card.machine)}</td>
+                    <td style={{ padding: '12px 15px', color: '#3b82f6', fontWeight: 700 }}>{formatPlanned(getPlannedTime(card))}</td>
+                    <td style={{ padding: '12px 15px', color: '#10b981', fontFamily: 'monospace', fontWeight: 700 }}>{formatTime(card.started_at)}</td>
+                    <td style={{ padding: '12px 15px', textAlign: 'right' }}>
+                      <button onClick={() => { setSelectedCardId(card.id); setSelectedOperator('') }}
+                        style={{ background: '#eab308', border: 'none', color: '#000', padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        title="Відкрити">
+                        <Eye size={18} />
+                      </button>
+                    </td>
+                  </tr>
                   )
                 })}
               {workCards.filter(c => CHAIN.includes(c.operation) && (c.status === 'in-progress' || c.status === 'at-buffer')).length === 0 && (
@@ -1513,6 +1645,68 @@ export default function Shop1Terminal() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Модалка корекції браку від ВКЯ ─────────────────────────────────── */}
+      {showQCModal && currentCard && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10025, padding: '20px' }}>
+          <div style={{ background: '#111', width: '100%', maxWidth: '460px', borderRadius: '26px', border: '1px solid #ef444440', overflow: 'hidden', boxShadow: '0 20px 60px rgba(239,68,68,0.15)' }}>
+            <div style={{ padding: '20px 22px', background: '#161616', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ef444420' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 950, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  🛡️ ВІДДІЛ ВКЯ · ФІКСАЦІЯ БРАКУ
+                </h3>
+                <div style={{ fontSize: '0.6rem', color: '#888', marginTop: '2px' }}>
+                  Виявлено додатковий дефект на етапі
+                </div>
+              </div>
+              <button onClick={() => setShowQCModal(false)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}><X size={22} /></button>
+            </div>
+            <div style={{ padding: '24px 22px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900 }}>{getNom(currentCard)?.name}</h3>
+
+              {/* Інспектор ВКЯ */}
+              <div>
+                <label style={labelStyle}>ПІБ Інспектора ВКЯ (або відповідального)</label>
+                <input
+                  type="text"
+                  placeholder="Введіть ваше прізвище..."
+                  value={qcInspector}
+                  onChange={e => setQcInspector(e.target.value)}
+                  style={{ ...selectStyle, background: '#000' }}
+                />
+              </div>
+
+              {/* Лічильник додаткового браку */}
+              <div style={{ background: '#0d0d0d', borderRadius: '14px', padding: '18px', textAlign: 'center', border: '1px solid #ef444422' }}>
+                <label style={{ color: '#ef4444', fontWeight: 900, fontSize: '0.7rem', textTransform: 'uppercase', display: 'block', marginBottom: '12px' }}>
+                  КІЛЬКІСТЬ ВИЯВЛЕНОГО БРАКУ
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
+                  <button onClick={() => setQcScrapCount(v => Math.max(0, v - 1))}
+                    style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
+                  <input type="number" min={0} max={currentCard.quantity} value={qcScrapCount}
+                    onChange={e => setQcScrapCount(Math.max(0, Math.min(currentCard.quantity, parseInt(e.target.value) || 0)))}
+                    style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '3.2rem', width: '90px', textAlign: 'center', fontWeight: 900 }} />
+                  <button onClick={() => setQcScrapCount(v => Math.min(currentCard.quantity, v + 1))}
+                    style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
+                </div>
+                <div style={{ marginTop: '10px', fontSize: '0.72rem', color: '#555' }}>
+                  Залишиться в картці: <strong style={{ color: '#10b981' }}>{Math.max(0, (currentCard.quantity || 0) - qcScrapCount)} шт</strong>
+                </div>
+              </div>
+
+              <button onClick={handleQCScrapOverride} disabled={isProcessing || qcScrapCount <= 0}
+                style={{
+                  background: '#ef4444', color: '#fff', border: 'none', padding: '16px', borderRadius: '14px',
+                  fontSize: '1.05rem', fontWeight: 1000, cursor: 'pointer',
+                  boxShadow: '0 10px 30px rgba(239,68,68,0.3)',
+                  opacity: (isProcessing || qcScrapCount <= 0) ? 0.5 : 1
+                }}>
+                {isProcessing ? 'ЗБЕРЕЖЕННЯ...' : '⚠️ СПИСАТИ У БРАК ВКЯ'}
+              </button>
+            </div>
+          </div>        </div>
       )}
 
       {/* ── Модалка деталей по кліку на картку етапу ─────────────────────── */}

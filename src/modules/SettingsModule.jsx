@@ -43,7 +43,7 @@ const SettingsModule = () => {
     last_name: '',
     position: 'Оператор',
     department: 'Цех №1',
-    shift: 'Зміна 1',
+    shift: 'Без зміни',
     access_rights: {
       manager: false, master: false, warehouse: false, engineer: false, 
       director: false, foreman: false, operator: true, shipping: false, 
@@ -81,7 +81,7 @@ const SettingsModule = () => {
     
     setUserForm({
       id: null, login: '', password: '', first_name: '', last_name: '', 
-      position: 'Оператор', department: 'Цех №1', shift: 'Зміна 1',
+      position: 'Оператор', department: 'Цех №1', shift: 'Без зміни',
       access_rights: { manager: false, master: false, warehouse: false, engineer: false, director: false, foreman: false, operator: true, shipping: false, supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, kanban: false, reports: false }
     })
   }
@@ -220,9 +220,12 @@ const SettingsModule = () => {
                   </div>
                   <div>
                     <label className="form-label">ЗМІНА</label>
-                    <select style={inputStyle} value={userForm.shift} onChange={e => setUserForm({...userForm, shift: e.target.value})}>
+                    <select style={inputStyle} value={userForm.shift || 'Без зміни'} onChange={e => setUserForm({...userForm, shift: e.target.value})}>
                       <option value="Зміна 1">Зміна 1</option>
                       <option value="Зміна 2">Зміна 2</option>
+                      <option value="Зміна 3">Зміна 3</option>
+                      <option value="Зміна 4">Зміна 4</option>
+                      <option value="Без зміни">Без зміни</option>
                     </select>
                   </div>
                 </div>
@@ -234,9 +237,12 @@ const SettingsModule = () => {
                     <option value="Начальник цеху">Начальник цеху</option>
                     <option value="Майстер цеху">Майстер цеху</option>
                     <option value="Оператор">Оператор</option>
-                    <option value="Галтовщик">Галтовщик (Ц-1)</option>
+                    <option value="Галтовщик">Галтовщик</option>
+                    <option value="Пресувальник">Пресувальник</option>
+                    <option value="Маляр">Маляр (Фарбування)</option>
+                    <option value="Слюсар">Слюсар (Доопрацювання)</option>
                     <option value="Працівник складу">Працівник складу</option>
-                    <option value="Контроль браку">Контроль браку</option>
+                    <option value="Контроль браку">Контроль браку (ВКЯ)</option>
                     <option value="Менеджер">Менеджер</option>
                     <option value="Інженер">Інженер</option>
                     <option value="Адмін">Адмін</option>
