@@ -8,7 +8,7 @@ import { supabase } from '../supabase'
 
 const ForemanWorkplace = () => {
   const location = useLocation()
-  const { tasks, orders, workCards, createWorkCard, inventory, completeTaskByMaster, handoverTaskToShop2, cancelHandoverToShop2, nomenclatures, bomItems, machines, workCardHistory, confirmBuffer, fetchData, reserveBZForTask, fetchTaskArchiveCards } = useMES()
+  const { tasks, orders, workCards, createWorkCard, inventory, completeTaskByMaster, nomenclatures, bomItems, machines, workCardHistory, confirmBuffer, fetchData, reserveBZForTask, fetchTaskArchiveCards } = useMES()
   const [activeTaskId, setActiveTaskId] = useState(location.state?.taskId || null)
   const [activeView, setActiveView] = useState('worksheet')
   const [selectedMachines, setSelectedMachines] = useState({})
@@ -18,7 +18,7 @@ const ForemanWorkplace = () => {
   const [printQueue, setPrintQueue] = useState(null)
   const [partialCounts, setPartialCounts] = useState({}) // For partial generation in modal
   const [isGenerating, setIsGenerating] = useState(false)
-  const [isHandingOver, setIsHandingOver] = useState(false) // Захист від подвійного кліку "ПЕРЕВЕСТИ В ЦЕХ №2"
+  const [isCompletingTask, setIsCompletingTask] = useState(false) // Захист від подвійного кліку "ВИКОНАНО"
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 8
@@ -37,14 +37,22 @@ const ForemanWorkplace = () => {
     setReportData(null)
     setReportStageFilter('All')
     try {
+      // 1. Fetch material requests for this task to determine planned cutters/consumables
+      const { data: materialRequests, error: reqError } = await supabase
+        .from('material_requests')
+        .select('*, nomenclature:nomenclatures(*)')
+        .eq('task_id', task.id)
+
+      if (reqError) console.warn('Error fetching material requests:', reqError.message)
+
       const cardIds = taskCards.map(c => c.id)
       if (cardIds.length === 0) {
-        setReportData({ historyRows: [], taskCards })
+        setReportData({ historyRows: [], taskCards, materialRequests: materialRequests || [] })
         setReportLoading(false)
         return
       }
 
-      // Fetch all work_card_history rows for these cards
+      // 2. Fetch all work_card_history rows for these cards
       const { data: historyRows, error } = await supabase
         .from('work_card_history')
         .select('*')
@@ -53,7 +61,7 @@ const ForemanWorkplace = () => {
 
       if (error) throw error
 
-      setReportData({ historyRows: historyRows || [], taskCards })
+      setReportData({ historyRows: historyRows || [], taskCards, materialRequests: materialRequests || [] })
     } catch (e) {
       console.error(e)
       alert('Помилка завантаження звіту: ' + e.message)
@@ -134,7 +142,7 @@ const ForemanWorkplace = () => {
         });
         setProductionCache(cache);
       });
-  }, [tasks, workCards]); // Update when tasks change or global cards update (real-time)
+  }, [tasks]); // Update when tasks change; workCards updates flow through realtime subscription
 
   useEffect(() => {
     if (location.state?.taskId) {
@@ -180,17 +188,17 @@ const ForemanWorkplace = () => {
     }
   }
 
-  const handleHandoverToShop2 = async (taskId) => {
-    if (isHandingOver) return
-    setIsHandingOver(true)
+  const handleCompleteShop1Task = async (taskId) => {
+    if (isCompletingTask) return
+    if (!window.confirm('Підтвердити завершення наряду Цеху №1? Сировину буде списано.')) return
+    setIsCompletingTask(true)
     try {
-      await handoverTaskToShop2(taskId)
+      await completeTaskByMaster(taskId)
       setActiveTaskId(null)
-      fetchData()
     } catch (err) {
-      alert("Помилка при передачі: " + err.message)
+      alert('Помилка: ' + err.message)
     } finally {
-      setIsHandingOver(false)
+      setIsCompletingTask(false)
     }
   }
 
@@ -624,7 +632,7 @@ const ForemanWorkplace = () => {
                   {isReady && !isCompleted && (
                     <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 900, marginTop: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <CheckCircle2 size={10} />
-                      ВСІ КАРТКИ ГОТОВІ — ПЕРЕДАТИ
+                      ВСІ КАРТКИ ГОТОВІ — ЗАВЕРШИТИ
                     </div>
                   )}
                   {isShortage && !isCompleted && !isReady && (
@@ -632,17 +640,6 @@ const ForemanWorkplace = () => {
                       <AlertTriangle size={10} />
                       ПОТРІБЕН ДОВИПУСК
                     </div>
-                  )}
-                  {isCompleted && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        cancelHandoverToShop2(task.id).catch(err => alert('Помилка: ' + err.message))
-                      }}
-                      style={{ marginTop: '6px', background: 'transparent', border: '1px solid #333', color: '#444', fontSize: '0.55rem', fontWeight: 900, padding: '2px 8px', borderRadius: '6px', cursor: 'pointer', letterSpacing: '0.5px', display: 'block' }}
-                    >
-                      ↩ СКАСУВАТИ ПЕРЕДАЧУ
-                    </button>
                   )}
                 </div>
               )
@@ -769,50 +766,33 @@ const ForemanWorkplace = () => {
                     </div>
                     {(isTaskComplete || task.status === 'completed') && (
                       <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                        {task.status === 'completed' && (
+                        {task.status !== 'completed' && (
                           <button
-                            onClick={async () => {
-                              if (!window.confirm('Скасувати передачу в Цех №2? Наряд повернеться в роботу, дані у Цеху №2 буде видалено.')) return
-                              try {
-                                await cancelHandoverToShop2(task.id)
-                                setActiveTaskId(null)
-                              } catch (err) {
-                                alert('Помилка скасування: ' + err.message)
-                              }
-                            }}
-                            style={{
-                              background: 'transparent',
-                              color: '#555',
-                              border: '1px solid #333',
-                              padding: '12px 20px',
-                              borderRadius: '12px',
-                              fontWeight: 800,
-                              cursor: 'pointer',
-                              fontSize: '0.75rem'
+                            onClick={() => handleCompleteShop1Task(task.id)}
+                            disabled={isCompletingTask}
+                            style={{ 
+                              background: isCompletingTask ? '#222' : '#10b981', 
+                              color: isCompletingTask ? '#555' : '#fff', 
+                              border: 'none', 
+                              padding: '12px 28px', 
+                              borderRadius: '12px', 
+                              fontWeight: 900, 
+                              cursor: isCompletingTask ? 'not-allowed' : 'pointer',
+                              boxShadow: isCompletingTask ? 'none' : '0 10px 20px -5px rgba(16, 185, 129, 0.4)',
+                              transition: '0.3s',
+                              fontSize: '0.95rem',
+                              letterSpacing: '0.5px',
+                              opacity: isCompletingTask ? 0.6 : 1
                             }}
                           >
-                            СКАСУВАТИ ПЕРЕДАЧУ
+                            {isCompletingTask ? 'ОБРОБКА...' : '✓ ВИКОНАНО'}
                           </button>
                         )}
-                        <button
-                          onClick={() => handleHandoverToShop2(task.id)}
-                          className="btn-primary"
-                          disabled={task.status === 'completed' || isHandingOver}
-                          style={{ 
-                            background: (task.status === 'completed' || isHandingOver) ? '#222' : '#10b981', 
-                            color: (task.status === 'completed' || isHandingOver) ? '#555' : '#fff', 
-                            border: 'none', 
-                            padding: '12px 25px', 
-                            borderRadius: '12px', 
-                            fontWeight: 900, 
-                            cursor: (task.status === 'completed' || isHandingOver) ? 'not-allowed' : 'pointer',
-                            boxShadow: (task.status !== 'completed' && !isHandingOver) ? '0 10px 20px -5px rgba(16, 185, 129, 0.4)' : 'none',
-                            transition: '0.3s',
-                            opacity: isHandingOver ? 0.6 : 1
-                          }}
-                        >
-                          {task.status === 'completed' ? 'ПЕРЕДАНО В ЦЕХ №2' : isHandingOver ? 'ОБРОБКА...' : 'ПЕРЕВЕСТИ В ЦЕХ №2'}
-                        </button>
+                        {task.status === 'completed' && (
+                          <div style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid #10b981', color: '#10b981', padding: '10px 20px', borderRadius: '12px', fontWeight: 900, fontSize: '0.85rem', letterSpacing: '0.5px' }}>
+                            ✓ НАРЯД ВИКОНАНО
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1877,7 +1857,16 @@ const ForemanWorkplace = () => {
 
               totalScrap = reportData.historyRows.reduce((sum, row) => sum + (Number(row.scrap_qty) || 0), 0)
               const totalActualCutters = reportData.historyRows.reduce((sum, row) => sum + (Number(row.cutters_used) || 0), 0)
-              const totalPlannedCutters = Math.max(1, Math.ceil(totalPlannedSheets / 10))
+              
+              // Calculate total planned cutters from warehouse material requests for this task
+              const cutterRequests = (reportData.materialRequests || []).filter(r => {
+                const nomName = r.nomenclature?.name?.toLowerCase() || ''
+                const detailsStr = r.details?.toLowerCase() || ''
+                return nomName.includes('фреза') || detailsStr.includes('фреза')
+              })
+              const totalPlannedCutters = cutterRequests.length > 0
+                ? cutterRequests.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+                : 0
 
                // Fact time calculation
               const totalActualMs = reportData.historyRows.reduce((sum, row) => {
@@ -2040,16 +2029,32 @@ const ForemanWorkplace = () => {
                             </div>
                           </div>
 
-                          {/* Buffer Times */}
+                          {/* Buffer — LIVE current state */}
                           <div style={{ background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: '14px', padding: '15px' }}>
-                            <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', borderBottom: '1px solid #111', paddingBottom: '4px' }}>Буфери накопичення (Очікування)</div>
+                            <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', borderBottom: '1px solid #111', paddingBottom: '4px' }}>Буфери накопичення (Зараз)</div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.75rem' }}>
-                              {Object.entries(timeStats.buffers).map(([name, s]) => (
-                                <div key={name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <span style={{ color: '#aaa', fontWeight: 600 }}>{name}:</span>
-                                  <strong style={{ color: '#f59e0b' }}>{s.total > 0 ? formatDurationHMS(s.total) : '—'}</strong>
-                                </div>
-                              ))}
+                              {['Розкрій', 'Галтовка', 'Прийомка', 'Сортування'].map(stageName => {
+                                const bufCards = workCards.filter(c =>
+                                  String(c.task_id) === String(currentTask.id) &&
+                                  c.status === 'at-buffer' &&
+                                  c.operation === stageName
+                                )
+                                const totalQty = bufCards.reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+                                const cardCount = bufCards.length
+                                return (
+                                  <div key={stageName} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ color: '#aaa', fontWeight: 600 }}>Буфер {stageName}:</span>
+                                    {cardCount > 0 ? (
+                                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <strong style={{ color: '#f59e0b' }}>{totalQty} шт</strong>
+                                        <span style={{ color: '#555', fontSize: '0.65rem' }}>({cardCount} карт.)</span>
+                                      </span>
+                                    ) : (
+                                      <strong style={{ color: '#333' }}>—</strong>
+                                    )}
+                                  </div>
+                                )
+                              })}
                             </div>
                           </div>
                         </div>

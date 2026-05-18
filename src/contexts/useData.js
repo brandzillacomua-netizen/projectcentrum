@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { supabase } from '../supabase'
 
 const CACHE_KEY = 'MES_APP_CACHE_V1'
@@ -80,11 +80,48 @@ export function useData() {
   }
 
   const fetchData = async (force = false) => {
-    if (!force && Date.now() - lastFetchTime < 10000) return 
+    if (!force && Date.now() - lastFetchTime < 10000) return
     if (orders.length === 0) setLoading(true)
     try {
       setLastFetchTime(Date.now())
-      const { data: latest, error: oErr } = await supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).range(0, PAGE_SIZE - 1)
+      const threeDaysAgoTasks = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+
+      // ── Всі запити паралельно через Promise.all ──────────────────────────
+      const [
+        { data: latest, error: oErr },
+        { data: c },
+        { data: i },
+        { data: t },
+        { data: r },
+        { data: n },
+        { data: b },
+        { data: rec },
+        { data: pr },
+        { data: wc },
+        { data: mc },
+        { data: su },
+        { data: mt },
+        { data: wch },
+        { data: al },
+      ] = await Promise.all([
+        supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).range(0, PAGE_SIZE - 1),
+        supabase.from('customers').select('*').limit(50).order('name'),
+        supabase.from('inventory').select('*').order('name').limit(2000),
+        supabase.from('tasks').select('*, orders(*, order_items(*))').or(`status.neq.completed,completed_at.gte.${threeDaysAgoTasks}`).order('created_at', { ascending: false }),
+        supabase.from('material_requests').select('*').neq('status', 'completed').order('created_at', { ascending: false }),
+        supabase.from('nomenclatures').select('*').limit(1000),
+        supabase.from('bom_items').select('*').limit(2000),
+        supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300),
+        supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300),
+        supabase.from('work_cards').select('*').neq('status', 'completed').order('created_at', { ascending: true }),
+        supabase.from('machines').select('*').order('name'),
+        supabase.from('system_users').select('*').order('login'),
+        supabase.from('management_tasks').select('*').neq('status', 'completed').order('created_at', { ascending: false }),
+        supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(200),
+        supabase.from('access_logs').select('*').order('event_time', { ascending: false }).limit(200),
+      ])
+      // ─────────────────────────────────────────────────────────────────────
+
       if (!oErr && latest) {
         setOrders(prev => {
           const next = [...prev]
@@ -96,23 +133,6 @@ export function useData() {
           return next.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)
         })
       }
-
-      const { data: c } = await supabase.from('customers').select('*').limit(50).order('name')
-      const { data: i } = await supabase.from('inventory').select('*').order('name')
-      const threeDaysAgoTasks = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
-      const { data: t } = await supabase.from('tasks').select('*, orders(*, order_items(*))').or(`status.neq.completed,completed_at.gte.${threeDaysAgoTasks}`).order('created_at', { ascending: false })
-      const { data: r } = await supabase.from('material_requests').select('*').neq('status', 'completed').order('created_at', { ascending: false })
-      const { data: n } = await supabase.from('nomenclatures').select('*')
-      const { data: b } = await supabase.from('bom_items').select('*')
-      
-      const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
-      const { data: rec } = await supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300)
-      const { data: pr } = await supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300)
-      const { data: wc } = await supabase.from('work_cards').select('*').neq('status', 'completed').order('created_at', { ascending: true })
-
-      const { data: mc } = await supabase.from('machines').select('*').order('name')
-      const { data: su } = await supabase.from('system_users').select('*').order('login')
-      const { data: mt } = await supabase.from('management_tasks').select('*').neq('status', 'completed').order('created_at', { ascending: false })
 
       if (c) setCustomers(c)
       if (i) setInventory(i)
@@ -126,10 +146,7 @@ export function useData() {
       if (rec) setReceptionDocs(rec)
       if (pr) setPurchaseRequests(pr)
       if (wc) setWorkCards(wc)
-
-      const { data: wch } = await supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(200)
       if (wch) setWorkCardHistory(wch)
-      const { data: al } = await supabase.from('access_logs').select('*').order('event_time', { ascending: false }).limit(200)
       if (al) setAccessLogs(al)
     } finally {
       setLoading(false)
@@ -192,14 +209,31 @@ export function useData() {
     }
   }, [workCardHistory])
 
-  // --- PERSISTENCE ---
+  // --- PERSISTENCE (дебаунс 2с + тільки критичні поля щоб не блокувати UI) ---
+  const cacheTimerRef = useRef(null)
   useEffect(() => {
-    const dataToCache = {
-      orders, customers, inventory, tasks, managementTasks, requests, nomenclatures,
-      bomItems, receptionDocs, purchaseRequests, workCards, workCardHistory, machines, systemUsers, accessLogs
-    }
-    localStorage.setItem(CACHE_KEY, JSON.stringify(dataToCache))
-  }, [orders, customers, inventory, tasks, managementTasks, requests, nomenclatures, bomItems, receptionDocs, purchaseRequests, workCards, workCardHistory, machines, systemUsers])
+    if (cacheTimerRef.current) clearTimeout(cacheTimerRef.current)
+    cacheTimerRef.current = setTimeout(() => {
+      try {
+        const dataToCache = {
+          orders: orders.slice(0, 100),
+          customers,
+          tasks,
+          managementTasks,
+          requests,
+          nomenclatures,
+          bomItems,
+          machines,
+          systemUsers,
+          // inventory, receptionDocs, purchaseRequests, workCards, workCardHistory
+          // виключено з кешу — великі таблиці, завжди свіжо завантажуються
+        }
+        localStorage.setItem(CACHE_KEY, JSON.stringify(dataToCache))
+      } catch (e) {
+        console.warn('Cache write failed (quota?):', e)
+      }
+    }, 2000) // Затримка 2с після останньої зміни
+  }, [orders, customers, tasks, managementTasks, requests, nomenclatures, bomItems, machines, systemUsers])
 
   // --- REAL-TIME ---
   useEffect(() => {
@@ -248,6 +282,69 @@ export function useData() {
     return () => { supabase.removeChannel(channel) }
   }, [])
 
+  // --- REAL-TIME для решти таблиць (orders, склад, Kanban тощо) ---
+  // Точкові підписки замість глобального fetchData() на кожну подію
+  useEffect(() => {
+    const channel2 = supabase.channel('mes-secondary-updates')
+      // Замовлення — менеджер, директор
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        refreshTable('orders')
+      })
+      // Управлінські задачі — Kanban
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'management_tasks' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setManagementTasks(prev => prev.some(t => t.id === payload.new.id) ? prev : [payload.new, ...prev])
+        } else if (payload.eventType === 'UPDATE') {
+          setManagementTasks(prev => prev.map(t => t.id === payload.new.id ? { ...t, ...payload.new } : t))
+        } else if (payload.eventType === 'DELETE') {
+          setManagementTasks(prev => prev.filter(t => t.id !== payload.old.id))
+        }
+      })
+      // Запити матеріалів — склад, майстер
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'material_requests' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setRequests(prev => prev.some(r => r.id === payload.new.id) ? prev : [payload.new, ...prev])
+        } else if (payload.eventType === 'UPDATE') {
+          if (payload.new.status === 'completed') {
+            setRequests(prev => prev.filter(r => r.id !== payload.new.id))
+          } else {
+            setRequests(prev => prev.map(r => r.id === payload.new.id ? { ...r, ...payload.new } : r))
+          }
+        } else if (payload.eventType === 'DELETE') {
+          setRequests(prev => prev.filter(r => r.id !== payload.old.id))
+        }
+      })
+      // Документи прийомки — склад, постачання
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reception_docs' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setReceptionDocs(prev => prev.some(d => d.id === payload.new.id) ? prev : [payload.new, ...prev])
+        } else if (payload.eventType === 'UPDATE') {
+          setReceptionDocs(prev => prev.map(d => d.id === payload.new.id ? { ...d, ...payload.new } : d))
+        } else if (payload.eventType === 'DELETE') {
+          setReceptionDocs(prev => prev.filter(d => d.id !== payload.old.id))
+        }
+      })
+      // Запити на закупівлю — постачання
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'purchase_requests' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setPurchaseRequests(prev => prev.some(p => p.id === payload.new.id) ? prev : [payload.new, ...prev])
+        } else if (payload.eventType === 'UPDATE') {
+          setPurchaseRequests(prev => prev.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p))
+        } else if (payload.eventType === 'DELETE') {
+          setPurchaseRequests(prev => prev.filter(p => p.id !== payload.old.id))
+        }
+      })
+      // Станки і користувачі — рідко змінюються, повний refetch
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'machines' }, () => {
+        supabase.from('machines').select('*').order('name').then(({ data }) => { if (data) setMachines(data) })
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'system_users' }, () => {
+        supabase.from('system_users').select('*').order('login').then(({ data }) => { if (data) setSystemUsers(data) })
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel2) }
+  }, [])
+
   // --- SESSION INIT ---
   useEffect(() => {
     const savedLogin = localStorage.getItem('MES_SESSION_LOGIN')
@@ -272,17 +369,11 @@ export function useData() {
     }
   }, [systemUsers])
 
-  // --- INITIAL DATA FETCH & REAL-TIME SYNC ---
+  // --- INITIAL DATA FETCH ---
+  // Реалтайм оновлення вже обробляються підпискою 'mes-global-updates' вище (точкові оновлення стану).
+  // Друга глобальна підписка що викликала fetchData() на кожну зміну — видалена (спричиняла ~3x зайвих запитів).
   useEffect(() => {
     fetchData()
-
-    const sub = supabase.channel('mes-changes')
-      .on('postgres_changes', { event: '*', schema: 'public' }, () => fetchData())
-      .subscribe()
-      
-    return () => {
-      supabase.removeChannel(sub)
-    }
   }, [])
 
   // Return all state and basic setters needed for actions

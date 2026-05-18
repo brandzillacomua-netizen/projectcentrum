@@ -48,6 +48,7 @@ export default function Shop1Terminal() {
   const [finalOperator, setFinalOperator] = useState('')
   const [scrapCount, setScrapCount] = useState(0)
   const [cuttersUsed, setCuttersUsed] = useState(0)
+  const [galtPriority, setGaltPriority] = useState(2)
 
   // Корекція браку ВКЯ
   const [showQCModal, setShowQCModal] = useState(false)
@@ -223,6 +224,7 @@ export default function Shop1Terminal() {
     setQcScrapCount(0)
     setQcInspector('')
     setCuttersUsed(0)
+    setGaltPriority(currentCard?.galt_priority || 2)
   }, [selectedCardId, currentCard])
 
 
@@ -282,6 +284,20 @@ export default function Shop1Terminal() {
     const isScanned = scannedIds.includes(c.id)
 
     return isNewForShop1 || isInBufferForShop1 || isScanned
+  }).sort((a, b) => {
+    const aIsGaltBuf = a.status === 'at-buffer' && a.operation === 'Розкрій'
+    const bIsGaltBuf = b.status === 'at-buffer' && b.operation === 'Розкрій'
+
+    if (aIsGaltBuf && bIsGaltBuf) {
+      const aPri = a.galt_priority || 2
+      const bPri = b.galt_priority || 2
+      if (aPri !== bPri) return aPri - bPri
+    } else if (aIsGaltBuf) {
+      return -1
+    } else if (bIsGaltBuf) {
+      return 1
+    }
+    return new Date(b.created_at || 0) - new Date(a.created_at || 0)
   })
 
   // ── ДІЯ 1: Взяти в роботу (new → in-progress) ──────────────────────────
@@ -387,6 +403,7 @@ export default function Shop1Terminal() {
       const op = finalOperator || currentCard.operator_name || 'Не вказано'
       const activeShift = selectedShift || currentCard.shift_name || 'Без зміни'
       const cuttersQty = currentCard.operation === 'Розкрій' ? cuttersUsed : null
+      const priorityVal = currentCard.operation === 'Розкрій' ? galtPriority : (currentCard.galt_priority || 2)
 
       // 1. Записуємо в history
       await supabase.from('work_card_history').insert([{
@@ -403,7 +420,8 @@ export default function Shop1Terminal() {
         shift_name: activeShift,
         manager_name: currentCard.manager_name,
         machine_name: currentCard.machine,
-        cutters_used: cuttersQty
+        cutters_used: cuttersQty,
+        galt_priority: priorityVal
       }])
 
       // 2. Оновлюємо картку (тільки перехід у буфер, фінальна прийомка далі)
@@ -413,6 +431,7 @@ export default function Shop1Terminal() {
         operator_name: op,
         shift_name: activeShift,
         cutters_used: cuttersQty,
+        galt_priority: priorityVal,
         completed_at: new Date().toISOString()
       }).eq('id', currentCard.id)
 
@@ -897,12 +916,32 @@ export default function Shop1Terminal() {
             <div style={{ fontSize: '0.6rem', opacity: active ? 0.7 : 0.4, marginBottom: '10px', fontWeight: 600 }}>
               №{orders?.find(o => o.id === card.order_id)?.order_num || ''} · #{card.id.slice(-8).toUpperCase()}
             </div>
-            <span style={{
-              fontSize: '0.55rem', fontWeight: 1000, textTransform: 'uppercase', letterSpacing: '0.05em',
-              background: active ? 'rgba(0,0,0,0.1)' : `${statusColor}15`,
-              color: active ? '#000' : statusColor,
-              padding: '3px 8px', borderRadius: '6px', border: active ? '1px solid rgba(0,0,0,0.1)' : 'none'
-            }}>{statusLabel}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-start' }}>
+              <span style={{
+                fontSize: '0.55rem', fontWeight: 1000, textTransform: 'uppercase', letterSpacing: '0.05em',
+                background: active ? 'rgba(0,0,0,0.1)' : `${statusColor}15`,
+                color: active ? '#000' : statusColor,
+                padding: '3px 8px', borderRadius: '6px', border: active ? '1px solid rgba(0,0,0,0.1)' : 'none',
+                display: 'inline-block'
+              }}>{statusLabel}</span>
+              {card.status === 'at-buffer' && card.operation === 'Розкрій' && (() => {
+                const pColors = { 1: '#ef4444', 2: '#3b82f6', 3: '#10b981' }
+                const pNames = { 1: 'ВИСОКИЙ', 2: 'СЕРЕДНІЙ', 3: 'НИЗЬКИЙ' }
+                const pVal = card.galt_priority || 2
+                return (
+                  <span style={{
+                    fontSize: '0.55rem', fontWeight: 1000, textTransform: 'uppercase', letterSpacing: '0.05em',
+                    background: active ? 'rgba(0,0,0,0.15)' : `${pColors[pVal]}15`,
+                    color: active ? '#000' : pColors[pVal],
+                    padding: '3px 8px', borderRadius: '6px',
+                    border: active ? '1px solid rgba(0,0,0,0.1)' : `1px solid ${pColors[pVal]}30`,
+                    display: 'inline-block'
+                  }}>
+                    ⚠️ ПРІОР: {pVal} ({pNames[pVal]})
+                  </span>
+                )
+              })()}
+            </div>
           </div>
         )
       })}
@@ -1203,6 +1242,28 @@ export default function Shop1Terminal() {
                     {currentCard.quantity} <small style={{ fontSize: '1.2rem', opacity: 0.3 }}>шт</small>
                   </div>
                 </div>
+
+                {/* Відображення пріоритету галтовки для карток у буфері розкрою */}
+                {currentCard.operation === 'Розкрій' && (() => {
+                  const pColors = { 1: '#ef4444', 2: '#3b82f6', 3: '#10b981' }
+                  const pNames = { 1: 'ВИСОКИЙ ПРІОРИТЕТ', 2: 'СЕРЕДНІЙ ПРІОРИТЕТ', 3: 'НИЗЬКИЙ ПРІОРИТЕТ' }
+                  const pVal = currentCard.galt_priority || 2
+                  return (
+                    <div style={{
+                      background: `${pColors[pVal]}10`,
+                      border: `1px solid ${pColors[pVal]}30`,
+                      borderRadius: '16px',
+                      padding: '16px',
+                      textAlign: 'center',
+                      color: pColors[pVal],
+                      fontSize: '0.8rem',
+                      fontWeight: 900,
+                      letterSpacing: '0.5px'
+                    }}>
+                      ⚠️ ПРІОРИТЕТ ГАЛТОВКИ: {pVal} — {pNames[pVal]}
+                    </div>
+                  )
+                })()}
 
                 {/* Прийомка: кнопка переводить в at-buffer(Прийомка) */}
                 {isLastBeforeReception ? (
@@ -1603,21 +1664,21 @@ export default function Shop1Terminal() {
           <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900 }}>В РОБОТІ ТА БУФЕРІ</h3>
           {isSyncing && <div style={{ fontSize: '0.7rem', color: '#eab308', display: 'flex', alignItems: 'center', gap: '8px' }}><RefreshCw className="spin-s1" size={12} /> Оновлення...</div>}
         </div>
-        <div className="table-responsive-container" style={{ border: 'none', borderRadius: 0 }}>
+        <div style={{ overflowX: 'auto', border: 'none', borderRadius: 0, width: '100%' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr style={{ background: '#0a0a0a', fontSize: '0.65rem', fontWeight: 900, color: '#555', textTransform: 'uppercase' }}>
-                <th style={{ padding: '15px 25px' }}>ДЕТАЛЬ</th>
-                <th style={{ padding: '15px 25px' }}>ЕТАП</th>
-                <th style={{ padding: '15px 25px' }}>СТАТУС</th>
-                <th style={{ padding: '15px 25px' }}>К-СТЬ</th>
-                <th style={{ padding: '15px 25px' }}>МАЙСТЕР</th>
-                <th style={{ padding: '15px 25px' }}>ЗМІНА</th>
-                <th style={{ padding: '15px 25px' }}>ОПЕРАТОР</th>
-                <th style={{ padding: '15px 25px' }}>ВЕРСТАТ</th>
-                <th style={{ padding: '15px 25px' }}>ПЛАН. ЧАС</th>
-                <th style={{ padding: '15px 25px' }}>ЧАС</th>
-                <th style={{ padding: '15px 25px' }}></th>
+                <th style={{ padding: '12px 14px' }}>ДЕТАЛЬ</th>
+                <th style={{ padding: '12px 14px' }}>ЕТАП</th>
+                <th style={{ padding: '12px 14px' }}>СТАТУС</th>
+                <th style={{ padding: '12px 14px' }}>К-СТЬ</th>
+                <th style={{ padding: '12px 14px' }}>МАЙСТЕР</th>
+                <th style={{ padding: '12px 14px' }}>ЗМІНА</th>
+                <th style={{ padding: '12px 14px' }}>ОПЕРАТОР</th>
+                <th style={{ padding: '12px 14px' }}>ВЕРСТАТ</th>
+                <th style={{ padding: '12px 14px' }}>ПЛАН. ЧАС</th>
+                <th style={{ padding: '12px 14px' }}>ЧАС</th>
+                <th style={{ padding: '12px 14px' }}></th>
               </tr>
             </thead>
             <tbody>
@@ -1637,26 +1698,45 @@ export default function Shop1Terminal() {
                 .map(card => {
                   const inBuf = card.status === 'at-buffer'
                   return (<tr key={card.id} style={{ borderBottom: '1px solid #1a1a1a', fontSize: '0.85rem' }}>
-                    <td style={{ padding: '12px 15px', fontWeight: 800, whiteSpace: 'nowrap', fontSize: '0.75rem' }}>{getNom(card)?.name || '—'}</td>
-                    <td style={{ padding: '12px 15px' }}>{card.operation}</td>
-                    <td style={{ padding: '12px 15px' }}>
-                      <span style={{
-                        fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase',
-                        background: (inBuf && card.operation === 'Сортування') ? '#8b5cf618' : inBuf ? '#f59e0b18' : '#3b82f618',
-                        color: (inBuf && card.operation === 'Сортування') ? '#8b5cf6' : inBuf ? '#f59e0b' : '#3b82f6',
-                        padding: '4px 10px', borderRadius: '6px'
-                      }}>
-                        {(inBuf && card.operation === 'Сортування') ? '🟣 БУФЕР' : inBuf ? '▣ БУФЕР' : '▶ РОБОТА'}
-                      </span>
+                    <td style={{ padding: '10px 14px', fontWeight: 800, whiteSpace: 'nowrap', fontSize: '0.75rem' }}>{getNom(card)?.name || '—'}</td>
+                    <td style={{ padding: '10px 14px' }}>{card.operation}</td>
+                    <td style={{ padding: '10px 14px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
+                        <span style={{
+                          fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase',
+                          background: (inBuf && card.operation === 'Сортування') ? '#8b5cf618' : inBuf ? '#f59e0b18' : '#3b82f618',
+                          color: (inBuf && card.operation === 'Сортування') ? '#8b5cf6' : inBuf ? '#f59e0b' : '#3b82f6',
+                          padding: '4px 10px', borderRadius: '6px',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {(inBuf && card.operation === 'Сортування') ? '🟣 БУФЕР' : inBuf ? '▣ БУФЕР' : '▶ РОБОТА'}
+                        </span>
+                        {inBuf && card.operation === 'Розкрій' && (() => {
+                          const pColors = { 1: '#ef4444', 2: '#3b82f6', 3: '#10b981' }
+                          const pVal = card.galt_priority || 2
+                          return (
+                            <span style={{
+                              fontSize: '0.65rem', fontWeight: 900,
+                              background: `${pColors[pVal]}15`,
+                              color: pColors[pVal],
+                              padding: '4px 8px', borderRadius: '6px',
+                              border: `1px solid ${pColors[pVal]}30`,
+                              whiteSpace: 'nowrap'
+                            }}>
+                              Пр. {pVal}
+                            </span>
+                          )
+                        })()}
+                      </div>
                     </td>
-                    <td style={{ padding: '12px 15px', fontWeight: 900 }}>{card.quantity} шт</td>
-                    <td style={{ padding: '12px 15px', color: '#888' }}>{card.manager_name || '—'}</td>
-                    <td style={{ padding: '12px 15px', color: '#888' }}>{card.shift_name || '—'}</td>
-                    <td style={{ padding: '12px 15px', color: '#aaa' }}>{card.operator_name || '—'}</td>
-                    <td style={{ padding: '12px 15px', color: '#eab308', fontWeight: 800 }}>{formatMachine(card.machine)}</td>
-                    <td style={{ padding: '12px 15px', color: '#3b82f6', fontWeight: 700 }}>{formatPlanned(getPlannedTime(card))}</td>
-                    <td style={{ padding: '12px 15px', color: '#10b981', fontFamily: 'monospace', fontWeight: 700 }}>{formatTime(inBuf ? (card.completed_at || card.started_at) : card.started_at)}</td>
-                    <td style={{ padding: '12px 15px', textAlign: 'right' }}>
+                    <td style={{ padding: '10px 14px', fontWeight: 900 }}>{card.quantity} шт</td>
+                    <td style={{ padding: '10px 14px', color: '#888' }}>{card.manager_name || '—'}</td>
+                    <td style={{ padding: '10px 14px', color: '#888' }}>{card.shift_name || '—'}</td>
+                    <td style={{ padding: '10px 14px', color: '#aaa' }}>{card.operator_name || '—'}</td>
+                    <td style={{ padding: '10px 14px', color: '#eab308', fontWeight: 800 }}>{formatMachine(card.machine)}</td>
+                    <td style={{ padding: '10px 14px', color: '#3b82f6', fontWeight: 700 }}>{formatPlanned(getPlannedTime(card))}</td>
+                    <td style={{ padding: '10px 14px', color: '#10b981', fontFamily: 'monospace', fontWeight: 700 }}>{formatTime(inBuf ? (card.completed_at || card.started_at) : card.started_at)}</td>
+                    <td style={{ padding: '10px 14px', textAlign: 'right' }}>
                       <button onClick={() => { setSelectedCardId(card.id); setSelectedOperator('') }}
                         style={{ background: '#eab308', border: 'none', color: '#000', padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         title="Відкрити">
@@ -1667,7 +1747,7 @@ export default function Shop1Terminal() {
                   )
                 })}
               {workCards.filter(c => CHAIN.includes(c.operation) && (c.status === 'in-progress' || c.status === 'at-buffer')).length === 0 && (
-                <tr><td colSpan={8} style={{ padding: '50px', textAlign: 'center', color: '#444', fontSize: '0.8rem' }}>Немає активних карток</td></tr>
+                <tr><td colSpan={11} style={{ padding: '50px', textAlign: 'center', color: '#444', fontSize: '0.8rem' }}>Немає активних карток</td></tr>
               )}
             </tbody>
           </table>
@@ -1821,6 +1901,45 @@ export default function Shop1Terminal() {
             </div>
             <div style={{ padding: '24px 22px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
               <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900 }}>{getNom(currentCard)?.name}</h3>
+
+              {/* Пріоритет галтовки (Тільки для Розкрою) */}
+              {currentCard.operation === 'Розкрій' && (
+                <div style={{ background: '#0d0d0d', borderRadius: '14px', padding: '18px', border: '1px solid #eab30822' }}>
+                  <label style={{ color: '#eab308', fontWeight: 900, fontSize: '0.7rem', textTransform: 'uppercase', display: 'block', marginBottom: '12px', textAlign: 'center' }}>
+                    ПРІОРИТЕТ ДЛЯ ГАЛТОВКИ
+                  </label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {[
+                      { val: 1, label: '1 - ВИСОКИЙ', color: '#ef4444' },
+                      { val: 2, label: '2 - СЕРЕДНІЙ', color: '#3b82f6' },
+                      { val: 3, label: '3 - НИЗЬКИЙ', color: '#10b981' }
+                    ].map(p => {
+                      const active = galtPriority === p.val
+                      return (
+                        <button
+                          key={p.val}
+                          type="button"
+                          onClick={() => setGaltPriority(p.val)}
+                          style={{
+                            flex: 1,
+                            padding: '12px 6px',
+                            borderRadius: '10px',
+                            border: `1px solid ${active ? p.color : '#222'}`,
+                            background: active ? p.color : 'transparent',
+                            color: active ? '#000' : p.color,
+                            fontSize: '0.7rem',
+                            fontWeight: 900,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          {p.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Зміна */}
               <div>

@@ -359,14 +359,41 @@ export function createProductionActions({
     try {
       const task = tasks.find(t => String(t.id) === String(taskId))
       if (!task) return
+
+      // ── Крок 1: паралельно завершуємо завдання і завантажуємо дані ──
       await supabase.from('tasks').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', taskId)
       await deductIssuedMaterialsForTask(taskId)
+
       try {
-        const { data: taskCards } = await supabase.from('work_cards').select('id, nomenclature_id, quantity, operation').eq('task_id', taskId).eq('status', 'completed')
-        const { data: freshInventory } = await supabase.from('inventory').select('*')
+        // ── Крок 2: паралельно завантажуємо картки і інвентар ──
+        const [{ data: taskCards }, { data: freshInventory }] = await Promise.all([
+          supabase.from('work_cards').select('id, nomenclature_id, quantity, operation').eq('task_id', taskId).eq('status', 'completed'),
+          supabase.from('inventory').select('*')
+        ])
+
         const currentInventory = freshInventory || inventory
-        const snapshotPartsArr = Object.keys(task.plan_snapshot || {})
+        const snapshotPartsArr = Object.keys(task.plan_snapshot || {}).filter(k => !['_metadata', 'materialSummary'].includes(k))
         const arrivals = []
+
+        // ── Крок 3: збираємо ВСІ зміни інвентарю в Map/Array ──
+        // (замість N×5 окремих await UPDATE — потім один upsert і один insert)
+        const updatesMap = new Map() // inventoryId → { ...row, total_qty: newQty }
+        const insertsArr = []        // нові рядки для insert
+
+        // Хелпер: отримати актуальне значення з урахуванням вже запланованих змін
+        const getItem = (nomId, type) => {
+          const fromMap = [...updatesMap.values()].find(i => String(i.nomenclature_id) === String(nomId) && i.type === type)
+          if (fromMap) return fromMap
+          return currentInventory.find(i => String(i.nomenclature_id) === String(nomId) && i.type === type)
+        }
+
+        // Хелпер: застосувати дельту до існуючого рядку
+        const applyDelta = (item, delta) => {
+          const current = updatesMap.get(item.id) || { ...item }
+          current.total_qty = Math.max(0, (Number(current.total_qty) || 0) + delta)
+          updatesMap.set(item.id, current)
+        }
+
         for (const nomId of snapshotPartsArr) {
           const nom = nomenclatures.find(n => String(n.id) === String(nomId))
           const nomCards = (taskCards || []).filter(c => String(c.nomenclature_id) === String(nomId))
@@ -374,46 +401,74 @@ export function createProductionActions({
           const fromStockAtStart = nomCards.filter(c => c.operation === 'Склад БЗ').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
           const totalToMove = producedInShop1 + fromStockAtStart
           if (totalToMove <= 0) continue
+
           const snapshotNeed = Number(task.plan_snapshot[nomId]?.need) || 0
           const moveSemi = Math.min(totalToMove, snapshotNeed)
           const moveBz = Math.max(0, totalToMove - moveSemi)
           arrivals.push({ id: nomId, name: nom?.name || 'Деталь', semi: moveSemi, bz: moveBz })
+
+          // Зменшити запаси Цеху №1
           if (producedInShop1 > 0) {
             const decSemi = Math.min(producedInShop1, snapshotNeed)
             const decWipBz = Math.max(0, producedInShop1 - decSemi)
-            const s1Semi = currentInventory.find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'semi')
-            const s1WipBz = currentInventory.find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'wip_bz')
-            const s1Bz = currentInventory.find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'bz')
-            if (decSemi > 0 && s1Semi) await supabase.from('inventory').update({ total_qty: Math.max(0, (Number(s1Semi.total_qty) || 0) - decSemi) }).eq('id', s1Semi.id)
+
+            const s1Semi = getItem(nomId, 'semi')
+            if (decSemi > 0 && s1Semi) applyDelta(s1Semi, -decSemi)
+
             if (decWipBz > 0) {
-              let remainingDec = decWipBz
+              let remaining = decWipBz
+              const s1WipBz = getItem(nomId, 'wip_bz')
               if (s1WipBz) {
-                const take = Math.min(Number(s1WipBz.total_qty) || 0, remainingDec)
-                await supabase.from('inventory').update({ total_qty: (Number(s1WipBz.total_qty) || 0) - take }).eq('id', s1WipBz.id)
-                remainingDec -= take
+                const take = Math.min(Number(s1WipBz.total_qty) || 0, remaining)
+                applyDelta(s1WipBz, -take)
+                remaining -= take
               }
-              if (remainingDec > 0 && s1Bz) await supabase.from('inventory').update({ total_qty: Math.max(0, (Number(s1Bz.total_qty) || 0) - remainingDec) }).eq('id', s1Bz.id)
+              if (remaining > 0) {
+                const s1Bz = getItem(nomId, 'bz')
+                if (s1Bz) applyDelta(s1Bz, -remaining)
+              }
             }
           }
+
+          // Додати запаси Цеху №2
           if (moveSemi > 0) {
-            const s2Semi = currentInventory.find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'semi_shop2')
-            if (s2Semi) await supabase.from('inventory').update({ total_qty: (Number(s2Semi.total_qty) || 0) + moveSemi }).eq('id', s2Semi.id)
-            else await supabase.from('inventory').insert([{ nomenclature_id: nomId, name: nom?.name || 'Деталь', total_qty: moveSemi, type: 'semi_shop2', unit: nom?.unit || 'шт', reserved_qty: 0 }])
+            const s2Semi = getItem(nomId, 'semi_shop2')
+            if (s2Semi) applyDelta(s2Semi, moveSemi)
+            else insertsArr.push({ nomenclature_id: nomId, name: nom?.name || 'Деталь', total_qty: moveSemi, type: 'semi_shop2', unit: nom?.unit || 'шт', reserved_qty: 0 })
           }
           if (moveBz > 0) {
-            const s2Bz = currentInventory.find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'bz_shop2')
-            if (s2Bz) await supabase.from('inventory').update({ total_qty: (Number(s2Bz.total_qty) || 0) + moveBz }).eq('id', s2Bz.id)
-            else await supabase.from('inventory').insert([{ nomenclature_id: nomId, name: nom?.name || 'Деталь', total_qty: moveBz, type: 'bz_shop2', unit: nom?.unit || 'шт', reserved_qty: 0 }])
+            const s2Bz = getItem(nomId, 'bz_shop2')
+            if (s2Bz) applyDelta(s2Bz, moveBz)
+            else insertsArr.push({ nomenclature_id: nomId, name: nom?.name || 'Деталь', total_qty: moveBz, type: 'bz_shop2', unit: nom?.unit || 'шт', reserved_qty: 0 })
           }
         }
-        const { data: moveDoc } = await supabase.from('reception_docs').insert([{ doc_num: `T-S1-S2-${Date.now().toString().slice(-6)}`, type: 'internal_transfer', status: 'completed', order_id: task.order_id, details: JSON.stringify(arrivals) }]).select().single()
-        const existingShop2Task = tasks.find(t => String(t.order_id) === String(task.order_id) && t.step?.includes('Пресування') && t.batch_index === task.batch_index)
+
+        // ── Крок 4: виконати ВСІ зміни інвентарю двома запитами замість N×5 ──
+        const finalUpdates = Array.from(updatesMap.values())
+        await Promise.all([
+          finalUpdates.length > 0 ? supabase.from('inventory').upsert(finalUpdates) : Promise.resolve(),
+          insertsArr.length > 0 ? supabase.from('inventory').insert(insertsArr) : Promise.resolve(),
+        ])
+
+        // ── Крок 5: створити документ і оновити завдання Цеху №2 ──
+        const { data: moveDoc } = await supabase.from('reception_docs').insert([{
+          doc_num: `T-S1-S2-${Date.now().toString().slice(-6)}`,
+          type: 'internal_transfer', status: 'completed',
+          order_id: task.order_id, details: JSON.stringify(arrivals)
+        }]).select().single()
+
+        const existingShop2Task = tasks.find(t =>
+          String(t.order_id) === String(task.order_id) &&
+          t.step?.includes('Пресування') &&
+          t.batch_index === task.batch_index
+        )
         if (existingShop2Task) {
-          await supabase.from('tasks').update({ plan_snapshot: { ...(existingShop2Task.plan_snapshot || {}), arrival_doc_id: moveDoc?.id || null, arrivals: arrivals } }).eq('id', existingShop2Task.id)
+          await supabase.from('tasks').update({ plan_snapshot: { ...(existingShop2Task.plan_snapshot || {}), arrival_doc_id: moveDoc?.id || null, arrivals } }).eq('id', existingShop2Task.id)
         } else {
-          await supabase.from('tasks').insert([{ order_id: task.order_id, step: 'Пресування [ЦЕХ №2]', status: 'waiting', planned_sets: task.planned_sets || 0, estimated_time: task.estimated_time || 0, engineer_conf: true, warehouse_conf: true, director_conf: true, batch_index: task.batch_index || null, plan_snapshot: { ...task.plan_snapshot, arrival_doc_id: moveDoc?.id || null, arrivals: arrivals } }])
+          await supabase.from('tasks').insert([{ order_id: task.order_id, step: 'Пресування [ЦЕХ №2]', status: 'waiting', planned_sets: task.planned_sets || 0, estimated_time: task.estimated_time || 0, engineer_conf: true, warehouse_conf: true, director_conf: true, batch_index: task.batch_index || null, plan_snapshot: { ...task.plan_snapshot, arrival_doc_id: moveDoc?.id || null, arrivals } }])
         }
       } catch (e) { console.error("BZ/Transfer error:", e) }
+
       refreshTable('inventory'); refreshTable('tasks'); refreshTable('reception_docs'); refreshTable('material_requests')
     } catch (err) { console.error('Handover error:', err); throw err }
   }
@@ -426,9 +481,15 @@ export function createProductionActions({
       const snapshotPartsArr = Object.keys(task.plan_snapshot || {})
       const { data: freshInventory } = await supabase.from('inventory').select('*')
       const currentInventory = freshInventory || inventory
+
+      // ── Завантажуємо картки ОДИН РАЗ за межами циклу ──
+      const { data: taskCards } = await supabase.from('work_cards')
+        .select('nomenclature_id, quantity')
+        .eq('task_id', taskId)
+        .eq('status', 'completed')
+
       for (const nomId of snapshotPartsArr) {
         const nom = nomenclatures.find(n => String(n.id) === String(nomId))
-        const { data: taskCards } = await supabase.from('work_cards').select('nomenclature_id, quantity').eq('task_id', taskId).eq('status', 'completed')
         const nomCards = (taskCards || []).filter(c => String(c.nomenclature_id) === String(nomId))
         const totalToMoveBack = nomCards.reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
         const snapshotNeed = Number(task.plan_snapshot[nomId]?.need) || 0
