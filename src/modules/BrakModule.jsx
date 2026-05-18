@@ -17,6 +17,8 @@ export default function BrakModule() {
   const [scannedCard, setScannedCard] = useState(null)
   const [qcInspector, setQcInspector] = useState('')
   const [qcScrapCount, setQcScrapCount] = useState(0)
+  const [qcReason, setQcReason] = useState('Биття цанги')
+  const [qcCustomReason, setQcCustomReason] = useState('')
 
   // Обробка сканера QR
   useEffect(() => {
@@ -94,7 +96,10 @@ export default function BrakModule() {
     }
     setIsProcessing(true)
     try {
-      const op = qcInspector ? `ВКЯ (${qcInspector})` : 'Інспектор ВКЯ'
+      const reasonText = qcReason === 'Інше (коментар)'
+        ? `Інше (${qcCustomReason || 'без коментаря'})`
+        : qcReason
+      const op = `ВКЯ (${qcInspector || 'відповідальний'}) — Причина: ${reasonText}`
       const newQty = Math.max(0, scannedCard.quantity - qcScrapCount)
 
       // 1. Запис у work_card_history
@@ -111,7 +116,9 @@ export default function BrakModule() {
         is_archived_scrap: true,
         shift_name: scannedCard.shift_name,
         manager_name: scannedCard.manager_name,
-        machine_name: scannedCard.machine
+        machine_name: scannedCard.machine,
+        qc_scrap_reason: qcReason,
+        qc_scrap_comment: qcReason === 'Інше (коментар)' ? qcCustomReason : null
       }])
 
       // 2. Оновлюємо кількість картки
@@ -128,6 +135,8 @@ export default function BrakModule() {
       setScannedCard(null)
       setQcScrapCount(0)
       setQcInspector('')
+      setQcReason('Биття цанги')
+      setQcCustomReason('')
       await fetchData()
       alert(`✅ Успішно списано ${recordedScrap} шт у брак за рішенням відділу ВКЯ!`)
     } catch (e) {
@@ -600,6 +609,44 @@ export default function BrakModule() {
                   style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #333', background: '#000', color: '#fff', fontSize: '0.9rem', fontWeight: 800, boxSizing: 'border-box', outline: 'none' }}
                 />
               </div>
+
+              {/* Причина браку */}
+              <div>
+                <label style={{ color: '#888', fontWeight: 800, fontSize: '0.7rem', display: 'block', marginBottom: '8px' }}>Причина браку</label>
+                <select
+                  value={qcReason}
+                  onChange={e => {
+                    setQcReason(e.target.value)
+                    if (e.target.value !== 'Інше (коментар)') {
+                      setQcCustomReason('')
+                    }
+                  }}
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #333', background: '#000', color: '#fff', fontSize: '0.9rem', fontWeight: 800, boxSizing: 'border-box', outline: 'none' }}
+                >
+                  <option value="Биття цанги">Биття цанги</option>
+                  <option value="Помилка програми">Помилка програми</option>
+                  <option value="Збій станка">Збій станка</option>
+                  <option value="Кривизна листа">Кривизна листа</option>
+                  <option value="Поломка флешки">Поломка флешки</option>
+                  <option value="Прив'язка">Прив'язка</option>
+                  <option value="Помилка оператора">Помилка оператора</option>
+                  <option value="Інше (коментар)">Інше (коментар)</option>
+                </select>
+              </div>
+
+              {/* Коментар до причини браку */}
+              {qcReason === 'Інше (коментар)' && (
+                <div>
+                  <label style={{ color: '#888', fontWeight: 800, fontSize: '0.7rem', display: 'block', marginBottom: '8px' }}>Опишіть іншу причину браку</label>
+                  <input
+                    type="text"
+                    placeholder="Введіть коментар..."
+                    value={qcCustomReason}
+                    onChange={e => setQcCustomReason(e.target.value)}
+                    style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #333', background: '#000', color: '#fff', fontSize: '0.9rem', fontWeight: 800, boxSizing: 'border-box', outline: 'none' }}
+                  />
+                </div>
+              )}
 
               {/* Лічильник додаткового браку */}
               <div style={{ background: '#0d0d0d', borderRadius: '14px', padding: '18px', textAlign: 'center', border: '1px solid #ef444422' }}>

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom'
 import { 
   Menu,
@@ -17,7 +17,10 @@ import {
   AlertTriangle,
   KanbanSquare,
   ShoppingBag,
-  BarChart2
+  BarChart2,
+  Search,
+  RefreshCw,
+  Sliders
 } from 'lucide-react'
 import ManagerModule from './modules/ManagerModule'
 import WarehouseModule from './modules/WarehouseModuleV2'
@@ -43,6 +46,7 @@ import KanbanModule from './modules/KanbanModule'
 import AccessModule from './modules/AccessModule'
 import ProcurementModule from './modules/SupplyModuleV2' // I'll use the same base for now or create a new one
 import ReportsModule from './modules/ReportsModule'
+import DashboardModule from './modules/DashboardModule'
 import { MESProvider, useMES } from './MESContext'
 
 const FileCodeIcon = () => (
@@ -51,7 +55,7 @@ const FileCodeIcon = () => (
 
 const Portal = () => {
   const { currentUser, managementTasks } = useMES()
-  
+
   // Badge logic for Kanban Module
   const myPendingTasksCount = (managementTasks || []).filter(t => 
     t.status !== 'done' && 
@@ -59,6 +63,7 @@ const Portal = () => {
   ).length
 
   const allModules = [
+    { id: 'dashboard', title: 'Дашборд WIP', icon: <LayoutDashboard />, path: '/dashboard', desc: 'Моніторинг незавершеного виробництва', color: '#ff9000' },
     { id: 'manager', title: 'Менеджер', icon: <LayoutDashboard />, path: '/manager', desc: 'Замовлення та планування', color: '#ff9000' },
     { id: 'kanban', title: 'Задачі', icon: <KanbanSquare />, path: '/tasks', desc: 'Внутрішні доручення', color: '#8b5cf6', badge: myPendingTasksCount },
     { id: 'master', title: 'Цех №1', icon: <Monitor />, path: '/master', desc: 'Управління зміною', color: '#3b82f6' },
@@ -105,12 +110,12 @@ const Portal = () => {
         {modules.map(mod => (
           <Link key={mod.id} to={mod.path} className="portal-card-v2 glass-panel" style={{ textDecoration: 'none', background: '#111', border: '1px solid #1a1a1a', borderRadius: '24px', padding: '25px', display: 'flex', alignItems: 'center', gap: '20px', transition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)', position: 'relative', overflow: 'hidden' }}>
              <div className="card-icon-v2" style={{ background: '#000', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: mod.color, position: 'relative' }}>
-                {mod.icon}
-                {mod.badge > 0 && <span className="badge-count anim-pulse" style={{ position: 'absolute', top: -5, right: -5 }}>{mod.badge}</span>}
+                 {mod.icon}
+                 {mod.badge > 0 && <span className="badge-count anim-pulse" style={{ position: 'absolute', top: -5, right: -5 }}>{mod.badge}</span>}
              </div>
              <div className="card-info-v2" style={{ flex: 1 }}>
-                <h3 style={{ margin: '0 0 4px 0', fontSize: '1.1rem', color: '#fff', fontWeight: 900 }}>{mod.title}</h3>
-                <p style={{ margin: 0, fontSize: '0.75rem', color: '#555', fontWeight: 500 }}>{mod.desc}</p>
+                 <h3 style={{ margin: '0 0 4px 0', fontSize: '1.1rem', color: '#fff', fontWeight: 900 }}>{mod.title}</h3>
+                 <p style={{ margin: 0, fontSize: '0.75rem', color: '#555', fontWeight: 500 }}>{mod.desc}</p>
              </div>
              <ChevronRight className="arrow-v2" size={18} style={{ color: '#222', transition: '0.3s' }} />
              <div className="hover-line" style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', background: mod.color, opacity: 0, transition: '0.3s' }}></div>
@@ -126,6 +131,7 @@ const Portal = () => {
     </div>
   )
 }
+
 
 const AppContent = () => {
   const { currentUser, sessionLoading } = useMES()
@@ -156,6 +162,7 @@ const AppContent = () => {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/" element={<Portal />} />
+      <Route path="/dashboard" element={<DashboardModule />} />
       <Route path="/manager" element={<ManagerModule />} />
       <Route path="/warehouse" element={<WarehouseModule />} />
       <Route path="/master" element={<MasterModule />} />

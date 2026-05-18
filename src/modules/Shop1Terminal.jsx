@@ -22,7 +22,7 @@ const CHAIN = ['Розкрій', 'Галтовка', 'Прийомка', 'Сор
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function Shop1Terminal() {
-  const { workCards, nomenclatures, operators, getFilteredOperators, getFilteredManagers, managers, workCardHistory, inventory, fetchData, createWorkCard, orders, bomItems, tasks, currentUser } = useMES()
+  const { workCards, nomenclatures, operators, getFilteredOperators, getFilteredManagers, managers, workCardHistory, inventory, fetchData, createWorkCard, orders, bomItems, tasks, currentUser, machines } = useMES()
 
   const [currentTime, setCurrentTime] = useState(new Date())
   const [selectedCardId, setSelectedCardId] = useState(null)
@@ -47,11 +47,14 @@ export default function Shop1Terminal() {
   const [showCompleteModal, setShowCompleteModal] = useState(false)
   const [finalOperator, setFinalOperator] = useState('')
   const [scrapCount, setScrapCount] = useState(0)
+  const [cuttersUsed, setCuttersUsed] = useState(0)
 
   // Корекція браку ВКЯ
   const [showQCModal, setShowQCModal] = useState(false)
   const [qcScrapCount, setQcScrapCount] = useState(0)
   const [qcInspector, setQcInspector] = useState('')
+  const [qcReason, setQcReason] = useState('Биття цанги')
+  const [qcCustomReason, setQcCustomReason] = useState('')
 
   // Детальна статистика етапу
   const [detailStage, setDetailStage] = useState(null)
@@ -203,7 +206,7 @@ export default function Shop1Terminal() {
     setSelectedOperator('')
     const name = currentUser?.first_name ? `${currentUser.first_name} ${currentUser.last_name || ''}`.trim() : (currentUser?.login || '')
     setSelectedManager(name)
-    setSelectedShift('')
+    setSelectedShift(currentCard?.shift_name || '')
 
     const combined = currentCard?.machine || ''
     const match = combined.match(/^(.*?) ?№ ?(\d+)$/)
@@ -219,6 +222,7 @@ export default function Shop1Terminal() {
     setScrapCount(0)
     setQcScrapCount(0)
     setQcInspector('')
+    setCuttersUsed(0)
   }, [selectedCardId, currentCard])
 
 
@@ -287,6 +291,77 @@ export default function Shop1Terminal() {
     setIsProcessing(true)
     try {
       const startOp = CHAIN.includes(currentCard.operation) ? currentCard.operation : CHAIN[0]
+      const targetMachine = machineNumber ? `${selectedMachine} №${machineNumber}`.trim() : (selectedMachine?.trim() || 'Не вказано')
+
+      // ⚠️ Check if machine exists in the system (if operation is Cutting / "Розкрій")
+      if (startOp === 'Розкрій' && targetMachine && targetMachine !== 'Не вказано') {
+        const cleanName = (selectedMachine || '').trim().toLowerCase()
+        const cleanNum = (machineNumber || '').trim().toLowerCase()
+
+        const machineExists = (machines || []).some(m => {
+          const mName = String(m.name || '').trim().toLowerCase()
+          const mInv = String(m.inventory_no || '').trim().toLowerCase()
+
+          // If both name and number are specified
+          if (cleanName && cleanNum) {
+            return (mName === cleanName || mName.includes(cleanName)) && mInv === cleanNum
+          }
+          // If only name is specified
+          if (cleanName) {
+            return mName === cleanName || mInv === cleanName || mName.includes(cleanName)
+          }
+          // If only number is specified
+          if (cleanNum) {
+            return mInv === cleanNum
+          }
+          return false
+        })
+
+        if (!machineExists) {
+          alert(
+            `❌ ПОМИЛКА: ВЕРСТАТ НЕ ЗНАЙДЕНО В СИСТЕМІ!\n\n` +
+            `Вказаного верстата "${targetMachine}" немає в списку обладнання (/machines).\n\n` +
+            `Будь ласка, введіть коректну назву або інвентарний номер верстата з наявних у системі.`
+          )
+          setIsProcessing(false)
+          return
+        }
+
+        // ⚠️ Check if machine is already busy
+        const targetNorm = targetMachine.trim().toLowerCase()
+        const targetNumMatch = targetNorm.match(/№\s*(\d+)/)
+
+        const runningCard = (workCards || []).find(c => {
+          if (c.status !== 'in-progress') return false
+          if (c.id === currentCard.id) return false
+
+          const cMachine = String(c.machine || '').trim().toLowerCase()
+          if (!cMachine || cMachine === 'не вказано') return false
+
+          // Exact string match
+          if (cMachine === targetNorm) return true
+
+          // Match by machine number if both have numbers
+          const cNumMatch = cMachine.match(/№\s*(\d+)/)
+          if (cNumMatch && targetNumMatch && cNumMatch[1] === targetNumMatch[1]) return true
+
+          return false
+        })
+
+        if (runningCard) {
+          const nom = nomenclatures.find(n => n.id === runningCard.nomenclature_id)
+          alert(
+            `⚠️ ПОМИЛКА: ВЕРСТАТ "${targetMachine}" ВЖЕ ЗАЙНЯТИЙ!\n\n` +
+            `На ньому зараз виконується робота:\n` +
+            `• Картка: #${runningCard.id.slice(-8).toUpperCase()} (${nom?.name || 'Деталь'})\n` +
+            `• Оператор: ${runningCard.operator_name || 'Не вказано'}\n\n` +
+            `Будь ласка, оберіть інший вільний верстат або завершіть поточну картку на цьому верстаті.`
+          )
+          setIsProcessing(false)
+          return
+        }
+      }
+
       await supabase.from('work_cards').update({
         status: 'in-progress',
         operation: startOp,
@@ -294,7 +369,7 @@ export default function Shop1Terminal() {
         operator_name: selectedOperator,
         manager_name: selectedManager || 'Не вказано',
         shift_name: selectedShift,
-        machine: machineNumber ? `${selectedMachine} №${machineNumber}`.trim() : (selectedMachine?.trim() || 'Не вказано'),
+        machine: targetMachine,
         card_info: ((currentCard.card_info || '').replace('[SHOP:1]', '').trim() + ' [SHOP:1]').trim()
       }).eq('id', currentCard.id)
       await fetchData()
@@ -310,6 +385,8 @@ export default function Shop1Terminal() {
     try {
       const qtyDone = Math.max(0, (currentCard.quantity || 0) - scrapCount)
       const op = finalOperator || currentCard.operator_name || 'Не вказано'
+      const activeShift = selectedShift || currentCard.shift_name || 'Без зміни'
+      const cuttersQty = currentCard.operation === 'Розкрій' ? cuttersUsed : null
 
       // 1. Записуємо в history
       await supabase.from('work_card_history').insert([{
@@ -323,16 +400,20 @@ export default function Shop1Terminal() {
         started_at: currentCard.started_at,
         completed_at: new Date().toISOString(),
         is_archived_scrap: scrapCount > 0, // Автоматично архівуємо брак, бо він вже в інвентар пішов
-        shift_name: currentCard.shift_name,
+        shift_name: activeShift,
         manager_name: currentCard.manager_name,
-        machine_name: currentCard.machine
+        machine_name: currentCard.machine,
+        cutters_used: cuttersQty
       }])
 
       // 2. Оновлюємо картку (тільки перехід у буфер, фінальна прийомка далі)
       await supabase.from('work_cards').update({
         status: 'at-buffer',
         quantity: qtyDone,
-        operator_name: op
+        operator_name: op,
+        shift_name: activeShift,
+        cutters_used: cuttersQty,
+        completed_at: new Date().toISOString()
       }).eq('id', currentCard.id)
 
       // 3. Якщо є брак — записуємо його в інвентар окремим типом
@@ -360,6 +441,28 @@ export default function Shop1Terminal() {
 
     // Прийомка — це однокрокове прийняття на склад
     if (next === 'Прийомка') {
+      if (currentCard.status === 'at-buffer') {
+        try {
+          const bufferStart = currentCard.completed_at || currentCard.started_at || new Date().toISOString()
+          const op = selectedOperator || currentCard.operator_name || 'Прийомка'
+          await supabase.from('work_card_history').insert([{
+            card_id: currentCard.id,
+            nomenclature_id: currentCard.nomenclature_id,
+            stage_name: `Буфер ${currentCard.operation}`,
+            operator_name: op,
+            qty_at_start: currentCard.quantity || 0,
+            qty_completed: currentCard.quantity || 0,
+            scrap_qty: 0,
+            started_at: bufferStart,
+            completed_at: new Date().toISOString(),
+            shift_name: selectedShift || currentCard.shift_name || 'Без зміни',
+            manager_name: currentCard.manager_name,
+            machine_name: currentCard.machine
+          }])
+        } catch (err) {
+          console.error('Error writing Tumbling Buffer history:', err)
+        }
+      }
       await handleAcceptToStock()
       return
     }
@@ -367,11 +470,30 @@ export default function Shop1Terminal() {
     if (!selectedOperator) return
     setIsProcessing(true)
     try {
+      if (currentCard.status === 'at-buffer') {
+        const bufferStart = currentCard.completed_at || currentCard.started_at || new Date().toISOString()
+        await supabase.from('work_card_history').insert([{
+          card_id: currentCard.id,
+          nomenclature_id: currentCard.nomenclature_id,
+          stage_name: `Буфер ${currentCard.operation}`,
+          operator_name: selectedOperator || currentCard.operator_name || 'Не вказано',
+          qty_at_start: currentCard.quantity || 0,
+          qty_completed: currentCard.quantity || 0,
+          scrap_qty: 0,
+          started_at: bufferStart,
+          completed_at: new Date().toISOString(),
+          shift_name: selectedShift || currentCard.shift_name || 'Без зміни',
+          manager_name: currentCard.manager_name,
+          machine_name: currentCard.machine
+        }])
+      }
+
       await supabase.from('work_cards').update({
         status: 'in-progress',
         operation: next,
         started_at: new Date().toISOString(),
         operator_name: selectedOperator,
+        shift_name: selectedShift,
         machine: currentCard.machine || 'Не вказано'
       }).eq('id', currentCard.id)
       await fetchData()
@@ -386,6 +508,8 @@ export default function Shop1Terminal() {
     setIsProcessing(true)
     try {
       const op = finalOperator || currentCard.operator_name || 'Брак'
+      const activeShift = selectedShift || currentCard.shift_name || 'Без зміни'
+      const cuttersQty = currentCard.operation === 'Розкрій' ? cuttersUsed : null
 
       // 1. Записуємо в history
       await supabase.from('work_card_history').insert([{
@@ -399,16 +523,19 @@ export default function Shop1Terminal() {
         started_at: currentCard.started_at,
         completed_at: new Date().toISOString(),
         is_archived_scrap: true,
-        shift_name: currentCard.shift_name,
+        shift_name: activeShift,
         manager_name: currentCard.manager_name,
-        machine_name: currentCard.machine
+        machine_name: currentCard.machine,
+        cutters_used: cuttersQty
       }])
 
       // 2. Оновлюємо поточну картку → completed (з 0 qty)
       await supabase.from('work_cards').update({
         status: 'completed',
         quantity: 0,
-        operator_name: op
+        operator_name: op,
+        shift_name: activeShift,
+        cutters_used: cuttersQty
       }).eq('id', currentCard.id)
 
       // 3. Записуємо брак на склад
@@ -439,48 +566,93 @@ export default function Shop1Terminal() {
     } finally { setIsProcessing(false) }
   }
 
+  const handleFinishSortingActive = async () => {
+    if (!currentCard) return
+    setIsProcessing(true)
+    try {
+      await supabase.from('work_cards').update({
+        status: 'at-buffer',
+        completed_at: new Date().toISOString()
+      }).eq('id', currentCard.id)
+
+      await fetchData()
+    } catch (e) {
+      console.error('Error completing sorting to buffer:', e)
+      alert('Помилка завершення сортування: ' + e.message)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
   // ── СОРТУВАННЯ → at-shop2-buffer ────────────────────────────────────────
   // Викликається при скануванні картки at-buffer(Сортування) — переводить в буфер Цеху №2
   const handleSortToShop2 = async () => {
     if (!currentCard) return
     setIsProcessing(true)
     try {
-      const totalQty = currentCard.quantity || 0
-      const scrapQty = scrapCount
-      const goodQty = Math.max(0, totalQty - scrapQty)
+      const goodQty = Math.max(0, (currentCard.quantity || 0) - scrapCount)
       const op = selectedOperator || currentCard.operator_name || 'Сортування'
+      const activeShift = selectedShift || currentCard.shift_name || 'Без зміни'
 
-      // 1. Записуємо history
-      await supabase.from('work_card_history').insert([{
-        card_id: currentCard.id,
-        nomenclature_id: currentCard.nomenclature_id,
-        stage_name: 'Сортування',
-        operator_name: op,
-        qty_at_start: totalQty,
-        qty_completed: goodQty,
-        scrap_qty: scrapQty,
-        started_at: new Date().toISOString(),
-        completed_at: new Date().toISOString(),
-        is_archived_scrap: scrapQty > 0,
-        shift_name: currentCard.shift_name,
-        manager_name: currentCard.manager_name,
-        machine_name: currentCard.machine
-      }])
+      // 1. Записуємо history запис для активної стадії Сортування
+      try {
+        await supabase.from('work_card_history').insert([{
+          card_id: currentCard.id,
+          nomenclature_id: currentCard.nomenclature_id,
+          stage_name: 'Сортування',
+          operator_name: op,
+          qty_at_start: currentCard.quantity,
+          qty_completed: goodQty,
+          scrap_qty: scrapCount,
+          started_at: currentCard.started_at || new Date().toISOString(),
+          completed_at: currentCard.completed_at || new Date().toISOString(),
+          is_archived_scrap: scrapCount > 0,
+          shift_name: activeShift,
+          manager_name: currentCard.manager_name,
+          machine_name: currentCard.machine
+        }])
+      } catch (err) {
+        console.error('Error writing active Sorting history:', err)
+      }
 
-      // 2. Картка → at-shop2-buffer
-      await supabase.from('work_cards').update({
+      // 2. Записуємо history запис для Буфера Сортування
+      try {
+        const bufferStart = currentCard.completed_at || currentCard.started_at || new Date().toISOString()
+        await supabase.from('work_card_history').insert([{
+          card_id: currentCard.id,
+          nomenclature_id: currentCard.nomenclature_id,
+          stage_name: 'Буфер Сортування',
+          operator_name: op,
+          qty_at_start: goodQty,
+          qty_completed: goodQty,
+          scrap_qty: 0,
+          started_at: bufferStart,
+          completed_at: new Date().toISOString(),
+          shift_name: activeShift,
+          manager_name: currentCard.manager_name,
+          machine_name: currentCard.machine
+        }])
+      } catch (err) {
+        console.error('Error writing Sorting Buffer history:', err)
+      }
+
+      // 3. Якщо є брак при сортуванні — записуємо його в інвентар
+      if (scrapCount > 0) {
+        await updateInventoryStock(currentCard.nomenclature_id, scrapCount, 'scrap')
+      }
+
+      // 4. Картка → at-shop2-buffer
+      const { error: cardErr } = await supabase.from('work_cards').update({
         status: 'at-shop2-buffer',
         operation: 'Сортування',
         quantity: goodQty,
-        used_in_shop2_qty: 0
+        used_in_shop2_qty: 0,
+        completed_at: new Date().toISOString()
       }).eq('id', currentCard.id)
 
-      // 3. Якщо є брак — записуємо його в інвентар окремим типом
-      if (scrapQty > 0) {
-        await updateInventoryStock(currentCard.nomenclature_id, scrapQty, 'scrap')
-      }
+      if (cardErr) throw cardErr
 
-      // 4. Знаходимо задачу Цеху №2 і активуємо її (waiting → in-progress)
+      // 2. Знаходимо задачу Цеху №2 і активуємо її (waiting → in-progress)
       const { data: shop2Tasks } = await supabase
         .from('tasks')
         .select('id, status')
@@ -516,7 +688,7 @@ export default function Shop1Terminal() {
       setSelectedCardId(null)
       setScannedIds(prev => prev.filter(id => id !== currentCard.id))
       await fetchData()
-      alert(`✅ ${goodQty} шт відправлено в буфер Цеху №2!${scrapQty > 0 ? ` (Брак: ${scrapQty} шт)` : ''}`)
+      alert(`✅ ${goodQty} шт відправлено в буфер Цеху №2!`)
     } catch (e) {
       console.error('Sort to shop2 error:', e)
       alert('Помилка сортування: ' + e.message)
@@ -532,7 +704,26 @@ export default function Shop1Terminal() {
       const op = selectedOperator || currentCard.operator_name || 'Прийомка'
       const nom = nomenclatures.find(n => n.id === currentCard.nomenclature_id)
 
-      // 1. Записуємо history запис прийомки
+      // 1. Записуємо history запис для Буфера Галтовки (якщо картка в буфері)
+      if (currentCard.status === 'at-buffer') {
+        const bufferStart = currentCard.completed_at || currentCard.started_at || new Date().toISOString()
+        await supabase.from('work_card_history').insert([{
+          card_id: currentCard.id,
+          nomenclature_id: currentCard.nomenclature_id,
+          stage_name: 'Буфер Галтовки',
+          operator_name: op,
+          qty_at_start: qtyDone,
+          qty_completed: qtyDone,
+          scrap_qty: 0,
+          started_at: bufferStart,
+          completed_at: new Date().toISOString(),
+          shift_name: currentCard.shift_name,
+          manager_name: currentCard.manager_name,
+          machine_name: currentCard.machine
+        }])
+      }
+
+      // 2. Записуємо history запис прийомки
       await supabase.from('work_card_history').insert([{
         card_id: currentCard.id,
         nomenclature_id: currentCard.nomenclature_id,
@@ -549,16 +740,17 @@ export default function Shop1Terminal() {
         machine_name: currentCard.machine
       }])
 
-      // 2. Картка → at-buffer(Сортування) — чекає фінального сортування
+      // 3. Картка → at-buffer(Прийомка) — чекає фінального сортування
       const { error: cardErr } = await supabase.from('work_cards').update({
         status: 'at-buffer',
-        operation: 'Сортування',
-        operator_name: op
+        operation: 'Прийомка',
+        operator_name: op,
+        completed_at: new Date().toISOString()
       }).eq('id', currentCard.id)
 
       if (cardErr) throw cardErr
 
-      // Картка тепер у буфері Сортування — показуємо в черзі для сканування
+      // Картка тепер у буфері Прийомки — показуємо в черзі для сканування
       // НЕ закриваємо картку — щоб оператор одразу бачив що вона чекає Сортування
       await fetchData()
     } catch (e) {
@@ -576,7 +768,10 @@ export default function Shop1Terminal() {
     }
     setIsProcessing(true)
     try {
-      const op = qcInspector ? `ВКЯ (${qcInspector})` : 'Інспектор ВКЯ'
+      const reasonText = qcReason === 'Інше (коментар)'
+        ? `Інше (${qcCustomReason || 'без коментаря'})`
+        : qcReason
+      const op = `ВКЯ (${qcInspector || 'відповідальний'}) — Причина: ${reasonText}`
       const newQty = Math.max(0, currentCard.quantity - qcScrapCount)
 
       // 1. Запис у work_card_history
@@ -593,7 +788,9 @@ export default function Shop1Terminal() {
         is_archived_scrap: true, // Одразу переводимо в архівний стан на склад браку
         shift_name: currentCard.shift_name,
         manager_name: currentCard.manager_name,
-        machine_name: currentCard.machine
+        machine_name: currentCard.machine,
+        qc_scrap_reason: qcReason,
+        qc_scrap_comment: qcReason === 'Інше (коментар)' ? qcCustomReason : null
       }])
 
       // 2. Оновлюємо кількість картки (якщо залишилося 0, закриваємо її)
@@ -609,6 +806,8 @@ export default function Shop1Terminal() {
       setShowQCModal(false)
       setQcScrapCount(0)
       setQcInspector('')
+      setQcReason('Биття цанги')
+      setQcCustomReason('')
       await fetchData()
       if (newQty === 0) {
         setSelectedCardId(null)
@@ -908,9 +1107,19 @@ export default function Shop1Terminal() {
                   )}
                 </div>
 
-                <button onClick={() => { setScrapCount(0); setFinalOperator(''); setShowCompleteModal(true) }}
+                <button onClick={() => {
+                  if (currentCard.operation === 'Сортування') {
+                    setScrapCount(0);
+                    handleFinishSortingActive();
+                  } else {
+                    setScrapCount(0);
+                    setFinalOperator('');
+                    setCuttersUsed(0);
+                    setShowCompleteModal(true);
+                  }
+                }}
                   style={{ background: '#ec4899', color: '#fff', border: 'none', padding: '22px', width: '100%', borderRadius: '18px', fontSize: '1.3rem', fontWeight: 1000, cursor: 'pointer', boxShadow: '0 10px 30px rgba(236,72,153,0.3)' }}>
-                  {isFinal ? '✓ ПРИЙНЯТО' : `ЗАВЕРШИТИ ${opName}`}
+                  {currentCard.operation === 'Сортування' ? 'ЗАВЕРШИТИ СОРТУВАННЯ' : isFinal ? '✓ ПРИЙНЯТО' : `ЗАВЕРШИТИ ${opName}`}
                 </button>
               </div>
             )
@@ -986,16 +1195,16 @@ export default function Shop1Terminal() {
               <div style={{ maxWidth: '460px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '22px' }}>
 
                 {/* Великий бейдж кількості в буфері */}
-                <div style={{ background: isLastBeforeReception ? '#10b98110' : '#f59e0b10', border: `1px solid ${isLastBeforeReception ? '#10b98130' : '#f59e0b30'}`, borderRadius: '24px', padding: '24px', textAlign: 'center', marginBottom: '8px' }}>
-                  <div style={{ fontSize: '0.65rem', fontWeight: 950, color: isLastBeforeReception ? '#10b981' : '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '8px' }}>
-                    {isLastBeforeReception ? 'ГОТОВО ДО ПРИЙОМКИ' : `В БУФЕРІ: ${currentCard.operation?.toUpperCase()}`}
+                <div style={{ background: (isLastBeforeReception || currentCard.operation === 'Прийомка') ? '#10b98110' : '#f59e0b10', border: `1px solid ${(isLastBeforeReception || currentCard.operation === 'Прийомка') ? '#10b98130' : '#f59e0b30'}`, borderRadius: '24px', padding: '24px', textAlign: 'center', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '0.65rem', fontWeight: 950, color: (isLastBeforeReception || currentCard.operation === 'Прийомка') ? '#10b981' : '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '8px' }}>
+                    {currentCard.operation === 'Прийомка' ? 'В ПРИЙОМЦІ (ОЧІКУЄ СОРТУВАННЯ)' : isLastBeforeReception ? 'ГОТОВО ДО ПРИЙОМКИ' : `В БУФЕРІ: ${currentCard.operation?.toUpperCase()}`}
                   </div>
                   <div style={{ fontSize: '3.5rem', fontWeight: 1000, color: '#fff', lineHeight: 1 }}>
                     {currentCard.quantity} <small style={{ fontSize: '1.2rem', opacity: 0.3 }}>шт</small>
                   </div>
                 </div>
 
-                {/* Прийомка: кнопка переводить в at-buffer(Сортування) */}
+                {/* Прийомка: кнопка переводить в at-buffer(Прийомка) */}
                 {isLastBeforeReception ? (
                   <div style={{ background: '#111', padding: '24px', borderRadius: '20px', border: '1px solid #10b98122' }}>
                     <div style={{ marginBottom: '20px' }}>
@@ -1013,10 +1222,10 @@ export default function Shop1Terminal() {
                         boxShadow: '0 10px 30px rgba(16,185,129,0.2)',
                         opacity: (!selectedOperator || isProcessing) ? 0.5 : 1
                       }}>
-                      ✅ ПРИЙНЯТИ → СОРТУВАННЯ
+                      ✅ ВІДПРАВИТИ В ПРИЙОМКУ
                     </button>
                     <div style={{ textAlign: 'center', marginTop: '14px', fontSize: '0.65rem', color: '#444', fontWeight: 600 }}>
-                      Картка перейде на Сортування, де буде відскановано для відправки в Цех №2
+                      Картка перейде в Прийомку, де її відсканують для взяття в роботу на Сортування
                     </div>
                   </div>
                 ) : (
@@ -1025,13 +1234,27 @@ export default function Shop1Terminal() {
                     <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800, marginBottom: '20px', textTransform: 'uppercase', textAlign: 'center' }}>
                       НАСТУПНИЙ ЕТАП: <span style={{ color: '#f59e0b' }}>{nextOp}</span>
                     </div>
-                    <div style={{ marginBottom: '20px' }}>
-                      <label style={labelStyle}>Оператор</label>
-                      <select value={selectedOperator} onChange={e => setSelectedOperator(e.target.value)} disabled={!currentCard?.shift_name} style={{ ...selectStyle, opacity: currentCard?.shift_name ? 1 : 0.5, cursor: currentCard?.shift_name ? 'pointer' : 'not-allowed' }}>
-                        <option value="">{currentCard?.shift_name ? '— Оберіть оператора —' : '— Помилка: Зміна не вказана —'}</option>
-                        {getFilteredOperators('Цех №1', currentCard?.shift_name, nextOp).map(o => <option key={o} value={o}>{o}</option>)}
+
+                    <div style={{ marginBottom: '15px' }}>
+                      <label style={labelStyle}>Зміна</label>
+                      <select value={selectedShift} onChange={e => setSelectedShift(e.target.value)} style={selectStyle}>
+                        <option value="">— Оберіть зміну —</option>
+                        <option value="Зміна 1">Зміна 1</option>
+                        <option value="Зміна 2">Зміна 2</option>
+                        <option value="Зміна 3">Зміна 3</option>
+                        <option value="Зміна 4">Зміна 4</option>
+                        <option value="Без зміни">Без зміни</option>
                       </select>
                     </div>
+
+                    <div style={{ marginBottom: '20px' }}>
+                      <label style={labelStyle}>Відповідальний за {nextOp}</label>
+                      <select value={selectedOperator} onChange={e => setSelectedOperator(e.target.value)} disabled={!selectedShift} style={{ ...selectStyle, opacity: selectedShift ? 1 : 0.5, cursor: selectedShift ? 'pointer' : 'not-allowed' }}>
+                        <option value="">{selectedShift ? '— Оберіть оператора —' : '— Спочатку оберіть зміну —'}</option>
+                        {getFilteredOperators('Цех №1', selectedShift, nextOp).map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    </div>
+
                     <button onClick={handleStartNext} disabled={!selectedOperator || isProcessing}
                       style={{
                         ...btnGreen, width: '100%', height: '64px', fontSize: '1.2rem',
@@ -1285,9 +1508,10 @@ export default function Shop1Terminal() {
 
         {/* ─── ПРИЙОМКА / СКЛАД (Фінальна стадія) ─── */}
         {(() => {
-          // Картки на Сортуванні = фізично знаходяться в Прийомці
+          // Картки на Сортуванні / Прийомці = фізично знаходяться в Прийомці
           const sortingCards = (workCards || []).filter(c =>
-            c.status === 'at-buffer' && c.operation === 'Сортування'
+            (c.status === 'at-buffer' && (c.operation === 'Прийомка' || c.operation === 'Сортування')) ||
+            (c.status === 'in-progress' && c.operation === 'Сортування')
           )
           const sortingQty = sortingCards.reduce((a, c) => a + (Number(c.quantity) || 0), 0)
 
@@ -1431,7 +1655,7 @@ export default function Shop1Terminal() {
                     <td style={{ padding: '12px 15px', color: '#aaa' }}>{card.operator_name || '—'}</td>
                     <td style={{ padding: '12px 15px', color: '#eab308', fontWeight: 800 }}>{formatMachine(card.machine)}</td>
                     <td style={{ padding: '12px 15px', color: '#3b82f6', fontWeight: 700 }}>{formatPlanned(getPlannedTime(card))}</td>
-                    <td style={{ padding: '12px 15px', color: '#10b981', fontFamily: 'monospace', fontWeight: 700 }}>{formatTime(card.started_at)}</td>
+                    <td style={{ padding: '12px 15px', color: '#10b981', fontFamily: 'monospace', fontWeight: 700 }}>{formatTime(inBuf ? (card.completed_at || card.started_at) : card.started_at)}</td>
                     <td style={{ padding: '12px 15px', textAlign: 'right' }}>
                       <button onClick={() => { setSelectedCardId(card.id); setSelectedOperator('') }}
                         style={{ background: '#eab308', border: 'none', color: '#000', padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -1598,14 +1822,48 @@ export default function Shop1Terminal() {
             <div style={{ padding: '24px 22px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
               <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900 }}>{getNom(currentCard)?.name}</h3>
 
+              {/* Зміна */}
+              <div>
+                <label style={labelStyle}>Зміна (якщо змінилася)</label>
+                <select value={selectedShift} onChange={e => { setSelectedShift(e.target.value); setFinalOperator(''); }} style={selectStyle}>
+                  <option value="">— Оберіть зміну —</option>
+                  <option value="Зміна 1">Зміна 1</option>
+                  <option value="Зміна 2">Зміна 2</option>
+                  <option value="Зміна 3">Зміна 3</option>
+                  <option value="Зміна 4">Зміна 4</option>
+                  <option value="Без зміни">Без зміни</option>
+                </select>
+              </div>
+
               {/* Фінальний оператор */}
               <div>
                 <label style={labelStyle}>Фінальний оператор (якщо змінився)</label>
-                <select value={finalOperator} onChange={e => setFinalOperator(e.target.value)} style={selectStyle}>
-                  <option value="">— Залишити поточного ({currentCard.operator_name}) —</option>
-                  {operators.map(o => <option key={o} value={o}>{o}</option>)}
+                <select value={finalOperator} onChange={e => setFinalOperator(e.target.value)} disabled={!selectedShift} style={{ ...selectStyle, opacity: selectedShift ? 1 : 0.5, cursor: selectedShift ? 'pointer' : 'not-allowed' }}>
+                  <option value="">{selectedShift ? `— Залишити поточного (${currentCard.operator_name}) —` : '— Спочатку оберіть зміну —'}</option>
+                  {getFilteredOperators('Цех №1', selectedShift, currentCard.operation).map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
+
+              {/* Фактична кількість фрез (Тільки для Розкрою) */}
+              {currentCard.operation === 'Розкрій' && (
+                <div style={{ background: '#0d0d0d', borderRadius: '14px', padding: '18px', textAlign: 'center', border: '1px solid #eab30822' }}>
+                  <label style={{ color: '#eab308', fontWeight: 900, fontSize: '0.7rem', textTransform: 'uppercase', display: 'block', marginBottom: '12px' }}>
+                    ФАКТИЧНА КІЛЬКІСТЬ ФРЕЗ
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
+                    <button onClick={() => setCuttersUsed(v => Math.max(0, v - 1))}
+                      style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
+                    <input type="number" min={0} value={cuttersUsed}
+                      onChange={e => setCuttersUsed(Math.max(0, parseInt(e.target.value) || 0))}
+                      style={{ background: 'transparent', border: 'none', color: '#eab308', fontSize: '3.2rem', width: '90px', textAlign: 'center', fontWeight: 900 }} />
+                    <button onClick={() => setCuttersUsed(v => v + 1)}
+                      style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
+                  </div>
+                  <div style={{ marginTop: '10px', fontSize: '0.72rem', color: '#555' }}>
+                    Використано для цієї карти: <strong style={{ color: '#eab308' }}>{cuttersUsed} шт</strong>
+                  </div>
+                </div>
+              )}
 
               {/* Лічильник браку */}
               <div style={{ background: '#0d0d0d', borderRadius: '14px', padding: '18px', textAlign: 'center' }}>
@@ -1676,6 +1934,44 @@ export default function Shop1Terminal() {
                   style={{ ...selectStyle, background: '#000' }}
                 />
               </div>
+
+              {/* Причина браку */}
+              <div>
+                <label style={labelStyle}>Причина браку</label>
+                <select
+                  value={qcReason}
+                  onChange={e => {
+                    setQcReason(e.target.value)
+                    if (e.target.value !== 'Інше (коментар)') {
+                      setQcCustomReason('')
+                    }
+                  }}
+                  style={{ ...selectStyle, background: '#000' }}
+                >
+                  <option value="Биття цанги">Биття цанги</option>
+                  <option value="Помилка програми">Помилка програми</option>
+                  <option value="Збій станка">Збій станка</option>
+                  <option value="Кривизна листа">Кривизна листа</option>
+                  <option value="Поломка флешки">Поломка флешки</option>
+                  <option value="Прив'язка">Прив'язка</option>
+                  <option value="Помилка оператора">Помилка оператора</option>
+                  <option value="Інше (коментар)">Інше (коментар)</option>
+                </select>
+              </div>
+
+              {/* Коментар до причини браку */}
+              {qcReason === 'Інше (коментар)' && (
+                <div>
+                  <label style={labelStyle}>Опишіть іншу причину браку</label>
+                  <input
+                    type="text"
+                    placeholder="Введіть коментар..."
+                    value={qcCustomReason}
+                    onChange={e => setQcCustomReason(e.target.value)}
+                    style={{ ...selectStyle, background: '#000' }}
+                  />
+                </div>
+              )}
 
               {/* Лічильник додаткового браку */}
               <div style={{ background: '#0d0d0d', borderRadius: '14px', padding: '18px', textAlign: 'center', border: '1px solid #ef444422' }}>

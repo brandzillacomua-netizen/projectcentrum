@@ -45,7 +45,7 @@ const SettingsModule = () => {
     department: 'Цех №1',
     shift: 'Без зміни',
     access_rights: {
-      manager: false, master: false, warehouse: false, engineer: false, 
+      dashboard: false, manager: false, master: false, warehouse: false, engineer: false, 
       director: false, foreman: false, operator: true, shipping: false, 
       supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, packaging: false, kanban: false, reports: false
     }
@@ -75,14 +75,47 @@ const SettingsModule = () => {
   const handleSaveUser = async (e) => {
     e.preventDefault()
     if (!userForm.login || !userForm.password) return
+
+    const cleanLogin = userForm.login.trim()
+    const cleanPassword = userForm.password.trim()
+
+    // 1. Client-side uniqueness checks to prevent 409 Conflict database errors
+    if (!userForm.id) {
+      // Creating new user
+      const loginExists = (systemUsers || []).some(u => u.login.toLowerCase().trim() === cleanLogin.toLowerCase())
+      if (loginExists) {
+        alert(`⚠️ Помилка: Користувач з логіном "${cleanLogin}" вже існує в системі!\nБудь ласка, вкажіть інший унікальний логін.`)
+        return
+      }
+    } else {
+      // Editing existing user
+      const loginConflict = (systemUsers || []).some(u => u.id !== userForm.id && u.login.toLowerCase().trim() === cleanLogin.toLowerCase())
+      if (loginConflict) {
+        alert(`⚠️ Помилка: Логін "${cleanLogin}" вже зайнятий іншим користувачем!\nБудь ласка, вкажіть інший унікальний логін.`)
+        return
+      }
+    }
+
+    const payload = {
+      ...userForm,
+      login: cleanLogin,
+      password: cleanPassword
+    }
     
-    // Single point of sync via upsertUser (which calls apiService.submitUserAction)
-    await upsertUser(userForm)
+    // 2. Single point of sync via upsertUser (which calls apiService.submitUserAction)
+    const { error } = await upsertUser(payload)
+    
+    if (error) {
+      alert(`❌ Помилка збереження: ${error.message || 'Конфлікт даних в базі'}`)
+      return
+    }
+
+    alert(`✅ Користувача успішно ${userForm.id ? 'оновлено' : 'створено'}!`)
     
     setUserForm({
       id: null, login: '', password: '', first_name: '', last_name: '', 
       position: 'Оператор', department: 'Цех №1', shift: 'Без зміни',
-      access_rights: { manager: false, master: false, warehouse: false, engineer: false, director: false, foreman: false, operator: true, shipping: false, supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, kanban: false, reports: false }
+      access_rights: { dashboard: false, manager: false, master: false, warehouse: false, engineer: false, director: false, foreman: false, operator: true, shipping: false, supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, kanban: false, reports: false }
     })
   }
 
@@ -115,6 +148,7 @@ const SettingsModule = () => {
   )
 
   const moduleList = [
+    { id: 'dashboard', label: 'Дашборд WIP' },
     { id: 'kanban', label: 'Задачі (Внутрішні)' },
     { id: 'manager', label: 'Менеджер' },
     { id: 'master', label: 'Мастер (Цех)' },
