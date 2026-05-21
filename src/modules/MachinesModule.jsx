@@ -3,16 +3,25 @@ import { Link } from 'react-router-dom'
 import { 
   ArrowLeft, Cpu, Plus, Trash2, Info, X, Zap, 
   MapPin, Hash, Activity, Clock, User, ClipboardList,
-  Edit3, BarChart3, CheckCircle2, History
+  Edit3, BarChart3, CheckCircle2, History, Layers
 } from 'lucide-react'
 import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
+
+const MACHINE_TYPES = [
+  'CNC 1200x800 - 4 листи (Малий)',
+  'CNC 3050(16)х16 - 3-12 листів (швидкісний)',
+  'CNC 3060х1600 - 3-36 листів (Три Головий)',
+  'CNC 6000x2000 - 4 - 96 листів (Дракон)',
+  'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
+]
 
 const MachinesModule = () => {
   const { machines, addMachine, updateMachine, deleteMachine, workCards, workCardHistory, nomenclatures, orders, tasks, loading } = useMES()
   const [showAdd, setShowAdd] = useState(false)
   const [selectedMachineId, setSelectedMachineId] = useState(null)
-  const [form, setForm] = useState({ id: null, name: '', capacity: '1', inventory_no: '', floor: '', description: '' })
+  const [selectedType, setSelectedType] = useState(null)
+  const [form, setForm] = useState({ id: null, name: '', type: MACHINE_TYPES[0], capacity: '1', sequence_number: '', inventory_no: '', floor: '', description: '' })
   const [currentTime, setCurrentTime] = useState(new Date())
 
   useEffect(() => {
@@ -32,7 +41,9 @@ const MachinesModule = () => {
     try {
       const payload = {
         name: form.name,
+        type: form.type || null,
         sheet_capacity: parseInt(form.capacity) || 0,
+        sequence_number: form.sequence_number || null,
         inventory_no: form.inventory_no || null,
         floor: form.floor || null,
         description: form.description || null
@@ -45,7 +56,7 @@ const MachinesModule = () => {
         await apiService.submitMachine(payload, addMachine)
       }
       
-      setForm({ id: null, name: '', capacity: '1', inventory_no: '', floor: '', description: '' })
+      setForm({ id: null, name: '', type: MACHINE_TYPES[0], capacity: '1', sequence_number: '', inventory_no: '', floor: '', description: '' })
       setShowAdd(false)
     } catch (err) {
       alert('Помилка: ' + err.message)
@@ -56,7 +67,9 @@ const MachinesModule = () => {
     setForm({ 
       id: m.id, 
       name: m.name, 
+      type: m.type || MACHINE_TYPES[0],
       capacity: m.sheet_capacity || '1', 
+      sequence_number: m.sequence_number || '',
       inventory_no: m.inventory_no || '', 
       floor: m.floor || '', 
       description: m.description || '' 
@@ -76,65 +89,58 @@ const MachinesModule = () => {
   }
 
   const selectedMachine = machines.find(m => m.id === selectedMachineId)
+
+  const isCardOnMachine = (c, m) => {
+    if (!c || !m) return false;
+    if (c.machine_id === m.id) return true;
+
+    const cardMachineTxt = String(c.machine || '').toLowerCase().trim();
+    if (!cardMachineTxt || cardMachineTxt === 'не вказано') return false;
+
+    const machName = String(m.name || '').toLowerCase().trim();
+    const machInv = String(m.inventory_no || '').toLowerCase().trim();
+    const machSeq = String(m.sequence_number || '').toLowerCase().trim();
+    const machType = String(m.type || '').toLowerCase().trim();
+
+    if (machName && cardMachineTxt === machName) return true;
+    if (machInv && cardMachineTxt === machInv) return true;
+    
+    // Match by type + sequence_number, e.g. "CNC 12x8 - 4 листи (Малий) №2" matches type "CNC 12x8 - 4 листи (Малий)" and sequence_number "2"
+    if (machType && machSeq && cardMachineTxt.includes(machType) && (cardMachineTxt.includes(`№${machSeq}`) || cardMachineTxt.includes(` ${machSeq}`))) return true;
+
+    // Check if inventory number is mentioned
+    if (machInv && (cardMachineTxt.includes(`№${machInv}`) || cardMachineTxt.includes(` ${machInv}`))) return true;
+
+    // Check if sequence number is mentioned in the machine name and type matches
+    if (machSeq && machType && cardMachineTxt.includes(machType) && cardMachineTxt.endsWith(machSeq)) return true;
+
+    return false;
+  }
+
   const activeWorkForMachine = (m) => {
-    return workCards.find(c => {
-      if (c.status !== 'in-progress') return false;
-      
-      // 1. Пріоритет: Сувора прив'язка через ID
-      if (c.machine_id === m.id) return true;
-      
-      // 2. Фолбек: Більш точний пошук за назвою або інвентарним номером
-      const cardMachineTxt = (c.machine || '').toLowerCase().trim();
-      const machName = (m.name || '').toLowerCase().trim();
-      const machInv = (m.inventory_no || '').toLowerCase().trim();
-      
-      // Шукаємо точний збіг назви або згадку інвентарного номера як окремого слова
-      const isExactName = machName && cardMachineTxt === machName;
-      const isExactInv = machInv && (cardMachineTxt === machInv || cardMachineTxt.includes(`№${machInv}`) || cardMachineTxt.includes(` ${machInv}`));
-      
-      return isExactName || isExactInv;
-    });
+    return workCards.find(c => c.status === 'in-progress' && isCardOnMachine(c, m));
   }
 
   const getHistoryForMachine = (m) => {
     if (!m) return [];
-
-    const norm = (val) => String(val || '').toLowerCase().trim();
     const mid = String(m.id || '');
 
     // 1. Повна історія з БД
     const fromHistory = workCardHistory.filter(h => {
-      // 1. Пряма фільтрація по ID верстата (якщо колонка є)
       const hMid = String(h.machine_id || '');
       if (hMid && hMid === mid) return true;
       
-      // 2. Фільтрація по метаданим у card_info (найбільш надійний спосіб без зміни схеми БД)
       const info = String(h.card_info || '');
       if (info.includes(`[MACHINE_ID:${mid}]`)) return true;
       if (m.name && info.includes(`[MACHINE_NAME:${m.name}]`)) return true;
 
-      // 3. Фільтрація по текстовій назві (фолбек)
-      const hMachine = norm(h.machine);
-      const mName = norm(m.name);
-      const mInv = norm(m.inventory_no);
-      
-      return (mName && hMachine === mName) || 
-             (mInv && (hMachine === mInv || hMachine.includes('№' + mInv)));
+      return isCardOnMachine(h, m);
     });
 
     // 2. Оперативний архів (ті, що щойно завершені оператором і чекають підтвердження)
-    const fromWaiting = workCards.filter(c => {
-      if (c.status !== 'waiting-buffer') return false;
-      const cMid = String(c.machine_id || '');
-      if (cMid && cMid === mid) return true;
-
-      const cMachine = norm(c.machine);
-      const mName = norm(m.name);
-      const mInv = norm(m.inventory_no);
-
-      return (mName && cMachine === mName) || 
-             (mInv && (cMachine === mInv || cMachine.includes('№' + mInv)));
-    }).map(c => ({
+    const fromWaiting = workCards.filter(c => 
+      c.status === 'waiting-buffer' && isCardOnMachine(c, m)
+    ).map(c => ({
       ...c,
       card_id: c.id,
       qty_completed: c.quantity,
@@ -143,18 +149,9 @@ const MachinesModule = () => {
     }));
 
     // 3. Також додаємо активну роботу, щоб її було видно в історії зі статусом "В РОБОТІ"
-    const fromActive = workCards.filter(c => {
-      if (c.status !== 'in-progress' && c.status !== 'new') return false;
-      const cMid = String(c.machine_id || '');
-      if (cMid && cMid === mid) return true;
-
-      const cMachine = norm(c.machine);
-      const mName = norm(m.name);
-      const mInv = norm(m.inventory_no);
-
-      return (mName && cMachine === mName) || 
-             (mInv && (cMachine === mInv || cMachine.includes('№' + mInv)));
-    }).map(c => ({
+    const fromActive = workCards.filter(c => 
+      (c.status === 'in-progress' || c.status === 'new') && isCardOnMachine(c, m)
+    ).map(c => ({
       ...c,
       card_id: c.id,
       qty_completed: c.quantity,
@@ -235,7 +232,7 @@ const MachinesModule = () => {
               <p style={{ color: '#444', fontWeight: 700, margin: '5px 0 0' }}>Контроль завантаженості та технічні дані</p>
             </div>
             <button 
-              onClick={() => { setShowAdd(!showAdd); if(!showAdd) setForm({id:null, name:'', capacity:'1', inventory_no:'', floor:'', description:''}) }}
+              onClick={() => { setShowAdd(!showAdd); if(!showAdd) setForm({id:null, name:'', type: MACHINE_TYPES[0], capacity:'1', sequence_number:'', inventory_no:'', floor:'', description:''}) }}
               style={{ 
                 background: showAdd ? '#1a1a1a' : '#ff9000', 
                 color: showAdd ? '#fff' : '#000', 
@@ -256,21 +253,31 @@ const MachinesModule = () => {
                 {form.id ? 'Редагування верстата' : 'Параметри нового обладнання'}
               </h3>
               <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr', gap: '20px', marginBottom: '20px' }}>
                    <div className="input-group">
                       <label><Hash size={12}/> Назва</label>
                       <input placeholder="напр. Laser Alpha-1" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
                    </div>
                    <div className="input-group">
+                      <label><Cpu size={12}/> Тип станка</label>
+                      <select style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '15px', borderRadius: '12px', fontSize: '0.9rem', outline: 'none', transition: '0.2s', cursor: 'pointer' }} value={form.type} onChange={e => setForm({...form, type: e.target.value})} required>
+                        {MACHINE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                   </div>
+                   <div className="input-group">
                       <label><Zap size={12}/> Місткість (л.)</label>
                       <input type="number" value={form.capacity} onChange={e => setForm({...form, capacity: e.target.value})} required />
+                   </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 2fr', gap: '20px' }}>
+                   <div className="input-group">
+                      <label><Hash size={12}/> Порядковий № (в розкрій)</label>
+                      <input placeholder="напр. 1" value={form.sequence_number} onChange={e => setForm({...form, sequence_number: e.target.value})} />
                    </div>
                    <div className="input-group">
                       <label><CheckCircle2 size={12}/> Інвентарний №</label>
                       <input placeholder="INV-2024-001" value={form.inventory_no} onChange={e => setForm({...form, inventory_no: e.target.value})} />
                    </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '20px' }}>
                    <div className="input-group">
                       <label><MapPin size={12}/> Локація / Поверх</label>
                       <input placeholder="напр. 2 поверх" value={form.floor} onChange={e => setForm({...form, floor: e.target.value})} />
@@ -289,93 +296,131 @@ const MachinesModule = () => {
 
           {loading ? (
             <div style={{ textAlign: 'center', padding: '100px', color: '#444' }}><Zap className="animate-pulse" size={48} /></div>
-          ) : (
+          ) : !selectedType ? (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '25px' }}>
-              {machines.map(m => {
-                const activeTask = activeWorkForMachine(m)
-                // Пошук батьківського наряду для отримання планового часу
-                const parentTask = activeTask ? tasks.find(t => String(t.id).trim() === String(activeTask.task_id).trim()) : null
-                const nomName = nomenclatures.find(n => String(n.id) === String(activeTask?.nomenclature_id))?.name
+              {MACHINE_TYPES.concat(['Інші']).map(type => {
+                const typeMachines = machines.filter(m => type === 'Інші' ? !MACHINE_TYPES.includes(m.type) : m.type === type)
+                if (typeMachines.length === 0 && type === 'Інші') return null // hide "Інші" if empty
                 
-                // Пріоритет розрахунку часу:
-                // 1. Беремо з самої картки (там тепер у секундах після останнього фіксу)
-                // 2. Якщо в картці порожньо, беремо з наряду (там у хвилинах)
-                // 3. Якщо і там немає — пробуємо розрахувати на льоту (кількість * час_на_од)
-                let estimatedMin = 0
-                if (activeTask?.estimated_time) {
-                  estimatedMin = Math.round(Number(activeTask.estimated_time) / 60)
-                } else if (parentTask?.estimated_time) {
-                  estimatedMin = Number(parentTask.estimated_time)
-                } else if (activeTask?.quantity) {
-                  const nom = nomenclatures.find(n => String(n.id) === String(activeTask.nomenclature_id))
-                  if (nom?.time_per_unit) {
-                    estimatedMin = Math.round(Number(activeTask.quantity) * Number(nom.time_per_unit))
-                  }
-                }
+                const total = typeMachines.length
+                const busy = typeMachines.filter(m => activeWorkForMachine(m)).length
+                const idle = total - busy
 
-                const elapsedMs = activeTask ? (currentTime - new Date(activeTask.started_at)) : 0
-                const elapsedMin = Math.floor(elapsedMs / 60000)
-                const progressPercent = estimatedMin > 0 ? Math.min(100, (elapsedMin / estimatedMin) * 100) : 0
-                
                 return (
-                  <div key={m.id} className={`machine-card-v3 ${activeTask ? 'is-busy' : 'is-idle'}`} onClick={() => setSelectedMachineId(m.id)}>
-                    <div className="card-top">
-                      <div className="machine-icon-box">
-                        <Cpu size={24} />
-                      </div>
-                      <div className="status-badge">
-                        <div className="status-dot" />
-                        {activeTask ? 'ЗАЙНЯТИЙ' : 'ВІЛЬНИЙ'}
-                      </div>
-                      <div className="card-actions">
-                        <button onClick={(e) => { e.stopPropagation(); handleEdit(m) }}><Edit3 size={16} /></button>
-                        <button onClick={(e) => { e.stopPropagation(); handleDelete(m.id, m.name) }} className="btn-del"><Trash2 size={16} /></button>
-                      </div>
+                  <div key={type} className="machine-card-v3" onClick={() => setSelectedType(type)} style={{ justifyContent: 'center', alignItems: 'center', textAlign: 'center', minHeight: '200px' }}>
+                    <div style={{ background: '#111', width: '64px', height: '64px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ff9000', marginBottom: '15px' }}>
+                      <Layers size={32} />
                     </div>
-
-                    <div className="card-main">
-                      <div className="inv-no">{m.inventory_no || 'БЕЗ НОМЕРА'}</div>
-                      <h3 className="machine-name">{m.name}</h3>
-                      <div className="location-info"><MapPin size={14} /> {m.floor || 'Локація не вказана'}</div>
-                    </div>
-
-                    <div className="card-footer">
-                      {activeTask ? (
-                        <div className="active-work-info">
-                          <div className="work-header" style={{ marginBottom: '15px' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <span className="task-type">У РОБОТІ</span>
-                              <span className="timer" style={{ fontSize: '1.4rem', marginTop: '5px' }}><Clock size={16} /> {formatElapsed(activeTask.started_at)}</span>
-                            </div>
-                            <div style={{ textAlign: 'right' }}>
-                              <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 1000, textTransform: 'uppercase' }}>Плановий час</div>
-                              <div style={{ fontSize: '1rem', color: '#ff9000', fontWeight: 900 }}>{formatPlanned(estimatedMin)}</div>
-                            </div>
-                          </div>
-                          <div className="work-detail">{nomName || 'Деталізація...'}</div>
-                          <div className="work-operator"><User size={12} /> {activeTask.operator_name || 'Оператор'}</div>
-                          <div className="work-progress">
-                            <div 
-                              className={`progress-bar-inner ${progressPercent < 100 ? 'animate-pulse' : ''}`} 
-                              style={{ 
-                                width: `${estimatedMin > 0 ? progressPercent : 100}%`,
-                                background: progressPercent >= 100 ? '#10b981' : '#ef4444',
-                                boxShadow: progressPercent >= 100 ? '0 0 10px #10b981' : '0 0 10px #ef4444'
-                              }} 
-                            />
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="idle-info">
-                          <span className="capacity-info"><Zap size={14} /> {m.sheet_capacity || 0} л. / наряд</span>
-                          <span className="history-link">АНАЛІТИКА <BarChart3 size={14} /></span>
-                        </div>
-                      )}
+                    <h3 style={{ margin: '0 0 10px', fontSize: '1.4rem', fontWeight: 900 }}>{type}</h3>
+                    <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 800 }}>
+                      <span style={{ color: '#555' }}>Всього: {total}</span>
+                      <span style={{ color: '#10b981' }}>Вільні: {idle}</span>
+                      <span style={{ color: '#ef4444' }}>У роботі: {busy}</span>
                     </div>
                   </div>
                 )
               })}
             </div>
+          ) : (
+            <>
+              <button 
+                onClick={() => setSelectedType(null)} 
+                style={{ background: 'transparent', border: 'none', color: '#888', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '20px', fontWeight: 800, padding: 0 }}
+              >
+                <ArrowLeft size={16} /> Назад до типів обладнання
+              </button>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '25px' }}>
+                {machines.filter(m => selectedType === 'Інші' ? !MACHINE_TYPES.includes(m.type) : m.type === selectedType).map(m => {
+                  const activeTask = activeWorkForMachine(m)
+                  // Пошук батьківського наряду для отримання планового часу
+                  const parentTask = activeTask ? tasks.find(t => String(t.id).trim() === String(activeTask.task_id).trim()) : null
+                  const nomName = nomenclatures.find(n => String(n.id) === String(activeTask?.nomenclature_id))?.name
+                  
+                  // Пріоритет розрахунку часу:
+                  // 1. Беремо з самої картки (там тепер у секундах після останнього фіксу)
+                  // 2. Якщо в картці порожньо, беремо з наряду (там у хвилинах)
+                  // 3. Якщо і там немає — пробуємо розрахувати на льоту (кількість * час_на_од)
+                  let estimatedMin = 0
+                  if (activeTask?.estimated_time) {
+                    estimatedMin = Math.round(Number(activeTask.estimated_time) / 60)
+                  } else if (parentTask?.estimated_time) {
+                    estimatedMin = Number(parentTask.estimated_time)
+                  } else if (activeTask?.quantity) {
+                    const nom = nomenclatures.find(n => String(n.id) === String(activeTask.nomenclature_id))
+                    if (nom?.time_per_unit) {
+                      estimatedMin = Math.round(Number(activeTask.quantity) * Number(nom.time_per_unit))
+                    }
+                  }
+
+                  const elapsedMs = activeTask ? (currentTime - new Date(activeTask.started_at)) : 0
+                  const elapsedMin = Math.floor(elapsedMs / 60000)
+                  const progressPercent = estimatedMin > 0 ? Math.min(100, (elapsedMin / estimatedMin) * 100) : 0
+                  
+                  return (
+                    <div key={m.id} className={`machine-card-v3 ${activeTask ? 'is-busy' : 'is-idle'}`} onClick={() => setSelectedMachineId(m.id)}>
+                      <div className="card-top">
+                        <div className="machine-icon-box">
+                          <Cpu size={24} />
+                        </div>
+                        <div className="status-badge">
+                          <div className="status-dot" />
+                          {activeTask ? 'ЗАЙНЯТИЙ' : 'ВІЛЬНИЙ'}
+                        </div>
+                        <div className="card-actions">
+                          <button onClick={(e) => { e.stopPropagation(); handleEdit(m) }}><Edit3 size={16} /></button>
+                          <button onClick={(e) => { e.stopPropagation(); handleDelete(m.id, m.name) }} className="btn-del"><Trash2 size={16} /></button>
+                        </div>
+                      </div>
+
+                      <div className="card-main">
+                        <div className="inv-no">
+                          {m.sequence_number ? `ПОРЯДКОВИЙ №${m.sequence_number}` : 'ПОРЯДКОВИЙ ВІДСУТНІЙ'} 
+                          {' | '}
+                          {m.inventory_no || 'БЕЗ ІНВЕНТАРНОГО'}
+                        </div>
+                        <h3 className="machine-name">{m.name}</h3>
+                        <div style={{ fontSize: '0.75rem', color: '#ff9000', fontWeight: 800, marginTop: '5px' }}>{m.type || 'Не вказано'}</div>
+                        <div className="location-info" style={{ marginTop: '5px' }}><MapPin size={14} /> {m.floor || 'Локація не вказана'}</div>
+                      </div>
+
+                      <div className="card-footer">
+                        {activeTask ? (
+                          <div className="active-work-info">
+                            <div className="work-header" style={{ marginBottom: '15px' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span className="task-type">У РОБОТІ</span>
+                                <span className="timer" style={{ fontSize: '1.4rem', marginTop: '5px' }}><Clock size={16} /> {formatElapsed(activeTask.started_at)}</span>
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 1000, textTransform: 'uppercase' }}>Плановий час</div>
+                                <div style={{ fontSize: '1rem', color: '#ff9000', fontWeight: 900 }}>{formatPlanned(estimatedMin)}</div>
+                              </div>
+                            </div>
+                            <div className="work-detail">{nomName || 'Деталізація...'}</div>
+                            <div className="work-operator"><User size={12} /> {activeTask.operator_name || 'Оператор'}</div>
+                            <div className="work-progress">
+                              <div 
+                                className={`progress-bar-inner ${progressPercent < 100 ? 'animate-pulse' : ''}`} 
+                                style={{ 
+                                  width: `${estimatedMin > 0 ? progressPercent : 100}%`,
+                                  background: progressPercent >= 100 ? '#10b981' : '#ef4444',
+                                  boxShadow: progressPercent >= 100 ? '0 0 10px #10b981' : '0 0 10px #ef4444'
+                                }} 
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="idle-info">
+                            <span className="capacity-info"><Zap size={14} /> {m.sheet_capacity || 0} л. / наряд</span>
+                            <span className="history-link">АНАЛІТИКА <BarChart3 size={14} /></span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -389,7 +434,7 @@ const MachinesModule = () => {
                  <div className="modal-icon"><Cpu size={32} /></div>
                  <div>
                     <h2 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 1000 }}>{selectedMachine.name}</h2>
-                    <div style={{ color: '#ff9000', fontSize: '0.75rem', fontWeight: 800 }}>{selectedMachine.inventory_no} | {selectedMachine.floor} Поверх</div>
+                    <div style={{ color: '#ff9000', fontSize: '0.75rem', fontWeight: 800 }}>Пор. №{selectedMachine.sequence_number || '—'} | Інв. {selectedMachine.inventory_no} | {selectedMachine.floor} Поверх</div>
                  </div>
               </div>
               <button className="btn-close" onClick={() => setSelectedMachineId(null)}><X size={24} /></button>
@@ -478,7 +523,7 @@ const MachinesModule = () => {
         .stat-pill { background: #111; padding: 6px 15px; border-radius: 10px; font-size: 0.75rem; border: 1px solid #1a1a1a; color: #555; font-weight: 800; }
         .input-group label { display: flex; align-items: center; gap: 8px; font-size: 0.65rem; color: #444; text-transform: uppercase; font-weight: 900; margin-bottom: 8px; }
         .input-group input { width: 100%; background: #000; border: 1px solid #222; color: #fff; padding: 15px; border-radius: 12px; font-size: 0.9rem; outline: none; transition: 0.2s; }
-        .input-group input:focus { border-color: #ff9000; background: #050505; }
+        .input-group input:focus, .input-group select:focus { border-color: #ff9000; background: #050505; }
 
         .machine-card-v3 {
           background: #0d0d0d; border: 1px solid #1c1c1c; border-radius: 28px; padding: 30px; 

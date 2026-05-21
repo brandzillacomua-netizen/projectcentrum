@@ -8,7 +8,7 @@ import { supabase } from '../supabase'
 
 const ForemanWorkplace = () => {
   const location = useLocation()
-  const { tasks, orders, workCards, createWorkCard, inventory, completeTaskByMaster, nomenclatures, bomItems, machines, workCardHistory, confirmBuffer, fetchData, reserveBZForTask, fetchTaskArchiveCards } = useMES()
+  const { tasks, orders, workCards, createWorkCard, inventory, completeTaskByMaster, nomenclatures, bomItems, machines, machineOperations, workCardHistory, confirmBuffer, fetchData, reserveBZForTask, fetchTaskArchiveCards } = useMES()
   const [activeTaskId, setActiveTaskId] = useState(location.state?.taskId || null)
   const [activeView, setActiveView] = useState('worksheet')
   const [selectedMachines, setSelectedMachines] = useState({})
@@ -170,10 +170,40 @@ const ForemanWorkplace = () => {
       }))
   }
 
+const MACHINE_TYPES = [
+  'CNC 1200x800 - 4 листи (Малий)',
+  'CNC 3050(16)х16 - 3-12 листів (швидкісний)',
+  'CNC 3060х1600 - 3-36 листів (Три Головий)',
+  'CNC 6000x2000 - 4 - 96 листів (Дракон)',
+  'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
+]
+
   const findMachine = (name) => {
     if (!name || name === 'Не вказано') return null
     const baseName = name.split(' №')[0].trim()
-    return machines.find(m => m.name === baseName) || machines.find(m => m.name === name)
+    const found = machines.find(m => m.name === baseName) 
+      || machines.find(m => m.name === name)
+      || machines.find(m => m.type === baseName)
+      || machines.find(m => m.type === name)
+    if (found) return found
+
+    const baseNameLower = baseName.toLowerCase()
+    if (baseNameLower.includes('12x8') || baseNameLower.includes('1200x800') || baseNameLower.includes('малий')) {
+      return { sheet_capacity: 4, name: 'CNC 1200x800 - 4 листи (Малий)' }
+    }
+    if (baseNameLower.includes('16x16') || baseNameLower.includes('3050(16)') || baseNameLower.includes('швидкісний')) {
+      return { sheet_capacity: 12, name: 'CNC 3050(16)х16 - 3-12 листів (швидкісний)' }
+    }
+    if (baseNameLower.includes('30x16') || baseNameLower.includes('3060x1600') || baseNameLower.includes('3060х1600') || baseNameLower.includes('три головий') || baseNameLower.includes('триголовий')) {
+      return { sheet_capacity: 36, name: 'CNC 3060х1600 - 3-36 листів (Три Головий)' }
+    }
+    if (baseNameLower.includes('60x20') || baseNameLower.includes('6000x2000') || baseNameLower.includes('дракон')) {
+      return { sheet_capacity: 96, name: 'CNC 6000x2000 - 4 - 96 листів (Дракон)' }
+    }
+    if (baseNameLower.includes('ke xin') || baseNameLower.includes('фея')) {
+      return { sheet_capacity: 16, name: 'CNC KE XIN - 4 - 16 листів (ФЕЯ)' }
+    }
+    return null
   }
 
 
@@ -911,8 +941,11 @@ const ForemanWorkplace = () => {
                                           }}
                                           style={{ flex: 1, background: '#000', border: rowMachineName || plan === 0 ? '1px solid #333' : '1px solid #ef4444', color: rowMachineName || plan === 0 ? '#fff' : '#ef4444', padding: '8px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700, opacity: plan === 0 ? 0.3 : 1 }}
                                         >
-                                          <option value="">{plan === 0 ? 'Не потрібно' : 'Оберіть верстат'}</option>
-                                          {machines.map(m => <option key={m.id} value={m.name}>{m.name} ({m.sheet_capacity} л.)</option>)}
+                                          <option value="">{plan === 0 ? 'Не потрібно' : 'Оберіть тип верстата'}</option>
+                                          {MACHINE_TYPES.map(t => {
+                                            const cap = findMachine(t)?.sheet_capacity || 1
+                                            return <option key={t} value={t}>{t} ({cap} л.)</option>
+                                          })}
                                         </select>
                                         {plan > 0 && productionCards.length === 0 && (
                                           <button 
@@ -966,8 +999,8 @@ const ForemanWorkplace = () => {
                                                 }}
                                                 style={{ flex: 1, background: '#000', border: '1px solid #222', color: '#fff', padding: '5px', borderRadius: '6px', fontSize: '0.7rem' }}
                                               >
-                                                <option value="">Верстат</option>
-                                                {machines.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                                                <option value="">Тип верстата</option>
+                                                {MACHINE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                                               </select>
                                               <span style={{ fontSize: '0.65rem', color: '#444', fontWeight: 900, minWidth: '35px' }}>{l} завант.</span>
                                               <button 
@@ -1544,6 +1577,24 @@ const ForemanWorkplace = () => {
               if (h > 0) return `${h}год ${min}хв`
               return `${min}хв`
             }
+            
+            // Dynamically resolve operations
+            const mac = machines.find(mac => mac.name === m.machine)
+            const opData = machineOperations?.find(o => 
+              o.nomenclature_id === nomenclature?.id && 
+              (o.machine_type === m.machine || (mac && o.machine_id === mac.id))
+            )
+            const s1Ops = opData?.side1_ops || []
+            const s2Ops = opData?.side2_ops || []
+            const s2CutOps = opData?.side2_cut_ops || []
+            
+            const maxOps = Math.max(10, s1Ops.length, s2Ops.length, s2CutOps.length)
+            const opRows = Array.from({ length: maxOps }).map((_, i) => ({
+              s1: s1Ops[i] || '',
+              s2: s2Ops[i] || '',
+              s2c: s2CutOps[i] || ''
+            }))
+
             return (
               <div key={i} className="a4-page" style={{ width: '210mm', height: '297mm', background: '#fff', padding: '10mm', margin: '0 auto 40px auto', pageBreakAfter: 'always', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>
                 <div style={{ height: '100%', display: 'flex', flexDirection: 'column', border: '1.5px solid #000' }}>
@@ -1631,50 +1682,90 @@ const ForemanWorkplace = () => {
                       </div>
                     </div>
                   ))}
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '28px', margin: '4px 0' }}>
+                    <div style={{ display: 'flex', border: '1.5px solid #000', height: '100%' }}>
+                      <div style={{ padding: '0 15px', borderRight: '1.5px solid #000', display: 'flex', alignItems: 'center', fontSize: '10pt', fontWeight: 900 }}>Листи відповідають</div>
+                      <div style={{ padding: '0 15px', borderRight: '1.5px solid #000', display: 'flex', alignItems: 'center', fontSize: '10pt', fontWeight: 900 }}>{nomenclature?.material_type || '—'}</div>
+                      <div style={{ padding: '0 15px', display: 'flex', alignItems: 'center', fontSize: '14pt', fontWeight: 900 }}>☐</div>
+                    </div>
+                  </div>
                   <div style={{ marginTop: '2px' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '6.5pt' }}>
                       <thead>
-                        <tr style={{ background: '#fff', textAlign: 'center', fontWeight: 'bold', height: '28px' }}>
-                          <td style={{ border: '1.5px solid #000', width: '25%' }}>Операція (1 сторона)</td>
-                          <td style={{ border: '1.5px solid #000', width: '8%', fontSize: '5.5pt', lineHeight: 1 }}>Статус<br />виконання<br />☑</td>
+                        <tr style={{ background: '#fff', textAlign: 'center', fontWeight: 'bold' }}>
+                          <td style={{ border: '1.5px solid #000', width: '25%', height: '36px' }}>Операція (1 сторона)</td>
+                          <td style={{ border: '1.5px solid #000', width: '13%', fontSize: '5.5pt', lineHeight: 1.2 }}>
+                            Статус<br />виконання ☑<br/>
+                            <div style={{ borderTop: '1px solid #000', borderBottom: '1px solid #000', margin: '2px 0', padding: '2px 0' }}>Лист | Лист</div>
+                            1, 2 | 3, 4
+                          </td>
                           <td style={{ border: '1.5px solid #000', width: '25%' }}>Операція (2 сторона)</td>
-                          <td style={{ border: '1.5px solid #000', width: '8%', fontSize: '5.5pt', lineHeight: 1 }}>Статус<br />виконання<br />☑</td>
-                          <td style={{ border: '1.5px solid #000', width: '25%' }}>Операція (2 сторона розкрій)</td>
+                          <td style={{ border: '1.5px solid #000', width: '13%', fontSize: '5.5pt', lineHeight: 1.2 }}>
+                            Статус<br />виконання ☑<br/>
+                            <div style={{ borderTop: '1px solid #000', borderBottom: '1px solid #000', margin: '2px 0', padding: '2px 0' }}>Лист | Лист</div>
+                            1, 2 | 3, 4
+                          </td>
+                          <td style={{ border: '1.5px solid #000', width: '15%' }}>Операція (2 сторона вирізка)</td>
                           <td style={{ border: '1.5px solid #000', width: '9%', fontSize: '5.5pt', lineHeight: 1 }}>Статус<br />виконання<br />☑</td>
                         </tr>
                       </thead>
                       <tbody>
-                        {[...Array(10)].map((_, idx) => (
+                        {opRows.map((row, idx) => (
                           <tr key={idx} style={{ height: '22px' }}>
-                            <td style={{ border: '1.5px solid #000' }}></td>
-                            <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt' }}>☐</td>
-                            <td style={{ border: '1.5px solid #000' }}></td>
-                            <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt' }}>☐</td>
-                            <td style={{ border: '1.5px solid #000' }}></td>
+                            <td style={{ border: '1.5px solid #000', paddingLeft: '4px' }}>{row.s1}</td>
+                            <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt', letterSpacing: '2px' }}>☐ | ☐</td>
+                            <td style={{ border: '1.5px solid #000', paddingLeft: '4px' }}>{row.s2}</td>
+                            <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt', letterSpacing: '2px' }}>☐ | ☐</td>
+                            <td style={{ border: '1.5px solid #000', paddingLeft: '4px' }}>{row.s2c}</td>
                             <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt' }}>☐</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                  <div style={{ border: '1.5px solid #000', borderTop: 'none', display: 'flex', height: '45px' }}>
+                  <div style={{ border: '1.5px solid #000', borderTop: 'none', display: 'flex', height: '35px' }}>
                     <div style={{ width: '130px', borderRight: '1.5px solid #000', background: '#fff', fontWeight: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8pt' }}>Коментар</div>
                     <div style={{ flex: 1 }}></div>
                   </div>
-                  <div style={{ marginTop: '2px' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '6.5pt' }}>
-                      <tbody>
-                        {[1, 2, 3, 4].map(num => (
-                          <tr key={num} style={{ height: '28px' }}>
-                            <td style={{ border: '1.5px solid #000', width: '130px', textAlign: 'center', fontWeight: 'bold', background: '#fff' }}>{num} лист<br />Перша деталь</td>
-                            <td style={{ border: '1.5px solid #000', width: '12%' }}></td>
-                            <td style={{ border: '1.5px solid #000', width: '12%' }}></td>
-                            <td style={{ border: '1.5px solid #000', width: '12%' }}></td>
-                            <td style={{ border: '1.5px solid #000' }}></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div style={{ border: '1.5px solid #000', marginTop: '4px', display: 'flex', flexDirection: 'column', fontSize: '7.5pt' }}>
+                    <div style={{ display: 'flex', borderBottom: '1.5px solid #000', background: '#f5f5f5', fontWeight: 900, textAlign: 'center' }}>
+                      <div style={{ width: '70%', padding: '4px', borderRight: '1.5px solid #000' }}>Кількість використаних фрез</div>
+                      <div style={{ width: '30%', padding: '4px' }}>Загалом використано фрез</div>
+                    </div>
+                    <div style={{ display: 'flex' }}>
+                      <div style={{ width: '70%', borderRight: '1.5px solid #000', display: 'flex' }}>
+                        <div style={{ width: '50%', borderRight: '1.5px solid #000', display: 'flex', flexDirection: 'column' }}>
+                          <div style={{ display: 'flex', borderBottom: '1.5px solid #000', height: '24px' }}>
+                            <div style={{ width: '40%', borderRight: '1.5px solid #000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>1,5мм</div>
+                            <div style={{ width: '60%' }}></div>
+                          </div>
+                          <div style={{ display: 'flex', borderBottom: '1.5px solid #000', height: '24px' }}>
+                            <div style={{ width: '40%', borderRight: '1.5px solid #000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>2мм</div>
+                            <div style={{ width: '60%' }}></div>
+                          </div>
+                          <div style={{ display: 'flex', height: '24px' }}>
+                            <div style={{ width: '40%', borderRight: '1.5px solid #000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>3мм</div>
+                            <div style={{ width: '60%' }}></div>
+                          </div>
+                        </div>
+                        <div style={{ width: '50%', display: 'flex', flexDirection: 'column' }}>
+                          <div style={{ display: 'flex', borderBottom: '1.5px solid #000', height: '36px' }}>
+                            <div style={{ width: '40%', borderRight: '1.5px solid #000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>4мм</div>
+                            <div style={{ width: '60%' }}></div>
+                          </div>
+                          <div style={{ display: 'flex', height: '36px' }}>
+                            <div style={{ width: '40%', borderRight: '1.5px solid #000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>6мм</div>
+                            <div style={{ width: '60%' }}></div>
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ width: '30%', display: 'flex', flexDirection: 'column', fontWeight: 900, padding: '4px 8px', justifyContent: 'space-between' }}>
+                        <div>1,5мм - </div>
+                        <div>2мм - </div>
+                        <div>3мм - </div>
+                        <div>4мм - </div>
+                        <div>6мм - </div>
+                      </div>
                   </div>
                   <div style={{ marginTop: '2px', border: '1.5px solid #000', display: 'flex', fontSize: '7.5pt', height: '60px' }}>
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
@@ -1710,6 +1801,7 @@ const ForemanWorkplace = () => {
                   </div>
                 </div>
               </div>
+            </div>
             )
           })}
         </div>

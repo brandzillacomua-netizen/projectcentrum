@@ -25,6 +25,7 @@ import {
 import { Link } from 'react-router-dom';
 import { nomenclatureService } from '../services/nomenclatureService';
 import { useMES } from '../MESContext';
+import { supabase } from '../supabase';
 
 const GroupItem = ({ group, allGroups, depth = 0 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -293,6 +294,7 @@ const NomenclatureV2 = () => {
         };
 
         // 4. Імпорт компонентів
+        const createdBOM = [];
         for (const comp of parsed.components) {
           const fullName = comp.characteristics ? `${comp.name} ${comp.characteristics}`.trim() : comp.name.trim();
           const targetGroup = await getGroup(comp.groupName);
@@ -312,6 +314,8 @@ const NomenclatureV2 = () => {
             code: "BASE",
             is_base: true
           }).catch(() => {}); // Ігноруємо якщо вже є
+          
+          createdBOM.push({ child_id: baseNom.id, qty: comp.qtyPerOne });
         }
 
         // 5. Створення головного виробу
@@ -329,6 +333,18 @@ const NomenclatureV2 = () => {
           code: "BASE",
           is_base: true
         }).catch(() => {});
+
+        setImportLogs(prev => [...prev, `🔗 Формування специфікації BOM...`]);
+        await supabase.from('bom_items').delete().eq('parent_id', parentNom.id);
+        if (createdBOM.length > 0) {
+          const payload = createdBOM.map(it => ({
+            parent_id: parentNom.id,
+            child_id: it.child_id,
+            quantity_per_parent: Number(it.qty) || 1
+          }));
+          const { error: bomErr } = await supabase.from('bom_items').insert(payload);
+          if (bomErr) throw new Error("Помилка створення BOM: " + bomErr.message);
+        }
 
         setImportLogs(prev => [...prev, '✅ ІМПОРТ ЗАВЕРШЕНО УСПІШНО!']);
         loadData();

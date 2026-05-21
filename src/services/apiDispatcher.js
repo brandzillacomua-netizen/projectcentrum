@@ -261,16 +261,22 @@ export const apiService = {
     console.log("%c--- 🔑 BACKEND ACTION: AUTH SYNC ---", "color: #3b82f6; font-weight: bold; font-size: 14px; text-decoration: underline;");
     
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5s timeout
+
       const res = await fetch(baseUrl + '/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: login, password: password })
+        body: JSON.stringify({ email: login, password: password }),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
+      
       const data = await res.json();
       console.log("Backend Response:", data);
       return data;
     } catch (err) {
-      console.warn("Backend Auth Sync failed (offline or wrong URL):", err.message);
+      console.warn("Backend Auth Sync failed (offline or timeout):", err.message);
       return null;
     }
   }

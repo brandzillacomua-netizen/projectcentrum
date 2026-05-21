@@ -152,6 +152,8 @@ export const MESProvider = ({ children }) => {
       getFilteredManagers,
       managers,
       productionStages,
+      machineOperations: data.machineOperations,
+      setMachineOperations: data.setMachineOperations,
       supabase
     }}>
       {children}

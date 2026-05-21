@@ -7,6 +7,14 @@ import { supabase } from '../supabase'
 // Ланцюжок Цеху №1
 const CHAIN = ['Розкрій', 'Галтовка', 'Прийомка', 'Сортування']
 
+const MACHINE_TYPES = [
+  'CNC 1200x800 - 4 листи (Малий)',
+  'CNC 3050(16)х16 - 3-12 листів (швидкісний)',
+  'CNC 3060х1600 - 3-36 листів (Три Головий)',
+  'CNC 6000x2000 - 4 - 96 листів (Дракон)',
+  'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
+]
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Статусний потік картки:
 //
@@ -317,18 +325,20 @@ export default function Shop1Terminal() {
         const machineExists = (machines || []).some(m => {
           const mName = String(m.name || '').trim().toLowerCase()
           const mInv = String(m.inventory_no || '').trim().toLowerCase()
+          const mSeq = String(m.sequence_number || '').trim().toLowerCase()
+          const mType = String(m.type || '').trim().toLowerCase()
 
-          // If both name and number are specified
+          // If both name (type) and number are specified
           if (cleanName && cleanNum) {
-            return (mName === cleanName || mName.includes(cleanName)) && mInv === cleanNum
+            return (mName === cleanName || mType === cleanName || mName.includes(cleanName) || mType.includes(cleanName)) && (mInv === cleanNum || mSeq === cleanNum)
           }
-          // If only name is specified
+          // If only name (type) is specified
           if (cleanName) {
-            return mName === cleanName || mInv === cleanName || mName.includes(cleanName)
+            return mName === cleanName || mType === cleanName || mInv === cleanName || mSeq === cleanName || mName.includes(cleanName) || mType.includes(cleanName)
           }
           // If only number is specified
           if (cleanNum) {
-            return mInv === cleanNum
+            return mInv === cleanNum || mSeq === cleanNum
           }
           return false
         })
@@ -1073,9 +1083,13 @@ export default function Shop1Terminal() {
                     <div>
                       <label style={labelStyle}>Верстат / обладнання</label>
                       <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                        <input type="text" placeholder="Назва верстата..."
+                        <input type="text" placeholder="Оберіть або введіть тип верстата..."
                           value={selectedMachine} onChange={e => setSelectedMachine(e.target.value)}
+                          list="machine-types-list"
                           style={{ ...selectStyle, cursor: 'text', flex: 1 }} />
+                        <datalist id="machine-types-list">
+                          {MACHINE_TYPES.map(t => <option key={t} value={t} />)}
+                        </datalist>
                         <div style={{ position: 'relative', width: '90px' }}>
                           <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#555', fontWeight: 1000, fontSize: '1.1rem' }}>№</span>
                           <input type="text" placeholder="1-88"

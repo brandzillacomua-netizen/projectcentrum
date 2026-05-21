@@ -30,6 +30,7 @@ export function useData() {
   const [workCardHistory, setWorkCardHistory] = useState(cache.workCardHistory || [])
   const [machines, setMachines] = useState(cache.machines || [])
   const [systemUsers, setSystemUsers] = useState(cache.systemUsers || [])
+  const [machineOperations, setMachineOperations] = useState(cache.machineOperations || [])
   const [accessLogs, setAccessLogs] = useState(cache.accessLogs || [])
   const [fortnetUrl, setFortnetUrl] = useState(localStorage.getItem('FORTNET_API_URL') || 'http://192.168.1.100:8090')
   
@@ -80,7 +81,7 @@ export function useData() {
   }
 
   const fetchData = async (force = false) => {
-    if (!force && Date.now() - lastFetchTime < 10000) return
+    if (!force && Date.now() - lastFetchTime < 1000) return
     if (orders.length === 0) setLoading(true)
     try {
       setLastFetchTime(Date.now())
@@ -100,6 +101,7 @@ export function useData() {
         { data: wc },
         { data: mc },
         { data: su },
+        { data: mo },
         { data: mt },
         { data: wch },
         { data: al },
@@ -116,6 +118,7 @@ export function useData() {
         supabase.from('work_cards').select('*').neq('status', 'completed').order('created_at', { ascending: true }),
         supabase.from('machines').select('*').order('name'),
         supabase.from('system_users').select('*').order('login'),
+        supabase.from('machine_operations').select('*'),
         supabase.from('management_tasks').select('*').neq('status', 'completed').order('created_at', { ascending: false }),
         supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(200),
         supabase.from('access_logs').select('*').order('event_time', { ascending: false }).limit(200),
@@ -143,6 +146,7 @@ export function useData() {
       if (b) setBomItems(b)
       if (mc) setMachines(mc)
       if (su) setSystemUsers(su)
+      if (mo) setMachineOperations(mo)
       if (rec) setReceptionDocs(rec)
       if (pr) setPurchaseRequests(pr)
       if (wc) setWorkCards(wc)
@@ -225,6 +229,7 @@ export function useData() {
           bomItems,
           machines,
           systemUsers,
+          machineOperations,
           // inventory, receptionDocs, purchaseRequests, workCards, workCardHistory
           // виключено з кешу — великі таблиці, завжди свіжо завантажуються
         }
@@ -233,7 +238,7 @@ export function useData() {
         console.warn('Cache write failed (quota?):', e)
       }
     }, 2000) // Затримка 2с після останньої зміни
-  }, [orders, customers, tasks, managementTasks, requests, nomenclatures, bomItems, machines, systemUsers])
+  }, [orders, customers, tasks, managementTasks, requests, nomenclatures, bomItems, machines, systemUsers, machineOperations])
 
   // --- REAL-TIME ---
   useEffect(() => {
@@ -338,6 +343,15 @@ export function useData() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'machines' }, () => {
         supabase.from('machines').select('*').order('name').then(({ data }) => { if (data) setMachines(data) })
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'machine_operations' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setMachineOperations(prev => prev.some(o => o.id === payload.new.id) ? prev : [payload.new, ...prev])
+        } else if (payload.eventType === 'UPDATE') {
+          setMachineOperations(prev => prev.map(o => o.id === payload.new.id ? payload.new : o))
+        } else if (payload.eventType === 'DELETE') {
+          setMachineOperations(prev => prev.filter(o => o.id !== payload.old.id))
+        }
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'system_users' }, () => {
         supabase.from('system_users').select('*').order('login').then(({ data }) => { if (data) setSystemUsers(data) })
       })
@@ -392,6 +406,7 @@ export function useData() {
     workCardHistory, setWorkCardHistory,
     machines, setMachines,
     systemUsers, setSystemUsers,
+    machineOperations, setMachineOperations,
     accessLogs, setAccessLogs,
     fortnetUrl, setFortnetUrl,
     currentUser, setCurrentUser,

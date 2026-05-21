@@ -8,12 +8,11 @@ import { apiService } from '../services/apiDispatcher'
 export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers, fetchData }) {
 
   const login = async (loginName, password) => {
-    const backendRes = await apiService.submitLogin(loginName, password)
-
-    const { data } = await supabase
-      .from('system_users')
-      .select('*')
-      .eq('login', loginName)
+    // Run backend and Supabase auth queries in parallel to avoid blocking if backend is slow
+    const [backendRes, { data }] = await Promise.all([
+      apiService.submitLogin(loginName, password).catch(() => null),
+      supabase.from('system_users').select('*').eq('login', loginName)
+    ])
 
     let user = (data && data.length > 0) ? data[0] : null
     const token = backendRes?.token || backendRes?.accessToken || backendRes?.data?.token

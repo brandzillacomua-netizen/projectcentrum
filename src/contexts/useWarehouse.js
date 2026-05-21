@@ -23,14 +23,14 @@ export function createWarehouseActions({
       order_id: orderId, task_id: taskId, order_num: orderNum,
       items: processedItems, status: 'pending', destination_warehouse: 'production'
     }])
-    if (!error) fetchData()
+    if (!error) fetchData(true)
     return { error }
   }
 
   const updatePurchaseRequestStatus = async (id, status, destWarehouse = 'production') => {
     const { error } = await supabase.from('purchase_requests')
       .update({ status, destination_warehouse: destWarehouse }).eq('id', id)
-    if (!error) fetchData()
+    if (!error) fetchData(true)
     return { error }
   }
 
@@ -59,9 +59,11 @@ export function createWarehouseActions({
     // Бронювання на складі-відправнику якщо це переміщення СВ → СО
     if (sourceWH) {
       try {
-        const { data: invData } = await supabase.from('inventory').select('*').eq('warehouse', sourceWH)
+        const { data: invData } = await supabase.from('inventory').select('id,nomenclature_id,name,reserved_qty,total_qty').eq('warehouse', sourceWH)
         const inv = invData || []
 
+        // Collect all updates, then run in parallel
+        const reserveUpdates = []
         for (const it of (requestData.items || [])) {
           const qty = Number(it.qty ?? it.quantity ?? it.needed ?? 0)
           if (qty <= 0) continue
@@ -70,20 +72,21 @@ export function createWarehouseActions({
           const itemName = it.name || it.details || ''
 
           let matches = []
-          if (nomId) {
-            matches = inv.filter(i => String(i.nomenclature_id) === String(nomId))
-          }
+          if (nomId) matches = inv.filter(i => String(i.nomenclature_id) === String(nomId))
           if (matches.length === 0 && itemName) {
             matches = inv.filter(i => i.name && i.name.toLowerCase().trim() === itemName.toLowerCase().trim())
           }
 
           if (matches.length > 0) {
             const best = matches.sort((a, b) => (Number(b.total_qty) || 0) - (Number(a.total_qty) || 0))[0]
-            await supabase.from('inventory').update({
-              reserved_qty: (Number(best.reserved_qty) || 0) + qty
-            }).eq('id', best.id)
+            reserveUpdates.push(
+              supabase.from('inventory').update({
+                reserved_qty: (Number(best.reserved_qty) || 0) + qty
+              }).eq('id', best.id)
+            )
           }
         }
+        if (reserveUpdates.length > 0) await Promise.all(reserveUpdates)
       } catch (err) {
         console.error('Error reserving items during transfer:', err)
       }
@@ -104,7 +107,7 @@ export function createWarehouseActions({
       return { error: recError }
     }
 
-    fetchData()
+    fetchData(true)
     return { success: true }
   }
 
@@ -116,7 +119,7 @@ export function createWarehouseActions({
       target_warehouse: targetWH, source_warehouse: sourceWH,
       created_at: new Date().toISOString()
     }]).select()
-    if (!error) fetchData()
+    if (!error) fetchData(true)
     return { data: (data && data.length > 0) ? data[0] : null, error }
   }
 
@@ -126,7 +129,7 @@ export function createWarehouseActions({
     if (newSource) updateData.source_warehouse = newSource
     
     const { error } = await supabase.from('reception_docs').update(updateData).eq('id', docId)
-    if (!error) fetchData()
+    if (!error) fetchData(true)
     return { error }
   }
 
@@ -153,34 +156,25 @@ export function createWarehouseActions({
 
       if (items.length === 0) {
         await supabase.from('reception_docs').update({ status: 'completed' }).eq('id', docId)
-        fetchData()
+        fetchData(true)
         return
       }
 
-      const nomIds = items.map(it => it.nomenclature_id).filter(Boolean)
-      const names = items.map(it => it.name || it.reqDetails || it.details || '').filter(Boolean)
+      // ── Fetch both warehouse inventories IN PARALLEL, only needed columns ──
+      const [targetResult, sourceResult] = await Promise.all([
+        supabase.from('inventory')
+          .select('id,nomenclature_id,name,type,total_qty,reserved_qty,unit,warehouse')
+          .eq('warehouse', targetWarehouse),
+        sourceWarehouse
+          ? supabase.from('inventory')
+              .select('id,nomenclature_id,name,type,total_qty,reserved_qty,unit,warehouse')
+              .eq('warehouse', sourceWarehouse)
+          : Promise.resolve({ data: [] })
+      ])
 
-      const buildInventoryQuery = (wh) => {
-        let q = supabase.from('inventory').select('*').eq('warehouse', wh)
-        const filters = []
-        if (nomIds.length > 0) filters.push(`nomenclature_id.in.(${nomIds.join(',')})`)
-        if (names.length > 0) {
-          const escapedNames = names.map(n => n.replace(/"/g, '""'))
-          filters.push(`name.in.("${escapedNames.join('","')}")`)
-        }
-        if (filters.length > 0) q = q.or(filters.join(','))
-        return q
-      }
-
-      const { data: targetInv, error: tInvErr } = await buildInventoryQuery(targetWarehouse)
-      if (tInvErr) throw tInvErr
-
-      let sourceInv = []
-      if (sourceWarehouse) {
-        const { data: sInvData, error: sInvErr } = await buildInventoryQuery(sourceWarehouse)
-        if (sInvErr) throw sInvErr
-        sourceInv = sInvData || []
-      }
+      if (targetResult.error) throw targetResult.error
+      const targetInv = targetResult.data || []
+      const sourceInv = sourceResult.data || []
 
       const updatesMap = new Map()
       const insertsMap = new Map()
@@ -192,12 +186,17 @@ export function createWarehouseActions({
         const nomId = it.nomenclature_id
         const itemName = it.name || it.reqDetails || it.details || ''
 
+        // Match by nomenclature_id first, then by normalized name
         let matches = []
         if (nomId) {
-          matches = (targetInv || []).filter(i => String(i.nomenclature_id) === String(nomId))
+          matches = targetInv.filter(i => String(i.nomenclature_id) === String(nomId))
         }
         if (matches.length === 0 && itemName) {
-          matches = (targetInv || []).filter(i => normalize(i.name) === normalize(itemName))
+          matches = targetInv.filter(i => normalize(i.name) === normalize(itemName))
+        }
+        // Last resort: exact name match (catches cases where normalize differs)
+        if (matches.length === 0 && itemName) {
+          matches = targetInv.filter(i => i.name === itemName)
         }
 
         let existing = null
@@ -240,20 +239,46 @@ export function createWarehouseActions({
         }
       }
 
-      const finalUpdates = Array.from(updatesMap.values())
-      const finalInserts = Array.from(insertsMap.values())
-
-      if (finalUpdates.length > 0) {
-        const { error: upErr } = await supabase.from('inventory').upsert(finalUpdates)
-        if (upErr) throw upErr
-      }
-      if (finalInserts.length > 0) {
-        const { error: insErr } = await supabase.from('inventory').insert(finalInserts)
-        if (insErr) throw insErr
+      // Map helper to sanitize units
+      const sanitizeUnit = (item) => {
+        if (item.unit) return item.unit
+        const nom = item.nomenclature_id ? nomenclatures.find(n => n.id === item.nomenclature_id) : null
+        return nom?.unit || 'шт'
       }
 
-      const { error: docFinalErr } = await supabase.from('reception_docs').update({ status: 'completed' }).eq('id', docId)
-      if (docFinalErr) throw docFinalErr
+      const finalUpdatesRaw = Array.from(updatesMap.values())
+      let finalInsertsRaw = Array.from(insertsMap.values())
+
+      // ── Safety: filter out inserts whose name already exists in targetInv ──
+      // (covers edge cases where client-side matching was insufficient)
+      finalInsertsRaw = finalInsertsRaw.filter(ins => {
+        const clash = targetInv.find(e => e.name === ins.name && e.warehouse === ins.warehouse)
+        if (clash) {
+          // Merge into finalUpdatesRaw
+          const existingUpd = finalUpdatesRaw.find(u => u.id === clash.id)
+          if (existingUpd) {
+            existingUpd.total_qty = (Number(existingUpd.total_qty) || 0) + (Number(ins.total_qty) || 0)
+          } else {
+            finalUpdatesRaw.push({ ...clash, total_qty: (Number(clash.total_qty) || 0) + (Number(ins.total_qty) || 0) })
+          }
+          return false
+        }
+        return true
+      })
+
+      const finalUpdates = finalUpdatesRaw.map(u => ({ ...u, unit: sanitizeUnit(u) }))
+      const finalInserts = finalInsertsRaw.map(ins => ({ ...ins, unit: sanitizeUnit(ins) }))
+
+      // ── Run all DB writes in parallel ──
+      const writeOps = []
+      if (finalUpdates.length > 0) writeOps.push(supabase.from('inventory').upsert(finalUpdates))
+      if (finalInserts.length > 0) writeOps.push(supabase.from('inventory').insert(finalInserts))
+      writeOps.push(supabase.from('reception_docs').update({ status: 'completed' }).eq('id', docId))
+
+      const results = await Promise.all(writeOps)
+      for (const r of results) {
+        if (r.error) throw r.error
+      }
 
       if (doc.task_id || doc.order_id) {
         let destWhToComplete = ''
@@ -267,9 +292,7 @@ export function createWarehouseActions({
         }
       }
 
-      refreshTable('inventory')
-      refreshTable('reception_docs')
-      refreshTable('purchase_requests')
+      fetchData(true)
       alert('Прийомку успішно завершено! Склад оновлено.')
     } catch (err) {
       console.error('CRITICAL: confirmReception crash:', err)
@@ -370,9 +393,9 @@ export function createWarehouseActions({
         return r
       }))
       if (taskId) {
-        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, warehouse_conf: true } : t))
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, warehouse_conf: true } : t))
       }
-      fetchData()
+      fetchData(true)
     } catch (err) {
       console.error('Batch issue error:', err)
       throw err
@@ -385,18 +408,15 @@ export function createWarehouseActions({
     const { error } = await supabase.from('inventory').update({
       total_qty: (Number(invItem.total_qty) || 0) + Number(qty)
     }).eq('id', inventoryId)
-    if (!error) fetchData()
+    if (!error) fetchData(true)
     return { error }
   }
 
   const fixInventoryTypes = async () => {
     const { error } = await supabase.from('inventory').update({ type: 'wip_bz' }).eq('type', 'bz')
-    if (!error) fetchData()
+    if (!error) fetchData(true)
     return { error }
   }
-
-
-
 
   const deductIssuedMaterialsForTask = async (taskId) => {
     try {
@@ -433,8 +453,6 @@ export function createWarehouseActions({
     }
   }
 
-
-
   const submitPickingRequest = async (orderId, requiredItems, taskId = null) => {
     const order = orders.find(o => o.id === orderId)
     const task = (tasks || []).find(t => t.id === taskId)
@@ -459,13 +477,9 @@ export function createWarehouseActions({
     if (requestsToInsert.length > 0) {
       const { error } = await supabase.from('material_requests').insert(requestsToInsert)
       if (error) console.error("Picking Request Error:", error)
-      fetchData()
+      fetchData(true)
     }
   }
-
-
-  
-
 
   return {
     deductIssuedMaterialsForTask, submitPickingRequest,

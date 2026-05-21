@@ -7,8 +7,8 @@ export function createProductionActions({
   deductIssuedMaterialsForTask
 }) {
 
-  const approveWarehouse = async (taskId) => { await supabase.from('tasks').update({ warehouse_conf: true }).eq('id', taskId); fetchData() }
-  const approveEngineer  = async (taskId) => { await supabase.from('tasks').update({ engineer_conf: true }).eq('id', taskId); fetchData() }
+  const approveWarehouse = async (taskId) => { await supabase.from('tasks').update({ warehouse_conf: true }).eq('id', taskId); fetchData(true) }
+  const approveEngineer  = async (taskId) => { await supabase.from('tasks').update({ engineer_conf: true }).eq('id', taskId); fetchData(true) }
   const approveDirector  = async (taskId) => {
     await supabase.from('tasks').update({ director_conf: true }).eq('id', taskId);
     const targetTask = tasks.find(t => String(t.id) === String(taskId))
@@ -33,21 +33,21 @@ export function createProductionActions({
         }])
       }
     }
-    fetchData()
+    fetchData(true)
   }
 
-  const upsertNomenclature = async (nom) => { await supabase.from('nomenclatures').upsert([nom]); fetchData() }
-  const deleteNomenclature = async (id)  => { await supabase.from('nomenclatures').delete().eq('id', id); fetchData() }
+  const upsertNomenclature = async (nom) => { await supabase.from('nomenclatures').upsert([nom]); fetchData(true) }
+  const deleteNomenclature = async (id)  => { await supabase.from('nomenclatures').delete().eq('id', id); fetchData(true) }
 
   const saveBOM = async (parentId, childId, qty) => {
     await supabase.from('bom_items').upsert([{ parent_id: parentId, child_id: childId, quantity_per_parent: Number(qty) }], { onConflict: 'parent_id, child_id' })
-    fetchData()
+    fetchData(true)
   }
-  const removeBOM = async (bomId) => { await supabase.from('bom_items').delete().eq('id', bomId); fetchData() }
+  const removeBOM = async (bomId) => { await supabase.from('bom_items').delete().eq('id', bomId); fetchData(true) }
   const syncBOM = async (parentId, items) => {
     await supabase.from('bom_items').delete().eq('parent_id', parentId)
     if (items.length > 0) await supabase.from('bom_items').insert(items.map(it => ({ parent_id: parentId, child_id: it.child_id, quantity_per_parent: Number(it.qty) })))
-    fetchData()
+    fetchData(true)
   }
 
   const addOrder = async (header, items) => {
@@ -86,7 +86,7 @@ export function createProductionActions({
       });
     }
 
-    fetchData()
+    fetchData(true)
   }
 
   const createWorkCard = async (taskId, orderId, nomenclatureId, operation, machine, estimatedTime, cardInfo, quantity, bufferQty, isRework = false) => {
@@ -98,7 +98,7 @@ export function createProductionActions({
     }]).select()
     const data = (list && list.length > 0) ? list[0] : null
     await supabase.from('tasks').update({ status: 'in-progress' }).eq('id', taskId)
-    fetchData()
+    fetchData(true)
     return data
   }
 
@@ -204,17 +204,17 @@ export function createProductionActions({
   const completeTaskByMaster = async (taskId) => {
     await deductIssuedMaterialsForTask(taskId)
     await supabase.from('tasks').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', taskId)
-    fetchData()
+    fetchData(true)
   }
 
   const addManagementTask = async (taskPayload, currentUserLogin) => {
     const { data, error } = await supabase.from('management_tasks').insert([{ ...taskPayload, created_by: currentUserLogin || 'system', created_at: new Date().toISOString() }]).select()
-    if (!error) fetchData()
+    if (!error) fetchData(true)
     return { data: data?.[0], error }
   }
   const updateManagementTask = async (taskId, updates) => {
     const { error } = await supabase.from('management_tasks').update(updates).eq('id', taskId)
-    if (!error) fetchData()
+    if (!error) fetchData(true)
     return { error }
   }
   const deleteManagementTask = async (taskId) => {
@@ -225,12 +225,12 @@ export function createProductionActions({
 
   const addMachine = async (machineData) => {
     const { data, error } = await supabase.from('machines').insert([machineData]).select()
-    if (!error) fetchData()
+    if (!error) fetchData(true)
     return { data: data?.[0], error }
   }
   const updateMachine = async (id, updates) => {
     const { error } = await supabase.from('machines').update(updates).eq('id', id)
-    if (!error) fetchData()
+    if (!error) fetchData(true)
     return { error }
   }
   const deleteMachine = async (id) => {
@@ -648,13 +648,13 @@ export function createProductionActions({
       await supabase.from('inventory').update({ reserved_qty: nextReserved }).eq('id', bz.id)
       await supabase.from('work_cards').insert([{ task_id: taskId, order_id: orderId, nomenclature_id: nomenclatureId, quantity: qty, status: 'completed', operation: 'Склад БЗ', card_info: '[ЗІ СКЛАДУ БЗ]', buffer_qty: 0 }])
       await supabase.from('work_card_history').insert([{ task_id: taskId, nomenclature_id: nomenclatureId, stage_name: 'Склад БЗ', operator_name: 'Система (БРОНЬ)', qty_at_start: qty, qty_completed: qty, scrap_qty: 0, completed_at: new Date().toISOString() }])
-      fetchData(); return { success: true }
+      fetchData(true); return { success: true }
     } catch (err) { console.error(err); throw err }
   }
 
   const completePackaging = async (orderId) => {
     await supabase.from('orders').update({ status: 'packaged' }).eq('id', orderId)
-    fetchData()
+    fetchData(true)
   }
 
   const disposeScrapItem = async (invId, qty) => {
@@ -664,7 +664,7 @@ export function createProductionActions({
     if (nextQty > 0) await supabase.from('inventory').update({ total_qty: nextQty }).eq('id', invId)
     else await supabase.from('inventory').delete().eq('id', invId)
     await supabase.from('reception_docs').insert([{ doc_num: `DIS-${Date.now().toString().slice(-6)}`, type: 'scrap_disposal', status: 'completed', items: JSON.stringify([{ name: item.name, qty: qty, nomenclature_id: item.nomenclature_id, disposed_at: new Date().toISOString() }]) }])
-    fetchData()
+    fetchData(true)
   }
 
   const createReworkNaryad = async (invId, qty, stage) => {
@@ -685,7 +685,7 @@ export function createProductionActions({
     const nextQty = (Number(scrapItem.total_qty) || 0) - Number(qty)
     if (nextQty > 0) await supabase.from('inventory').update({ total_qty: nextQty }).eq('id', scrapItem.id)
     else await supabase.from('inventory').delete().eq('id', scrapItem.id)
-    fetchData()
+    fetchData(true)
   }
 
   return {

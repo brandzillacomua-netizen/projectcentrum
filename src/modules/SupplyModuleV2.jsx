@@ -340,6 +340,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
 
       // 2. Бронюємо наявні частини на Складі Виробництва
       const updatedItems = [...(pr.items || [])]
+      const inventoryUpdates = []
       
       for (let i = 0; i < updatedItems.length; i++) {
         const it = updatedItems[i]
@@ -366,9 +367,11 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
           
           if (canReserve > 0) {
             const firstInv = matchingItems[0]
-            await supabase.from('inventory').update({
-              reserved_qty: (Number(firstInv.reserved_qty) || 0) + canReserve
-            }).eq('id', firstInv.id)
+            inventoryUpdates.push(
+              supabase.from('inventory').update({
+                reserved_qty: (Number(firstInv.reserved_qty) || 0) + canReserve
+              }).eq('id', firstInv.id)
+            )
             
             // Оновлюємо кількість заброньованого в самому запиті
             updatedItems[i] = { 
@@ -376,6 +379,14 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
               reserved_from_stock: (Number(it.reserved_from_stock) || 0) + canReserve 
             }
           }
+        }
+      }
+
+      // Run inventory updates in parallel
+      if (inventoryUpdates.length > 0) {
+        const results = await Promise.all(inventoryUpdates)
+        for (const res of results) {
+          if (res.error) throw res.error
         }
       }
 
