@@ -632,14 +632,17 @@ const SettingsModule = () => {
     { id: 'foreman', label: 'Майстер дільниці' },
     { id: 'operator', label: 'Термінал оператора' },
     { id: 'shop1', label: 'Цех №1 (Розкрій→Прийомка)' },
+    { id: 'shop2', label: 'Цех №2 (Черга)' },
+    { id: 'shop2_terminal', label: 'Цех №2 · Термінал' },
     { id: 'packaging', label: 'Пакування' },
     { id: 'shipping', label: 'Логістика' },
     { id: 'supply', label: 'Склад Виробництва' },
     { id: 'procurement', label: 'Постачання (Закупівля)' },
-    { id: 'shop2', label: 'Цех №2 (Черга)' },
-    { id: 'nomenclature', label: 'База номенклатур (Old)' },
     { id: 'nomenclature_v2', label: 'Номенклатура (Нова)' },
+    { id: 'nomenclature', label: 'База номенклатур (Old)' },
     { id: 'machines', label: 'Налаштування станків' },
+    { id: 'analytics', label: 'Аналітика' },
+    { id: 'brak', label: 'ВКЯ (Контроль якості)' },
     { id: 'access', label: 'Система Доступу' },
     { id: 'reports', label: 'Звіти та Аналітика (1C)' },
     { id: 'settings', label: 'Система (Адмін)' }
@@ -831,7 +834,7 @@ const SettingsModule = () => {
                   <label className="form-label" style={{ marginBottom: '12px', color: '#ff9000', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <ShieldCheck size={14} /> ДОСТУПНІ МОДУЛІ В МЕС:
                   </label>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', maxHeight: '200px', overflowY: 'auto', padding: '6px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.03)' }} className="custom-scroll">
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', padding: '6px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.03)' }}>
                     {moduleList.map(mod => (
                       <div key={mod.id} 
                         onClick={() => toggleRight(mod.id)}
