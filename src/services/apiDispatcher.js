@@ -258,11 +258,10 @@ export const apiService = {
   },
 
   submitLogin: async (login, password) => {
-    console.log("%c--- 🔑 BACKEND ACTION: AUTH SYNC ---", "color: #3b82f6; font-weight: bold; font-size: 14px; text-decoration: underline;");
-    
+    // Fire-and-forget: 500ms hard timeout, never blocks the UI login flow
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 500);
 
       const res = await fetch(baseUrl + '/auth/login', {
         method: 'POST',
@@ -271,12 +270,11 @@ export const apiService = {
         signal: controller.signal
       });
       clearTimeout(timeoutId);
-      
+
       const data = await res.json();
-      console.log("Backend Response:", data);
       return data;
     } catch (err) {
-      console.warn("Backend Auth Sync failed (offline or timeout):", err.message);
+      // Backend offline or slow — silently ignore, Supabase is the master auth source
       return null;
     }
   }

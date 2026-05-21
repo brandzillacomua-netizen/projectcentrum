@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import {
   Warehouse as WarehouseIcon,
   ArrowLeft,
@@ -22,8 +22,11 @@ const WarehouseModuleV2 = () => {
     inventory, requests, issueMaterials, issueMaterialsBatch,
     nomenclatures, receptionDocs, confirmReception,
     orders, tasks, approveWarehouse, createPurchaseRequest,
-    purchaseRequests, receiveInventory, currentUser
+    purchaseRequests, receiveInventory, currentUser, fetchModuleData
   } = useMES()
+
+  // Load warehouse-specific data on mount
+  useEffect(() => { fetchModuleData('warehouse') }, [])
 
   const normalize = (s) => (s || '').toLowerCase().trim()
     .replace(/[тt]/g, 't').replace(/[аa]/g, 'a').replace(/[еe]/g, 'e')

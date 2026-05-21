@@ -1,6 +1,8 @@
 import { supabase } from '../supabase'
 import { apiService } from '../services/apiDispatcher'
 
+const USER_CACHE_KEY = 'MES_SESSION_USER'
+
 /**
  * Auth & User Management hooks
  * Returns: { login, logout, upsertUser, deleteUser, searchCustomers }
@@ -8,44 +10,42 @@ import { apiService } from '../services/apiDispatcher'
 export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers, fetchData }) {
 
   const login = async (loginName, password) => {
-    // Run backend and Supabase auth queries in parallel to avoid blocking if backend is slow
-    const [backendRes, { data }] = await Promise.all([
-      apiService.submitLogin(loginName, password).catch(() => null),
-      supabase.from('system_users').select('*').eq('login', loginName)
-    ])
+    // ── Step 1: Authenticate via Supabase (primary, fast) ──────────────────
+    const { data } = await supabase
+      .from('system_users')
+      .select('id,login,password,first_name,last_name,position,access_rights,department,shift')
+      .eq('login', loginName)
+      .maybeSingle()
 
-    let user = (data && data.length > 0) ? data[0] : null
-    const token = backendRes?.token || backendRes?.accessToken || backendRes?.data?.token
-    const isSupabaseAuth = user && user.password === password
-    const isBackendAuth = !!token
-
-    if (isSupabaseAuth || isBackendAuth) {
-      let finalUser = user
-      if (!user && isBackendAuth) {
-        const newUser = {
-          login: loginName,
-          password: password,
-          first_name: 'Зовнішній',
-          last_name: 'Користувач',
-          position: 'Працівник',
-          access_rights: { operator: true, manager: true }
-        }
-        const { data: created } = await upsertUser(newUser)
-        finalUser = created
-      }
-      const userWithToken = { ...finalUser, token }
-      if (token) localStorage.setItem('BACKEND_TOKEN', token)
-      setCurrentUser(userWithToken)
-      localStorage.setItem('MES_SESSION_LOGIN', finalUser.login)
-      return { success: true, user: userWithToken }
+    if (!data || data.password !== password) {
+      return { success: false, error: 'Невірний логін або пароль' }
     }
-    return { success: false, error: 'Невірний логін або пароль' }
+
+    // ── Step 2: Fire-and-forget Rust backend sync (non-blocking) ────────────
+    let token = null
+    apiService.submitLogin(loginName, password)
+      .then(backendRes => {
+        const t = backendRes?.token || backendRes?.accessToken || backendRes?.data?.token
+        if (t) {
+          localStorage.setItem('BACKEND_TOKEN', t)
+          setCurrentUser(prev => prev ? { ...prev, token: t } : prev)
+        }
+      })
+      .catch(() => {}) // silently ignore — Supabase is master
+
+    const userWithToken = { ...data, token }
+    setCurrentUser(userWithToken)
+    localStorage.setItem('MES_SESSION_LOGIN', data.login)
+    // Cache full user object for instant session restore on next page load
+    localStorage.setItem(USER_CACHE_KEY, JSON.stringify(data))
+    return { success: true, user: userWithToken }
   }
 
   const logout = () => {
     setCurrentUser(null)
     localStorage.removeItem('MES_SESSION_LOGIN')
     localStorage.removeItem('BACKEND_TOKEN')
+    localStorage.removeItem(USER_CACHE_KEY)
   }
 
   const upsertUser = async (userData) => {

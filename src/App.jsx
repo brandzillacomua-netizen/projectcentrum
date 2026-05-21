@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, Suspense, lazy } from 'react'
 import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom'
 import { 
   Menu,
@@ -22,32 +22,44 @@ import {
   RefreshCw,
   Sliders
 } from 'lucide-react'
-import ManagerModule from './modules/ManagerModule'
-import WarehouseModule from './modules/WarehouseModuleV2'
-import MasterModule from './modules/MasterModule_v3'
-import NomenclatureModule from './modules/NomenclatureModule'
-import EngineerModule from './modules/EngineerModule'
-import DirectorModule from './modules/DirectorModule'
-import OperatorTerminal from './modules/OperatorTerminalV2'
-import ShippingModule from './modules/ShippingModule'
-import SupplyModule from './modules/SupplyModuleV2'
-import ForemanWorkplace from './modules/ForemanWorkplace'
-import PackagingModule from './modules/PackagingModule'
-import MachinesModule from './modules/MachinesModule'
-import SettingsModule from './modules/SettingsModule'
-import LoginPage from './modules/LoginPage'
-import Shop1Terminal from './modules/Shop1Terminal'
-import Shop2Module from './modules/Shop2Module'
-import Shop2Terminal from './modules/Shop2Terminal'
-import NomenclatureV2 from './modules/NomenclatureV2'
-import AnalyticsModule from './modules/AnalyticsModule'
-import BrakModule from './modules/BrakModule'
-import KanbanModule from './modules/KanbanModule'
-import AccessModule from './modules/AccessModule'
-import ProcurementModule from './modules/SupplyModuleV2' // I'll use the same base for now or create a new one
-import ReportsModule from './modules/ReportsModule'
-import DashboardModule from './modules/DashboardModule'
+
+// ── Lazy-loaded modules (loaded on demand, not at startup) ─────────────────────
+const ManagerModule        = lazy(() => import('./modules/ManagerModule'))
+const WarehouseModule      = lazy(() => import('./modules/WarehouseModuleV2'))
+const MasterModule         = lazy(() => import('./modules/MasterModule_v3'))
+const NomenclatureModule   = lazy(() => import('./modules/NomenclatureModule'))
+const EngineerModule       = lazy(() => import('./modules/EngineerModule'))
+const DirectorModule       = lazy(() => import('./modules/DirectorModule'))
+const OperatorTerminal     = lazy(() => import('./modules/OperatorTerminalV2'))
+const ShippingModule       = lazy(() => import('./modules/ShippingModule'))
+const SupplyModule         = lazy(() => import('./modules/SupplyModuleV2'))
+const ForemanWorkplace     = lazy(() => import('./modules/ForemanWorkplace'))
+const PackagingModule      = lazy(() => import('./modules/PackagingModule'))
+const MachinesModule       = lazy(() => import('./modules/MachinesModule'))
+const SettingsModule       = lazy(() => import('./modules/SettingsModule'))
+const LoginPage            = lazy(() => import('./modules/LoginPage'))
+const Shop1Terminal        = lazy(() => import('./modules/Shop1Terminal'))
+const Shop2Module          = lazy(() => import('./modules/Shop2Module'))
+const Shop2Terminal        = lazy(() => import('./modules/Shop2Terminal'))
+const NomenclatureV2       = lazy(() => import('./modules/NomenclatureV2'))
+const AnalyticsModule      = lazy(() => import('./modules/AnalyticsModule'))
+const BrakModule           = lazy(() => import('./modules/BrakModule'))
+const KanbanModule         = lazy(() => import('./modules/KanbanModule'))
+const AccessModule         = lazy(() => import('./modules/AccessModule'))
+const ReportsModule        = lazy(() => import('./modules/ReportsModule'))
+const DashboardModule      = lazy(() => import('./modules/DashboardModule'))
+
 import { MESProvider, useMES } from './MESContext'
+
+// ── Shared loading fallback ─────────────────────────────────────────────────────
+const ModuleLoader = () => (
+  <div style={{ background: '#050505', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '16px' }}>
+    <div style={{ width: '40px', height: '40px', border: '3px solid #1a1a1a', borderTop: '3px solid #ff9000', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+    <div style={{ color: '#333', fontSize: '0.65rem', fontWeight: 900, letterSpacing: '0.3em', textTransform: 'uppercase' }}>Завантаження модуля...</div>
+    <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+  </div>
+)
+
 
 const FileCodeIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="m10 13-2 2 2 2"/><path d="m14 17 2-2-2-2"/></svg>
@@ -159,35 +171,37 @@ const AppContent = () => {
   }
 
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/" element={<Portal />} />
-      <Route path="/dashboard" element={<DashboardModule />} />
-      <Route path="/manager" element={<ManagerModule />} />
-      <Route path="/warehouse" element={<WarehouseModule />} />
-      <Route path="/master" element={<MasterModule />} />
-      <Route path="/foreman" element={<ForemanWorkplace />} />
-      <Route path="/operator" element={<OperatorTerminal />} />
-      <Route path="/shop1" element={<Shop1Terminal />} />
-      <Route path="/shop2" element={<Shop2Module />} />
-      <Route path="/shop2-terminal" element={<Shop2Terminal />} />
-      <Route path="/packaging" element={<PackagingModule />} />
-      <Route path="/engineer" element={<EngineerModule />} />
-      <Route path="/director" element={<DirectorModule />} />
-      <Route path="/shipping" element={<ShippingModule />} />
-      <Route path="/supply" element={<SupplyModule />} />
-      <Route path="/nomenclature" element={<NomenclatureModule />} />
-      <Route path="/nomenclature-v2" element={<NomenclatureV2 />} />
-      <Route path="/machines" element={<MachinesModule />} />
-      <Route path="/analytics" element={<AnalyticsModule />} />
-      <Route path="/brak" element={<BrakModule />} />
-      <Route path="/tasks" element={<KanbanModule />} />
-      <Route path="/access" element={<AccessModule />} />
-      <Route path="/procurement" element={<ProcurementModule isProcurementOnly={true} />} />
-      <Route path="/reports" element={<ReportsModule />} />
-      <Route path="/settings" element={<SettingsModule />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <Suspense fallback={<ModuleLoader />}>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/" element={<Portal />} />
+        <Route path="/dashboard" element={<DashboardModule />} />
+        <Route path="/manager" element={<ManagerModule />} />
+        <Route path="/warehouse" element={<WarehouseModule />} />
+        <Route path="/master" element={<MasterModule />} />
+        <Route path="/foreman" element={<ForemanWorkplace />} />
+        <Route path="/operator" element={<OperatorTerminal />} />
+        <Route path="/shop1" element={<Shop1Terminal />} />
+        <Route path="/shop2" element={<Shop2Module />} />
+        <Route path="/shop2-terminal" element={<Shop2Terminal />} />
+        <Route path="/packaging" element={<PackagingModule />} />
+        <Route path="/engineer" element={<EngineerModule />} />
+        <Route path="/director" element={<DirectorModule />} />
+        <Route path="/shipping" element={<ShippingModule />} />
+        <Route path="/supply" element={<SupplyModule />} />
+        <Route path="/nomenclature" element={<NomenclatureModule />} />
+        <Route path="/nomenclature-v2" element={<NomenclatureV2 />} />
+        <Route path="/machines" element={<MachinesModule />} />
+        <Route path="/analytics" element={<AnalyticsModule />} />
+        <Route path="/brak" element={<BrakModule />} />
+        <Route path="/tasks" element={<KanbanModule />} />
+        <Route path="/access" element={<AccessModule />} />
+        <Route path="/procurement" element={<SupplyModule isProcurementOnly={true} />} />
+        <Route path="/reports" element={<ReportsModule />} />
+        <Route path="/settings" element={<SettingsModule />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   )
 }
 

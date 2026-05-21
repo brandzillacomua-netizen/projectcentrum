@@ -98,20 +98,51 @@ export const MESProvider = ({ children }) => {
       list = list.filter(u => u.shift === shift || u.shift === 'Без зміни')
     }
 
-    // 3. Filter by Position (Stage)
-    if (stage === 'Галтовка') {
-      list = list.filter(u => u.position === 'Галтовщик')
-    } else if (stage === 'Розкрій') {
-      list = list.filter(u => u.position === 'Оператор')
-    } else if (stage === 'Пресування') {
-      list = list.filter(u => u.position === 'Пресувальник')
-    } else if (stage === 'Фарбування') {
-      list = list.filter(u => u.position === 'Маляр (Фарбування)')
-    } else if (stage === 'Доопрацювання') {
-      list = list.filter(u => u.position === 'Слюсар (Доопрацювання)')
+    // 3. Filter by Position / Stage assignment
+    if (stage) {
+      const struct = data.companyStructure || []
+      const stageLower = stage.toLowerCase()
+
+      if (stageLower === 'галтовка') {
+        const tumblingDepts = struct.filter(s => s.type === 'tumbling').map(s => s.name)
+        list = list.filter(u => 
+          u.position === 'Галтовщик' || 
+          tumblingDepts.includes(u.department) ||
+          (u.department && u.department.toLowerCase().includes('галтовка'))
+        )
+      } else if (stageLower === 'розкрій') {
+        const shopDepts = struct.filter(s => s.type === 'shop').map(s => s.name)
+        list = list.filter(u => 
+          u.position === 'Оператор' || 
+          shopDepts.includes(u.department) ||
+          (u.department && u.department.toLowerCase().includes('цех'))
+        )
+      } else if (stageLower === 'пресування') {
+        list = list.filter(u => 
+          u.position === 'Пресувальник' ||
+          (u.department && u.department.toLowerCase().includes('прес'))
+        )
+      } else if (stageLower === 'фарбування') {
+        list = list.filter(u => 
+          u.position === 'Маляр (Фарбування)' || 
+          u.position === 'Маляр' ||
+          (u.department && u.department.toLowerCase().includes('фарб'))
+        )
+      } else if (stageLower === 'доопрацювання') {
+        list = list.filter(u => 
+          u.position === 'Слюсар (Доопрацювання)' || 
+          u.position === 'Слюсар' ||
+          (u.department && u.department.toLowerCase().includes('слюсар'))
+        )
+      } else {
+        list = list.filter(u => 
+          ['Оператор', 'Галтовщик', 'Пресувальник', 'Маляр', 'Слюсар', 'Маляр (Фарбування)', 'Слюсар (Доопрацювання)'].includes(u.position)
+        )
+      }
     } else {
-      // Default production operators
-      list = list.filter(u => ['Оператор', 'Галтовщик', 'Пресувальник', 'Маляр', 'Слюсар'].includes(u.position))
+      list = list.filter(u => 
+        ['Оператор', 'Галтовщик', 'Пресувальник', 'Маляр', 'Слюсар', 'Маляр (Фарбування)', 'Слюсар (Доопрацювання)'].includes(u.position)
+      )
     }
 
     return list.map(formatUserName).filter(Boolean)
@@ -154,6 +185,7 @@ export const MESProvider = ({ children }) => {
       productionStages,
       machineOperations: data.machineOperations,
       setMachineOperations: data.setMachineOperations,
+      fetchModuleData: data.fetchModuleData,
       supabase
     }}>
       {children}

@@ -422,36 +422,47 @@ export function createWarehouseActions({
     try {
       const { data: issuedReqs } = await supabase
         .from('material_requests')
-        .select('*')
+        .select('inventory_id, quantity')
         .eq('task_id', taskId)
         .eq('status', 'issued')
 
       if (!issuedReqs || issuedReqs.length === 0) return
 
-      const updates = {}
+      // Aggregate deductions per inventory item in memory
+      const deductionMap = {}
       for (const req of issuedReqs) {
         if (req.inventory_id) {
-          updates[req.inventory_id] = (updates[req.inventory_id] || 0) + Number(req.quantity)
+          deductionMap[req.inventory_id] = (deductionMap[req.inventory_id] || 0) + Number(req.quantity)
         }
       }
 
-      for (const [invId, qty] of Object.entries(updates)) {
-        const { data: item } = await supabase.from('inventory').select('*').eq('id', invId).limit(1).maybeSingle()
-        if (item) {
-          const nextTotal = Math.max(0, (Number(item.total_qty) || 0) - qty)
-          const nextReserved = Math.max(0, (Number(item.reserved_qty) || 0) - qty)
-          await supabase.from('inventory').update({ 
-            total_qty: nextTotal, 
-            reserved_qty: nextReserved 
-          }).eq('id', invId)
-        }
-      }
+      const ids = Object.keys(deductionMap)
+      if (ids.length === 0) return
 
-      await supabase.from('material_requests').update({ status: 'completed' }).eq('task_id', taskId).eq('status', 'issued')
+      // Single batch SELECT instead of N individual selects
+      const { data: items } = await supabase
+        .from('inventory')
+        .select('id, total_qty, reserved_qty')
+        .in('id', ids)
+
+      if (!items || items.length === 0) return
+
+      // Compute all new values in memory, then single upsert
+      const updates = items.map(item => ({
+        id: item.id,
+        total_qty: Math.max(0, (Number(item.total_qty) || 0) - (deductionMap[item.id] || 0)),
+        reserved_qty: Math.max(0, (Number(item.reserved_qty) || 0) - (deductionMap[item.id] || 0))
+      }))
+
+      await Promise.all([
+        supabase.from('inventory').upsert(updates),
+        supabase.from('material_requests').update({ status: 'completed' }).eq('task_id', taskId).eq('status', 'issued')
+      ])
     } catch (e) {
-      console.error("Error deducting materials for task:", e)
+      console.error('Error deducting materials for task:', e)
     }
   }
+
 
   const submitPickingRequest = async (orderId, requiredItems, taskId = null) => {
     const order = orders.find(o => o.id === orderId)

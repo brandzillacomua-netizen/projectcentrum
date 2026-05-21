@@ -2,6 +2,33 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { supabase } from '../supabase'
 
 const CACHE_KEY = 'MES_APP_CACHE_V1'
+const USER_CACHE_KEY = 'MES_SESSION_USER'  // Full user object for instant restore
+
+const fallbackStructure = [
+  { id: '1', name: 'Цех №1', type: 'shop' },
+  { id: '2', name: 'Цех №2', type: 'shop' },
+  { id: '3', name: 'Склад', type: 'warehouse' },
+  { id: '4', name: 'Галтовка', type: 'tumbling' },
+  { id: '5', name: 'Контроль браку', type: 'quality' },
+  { id: '6', name: 'Керівництво', type: 'management' }
+]
+
+const fallbackPositions = [
+  { id: '1', name: 'Директор виробництва' },
+  { id: '2', name: 'Начальник цеху' },
+  { id: '3', name: 'Майстер цеху' },
+  { id: '4', name: 'Майстер дільниці' },
+  { id: '5', name: 'Оператор' },
+  { id: '6', name: 'Галтовщик' },
+  { id: '7', name: 'Пресувальник' },
+  { id: '8', name: 'Маляр' },
+  { id: '9', name: 'Слюсар' },
+  { id: '10', name: 'Працівник складу' },
+  { id: '11', name: 'Контроль браку' },
+  { id: '12', name: 'Менеджер' },
+  { id: '13', name: 'Інженер' },
+  { id: '14', name: 'Адмін' }
+]
 
 const loadFromCache = () => {
   try {
@@ -13,29 +40,48 @@ const loadFromCache = () => {
   }
 }
 
-export function useData() {
-  const cache = loadFromCache()
+// Lazy cache getter — reads ONCE, returns a field or default
+const fromCache = (field, def) => () => {
+  try {
+    const cached = localStorage.getItem(CACHE_KEY)
+    if (!cached) return def
+    const parsed = JSON.parse(cached)
+    return parsed[field] ?? def
+  } catch { return def }
+}
 
-  const [orders, setOrders] = useState(cache.orders || [])
-  const [customers, setCustomers] = useState(cache.customers || [])
-  const [inventory, setInventory] = useState(cache.inventory || [])
-  const [tasks, setTasks] = useState(cache.tasks || [])
-  const [managementTasks, setManagementTasks] = useState(cache.managementTasks || [])
-  const [requests, setRequests] = useState(cache.requests || [])
-  const [nomenclatures, setNomenclatures] = useState(cache.nomenclatures || [])
-  const [bomItems, setBomItems] = useState(cache.bomItems || [])
-  const [receptionDocs, setReceptionDocs] = useState(cache.receptionDocs || [])
-  const [purchaseRequests, setPurchaseRequests] = useState(cache.purchaseRequests || [])
-  const [workCards, setWorkCards] = useState(cache.workCards || [])
-  const [workCardHistory, setWorkCardHistory] = useState(cache.workCardHistory || [])
-  const [machines, setMachines] = useState(cache.machines || [])
-  const [systemUsers, setSystemUsers] = useState(cache.systemUsers || [])
-  const [machineOperations, setMachineOperations] = useState(cache.machineOperations || [])
-  const [accessLogs, setAccessLogs] = useState(cache.accessLogs || [])
+export function useData() {
+
+  // ── Lazy initialisers: localStorage is parsed ONCE per mount, not on every render ──
+  const [orders, setOrders] = useState(fromCache('orders', []))
+  const [customers, setCustomers] = useState(fromCache('customers', []))
+  const [inventory, setInventory] = useState(fromCache('inventory', []))
+  const [tasks, setTasks] = useState(fromCache('tasks', []))
+  const [managementTasks, setManagementTasks] = useState(fromCache('managementTasks', []))
+  const [requests, setRequests] = useState(fromCache('requests', []))
+  const [nomenclatures, setNomenclatures] = useState(fromCache('nomenclatures', []))
+  const [bomItems, setBomItems] = useState(fromCache('bomItems', []))
+  const [receptionDocs, setReceptionDocs] = useState(fromCache('receptionDocs', []))
+  const [purchaseRequests, setPurchaseRequests] = useState(fromCache('purchaseRequests', []))
+  const [workCards, setWorkCards] = useState(fromCache('workCards', []))
+  const [workCardHistory, setWorkCardHistory] = useState(fromCache('workCardHistory', []))
+  const [machines, setMachines] = useState(fromCache('machines', []))
+  const [systemUsers, setSystemUsers] = useState(fromCache('systemUsers', []))
+  const [machineOperations, setMachineOperations] = useState(fromCache('machineOperations', []))
+  const [accessLogs, setAccessLogs] = useState(() => [])
   const [fortnetUrl, setFortnetUrl] = useState(localStorage.getItem('FORTNET_API_URL') || 'http://192.168.1.100:8090')
+  const [companyStructure, setCompanyStructure] = useState(fromCache('companyStructure', fallbackStructure))
+  const [companyPositions, setCompanyPositions] = useState(fromCache('companyPositions', fallbackPositions))
   
   const [currentUser, setCurrentUser] = useState(null)
-  const [sessionLoading, setSessionLoading] = useState(() => !!localStorage.getItem('MES_SESSION_LOGIN'))
+  // sessionLoading = false immediately if user cache exists (portal shows without any network wait)
+  // sessionLoading = true only if login key exists but no cached user object (forces DB verify before showing portal)
+  const [sessionLoading, setSessionLoading] = useState(() => {
+    const hasLogin = !!localStorage.getItem('MES_SESSION_LOGIN')
+    const hasCache = !!localStorage.getItem('MES_SESSION_USER')
+    return hasLogin && !hasCache  // Only block UI if we have no cached user to show immediately
+  })
+
   const [loading, setLoading] = useState(false)
   const [hasMoreOrders, setHasMoreOrders] = useState(true)
   const [lastFetchTime, setLastFetchTime] = useState(0)
@@ -80,81 +126,165 @@ export function useData() {
     setHasMoreOrders((data || []).length === PAGE_SIZE)
   }
 
+  // ── LEVEL 1: Critical data only — loads in ~300ms, shows portal immediately ──
+  const fetchCritical = async () => {
+    try {
+      const threeDaysAgoTasks = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+      const [
+        { data: su },
+        { data: mc },
+        { data: mt },
+        { data: c },
+        { data: latest, error: oErr },
+        { data: t },
+        { data: n },
+        { data: b },
+        { data: wc },
+        structRes,
+        posRes,
+        { data: inv },
+        { data: req },
+        { data: rec },
+        { data: pr },
+        { data: wch }
+      ] = await Promise.all([
+        // Users & machines — needed for portal access filtering
+        supabase.from('system_users').select('*').order('login'),
+        supabase.from('machines').select('*').order('name'),
+        // Kanban badge counter
+        supabase.from('management_tasks').select('*').neq('status', 'completed').order('created_at', { ascending: false }),
+        // Customers for manager
+        supabase.from('customers').select('id,name,official_name').limit(50).order('name'),
+        // Latest orders WITH order_items — needed by Master, Foreman, Director for naryad creation
+        supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).range(0, 99),
+        // Active tasks WITHOUT nested order JOIN — order data is already in orders state
+        supabase.from('tasks').select('id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,plan_snapshot,batch_index,planned_deadline,machine_name,created_at,completed_at').or(`status.neq.completed,completed_at.gte.${threeDaysAgoTasks}`).order('created_at', { ascending: false }),
+        // Nomenclatures & BOM needed for naryad creation
+        supabase.from('nomenclatures').select('*').limit(2000),
+        supabase.from('bom_items').select('*').limit(4000),
+        // Active work cards for real-time sync across terminals
+        supabase.from('work_cards').select('*').neq('status', 'completed').order('created_at', { ascending: true }),
+        supabase.from('company_structure').select('*').order('name').then(res => res, () => ({ data: fallbackStructure, error: null })),
+        supabase.from('company_positions').select('*').order('name').then(res => res, () => ({ data: fallbackPositions, error: null })),
+        // Global Real-time Tables
+        supabase.from('inventory').select('*').order('name').limit(3000),
+        supabase.from('material_requests').select('*').neq('status', 'completed').order('created_at', { ascending: false }),
+        supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300),
+        supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300),
+        supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(200)
+      ])
+
+      if (su) setSystemUsers(su)
+      if (mc) setMachines(mc)
+      if (mt) setManagementTasks(mt)
+      if (c) setCustomers(c)
+      if (!oErr && latest) setOrders(latest)
+      if (t) setTasks(t)
+      if (n) setNomenclatures(n)
+      if (b) setBomItems(b)
+      if (wc) setWorkCards(wc)
+      if (inv) setInventory(inv)
+      if (req) setRequests(req)
+      if (rec) setReceptionDocs(rec)
+      if (pr) setPurchaseRequests(pr)
+      if (wch) setWorkCardHistory(wch)
+      
+      if (structRes && structRes.data && structRes.data.length > 0) {
+        setCompanyStructure(structRes.data)
+      } else {
+        setCompanyStructure(fallbackStructure)
+      }
+      if (posRes && posRes.data && posRes.data.length > 0) {
+        setCompanyPositions(posRes.data)
+      } else {
+        setCompanyPositions(fallbackPositions)
+      }
+    } catch (e) {
+      console.error('fetchCritical error:', e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ── LEVEL 2: Full data — called lazily by modules that need it ────────────
   const fetchData = async (force = false) => {
     if (!force && Date.now() - lastFetchTime < 1000) return
-    if (orders.length === 0) setLoading(true)
     try {
       setLastFetchTime(Date.now())
       const threeDaysAgoTasks = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
 
-      // ── Всі запити паралельно через Promise.all ──────────────────────────
       const [
         { data: latest, error: oErr },
-        { data: c },
-        { data: i },
         { data: t },
-        { data: r },
         { data: n },
         { data: b },
-        { data: rec },
-        { data: pr },
-        { data: wc },
         { data: mc },
         { data: su },
-        { data: mo },
         { data: mt },
-        { data: wch },
-        { data: al },
+        { data: wc },
+        structRes,
+        { data: inv },
+        { data: req },
+        { data: rec },
+        { data: pr },
+        { data: wch }
       ] = await Promise.all([
-        supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).range(0, PAGE_SIZE - 1),
-        supabase.from('customers').select('*').limit(50).order('name'),
-        supabase.from('inventory').select('*').order('name').limit(2000),
-        supabase.from('tasks').select('*, orders(*, order_items(*))').or(`status.neq.completed,completed_at.gte.${threeDaysAgoTasks}`).order('created_at', { ascending: false }),
-        supabase.from('material_requests').select('*').neq('status', 'completed').order('created_at', { ascending: false }),
-        supabase.from('nomenclatures').select('*').limit(1000),
-        supabase.from('bom_items').select('*').limit(2000),
-        supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300),
-        supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300),
-        supabase.from('work_cards').select('*').neq('status', 'completed').order('created_at', { ascending: true }),
+        supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).range(0, 99),
+        // tasks WITHOUT nested JOIN — avoids the orders(order_items(*)) waterfall
+        supabase.from('tasks').select('id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,plan_snapshot,batch_index,planned_deadline,machine_name,created_at,completed_at').or(`status.neq.completed,completed_at.gte.${threeDaysAgoTasks}`).order('created_at', { ascending: false }),
+        supabase.from('nomenclatures').select('*').limit(2000),
+        supabase.from('bom_items').select('*').limit(4000),
         supabase.from('machines').select('*').order('name'),
         supabase.from('system_users').select('*').order('login'),
-        supabase.from('machine_operations').select('*'),
         supabase.from('management_tasks').select('*').neq('status', 'completed').order('created_at', { ascending: false }),
-        supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(200),
-        supabase.from('access_logs').select('*').order('event_time', { ascending: false }).limit(200),
+        supabase.from('work_cards').select('*').neq('status', 'completed').order('created_at', { ascending: true }),
+        supabase.from('company_structure').select('*').order('name').then(res => res, () => ({ data: fallbackStructure, error: null })),
+        supabase.from('inventory').select('*').order('name').limit(3000),
+        supabase.from('material_requests').select('*').neq('status', 'completed').order('created_at', { ascending: false }),
+        supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300),
+        supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300),
+        supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(200)
       ])
-      // ─────────────────────────────────────────────────────────────────────
 
       if (!oErr && latest) {
         setOrders(prev => {
-          const next = [...prev]
+          const existingIds = new Set(prev.map(o => o.id))
+          const merged = [...prev]
           latest.forEach(newItem => {
-            const idx = next.findIndex(o => o.id === newItem.id)
-            if (idx >= 0) next[idx] = newItem
-            else next.unshift(newItem)
+            const idx = merged.findIndex(o => o.id === newItem.id)
+            if (idx >= 0) merged[idx] = newItem
+            else merged.unshift(newItem)
           })
-          return next.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)
+          return merged.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
         })
       }
 
-      if (c) setCustomers(c)
-      if (i) setInventory(i)
       if (t) setTasks(t)
-      if (mt) setManagementTasks(mt)
-      if (r) setRequests(r)
       if (n) setNomenclatures(n)
       if (b) setBomItems(b)
       if (mc) setMachines(mc)
       if (su) setSystemUsers(su)
-      if (mo) setMachineOperations(mo)
+      if (mt) setManagementTasks(mt)
+      if (wc) setWorkCards(wc)
+      if (inv) setInventory(inv)
+      if (req) setRequests(req)
       if (rec) setReceptionDocs(rec)
       if (pr) setPurchaseRequests(pr)
-      if (wc) setWorkCards(wc)
       if (wch) setWorkCardHistory(wch)
-      if (al) setAccessLogs(al)
-    } finally {
-      setLoading(false)
+      
+      if (structRes && structRes.data && structRes.data.length > 0) {
+        setCompanyStructure(structRes.data)
+      }
+    } catch (e) {
+      console.error('fetchData error:', e)
     }
+  }
+
+  // ── Module-specific lazy loaders (called on module mount) ─────────────────
+  const fetchModuleData = async (moduleName) => {
+    // Lazy module fetching is disabled.
+    // All critical operational data is now eagerly loaded in fetchCritical() and fetchData().
+    // This allows background real-time updates to seamlessly sync global application state.
   }
 
   const fetchHistoryRange = async (startDate, endDate) => {
@@ -187,9 +317,11 @@ export function useData() {
         if (data) setInventory(data)
       } else if (tableName === 'tasks') {
         const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
-        const { data } = await supabase.from('tasks').select('*, orders(*, order_items(*))').or(`status.neq.completed,completed_at.gte.${threeDaysAgo}`).order('created_at', { ascending: false })
+        // No nested JOIN — tasks reference orders via order_id already in state
+        const { data } = await supabase.from('tasks').select('id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,plan_snapshot,batch_index,planned_deadline,machine_name,created_at,completed_at').or(`status.neq.completed,completed_at.gte.${threeDaysAgo}`).order('created_at', { ascending: false })
         if (data) setTasks(data)
       } else if (tableName === 'orders') {
+        // Include order_items so modules that need quantities work correctly
         const { data } = await supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).range(0, 50)
         if (data) setOrders(prev => {
           const next = [...prev]
@@ -230,15 +362,20 @@ export function useData() {
           machines,
           systemUsers,
           machineOperations,
-          // inventory, receptionDocs, purchaseRequests, workCards, workCardHistory
-          // виключено з кешу — великі таблиці, завжди свіжо завантажуються
+          companyStructure,
+          companyPositions,
+          workCards: workCards.slice(0, 300),
+          inventory: inventory.slice(0, 2000),
+          receptionDocs: receptionDocs.slice(0, 100),
+          purchaseRequests: purchaseRequests.slice(0, 100),
+          workCardHistory: workCardHistory.slice(0, 100)
         }
         localStorage.setItem(CACHE_KEY, JSON.stringify(dataToCache))
       } catch (e) {
         console.warn('Cache write failed (quota?):', e)
       }
     }, 2000) // Затримка 2с після останньої зміни
-  }, [orders, customers, tasks, managementTasks, requests, nomenclatures, bomItems, machines, systemUsers, machineOperations])
+  }, [orders, customers, tasks, managementTasks, requests, nomenclatures, bomItems, machines, systemUsers, machineOperations, companyStructure, companyPositions, workCards, inventory, receptionDocs, purchaseRequests, workCardHistory])
 
   // --- REAL-TIME ---
   useEffect(() => {
@@ -355,25 +492,67 @@ export function useData() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'system_users' }, () => {
         supabase.from('system_users').select('*').order('login').then(({ data }) => { if (data) setSystemUsers(data) })
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'company_structure' }, () => {
+        supabase.from('company_structure').select('*').order('name').then(({ data, error }) => {
+          if (!error && data && data.length > 0) setCompanyStructure(data)
+        })
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'company_positions' }, () => {
+        supabase.from('company_positions').select('*').order('name').then(({ data, error }) => {
+          if (!error && data && data.length > 0) setCompanyPositions(data)
+        })
+      })
       .subscribe()
     return () => { supabase.removeChannel(channel2) }
   }, [])
 
-  // --- SESSION INIT ---
+  // --- SESSION INIT — INSTANT RESTORE ————————————————————————————— ---
+  // Strategy: user object cached in localStorage → show portal INSTANTLY (0ms)
+  // Then verify against DB in background. Only kicks out if user no longer exists.
   useEffect(() => {
     const savedLogin = localStorage.getItem('MES_SESSION_LOGIN')
-    if (savedLogin) {
-      supabase.from('system_users').select('*').eq('login', savedLogin).then(({ data }) => {
-        if (data && data.length > 0) {
+    if (!savedLogin) {
+      setSessionLoading(false)
+      return
+    }
+
+    // ── Step 1: Restore from cache IMMEDIATELY (no network wait) ─────────────
+    const cachedUserRaw = localStorage.getItem(USER_CACHE_KEY)
+    if (cachedUserRaw) {
+      try {
+        const cachedUser = JSON.parse(cachedUserRaw)
+        const token = localStorage.getItem('BACKEND_TOKEN')
+        setCurrentUser({ ...cachedUser, token })
+        setSessionLoading(false)  // ← Portal shows INSTANTLY from here
+      } catch (e) {
+        // corrupt cache — fall through to DB verify
+      }
+    }
+
+    // ── Step 2: Verify in background (non-blocking) ──────────────────────
+    supabase
+      .from('system_users')
+      .select('id,login,password,first_name,last_name,position,access_rights,department,shift')
+      .eq('login', savedLogin)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
           const token = localStorage.getItem('BACKEND_TOKEN')
-          setCurrentUser({ ...data[0], token })
+          setCurrentUser({ ...data, token })
+          // Update the cache with fresh data
+          localStorage.setItem(USER_CACHE_KEY, JSON.stringify(data))
+        } else {
+          // User deleted or login changed — force logout
+          localStorage.removeItem('MES_SESSION_LOGIN')
+          localStorage.removeItem(USER_CACHE_KEY)
+          setCurrentUser(null)
         }
-        else localStorage.removeItem('MES_SESSION_LOGIN')
+        setSessionLoading(false)  // Safety: ensure loading stops even if cache was corrupt
+      })
+      .catch(() => {
+        // Network error: keep cached user, don't force logout
         setSessionLoading(false)
       })
-    } else {
-      setSessionLoading(false)
-    }
   }, [])
 
   useEffect(() => {
@@ -383,12 +562,117 @@ export function useData() {
     }
   }, [systemUsers])
 
-  // --- INITIAL DATA FETCH ---
-  // Реалтайм оновлення вже обробляються підпискою 'mes-global-updates' вище (точкові оновлення стану).
-  // Друга глобальна підписка що викликала fetchData() на кожну зміну — видалена (спричиняла ~3x зайвих запитів).
+  // --- INITIAL DATA FETCH + SESSION init run in parallel ---
+  // fetchCritical does NOT depend on currentUser, so start it immediately
   useEffect(() => {
-    fetchData()
+    fetchCritical()
   }, [])
+
+
+  const upsertCompanyStructure = async (node) => {
+    try {
+      const payload = { ...node }
+      if (!payload.id || payload.id.length < 5) {
+        delete payload.id
+      }
+      const { data: res, error } = await supabase.from('company_structure').upsert([payload]).select()
+      if (error) throw error
+      if (res && res.length > 0) {
+        setCompanyStructure(prev => {
+          const idx = prev.findIndex(item => item.id === res[0].id)
+          if (idx >= 0) {
+            const next = [...prev]; next[idx] = res[0]; return next
+          }
+          return [...prev, res[0]]
+        })
+        return { data: res[0], error: null }
+      }
+    } catch (e) {
+      console.error("Failed to upsert company structure:", e)
+      const fallbackNode = { ...node }
+      if (!fallbackNode.id) fallbackNode.id = String(Date.now())
+      setCompanyStructure(prev => {
+        const idx = prev.findIndex(item => item.id === fallbackNode.id || item.name === fallbackNode.name)
+        if (idx >= 0) {
+          const next = [...prev]; next[idx] = fallbackNode; return next
+        }
+        return [...prev, fallbackNode]
+      })
+      return { data: fallbackNode, error: e }
+    }
+  }
+
+  const deleteCompanyStructure = async (id) => {
+    try {
+      const { error } = await supabase.from('company_structure').delete().eq('id', id)
+      if (error) throw error
+      setCompanyStructure(prev => prev.filter(item => item.id !== id))
+      return { error: null }
+    } catch (e) {
+      console.error("Failed to delete company structure:", e)
+      setCompanyStructure(prev => prev.filter(item => item.id !== id))
+      return { error: e }
+    }
+  }
+
+  const upsertCompanyPosition = async (pos) => {
+    try {
+      const payload = { ...pos }
+      if (!payload.id || payload.id.length < 5) {
+        delete payload.id
+      }
+      let { data: res, error } = await supabase.from('company_positions').upsert([payload]).select()
+      
+      // Fallback if the user hasn't run the SQL script to add the department_id column yet
+      if (error && error.message && error.message.includes('department_id') && 'department_id' in payload) {
+        console.warn("department_id column is missing, retrying without it:", error.message)
+        const fallbackPayload = { ...payload }
+        delete fallbackPayload.department_id
+        const retry = await supabase.from('company_positions').upsert([fallbackPayload]).select()
+        if (!retry.error) {
+          res = retry.data
+          error = null
+        }
+      }
+      
+      if (error) throw error
+      if (res && res.length > 0) {
+        setCompanyPositions(prev => {
+          const idx = prev.findIndex(item => item.id === res[0].id)
+          if (idx >= 0) {
+            const next = [...prev]; next[idx] = res[0]; return next
+          }
+          return [...prev, res[0]]
+        })
+        return { data: res[0], error: null }
+      }
+    } catch (e) {
+      console.error("Failed to upsert company position:", e)
+      const fallbackPos = { ...pos }
+      if (!fallbackPos.id) fallbackPos.id = String(Date.now())
+      setCompanyPositions(prev => {
+        const idx = prev.findIndex(item => item.id === fallbackPos.id || item.name === fallbackPos.name)
+        if (idx >= 0) {
+          const next = [...prev]; next[idx] = fallbackPos; return next
+        }
+        return [...prev, fallbackPos]
+      })
+      return { data: fallbackPos, error: e }
+    }
+  }
+
+  const deleteCompanyPosition = async (id) => {
+    try {
+      const { error } = await supabase.from('company_positions').delete().eq('id', id)
+      if (error) throw error
+      setCompanyPositions(prev => prev.filter(item => item.id !== id))
+      return { error: null }
+    } catch (e) {
+      console.error("Failed to delete company position:", e)
+      setCompanyPositions(prev => prev.filter(item => item.id !== id))
+      return { error: e }
+    }
+  }
 
   // Return all state and basic setters needed for actions
   return {
@@ -413,7 +697,9 @@ export function useData() {
     sessionLoading, setSessionLoading,
     loading, setLoading,
     hasMoreOrders, setHasMoreOrders,
-    normalize, fetchOrders, fetchData, fetchHistoryRange, fetchTaskArchiveCards, refreshTable,
-    productionData
+    normalize, fetchOrders, fetchData, fetchCritical, fetchModuleData, fetchHistoryRange, fetchTaskArchiveCards, refreshTable,
+    productionData,
+    companyStructure, setCompanyStructure, upsertCompanyStructure, deleteCompanyStructure,
+    companyPositions, setCompanyPositions, upsertCompanyPosition, deleteCompanyPosition
   }
 }

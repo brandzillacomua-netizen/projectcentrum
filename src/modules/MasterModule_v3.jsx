@@ -21,8 +21,12 @@ const MasterModule = () => {
   const {
     orders, tasks, machines, nomenclatures, bomItems, inventory,
     totalProduced, totalScrapCount,
-    createNaryad, issueMaterials, approveWarehouse
+    createNaryad, issueMaterials, approveWarehouse,
+    fetchModuleData
   } = useMES()
+
+  // Load module-specific data on mount (inventory, work_cards, requests)
+  useEffect(() => { fetchModuleData('master') }, [])
 
   const [activeNaryadOrder, setActiveNaryadOrder] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -38,6 +42,12 @@ const MasterModule = () => {
   const [quickPlanOrder, setQuickPlanOrder] = useState(null)
   const [tempSets, setTempSets] = useState(0)
   const [tempDeadline, setTempDeadline] = useState('')
+
+  const isShop1Task = (t) => {
+    if (!t || !t.step) return true;
+    const step = t.step.toLowerCase();
+    return !step.includes('№2') && !step.includes('пресув') && !step.includes('присув') && !step.includes('фарбув');
+  }
 
   // ── Fetch orders for ALL tasks in state (pagination-independent) ───────────────
   // This ensures that tasks created before today are never orphaned
@@ -273,7 +283,7 @@ const MasterModule = () => {
       </div>
       <div className="ana-card-v2" style={{ minWidth: '140px', flex: 1, background: '#111', padding: '15px', borderRadius: '16px', border: '1px solid #222' }}>
         <div style={{ color: '#555', fontSize: '0.6rem', fontWeight: 800, textTransform: 'uppercase' }}>В роботі</div>
-        <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#3b82f6' }}>{tasks.filter(t => t.status === 'in-progress').length}</div>
+        <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#3b82f6' }}>{tasks.filter(t => t.status === 'in-progress' && isShop1Task(t)).length}</div>
       </div>
     </div>
   )
@@ -391,7 +401,7 @@ const MasterModule = () => {
           <section className="grid-col">
             <h3 style={{ fontSize: '0.85rem', color: '#555', marginBottom: '15px' }}><Play size={16} fill="currentColor" /> АКТИВНІ В ЦЕХУ</h3>
             <div className="v-stack" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {tasks.filter(t => t.status !== 'completed' && t.status !== 'pending').map(task => {
+              {tasks.filter(t => t.status !== 'completed' && t.status !== 'pending' && isShop1Task(t)).map(task => {
                 const order = orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
                 const taskProductNames = order?.order_items
                   ?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name)

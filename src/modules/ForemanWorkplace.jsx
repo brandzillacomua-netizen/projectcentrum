@@ -8,7 +8,8 @@ import { supabase } from '../supabase'
 
 const ForemanWorkplace = () => {
   const location = useLocation()
-  const { tasks, orders, workCards, createWorkCard, inventory, completeTaskByMaster, nomenclatures, bomItems, machines, machineOperations, workCardHistory, confirmBuffer, fetchData, reserveBZForTask, fetchTaskArchiveCards } = useMES()
+  const { tasks, orders, workCards, createWorkCard, inventory, completeTaskByMaster, nomenclatures, bomItems, machines, machineOperations, workCardHistory, confirmBuffer, fetchData, reserveBZForTask, fetchTaskArchiveCards, fetchModuleData } = useMES()
+
   const [activeTaskId, setActiveTaskId] = useState(location.state?.taskId || null)
   const [activeView, setActiveView] = useState('worksheet')
   const [selectedMachines, setSelectedMachines] = useState({})
@@ -29,6 +30,9 @@ const ForemanWorkplace = () => {
   const [reportLoading, setReportLoading] = useState(false)
   const [reportData, setReportData] = useState(null)
   const [reportStageFilter, setReportStageFilter] = useState('All')
+
+  const [printNaryadQueue, setPrintNaryadQueue] = useState(null)
+  const [naryadPrintLoading, setNaryadPrintLoading] = useState(false)
 
   const handleOpenReport = async (task, order, taskCards) => {
     setReportTaskId(task.id)
@@ -70,6 +74,30 @@ const ForemanWorkplace = () => {
     }
   }
 
+  const handleOpenNaryadPrint = async (task, order) => {
+    setNaryadPrintLoading(true)
+    try {
+      // Fetch material requests for this task to determine planned cutters/consumables
+      const { data: materialRequests, error: reqError } = await supabase
+        .from('material_requests')
+        .select('*, nomenclature:nomenclatures(*)')
+        .eq('task_id', task.id)
+
+      if (reqError) console.warn('Error fetching material requests:', reqError.message)
+
+      setPrintNaryadQueue({
+        task,
+        order,
+        materialRequests: materialRequests || []
+      })
+    } catch (e) {
+      console.error(e)
+      alert('Помилка завантаження даних наряду: ' + e.message)
+    } finally {
+      setNaryadPrintLoading(false)
+    }
+  }
+
   const [isBufferScanning, setIsBufferScanning] = useState(false)
   const [bufferScrapModal, setBufferScrapModal] = useState(null)
   const [bufferScrapCounts, setBufferScrapCounts] = useState({})
@@ -78,8 +106,12 @@ const ForemanWorkplace = () => {
   const [allOrdersMap, setAllOrdersMap] = useState({})
   const [productionCache, setProductionCache] = useState({}) // { taskId: { nomId: producedQty } }
 
+  // Load foreman-specific data (workCards, inventory, requests) immediately on mount
+  useEffect(() => { fetchModuleData('foreman') }, [])
+
   // ── Load orders for ALL relevant tasks (pagination-independent) ──────────────
   useEffect(() => {
+
     if (tasks.length === 0) return;
     
     // Get all order IDs from tasks that might be shown in the UI
@@ -248,6 +280,14 @@ const MACHINE_TYPES = [
   }
 
 
+  const taskCardsCountMap = useMemo(() => {
+    const map = {}
+    tasks.forEach(task => {
+      map[task.id] = workCards.filter(c => c.task_id === task.id).length
+    })
+    return map
+  }, [tasks, workCards])
+
   const taskReadinessMap = useMemo(() => {
     const map = {}
     tasks.forEach(task => {
@@ -352,9 +392,20 @@ const MACHINE_TYPES = [
         // Needs ДОВИПУСК → second
         if (taskShortageMap[a.id] && !taskShortageMap[b.id]) return -1
         if (!taskShortageMap[a.id] && taskShortageMap[b.id]) return 1
+        // New tasks (no cards) → third
+        const aNew = a.status !== 'completed' && (taskCardsCountMap[a.id] || 0) === 0
+        const bNew = b.status !== 'completed' && (taskCardsCountMap[b.id] || 0) === 0
+        if (aNew && !bNew) return -1
+        if (!aNew && bNew) return 1
+        // In Progress tasks → fourth
+        const aInProg = a.status !== 'completed' && (taskCardsCountMap[a.id] || 0) > 0 && !taskReadinessMap[a.id] && !taskShortageMap[a.id]
+        const bInProg = b.status !== 'completed' && (taskCardsCountMap[b.id] || 0) > 0 && !taskReadinessMap[b.id] && !taskShortageMap[b.id]
+        if (aInProg && !bInProg) return -1
+        if (!aInProg && bInProg) return 1
+        
         return new Date(b.created_at) - new Date(a.created_at)
       })
-  }, [tasks, taskReadinessMap, taskShortageMap])
+  }, [tasks, taskReadinessMap, taskShortageMap, taskCardsCountMap])
 
   const handleGenerateFromWorksheet = async (task, part, sheets, selectedMachineName, count, localGeneratedCount = 0, totalToReach = 0, isRepair = false, globalTotalCards = null, globalSeqOffset = 0) => {
     const machineObj = findMachine(selectedMachineName)
@@ -604,14 +655,21 @@ const MACHINE_TYPES = [
               const isReady = taskReadinessMap[task.id]
               const isShortage = taskShortageMap[task.id]
               const isCompleted = task.status === 'completed'
+              const taskCardsCount = taskCardsCountMap[task.id] || 0
+              const isNew = !isCompleted && taskCardsCount === 0
+              const isInProgress = !isCompleted && taskCardsCount > 0 && !isReady && !isShortage
 
               const borderColor = isReady && !isCompleted
                 ? '#10b981'
                 : isShortage && !isCompleted
                   ? '#ef4444'
-                  : isActive
-                    ? '#fff'
-                    : 'transparent'
+                  : isNew
+                    ? '#3b82f6'
+                    : isInProgress
+                      ? '#eab308'
+                      : isActive
+                        ? '#fff'
+                        : 'transparent'
 
               const borderSize = isActive ? '6px' : '4px'
 
@@ -621,7 +679,11 @@ const MACHINE_TYPES = [
                   ? 'rgba(16, 185, 129, 0.08)'
                   : isShortage && !isCompleted
                     ? 'rgba(239, 68, 68, 0.08)'
-                    : 'transparent'
+                    : isNew
+                      ? 'rgba(59, 130, 246, 0.08)'
+                      : isInProgress
+                        ? 'rgba(234, 179, 8, 0.08)'
+                        : 'transparent'
 
               return (
                 <div
@@ -655,6 +717,18 @@ const MACHINE_TYPES = [
                           <span style={{ fontSize: '0.6rem', fontWeight: 950, color: '#fff', letterSpacing: '0.5px' }}>НЕСТАЧА</span>
                         </div>
                       )}
+                      {isNew && (
+                        <div className="anim-pulse-blue" style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#3b82f6', borderRadius: '6px', padding: '3px 8px', boxShadow: '0 4px 10px rgba(59,130,246,0.3)' }}>
+                          <Clock size={10} color="#fff" />
+                          <span style={{ fontSize: '0.6rem', fontWeight: 950, color: '#fff', letterSpacing: '0.5px' }}>НОВИЙ</span>
+                        </div>
+                      )}
+                      {isInProgress && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#eab308', borderRadius: '6px', padding: '3px 8px', boxShadow: '0 4px 10px rgba(234,179,8,0.3)' }}>
+                          <Layers size={10} color="#000" />
+                          <span style={{ fontSize: '0.6rem', fontWeight: 950, color: '#000', letterSpacing: '0.5px' }}>В РОБОТІ</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div style={{ fontSize: '0.7rem', color: isCompleted ? '#333' : '#555' }}>{order?.customer}</div>
@@ -669,6 +743,18 @@ const MACHINE_TYPES = [
                     <div style={{ fontSize: '0.6rem', color: '#ef4444', fontWeight: 900, marginTop: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <AlertTriangle size={10} />
                       ПОТРІБЕН ДОВИПУСК
+                    </div>
+                  )}
+                  {isNew && (
+                    <div style={{ fontSize: '0.6rem', color: '#3b82f6', fontWeight: 900, marginTop: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Clock size={10} />
+                      КАРТКИ ЩЕ НЕ ЗГЕНЕРОВАНО
+                    </div>
+                  )}
+                  {isInProgress && (
+                    <div style={{ fontSize: '0.6rem', color: '#eab308', fontWeight: 900, marginTop: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Layers size={10} />
+                      У ПРОЦЕСІ ВИРОБНИЦТВА
                     </div>
                   )}
                 </div>
@@ -749,16 +835,42 @@ const MACHINE_TYPES = [
                 })
               })
 
+              const isReady = taskReadinessMap[task.id]
+              const isShortage = taskShortageMap[task.id]
+              const taskCardsCount = taskCardsCountMap[task.id] || 0
+              const isNew = task.status !== 'completed' && taskCardsCount === 0
+              const isInProgress = task.status !== 'completed' && taskCardsCount > 0 && !isReady && !isShortage
+
               return (
                 <div style={{ maxWidth: '1200px' }} className="anim-fade-in">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
-                        <h2 style={{ fontSize: '2.4rem', fontWeight: 950, margin: 0, display: 'flex', alignItems: 'center', gap: '15px' }}>
+                        <h2 style={{ fontSize: '2.4rem', fontWeight: 950, margin: 0, display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
                           Наряд №{order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}
                           {task.status === 'completed' && (
                             <div style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', color: '#10b981', padding: '5px 15px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 950, letterSpacing: '1px' }}>
                               ВИКОНАНО
+                            </div>
+                          )}
+                          {isReady && task.status !== 'completed' && (
+                            <div style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', color: '#10b981', padding: '5px 15px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 950, letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <CheckCircle2 size={14} /> ГОТОВО ДО ЗАКРИТТЯ
+                            </div>
+                          )}
+                          {isShortage && task.status !== 'completed' && !isReady && (
+                            <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', color: '#ef4444', padding: '5px 15px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 950, letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <AlertTriangle size={14} /> ПОТРІБЕН ДОВИПУСК
+                            </div>
+                          )}
+                          {isNew && task.status !== 'completed' && (
+                            <div className="anim-pulse-blue" style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid #3b82f6', color: '#3b82f6', padding: '5px 15px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 950, letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <Clock size={14} /> НОВИЙ
+                            </div>
+                          )}
+                          {isInProgress && task.status !== 'completed' && !isReady && !isShortage && (
+                            <div style={{ background: 'rgba(234, 179, 8, 0.1)', border: '1px solid #eab308', color: '#eab308', padding: '5px 15px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 950, letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <Layers size={14} /> В РОБОТІ
                             </div>
                           )}
                         </h2>
@@ -783,6 +895,34 @@ const MACHINE_TYPES = [
                           }}
                         >
                           <Printer size={14} /> ЗВІТ ПО НАРЯДУ
+                        </button>
+
+                        <button
+                          onClick={() => handleOpenNaryadPrint(task, order)}
+                          disabled={naryadPrintLoading}
+                          style={{
+                            background: 'rgba(16, 185, 129, 0.1)',
+                            border: '1px solid #10b981',
+                            color: '#10b981',
+                            fontSize: '0.8rem',
+                            fontWeight: 900,
+                            padding: '8px 18px',
+                            borderRadius: '10px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            transition: '0.2s',
+                            boxShadow: '0 4px 15px rgba(16, 185, 129, 0.1)',
+                            marginTop: '5px'
+                          }}
+                        >
+                          {naryadPrintLoading ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <Printer size={14} />
+                          )}
+                          ДРУК НАРЯДУ
                         </button>
                       </div>
                       <div style={{ color: '#555', marginTop: '5px', fontSize: '1.1rem', fontWeight: 800 }}>
@@ -1807,6 +1947,256 @@ const MACHINE_TYPES = [
         </div>
       )}
 
+      {/* ───── ДРУК НАРЯДУ ───── */}
+      {printNaryadQueue && (() => {
+        const { task, order, materialRequests } = printNaryadQueue
+        
+        let productNames = order?.order_items?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ')
+        if (!productNames && task.plan_snapshot) {
+          productNames = Object.values(task.plan_snapshot)
+            .map(s => nomenclatures.find(n => String(n.id) === String(s.id))?.name || s.name)
+            .filter(Boolean)
+            .join(', ')
+        }
+
+        const isReworkOrder = order?.order_num?.startsWith('ВБ')
+        
+        const tableRows = []
+        let totalNeed = 0
+        let totalPlan = 0
+        let totalSheets = 0
+        
+        const snapshot = task.plan_snapshot
+        const hasSnapshot = snapshot && Object.keys(snapshot).filter(k => !k.startsWith('_') && !['materialSummary', 'arrivals', 'arrival_doc_id', 'arrival_doc', 'nomenclatures'].includes(k)).length > 0
+        
+        if (hasSnapshot) {
+          const keys = Object.keys(snapshot).filter(k => !k.startsWith('_') && !['materialSummary', 'arrivals', 'arrival_doc_id', 'arrival_doc', 'nomenclatures'].includes(k))
+          keys.forEach(nomId => {
+            const snapEntry = snapshot[nomId]
+            if (!snapEntry) return
+            
+            const need = Number(snapEntry.need) || 0
+            const plan = Number(snapEntry.plan) || 0
+            const sheets = Number(snapEntry.sheets) || 0
+            const stockBZ = Number(snapEntry.stock) || 0
+            const unitsPerSheet = Number(snapEntry.units_per_sheet) || 1
+            const name = snapEntry.name || nomenclatures.find(n => String(n.id) === String(nomId))?.name || '—'
+            const code = snapEntry.code || nomenclatures.find(n => String(n.id) === String(nomId))?.nomenclature_code || 'БЕЗ КОДУ'
+            const material = snapEntry.material || nomenclatures.find(n => String(n.id) === String(nomId))?.material_type || '—'
+            
+            totalNeed += need
+            totalPlan += plan
+            totalSheets += sheets
+            
+            tableRows.push({
+              name,
+              code,
+              need,
+              stockBZ,
+              plan,
+              material,
+              unitsPerSheet,
+              sheets
+            })
+          })
+        } else {
+          order?.order_items?.forEach(item => {
+            const parts = getBOMParts(item.nomenclature_id)
+            const initialRows = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }]
+            const rows = initialRows.filter(r => r.nom?.type === 'part')
+            
+            rows.forEach((part, idx) => {
+              const nomId = part.nom?.id
+              const need = (Number(item.quantity) || 0) * (Number(part.quantity_per_parent) || 1)
+              const bzInv = (inventory || []).find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'bz')
+              const stockBZ = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
+              const plan = Math.max(0, need - stockBZ)
+              const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
+              const sheets = Math.ceil(plan / unitsPerSheet)
+              
+              totalNeed += need
+              totalPlan += plan
+              totalSheets += sheets
+              
+              tableRows.push({
+                name: part.nom?.name || '—',
+                code: part.nom?.nomenclature_code || 'БЕЗ КОДУ',
+                need,
+                stockBZ,
+                plan,
+                material: part.nom?.material_type || '—',
+                unitsPerSheet,
+                sheets
+              })
+            })
+          })
+        }
+
+        // Materials summary
+        const materialsSummary = {}
+        tableRows.forEach(row => {
+          if (row.material && row.material !== '—' && row.sheets > 0) {
+            materialsSummary[row.material] = (materialsSummary[row.material] || 0) + row.sheets
+          }
+        })
+
+        // Consumables summary
+        const cuttersSummary = {}
+        materialRequests.forEach(r => {
+          const name = r.nomenclature?.name || r.details || ''
+          const nameLower = name.toLowerCase()
+          if (nameLower.includes('фреза')) {
+            const key = 'Фреза'
+            cuttersSummary[key] = (cuttersSummary[key] || 0) + (Number(r.quantity) || 0)
+          }
+        })
+
+        const formatDate = (dateStr) => {
+          if (!dateStr) return '—'
+          const date = new Date(dateStr)
+          if (isNaN(date.getTime())) return '—'
+          return date.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        }
+
+        return (
+          <div className="print-overlay" style={{ position: 'fixed', inset: 0, background: '#111', color: '#000', zIndex: 10000, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 0' }}>
+            <div className="no-print" style={{ position: 'sticky', top: 0, width: '100%', padding: '15px 30px', background: '#111', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #222', zIndex: 100 }}>
+              <h3>Друк наряду: №{order?.order_num}</h3>
+              <div style={{ display: 'flex', gap: '15px' }}>
+                <button onClick={() => window.print()} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer' }}>ДРУКУВАТИ</button>
+                <button onClick={() => setPrintNaryadQueue(null)} style={{ color: '#fff', background: 'none', border: 'none', cursor: 'pointer' }}><X size={24} /></button>
+              </div>
+            </div>
+
+            <div className="a4-page" style={{ width: '210mm', minHeight: '297mm', background: '#fff', padding: '20mm', margin: '0 auto', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', boxSizing: 'border-box', fontFamily: 'Inter, sans-serif' }}>
+              <h1 style={{ fontSize: '24pt', fontWeight: 950, margin: '0 0 20px 0', textTransform: 'uppercase', color: '#000', letterSpacing: '-0.5px' }}>
+                НАРЯД №{order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}
+              </h1>
+
+              {/* Box Info */}
+              <div style={{ border: '1.5px solid #000', borderRadius: '16px', padding: '18px', marginBottom: '30px' }}>
+                <div style={{ fontSize: '12pt', fontWeight: 1000, borderBottom: '1.5px solid #000', paddingBottom: '10px', marginBottom: '12px', textTransform: 'uppercase' }}>
+                  ВИРІБ: <span style={{ textDecoration: 'underline' }}>{productNames || '—'}</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px' }}>
+                  <div>
+                    <div style={{ fontSize: '6.5pt', fontWeight: 900, color: '#555', textTransform: 'uppercase', marginBottom: '4px' }}>Замовник</div>
+                    <div style={{ fontSize: '10pt', fontWeight: 950 }}>{order?.customer || '—'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '6.5pt', fontWeight: 900, color: '#555', textTransform: 'uppercase', marginBottom: '4px' }}>Дата формування</div>
+                    <div style={{ fontSize: '10pt', fontWeight: 950 }}>{formatDate(task.created_at)}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '6.5pt', fontWeight: 900, color: '#555', textTransform: 'uppercase', marginBottom: '4px' }}>Дедлайн на цю партію</div>
+                    <div style={{ fontSize: '10pt', fontWeight: 950 }}>{formatDate(order?.deadline)}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Table */}
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '30px', fontSize: '9pt' }}>
+                <thead>
+                  <tr style={{ borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000', textAlign: 'left', fontWeight: 900, textTransform: 'uppercase', fontSize: '7pt' }}>
+                    <th style={{ padding: '8px 10px', borderRight: '1px solid #000', width: '40%' }}>Деталь в розкрій</th>
+                    <th style={{ padding: '8px 10px', borderRight: '1px solid #000', textAlign: 'center', width: '10%' }}>Потреба</th>
+                    {!isReworkOrder && (
+                      <>
+                        <th style={{ padding: '8px 10px', borderRight: '1px solid #000', textAlign: 'center', width: '10%' }}>Склад БЗ</th>
+                        <th style={{ padding: '8px 10px', borderRight: '1px solid #000', textAlign: 'center', width: '10%' }}>План</th>
+                      </>
+                    )}
+                    <th style={{ padding: '8px 10px', borderRight: '1px solid #000', textAlign: 'center', width: '18%' }}>Матеріал</th>
+                    <th style={{ padding: '8px 10px', borderRight: '1px solid #000', textAlign: 'center', width: '6%' }}>Шт/л</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'center', width: '10%' }}>Листів</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tableRows.map((row, idx) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid #000' }}>
+                      <td style={{ padding: '8px 10px', borderRight: '1px solid #000' }}>
+                        <div style={{ fontWeight: 900 }}>{row.name}</div>
+                        <div style={{ fontSize: '7pt', color: '#666' }}>{row.code}</div>
+                      </td>
+                      <td style={{ padding: '8px 10px', borderRight: '1px solid #000', textAlign: 'center', fontWeight: 800 }}>{row.need}</td>
+                      {!isReworkOrder && (
+                        <>
+                          <td style={{ padding: '8px 10px', borderRight: '1px solid #000', textAlign: 'center', color: '#555' }}>{row.stockBZ}</td>
+                          <td style={{ padding: '8px 10px', borderRight: '1px solid #000', textAlign: 'center', fontWeight: 850 }}>{row.plan}</td>
+                        </>
+                      )}
+                      <td style={{ padding: '8px 10px', borderRight: '1px solid #000', textAlign: 'center', fontSize: '8pt' }}>{row.material}</td>
+                      <td style={{ padding: '8px 10px', borderRight: '1px solid #000', textAlign: 'center' }}>{row.unitsPerSheet}</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 1000, fontSize: '10pt' }}>{row.sheets}</td>
+                    </tr>
+                  ))}
+                  {/* Totals Row */}
+                  <tr style={{ borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000', fontWeight: 950, textTransform: 'uppercase', background: '#fcfcfc' }}>
+                    <td style={{ padding: '10px', borderRight: '1px solid #000' }}>Загальний підсумок:</td>
+                    <td style={{ padding: '10px', borderRight: '1px solid #000', textAlign: 'center' }}>{totalNeed}</td>
+                    {!isReworkOrder && (
+                      <>
+                        <td style={{ padding: '10px', borderRight: '1px solid #000' }}></td>
+                        <td style={{ padding: '10px', borderRight: '1px solid #000', textAlign: 'center' }}>{totalPlan}</td>
+                      </>
+                    )}
+                    <td style={{ padding: '10px', borderRight: '1px solid #000' }}></td>
+                    <td style={{ padding: '10px', borderRight: '1px solid #000' }}></td>
+                    <td style={{ padding: '10px', textAlign: 'center', fontSize: '11pt' }}>{totalSheets}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {/* Bottom blocks */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {/* Materials Summary */}
+                <div style={{ border: '1.5px solid #000', borderRadius: '16px', padding: '15px' }}>
+                  <div style={{ fontSize: '7.5pt', fontWeight: 900, textTransform: 'uppercase', color: '#555', marginBottom: '12px', letterSpacing: '0.5px' }}>
+                    Відомість матеріалів:
+                  </div>
+                  {Object.keys(materialsSummary).length > 0 ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
+                      {Object.entries(materialsSummary).map(([mat, qty]) => (
+                        <div key={mat} style={{ borderLeft: '3.5px solid #000', paddingLeft: '10px', minWidth: '160px' }}>
+                          <div style={{ fontSize: '8pt', color: '#555', fontWeight: 600 }}>{mat}</div>
+                          <div style={{ fontSize: '13pt', fontWeight: 1000, marginTop: '2px' }}>{qty} листів</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '9pt', color: '#888' }}>Немає запланованих матеріалів</div>
+                  )}
+                </div>
+
+                {/* Consumables Summary */}
+                <div style={{ border: '1.5px solid #000', borderRadius: '16px', padding: '15px' }}>
+                  <div style={{ fontSize: '7.5pt', fontWeight: 900, textTransform: 'uppercase', color: '#555', marginBottom: '12px', letterSpacing: '0.5px' }}>
+                    Витратні матеріали:
+                  </div>
+                  {Object.keys(cuttersSummary).length > 0 ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
+                      {Object.entries(cuttersSummary).map(([name, qty]) => (
+                        <div key={name} style={{ borderLeft: '3.5px solid #000', paddingLeft: '10px', minWidth: '160px' }}>
+                          <div style={{ fontSize: '8pt', color: '#555', fontWeight: 600 }}>{name}</div>
+                          <div style={{ fontSize: '13pt', fontWeight: 1000, marginTop: '2px' }}>{qty} од.</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
+                      <div style={{ borderLeft: '3.5px solid #000', paddingLeft: '10px', minWidth: '160px' }}>
+                        <div style={{ fontSize: '8pt', color: '#555', fontWeight: 600 }}>Фреза</div>
+                        <div style={{ fontSize: '13pt', fontWeight: 1000, marginTop: '2px' }}>— од.</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* ───── СКАНЕР ───── */}
       {isBufferScanning && (
         <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 25000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
@@ -1915,36 +2305,81 @@ const MACHINE_TYPES = [
               let totalPlannedParts = 0
               let totalActualParts = 0
               let totalScrap = 0
+              const materialStats = {}
 
-              currentOrder?.order_items?.forEach(item => {
-                const parts = getBOMPartsLocal(item.nomenclature_id)
-                const rows = parts.length > 0 ? parts.filter(r => r.nom?.type === 'part') : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }].filter(r => r.nom?.type === 'part')
-                
-                rows.forEach(part => {
-                  const nomId = part.nom?.id
-                  const snapshot = currentTask.plan_snapshot?.[String(nomId)]
-                  
-                  let need = snapshot ? snapshot.need : (Number(item.quantity) * (Number(part.quantity_per_parent) || 1))
-                  const bzInv = (inventory || []).find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'bz')
-                  const stockBZ = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
-                  const plan = snapshot ? snapshot.plan : Math.max(0, need - stockBZ)
-                  const unitsPerSheet = snapshot ? snapshot.units_per_sheet : (Number(part.nom?.units_per_sheet) || 1)
-                  const sheets = snapshot ? snapshot.sheets : Math.ceil(plan / unitsPerSheet)
+              const partsList = []
+              const snapshot = currentTask.plan_snapshot
+              const hasSnapshot = snapshot && Object.keys(snapshot).filter(k => !k.startsWith('_') && !['materialSummary', 'arrivals', 'arrival_doc_id', 'arrival_doc', 'nomenclatures'].includes(k)).length > 0
 
-                  totalPlannedSheets += (sheets || 0)
-                  totalPlannedParts += (plan || 0)
-
-                  const partHistory = reportData.historyRows.filter(h => String(h.nomenclature_id) === String(nomId))
-                  const cuttingHistory = partHistory.filter(h => h.stage_name === 'Розкрій')
-                  const acceptedHistory = partHistory.filter(h => h.stage_name === 'Прийомка' || h.stage_name === 'completed')
-
-                  const totalQtyDone = cuttingHistory.reduce((s, h) => s + (Number(h.qty_completed) || 0), 0)
-                  const sheetsDone = unitsPerSheet > 0 ? Math.ceil(totalQtyDone / unitsPerSheet) : 0
-                  totalActualSheets += sheetsDone
-
-                  const acceptedQty = acceptedHistory.reduce((s, h) => s + (Number(h.qty_completed) || 0), 0)
-                  totalActualParts += acceptedQty
+              if (hasSnapshot) {
+                const keys = Object.keys(snapshot).filter(k => !k.startsWith('_') && !['materialSummary', 'arrivals', 'arrival_doc_id', 'arrival_doc', 'nomenclatures'].includes(k))
+                keys.forEach(nomId => {
+                  const snapEntry = snapshot[nomId]
+                  if (!snapEntry) return
+                  const nom = nomenclatures.find(n => String(n.id) === String(nomId))
+                  partsList.push({
+                    nomId: String(nomId),
+                    nom: nom,
+                    need: Number(snapEntry.need) || 0,
+                    plan: Number(snapEntry.plan) || 0,
+                    sheets: Number(snapEntry.sheets) || 0,
+                    unitsPerSheet: Number(snapEntry.units_per_sheet) || (nom?.units_per_sheet || 1),
+                    material: snapEntry.material || nom?.material_type || '—'
+                  })
                 })
+              } else {
+                currentOrder?.order_items?.forEach(item => {
+                  const parts = getBOMPartsLocal(item.nomenclature_id)
+                  const rows = parts.length > 0 ? parts.filter(r => r.nom?.type === 'part') : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }].filter(r => r.nom?.type === 'part')
+                  
+                  rows.forEach(part => {
+                    const nomId = part.nom?.id
+                    if (!nomId) return
+                    const need = Number(item.quantity) * (Number(part.quantity_per_parent) || 1)
+                    const bzInv = (inventory || []).find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'bz')
+                    const stockBZ = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
+                    const plan = Math.max(0, need - stockBZ)
+                    const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
+                    const sheets = Math.ceil(plan / unitsPerSheet)
+                    const material = part.nom?.material_type || '—'
+
+                    partsList.push({
+                      nomId: String(nomId),
+                      nom: part.nom,
+                      need,
+                      plan,
+                      sheets,
+                      unitsPerSheet,
+                      material
+                    })
+                  })
+                })
+              }
+
+              partsList.forEach(p => {
+                const partHistory = reportData.historyRows.filter(h => String(h.nomenclature_id) === String(p.nomId))
+                const cuttingHistory = partHistory.filter(h => h.stage_name === 'Розкрій')
+                const acceptedHistory = partHistory.filter(h => h.stage_name === 'Прийомка' || h.stage_name === 'completed')
+
+                const totalQtyDone = cuttingHistory.reduce((s, h) => s + (Number(h.qty_completed) || 0), 0)
+                const sheetsDone = p.unitsPerSheet > 0 ? Math.ceil(totalQtyDone / p.unitsPerSheet) : 0
+
+                const acceptedQty = acceptedHistory.reduce((s, h) => s + (Number(h.qty_completed) || 0), 0)
+
+                totalPlannedSheets += (p.sheets || 0)
+                totalActualSheets += sheetsDone
+                totalPlannedParts += (p.plan || 0)
+                totalActualParts += acceptedQty
+
+                const matKey = p.material || '—'
+                if (!materialStats[matKey]) {
+                  materialStats[matKey] = {
+                    plannedSheets: 0,
+                    actualSheets: 0
+                  }
+                }
+                materialStats[matKey].plannedSheets += (p.sheets || 0)
+                materialStats[matKey].actualSheets += sheetsDone
               })
 
               totalScrap = reportData.historyRows.reduce((sum, row) => sum + (Number(row.scrap_qty) || 0), 0)
@@ -2028,9 +2463,31 @@ const MACHINE_TYPES = [
                     {/* Sheets */}
                     <div style={{ background: '#111', border: '1px solid #222', borderRadius: '16px', padding: '15px' }}>
                       <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>Листи (Матеріал)</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <div>План: <strong style={{ color: '#fff' }}>{totalPlannedSheets} л.</strong></div>
-                        <div>Факт: <strong style={{ color: '#10b981' }}>{totalActualSheets} л.</strong></div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderBottom: '1px solid #222', paddingBottom: '6px' }}>
+                          <span>План: <strong style={{ color: '#fff' }}>{totalPlannedSheets} л.</strong></span>
+                          <span>Факт: <strong style={{ color: totalActualSheets > totalPlannedSheets ? '#ef4444' : '#10b981' }}>{totalActualSheets} л.</strong></span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {Object.entries(materialStats).length > 0 ? (
+                            Object.entries(materialStats).map(([matName, stats]) => {
+                              const isExcess = stats.actualSheets > stats.plannedSheets
+                              return (
+                                <div key={matName} style={{ fontSize: '0.68rem', borderBottom: '1px solid #1a1a1a', paddingBottom: '4px' }}>
+                                  <div style={{ color: isExcess ? '#ef4444' : '#aaa', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={matName}>
+                                    {isExcess && '⚠️ '}{matName}
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2px', color: '#888' }}>
+                                    <span>План: <strong style={{ color: '#bbb' }}>{stats.plannedSheets} л.</strong></span>
+                                    <span>Факт: <strong style={{ color: isExcess ? '#ef4444' : '#bbb' }}>{stats.actualSheets} л.</strong></span>
+                                  </div>
+                                </div>
+                              )
+                            })
+                          ) : (
+                            <div style={{ color: '#444', fontSize: '0.65rem', fontStyle: 'italic' }}>Немає запланованих матеріалів</div>
+                          )}
+                        </div>
                       </div>
                     </div>
 
