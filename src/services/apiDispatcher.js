@@ -271,8 +271,16 @@ export const apiService = {
       });
       clearTimeout(timeoutId);
 
-      const data = await res.json();
-      return data;
+      if (!res.ok) {
+        return null;
+      }
+
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        const data = await res.json();
+        return data;
+      }
+      return null;
     } catch (err) {
       // Backend offline or slow — silently ignore, Supabase is the master auth source
       return null;

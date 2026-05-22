@@ -260,6 +260,78 @@ const MachineOperationsTab = () => {
     }
   }
 
+  const parseCsvOps = (text, nomName, machineText) => {
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+    if (lines.length === 0) return { s1: [], s2: [], s2c: [] }
+
+    let startIndex = 0
+    if (lines.length >= 3) {
+      const line0 = lines[0].toLowerCase()
+      const line1 = lines[1].toLowerCase()
+      
+      const isStandard = 
+        line0.includes('cnc') || 
+        line0.includes('станок') || 
+        line0.includes('верстат') ||
+        line1.includes(nomName.toLowerCase().split('-')[0]) ||
+        lines[2].toLowerCase().includes('сторона') ||
+        lines[2].toLowerCase().includes('side') ||
+        lines[2].toLowerCase().includes('виріз')
+        
+      if (isStandard) {
+        startIndex = 3
+      }
+    }
+
+    const s1 = [], s2 = [], s2c = []
+    for (let i = startIndex; i < lines.length; i++) {
+      const parts = lines[i].split(',')
+      if (parts[0]?.trim()) s1.push(parts[0].trim())
+      if (parts[1]?.trim()) s2.push(parts[1].trim())
+      if (parts[2]?.trim()) s2c.push(parts[2].trim())
+    }
+    return { s1, s2, s2c }
+  }
+
+  const handleSingleRowImport = async (e, op, nom) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    
+    try {
+      const text = await file.text()
+      const nomName = nom?.name || ''
+      const mac = machines.find(m => m.id === op.machine_id)
+      const macText = op.machine_type || mac?.name || ''
+      
+      const { s1, s2, s2c } = parseCsvOps(text, nomName, macText)
+      
+      if (s1.length === 0 && s2.length === 0 && s2c.length === 0) {
+        throw new Error('У файлі не знайдено жодної операції.')
+      }
+
+      const payload = {
+        side1_ops: s1,
+        side2_ops: s2,
+        side2_cut_ops: s2c
+      }
+
+      const { error } = await supabase.from('machine_operations').update(payload).eq('id', op.id)
+      if (error) throw error
+
+      alert(`✅ Успішно оновлено операції для "${nomName}" (зчитано ${s1.length + s2.length + s2c.length} операцій)!`)
+      
+      if (selectedNom === op.nomenclature_id && selectedMachine === (op.machine_type || op.machine_id)) {
+        setSide1Ops(s1)
+        setSide2Ops(s2)
+        setSide2CutOps(s2c)
+      }
+    } catch (err) {
+      alert(`❌ Помилка імпорту: ${err.message}`)
+    } finally {
+      e.target.value = ''
+    }
+  }
+
   const renderOpList = (ops, setOps, title) => (
     <div style={{ flex: 1, background: '#111', padding: '15px', borderRadius: '12px', border: '1px solid #222' }}>
       <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#888' }}>{title}</h4>
@@ -382,6 +454,33 @@ const MachineOperationsTab = () => {
                             <span style={{ background: '#1a1a2e', padding: '3px 8px', borderRadius: '20px', color: '#34d399' }}>2ст: {(op.side2_ops || []).length}</span>
                             <span style={{ background: '#1a1a2e', padding: '3px 8px', borderRadius: '20px', color: '#f59e0b' }}>вир: {(op.side2_cut_ops || []).length}</span>
                           </div>
+                          <label style={{ 
+                            padding: '6px 12px', 
+                            background: '#10b98120', 
+                            border: '1px solid #10b98150', 
+                            color: '#10b981', 
+                            borderRadius: '6px', 
+                            cursor: 'pointer', 
+                            fontWeight: 600, 
+                            fontSize: '0.75rem', 
+                            whiteSpace: 'nowrap',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = '#10b98130'}
+                          onMouseLeave={e => e.currentTarget.style.background = '#10b98120'}
+                          >
+                            <Upload size={12} />
+                            <span>Імпорт CSV</span>
+                            <input 
+                              type="file" 
+                              accept=".csv" 
+                              style={{ display: 'none' }} 
+                              onChange={(e) => handleSingleRowImport(e, op, nom)} 
+                            />
+                          </label>
                           <button
                             onClick={() => {
                               setSelectedNom(op.nomenclature_id)

@@ -618,8 +618,9 @@ const MACHINE_TYPES = [
           <ArrowLeft size={18} /> <span className="hide-mobile">На головну</span>
         </Link>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <button onClick={() => setIsDrawerOpen(true)} className="mobile-only burger-btn" style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}>
-            <Menu size={24} />
+          <button onClick={() => setIsDrawerOpen(true)} className="burger-btn-labeled mobile-only">
+            <Menu size={20} />
+            <span>Черга</span>
           </button>
           <Factory size={22} color="#ef4444" />
           <h1 style={{ margin: 0, textTransform: 'uppercase', fontSize: '1rem', fontWeight: 900 }}>ВИРОБНИЦТВО</h1>

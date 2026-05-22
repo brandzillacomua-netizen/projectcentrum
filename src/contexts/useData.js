@@ -146,7 +146,8 @@ export function useData() {
         { data: req },
         { data: rec },
         { data: pr },
-        { data: wch }
+        { data: wch },
+        { data: mo }
       ] = await Promise.all([
         // Users & machines — needed for portal access filtering
         supabase.from('system_users').select('*').order('login'),
@@ -171,7 +172,8 @@ export function useData() {
         supabase.from('material_requests').select('*').neq('status', 'completed').order('created_at', { ascending: false }),
         supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300),
         supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300),
-        supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(200)
+        supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(200),
+        supabase.from('machine_operations').select('*')
       ])
 
       if (su) setSystemUsers(su)
@@ -188,6 +190,7 @@ export function useData() {
       if (rec) setReceptionDocs(rec)
       if (pr) setPurchaseRequests(pr)
       if (wch) setWorkCardHistory(wch)
+      if (mo) setMachineOperations(mo)
       
       if (structRes && structRes.data && structRes.data.length > 0) {
         setCompanyStructure(structRes.data)
@@ -227,7 +230,8 @@ export function useData() {
         { data: req },
         { data: rec },
         { data: pr },
-        { data: wch }
+        { data: wch },
+        { data: mo }
       ] = await Promise.all([
         supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).range(0, 99),
         // tasks WITHOUT nested JOIN — avoids the orders(order_items(*)) waterfall
@@ -243,7 +247,8 @@ export function useData() {
         supabase.from('material_requests').select('*').neq('status', 'completed').order('created_at', { ascending: false }),
         supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300),
         supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300),
-        supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(200)
+        supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(200),
+        supabase.from('machine_operations').select('*')
       ])
 
       if (!oErr && latest) {
@@ -271,6 +276,7 @@ export function useData() {
       if (rec) setReceptionDocs(rec)
       if (pr) setPurchaseRequests(pr)
       if (wch) setWorkCardHistory(wch)
+      if (mo) setMachineOperations(mo)
       
       if (structRes && structRes.data && structRes.data.length > 0) {
         setCompanyStructure(structRes.data)
@@ -332,6 +338,9 @@ export function useData() {
           })
           return next.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
         })
+      } else if (tableName === 'machine_operations') {
+        const { data } = await supabase.from('machine_operations').select('*')
+        if (data) setMachineOperations(data)
       }
     } catch (e) { console.error(`Error refreshing ${tableName}:`, e) }
   }
@@ -634,8 +643,34 @@ export function useData() {
           error = null
         }
       }
+
+      // Fallback if the user hasn't run the SQL script to add the start_page column yet
+      if (error && error.message && error.message.includes('start_page') && 'start_page' in payload) {
+        console.warn("start_page column is missing, retrying without it:", error.message)
+        const fallbackPayload = { ...payload }
+        delete fallbackPayload.start_page
+        const retry = await supabase.from('company_positions').upsert([fallbackPayload]).select()
+        if (!retry.error) {
+          res = retry.data ? [{ ...retry.data[0], start_page: payload.start_page }] : [{ ...payload }]
+          error = new Error('MISSING_START_PAGE_COLUMN')
+        }
+      }
       
-      if (error) throw error
+      if (error) {
+        if (error.message === 'MISSING_START_PAGE_COLUMN') {
+          if (res && res.length > 0) {
+            setCompanyPositions(prev => {
+              const idx = prev.findIndex(item => item.id === res[0].id)
+              if (idx >= 0) {
+                const next = [...prev]; next[idx] = res[0]; return next
+              }
+              return [...prev, res[0]]
+            })
+          }
+          return { data: res ? res[0] : null, error }
+        }
+        throw error
+      }
       if (res && res.length > 0) {
         setCompanyPositions(prev => {
           const idx = prev.findIndex(item => item.id === res[0].id)

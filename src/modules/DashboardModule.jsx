@@ -33,11 +33,11 @@ const DashboardModule = () => {
     const filteredNoms = nomenclatures.filter(n => n.type === 'part')
 
     return filteredNoms.map(nom => {
-      // 1. Розкрій (Робота) - status: in-progress
+      // 1. Розкрій (Робота) - status: in-progress or new
       const qCut = (workCards || [])
         .filter(c => String(c.nomenclature_id) === String(nom.id) && 
                      (c.operation === 'Розкрій' || c.operation === 'Лазерний розкрій') && 
-                     c.status === 'in-progress')
+                     (c.status === 'in-progress' || c.status === 'new'))
         .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
       // 2. Буфер Розкрою - status: at-buffer
@@ -47,11 +47,11 @@ const DashboardModule = () => {
                      c.status === 'at-buffer')
         .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
-      // 3. Галтовка (Робота) - status: in-progress
+      // 3. Галтовка (Робота) - status: in-progress or new
       const qGalt = (workCards || [])
         .filter(c => String(c.nomenclature_id) === String(nom.id) && 
                      c.operation === 'Галтовка' && 
-                     c.status === 'in-progress')
+                     (c.status === 'in-progress' || c.status === 'new'))
         .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
       // 4. Буфер Галтовки - status: at-buffer
@@ -67,11 +67,11 @@ const DashboardModule = () => {
                      c.operation === 'Прийомка')
         .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
-      // 5b. Сортування (Робота) - status: in-progress or at-buffer (not yet sent to Shop 2)
+      // 5b. Сортування (Робота) - status: in-progress, at-buffer, or new (not yet sent to Shop 2)
       const qSortAct = (workCards || [])
         .filter(c => String(c.nomenclature_id) === String(nom.id) && 
                      c.operation === 'Сортування' && 
-                     (c.status === 'in-progress' || c.status === 'at-buffer'))
+                     (c.status === 'in-progress' || c.status === 'at-buffer' || c.status === 'new'))
         .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
       // 6. Буфер Цеху №2 - only cards actually dispatched to Shop 2 buffer
@@ -87,25 +87,25 @@ const DashboardModule = () => {
 
       const qSort = qSortCards + qSortInv
 
-      // 7. Малярка (Робота) - status: in-progress
+      // 7. Малярка (Робота) - status: in-progress or new
       const qMal = (workCards || [])
         .filter(c => String(c.nomenclature_id) === String(nom.id) && 
                      (c.operation === 'Фарбування' || c.operation === 'Малярка') && 
-                     c.status === 'in-progress')
+                     (c.status === 'in-progress' || c.status === 'new'))
         .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
-      // 8. Пресування (Робота) - status: in-progress
+      // 8. Пресування (Робота) - status: in-progress or new
       const qPres = (workCards || [])
         .filter(c => String(c.nomenclature_id) === String(nom.id) && 
                      c.operation === 'Пресування' && 
-                     c.status === 'in-progress')
+                     (c.status === 'in-progress' || c.status === 'new'))
         .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
-      // 9. Доопрацювання (Робота) - status: in-progress
+      // 9. Доопрацювання (Робота) - status: in-progress, new, or pending
       const qDoop = (workCards || [])
         .filter(c => String(c.nomenclature_id) === String(nom.id) && 
                      c.operation === 'Доопрацювання' && 
-                     c.status === 'in-progress')
+                     (c.status === 'in-progress' || c.status === 'new' || c.status === 'pending'))
         .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
       // 10. Склад (СГП)
@@ -206,7 +206,7 @@ const DashboardModule = () => {
 
         // Find child part's aggregated WIP row in dashboardData
         const row = dashboardData.find(r => String(r.id) === String(b.child_id))
-        const qtyPerProduct = Number(b.qty) || 1
+        const qtyPerProduct = Number(b.quantity_per_parent) || 1
         
         const sumVal = row ? row.sum : 0
         const sgpVal = row ? row.qSgp : 0

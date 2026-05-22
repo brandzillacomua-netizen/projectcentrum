@@ -219,7 +219,10 @@ const OperatorTerminal = () => {
           <Link to="/" style={{ color: '#94a3b8', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '0.85rem' }}>
             <ArrowLeft size={18} /> <span className="hide-mobile">Вихід</span>
           </Link>
-          <button onClick={() => setIsDrawerOpen(true)} className="burger-btn mobile-only"><Menu size={24} /></button>
+          <button onClick={() => setIsDrawerOpen(true)} className="burger-btn-labeled mobile-only">
+            <Menu size={20} />
+            <span>Черга</span>
+          </button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Tablet size={20} color="#eab308" />

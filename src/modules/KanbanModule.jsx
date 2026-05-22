@@ -1,14 +1,12 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import {
   KanbanSquare,
   ArrowLeft,
   Plus,
-  MoreVertical,
   Clock,
   User,
   Users,
   Search,
-  Filter,
   CheckCircle2,
   AlertCircle,
   X,
@@ -24,7 +22,9 @@ const KanbanModule = () => {
   const [assigneeSearch, setAssigneeSearch] = useState('')
   const [selectedTask, setSelectedTask] = useState(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
-  const [filterMode, setFilterMode] = useState('all') // 'all', 'my', 'department'
+  const [filterMode, setFilterMode] = useState('all') // 'all', 'my', 'assigned_by_me', 'department', 'unassigned'
+  const [statsFilter, setStatsFilter] = useState('all') // 'all', 'in_progress', 'overdue', 'done'
+  const [activeMobileColumn, setActiveMobileColumn] = useState('todo')
   const [searchQuery, setSearchQuery] = useState('')
   const [commentText, setCommentText] = useState('')
 
@@ -61,7 +61,51 @@ const KanbanModule = () => {
     return pos.includes('адмін') || pos.includes('директор') || pos.includes('цеху') || pos.includes('керівник')
   }, [currentUser])
 
-  // Filter tasks based on mode and search
+  const getUserDepartmentId = (deptName) => {
+    if (!deptName) return '';
+    const d = deptName.toLowerCase();
+    if (d.includes('цех №1') || d.includes('цех 1')) return 'shop1';
+    if (d.includes('цех №2') || d.includes('цех 2')) return 'shop2';
+    if (d.includes('склад')) return 'warehouse';
+    if (d.includes('менедж') || d.includes('керівн') || d.includes('адмін')) return 'manager';
+    if (d.includes('логіст')) return 'logistics';
+    return '';
+  }
+
+  // Automatically configure default filters based on user role when loaded
+  useEffect(() => {
+    if (currentUser) {
+      const pos = currentUser?.position?.toLowerCase() || ''
+      const manager = pos.includes('адмін') || pos.includes('директор') || pos.includes('цеху') || pos.includes('керівник')
+      setFilterMode(manager ? 'all' : 'my')
+    }
+  }, [currentUser])
+
+  // Aggregate Stats based on user rights
+  const stats = useMemo(() => {
+    let baseList = managementTasks || []
+    if (!isManager) {
+      baseList = baseList.filter(t => 
+        t.assigned_to === currentUser?.login || 
+        t.created_by === currentUser?.login || 
+        t.is_collective === true || 
+        t.is_collective === 'true' ||
+        t.is_collective === 1
+      )
+    }
+
+    const total = baseList.length
+    const inProgress = baseList.filter(t => t.status === 'in_progress').length
+    const done = baseList.filter(t => t.status === 'done').length
+    const overdue = baseList.filter(t => {
+      const isOverdue = t.deadline && new Date(t.deadline) < new Date() && t.status !== 'done';
+      return isOverdue;
+    }).length
+
+    return { total, inProgress, done, overdue }
+  }, [managementTasks, isManager, currentUser])
+
+  // Filter tasks based on view mode, stats filter, and search text
   const filteredTasks = useMemo(() => {
     let list = managementTasks || []
 
@@ -76,11 +120,25 @@ const KanbanModule = () => {
       )
     }
 
+    // Role-based filters
     if (filterMode === 'my') {
-      list = list.filter(t => t.assigned_to === currentUser?.login || t.created_by === currentUser?.login)
+      list = list.filter(t => t.assigned_to === currentUser?.login)
+    } else if (filterMode === 'assigned_by_me') {
+      list = list.filter(t => t.created_by === currentUser?.login && t.assigned_to !== currentUser?.login)
     } else if (filterMode === 'department') {
-      // If user has a department implied by role or position, filter here
-      // For now, it filters collective tasks that match department logic
+      const deptId = getUserDepartmentId(currentUser?.department)
+      list = list.filter(t => t.is_collective && (t.department === deptId || t.department === 'all'))
+    } else if (filterMode === 'unassigned') {
+      list = list.filter(t => !t.assigned_to && !t.is_collective)
+    }
+
+    // Stats quick filters
+    if (statsFilter === 'in_progress') {
+      list = list.filter(t => t.status === 'in_progress')
+    } else if (statsFilter === 'overdue') {
+      list = list.filter(t => t.deadline && new Date(t.deadline) < new Date() && t.status !== 'done')
+    } else if (statsFilter === 'done') {
+      list = list.filter(t => t.status === 'done')
     }
 
     if (searchQuery) {
@@ -92,8 +150,9 @@ const KanbanModule = () => {
     }
 
     return list
-  }, [managementTasks, filterMode, searchQuery, currentUser, isManager])
+  }, [managementTasks, filterMode, statsFilter, searchQuery, currentUser, isManager])
 
+  // Drag and Drop handlers
   const handleDragStart = (e, taskId) => {
     e.dataTransfer.setData('taskId', taskId)
     e.currentTarget.classList.add('dragging')
@@ -127,6 +186,39 @@ const KanbanModule = () => {
     setIsDetailOpen(true)
   }
 
+  // Parse comments from task description
+  const parseTaskDescriptionAndComments = (descText) => {
+    if (!descText) return { description: '', comments: [] };
+    
+    const lines = descText.split('\n');
+    const comments = [];
+    const descLines = [];
+    const commentRegex = /^\[([^\]]+)\]\s*([^:]+):\s*(.*)$/;
+    
+    lines.forEach(line => {
+      const match = line.trim().match(commentRegex);
+      if (match) {
+        comments.push({
+          time: match[1],
+          author: match[2],
+          text: match[3]
+        });
+      } else {
+        descLines.push(line);
+      }
+    });
+    
+    return {
+      description: descLines.join('\n').trim(),
+      comments
+    };
+  }
+
+  const parsedTask = useMemo(() => {
+    if (!selectedTask) return { description: '', comments: [] };
+    return parseTaskDescriptionAndComments(selectedTask.description);
+  }, [selectedTask?.description])
+
   const handleAddComment = async (e) => {
     e.preventDefault()
     if (!commentText.trim() || !selectedTask) return
@@ -135,7 +227,6 @@ const KanbanModule = () => {
     const authorName = currentUser?.first_name || currentUser?.login || 'Користувач'
     const newCommentLine = `\n[${timeStr}] ${authorName}: ${commentText}`
     
-    // We append to description since 'comments' column is likely missing
     const updatedDesc = (selectedTask.description || '') + newCommentLine
     
     await updateManagementTask(selectedTask.id, { description: updatedDesc })
@@ -179,8 +270,68 @@ const KanbanModule = () => {
     }
   }
 
+  // Direct action button components for cards
+  const renderCardActions = (task) => {
+    if (task.status === 'done') return null;
+
+    const isAssignee = task.assigned_to === currentUser?.login;
+    const isCollectiveForMyDept = task.is_collective && (getUserDepartmentId(currentUser?.department) === task.department || task.department === 'all');
+    const canAdvance = isAssignee || isCollectiveForMyDept || isManager;
+
+    if (!canAdvance) return null;
+
+    return (
+      <div className="card-quick-actions" onClick={e => e.stopPropagation()}>
+        {task.status === 'todo' && (
+          <button 
+            className="action-btn start-btn"
+            onClick={async () => {
+              await updateManagementTask(task.id, { 
+                status: 'in_progress', 
+                assigned_to: task.assigned_to || currentUser?.login 
+              });
+            }}
+          >
+            ▶ Почати роботу
+          </button>
+        )}
+        {task.status === 'in_progress' && (
+          <button 
+            className="action-btn review-btn"
+            onClick={async () => {
+              await updateManagementTask(task.id, { status: 'review' });
+            }}
+          >
+            ⚙ На перевірку
+          </button>
+        )}
+        {task.status === 'review' && isManager && (
+          <div className="manager-actions">
+            <button 
+              className="action-btn approve-btn"
+              onClick={async () => {
+                await updateManagementTask(task.id, { status: 'done' });
+              }}
+            >
+              ✓ Прийняти
+            </button>
+            <button 
+              className="action-btn reject-btn"
+              onClick={async () => {
+                await updateManagementTask(task.id, { status: 'in_progress' });
+              }}
+            >
+              ✕ Відхилити
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="kanban-console">
+      {/* Navigation Header */}
       <nav className="glass-nav">
         <div className="nav-left">
           <Link to="/" className="btn-back">
@@ -204,14 +355,43 @@ const KanbanModule = () => {
           </div>
 
           <div className="filter-group">
-            <button
-              className={`filter-btn ${filterMode === 'all' ? 'active' : ''}`}
-              onClick={() => setFilterMode('all')}
-            >УСІ</button>
-            <button
-              className={`filter-btn ${filterMode === 'my' ? 'active' : ''}`}
-              onClick={() => setFilterMode('my')}
-            >МОЇ</button>
+            {isManager ? (
+              <>
+                <button
+                  className={`filter-btn ${filterMode === 'all' ? 'active' : ''}`}
+                  onClick={() => { setFilterMode('all'); setStatsFilter('all'); }}
+                >УСІ</button>
+                <button
+                  className={`filter-btn ${filterMode === 'my' ? 'active' : ''}`}
+                  onClick={() => { setFilterMode('my'); setStatsFilter('all'); }}
+                >МОЇ</button>
+                <button
+                  className={`filter-btn ${filterMode === 'assigned_by_me' ? 'active' : ''}`}
+                  onClick={() => { setFilterMode('assigned_by_me'); setStatsFilter('all'); }}
+                  title="Задачі, створені мною"
+                >ДОРУЧЕНО</button>
+                <button
+                  className={`filter-btn ${filterMode === 'unassigned' ? 'active' : ''}`}
+                  onClick={() => { setFilterMode('unassigned'); setStatsFilter('all'); }}
+                  title="Задачі без виконавця"
+                >БЕЗ ВИКОН.</button>
+              </>
+            ) : (
+              <>
+                <button
+                  className={`filter-btn ${filterMode === 'my' ? 'active' : ''}`}
+                  onClick={() => { setFilterMode('my'); setStatsFilter('all'); }}
+                >МОЇ ЗАДАЧІ</button>
+                <button
+                  className={`filter-btn ${filterMode === 'department' ? 'active' : ''}`}
+                  onClick={() => { setFilterMode('department'); setStatsFilter('all'); }}
+                >ВІДДІЛ</button>
+                <button
+                  className={`filter-btn ${filterMode === 'all' ? 'active' : ''}`}
+                  onClick={() => { setFilterMode('all'); setStatsFilter('all'); }}
+                >УСІ ДОСТУПНІ</button>
+              </>
+            )}
           </div>
 
           {isManager && (
@@ -223,6 +403,72 @@ const KanbanModule = () => {
         </div>
       </nav>
 
+      {/* Interactive Stats Dashboard Widget */}
+      <div className="stats-dashboard">
+        <div 
+          className={`stat-card glass-panel total-stats ${statsFilter === 'all' ? 'active' : ''}`}
+          onClick={() => setStatsFilter('all')} 
+        >
+          <div className="stat-icon-wrap"><KanbanSquare size={18} /></div>
+          <div className="stat-info">
+            <span className="stat-label">УСЬОГО ЗАДАЧ</span>
+            <span className="stat-value">{stats.total}</span>
+          </div>
+        </div>
+
+        <div 
+          className={`stat-card glass-panel progress-stats ${statsFilter === 'in_progress' ? 'active' : ''}`}
+          onClick={() => setStatsFilter(statsFilter === 'in_progress' ? 'all' : 'in_progress')}
+        >
+          <div className="stat-icon-wrap" style={{ color: '#3b82f6' }}><Clock size={18} /></div>
+          <div className="stat-info">
+            <span className="stat-label">В РОБОТІ</span>
+            <span className="stat-value" style={{ color: '#3b82f6' }}>{stats.inProgress}</span>
+          </div>
+        </div>
+
+        <div 
+          className={`stat-card glass-panel overdue-stats ${statsFilter === 'overdue' ? 'active' : ''}`}
+          onClick={() => setStatsFilter(statsFilter === 'overdue' ? 'all' : 'overdue')}
+        >
+          <div className="stat-icon-wrap" style={{ color: '#ef4444' }}><AlertCircle size={18} /></div>
+          <div className="stat-info">
+            <span className="stat-label">ПРОТЕРМІНОВАНО</span>
+            <span className="stat-value pulse-red-text" style={{ color: '#ef4444' }}>{stats.overdue}</span>
+          </div>
+        </div>
+
+        <div 
+          className={`stat-card glass-panel done-stats ${statsFilter === 'done' ? 'active' : ''}`}
+          onClick={() => setStatsFilter(statsFilter === 'done' ? 'all' : 'done')}
+        >
+          <div className="stat-icon-wrap" style={{ color: '#10b981' }}><CheckCircle2 size={18} /></div>
+          <div className="stat-info">
+            <span className="stat-label">ВИКОНАНО</span>
+            <span className="stat-value" style={{ color: '#10b981' }}>{stats.done}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Column Tabs bar */}
+      <div className="mobile-column-tabs mobile-only">
+        {COLUMNS.map(col => {
+          const count = filteredTasks.filter(t => t.status === col.id).length
+          return (
+            <button
+              key={col.id}
+              className={`mobile-tab-btn ${activeMobileColumn === col.id ? 'active' : ''}`}
+              onClick={() => setActiveMobileColumn(col.id)}
+              style={{ borderBottomColor: activeMobileColumn === col.id ? col.color : 'transparent' }}
+            >
+              <span className="tab-title">{col.title}</span>
+              <span className="tab-count" style={{ background: `${col.color}20`, color: col.color }}>{count}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Kanban Columns Grid */}
       <main className="kanban-board">
         {COLUMNS.map(column => {
           const columnTasks = filteredTasks.filter(t => t.status === column.id)
@@ -230,7 +476,7 @@ const KanbanModule = () => {
           return (
             <div
               key={column.id}
-              className="kanban-column glass-panel"
+              className={`kanban-column glass-panel ${activeMobileColumn === column.id ? 'mobile-active' : ''}`}
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, column.id)}
             >
@@ -242,13 +488,14 @@ const KanbanModule = () => {
               <div className="column-body">
                 {columnTasks.map(task => {
                   const assignee = systemUsers.find(u => u.login === task.assigned_to)
-                  const creator = systemUsers.find(u => u.login === task.created_by)
                   const isOverdue = task.deadline && new Date(task.deadline) < new Date() && task.status !== 'done'
+                  const { description: cardDesc } = parseTaskDescriptionAndComments(task.description)
 
                   return (
                     <div
                       key={task.id}
                       className={`task-card ${isOverdue ? 'overdue' : ''}`}
+                      style={{ borderLeft: `4px solid ${getPriorityColor(task.priority)}` }}
                       draggable
                       onDragStart={(e) => handleDragStart(e, task.id)}
                       onDragEnd={handleDragEnd}
@@ -266,7 +513,7 @@ const KanbanModule = () => {
                       </div>
 
                       <h4 className="task-title">{task.title}</h4>
-                      {task.description && <p className="task-desc">{task.description}</p>}
+                      {cardDesc && <p className="task-desc">{cardDesc}</p>}
 
                       <div className="task-footer">
                         <div className="task-meta">
@@ -290,10 +537,14 @@ const KanbanModule = () => {
                         </div>
                       </div>
 
+                      {/* Direct click-to-move buttons */}
+                      {renderCardActions(task)}
+
+                      {/* Move helper for desktop hover */}
                       {column.id !== 'done' && (
                         <button
-                          className="quick-move-btn"
-                          onClick={() => handleQuickStatusMove(task.id, task.status)}
+                          className="quick-move-btn hide-mobile"
+                          onClick={(e) => { e.stopPropagation(); handleQuickStatusMove(task.id, task.status); }}
                           title="Перемістити далі"
                         >
                           →
@@ -315,7 +566,7 @@ const KanbanModule = () => {
 
                 {columnTasks.length === 0 && (
                   <div className="empty-column-state">
-                    Перетягніть сюди
+                    Черга порожня
                   </div>
                 )}
               </div>
@@ -474,7 +725,7 @@ const KanbanModule = () => {
           <div className="modal-content glass-panel task-detail-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <div className="header-title-group">
-                <span className="priority-dot" style={{ background: getPriorityColor(selectedTask.priority) }}></span>
+                <span className="priority-dot" style={{ background: getPriorityColor(selectedTask.priority), color: getPriorityColor(selectedTask.priority) }}></span>
                 <h2>{selectedTask.title}</h2>
               </div>
               <button className="btn-close" onClick={() => setIsDetailOpen(false)}><X size={20} /></button>
@@ -486,23 +737,40 @@ const KanbanModule = () => {
                   <section className="detail-section">
                     <label>Опис задачі</label>
                     <div className="description-box">
-                      {selectedTask.description || <span className="text-dim">Опис відсутній</span>}
+                      {parsedTask.description || <span className="text-dim">Опис відсутній</span>}
                     </div>
                   </section>
 
                   <section className="detail-section comments-section">
-                    <label><MessageSquare size={14} /> ВІДГУКИ ТА КОМЕНТАРІ (У ОПИСІ)</label>
-                    <div className="comments-history-info">
-                      * Коментарі зберігаються у нижній частині опису задачі
+                    <label><MessageSquare size={14} /> ВІДГУКИ ТА КОМЕНТАРІ ({parsedTask.comments.length})</label>
+                    
+                    <div className="comments-list">
+                      {parsedTask.comments.map((comment, i) => (
+                        <div key={i} className="comment-bubble-wrap">
+                          <div className="comment-bubble-meta">
+                            <span className="comment-author">{comment.author}</span>
+                            <span className="comment-time">{comment.time}</span>
+                          </div>
+                          <div className="comment-bubble">
+                            {comment.text}
+                          </div>
+                        </div>
+                      ))}
+                      {parsedTask.comments.length === 0 && (
+                        <div className="empty-comments-state">
+                          Немає коментарів. Залиште перший відгук нижче!
+                        </div>
+                      )}
                     </div>
+
                     <form onSubmit={handleAddComment} className="comment-input-group">
                       <input 
                         type="text" 
-                        placeholder="Додати відгук до опису..." 
+                        placeholder="Напишіть коментар..." 
                         value={commentText}
                         onChange={e => setCommentText(e.target.value)}
                       />
-                      <button type="submit" className="btn-send-comment">ДОДАТИ</button>
+                      <button type="submit" className="btn-send-comment">НАДІСЛАТИ</button>
                     </form>
                   </section>
                 </div>
@@ -590,6 +858,34 @@ const KanbanModule = () => {
         .btn-primary:hover { background: #ffaa33; transform: translateY(-1px); }
         .btn-secondary { background: #111; color: #aaa; border: 1px solid #333; padding: 10px 20px; border-radius: 12px; font-weight: 900; cursor: pointer; }
         
+        .stats-dashboard {
+          display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;
+          padding: 15px 40px; background: #080808; border-bottom: 1px solid #151515; flex-shrink: 0;
+        }
+        .stat-card {
+          display: flex; align-items: center; gap: 15px; padding: 12px 20px;
+          background: rgba(18, 18, 18, 0.6); border: 1px solid rgba(255, 255, 255, 0.03);
+          border-radius: 16px; cursor: pointer; transition: all 0.2s;
+        }
+        .stat-card:hover {
+          background: rgba(255, 255, 255, 0.02); border-color: rgba(255, 255, 255, 0.08);
+          transform: translateY(-1px);
+        }
+        .stat-card.active {
+          background: rgba(255, 144, 0, 0.05); border-color: #ff9000;
+          box-shadow: 0 0 10px rgba(255, 144, 0, 0.1);
+        }
+        .stat-icon-wrap {
+          display: flex; align-items: center; justify-content: center;
+          width: 36px; height: 36px; border-radius: 10px; background: rgba(255, 255, 255, 0.02);
+          color: #ff9000;
+        }
+        .stat-info { display: flex; flex-direction: column; }
+        .stat-label { font-size: 0.65rem; font-weight: 800; color: #555; letter-spacing: 0.5px; }
+        .stat-value { font-size: 1.15rem; font-weight: 900; color: #fff; }
+        
+        .mobile-column-tabs { display: none; }
+
         .kanban-board {
           display: flex; gap: 20px; padding: 30px 40px; overflow-x: auto; flex: 1;
         }
@@ -615,7 +911,7 @@ const KanbanModule = () => {
         .task-card:active { cursor: grabbing; }
         .task-card:hover { border-color: #444; transform: translateY(-2px); box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
         .task-card.dragging { opacity: 0.5; border: 1px dashed #ff9000; }
-        .task-card.overdue { border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.02); }
+        .task-card.overdue { border-color: rgba(239, 68, 68, 0.4) !important; background: rgba(239, 68, 68, 0.01); }
         
         .task-labels { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
         .priority-label { font-size: 0.65rem; font-weight: 900; padding: 4px 10px; border-radius: 8px; letter-spacing: 0.5px; }
@@ -624,35 +920,53 @@ const KanbanModule = () => {
         .task-title { margin: 0 0 8px 0; font-size: 0.95rem; font-weight: 600; line-height: 1.4; }
         .task-desc { margin: 0; font-size: 0.8rem; color: #888; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         
-        .task-footer { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 15px; padding-top: 15px; border-top: 1px solid #222; }
+        .task-footer { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 15px; padding-top: 15px; border-top: 1px solid #1d1d1d; }
         .task-meta { display: flex; gap: 15px; }
         .deadline { display: flex; align-items: center; gap: 4px; font-size: 0.75rem; font-weight: 800; }
         
         .user-avatar { width: 28px; height: 28px; border-radius: 14px; background: #ff9000; color: #000; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 900; text-transform: uppercase; border: 2px solid #111; }
         .user-avatar.unassigned { background: #222; color: #666; border-style: dashed; }
         
-        .quick-move-btn { position: absolute; right: -30px; top: 50%; transform: translateY(-50%); background: #ff9000; color: #000; border: none; width: 24px; height: 24px; border-radius: 12px; font-weight: 900; cursor: pointer; transition: 0.2s; opacity: 0; }
+        .card-quick-actions {
+          display: flex; gap: 8px; margin-top: 15px; padding-top: 12px; border-top: 1px dashed #222;
+        }
+        .action-btn {
+          flex: 1; padding: 8px 10px; border-radius: 8px; border: none;
+          font-size: 0.7rem; font-weight: 900; cursor: pointer; transition: all 0.2s;
+          text-align: center; text-transform: uppercase;
+        }
+        .start-btn { background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); }
+        .start-btn:hover { background: #3b82f6; color: #fff; }
+        .review-btn { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); }
+        .review-btn:hover { background: #f59e0b; color: #000; }
+        .manager-actions { display: flex; gap: 8px; width: 100%; }
+        .approve-btn { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
+        .approve-btn:hover { background: #10b981; color: #fff; }
+        .reject-btn { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .reject-btn:hover { background: #ef4444; color: #fff; }
+
+        .quick-move-btn { position: absolute; right: -30px; top: 30%; transform: translateY(-50%); background: #ff9000; color: #000; border: none; width: 24px; height: 24px; border-radius: 12px; font-weight: 900; cursor: pointer; transition: 0.2s; opacity: 0; }
         .task-card:hover .quick-move-btn { right: 10px; opacity: 1; }
         
         .btn-delete-task { position: absolute; top: 10px; right: 10px; background: rgba(239,68,68,0.1); color: #ef4444; border: none; width: 24px; height: 24px; border-radius: 6px; display: flex; justify-content: center; align-items: center; cursor: pointer; opacity: 0; transition: 0.2s; }
         .task-card:hover .btn-delete-task { opacity: 1; }
         .btn-delete-task:hover { background: #ef4444; color: #fff; }
-
+ 
         .empty-column-state { padding: 30px 10px; text-align: center; border: 2px dashed #1a1a1a; border-radius: 12px; color: #333; font-weight: 800; font-size: 0.8rem; text-transform: uppercase; }
 
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 2000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(10px); }
-        .modal-content { width: 500px; background: #0a0a0a; border: 1px solid #222; border-radius: 24px; overflow: hidden; box-shadow: 0 30px 60px rgba(0,0,0,0.8); animation: scaleUp 0.3s; }
+        .modal-content { width: 500px; max-width: 95vw; background: #0a0a0a; border: 1px solid #222; border-radius: 24px; overflow: hidden; box-shadow: 0 30px 60px rgba(0,0,0,0.8); animation: scaleUp 0.3s; }
         .modal-header { padding: 25px 30px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1a1a1a; }
         .modal-header h2 { margin: 0; font-size: 1.2rem; font-weight: 900; }
         .btn-close { background: transparent; border: none; color: #555; cursor: pointer; transition: 0.2s; }
         .btn-close:hover { color: #fff; }
         
-        .modal-body { padding: 30px; }
+        .modal-body { padding: 30px; max-height: 80vh; overflow-y: auto; }
         .form-layout { display: flex; flex-direction: column; gap: 20px; }
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
         
         .form-group label { font-size: 0.75rem; font-weight: 950; color: #555; text-transform: uppercase; margin-bottom: 4px; display: block; }
-        .form-group input, .form-group textarea, .form-group select { background: #111; border: 1px solid #222; color: #fff; padding: 12px 15px; border-radius: 12px; font-family: inherit; font-size: 0.9rem; transition: 0.2s; }
+        .form-group input, .form-group textarea, .form-group select { background: #111; border: 1px solid #222; color: #fff; padding: 12px 15px; border-radius: 12px; font-family: inherit; font-size: 0.9rem; transition: 0.2s; width: 100%; box-sizing: border-box; }
         .form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: #ff9000; outline: none; background: #151515; }
         
         .assignee-search-input { display: flex; align-items: center; gap: 10px; background: #050505; border: 1px solid #222; border-radius: 12px; padding: 0 15px; margin-bottom: 5px; margin-top: 5px; position: relative; }
@@ -684,23 +998,140 @@ const KanbanModule = () => {
         .priority-dot { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 10px currentColor; }
         
         .detail-layout { display: grid; grid-template-columns: 1fr 240px; gap: 30px; }
-        .detail-main { display: flex; flex-direction: column; gap: 25px; }
+        .detail-main { display: flex; flex-direction: column; gap: 25px; min-width: 0; }
         .detail-section label { font-size: 0.7rem; font-weight: 900; color: #555; text-transform: uppercase; margin-bottom: 10px; display: block; }
-        .description-box { background: #080808; padding: 20px; border-radius: 16px; border: 1px solid #1a1a1a; line-height: 1.6; color: #ccc; min-height: 80px; }
+        .description-box { background: #080808; padding: 20px; border-radius: 16px; border: 1px solid #1a1a1a; line-height: 1.6; color: #ccc; min-height: 80px; white-space: pre-wrap; font-size: 0.9rem; }
         
         .comments-section { border-top: 1px solid #1a1a1a; padding-top: 25px; }
-        .comments-history-info { font-size: 0.7rem; color: #444; margin-bottom: 15px; font-style: italic; }
         
+        .comments-list { display: flex; flex-direction: column; gap: 12px; max-height: 250px; overflow-y: auto; margin-bottom: 15px; padding-right: 5px; }
+        .comment-bubble-wrap { display: flex; flex-direction: column; gap: 4px; }
+        .comment-bubble-meta { display: flex; justify-content: space-between; font-size: 0.7rem; font-weight: 800; padding: 0 4px; }
+        .comment-author { color: #ff9000; }
+        .comment-time { color: #444; }
+        .comment-bubble { background: #111; border: 1px solid #1a1a1a; padding: 10px 14px; border-radius: 12px; font-size: 0.8rem; line-height: 1.4; color: #eee; word-break: break-word; }
+        .empty-comments-state { text-align: center; padding: 20px; color: #333; font-size: 0.8rem; font-weight: 800; text-transform: uppercase; }
+
         .comment-input-group { display: flex; gap: 10px; background: #050505; padding: 8px; border-radius: 12px; border: 1px solid #222; }
         .comment-input-group input { flex: 1; background: transparent; border: none; color: #fff; outline: none; padding-left: 10px; font-size: 0.85rem; }
         .btn-send-comment { background: #ff9000; color: #000; border: none; padding: 8px 15px; border-radius: 8px; font-weight: 900; font-size: 0.7rem; cursor: pointer; }
         
-        .detail-side { display: flex; flex-direction: column; gap: 20px; background: #0a0a0a; padding: 20px; border-radius: 20px; border: 1px solid #1a1a1a; }
+        .detail-side { display: flex; flex-direction: column; gap: 20px; background: #0a0a0a; padding: 20px; border-radius: 20px; border: 1px solid #1a1a1a; height: fit-content; }
         .side-group label { font-size: 0.65rem; font-weight: 950; color: #333; text-transform: uppercase; margin-bottom: 5px; display: block; }
         .side-value { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 700; color: #888; }
         .status-select { background: #111; border: 1px solid #222; color: #fff; width: 100%; padding: 8px; border-radius: 8px; font-weight: 800; cursor: pointer; }
 
         @keyframes scaleUp { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        
+        .hide-mobile { display: block; }
+
+        /* Media Queries for responsive adaptation */
+        @media (max-width: 1024px) {
+          .stats-dashboard {
+            grid-template-columns: repeat(2, 1fr);
+            padding: 15px 20px;
+          }
+          .glass-nav {
+            padding: 15px 20px;
+            flex-direction: column;
+            height: auto;
+            gap: 15px;
+          }
+          .nav-left { width: 100%; justify-content: space-between; }
+          .nav-right {
+            width: 100%;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 10px;
+          }
+          .search-bar { width: 100%; }
+          .search-bar input { width: 100%; }
+          .filter-group { width: 100%; justify-content: space-between; }
+          .filter-btn { flex: 1; text-align: center; }
+          .btn-primary { width: 100%; justify-content: center; }
+          
+          .kanban-board { padding: 15px 20px; }
+          .detail-layout { grid-template-columns: 1fr; gap: 20px; }
+          .detail-side { width: 100%; box-sizing: border-box; }
+        }
+
+        @media (max-width: 768px) {
+          .stats-dashboard {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            padding: 10px 15px;
+          }
+          .stat-card {
+            padding: 8px 12px;
+            gap: 8px;
+          }
+          .stat-icon-wrap {
+            width: 28px;
+            height: 28px;
+          }
+          .stat-value {
+            font-size: 1rem;
+          }
+          
+          .mobile-column-tabs {
+            display: flex;
+            background: #0c0c0c;
+            border-bottom: 1px solid #1a1a1a;
+            overflow-x: auto;
+            padding: 5px 10px;
+            gap: 10px;
+            flex-shrink: 0;
+          }
+          .mobile-tab-btn {
+            flex: 1;
+            min-width: 90px;
+            background: transparent;
+            border: none;
+            border-bottom: 3px solid transparent;
+            padding: 10px 5px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            color: #555;
+            transition: all 0.2s;
+          }
+          .mobile-tab-btn.active {
+            color: #fff;
+          }
+          .tab-title {
+            font-size: 0.65rem;
+            font-weight: 900;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+          }
+          .tab-count {
+            font-size: 0.65rem;
+            font-weight: 900;
+            padding: 2px 6px;
+            border-radius: 6px;
+          }
+          
+          .kanban-board {
+            display: flex !important;
+            flex-direction: column !important;
+            padding: 15px !important;
+            overflow-y: auto !important;
+          }
+          .kanban-column {
+            display: none !important;
+            width: 100% !important;
+            flex: 1 !important;
+            height: auto !important;
+            max-height: none !important;
+          }
+          .kanban-column.mobile-active {
+            display: flex !important;
+          }
+          
+          .hide-mobile { display: none !important; }
+        }
       `}} />
     </div>
   )

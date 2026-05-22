@@ -277,6 +277,10 @@ export default function Shop1Terminal() {
     const info = String(c.card_info || '')
     if (info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')) return false
 
+    // 2.5. Фільтрація тільки для деталей (type === 'part')
+    const nom = getNom(c)
+    if (nom && nom.type && nom.type !== 'part') return false
+
     // 3. Перевірка батьківського наряду
     const parentTask = tasks.find(t => String(t.id) === String(c.task_id))
     if (parentTask) {
@@ -851,11 +855,19 @@ export default function Shop1Terminal() {
 
   // ── Статистика по кожному етапу ─────────────────────────────────────────
   const stageStats = stage => {
-    const cards = workCards.filter(c => c.operation === stage && CHAIN.includes(c.operation))
+    const cards = workCards.filter(c => {
+      if (c.operation !== stage || !CHAIN.includes(c.operation)) return false
+      const nom = getNom(c)
+      return !nom || nom.type === 'part'
+    })
     return {
       inWork: cards.filter(c => c.status === 'in-progress').reduce((a, c) => a + (c.quantity || 0), 0),
       inBuffer: cards.filter(c => c.status === 'at-buffer').reduce((a, c) => a + (c.quantity || 0), 0),
-      scrap: workCardHistory.filter(h => h.stage_name === stage && !h.is_archived_scrap).reduce((a, h) => a + (Number(h.scrap_qty) || 0), 0),
+      scrap: workCardHistory.filter(h => {
+        if (h.stage_name !== stage || h.is_archived_scrap) return false
+        const nom = nomenclatures.find(n => n.id === h.nomenclature_id)
+        return !nom || nom.type === 'part'
+      }).reduce((a, h) => a + (Number(h.scrap_qty) || 0), 0),
       total: cards.length
     }
   }
@@ -1357,6 +1369,8 @@ export default function Shop1Terminal() {
       { id: 'scrap', label: 'БРАК / ВІДХОДИ', icon: <AlertTriangle size={16} />, color: '#ef4444' },
     ]
     const filteredItems = (inventory || []).filter(i => {
+      const nom = nomenclatures.find(n => n.id === i.nomenclature_id)
+      if (nom && nom.type && nom.type !== 'part') return false
       if (activeExplorerTab === 'bz') return i.type === 'bz' || i.type === 'wip_bz'
       return i.type === activeExplorerTab
     })
@@ -1584,16 +1598,32 @@ export default function Shop1Terminal() {
         {/* ─── ПРИЙОМКА / СКЛАД (Фінальна стадія) ─── */}
         {(() => {
           // Картки на Сортуванні / Прийомці = фізично знаходяться в Прийомці
-          const sortingCards = (workCards || []).filter(c =>
-            (c.status === 'at-buffer' && (c.operation === 'Прийомка' || c.operation === 'Сортування')) ||
-            (c.status === 'in-progress' && c.operation === 'Сортування')
-          )
+          const sortingCards = (workCards || []).filter(c => {
+            const nom = getNom(c)
+            if (nom && nom.type && nom.type !== 'part') return false
+            return (c.status === 'at-buffer' && (c.operation === 'Прийомка' || c.operation === 'Сортування')) ||
+                   (c.status === 'in-progress' && c.operation === 'Сортування')
+          })
           const sortingQty = sortingCards.reduce((a, c) => a + (Number(c.quantity) || 0), 0)
 
           // Інвентар складу НФ (вже прийняті на склад)
-          const semiQty = (inventory || []).filter(i => i.type === 'semi' && (i.nomenclature_id !== null && i.nomenclature_id !== undefined)).reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
-          const bzQty = (inventory || []).filter(i => (i.type === 'bz' || i.type === 'wip_bz')).reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
-          const scrapQty = (inventory || []).filter(i => i.type === 'scrap').reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
+          const semiQty = (inventory || []).filter(i => {
+            if (i.type !== 'semi' || i.nomenclature_id === null || i.nomenclature_id === undefined) return false
+            const nom = nomenclatures.find(n => n.id === i.nomenclature_id)
+            return !nom || nom.type === 'part'
+          }).reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
+
+          const bzQty = (inventory || []).filter(i => {
+            if (i.type !== 'bz' && i.type !== 'wip_bz') return false
+            const nom = nomenclatures.find(n => n.id === i.nomenclature_id)
+            return !nom || nom.type === 'part'
+          }).reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
+
+          const scrapQty = (inventory || []).filter(i => {
+            if (i.type !== 'scrap') return false
+            const nom = nomenclatures.find(n => n.id === i.nomenclature_id)
+            return !nom || nom.type === 'part'
+          }).reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
 
           const isActive = sortingQty > 0
 
@@ -1696,8 +1726,11 @@ export default function Shop1Terminal() {
               </tr>
             </thead>
             <tbody>
-              {workCards
-                .filter(c => {
+              {(() => {
+                const activeCards = workCards.filter(c => {
+                  const nom = getNom(c)
+                  if (nom && nom.type && nom.type !== 'part') return false
+
                   const info = String(c.card_info || '')
                   if (info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')) return false
 
@@ -1709,60 +1742,66 @@ export default function Shop1Terminal() {
 
                   return CHAIN.includes(c.operation) && (c.status === 'in-progress' || c.status === 'at-buffer')
                 })
-                .map(card => {
-                  const inBuf = card.status === 'at-buffer'
-                  return (<tr key={card.id} style={{ borderBottom: '1px solid #1a1a1a', fontSize: '0.85rem' }}>
-                    <td style={{ padding: '10px 14px', fontWeight: 800, whiteSpace: 'nowrap', fontSize: '0.75rem' }}>{getNom(card)?.name || '—'}</td>
-                    <td style={{ padding: '10px 14px' }}>{card.operation}</td>
-                    <td style={{ padding: '10px 14px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
-                        <span style={{
-                          fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase',
-                          background: (inBuf && card.operation === 'Сортування') ? '#8b5cf618' : inBuf ? '#f59e0b18' : '#3b82f618',
-                          color: (inBuf && card.operation === 'Сортування') ? '#8b5cf6' : inBuf ? '#f59e0b' : '#3b82f6',
-                          padding: '4px 10px', borderRadius: '6px',
-                          whiteSpace: 'nowrap'
-                        }}>
-                          {(inBuf && card.operation === 'Сортування') ? '🟣 БУФЕР' : inBuf ? '▣ БУФЕР' : '▶ РОБОТА'}
-                        </span>
-                        {inBuf && card.operation === 'Розкрій' && (() => {
-                          const pColors = { 1: '#ef4444', 2: '#3b82f6', 3: '#10b981' }
-                          const pVal = card.galt_priority || 2
-                          return (
-                            <span style={{
-                              fontSize: '0.65rem', fontWeight: 900,
-                              background: `${pColors[pVal]}15`,
-                              color: pColors[pVal],
-                              padding: '4px 8px', borderRadius: '6px',
-                              border: `1px solid ${pColors[pVal]}30`,
-                              whiteSpace: 'nowrap'
-                            }}>
-                              Пр. {pVal}
-                            </span>
-                          )
-                        })()}
-                      </div>
-                    </td>
-                    <td style={{ padding: '10px 14px', fontWeight: 900 }}>{card.quantity} шт</td>
-                    <td style={{ padding: '10px 14px', color: '#888' }}>{card.manager_name || '—'}</td>
-                    <td style={{ padding: '10px 14px', color: '#888' }}>{card.shift_name || '—'}</td>
-                    <td style={{ padding: '10px 14px', color: '#aaa' }}>{card.operator_name || '—'}</td>
-                    <td style={{ padding: '10px 14px', color: '#eab308', fontWeight: 800 }}>{formatMachine(card.machine)}</td>
-                    <td style={{ padding: '10px 14px', color: '#3b82f6', fontWeight: 700 }}>{formatPlanned(getPlannedTime(card))}</td>
-                    <td style={{ padding: '10px 14px', color: '#10b981', fontFamily: 'monospace', fontWeight: 700 }}>{formatTime(inBuf ? (card.completed_at || card.started_at) : card.started_at)}</td>
-                    <td style={{ padding: '10px 14px', textAlign: 'right' }}>
-                      <button onClick={() => { setSelectedCardId(card.id); setSelectedOperator('') }}
-                        style={{ background: '#eab308', border: 'none', color: '#000', padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        title="Відкрити">
-                        <Eye size={18} />
-                      </button>
-                    </td>
-                  </tr>
+
+                if (activeCards.length === 0) {
+                  return (
+                    <tr><td colSpan={11} style={{ padding: '50px', textAlign: 'center', color: '#444', fontSize: '0.8rem' }}>Немає активних карток</td></tr>
                   )
-                })}
-              {workCards.filter(c => CHAIN.includes(c.operation) && (c.status === 'in-progress' || c.status === 'at-buffer')).length === 0 && (
-                <tr><td colSpan={11} style={{ padding: '50px', textAlign: 'center', color: '#444', fontSize: '0.8rem' }}>Немає активних карток</td></tr>
-              )}
+                }
+
+                return activeCards.map(card => {
+                  const inBuf = card.status === 'at-buffer'
+                  return (
+                    <tr key={card.id} style={{ borderBottom: '1px solid #1a1a1a', fontSize: '0.85rem' }}>
+                      <td style={{ padding: '10px 14px', fontWeight: 800, whiteSpace: 'nowrap', fontSize: '0.75rem' }}>{getNom(card)?.name || '—'}</td>
+                      <td style={{ padding: '10px 14px' }}>{card.operation}</td>
+                      <td style={{ padding: '10px 14px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
+                          <span style={{
+                            fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase',
+                            background: (inBuf && card.operation === 'Сортування') ? '#8b5cf618' : inBuf ? '#f59e0b18' : '#3b82f618',
+                            color: (inBuf && card.operation === 'Сортування') ? '#8b5cf6' : inBuf ? '#f59e0b' : '#3b82f6',
+                            padding: '4px 10px', borderRadius: '6px',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {(inBuf && card.operation === 'Сортування') ? '🟣 БУФЕР' : inBuf ? '▣ БУФЕР' : '▶ РОБОТА'}
+                          </span>
+                          {inBuf && card.operation === 'Розкрій' && (() => {
+                            const pColors = { 1: '#ef4444', 2: '#3b82f6', 3: '#10b981' }
+                            const pVal = card.galt_priority || 2
+                            return (
+                              <span style={{
+                                fontSize: '0.65rem', fontWeight: 900,
+                                background: `${pColors[pVal]}15`,
+                                color: pColors[pVal],
+                                padding: '4px 8px', borderRadius: '6px',
+                                border: `1px solid ${pColors[pVal]}30`,
+                                whiteSpace: 'nowrap'
+                              }}>
+                                Пр. {pVal}
+                              </span>
+                            )
+                          })()}
+                        </div>
+                      </td>
+                      <td style={{ padding: '10px 14px', fontWeight: 900 }}>{card.quantity} шт</td>
+                      <td style={{ padding: '10px 14px', color: '#888' }}>{card.manager_name || '—'}</td>
+                      <td style={{ padding: '10px 14px', color: '#888' }}>{card.shift_name || '—'}</td>
+                      <td style={{ padding: '10px 14px', color: '#aaa' }}>{card.operator_name || '—'}</td>
+                      <td style={{ padding: '10px 14px', color: '#eab308', fontWeight: 800 }}>{formatMachine(card.machine)}</td>
+                      <td style={{ padding: '10px 14px', color: '#3b82f6', fontWeight: 700 }}>{formatPlanned(getPlannedTime(card))}</td>
+                      <td style={{ padding: '10px 14px', color: '#10b981', fontFamily: 'monospace', fontWeight: 700 }}>{formatTime(inBuf ? (card.completed_at || card.started_at) : card.started_at)}</td>
+                      <td style={{ padding: '10px 14px', textAlign: 'right' }}>
+                        <button onClick={() => { setSelectedCardId(card.id); setSelectedOperator('') }}
+                          style={{ background: '#eab308', border: 'none', color: '#000', padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          title="Відкрити">
+                          <Eye size={18} />
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })
+              })()}
             </tbody>
           </table>
         </div>
@@ -2158,7 +2197,11 @@ export default function Shop1Terminal() {
               {(() => {
                 const agg = {}
                 if (detailTab === 'scrap') {
-                  const scraps = workCardHistory.filter(h => h.stage_name === detailStage && !h.is_archived_scrap && Number(h.scrap_qty) > 0)
+                  const scraps = workCardHistory.filter(h => {
+                    if (h.stage_name !== detailStage || h.is_archived_scrap || Number(h.scrap_qty) <= 0) return false
+                    const nom = nomenclatures.find(n => String(n.id) === String(h.nomenclature_id))
+                    return !nom || nom.type === 'part'
+                  })
                   scraps.forEach(h => {
                     const nom = nomenclatures.find(n => String(n.id) === String(h.nomenclature_id))
                     const nomId = h.nomenclature_id
@@ -2167,7 +2210,12 @@ export default function Shop1Terminal() {
                     agg[nomId].qty += Number(h.scrap_qty)
                   })
                 } else {
-                  workCards.filter(c => c.operation === detailStage && (detailTab === 'work' ? c.status === 'in-progress' : c.status === 'at-buffer')).forEach(c => {
+                  workCards.filter(c => {
+                    if (c.operation !== detailStage) return false
+                    if (detailTab === 'work' ? c.status !== 'in-progress' : c.status !== 'at-buffer') return false
+                    const nom = getNom(c)
+                    return !nom || nom.type === 'part'
+                  }).forEach(c => {
                     const nom = getNom(c)
                     const name = nom?.name || 'Деталь'
                     if (!agg[name]) agg[name] = { name, qty: 0 }

@@ -1,5 +1,20 @@
 import { supabase } from '../supabase'
 
+const normalizeName = (s) => {
+  if (!s) return '';
+  const mapper = {
+    'а': 'a', 'в': 'b', 'с': 'c', 'е': 'e', 'н': 'h', 'h': 'h',
+    'к': 'k', 'м': 'm', 'о': 'o', 'р': 'p', 'т': 't', 'х': 'x',
+    'у': 'y', 'і': 'i', 'ї': 'i', 'и': 'y', 'п': 'p'
+  };
+  return s.toLowerCase()
+    .trim()
+    .split('')
+    .map(c => mapper[c] || c)
+    .join('')
+    .replace(/[^a-z0-9]/g, '');
+};
+
 export function createProductionActions({
   orders, tasks, inventory, nomenclatures, bomItems, workCards,
   setTasks, setWorkCards, setWorkCardHistory, setManagementTasks, setMachines,
@@ -60,7 +75,13 @@ export function createProductionActions({
     let supaNomenclatureId = null;
     if (header.productName) {
       const { data: nomRow } = await supabase.from('nomenclatures').select('id').ilike('name', header.productName.trim()).maybeSingle();
-      if (nomRow) supaNomenclatureId = nomRow.id;
+      if (nomRow) {
+        supaNomenclatureId = nomRow.id;
+      } else {
+        const normInput = normalizeName(header.productName);
+        const match = (nomenclatures || []).find(n => normalizeName(n.name) === normInput);
+        if (match) supaNomenclatureId = match.id;
+      }
     }
 
     const orderedQty = items?.[0]?.quantity || header.quantity || 0;

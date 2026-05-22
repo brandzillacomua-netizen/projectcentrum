@@ -261,16 +261,6 @@ export default function BrakModule() {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <button
-            onClick={() => setIsScanning(true)}
-            style={{
-              background: '#ef444420', border: '1px solid #ef444455', color: '#ef4444',
-              padding: '8px 16px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 900,
-              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'
-            }}
-          >
-            <Camera size={18} /> СКАНУВАТИ КАРТКУ
-          </button>
           <div style={{ textAlign: 'right', lineHeight: 1.2 }}>
             <div style={{ fontSize: '0.85rem', fontWeight: 800 }}>{currentUser?.first_name} {currentUser?.last_name}</div>
             <div style={{ fontSize: '0.65rem', color: '#555', textTransform: 'uppercase', fontWeight: 900 }}>Інспектор ВКЯ</div>
@@ -280,6 +270,30 @@ export default function BrakModule() {
 
       <div style={{ flex: 1, padding: '30px', maxWidth: '1400px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
         
+        {/* Action Bar */}
+        <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '25px' }}>
+          <button
+            onClick={() => setIsScanning(true)}
+            style={{
+              background: '#ef444420', border: '1px solid #ef444455', color: '#ef4444',
+              padding: '12px 24px', borderRadius: '14px', fontSize: '0.85rem', fontWeight: 900,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px',
+              transition: 'all 0.2s',
+              boxShadow: '0 4px 15px rgba(239, 68, 68, 0.1)'
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = '#ef444430';
+              e.currentTarget.style.transform = 'translateY(-1px)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = '#ef444420';
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}
+          >
+            <Camera size={18} /> СКАНУВАТИ КАРТКУ
+          </button>
+        </div>
+
         {/* Stats Dashboard */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '40px' }}>
           {[
@@ -319,8 +333,10 @@ export default function BrakModule() {
               <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 950 }}>
                 {viewingCategory ? `Деталі Категорії ${viewingCategory}` : 'Черга на класифікацію'}
               </h2>
-              <div style={{ background: viewingCategory ? '#444' : '#ef444415', padding: '6px 14px', borderRadius: '10px', color: viewingCategory ? '#fff' : '#ef4444', fontSize: '0.75rem', fontWeight: 1000 }}>
-                {viewingCategory ? `${itemsInCat.length} ПОЗИЦІЙ` : `${readyItems.length} ПОЗИЦІЙ`}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <div style={{ background: viewingCategory ? '#444' : '#ef444415', padding: '8px 14px', borderRadius: '10px', color: viewingCategory ? '#fff' : '#ef4444', fontSize: '0.75rem', fontWeight: 1000 }}>
+                  {viewingCategory ? `${itemsInCat.length} ПОЗИЦІЙ` : `${readyItems.length} ПОЗИЦІЙ`}
+                </div>
               </div>
             </div>
 

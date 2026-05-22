@@ -25,7 +25,8 @@ import {
   Users,
   Layers,
   Upload,
-  Download
+  Download,
+  Sliders
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
@@ -43,6 +44,10 @@ const SettingsModule = () => {
   const [activeTab, setActiveTab] = useState('users') 
   const [structureSubTab, setStructureSubTab] = useState('departments')
   const [tempFortnetUrl, setTempFortnetUrl] = useState(fortnetUrl)
+
+  // Start pages settings states
+  const [savingPosId, setSavingPosId] = useState(null)
+  const [sqlErrorPosition, setSqlErrorPosition] = useState(false)
 
   // CSV Import States
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
@@ -652,7 +657,7 @@ const SettingsModule = () => {
   const typeLabels = {
     shop: 'Виробничий цех',
     warehouse: 'Оперативний склад',
-    tumbling: 'Дільниця галтовки',
+    tumbling: 'Дільниця',
     quality: 'Контроль якості (ВКЯ)',
     management: 'Керівництво',
     other: 'Інший підрозділ'
@@ -1231,7 +1236,7 @@ const SettingsModule = () => {
                       >
                         <option value="shop">Цех (Виробництво / Порізка)</option>
                         <option value="warehouse">Склад (Оперативний / Сировини / СГП)</option>
-                        <option value="tumbling">Галтовка (Дільниця обробки)</option>
+                        <option value="tumbling">Дільниця</option>
                         <option value="quality">ВКЯ (Контроль якості / Браку)</option>
                         <option value="management">Керівництво (Офіс / Майстри)</option>
                         <option value="other">Інше</option>
@@ -1448,56 +1453,201 @@ const SettingsModule = () => {
 
         {/* ── TAB 3: SYSTEM CONFIG ── */}
         {activeTab === 'system' && isAdmin && (
-          <section className="settings-panel glass-panel" style={{ background: '#0e0e11', padding: '30px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.04)', maxWidth: '650px' }}>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 900, marginBottom: '25px', display: 'flex', alignItems: 'center', gap: '10px', color: '#ff9000' }}>
-              <Cpu size={20} /> КОНФІГУРАЦІЯ СИСТЕМИ & FORTNET
-            </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '30px', alignItems: 'start' }}>
             
-            <div style={{ marginBottom: '30px' }}>
-              <label className="form-label">АДРЕСА СЕРВЕРА FORTNET (API / СИНХРОНІЗАЦІЯ)</label>
-              <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
-                <input 
-                  style={inputStyle} 
-                  value={tempFortnetUrl} 
-                  onChange={e => setTempFortnetUrl(e.target.value)} 
-                  placeholder="http://192.168.1.100:8090" 
-                />
-                <button 
-                  onClick={() => {
-                    updateFortnetUrl(tempFortnetUrl)
-                    alert('Адресу Fortnet успішно оновлено!')
-                  }}
-                  style={{ 
-                    background: '#ff9000', 
-                    color: '#000', 
-                    border: 'none', 
-                    padding: '0 24px', 
-                    borderRadius: '12px', 
-                    fontWeight: 900, 
-                    cursor: 'pointer',
-                    transition: '0.2s'
-                  }}
-                  className="primary-btn"
-                >
-                  ЗБЕРЕГТИ
-                </button>
-              </div>
-              <p style={{ fontSize: '0.7rem', color: '#555', marginTop: '10px', lineHeight: '1.4' }}>
-                Ця адреса локального API сервера Fortnet використовується для реального зчитування подій зчитувачів та прохідних карток співробітників цехів.
-              </p>
-            </div>
-
-            <div style={{ borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: '24px' }}>
-              <h4 style={{ fontSize: '0.8rem', fontWeight: 900, color: '#888', marginBottom: '15px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>СТАТУС ПОДІЙ ПРОХОДУ</h4>
+            {/* Left Panel: Fortnet & API settings */}
+            <section className="settings-panel glass-panel" style={{ background: '#0e0e11', padding: '30px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.04)' }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 900, marginBottom: '25px', display: 'flex', alignItems: 'center', gap: '10px', color: '#ff9000' }}>
+                <Cpu size={20} /> КОНФІГУРАЦІЯ СИСТЕМИ & FORTNET
+              </h3>
               
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(0,0,0,0.2)', padding: '14px 18px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.03)' }}>
-                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }} />
-                <div style={{ fontSize: '0.8rem', color: '#aaa' }}>
-                  Останніх подій у базі логів проходів: <strong style={{ color: '#fff' }}>{accessLogs.length}</strong>
+              <div style={{ marginBottom: '30px' }}>
+                <label className="form-label">АДРЕСА СЕРВЕРА FORTNET (API / СИНХРОНІЗАЦІЯ)</label>
+                <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+                  <input 
+                    style={inputStyle} 
+                    value={tempFortnetUrl} 
+                    onChange={e => setTempFortnetUrl(e.target.value)} 
+                    placeholder="http://192.168.1.100:8090" 
+                  />
+                  <button 
+                    onClick={() => {
+                      updateFortnetUrl(tempFortnetUrl)
+                      alert('Адресу Fortnet успішно оновлено!')
+                    }}
+                    style={{ 
+                      background: '#ff9000', 
+                      color: '#000', 
+                      border: 'none', 
+                      padding: '0 24px', 
+                      borderRadius: '12px', 
+                      fontWeight: 900, 
+                      cursor: 'pointer',
+                      transition: '0.2s'
+                    }}
+                    className="primary-btn"
+                  >
+                    ЗБЕРЕГТИ
+                  </button>
+                </div>
+                <p style={{ fontSize: '0.7rem', color: '#555', marginTop: '10px', lineHeight: '1.4' }}>
+                  Ця адреса локального API сервера Fortnet використовується для реального зчитування подій зчитувачів та прохідних карток співробітників цехів.
+                </p>
+              </div>
+
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: '24px' }}>
+                <h4 style={{ fontSize: '0.8rem', fontWeight: 900, color: '#888', marginBottom: '15px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>СТАТУС ПОДІЙ ПРОХОДУ</h4>
+                
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(0,0,0,0.2)', padding: '14px 18px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }} />
+                  <div style={{ fontSize: '0.8rem', color: '#aaa' }}>
+                    Останніх подій у базі логів проходів: <strong style={{ color: '#fff' }}>{accessLogs.length}</strong>
+                  </div>
                 </div>
               </div>
-            </div>
-          </section>
+            </section>
+
+            {/* Right Panel: Start Pages by Position */}
+            <section className="settings-panel glass-panel" style={{ background: '#0e0e11', padding: '30px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.04)' }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 900, marginBottom: '25px', display: 'flex', alignItems: 'center', gap: '10px', color: '#ff9000' }}>
+                <Sliders size={20} /> СТАРТОВІ СТОРІНКИ ДЛЯ ПОСАД
+              </h3>
+              
+              {sqlErrorPosition && (
+                <div style={{
+                  background: 'rgba(239, 68, 68, 0.08)',
+                  border: '1px solid rgba(239, 68, 68, 0.2)',
+                  borderRadius: '16px',
+                  padding: '16px',
+                  marginBottom: '20px',
+                  fontSize: '0.78rem',
+                  lineHeight: '1.5'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444', fontWeight: 800, marginBottom: '6px' }}>
+                    <AlertCircle size={16} /> УВАГА: ПОТРІБНО ДОДАТИ КОЛОНКУ В БД
+                  </div>
+                  <div style={{ color: '#aaa', marginBottom: '10px' }}>
+                    Таблиця <code>company_positions</code> не містить колонку <code>start_page</code>. Налаштування збережено тимчасово в пам'яті. Для постійного збереження виконайте SQL-запит у Supabase SQL Editor:
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <pre style={{
+                      margin: 0,
+                      background: '#000',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      fontFamily: 'monospace',
+                      fontSize: '0.75rem',
+                      color: '#00ff66',
+                      flex: 1,
+                      overflowX: 'auto'
+                    }}>
+                      ALTER TABLE company_positions ADD COLUMN IF NOT EXISTS start_page TEXT;
+                    </pre>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText('ALTER TABLE company_positions ADD COLUMN IF NOT EXISTS start_page TEXT;')
+                        alert('SQL-запит скопійовано в буфер обміну!')
+                      }}
+                      style={{
+                        background: 'rgba(255, 144, 0, 0.1)',
+                        border: '1px solid rgba(255, 144, 0, 0.2)',
+                        color: '#ff9000',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        fontSize: '0.72rem',
+                        fontWeight: 800,
+                        cursor: 'pointer'
+                      }}
+                      type="button"
+                    >
+                      Копіювати
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {(companyPositions || []).map(pos => {
+                  const isSaving = savingPosId === pos.id;
+                  return (
+                    <div 
+                      key={pos.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: 'rgba(0, 0, 0, 0.2)',
+                        padding: '12px 18px',
+                        borderRadius: '14px',
+                        border: '1px solid rgba(255,255,255,0.03)',
+                        gap: '12px'
+                      }}
+                    >
+                      <div style={{ overflow: 'hidden' }}>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#fff', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{pos.name}</div>
+                        <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '2px' }}>
+                          ID: {pos.id}
+                        </div>
+                      </div>
+                      
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                        {isSaving && (
+                          <div className="spinner-mes" style={{ width: '14px', height: '14px', borderRadius: '50%', border: '2px solid rgba(255,144,0,0.15)', borderTopColor: '#ff9000', animation: 'spin 1s linear infinite' }} />
+                        )}
+                        <select
+                          style={{
+                            background: '#000',
+                            border: '1px solid rgba(255,255,255,0.05)',
+                            borderRadius: '10px',
+                            padding: '6px 12px',
+                            color: '#aaa',
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            outline: 'none',
+                            cursor: 'pointer',
+                            maxWidth: '220px'
+                          }}
+                          value={pos.start_page || ''}
+                          onChange={async (e) => {
+                            const newStartPage = e.target.value || null;
+                            setSavingPosId(pos.id);
+                            
+                            const payload = {
+                              id: pos.id,
+                              name: pos.name,
+                              department_id: pos.department_id || null,
+                              start_page: newStartPage
+                            };
+                            
+                            const { error } = await upsertCompanyPosition(payload);
+                            
+                            setSavingPosId(null);
+                            if (error) {
+                              if (error.message === 'MISSING_START_PAGE_COLUMN') {
+                                setSqlErrorPosition(true);
+                              } else {
+                                alert(`Помилка збереження: ${error.message}`);
+                              }
+                            } else {
+                              setSqlErrorPosition(false);
+                            }
+                          }}
+                        >
+                          <option value="">За замовчуванням (перший доступний)</option>
+                          {startPageModules.map(mod => (
+                            <option key={mod.path} value={mod.path}>
+                              {mod.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+          </div>
         )}
       </div>
 
@@ -2085,5 +2235,31 @@ const filterSelectStyle = {
   outline: 'none',
   cursor: 'pointer'
 }
+
+const startPageModules = [
+  { path: '/dashboard', label: 'Дашборд WIP' },
+  { path: '/manager', label: 'Менеджер' },
+  { path: '/tasks', label: 'Задачі (Внутрішні)' },
+  { path: '/master', label: 'Цех №1 (Управління)' },
+  { path: '/shop1', label: 'Цех №1 · Термінал (Розкрій→Прийомка)' },
+  { path: '/shop2', label: 'Цех №2 (Черга нарядів)' },
+  { path: '/shop2-terminal', label: 'Цех №2 · Термінал (Прес→Малярка)' },
+  { path: '/operator', label: 'Термінал оператора' },
+  { path: '/warehouse', label: 'Склад ... Оперативний' },
+  { path: '/supply', label: 'Склад Виробництва' },
+  { path: '/procurement', label: 'Постачання (Закупівля)' },
+  { path: '/packaging', label: 'Пакування' },
+  { path: '/shipping', label: 'Логістика (Відвантаження)' },
+  { path: '/engineer', label: 'Інженер' },
+  { path: '/director', label: 'Директор Виробництва' },
+  { path: '/foreman', label: 'Майстер цеху (Розподіл)' },
+  { path: '/nomenclature-v2', label: 'Номенклатура (Нова)' },
+  { path: '/nomenclature', label: 'База номенклатур (Old)' },
+  { path: '/machines', label: 'Станки' },
+  { path: '/analytics', label: 'Аналітика' },
+  { path: '/brak', label: 'ВКЯ (Контроль якості)' },
+  { path: '/access', label: 'Система Доступу (Fortnet)' },
+  { path: '/reports', label: 'Звіти (1С)' }
+]
 
 export default SettingsModule

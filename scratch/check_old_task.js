@@ -9,8 +9,8 @@ if (urlMatch && keyMatch) {
   const supabase = createClient(urlMatch[1], keyMatch[1])
   
   const check = async () => {
-    console.log("Fetching task b86a53c9-a18e-46d1-88be-02c042ad678e...")
-    const { data: task } = await supabase.from('tasks').select('*').eq('id', 'b86a53c9-a18e-46d1-88be-02c042ad678e').single()
+    console.log("Fetching task c54c9af2-bcc6-4fc7-8e61-9b287e30f53a...")
+    const { data: task } = await supabase.from('tasks').select('*').eq('id', 'c54c9af2-bcc6-4fc7-8e61-9b287e30f53a').single()
     console.log("Task plan_snapshot:")
     console.log(JSON.stringify(task.plan_snapshot, null, 2))
   }

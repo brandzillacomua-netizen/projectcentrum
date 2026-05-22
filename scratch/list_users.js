@@ -9,11 +9,14 @@ if (urlMatch && keyMatch) {
   const supabase = createClient(urlMatch[1], keyMatch[1])
   
   const check = async () => {
-    console.log("Fetching cards for task c54c9af2-bcc6-4fc7-8e61-9b287e30f53a...")
-    const { data: cards } = await supabase.from('work_cards').select('*').eq('task_id', 'c54c9af2-bcc6-4fc7-8e61-9b287e30f53a')
-    console.log(`Found ${cards?.length || 0} cards:`)
-    cards?.forEach(c => {
-      console.log(`- Card ID: ${c.id}, Nom ID: ${c.nomenclature_id}, Status: ${c.status}, Created: ${c.created_at}`)
+    const { data: users, error } = await supabase.from('system_users').select('*')
+    if (error) {
+      console.error(error)
+      return
+    }
+    console.log("Users:")
+    users.forEach(u => {
+      console.log(`- ${u.first_name} ${u.last_name} (${u.login}): dept=${u.department}, shift=${u.shift}, pos=${u.position}`)
     })
   }
   

@@ -246,8 +246,9 @@ const Shop2Module = () => {
           <ArrowLeft size={18} /> <span className="hide-mobile">На головну</span>
         </Link>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button onClick={() => setIsDrawerOpen(true)} className="mobile-only burger-btn" style={{ background: 'transparent', border: 'none', color: '#fff' }}>
-            <Menu size={24} />
+          <button onClick={() => setIsDrawerOpen(true)} className="burger-btn-labeled mobile-only">
+            <Menu size={20} />
+            <span>Черга</span>
           </button>
           <Monitor size={22} color="#8b5cf6" />
           <h1 style={{ margin: 0, textTransform: 'uppercase', fontSize: '1rem', fontWeight: 900 }}>ЦЕХ №2</h1>

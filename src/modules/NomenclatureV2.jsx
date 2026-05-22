@@ -251,9 +251,25 @@ const NomenclatureV2 = () => {
         // ── Helper: створити або знайти позицію (100% ідемпотентний) ─────────────
         // При 409 (код зайнятий) → пробуємо наступний код
         // При збігу імені → повертаємо існуючу позицію
+        const normalizeName = (s) => {
+          if (!s) return '';
+          const mapper = {
+            'а': 'a', 'в': 'b', 'с': 'c', 'е': 'e', 'н': 'h', 'h': 'h',
+            'к': 'k', 'м': 'm', 'о': 'o', 'р': 'p', 'т': 't', 'х': 'x',
+            'у': 'y', 'і': 'i', 'ї': 'i', 'и': 'y', 'п': 'p'
+          };
+          return s.toLowerCase()
+            .trim()
+            .split('')
+            .map(c => mapper[c] || c)
+            .join('')
+            .replace(/[^a-z0-9]/g, '');
+        };
+
         const createOrFind = async (name, extraPayload) => {
+          const normInput = normalizeName(name);
           // 0. Перевіряємо локальний кеш по імені
-          const cached = currentItems.find(n => n.name.trim() === name.trim());
+          const cached = currentItems.find(n => normalizeName(n.name) === normInput);
           if (cached) {
             setImportLogs(prev => [...prev, `✅ Вже є: ${name}`]);
             return cached;
@@ -270,16 +286,23 @@ const NomenclatureV2 = () => {
                 ...extraPayload
               });
               setImportLogs(prev => [...prev, `🔍 [${currentCode}] Зареєстровано: ${name}`]);
-              return created.nomenclature || created;
+              const newNomItem = created.nomenclature || created;
+              if (newNomItem) {
+                currentItems.push(newNomItem);
+              }
+              return newNomItem;
             } catch (err) {
               if (err.message.includes('409') || err.message.includes('вже існує')) {
                 // Код зайнятий — шукаємо чи це наша позиція по імені
                 try {
                   const searchRes = await nomenclatureService.searchNomenclature(name);
                   const found = (searchRes.items || searchRes || [])
-                    .find(n => n.name.trim() === name.trim());
+                    .find(n => normalizeName(n.name) === normInput);
                   if (found) {
                     setImportLogs(prev => [...prev, `ℹ️ Знайдено існуючу: ${name}`]);
+                    if (!currentItems.some(item => item.id === found.id)) {
+                      currentItems.push(found);
+                    }
                     return found;
                   }
                 } catch (_) {}

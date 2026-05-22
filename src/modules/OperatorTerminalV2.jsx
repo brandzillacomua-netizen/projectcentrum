@@ -9,7 +9,7 @@ import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
 
 const OperatorTerminal = () => {
-  const { workCards, orders, nomenclatures, startWorkCard, completeWorkCard, confirmBuffer, fetchData, operators, productionStages, machines, workCardHistory } = useMES()
+  const { workCards, orders, nomenclatures, startWorkCard, completeWorkCard, confirmBuffer, fetchData, operators, productionStages, machines, workCardHistory, getFilteredOperators, getFilteredManagers } = useMES()
   const [selectedCardId, setSelectedCardId] = useState(null)
   const [selectedStage, setSelectedStage] = useState('')
   const [selectedOperator, setSelectedOperator] = useState('')
@@ -73,6 +73,32 @@ const OperatorTerminal = () => {
   }, [isScanning, workCards])
 
   const currentCard = workCards.find(c => c.id === selectedCardId)
+
+  useEffect(() => {
+    const card = workCards.find(c => c.id === selectedCardId)
+    if (card) {
+      setSelectedStage(card.operation || '')
+      setSelectedOperator('')
+      setSelectedMaster('')
+      setSelectedShift('')
+      setSelectedMachine('')
+    } else {
+      setSelectedStage('')
+      setSelectedOperator('')
+      setSelectedMaster('')
+      setSelectedShift('')
+      setSelectedMachine('')
+    }
+  }, [selectedCardId, workCards])
+
+  const getCardDept = (card) => {
+    if (!card) return null
+    const stage = (selectedStage || card.operation || '').toLowerCase()
+    if (['розкрій', 'галтовка', 'прийомка', 'сортування'].includes(stage)) {
+      return 'Цех №1'
+    }
+    return 'Цех №2'
+  }
   const getNomFromCard = (card) => {
     if (!card) return null
     if (card.nomenclature_id) return nomenclatures.find(n => n.id === card.nomenclature_id)
@@ -250,7 +276,10 @@ const OperatorTerminal = () => {
           <Link to="/" style={{ color: '#94a3b8', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '0.85rem' }}>
             <ArrowLeft size={18} /> <span className="hide-mobile">Вихід</span>
           </Link>
-          <button onClick={() => setIsDrawerOpen(true)} className="burger-btn mobile-only"><Menu size={24} /></button>
+          <button onClick={() => setIsDrawerOpen(true)} className="burger-btn-labeled mobile-only">
+            <Menu size={20} />
+            <span>Черга</span>
+          </button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Tablet size={20} color="#eab308" />
@@ -321,7 +350,7 @@ const OperatorTerminal = () => {
                       <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Майстер</label>
                       <select value={selectedMaster} onChange={(e) => setSelectedMaster(e.target.value)} style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
                         <option value="">— Оберіть майстра —</option>
-                        {operators.map(o => <option key={o} value={o}>{o}</option>)}
+                        {getFilteredManagers(getCardDept(currentCard)).map(o => <option key={o} value={o}>{o}</option>)}
                       </select>
                     </div>
                     <div>
@@ -337,7 +366,7 @@ const OperatorTerminal = () => {
                       <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Відповідальний оператор</label>
                       <select value={selectedOperator} onChange={(e) => setSelectedOperator(e.target.value)} style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
                         <option value="">— Оберіть оператора —</option>
-                        {operators.map(o => <option key={o} value={o}>{o}</option>)}
+                        {getFilteredOperators(getCardDept(currentCard), selectedShift, selectedStage || currentCard.operation).map(o => <option key={o} value={o}>{o}</option>)}
                       </select>
                     </div>
                     <button disabled={isProcessing || !selectedOperator} onClick={handleStartOperation} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '22px', borderRadius: '18px', fontSize: '1.4rem', fontWeight: 900, cursor: 'pointer' }}>ВЗЯТИ В РОБОТУ</button>
