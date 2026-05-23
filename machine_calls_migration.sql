@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════════════
--- 🚀 MIGRATION: CREATE machine_calls TABLE
+-- 🚀 MIGRATION: CREATE/UPDATE machine_calls TABLE
 -- Запустити в Supabase Dashboard → SQL Editor
 -- ═══════════════════════════════════════════════════════════════════════════
 
@@ -12,19 +12,25 @@ CREATE TABLE IF NOT EXISTS machine_calls (
   machine_id UUID REFERENCES machines(id) ON DELETE CASCADE,
   called_role TEXT NOT NULL,          -- 'master', 'engineer', 'qc'
   operator_name TEXT,                 -- ім'я оператора, який здійснив виклик
+  called_employee_id UUID REFERENCES system_users(id) ON DELETE SET NULL, -- конкретний виконавець
+  called_employee_name TEXT,          -- ім'я конкретного виконавця
   status TEXT DEFAULT 'pending',      -- 'pending', 'resolved'
   created_at TIMESTAMPTZ DEFAULT now(),
   resolved_at TIMESTAMPTZ,
   resolved_by TEXT
 );
 
--- 3. Увімкнення Row Level Security (RLS)
+-- 3. Додатково додаємо колонки, якщо таблиця вже існує
+ALTER TABLE machine_calls ADD COLUMN IF NOT EXISTS called_employee_id UUID REFERENCES system_users(id) ON DELETE SET NULL;
+ALTER TABLE machine_calls ADD COLUMN IF NOT EXISTS called_employee_name TEXT;
+
+-- 4. Увімкнення Row Level Security (RLS)
 ALTER TABLE machine_calls ENABLE ROW LEVEL SECURITY;
 
--- 4. Видалення старих політик безпеки, якщо вони є
+-- 5. Видалення старих політик безпеки, якщо вони є
 DROP POLICY IF EXISTS "Allow public read and write" ON machine_calls;
 DROP POLICY IF EXISTS "Allow anon read and write" ON machine_calls;
 
--- 5. Створення публічної політики для повного доступу (читання/запис без авторизації)
+-- 6. Створення публічної політики для повного доступу (читання/запис без авторизації)
 CREATE POLICY "Allow public read and write" ON machine_calls
   FOR ALL TO public USING (true) WITH CHECK (true);
