@@ -58,6 +58,57 @@ export default function Shop1Terminal() {
   const [cuttersUsed, setCuttersUsed] = useState(0)
   const [galtPriority, setGaltPriority] = useState(2)
 
+  // Emergency Machine Call Modal state
+  const [machineCallModal, setMachineCallModal] = useState(null)
+  const [machineCallSuccess, setMachineCallSuccess] = useState('')
+
+  const handleMachineQRScan = async (text) => {
+    const match = String(text || '').match(/\/machines\/([a-f0-9-]+)\/call/i)
+    if (match) {
+      const machineId = match[1]
+      try {
+        const { data: mData, error } = await supabase.from('machines').select('*').eq('id', machineId).maybeSingle()
+        if (mData) {
+          setMachineCallModal({
+            id: mData.id,
+            name: mData.name,
+            type: mData.type,
+            sequence_number: mData.sequence_number,
+            floor: mData.floor,
+            inventory_no: mData.inventory_no
+          })
+        } else {
+          alert('Верстат з таким ID не знайдено в базі.')
+        }
+      } catch (err) {
+        console.error(err)
+      }
+      return true
+    }
+    return false
+  }
+
+  const handleCreateCall = async (role) => {
+    try {
+      const operatorName = selectedOperator || currentUser?.name || currentUser?.login || 'Оператор терміналу'
+      const { error } = await supabase.from('machine_calls').insert({
+        machine_id: machineCallModal.id,
+        called_role: role,
+        operator_name: operatorName,
+        status: 'pending'
+      })
+      if (error) throw error
+      const label = role === 'master' ? 'Майстра' : role === 'engineer' ? 'Інженера' : 'ВКЯ'
+      setMachineCallSuccess(`Виклик для ${label} надіслано!`)
+      setTimeout(() => {
+        setMachineCallSuccess('')
+        setMachineCallModal(null)
+      }, 2000)
+    } catch (err) {
+      alert('Помилка надсилання виклику: ' + err.message)
+    }
+  }
+
   // Корекція браку ВКЯ
   const [showQCModal, setShowQCModal] = useState(false)
   const [qcScrapCount, setQcScrapCount] = useState(0)
@@ -95,64 +146,147 @@ export default function Shop1Terminal() {
         { facingMode: "environment" },
         config,
         async (text) => {
-          if (!text.startsWith('CENTRUM_CARD_')) return
-          const id = text.replace('CENTRUM_CARD_', '').trim()
+          if (text.startsWith('CENTRUM_CARD_')) {
+            const id = text.replace('CENTRUM_CARD_', '').trim()
 
-          await stopAndClose()
+            await stopAndClose()
 
-          let card = workCards.find(c => String(c.id).trim() === id)
+            let card = workCards.find(c => String(c.id).trim() === id)
 
-          if (!card) {
-            setIsSyncing(true)
-            // Direct DB lookup for instant discovery of newly created cards
-            const { data: freshCard, error: fetchError } = await supabase
-              .from('work_cards')
-              .select('*')
-              .eq('id', id)
-              .single()
+            if (!card) {
+              setIsSyncing(true)
+              // Direct DB lookup for instant discovery of newly created cards
+              const { data: freshCard, error: fetchError } = await supabase
+                .from('work_cards')
+                .select('*')
+                .eq('id', id)
+                .single()
 
-            setIsSyncing(false)
+              setIsSyncing(false)
 
-            if (fetchError || !freshCard) {
-              setScanError(`Картку №${id} не знайдено.`)
+              if (fetchError || !freshCard) {
+                setScanError(`Картку №${id} не знайдено.`)
+                return
+              }
+              card = freshCard
+            }
+
+            // Дозволяємо картки "Нова", ті що в ланцюжку Цеху №1, або в буфері Сортування
+            const isNew = card.status === 'new' || !card.operation || card.operation === 'Нова'
+            const isInChain = CHAIN.includes(card.operation)
+            const isSortування = card.status === 'at-buffer' && card.operation === 'Сортування'
+
+            if (!isNew && !isInChain && !isSortування) {
+              setScanError(`Картка #${id} — не для Цеху №1 (${card.operation})`)
               return
             }
-            card = freshCard
+
+            if (card.status === 'completed') {
+              setScanError(`Картка #${id} вже завершена`);
+              return
+            }
+
+            // Додаємо в локальну чергу та активуємо
+            setScannedIds(prev => prev.includes(card.id) ? prev : [...prev, card.id])
+            setSelectedCardId(card.id)
+            setScanError(null)
+            window.scrollTo({ top: 0, behavior: 'smooth' })
+          } else {
+            // Check if it's a machine call QR code URL
+            const isMachineQR = await handleMachineQRScan(text)
+            if (isMachineQR) {
+              await stopAndClose()
+            }
           }
-
-          // Дозволяємо картки "Нова", ті що в ланцюжку Цеху №1, або в буфері Сортування
-          const isNew = card.status === 'new' || !card.operation || card.operation === 'Нова'
-          const isInChain = CHAIN.includes(card.operation)
-          const isSortування = card.status === 'at-buffer' && card.operation === 'Сортування'
-
-          if (!isNew && !isInChain && !isSortування) {
-            setScanError(`Картка #${id} — не для Цеху №1 (${card.operation})`)
-            return
-          }
-
-          if (card.status === 'completed') {
-            setScanError(`Картка #${id} вже завершена`);
-            return
-          }
-
-          // Додаємо в локальну чергу та активуємо
-          setScannedIds(prev => prev.includes(card.id) ? prev : [...prev, card.id])
-          setSelectedCardId(card.id)
-          setScanError(null)
-          window.scrollTo({ top: 0, behavior: 'smooth' })
         }
       ).catch(err => {
         console.error("Scanner error:", err)
         setScanError(`Помилка камери: ${err}. Перевірте дозволи у браузері.`)
-        // Не закриваємо setIsScanning(false) одразу, щоб користувач бачив помилку в самому інтерфейсі
+        // Не закриваємо setIsScanning(false) одразу, щоб користувач бачим помилку в самому інтерфейсі
       })
     }
     return () => { if (html5QrCode && html5QrCode.isScanning) html5QrCode.stop().catch(() => { }) }
   }, [isScanning, workCards])
 
+  // ── Global Scanner Keydown Listener ───────────────────────────────────────
+  useEffect(() => {
+    let buffer = ''
+    let lastKeyTime = Date.now()
+
+    const handleGlobalKeyDown = async (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        return
+      }
+
+      const currentTime = Date.now()
+      if (currentTime - lastKeyTime > 100) {
+        buffer = ''
+      }
+      lastKeyTime = currentTime
+
+      if (e.key === 'Enter') {
+        if (buffer.length > 3) {
+          const scannedText = buffer.trim()
+          buffer = ''
+          
+          const isMachineQR = await handleMachineQRScan(scannedText)
+          if (isMachineQR) {
+            e.preventDefault()
+            return
+          }
+
+          if (scannedText.startsWith('CENTRUM_CARD_')) {
+            const id = scannedText.replace('CENTRUM_CARD_', '').trim()
+            let card = workCards.find(c => String(c.id).trim() === id)
+
+            if (!card) {
+              setIsSyncing(true)
+              const { data: freshCard } = await supabase
+                .from('work_cards')
+                .select('*')
+                .eq('id', id)
+                .single()
+              setIsSyncing(false)
+              if (freshCard) card = freshCard
+            }
+
+            if (card) {
+              const isNew = card.status === 'new' || !card.operation || card.operation === 'Нова'
+              const isInChain = CHAIN.includes(card.operation)
+              const isSortування = card.status === 'at-buffer' && card.operation === 'Сортування'
+
+              if ((isNew || isInChain || isSortування) && card.status !== 'completed') {
+                setScannedIds(prev => prev.includes(card.id) ? prev : [...prev, card.id])
+                setSelectedCardId(card.id)
+                setScanError(null)
+                window.scrollTo({ top: 0, behavior: 'smooth' })
+              }
+            }
+          }
+        }
+        buffer = ''
+      } else if (e.key.length === 1) {
+        buffer += e.key
+      }
+    }
+
+    window.addEventListener('keydown', handleGlobalKeyDown)
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown)
+  }, [workCards])
+
   const handleManualEntry = async (e) => {
     if (e) e.preventDefault()
     if (!manualId) return
+
+    // Check if it's a machine call QR code URL
+    const isMachineQR = await handleMachineQRScan(manualId.trim())
+    if (isMachineQR) {
+      setManualId('')
+      setShowManualInput(false)
+      setIsScanning(false)
+      return
+    }
+
     setIsProcessing(true)
 
     let card = workCards.find(c => String(c.id).trim() === manualId.trim())
@@ -2251,6 +2385,152 @@ export default function Shop1Terminal() {
       )}
 
       {showStorageExplorer && renderStorageExplorer()}
+
+      {machineCallModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.85)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: '#141414',
+            border: '1px solid #333',
+            borderRadius: '24px',
+            width: '100%',
+            maxWidth: '450px',
+            padding: '30px',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.6)',
+            position: 'relative'
+          }}>
+            <button 
+              onClick={() => setMachineCallModal(null)}
+              style={{
+                position: 'absolute',
+                top: '20px',
+                right: '20px',
+                background: 'none',
+                border: 'none',
+                color: '#888',
+                cursor: 'pointer',
+                padding: '5px'
+              }}
+            >
+              <X size={24} />
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px' }}>
+              <div style={{ background: '#ef444415', padding: '12px', borderRadius: '16px', color: '#ef4444' }}>
+                <AlertTriangle size={32} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, color: '#fff' }}>
+                  {machineCallModal.type}
+                </h3>
+                <p style={{ margin: '4px 0 0 0', color: '#f59e0b', fontWeight: 800, fontSize: '0.95rem' }}>
+                  Пор. №{machineCallModal.sequence_number || '—'} 
+                  {machineCallModal.inventory_no ? ` | Інв. ${machineCallModal.inventory_no}` : ''}
+                  {machineCallModal.floor ? ` | Поверх ${machineCallModal.floor}` : ''}
+                </p>
+              </div>
+            </div>
+
+            {machineCallSuccess ? (
+              <div style={{
+                background: '#10b98115',
+                border: '1px solid #10b98130',
+                color: '#10b981',
+                padding: '20px',
+                borderRadius: '16px',
+                textAlign: 'center',
+                fontWeight: 800,
+                fontSize: '1.1rem',
+                margin: '20px 0'
+              }}>
+                {machineCallSuccess}
+              </div>
+            ) : (
+              <>
+                <p style={{ color: '#aaa', fontSize: '0.9rem', marginBottom: '20px', lineHeight: '1.5' }}>
+                  Оберіть кого саме викликати до верстату. Виклик з'явиться на дашборді майстра та інженерів в реальному часі.
+                </p>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <button
+                    onClick={() => handleCreateCall('master')}
+                    style={{
+                      background: '#f59e0b',
+                      color: '#000',
+                      border: 'none',
+                      padding: '16px',
+                      borderRadius: '16px',
+                      fontSize: '1.1rem',
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '10px',
+                      boxShadow: '0 4px 12px rgba(245,158,11,0.2)'
+                    }}
+                  >
+                    <span>ВИКЛИКАТИ МАЙСТРА</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleCreateCall('engineer')}
+                    style={{
+                      background: '#3b82f6',
+                      color: '#fff',
+                      border: 'none',
+                      padding: '16px',
+                      borderRadius: '16px',
+                      fontSize: '1.1rem',
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '10px',
+                      boxShadow: '0 4px 12px rgba(59,130,246,0.2)'
+                    }}
+                  >
+                    <span>ВИКЛИКАТИ ІНЖЕНЕРА</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleCreateCall('qc')}
+                    style={{
+                      background: '#ef4444',
+                      color: '#fff',
+                      border: 'none',
+                      padding: '16px',
+                      borderRadius: '16px',
+                      fontSize: '1.1rem',
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '10px',
+                      boxShadow: '0 4px 12px rgba(239,68,68,0.2)'
+                    }}
+                  >
+                    <span>ВИКЛИКАТИ ВКЯ</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       <style>{`
         .s1-stage-hover:hover { background: #181818!important; transform: translateY(-3px); }

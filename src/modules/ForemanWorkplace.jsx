@@ -614,14 +614,16 @@ const MACHINE_TYPES = [
   return (
     <div className="foreman-module" style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
       <header className="module-nav no-print">
-        <Link to="/" className="back-link">
-          <ArrowLeft size={18} /> <span className="hide-mobile">На головну</span>
-        </Link>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <Link to="/" className="back-link" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#fff', textDecoration: 'none' }}>
+            <ArrowLeft size={18} /> <span className="hide-mobile">На головну</span>
+          </Link>
           <button onClick={() => setIsDrawerOpen(true)} className="burger-btn-labeled mobile-only">
             <Menu size={20} />
             <span>Черга</span>
           </button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Factory size={22} color="#ef4444" />
           <h1 style={{ margin: 0, textTransform: 'uppercase', fontSize: '1rem', fontWeight: 900 }}>ВИРОБНИЦТВО</h1>
         </div>
@@ -639,7 +641,7 @@ const MACHINE_TYPES = [
       <div className="master-grid no-print">
         <div
           className={`side-panel no-print ${isDrawerOpen ? 'drawer-open' : ''}`}
-          style={{ width: '300px', display: 'flex', flexDirection: 'column', background: '#121212', borderRight: '1px solid #222', transition: '0.3s transform' }}
+          style={{ display: 'flex', flexDirection: 'column', background: '#121212', borderRight: '1px solid #222', transition: '0.3s transform' }}
         >
           <div style={{ padding: '20px', color: '#444', fontWeight: 800, fontSize: '0.65rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             ЧЕРГА НАРЯДІВ ({relevantTasks.length})
@@ -2812,15 +2814,34 @@ const MACHINE_TYPES = [
         }
         .animate-spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @media (max-width: 768px) {
+        
+        .side-panel {
+          width: 300px;
+        }
+        .mobile-only { display: none; }
+
+        @media (max-width: 1024px) {
           .hide-mobile { display: none !important; }
           .mobile-only { display: block !important; }
           .master-grid { display: block !important; }
-          .side-panel { position: fixed; left: 0; top: 0; bottom: 0; z-index: 1001; transform: translateX(-100%); width: 280px !important; }
+          .side-panel { 
+            position: fixed; 
+            left: 0; 
+            top: 0; 
+            bottom: 0; 
+            z-index: 1001; 
+            transform: translateX(-100%); 
+            width: 280px !important; 
+            height: 100% !important;
+          }
           .side-panel.drawer-open { transform: translateX(0); }
           .content-panel { padding: 15px !important; }
+          
+          /* Scale down headers on mobile/tablets */
+          h2 {
+            font-size: 1.8rem !important;
+          }
         }
-        .mobile-only { display: none; }
         .archive-card-hover:hover { border-color: #ef4444 !important; background: #1a1a1a !important; }
       `}} />
     </div>
