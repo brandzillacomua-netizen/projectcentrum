@@ -7,7 +7,7 @@ const USER_CACHE_KEY = 'MES_SESSION_USER'
  * Auth & User Management hooks
  * Returns: { login, logout, upsertUser, deleteUser, searchCustomers }
  */
-export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers, fetchData }) {
+export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers, fetchData, clearAllData }) {
 
   const login = async (loginName, password) => {
     // ── Step 1: Authenticate via Supabase (primary, fast) ──────────────────
@@ -38,14 +38,28 @@ export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers,
     localStorage.setItem('MES_SESSION_LOGIN', data.login)
     // Cache full user object for instant session restore on next page load
     localStorage.setItem(USER_CACHE_KEY, JSON.stringify(data))
+
+    // Force data refresh on successful login
+    if (fetchData) {
+      try {
+        await fetchData(true)
+      } catch (err) {
+        console.error('Failed to force refresh data after login:', err)
+      }
+    }
+
     return { success: true, user: userWithToken }
   }
 
   const logout = () => {
-    setCurrentUser(null)
-    localStorage.removeItem('MES_SESSION_LOGIN')
-    localStorage.removeItem('BACKEND_TOKEN')
-    localStorage.removeItem(USER_CACHE_KEY)
+    if (clearAllData) {
+      clearAllData()
+    } else {
+      setCurrentUser(null)
+      localStorage.removeItem('MES_SESSION_LOGIN')
+      localStorage.removeItem('BACKEND_TOKEN')
+      localStorage.removeItem(USER_CACHE_KEY)
+    }
   }
 
   const upsertUser = async (userData) => {

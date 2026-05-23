@@ -56,6 +56,7 @@ const KanbanModule         = lazy(() => import('./modules/KanbanModule'))
 const AccessModule         = lazy(() => import('./modules/AccessModule'))
 const ReportsModule        = lazy(() => import('./modules/ReportsModule'))
 const DashboardModule      = lazy(() => import('./modules/DashboardModule'))
+const MachineCallModule    = lazy(() => import('./modules/MachineCallModule'))
 
 import { MESProvider, useMES } from './MESContext'
 
@@ -113,7 +114,7 @@ const getAvailableModules = (currentUser, badgeCount) => {
 }
 
 const GlobalUserNav = () => {
-  const { currentUser, managementTasks, requests, workCards, purchaseRequests, receptionDocs, nomenclatures } = useMES();
+  const { currentUser, managementTasks, requests, workCards, purchaseRequests, receptionDocs, nomenclatures, machineCalls, machines } = useMES();
   const location = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -324,8 +325,44 @@ const GlobalUserNav = () => {
       });
     }
 
+    // 6. Machine Calls
+    if (machineCalls) {
+      machineCalls.forEach(c => {
+        if (c.status === 'pending') {
+          const mach = machines?.find(m => m.id === c.machine_id);
+          const machName = mach ? mach.name : 'Верстат';
+          
+          let isRelevant = false;
+          let roleLabel = '';
+          if (c.called_role === 'master') {
+            isRelevant = currentUser?.access_rights?.master || currentUser?.access_rights?.foreman;
+            roleLabel = 'Майстра';
+          } else if (c.called_role === 'engineer') {
+            isRelevant = currentUser?.access_rights?.engineer;
+            roleLabel = 'Інженера';
+          } else if (c.called_role === 'quality') {
+            isRelevant = currentUser?.access_rights?.brak || currentUser?.position?.toLowerCase().includes('вкя') || currentUser?.position?.toLowerCase().includes('якост');
+            roleLabel = 'ВКЯ';
+          }
+          
+          if (isRelevant) {
+            list.push({
+              id: `call-${c.id}`,
+              type: 'machine_call',
+              title: `⚠️ Виклик ${roleLabel}`,
+              description: `Верстат: ${machName}. Локація: ${mach?.floor || 'Не вказано'}. ${c.operator_name ? `Викликав: ${c.operator_name}` : ''}`,
+              createdAt: c.created_at,
+              path: '/machines',
+              color: '#ef4444',
+              icon: <AlertTriangle size={14} />
+            });
+          }
+        }
+      });
+    }
+
     return list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  }, [currentUser, managementTasks, requests, workCards, purchaseRequests, receptionDocs]);
+  }, [currentUser, managementTasks, requests, workCards, purchaseRequests, receptionDocs, machineCalls, machines]);
 
   const unreadCount = useMemo(() => {
     return notifications.filter(n => !readIds.includes(n.id)).length;
@@ -1019,8 +1056,9 @@ const AppContent = () => {
     )
   }
 
-  // РЕДИРЕКТ НА /login ЯКЩО НЕ АВТОРИЗОВАНИЙ
-  if (!currentUser && location.pathname !== '/login') {
+  // РЕДИРЕКТ НА /login ЯКЩО НЕ АВТОРИЗОВАНИЙ (крім публічної сторінки виклику)
+  const isPublicCall = /^\/machines\/[^/]+\/call$/.test(location.pathname)
+  if (!currentUser && location.pathname !== '/login' && !isPublicCall) {
     return <Navigate to="/login" replace />
   }
 
@@ -1058,6 +1096,7 @@ const AppContent = () => {
         <Route path="/nomenclature" element={<NomenclatureModule />} />
         <Route path="/nomenclature-v2" element={<NomenclatureV2 />} />
         <Route path="/machines" element={<MachinesModule />} />
+        <Route path="/machines/:id/call" element={<MachineCallModule />} />
         <Route path="/analytics" element={<AnalyticsModule />} />
         <Route path="/brak" element={<BrakModule />} />
         <Route path="/tasks" element={<KanbanModule />} />

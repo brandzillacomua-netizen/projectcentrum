@@ -30,7 +30,8 @@ export const MESProvider = ({ children }) => {
     currentUser: data.currentUser, 
     setCurrentUser: data.setCurrentUser, 
     setSystemUsers: data.setSystemUsers, 
-    fetchData: data.fetchData
+    fetchData: data.fetchData,
+    clearAllData: data.clearAllData
   })
 
   // ── CUSTOMERS ──
@@ -220,6 +221,8 @@ export const MESProvider = ({ children }) => {
       productionStages,
       machineOperations: data.machineOperations,
       setMachineOperations: data.setMachineOperations,
+      machineCalls: data.machineCalls,
+      setMachineCalls: data.setMachineCalls,
       fetchModuleData: data.fetchModuleData,
       supabase
     }}>

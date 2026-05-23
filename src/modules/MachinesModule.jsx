@@ -3,10 +3,12 @@ import { Link } from 'react-router-dom'
 import { 
   ArrowLeft, Cpu, Plus, Trash2, Info, X, Zap, 
   MapPin, Hash, Activity, Clock, User, ClipboardList,
-  Edit3, BarChart3, CheckCircle2, History, Layers
+  Edit3, BarChart3, CheckCircle2, History, Layers,
+  AlertTriangle
 } from 'lucide-react'
 import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
+import { supabase } from '../supabase'
 
 const MACHINE_TYPES = [
   'CNC 1200x800 - 4 листи (Малий)',
@@ -17,11 +19,11 @@ const MACHINE_TYPES = [
 ]
 
 const MachinesModule = () => {
-  const { machines, addMachine, updateMachine, deleteMachine, workCards, workCardHistory, nomenclatures, orders, tasks, loading } = useMES()
+  const { machines, addMachine, updateMachine, deleteMachine, workCards, workCardHistory, nomenclatures, orders, tasks, loading, machineCalls, currentUser } = useMES()
   const [showAdd, setShowAdd] = useState(false)
   const [selectedMachineId, setSelectedMachineId] = useState(null)
   const [selectedType, setSelectedType] = useState(null)
-  const [form, setForm] = useState({ id: null, name: '', type: MACHINE_TYPES[0], capacity: '1', sequence_number: '', inventory_no: '', floor: '', description: '' })
+  const [form, setForm] = useState({ id: null, name: '', type: MACHINE_TYPES[0], capacity: '1', sequence_number: '', inventory_no: '', floor: '', description: '', status: 'idle' })
   const [currentTime, setCurrentTime] = useState(new Date())
 
   useEffect(() => {
@@ -29,10 +31,129 @@ const MachinesModule = () => {
     return () => clearInterval(timer)
   }, [])
 
+  const activeCallsForMachine = useMemo(() => {
+    if (!selectedMachineId || !machineCalls) return []
+    return machineCalls.filter(c => c.machine_id === selectedMachineId && c.status === 'pending')
+  }, [machineCalls, selectedMachineId])
+
+  const handlePrintQR = (machine) => {
+    const callUrl = `${window.location.origin}/machines/${machine.id}/call`
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&color=000000&bgcolor=ffffff&data=${encodeURIComponent(callUrl)}`
+    const printWindow = window.open('', '_blank', 'width=600,height=650')
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Друк QR-коду - ${machine.name}</title>
+          <style>
+            html, body {
+              margin: 0;
+              padding: 0;
+              width: 100%;
+              height: 100%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+              color: #000;
+              background: #fff;
+            }
+            .container {
+              border: 4px solid #000;
+              padding: 45px;
+              border-radius: 28px;
+              width: 90%;
+              max-width: 440px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              text-align: center;
+              box-sizing: border-box;
+            }
+            h1 {
+              font-size: 2.5rem;
+              margin: 0 0 10px 0;
+              font-weight: 900;
+              text-transform: uppercase;
+              letter-spacing: -0.5px;
+              line-height: 1.1;
+            }
+            .subtitle {
+              font-size: 1.1rem;
+              margin: 0 0 25px 0;
+              color: #333;
+              font-weight: 700;
+              border-bottom: 2px solid #eee;
+              padding-bottom: 15px;
+              width: 100%;
+            }
+            .qr-image {
+              width: 280px;
+              height: 280px;
+              margin: 0 0 20px 0;
+              display: block;
+            }
+            .instructions {
+              font-size: 1.1rem;
+              font-weight: 800;
+              text-transform: uppercase;
+              line-height: 1.4;
+              margin-top: 10px;
+            }
+            .instructions span {
+              display: inline-block;
+              border: 1.5px solid #000;
+              padding: 3px 8px;
+              border-radius: 6px;
+              font-size: 0.85rem;
+              margin: 3px;
+              font-weight: 900;
+            }
+            @media print {
+              body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+              .container {
+                border: 4px solid #000 !important;
+                border-radius: 28px !important;
+                page-break-inside: avoid;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>${machine.name}</h1>
+            <div class="subtitle">
+              ${machine.type || ''} ${machine.sequence_number ? ' • №' + machine.sequence_number : ''}
+            </div>
+            <img class="qr-image" src="${qrUrl}" alt="QR Code" />
+            <div class="instructions">
+              ЗКСАНУЙТЕ ДЛЯ ВИКЛИКУ:<br/>
+              <span>МАЙСТЕР</span>
+              <span>ІНЖЕНЕР</span>
+              <span>ВКЯ</span>
+            </div>
+          </div>
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+                window.close();
+              }, 400);
+            };
+          </script>
+        </body>
+      </html>
+    `)
+    printWindow.document.close()
+  }
+
   const stats = useMemo(() => {
     const total = machines.length
-    const busy = machines.filter(m => workCards.some(c => c.machine_id === m.id && c.status === 'in-progress')).length
-    return { total, busy, idle: total - busy }
+    const repair = machines.filter(m => m.status === 'repair').length
+    const busy = machines.filter(m => m.status !== 'repair' && workCards.some(c => c.machine_id === m.id && c.status === 'in-progress')).length
+    return { total, busy, repair, idle: total - busy - repair }
   }, [machines, workCards])
 
   const handleSubmit = async (e) => {
@@ -46,7 +167,8 @@ const MachinesModule = () => {
         sequence_number: form.sequence_number || null,
         inventory_no: form.inventory_no || null,
         floor: form.floor || null,
-        description: form.description || null
+        description: form.description || null,
+        status: form.status || 'idle'
       }
 
       if (form.id) {
@@ -56,7 +178,7 @@ const MachinesModule = () => {
         await apiService.submitMachine(payload, addMachine)
       }
       
-      setForm({ id: null, name: '', type: MACHINE_TYPES[0], capacity: '1', sequence_number: '', inventory_no: '', floor: '', description: '' })
+      setForm({ id: null, name: '', type: MACHINE_TYPES[0], capacity: '1', sequence_number: '', inventory_no: '', floor: '', description: '', status: 'idle' })
       setShowAdd(false)
     } catch (err) {
       alert('Помилка: ' + err.message)
@@ -72,7 +194,8 @@ const MachinesModule = () => {
       sequence_number: m.sequence_number || '',
       inventory_no: m.inventory_no || '', 
       floor: m.floor || '', 
-      description: m.description || '' 
+      description: m.description || '',
+      status: m.status || 'idle'
     })
     setShowAdd(true)
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -220,6 +343,7 @@ const MachinesModule = () => {
           <div className="stat-pill">Всього: <strong>{stats.total}</strong></div>
           <div className="stat-pill">Зайняті: <strong style={{color: '#ef4444'}}>{stats.busy}</strong></div>
           <div className="stat-pill">Вільні: <strong style={{color: '#10b981'}}>{stats.idle}</strong></div>
+          <div className="stat-pill">В ремонті: <strong style={{color: '#eab308'}}>{stats.repair}</strong></div>
         </div>
       </nav>
 
@@ -232,7 +356,7 @@ const MachinesModule = () => {
               <p style={{ color: '#444', fontWeight: 700, margin: '5px 0 0' }}>Контроль завантаженості та технічні дані</p>
             </div>
             <button 
-              onClick={() => { setShowAdd(!showAdd); if(!showAdd) setForm({id:null, name:'', type: MACHINE_TYPES[0], capacity:'1', sequence_number:'', inventory_no:'', floor:'', description:''}) }}
+              onClick={() => { setShowAdd(!showAdd); if(!showAdd) setForm({id:null, name:'', type: MACHINE_TYPES[0], capacity:'1', sequence_number:'', inventory_no:'', floor:'', description:'', status:'idle'}) }}
               style={{ 
                 background: showAdd ? '#1a1a1a' : '#ff9000', 
                 color: showAdd ? '#fff' : '#000', 
@@ -253,7 +377,7 @@ const MachinesModule = () => {
                 {form.id ? 'Редагування верстата' : 'Параметри нового обладнання'}
               </h3>
               <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr', gap: '20px', marginBottom: '20px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1.5fr', gap: '20px', marginBottom: '20px' }}>
                    <div className="input-group">
                       <label><Hash size={12}/> Назва</label>
                       <input placeholder="напр. Laser Alpha-1" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
@@ -267,6 +391,13 @@ const MachinesModule = () => {
                    <div className="input-group">
                       <label><Zap size={12}/> Місткість (л.)</label>
                       <input type="number" value={form.capacity} onChange={e => setForm({...form, capacity: e.target.value})} required />
+                   </div>
+                   <div className="input-group">
+                      <label><Activity size={12}/> Статус верстата</label>
+                      <select style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '15px', borderRadius: '12px', fontSize: '0.9rem', outline: 'none', transition: '0.2s', cursor: 'pointer' }} value={form.status || 'idle'} onChange={e => setForm({...form, status: e.target.value})} required>
+                        <option value="idle">Вільний (в роботі)</option>
+                        <option value="repair">В ремонті</option>
+                      </select>
                    </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 2fr', gap: '20px' }}>
@@ -303,8 +434,9 @@ const MachinesModule = () => {
                 if (typeMachines.length === 0 && type === 'Інші') return null // hide "Інші" if empty
                 
                 const total = typeMachines.length
-                const busy = typeMachines.filter(m => activeWorkForMachine(m)).length
-                const idle = total - busy
+                const repair = typeMachines.filter(m => m.status === 'repair').length
+                const busy = typeMachines.filter(m => m.status !== 'repair' && activeWorkForMachine(m)).length
+                const idle = total - busy - repair
 
                 return (
                   <div key={type} className="machine-card-v3" onClick={() => setSelectedType(type)} style={{ justifyContent: 'center', alignItems: 'center', textAlign: 'center', minHeight: '200px' }}>
@@ -312,10 +444,11 @@ const MachinesModule = () => {
                       <Layers size={32} />
                     </div>
                     <h3 style={{ margin: '0 0 10px', fontSize: '1.4rem', fontWeight: 900 }}>{type}</h3>
-                    <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 800 }}>
-                      <span style={{ color: '#555' }}>Всього: {total}</span>
+                    <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 800, flexWrap: 'wrap' }}>
+                      <span style={{ color: '#71717a' }}>Всього: {total}</span>
                       <span style={{ color: '#10b981' }}>Вільні: {idle}</span>
                       <span style={{ color: '#ef4444' }}>У роботі: {busy}</span>
+                      <span style={{ color: '#eab308' }}>В ремонті: {repair}</span>
                     </div>
                   </div>
                 )
@@ -357,14 +490,14 @@ const MachinesModule = () => {
                   const progressPercent = estimatedMin > 0 ? Math.min(100, (elapsedMin / estimatedMin) * 100) : 0
                   
                   return (
-                    <div key={m.id} className={`machine-card-v3 ${activeTask ? 'is-busy' : 'is-idle'}`} onClick={() => setSelectedMachineId(m.id)}>
+                    <div key={m.id} className={`machine-card-v3 ${m.status === 'repair' ? 'is-repair' : activeTask ? 'is-busy' : 'is-idle'}`} onClick={() => setSelectedMachineId(m.id)}>
                       <div className="card-top">
                         <div className="machine-icon-box">
                           <Cpu size={24} />
                         </div>
                         <div className="status-badge">
                           <div className="status-dot" />
-                          {activeTask ? 'ЗАЙНЯТИЙ' : 'ВІЛЬНИЙ'}
+                          {m.status === 'repair' ? 'В РЕМОНТІ' : activeTask ? 'ЗАЙНЯТИЙ' : 'ВІЛЬНИЙ'}
                         </div>
                         <div className="card-actions">
                           <button onClick={(e) => { e.stopPropagation(); handleEdit(m) }}><Edit3 size={16} /></button>
@@ -384,7 +517,12 @@ const MachinesModule = () => {
                       </div>
 
                       <div className="card-footer">
-                        {activeTask ? (
+                        {m.status === 'repair' ? (
+                          <div className="idle-info" style={{ color: '#eab308' }}>
+                            <span className="capacity-info" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><AlertTriangle size={14} /> НА ОБСЛУГОВУВАННІ</span>
+                            <span className="history-link" style={{ color: '#eab308' }}>АНАЛІТИКА <BarChart3 size={14} /></span>
+                          </div>
+                        ) : activeTask ? (
                           <div className="active-work-info">
                             <div className="work-header" style={{ marginBottom: '15px' }}>
                               <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -460,9 +598,78 @@ const MachinesModule = () => {
                   <label>ЗАГАЛЬНИЙ ЧАС РОБОТИ</label>
                   <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#10b981' }}>{calculateTotalTime(selectedMachine)}</div>
                 </div>
+                <div className="side-metric" style={{ marginTop: '20px', textAlign: 'center' }}>
+                  <label>QR-КОД ДЛЯ ВИКЛИКУ</label>
+                  <div style={{ background: '#0a0a0a', border: '1px solid #222', borderRadius: '16px', padding: '15px', display: 'inline-block', margin: '10px 0' }}>
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=ffffff&bgcolor=0a0a0a&data=${encodeURIComponent(`${window.location.origin}/machines/${selectedMachine.id}/call`)}`} 
+                      alt="QR Code" 
+                      style={{ width: '150px', height: '150px', display: 'block' }} 
+                    />
+                  </div>
+                  <button 
+                    onClick={() => handlePrintQR(selectedMachine)}
+                    style={{ 
+                      background: '#ff9000', color: '#000', border: 'none', 
+                      width: '100%', padding: '12px', borderRadius: '12px', 
+                      fontWeight: 950, cursor: 'pointer', fontSize: '0.8rem',
+                      marginTop: '5px', transition: '0.2s', boxShadow: '0 4px 12px rgba(255,144,0,0.2)'
+                    }}
+                  >
+                    ДРУКУВАТИ QR-КОД
+                  </button>
+                </div>
               </aside>
 
               <main className="detail-main">
+                {activeCallsForMachine.length > 0 && (
+                  <div style={{ marginBottom: '35px', background: 'rgba(239,68,68,0.02)', border: '1px solid #222', borderRadius: '20px', padding: '25px' }}>
+                    <h4 style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1rem', color: '#ef4444', margin: '0 0 20px 0' }}>
+                      <AlertTriangle size={18} /> АКТИВНІ ВИКЛИКИ ОПЕРАТОРА
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {activeCallsForMachine.map(c => {
+                        const label = c.called_role === 'master' ? 'МАЙСТЕР' : c.called_role === 'engineer' ? 'ІНЖЕНЕР' : 'ВКЯ'
+                        const roleColor = c.called_role === 'master' ? '#ff9000' : c.called_role === 'engineer' ? '#8b5cf6' : '#ef4444'
+                        return (
+                          <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#050505', border: '1px solid #1a1a1a', padding: '15px 20px', borderRadius: '12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                              <span style={{ background: roleColor, color: '#000', padding: '4px 10px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 1000 }}>{label}</span>
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>Викликав: {c.operator_name || 'Оператор'}</span>
+                                <span style={{ fontSize: '0.7rem', color: '#555', marginTop: '2px' }}>
+                                  Час виклику: {new Date(c.created_at).toLocaleString('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                </span>
+                              </div>
+                            </div>
+                            <button 
+                              onClick={async () => {
+                                try {
+                                  const resolverName = currentUser?.name || currentUser?.login || 'Адміністратор'
+                                  const { error } = await supabase
+                                    .from('machine_calls')
+                                    .update({
+                                      status: 'resolved',
+                                      resolved_at: new Date().toISOString(),
+                                      resolved_by: resolverName
+                                    })
+                                    .eq('id', c.id)
+                                  if (error) throw error
+                                } catch (err) {
+                                  alert('Помилка закриття виклику: ' + err.message)
+                                }
+                              }}
+                              style={{ background: '#10b981', color: '#000', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 900, cursor: 'pointer', fontSize: '0.78rem' }}
+                            >
+                              ОБРОБЛЕНО
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <h4 style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1rem', marginBottom: '20px' }}>
                   <History size={18} color="#ff9000" /> ІСТОРІЯ ВИКОНАНИХ КАРТОК
                 </h4>
@@ -538,10 +745,15 @@ const MachinesModule = () => {
         .status-badge { display: flex; align-items: center; gap: 8px; font-size: 0.65rem; font-weight: 950; letter-spacing: 1px; color: #444; }
         .is-busy .status-badge { color: #ef4444; }
         .is-idle .status-badge { color: #10b981; }
+        .is-repair .status-badge { color: #eab308; }
         
         .status-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
         .is-busy .status-dot { box-shadow: 0 0 10px #ef4444; animation: pulseRed 2s infinite; }
         .is-idle .status-dot { box-shadow: 0 0 10px #10b981; }
+        .is-repair .status-dot { box-shadow: 0 0 10px #eab308; }
+
+        .machine-card-v3.is-repair { border-color: rgba(234, 179, 8, 0.2); }
+        .machine-card-v3.is-repair:hover { border-color: rgba(234, 179, 8, 0.5); box-shadow: 0 30px 60px rgba(234, 179, 8, 0.1); }
 
         .card-actions { display: flex; gap: 10px; opacity: 0; transition: 0.2s; }
         .machine-card-v3:hover .card-actions { opacity: 1; }

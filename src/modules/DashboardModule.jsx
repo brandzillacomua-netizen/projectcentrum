@@ -78,11 +78,11 @@ const DashboardModule = () => {
       const qSortCards = (workCards || [])
         .filter(c => String(c.nomenclature_id) === String(nom.id) && 
                      c.status === 'at-shop2-buffer')
-        .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+        .reduce((sum, c) => sum + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0)), 0)
 
       const qSortInv = (inventory || [])
         .filter(i => String(i.nomenclature_id) === String(nom.id) && 
-                     ['semi', 'semi_shop2', 'bz_shop2'].includes(i.type))
+                     ['semi', 'semi_shop2'].includes(i.type))
         .reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
 
       const qSort = qSortCards + qSortInv
@@ -114,7 +114,13 @@ const DashboardModule = () => {
                      (i.type === 'finished' || i.warehouse === 'sgp'))
         .reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
 
-      const sum = qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qMal + qPres + qDoop + qSgp
+      // 10b. Склад БЗ
+      const qBz = (inventory || [])
+        .filter(i => String(i.nomenclature_id) === String(nom.id) && 
+                     ['bz', 'wip_bz', 'bz_shop2'].includes(i.type))
+        .reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
+
+      const sum = qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qMal + qPres + qDoop + qSgp + qBz
 
       return {
         id: nom.id,
@@ -132,6 +138,7 @@ const DashboardModule = () => {
         qPres,
         qDoop,
         qSgp,
+        qBz,
         sum
       }
     })
@@ -155,7 +162,7 @@ const DashboardModule = () => {
 
   // Column Totals over all filtered rows
   const totals = useMemo(() => {
-    const res = { qCut: 0, qCutBuf: 0, qGalt: 0, qGaltBuf: 0, qPriy: 0, qSortAct: 0, qSort: 0, qMal: 0, qPres: 0, qDoop: 0, qSgp: 0, sum: 0 }
+    const res = { qCut: 0, qCutBuf: 0, qGalt: 0, qGaltBuf: 0, qPriy: 0, qSortAct: 0, qSort: 0, qMal: 0, qPres: 0, qDoop: 0, qSgp: 0, qBz: 0, sum: 0 }
     filteredDashboardData.forEach(row => {
       res.qCut += row.qCut
       res.qCutBuf += row.qCutBuf
@@ -168,6 +175,7 @@ const DashboardModule = () => {
       res.qPres += row.qPres
       res.qDoop += row.qDoop
       res.qSgp += row.qSgp
+      res.qBz += row.qBz
       res.sum += row.sum
     })
     return res
@@ -323,7 +331,7 @@ const DashboardModule = () => {
   }, [dashboardData, bomItems, nomenclatures, productTrends, searchQuery, wipOnly])
 
   const getGroupTotals = (rows) => {
-    const res = { qCut: 0, qCutBuf: 0, qGalt: 0, qGaltBuf: 0, qPriy: 0, qSortAct: 0, qSort: 0, qMal: 0, qPres: 0, qDoop: 0, qSgp: 0, sum: 0 }
+    const res = { qCut: 0, qCutBuf: 0, qGalt: 0, qGaltBuf: 0, qPriy: 0, qSortAct: 0, qSort: 0, qMal: 0, qPres: 0, qDoop: 0, qSgp: 0, qBz: 0, sum: 0 }
     rows.forEach(row => {
       res.qCut += row.qCut
       res.qCutBuf += row.qCutBuf
@@ -336,57 +344,91 @@ const DashboardModule = () => {
       res.qPres += row.qPres
       res.qDoop += row.qDoop
       res.qSgp += row.qSgp
+      res.qBz += row.qBz
       res.sum += row.sum
     })
     return res
   }
 
-  const renderValue = (val, isSum = false, isSpreadsheet = true) => {
+  const renderValue = (val, type = 'normal') => {
     if (val === 0) {
-      return <span style={{ color: isSpreadsheet ? '#b3b3b3' : '#333', fontWeight: 300 }}>0</span>
+      return <span style={{ color: '#4b5563', fontWeight: 400, opacity: 0.5 }}>0</span>
     }
-    return <span style={{ fontWeight: 800, color: isSum ? '#000' : (isSpreadsheet ? '#000' : '#ff9000') }}>{val}</span>
+    let color = '#f3f4f6'
+    let bg = 'transparent'
+    let border = 'none'
+    let padding = '2px 6px'
+    let borderRadius = '4px'
+    
+    if (type === 'sum') {
+      color = '#ff9000'
+      bg = 'rgba(255, 144, 0, 0.08)'
+      border = '1px solid rgba(255, 144, 0, 0.2)'
+    } else if (type === 'sgp' || type === 'bz') {
+      color = '#10b981'
+      bg = 'rgba(16, 185, 129, 0.08)'
+      border = '1px solid rgba(16, 185, 129, 0.2)'
+    } else {
+      bg = 'rgba(255, 255, 255, 0.04)'
+      border = '1px solid rgba(255, 255, 255, 0.08)'
+    }
+
+    return (
+      <span style={{ 
+        fontWeight: 'bold', 
+        color, 
+        background: bg, 
+        border, 
+        padding, 
+        borderRadius,
+        display: 'inline-block',
+        minWidth: '24px',
+        textAlign: 'center'
+      }}>
+        {val}
+      </span>
+    )
   }
 
   return (
-    <div className="dashboard-module-v2" style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
+    <div className="dashboard-module-v2" style={{ background: '#09090b', minHeight: '100vh', color: '#f4f4f5', display: 'flex', flexDirection: 'column' }}>
       {/* Navigation bar matching look and feel of other modules */}
       <nav className="module-nav" style={{ 
         flexShrink: 0, 
-        padding: '0 20px', 
+        padding: '0 24px', 
         height: '70px', 
-        background: '#000', 
-        borderBottom: '1px solid #1a1a1a', 
+        background: '#09090b', 
+        borderBottom: '1px solid #27272a', 
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center' 
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <Link to="/" style={{ color: '#555', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}>
+          <Link to="/" style={{ color: '#a1a1aa', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', transition: 'color 0.2s' }}>
             <ArrowLeft size={18} /> <span className="hide-mobile">На головну</span>
           </Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <LayoutDashboard className="text-secondary" size={24} color="#ff9000" />
-            <h1 style={{ fontSize: '1rem', fontWeight: 900, textTransform: 'uppercase', margin: 0 }}>Дашборд Виробництва (WIP)</h1>
+            <h1 style={{ fontSize: '1rem', fontWeight: 900, textTransform: 'uppercase', margin: 0, letterSpacing: '0.5px' }}>Дашборд Виробництва (WIP)</h1>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <div style={{ textAlign: 'right', lineHeight: 1 }} className="hide-mobile">
-            <div style={{ fontSize: '0.85rem', fontWeight: 900 }}>{currentUser?.first_name} {currentUser?.last_name}</div>
-            <div style={{ fontSize: '0.6rem', color: '#ff9000', fontWeight: 800, textTransform: 'uppercase' }}>{currentUser?.position}</div>
+          <div style={{ textAlign: 'right', lineHeight: 1.2 }} className="hide-mobile">
+            <div style={{ fontSize: '0.85rem', fontWeight: 900, color: '#f4f4f5' }}>{currentUser?.first_name} {currentUser?.last_name}</div>
+            <div style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{currentUser?.position}</div>
           </div>
         </div>
       </nav>
 
       {/* Module Content Area */}
       <div className="module-content" style={{ padding: '30px', overflowY: 'auto', flex: 1, maxWidth: '1600px', margin: '0 auto', width: '100%' }}>
-        <section className="glass-panel" style={{ padding: '30px', borderRadius: '32px', border: '1px solid #1a1a1a', background: 'rgba(10,10,10,0.6)', backdropFilter: 'blur(20px)' }}>
+        <section className="glass-panel" style={{ padding: '30px', borderRadius: '32px', border: '1px solid #27272a', background: 'rgba(15,15,18,0.7)', backdropFilter: 'blur(20px)', boxShadow: '0 20px 40px rgba(0,0,0,0.4)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px', marginBottom: '25px' }}>
             <div>
-              <h2 style={{ fontSize: '1.4rem', fontWeight: 950, margin: '0 0 5px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <h2 style={{ fontSize: '1.4rem', fontWeight: 950, margin: '0 0 5px 0', display: 'flex', alignItems: 'center', gap: '10px', color: '#ffffff', letterSpacing: '0.5px' }}>
                 <LayoutDashboard style={{ color: '#ff9000' }} size={24} /> ДАШБОРД ВИРОБНИЦТВА (WIP)
               </h2>
-              <p style={{ color: '#666', fontSize: '0.78rem', margin: 0 }}>Розподіл деталей та напівфабрикатів за етапами технологічного ланцюжка</p>
+              <p style={{ color: '#a1a1aa', fontSize: '0.78rem', margin: 0 }}>Розподіл деталей та напівфабрикатів за етапами технологічного ланцюжка</p>
             </div>
             
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -394,27 +436,32 @@ const DashboardModule = () => {
               <button 
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                style={{ background: '#111', border: '1px solid #222', color: '#fff', padding: '10px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                style={{ background: '#18181b', border: '1px solid #27272a', color: '#fff', padding: '10px 14px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s', fontSize: '0.85rem' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#27272a'; e.currentTarget.style.borderColor = '#ff9000'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#18181b'; e.currentTarget.style.borderColor = '#27272a'; }}
               >
                 <RefreshCw className={isRefreshing ? 'anim-spin' : ''} size={16} />
+                <span>Оновити дані</span>
               </button>
             </div>
           </div>
 
           {/* Filters and Search Bar */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', background: '#00000040', padding: '15px 20px', borderRadius: '18px', marginBottom: '20px', border: '1px solid #151515' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', background: '#09090b', padding: '15px 20px', borderRadius: '18px', marginBottom: '20px', border: '1px solid #27272a' }}>
             <div style={{ position: 'relative', flex: 1, minWidth: '260px' }}>
-              <Search size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#444' }} />
+              <Search size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#71717a' }} />
               <input 
                 type="text"
                 placeholder="Пошук деталі за назвою або кодом..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                style={{ width: '100%', padding: '12px 15px 12px 42px', background: '#000', border: '1px solid #222', borderRadius: '12px', color: '#fff', fontSize: '0.85rem' }}
+                style={{ width: '100%', padding: '12px 15px 12px 42px', background: '#18181b', border: '1px solid #27272a', borderRadius: '12px', color: '#fff', fontSize: '0.85rem', outline: 'none', transition: 'border-color 0.2s' }}
+                onFocus={e => e.target.style.borderColor = '#ff9000'}
+                onBlur={e => e.target.style.borderColor = '#27272a'}
               />
             </div>
 
-            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#aaa', fontSize: '0.85rem', cursor: 'pointer', userSelect: 'none' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#a1a1aa', fontSize: '0.85rem', cursor: 'pointer', userSelect: 'none' }}>
               <input 
                 type="checkbox"
                 checked={wipOnly}
@@ -439,41 +486,41 @@ const DashboardModule = () => {
                   const pct = trend.demand > 0 ? Math.min(100, Math.round((trend.potential / trend.demand) * 100)) : 0
 
                   return (
-                    <div key={id} style={{ background: 'rgba(20, 20, 20, 0.6)', border: '1px solid rgba(255,255,255,0.05)', padding: '18px 22px', borderRadius: '20px', display: 'flex', flexDirection: 'column', gap: '12px', boxShadow: '0 8px 24px rgba(0,0,0,0.3)', backdropFilter: 'blur(10px)' }}>
+                    <div key={id} style={{ background: 'rgba(24, 24, 27, 0.7)', border: '1px solid #27272a', padding: '18px 22px', borderRadius: '20px', display: 'flex', flexDirection: 'column', gap: '12px', boxShadow: '0 8px 24px rgba(0,0,0,0.3)', backdropFilter: 'blur(10px)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
                           <span style={{ fontSize: '0.6rem', background: 'rgba(255, 144, 0, 0.1)', color: '#ff9000', padding: '3px 8px', borderRadius: '6px', fontWeight: 900, textTransform: 'uppercase', marginRight: '6px', letterSpacing: '0.5px' }}>Готовий виріб</span>
-                          <h4 style={{ margin: '5px 0 0 0', fontSize: '1rem', fontWeight: 900, color: '#fff' }}>{trend.name}</h4>
-                          {trend.code && <span style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800 }}>КОД: {trend.code}</span>}
+                          <h4 style={{ margin: '5px 0 0 0', fontSize: '1rem', fontWeight: 900, color: '#ffffff' }}>{trend.name}</h4>
+                          {trend.code && <span style={{ fontSize: '0.7rem', color: '#71717a', fontWeight: 800 }}>КОД: {trend.code}</span>}
                         </div>
                         <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: '0.55rem', color: '#555', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Комплектів зібрано</div>
+                          <div style={{ fontSize: '0.55rem', color: '#71717a', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Комплектів зібрано</div>
                           <div style={{ fontSize: '1.25rem', fontWeight: 950, color: '#ff9000', marginTop: '2px' }}>
-                            {trend.potential} <span style={{ fontSize: '0.78rem', color: '#555', fontWeight: 500 }}>/ {trend.demand || 0} шт.</span>
+                            {trend.potential} <span style={{ fontSize: '0.78rem', color: '#71717a', fontWeight: 500 }}>/ {trend.demand || 0} шт.</span>
                           </div>
                         </div>
                       </div>
 
                       {/* Progress bar to target */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#666', fontWeight: 800 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#a1a1aa', fontWeight: 800 }}>
                           <span>Виконання потреби замовлень</span>
                           <span style={{ color: '#ff9000', fontWeight: 900 }}>{pct}%</span>
                         </div>
-                        <div style={{ height: '8px', background: '#000', borderRadius: '4px', overflow: 'hidden', border: '1px solid #1a1a1a' }}>
+                        <div style={{ height: '8px', background: '#09090b', borderRadius: '4px', overflow: 'hidden', border: '1px solid #27272a' }}>
                           <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg, #ff9000, #ffb700)', borderRadius: '4px', transition: '0.3s' }} />
                         </div>
                       </div>
 
                       {/* Bottleneck and SGP stats */}
-                      <div style={{ borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', gap: '10px' }}>
-                        <div style={{ color: '#888', fontWeight: 600 }}>
+                      <div style={{ borderTop: '1px solid #27272a', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', gap: '10px' }}>
+                        <div style={{ color: '#a1a1aa', fontWeight: 600 }}>
                           На СГП зараз: <strong style={{ color: '#10b981', fontWeight: 900 }}>{trend.actual} шт.</strong>
                         </div>
                         {trend.bottleneck && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#f87171', fontWeight: 700 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#ef4444', fontWeight: 700 }}>
                             <span title="Вузьке місце (деталь з найменшою кількістю)">⚠️ Вузьке:</span>
-                            <span style={{ textDecoration: 'underline', color: '#ef4444' }} title={trend.bottleneck}>
+                            <span style={{ textDecoration: 'underline', color: '#f87171' }} title={trend.bottleneck}>
                               {trend.bottleneck.length > 20 ? trend.bottleneck.substring(0, 17) + '...' : trend.bottleneck} ({trend.bottleneckQty} од.)
                             </span>
                           </div>
@@ -489,29 +536,30 @@ const DashboardModule = () => {
           {/* ========================================== */}
           {/*        SPREADSHEET REPLICA (GROUPED)       */}
           {/* ========================================== */}
-          <div style={{ overflowX: 'auto', borderRadius: '16px', border: '1px solid #333', background: '#fff', padding: '1px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: '"Arial", sans-serif', fontSize: '0.85rem', color: '#333' }}>
+          <div style={{ overflowX: 'auto', borderRadius: '16px', border: '1px solid #27272a', background: '#09090b', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', padding: '1px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'inherit', fontSize: '0.8rem', color: '#f4f4f5' }}>
               <thead>
-                <tr style={{ background: '#1e4d2b', color: '#fff', textAlign: 'center' }}>
-                  <th style={{ padding: '14px 18px', textAlign: 'left', fontWeight: 'bold', border: '1px solid #2a643b' }}>Номенклатура</th>
-                  <th style={{ padding: '14px 18px', fontWeight: 'bold', border: '1px solid #2a643b', background: '#fff2cc', color: '#000', minWidth: '70px' }}>Сума</th>
-                  <th style={{ padding: '14px 18px', fontWeight: 'normal', border: '1px solid #2a643b' }}>Розкрій (Робота)</th>
-                  <th style={{ padding: '14px 18px', fontWeight: 'normal', border: '1px solid #2a643b', background: '#e2f0d9', color: '#000' }}>Буфер Розкрою</th>
-                  <th style={{ padding: '14px 18px', fontWeight: 'normal', border: '1px solid #2a643b' }}>Галтовка (Робота)</th>
-                  <th style={{ padding: '14px 18px', fontWeight: 'normal', border: '1px solid #2a643b', background: '#e2f0d9', color: '#000' }}>Буфер Галтовки</th>
-                  <th style={{ padding: '14px 18px', fontWeight: 'normal', border: '1px solid #2a643b' }}>Прийомка (Робота)</th>
-                  <th style={{ padding: '14px 18px', fontWeight: 'normal', border: '1px solid #2a643b', background: '#e2f0d9', color: '#000' }}>Сортування (Робота)</th>
-                  <th style={{ padding: '14px 18px', fontWeight: 'normal', border: '1px solid #2a643b', background: '#fce4d6', color: '#000' }}>Буфер Цеху №2</th>
-                  <th style={{ padding: '14px 18px', fontWeight: 'normal', border: '1px solid #2a643b' }}>Малярка (Робота)</th>
-                  <th style={{ padding: '14px 18px', fontWeight: 'normal', border: '1px solid #2a643b' }}>Пресування (Робота)</th>
-                  <th style={{ padding: '14px 18px', fontWeight: 'normal', border: '1px solid #2a643b' }}>Доопрацювання (Робота)</th>
-                  <th style={{ padding: '14px 18px', fontWeight: 'normal', border: '1px solid #2a643b', background: '#fff2cc', color: '#000' }}>Склад (СГП)</th>
+                <tr style={{ background: '#18181b', color: '#a1a1aa', textAlign: 'center', borderBottom: '2px solid #27272a' }}>
+                  <th style={{ padding: '14px 18px', textAlign: 'left', fontWeight: 'bold', borderRight: '1px solid #27272a', color: '#f4f4f5' }}>Номенклатура</th>
+                  <th style={{ padding: '14px 18px', fontWeight: 'bold', borderRight: '1px solid #27272a', background: 'rgba(255, 144, 0, 0.08)', color: '#ff9000', minWidth: '70px' }}>Сума</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a' }}>Розкрій (Робота)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)', color: '#a1a1aa' }}>Буфер Розкрою</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a' }}>Галтовка (Робота)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)', color: '#a1a1aa' }}>Буфер Галтовки</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a' }}>Прийомка (Робота)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)', color: '#a1a1aa' }}>Сортування (Робота)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)', color: '#a1a1aa' }}>Буфер Цеху №2</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a' }}>Малярка (Робота)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a' }}>Пресування (Робота)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a' }}>Доопрацювання (Робота)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: 'bold', borderRight: '1px solid #27272a', background: 'rgba(16, 185, 129, 0.08)', color: '#10b981' }}>Склад (СГП)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: 'bold', background: 'rgba(16, 185, 129, 0.08)', color: '#10b981' }}>Склад БЗ</th>
                 </tr>
               </thead>
               <tbody>
                 {groupedDashboardData.length === 0 ? (
                   <tr>
-                    <td colSpan={13} style={{ padding: '40px', textAlign: 'center', color: '#999', fontStyle: 'italic', background: '#fff' }}>
+                    <td colSpan={14} style={{ padding: '40px', textAlign: 'center', color: '#71717a', fontStyle: 'italic', background: 'transparent' }}>
                       Немає активних деталей за обраними фільтрами
                     </td>
                   </tr>
@@ -522,14 +570,14 @@ const DashboardModule = () => {
                     return (
                       <React.Fragment key={group.id}>
                         {/* Group Header Row */}
-                        <tr style={{ background: '#2d3748', color: '#fff' }}>
-                          <td colSpan={13} style={{ padding: '10px 18px', textAlign: 'left', fontWeight: 'bold', border: '1px solid #4a5568' }}>
-                            <span style={{ color: '#ecc94b', marginRight: '8px' }}>📦</span> 
+                        <tr style={{ background: '#1c1917', color: '#fff', borderBottom: '2px solid #27272a' }}>
+                          <td colSpan={14} style={{ padding: '14px 18px', textAlign: 'left', fontWeight: 'bold', borderBottom: '1px solid #27272a' }}>
+                            <span style={{ color: '#ff9000', marginRight: '8px' }}>📦</span> 
                             {group.name} 
                             {group.code ? ` (${group.code})` : ''}
                             {group.trend && (
-                              <span style={{ marginLeft: '15px', color: '#a0aec0', fontSize: '0.78rem', fontWeight: 'normal' }}>
-                                (Потенційний тренд: <strong style={{ color: '#fff' }}>{group.trend.potential}</strong> / {group.trend.demand || 0} шт. | На СГП: <strong style={{ color: '#48bb78' }}>{group.trend.actual} шт.</strong>)
+                              <span style={{ marginLeft: '15px', color: '#a1a1aa', fontSize: '0.78rem', fontWeight: 'normal' }}>
+                                (Потенційний тренд: <strong style={{ color: '#fff' }}>{group.trend.potential}</strong> / {group.trend.demand || 0} шт. | На СГП: <strong style={{ color: '#10b981' }}>{group.trend.actual} шт.</strong>)
                               </span>
                             )}
                           </td>
@@ -537,45 +585,49 @@ const DashboardModule = () => {
 
                         {/* Group Row Items */}
                         {group.rows.map((row, idx) => (
-                          <tr key={row.id} style={{ background: idx % 2 === 0 ? '#ffffff' : '#f9f9f9', borderBottom: '1px solid #e0e0e0', transition: 'background 0.2s' }}>
-                            <td style={{ padding: '10px 18px', fontWeight: 'bold', color: '#111', borderRight: '1px solid #e0e0e0', paddingLeft: '30px' }}>
+                          <tr key={row.id} className="wip-row">
+                            <td style={{ padding: '12px 18px', fontWeight: 'bold', color: '#f4f4f5', borderRight: '1px solid #27272a', paddingLeft: '30px' }}>
                               {row.name}
-                              {row.code && <span style={{ display: 'block', fontSize: '0.72rem', color: '#777', fontWeight: 'normal', marginTop: '2px' }}>Код: {row.code}</span>}
+                              {row.code && <span style={{ display: 'block', fontSize: '0.72rem', color: '#71717a', fontWeight: 'normal', marginTop: '2px' }}>Код: {row.code}</span>}
                             </td>
-                            <td style={{ padding: '10px 18px', textAlign: 'center', background: '#fff2cc', borderRight: '1px solid #e0e0e0', fontWeight: 'bold' }}>
-                              {renderValue(row.sum, true, true)}
+                            <td style={{ padding: '12px 18px', textAlign: 'center', background: 'rgba(255, 144, 0, 0.02)', borderRight: '1px solid #27272a', fontWeight: 'bold' }}>
+                              {renderValue(row.sum, 'sum')}
                             </td>
-                            <td style={{ padding: '10px 18px', textAlign: 'center', borderRight: '1px solid #e0e0e0' }}>{renderValue(row.qCut, false, true)}</td>
-                            <td style={{ padding: '10px 18px', textAlign: 'center', borderRight: '1px solid #e0e0e0', background: '#e2f0d9' }}>{renderValue(row.qCutBuf, false, true)}</td>
-                            <td style={{ padding: '10px 18px', textAlign: 'center', borderRight: '1px solid #e0e0e0' }}>{renderValue(row.qGalt, false, true)}</td>
-                            <td style={{ padding: '10px 18px', textAlign: 'center', borderRight: '1px solid #e0e0e0', background: '#e2f0d9' }}>{renderValue(row.qGaltBuf, false, true)}</td>
-                            <td style={{ padding: '10px 18px', textAlign: 'center', borderRight: '1px solid #e0e0e0' }}>{renderValue(row.qPriy, false, true)}</td>
-                            <td style={{ padding: '10px 18px', textAlign: 'center', borderRight: '1px solid #e0e0e0', background: '#e2f0d9' }}>{renderValue(row.qSortAct, false, true)}</td>
-                            <td style={{ padding: '10px 18px', textAlign: 'center', borderRight: '1px solid #e0e0e0', background: '#fce4d6' }}>{renderValue(row.qSort, false, true)}</td>
-                            <td style={{ padding: '10px 18px', textAlign: 'center', borderRight: '1px solid #e0e0e0' }}>{renderValue(row.qMal, false, true)}</td>
-                            <td style={{ padding: '10px 18px', textAlign: 'center', borderRight: '1px solid #e0e0e0' }}>{renderValue(row.qPres, false, true)}</td>
-                            <td style={{ padding: '10px 18px', textAlign: 'center', borderRight: '1px solid #e0e0e0' }}>{renderValue(row.qDoop, false, true)}</td>
-                            <td style={{ padding: '10px 18px', textAlign: 'center', background: '#fff2cc' }}>{renderValue(row.qSgp, false, true)}</td>
+                            <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(row.qCut, 'normal')}</td>
+                            <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(row.qCutBuf, 'normal')}</td>
+                            <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(row.qGalt, 'normal')}</td>
+                            <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(row.qGaltBuf, 'normal')}</td>
+                            <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(row.qPriy, 'normal')}</td>
+                            <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(row.qSortAct, 'normal')}</td>
+                            <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(row.qSort, 'normal')}</td>
+                            <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(row.qMal, 'normal')}</td>
+                            <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(row.qPres, 'normal')}</td>
+                            <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(row.qDoop, 'normal')}</td>
+                            <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(16, 185, 129, 0.02)' }}>{renderValue(row.qSgp, 'sgp')}</td>
+                            <td style={{ padding: '12px 18px', textAlign: 'center', background: 'rgba(16, 185, 129, 0.02)' }}>{renderValue(row.qBz, 'bz')}</td>
                           </tr>
                         ))}
 
                         {/* Group Subtotals */}
-                        <tr style={{ background: '#edf2f7', fontWeight: 'bold', borderTop: '1px solid #cbd5e0', color: '#4a5568', fontSize: '0.8rem' }}>
-                          <td style={{ padding: '10px 18px', borderRight: '1px solid #cbd5e0', fontStyle: 'italic', paddingLeft: '30px' }}>
+                        <tr style={{ background: '#121214', fontWeight: 'bold', borderTop: '1px solid #27272a', borderBottom: '1px solid #27272a', color: '#a1a1aa', fontSize: '0.78rem' }}>
+                          <td style={{ padding: '12px 18px', borderRight: '1px solid #27272a', fontStyle: 'italic', paddingLeft: '30px' }}>
                             Підсумок по виробу:
                           </td>
-                          <td style={{ padding: '10px 18px', textAlign: 'center', background: '#ffe699', borderRight: '1px solid #cbd5e0' }}>{groupTotals.sum}</td>
-                          <td style={{ padding: '10px 18px', textAlign: 'center', borderRight: '1px solid #cbd5e0' }}>{groupTotals.qCut}</td>
-                          <td style={{ padding: '10px 18px', textAlign: 'center', borderRight: '1px solid #cbd5e0', background: '#c6f6d5' }}>{groupTotals.qCutBuf}</td>
-                          <td style={{ padding: '10px 18px', textAlign: 'center', borderRight: '1px solid #cbd5e0' }}>{groupTotals.qGalt}</td>
-                          <td style={{ padding: '10px 18px', textAlign: 'center', borderRight: '1px solid #cbd5e0', background: '#c6f6d5' }}>{groupTotals.qGaltBuf}</td>
-                          <td style={{ padding: '10px 18px', textAlign: 'center', borderRight: '1px solid #cbd5e0' }}>{groupTotals.qPriy}</td>
-                          <td style={{ padding: '10px 18px', textAlign: 'center', borderRight: '1px solid #cbd5e0', background: '#c6f6d5' }}>{groupTotals.qSortAct}</td>
-                          <td style={{ padding: '10px 18px', textAlign: 'center', borderRight: '1px solid #cbd5e0', background: '#fed7d7' }}>{groupTotals.qSort}</td>
-                          <td style={{ padding: '10px 18px', textAlign: 'center', borderRight: '1px solid #cbd5e0' }}>{groupTotals.qMal}</td>
-                          <td style={{ padding: '10px 18px', textAlign: 'center', borderRight: '1px solid #cbd5e0' }}>{groupTotals.qPres}</td>
-                          <td style={{ padding: '10px 18px', textAlign: 'center', borderRight: '1px solid #cbd5e0' }}>{groupTotals.qDoop}</td>
-                          <td style={{ padding: '10px 18px', textAlign: 'center', background: '#ffe699' }}>{groupTotals.qSgp}</td>
+                          <td style={{ padding: '12px 18px', textAlign: 'center', background: 'rgba(255, 144, 0, 0.08)', borderRight: '1px solid #27272a', color: '#ff9000' }}>
+                            {renderValue(groupTotals.sum, 'sum')}
+                          </td>
+                          <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(groupTotals.qCut, 'normal')}</td>
+                          <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(groupTotals.qCutBuf, 'normal')}</td>
+                          <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(groupTotals.qGalt, 'normal')}</td>
+                          <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(groupTotals.qGaltBuf, 'normal')}</td>
+                          <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(groupTotals.qPriy, 'normal')}</td>
+                          <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(groupTotals.qSortAct, 'normal')}</td>
+                          <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(groupTotals.qSort, 'normal')}</td>
+                          <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(groupTotals.qMal, 'normal')}</td>
+                          <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(groupTotals.qPres, 'normal')}</td>
+                          <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(groupTotals.qDoop, 'normal')}</td>
+                          <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(16, 185, 129, 0.08)', color: '#10b981' }}>{renderValue(groupTotals.qSgp, 'sgp')}</td>
+                          <td style={{ padding: '12px 18px', textAlign: 'center', background: 'rgba(16, 185, 129, 0.08)', color: '#10b981' }}>{renderValue(groupTotals.qBz, 'bz')}</td>
                         </tr>
                       </React.Fragment>
                     )
@@ -584,20 +636,23 @@ const DashboardModule = () => {
                 
                 {/* Grand Total Row */}
                 {groupedDashboardData.length > 0 && (
-                  <tr style={{ background: '#cbd5e0', fontWeight: 'bold', borderTop: '3px double #4a5568', color: '#000', fontSize: '0.85rem' }}>
-                    <td style={{ padding: '14px 18px', borderRight: '1px solid #a0aec0' }}>ЗАГАЛЬНИЙ WIP РАЗОМ:</td>
-                    <td style={{ padding: '14px 18px', textAlign: 'center', background: '#ffd8a8', borderRight: '1px solid #a0aec0' }}>{totals.sum}</td>
-                    <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #a0aec0' }}>{totals.qCut}</td>
-                    <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #a0aec0', background: '#b2f2bb' }}>{totals.qCutBuf}</td>
-                    <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #a0aec0' }}>{totals.qGalt}</td>
-                    <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #a0aec0', background: '#b2f2bb' }}>{totals.qGaltBuf}</td>
-                    <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #a0aec0' }}>{totals.qPriy}</td>
-                    <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #a0aec0', background: '#b2f2bb' }}>{totals.qSortAct}</td>
-                    <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #a0aec0', background: '#ffc9c9' }}>{totals.qSort}</td>
-                    <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #a0aec0' }}>{totals.qMal}</td>
-                    <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #a0aec0' }}>{totals.qPres}</td>
-                    <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #a0aec0' }}>{totals.qDoop}</td>
-                    <td style={{ padding: '14px 18px', textAlign: 'center', background: '#ffd8a8' }}>{totals.qSgp}</td>
+                  <tr style={{ background: '#18181b', fontWeight: 'bold', borderTop: '2px solid #ff9000', color: '#fff', fontSize: '0.8rem' }}>
+                    <td style={{ padding: '14px 18px', borderRight: '1px solid #27272a', textTransform: 'uppercase', letterSpacing: '0.5px' }}>ЗАГАЛЬНИЙ WIP РАЗОМ:</td>
+                    <td style={{ padding: '14px 18px', textAlign: 'center', background: 'rgba(255, 144, 0, 0.12)', borderRight: '1px solid #27272a', color: '#ff9000' }}>
+                      {renderValue(totals.sum, 'sum')}
+                    </td>
+                    <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(totals.qCut, 'normal')}</td>
+                    <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.02)' }}>{renderValue(totals.qCutBuf, 'normal')}</td>
+                    <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(totals.qGalt, 'normal')}</td>
+                    <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.02)' }}>{renderValue(totals.qGaltBuf, 'normal')}</td>
+                    <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(totals.qPriy, 'normal')}</td>
+                    <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.02)' }}>{renderValue(totals.qSortAct, 'normal')}</td>
+                    <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.02)' }}>{renderValue(totals.qSort, 'normal')}</td>
+                    <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(totals.qMal, 'normal')}</td>
+                    <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(totals.qPres, 'normal')}</td>
+                    <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(totals.qDoop, 'normal')}</td>
+                    <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(16, 185, 129, 0.12)', color: '#10b981' }}>{renderValue(totals.qSgp, 'sgp')}</td>
+                    <td style={{ padding: '14px 18px', textAlign: 'center', background: 'rgba(16, 185, 129, 0.12)', color: '#10b981' }}>{renderValue(totals.qBz, 'bz')}</td>
                   </tr>
                 )}
               </tbody>
@@ -609,6 +664,15 @@ const DashboardModule = () => {
       <style dangerouslySetInnerHTML={{ __html: `
         .anim-spin { animation: spin 1.2s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .wip-row {
+          background: #09090b;
+          border-bottom: 1px solid #27272a;
+          transition: all 0.2s ease;
+        }
+        .wip-row:hover {
+          background: #18181b !important;
+          box-shadow: inset 4px 0 0 0 #ff9000;
+        }
       `}} />
     </div>
   )

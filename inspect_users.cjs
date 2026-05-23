@@ -6,8 +6,15 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 async function run() {
-  const { data, error } = await supabase.from('system_users').select('*').limit(2);
-  console.log('system_users sample:', { error, data });
+  const { data, error } = await supabase.from('system_users').select('id, login, first_name, last_name, position, access_rights');
+  if (error) {
+    console.error('Error fetching users:', error);
+  } else {
+    console.log('All Users:');
+    data.forEach(u => {
+      console.log(`- User: ${u.first_name} ${u.last_name} (${u.login}) | Position: ${u.position} | Access:`, u.access_rights);
+    });
+  }
 }
 
 run();

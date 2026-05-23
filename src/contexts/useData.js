@@ -68,6 +68,7 @@ export function useData() {
   const [machines, setMachines] = useState(fromCache('machines', []))
   const [systemUsers, setSystemUsers] = useState(fromCache('systemUsers', []))
   const [machineOperations, setMachineOperations] = useState(fromCache('machineOperations', []))
+  const [machineCalls, setMachineCalls] = useState(fromCache('machineCalls', []))
   const [accessLogs, setAccessLogs] = useState(() => [])
   const [fortnetUrl, setFortnetUrl] = useState(localStorage.getItem('FORTNET_API_URL') || 'http://192.168.1.100:8090')
   const [companyStructure, setCompanyStructure] = useState(fromCache('companyStructure', fallbackStructure))
@@ -147,7 +148,8 @@ export function useData() {
         { data: rec },
         { data: pr },
         { data: wch },
-        { data: mo }
+        { data: mo },
+        { data: mCalls }
       ] = await Promise.all([
         // Users & machines — needed for portal access filtering
         supabase.from('system_users').select('*').order('login'),
@@ -173,7 +175,8 @@ export function useData() {
         supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300),
         supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300),
         supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(200),
-        supabase.from('machine_operations').select('*')
+        supabase.from('machine_operations').select('*'),
+        supabase.from('machine_calls').select('*').order('created_at', { ascending: false })
       ])
 
       if (su) setSystemUsers(su)
@@ -191,6 +194,7 @@ export function useData() {
       if (pr) setPurchaseRequests(pr)
       if (wch) setWorkCardHistory(wch)
       if (mo) setMachineOperations(mo)
+      if (mCalls) setMachineCalls(mCalls)
       
       if (structRes && structRes.data && structRes.data.length > 0) {
         setCompanyStructure(structRes.data)
@@ -231,7 +235,8 @@ export function useData() {
         { data: rec },
         { data: pr },
         { data: wch },
-        { data: mo }
+        { data: mo },
+        { data: mCalls }
       ] = await Promise.all([
         supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).range(0, 99),
         // tasks WITHOUT nested JOIN — avoids the orders(order_items(*)) waterfall
@@ -248,7 +253,8 @@ export function useData() {
         supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300),
         supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300),
         supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(200),
-        supabase.from('machine_operations').select('*')
+        supabase.from('machine_operations').select('*'),
+        supabase.from('machine_calls').select('*').order('created_at', { ascending: false })
       ])
 
       if (!oErr && latest) {
@@ -277,6 +283,7 @@ export function useData() {
       if (pr) setPurchaseRequests(pr)
       if (wch) setWorkCardHistory(wch)
       if (mo) setMachineOperations(mo)
+      if (mCalls) setMachineCalls(mCalls)
       
       if (structRes && structRes.data && structRes.data.length > 0) {
         setCompanyStructure(structRes.data)
@@ -371,6 +378,7 @@ export function useData() {
           machines,
           systemUsers,
           machineOperations,
+          machineCalls,
           companyStructure,
           companyPositions,
           workCards: workCards.slice(0, 300),
@@ -384,7 +392,7 @@ export function useData() {
         console.warn('Cache write failed (quota?):', e)
       }
     }, 2000) // Затримка 2с після останньої зміни
-  }, [orders, customers, tasks, managementTasks, requests, nomenclatures, bomItems, machines, systemUsers, machineOperations, companyStructure, companyPositions, workCards, inventory, receptionDocs, purchaseRequests, workCardHistory])
+  }, [orders, customers, tasks, managementTasks, requests, nomenclatures, bomItems, machines, systemUsers, machineOperations, machineCalls, companyStructure, companyPositions, workCards, inventory, receptionDocs, purchaseRequests, workCardHistory])
 
   // --- REAL-TIME ---
   useEffect(() => {
@@ -496,6 +504,15 @@ export function useData() {
           setMachineOperations(prev => prev.map(o => o.id === payload.new.id ? payload.new : o))
         } else if (payload.eventType === 'DELETE') {
           setMachineOperations(prev => prev.filter(o => o.id !== payload.old.id))
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'machine_calls' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setMachineCalls(prev => prev.some(c => c.id === payload.new.id) ? prev : [payload.new, ...prev])
+        } else if (payload.eventType === 'UPDATE') {
+          setMachineCalls(prev => prev.map(c => c.id === payload.new.id ? payload.new : c))
+        } else if (payload.eventType === 'DELETE') {
+          setMachineCalls(prev => prev.filter(c => c.id !== payload.old.id))
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'system_users' }, () => {
@@ -709,6 +726,39 @@ export function useData() {
     }
   }
 
+  const clearAllData = useCallback(() => {
+    setOrders([])
+    setCustomers([])
+    setInventory([])
+    setTasks([])
+    setManagementTasks([])
+    setRequests([])
+    setNomenclatures([])
+    setBomItems([])
+    setReceptionDocs([])
+    setPurchaseRequests([])
+    setWorkCards([])
+    setWorkCardHistory([])
+    setMachines([])
+    setSystemUsers([])
+    setMachineOperations([])
+    setMachineCalls([])
+    setAccessLogs([])
+    setCompanyStructure(fallbackStructure)
+    setCompanyPositions(fallbackPositions)
+    setCurrentUser(null)
+    setLastFetchTime(0)
+
+    try {
+      localStorage.removeItem(CACHE_KEY)
+      localStorage.removeItem(USER_CACHE_KEY)
+      localStorage.removeItem('MES_SESSION_LOGIN')
+      localStorage.removeItem('BACKEND_TOKEN')
+    } catch (e) {
+      console.warn('Failed to clear localStorage:', e)
+    }
+  }, [])
+
   // Return all state and basic setters needed for actions
   return {
     orders, setOrders,
@@ -726,13 +776,14 @@ export function useData() {
     machines, setMachines,
     systemUsers, setSystemUsers,
     machineOperations, setMachineOperations,
+    machineCalls, setMachineCalls,
     accessLogs, setAccessLogs,
     fortnetUrl, setFortnetUrl,
     currentUser, setCurrentUser,
     sessionLoading, setSessionLoading,
     loading, setLoading,
     hasMoreOrders, setHasMoreOrders,
-    normalize, fetchOrders, fetchData, fetchCritical, fetchModuleData, fetchHistoryRange, fetchTaskArchiveCards, refreshTable,
+    normalize, fetchOrders, fetchData, fetchCritical, fetchModuleData, fetchHistoryRange, fetchTaskArchiveCards, refreshTable, clearAllData,
     productionData,
     companyStructure, setCompanyStructure, upsertCompanyStructure, deleteCompanyStructure,
     companyPositions, setCompanyPositions, upsertCompanyPosition, deleteCompanyPosition
