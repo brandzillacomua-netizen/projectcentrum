@@ -334,14 +334,26 @@ const GlobalUserNav = () => {
           
           let isRelevant = false;
           let roleLabel = '';
+          
+          // Check if targeted to a specific user
+          if (c.called_employee_id) {
+            isRelevant = currentUser?.id === c.called_employee_id;
+          } else {
+            // General call (role-based)
+            if (c.called_role === 'master') {
+              isRelevant = currentUser?.access_rights?.master || currentUser?.access_rights?.foreman;
+            } else if (c.called_role === 'engineer') {
+              isRelevant = currentUser?.access_rights?.engineer;
+            } else if (c.called_role === 'quality' || c.called_role === 'qc') {
+              isRelevant = currentUser?.access_rights?.brak || currentUser?.position?.toLowerCase().includes('вкя') || currentUser?.position?.toLowerCase().includes('якост');
+            }
+          }
+
           if (c.called_role === 'master') {
-            isRelevant = currentUser?.access_rights?.master || currentUser?.access_rights?.foreman;
             roleLabel = 'Майстра';
           } else if (c.called_role === 'engineer') {
-            isRelevant = currentUser?.access_rights?.engineer;
             roleLabel = 'Інженера';
-          } else if (c.called_role === 'quality') {
-            isRelevant = currentUser?.access_rights?.brak || currentUser?.position?.toLowerCase().includes('вкя') || currentUser?.position?.toLowerCase().includes('якост');
+          } else if (c.called_role === 'quality' || c.called_role === 'qc') {
             roleLabel = 'ВКЯ';
           }
           
@@ -350,7 +362,7 @@ const GlobalUserNav = () => {
               id: `call-${c.id}`,
               type: 'machine_call',
               title: `⚠️ Виклик ${roleLabel}`,
-              description: `Верстат: ${machName}. Локація: ${mach?.floor || 'Не вказано'}. ${c.operator_name ? `Викликав: ${c.operator_name}` : ''}`,
+              description: `Верстат: ${machName}. Локація: ${mach?.floor || 'Не вказано'}. ${c.operator_name ? `Викликав: ${c.operator_name}` : ''}${c.called_employee_name ? ` (Для: ${c.called_employee_name})` : ''}`,
               createdAt: c.created_at,
               path: '/machines',
               color: '#ef4444',

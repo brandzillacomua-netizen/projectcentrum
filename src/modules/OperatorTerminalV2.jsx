@@ -24,7 +24,7 @@ const translateCyrillic = (str) => {
 }
 
 const OperatorTerminal = () => {
-  const { workCards, orders, nomenclatures, startWorkCard, completeWorkCard, confirmBuffer, fetchData, operators, productionStages, machines, workCardHistory, getFilteredOperators, getFilteredManagers } = useMES()
+  const { workCards, orders, nomenclatures, startWorkCard, completeWorkCard, confirmBuffer, fetchData, operators, productionStages, machines, workCardHistory, getFilteredOperators, getFilteredManagers, systemUsers, currentUser } = useMES()
   const [selectedCardId, setSelectedCardId] = useState(null)
   const [selectedStage, setSelectedStage] = useState('')
   const [selectedOperator, setSelectedOperator] = useState('')
@@ -57,6 +57,14 @@ const OperatorTerminal = () => {
   const [machineCallModal, setMachineCallModal] = useState(null)
   const [machineCallSuccess, setMachineCallSuccess] = useState('')
 
+  const [selectedCallMasterId, setSelectedCallMasterId] = useState('')
+  const [selectedCallEngineerId, setSelectedCallEngineerId] = useState('')
+  const [selectedCallQCId, setSelectedCallQCId] = useState('')
+
+  const callMasters = (systemUsers || []).filter(u => u.access_rights?.master || u.access_rights?.foreman || (u.position && u.position.toLowerCase().includes('майстер')))
+  const callEngineers = (systemUsers || []).filter(u => u.access_rights?.engineer || (u.position && u.position.toLowerCase().includes('інженер')))
+  const callQCs = (systemUsers || []).filter(u => u.access_rights?.brak || (u.position && (u.position.toLowerCase().includes('вкя') || u.position.toLowerCase().includes('якост'))))
+
   const handleMachineQRScan = async (text) => {
     const cleanText = translateCyrillic(text)
     const match = String(cleanText || '').match(/\/machines\/([a-f0-9-]+)\/call/i)
@@ -84,13 +92,17 @@ const OperatorTerminal = () => {
     return false
   }
 
-  const handleCreateCall = async (role) => {
+  const handleCreateCall = async (role, employeeId = null) => {
     try {
       const operatorName = selectedOperator || 'Оператор терміналу'
+      const emp = (systemUsers || []).find(u => u.id === employeeId)
+      const empName = emp ? `${emp.first_name || ''} ${emp.last_name || ''}`.trim() : null
       const { error } = await supabase.from('machine_calls').insert({
         machine_id: machineCallModal.id,
-        called_role: role,
+        called_role: role === 'qc' ? 'quality' : role, // Map 'qc' to 'quality' for DB consistency
         operator_name: operatorName,
+        called_employee_id: employeeId || null,
+        called_employee_name: empName || null,
         status: 'pending'
       })
       if (error) throw error
@@ -104,6 +116,14 @@ const OperatorTerminal = () => {
       alert('Помилка надсилання виклику: ' + err.message)
     }
   }
+
+  useEffect(() => {
+    if (!machineCallModal) {
+      setSelectedCallMasterId('')
+      setSelectedCallEngineerId('')
+      setSelectedCallQCId('')
+    }
+  }, [machineCallModal])
 
   useEffect(() => { localStorage.setItem('centrum_operator_scanned', JSON.stringify(scannedCardIds)) }, [scannedCardIds])
   useEffect(() => { const timer = setInterval(() => setCurrentTime(new Date()), 1000); return () => clearInterval(timer) }, [])
@@ -780,69 +800,141 @@ const OperatorTerminal = () => {
                   Оберіть кого саме викликати до верстату. Виклик з'явиться на дашборді майстра та інженерів в реальному часі.
                 </p>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <button
-                    onClick={() => handleCreateCall('master')}
-                    style={{
-                      background: '#f59e0b',
-                      color: '#000',
-                      border: 'none',
-                      padding: '16px',
-                      borderRadius: '16px',
-                      fontSize: '1.1rem',
-                      fontWeight: 900,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '10px',
-                      boxShadow: '0 4px 12px rgba(245,158,11,0.2)'
-                    }}
-                  >
-                    <span>ВИКЛИКАТИ МАЙСТРА</span>
-                  </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {/* Master Call */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <button
+                      onClick={() => handleCreateCall('master', selectedCallMasterId)}
+                      style={{
+                        background: '#f59e0b',
+                        color: '#000',
+                        border: 'none',
+                        padding: '16px',
+                        borderRadius: '16px',
+                        fontSize: '1.1rem',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '10px',
+                        boxShadow: '0 4px 12px rgba(245,158,11,0.2)',
+                        width: '100%'
+                      }}
+                    >
+                      <span>ВИКЛИКАТИ МАЙСТРА</span>
+                    </button>
+                    <select
+                      value={selectedCallMasterId}
+                      onChange={e => setSelectedCallMasterId(e.target.value)}
+                      style={{
+                        background: '#18181b',
+                        border: '1px solid #27272a',
+                        borderRadius: '10px',
+                        color: '#fff',
+                        padding: '10px',
+                        fontSize: '0.9rem',
+                        outline: 'none'
+                      }}
+                    >
+                      <option value="">-- Всі майстри (Загальний виклик) --</option>
+                      {callMasters.map(u => (
+                        <option key={u.id} value={u.id}>
+                          {u.first_name || ''} {u.last_name || ''} {u.position ? ` (${u.position})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                  <button
-                    onClick={() => handleCreateCall('engineer')}
-                    style={{
-                      background: '#3b82f6',
-                      color: '#fff',
-                      border: 'none',
-                      padding: '16px',
-                      borderRadius: '16px',
-                      fontSize: '1.1rem',
-                      fontWeight: 900,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '10px',
-                      boxShadow: '0 4px 12px rgba(59,130,246,0.2)'
-                    }}
-                  >
-                    <span>ВИКЛИКАТИ ІНЖЕНЕРА</span>
-                  </button>
+                  {/* Engineer Call */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <button
+                      onClick={() => handleCreateCall('engineer', selectedCallEngineerId)}
+                      style={{
+                        background: '#3b82f6',
+                        color: '#fff',
+                        border: 'none',
+                        padding: '16px',
+                        borderRadius: '16px',
+                        fontSize: '1.1rem',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '10px',
+                        boxShadow: '0 4px 12px rgba(59,130,246,0.2)',
+                        width: '100%'
+                      }}
+                    >
+                      <span>ВИКЛИКАТИ ІНЖЕНЕРА</span>
+                    </button>
+                    <select
+                      value={selectedCallEngineerId}
+                      onChange={e => setSelectedCallEngineerId(e.target.value)}
+                      style={{
+                        background: '#18181b',
+                        border: '1px solid #27272a',
+                        borderRadius: '10px',
+                        color: '#fff',
+                        padding: '10px',
+                        fontSize: '0.9rem',
+                        outline: 'none'
+                      }}
+                    >
+                      <option value="">-- Всі інженери (Загальний виклик) --</option>
+                      {callEngineers.map(u => (
+                        <option key={u.id} value={u.id}>
+                          {u.first_name || ''} {u.last_name || ''} {u.position ? ` (${u.position})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                  <button
-                    onClick={() => handleCreateCall('qc')}
-                    style={{
-                      background: '#ef4444',
-                      color: '#fff',
-                      border: 'none',
-                      padding: '16px',
-                      borderRadius: '16px',
-                      fontSize: '1.1rem',
-                      fontWeight: 900,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '10px',
-                      boxShadow: '0 4px 12px rgba(239,68,68,0.2)'
-                    }}
-                  >
-                    <span>ВИКЛИКАТИ ВКЯ</span>
-                  </button>
+                  {/* QC Call */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <button
+                      onClick={() => handleCreateCall('qc', selectedCallQCId)}
+                      style={{
+                        background: '#ef4444',
+                        color: '#fff',
+                        border: 'none',
+                        padding: '16px',
+                        borderRadius: '16px',
+                        fontSize: '1.1rem',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '10px',
+                        boxShadow: '0 4px 12px rgba(239,68,68,0.2)',
+                        width: '100%'
+                      }}
+                    >
+                      <span>ВИКЛИКАТИ ВКЯ</span>
+                    </button>
+                    <select
+                      value={selectedCallQCId}
+                      onChange={e => setSelectedCallQCId(e.target.value)}
+                      style={{
+                        background: '#18181b',
+                        border: '1px solid #27272a',
+                        borderRadius: '10px',
+                        color: '#fff',
+                        padding: '10px',
+                        fontSize: '0.9rem',
+                        outline: 'none'
+                      }}
+                    >
+                      <option value="">-- Всі фахівці ВКЯ (Загальний виклик) --</option>
+                      {callQCs.map(u => (
+                        <option key={u.id} value={u.id}>
+                          {u.first_name || ''} {u.last_name || ''} {u.position ? ` (${u.position})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </>
             )}

@@ -11,6 +11,10 @@ const MachineCallModule = () => {
   const [operatorName, setOperatorName] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [users, setUsers] = useState([])
+  const [selectedMasterId, setSelectedMasterId] = useState('')
+  const [selectedEngineerId, setSelectedEngineerId] = useState('')
+  const [selectedQualityId, setSelectedQualityId] = useState('')
   
   const fetchMachineAndCalls = async () => {
     try {
@@ -19,6 +23,9 @@ const MachineCallModule = () => {
       
       const { data: cData } = await supabase.from('machine_calls').select('*').eq('machine_id', id).eq('status', 'pending')
       if (cData) setActiveCalls(cData)
+
+      const { data: uData } = await supabase.from('system_users').select('id, first_name, last_name, position, access_rights').order('first_name')
+      if (uData) setUsers(uData)
     } catch (e) {
       console.error(e)
     } finally {
@@ -42,6 +49,10 @@ const MachineCallModule = () => {
     return () => { supabase.removeChannel(channel) }
   }, [id])
   
+  const masters = users.filter(u => u.access_rights?.master || u.access_rights?.foreman || (u.position && u.position.toLowerCase().includes('майстер')))
+  const engineers = users.filter(u => u.access_rights?.engineer || (u.position && u.position.toLowerCase().includes('інженер')))
+  const qualities = users.filter(u => u.access_rights?.brak || (u.position && (u.position.toLowerCase().includes('вкя') || u.position.toLowerCase().includes('якост'))))
+
   const handleCall = async (role) => {
     if (isSubmitting) return
     setIsSubmitting(true)
@@ -57,10 +68,20 @@ const MachineCallModule = () => {
       return
     }
     
+    let employeeId = null
+    if (role === 'master') employeeId = selectedMasterId
+    else if (role === 'engineer') employeeId = selectedEngineerId
+    else if (role === 'quality') employeeId = selectedQualityId
+
+    const emp = users.find(u => u.id === employeeId)
+    const empName = emp ? `${emp.first_name || ''} ${emp.last_name || ''}`.trim() : null
+
     const { error } = await supabase.from('machine_calls').insert({
       machine_id: id,
       called_role: role,
       operator_name: operatorName.trim() || 'Оператор верстата',
+      called_employee_id: employeeId || null,
+      called_employee_name: empName || null,
       status: 'pending'
     })
     
@@ -141,81 +162,165 @@ const MachineCallModule = () => {
         <h3 style={{ fontSize: '0.75rem', fontWeight: 900, color: '#71717a', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '15px', textAlign: 'center' }}>Оберіть кого потрібно викликати:</h3>
         
         {/* Buttons Grid */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* 1. MASTER */}
-          <button 
-            onClick={() => handleCall('master')}
-            disabled={isSubmitting}
-            style={{ 
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', 
-              background: activeCalls.some(c => c.called_role === 'master') ? 'rgba(255,144,0,0.1)' : '#09090b',
-              border: '1px solid',
-              borderColor: activeCalls.some(c => c.called_role === 'master') ? '#ff9000' : '#27272a',
-              borderRadius: '16px', color: '#fff', cursor: 'pointer', transition: 'all 0.2s', width: '100%',
-              outline: 'none'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flex: 1 }}>
-              <PhoneCall size={20} color="#ff9000" />
-              <div style={{ textAlign: 'left' }}>
-                <div style={{ fontWeight: 900, fontSize: '1rem' }}>МАЙСТЕР</div>
-                <div style={{ fontSize: '0.7rem', color: '#71717a', fontWeight: 600 }}>Викликати майстра зміни / бригадира</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <button 
+              onClick={() => handleCall('master')}
+              disabled={isSubmitting}
+              style={{ 
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', 
+                background: activeCalls.some(c => c.called_role === 'master') ? 'rgba(255,144,0,0.1)' : '#09090b',
+                border: '1px solid',
+                borderColor: activeCalls.some(c => c.called_role === 'master') ? '#ff9000' : '#27272a',
+                borderRadius: '16px', color: '#fff', cursor: 'pointer', transition: 'all 0.2s', width: '100%',
+                outline: 'none'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flex: 1 }}>
+                <PhoneCall size={20} color="#ff9000" />
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontWeight: 900, fontSize: '1rem' }}>МАЙСТЕР</div>
+                  <div style={{ fontSize: '0.7rem', color: '#71717a', fontWeight: 600 }}>Викликати майстра зміни / бригадира</div>
+                </div>
               </div>
-            </div>
-            {activeCalls.some(c => c.called_role === 'master') && (
-              <span className="pulse-indicator" style={{ background: '#ff9000', width: '8px', height: '8px', borderRadius: '50%', boxShadow: '0 0 10px #ff9000' }} />
+              {activeCalls.some(c => c.called_role === 'master') && (
+                <span className="pulse-indicator" style={{ background: '#ff9000', width: '8px', height: '8px', borderRadius: '50%', boxShadow: '0 0 10px #ff9000' }} />
+              )}
+            </button>
+            {!activeCalls.some(c => c.called_role === 'master') && (
+              <select
+                value={selectedMasterId}
+                onChange={e => setSelectedMasterId(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: '#09090b',
+                  border: '1px solid #27272a',
+                  borderRadius: '12px',
+                  color: '#fff',
+                  padding: '12px 15px',
+                  fontSize: '0.85rem',
+                  outline: 'none',
+                  transition: 'border-color 0.2s'
+                }}
+                onFocus={e => e.target.style.borderColor = '#ff9000'}
+                onBlur={e => e.target.style.borderColor = '#27272a'}
+              >
+                <option value="">-- Всі майстри (Загальний виклик) --</option>
+                {masters.map(u => (
+                  <option key={u.id} value={u.id}>
+                    {u.first_name || ''} {u.last_name || ''} {u.position ? ` (${u.position})` : ''}
+                  </option>
+                ))}
+              </select>
             )}
-          </button>
+          </div>
 
           {/* 2. ENGINEER */}
-          <button 
-            onClick={() => handleCall('engineer')}
-            disabled={isSubmitting}
-            style={{ 
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', 
-              background: activeCalls.some(c => c.called_role === 'engineer') ? 'rgba(139,92,246,0.1)' : '#09090b',
-              border: '1px solid',
-              borderColor: activeCalls.some(c => c.called_role === 'engineer') ? '#8b5cf6' : '#27272a',
-              borderRadius: '16px', color: '#fff', cursor: 'pointer', transition: 'all 0.2s', width: '100%',
-              outline: 'none'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flex: 1 }}>
-              <Hammer size={20} color="#8b5cf6" />
-              <div style={{ textAlign: 'left' }}>
-                <div style={{ fontWeight: 900, fontSize: '1rem' }}>ІНЖЕНЕР</div>
-                <div style={{ fontSize: '0.7rem', color: '#71717a', fontWeight: 600 }}>Викликати інженера-налагоджувальника</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <button 
+              onClick={() => handleCall('engineer')}
+              disabled={isSubmitting}
+              style={{ 
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', 
+                background: activeCalls.some(c => c.called_role === 'engineer') ? 'rgba(139,92,246,0.1)' : '#09090b',
+                border: '1px solid',
+                borderColor: activeCalls.some(c => c.called_role === 'engineer') ? '#8b5cf6' : '#27272a',
+                borderRadius: '16px', color: '#fff', cursor: 'pointer', transition: 'all 0.2s', width: '100%',
+                outline: 'none'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flex: 1 }}>
+                <Hammer size={20} color="#8b5cf6" />
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontWeight: 900, fontSize: '1rem' }}>ІНЖЕНЕР</div>
+                  <div style={{ fontSize: '0.7rem', color: '#71717a', fontWeight: 600 }}>Викликати інженера-налагоджувальника</div>
+                </div>
               </div>
-            </div>
-            {activeCalls.some(c => c.called_role === 'engineer') && (
-              <span className="pulse-indicator" style={{ background: '#8b5cf6', width: '8px', height: '8px', borderRadius: '50%', boxShadow: '0 0 10px #8b5cf6' }} />
+              {activeCalls.some(c => c.called_role === 'engineer') && (
+                <span className="pulse-indicator" style={{ background: '#8b5cf6', width: '8px', height: '8px', borderRadius: '50%', boxShadow: '0 0 10px #8b5cf6' }} />
+              )}
+            </button>
+            {!activeCalls.some(c => c.called_role === 'engineer') && (
+              <select
+                value={selectedEngineerId}
+                onChange={e => setSelectedEngineerId(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: '#09090b',
+                  border: '1px solid #27272a',
+                  borderRadius: '12px',
+                  color: '#fff',
+                  padding: '12px 15px',
+                  fontSize: '0.85rem',
+                  outline: 'none',
+                  transition: 'border-color 0.2s'
+                }}
+                onFocus={e => e.target.style.borderColor = '#8b5cf6'}
+                onBlur={e => e.target.style.borderColor = '#27272a'}
+              >
+                <option value="">-- Всі інженери (Загальний виклик) --</option>
+                {engineers.map(u => (
+                  <option key={u.id} value={u.id}>
+                    {u.first_name || ''} {u.last_name || ''} {u.position ? ` (${u.position})` : ''}
+                  </option>
+                ))}
+              </select>
             )}
-          </button>
+          </div>
 
           {/* 3. QUALITY CONTROL (VKYa) */}
-          <button 
-            onClick={() => handleCall('quality')}
-            disabled={isSubmitting}
-            style={{ 
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', 
-              background: activeCalls.some(c => c.called_role === 'quality') ? 'rgba(239,68,68,0.1)' : '#09090b',
-              border: '1px solid',
-              borderColor: activeCalls.some(c => c.called_role === 'quality') ? '#ef4444' : '#27272a',
-              borderRadius: '16px', color: '#fff', cursor: 'pointer', transition: 'all 0.2s', width: '100%',
-              outline: 'none'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flex: 1 }}>
-              <ShieldAlert size={20} color="#ef4444" />
-              <div style={{ textAlign: 'left' }}>
-                <div style={{ fontWeight: 900, fontSize: '1rem' }}>ВКЯ</div>
-                <div style={{ fontSize: '0.7rem', color: '#71717a', fontWeight: 600 }}>Викликати інспектора ВКЯ</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <button 
+              onClick={() => handleCall('quality')}
+              disabled={isSubmitting}
+              style={{ 
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', 
+                background: activeCalls.some(c => c.called_role === 'quality') ? 'rgba(239,68,68,0.1)' : '#09090b',
+                border: '1px solid',
+                borderColor: activeCalls.some(c => c.called_role === 'quality') ? '#ef4444' : '#27272a',
+                borderRadius: '16px', color: '#fff', cursor: 'pointer', transition: 'all 0.2s', width: '100%',
+                outline: 'none'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flex: 1 }}>
+                <ShieldAlert size={20} color="#ef4444" />
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontWeight: 900, fontSize: '1rem' }}>ВКЯ</div>
+                  <div style={{ fontSize: '0.7rem', color: '#71717a', fontWeight: 600 }}>Викликати інспектора ВКЯ</div>
+                </div>
               </div>
-            </div>
-            {activeCalls.some(c => c.called_role === 'quality') && (
-              <span className="pulse-indicator" style={{ background: '#ef4444', width: '8px', height: '8px', borderRadius: '50%', boxShadow: '0 0 10px #ef4444' }} />
+              {activeCalls.some(c => c.called_role === 'quality') && (
+                <span className="pulse-indicator" style={{ background: '#ef4444', width: '8px', height: '8px', borderRadius: '50%', boxShadow: '0 0 10px #ef4444' }} />
+              )}
+            </button>
+            {!activeCalls.some(c => c.called_role === 'quality') && (
+              <select
+                value={selectedQualityId}
+                onChange={e => setSelectedQualityId(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: '#09090b',
+                  border: '1px solid #27272a',
+                  borderRadius: '12px',
+                  color: '#fff',
+                  padding: '12px 15px',
+                  fontSize: '0.85rem',
+                  outline: 'none',
+                  transition: 'border-color 0.2s'
+                }}
+                onFocus={e => e.target.style.borderColor = '#ef4444'}
+                onBlur={e => e.target.style.borderColor = '#27272a'}
+              >
+                <option value="">-- Всі фахівці ВКЯ (Загальний виклик) --</option>
+                {qualities.map(u => (
+                  <option key={u.id} value={u.id}>
+                    {u.first_name || ''} {u.last_name || ''} {u.position ? ` (${u.position})` : ''}
+                  </option>
+                ))}
+              </select>
             )}
-          </button>
+          </div>
         </div>
         
         {/* Active calls summary list */}
