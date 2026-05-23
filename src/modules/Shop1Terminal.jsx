@@ -4,6 +4,21 @@ import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { supabase } from '../supabase'
 
+// Map Cyrillic keyboard characters to English QWERTY for barcode scanners under Ukrainian/Russian layout
+const cyrillicToLatinMap = {
+  'й':'q', 'ц':'w', 'у':'e', 'к':'r', 'е':'t', 'н':'y', 'г':'u', 'ш':'i', 'щ':'o', 'з':'p', 'х':'[', 'ї':']',
+  'ф':'a', 'ы':'s', 'і':'s', 'в':'d', 'а':'f', 'п':'g', 'р':'h', 'о':'j', 'л':'k', 'д':'l', 'ж':';', 'є':'\'',
+  'я':'z', 'ч':'x', 'с':'c', 'м':'v', 'и':'b', 'т':'n', 'ь':'m', 'б':',', 'ю':'.', '.':'/',
+  'Й':'Q', 'Ц':'W', 'У':'E', 'К':'R', 'Е':'T', 'Н':'Y', 'Г':'U', 'Ш':'I', 'Щ':'O', 'З':'P', 'Х':'{', 'Ї':'}',
+  'Ф':'A', 'Ы':'S', 'І':'S', 'В':'D', 'А':'F', 'П':'G', 'Р':'H', 'О':'J', 'Л':'K', 'Д':'L', 'Ж':':', 'Є':'"',
+  'Я':'Z', 'Ч':'X', 'С':'C', 'М':'V', 'И':'B', 'Т':'N', 'Ь':'M', 'Б':'<', 'Ю':'>', ',':'?',
+  '?':'/', 'ё':'`', 'Ё':'~', '№':'#'
+}
+
+const translateCyrillic = (str) => {
+  return String(str || '').split('').map(char => cyrillicToLatinMap[char] || char).join('')
+}
+
 // Ланцюжок Цеху №1
 const CHAIN = ['Розкрій', 'Галтовка', 'Прийомка', 'Сортування']
 
@@ -63,7 +78,8 @@ export default function Shop1Terminal() {
   const [machineCallSuccess, setMachineCallSuccess] = useState('')
 
   const handleMachineQRScan = async (text) => {
-    const match = String(text || '').match(/\/machines\/([a-f0-9-]+)\/call/i)
+    const cleanText = translateCyrillic(text)
+    const match = String(cleanText || '').match(/\/machines\/([a-f0-9-]+)\/call/i)
     if (match) {
       const machineId = match[1]
       try {
@@ -266,7 +282,8 @@ export default function Shop1Terminal() {
         }
         buffer = ''
       } else if (e.key.length === 1) {
-        buffer += e.key
+        const char = cyrillicToLatinMap[e.key] || e.key
+        buffer += char
       }
     }
 
@@ -278,8 +295,10 @@ export default function Shop1Terminal() {
     if (e) e.preventDefault()
     if (!manualId) return
 
+    const cleanInput = translateCyrillic(manualId.trim())
+
     // Check if it's a machine call QR code URL
-    const isMachineQR = await handleMachineQRScan(manualId.trim())
+    const isMachineQR = await handleMachineQRScan(cleanInput)
     if (isMachineQR) {
       setManualId('')
       setShowManualInput(false)
@@ -289,14 +308,14 @@ export default function Shop1Terminal() {
 
     setIsProcessing(true)
 
-    let card = workCards.find(c => String(c.id).trim() === manualId.trim())
+    let card = workCards.find(c => String(c.id).trim() === cleanInput)
     if (!card) {
       await fetchData().catch(() => { })
-      card = workCards.find(c => String(c.id).trim() === manualId.trim())
+      card = workCards.find(c => String(c.id).trim() === cleanInput)
     }
 
     if (!card) {
-      setScanError(`Картку №${manualId} не знайдено`)
+      setScanError(`Картку №${cleanInput} не знайдено`)
     } else {
       setScannedIds(prev => prev.includes(card.id) ? prev : [...prev, card.id])
       setSelectedCardId(card.id)

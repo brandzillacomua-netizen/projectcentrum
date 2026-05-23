@@ -9,6 +9,20 @@ import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
 import { supabase } from '../supabase'
 
+const cyrillicToLatinMap = {
+  'й':'q', 'ц':'w', 'у':'e', 'к':'r', 'е':'t', 'н':'y', 'г':'u', 'ш':'i', 'щ':'o', 'з':'p', 'х':'[', 'ї':']',
+  'ф':'a', 'ы':'s', 'і':'s', 'в':'d', 'а':'f', 'п':'g', 'р':'h', 'о':'j', 'л':'k', 'д':'l', 'ж':';', 'є':'\'',
+  'я':'z', 'ч':'x', 'с':'c', 'м':'v', 'и':'b', 'т':'n', 'ь':'m', 'б':',', 'ю':'.', '.':'/',
+  'Й':'Q', 'Ц':'W', 'У':'E', 'К':'R', 'Е':'T', 'Н':'Y', 'Г':'U', 'Ш':'I', 'Щ':'O', 'З':'P', 'Х':'{', 'Ї':'}',
+  'Ф':'A', 'Ы':'S', 'І':'S', 'В':'D', 'А':'F', 'П':'G', 'Р':'H', 'О':'J', 'Л':'K', 'Д':'L', 'Ж':':', 'Є':'"',
+  'Я':'Z', 'Ч':'X', 'С':'C', 'М':'V', 'И':'B', 'Т':'N', 'Ь':'M', 'Б':'<', 'Ю':'>', ',':'?',
+  '?':'/', 'ё':'`', 'Ё':'~', '№':'#'
+}
+
+const translateCyrillic = (str) => {
+  return String(str || '').split('').map(char => cyrillicToLatinMap[char] || char).join('')
+}
+
 const OperatorTerminal = () => {
   const { workCards, orders, nomenclatures, startWorkCard, completeWorkCard, confirmBuffer, fetchData, operators, productionStages, machines, workCardHistory, getFilteredOperators, getFilteredManagers } = useMES()
   const [selectedCardId, setSelectedCardId] = useState(null)
@@ -44,7 +58,8 @@ const OperatorTerminal = () => {
   const [machineCallSuccess, setMachineCallSuccess] = useState('')
 
   const handleMachineQRScan = async (text) => {
-    const match = String(text || '').match(/\/machines\/([a-f0-9-]+)\/call/i)
+    const cleanText = translateCyrillic(text)
+    const match = String(cleanText || '').match(/\/machines\/([a-f0-9-]+)\/call/i)
     if (match) {
       const machineId = match[1]
       try {
@@ -175,7 +190,8 @@ const OperatorTerminal = () => {
         }
         buffer = ''
       } else if (e.key.length === 1) {
-        buffer += e.key
+        const char = cyrillicToLatinMap[e.key] || e.key
+        buffer += char
       }
     }
 
