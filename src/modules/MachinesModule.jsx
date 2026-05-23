@@ -600,9 +600,9 @@ const MachinesModule = () => {
                 </div>
                 <div className="side-metric" style={{ marginTop: '20px', textAlign: 'center' }}>
                   <label>QR-КОД ДЛЯ ВИКЛИКУ</label>
-                  <div style={{ background: '#0a0a0a', border: '1px solid #222', borderRadius: '16px', padding: '15px', display: 'inline-block', margin: '10px 0' }}>
+                  <div style={{ background: '#ffffff', border: '1px solid #222', borderRadius: '16px', padding: '15px', display: 'inline-block', margin: '10px 0' }}>
                     <img 
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=ffffff&bgcolor=0a0a0a&data=${encodeURIComponent(`${window.location.origin}/machines/${selectedMachine.id}/call`)}`} 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=000000&bgcolor=ffffff&data=${encodeURIComponent(`${window.location.origin}/machines/${selectedMachine.id}/call`)}`} 
                       alt="QR Code" 
                       style={{ width: '150px', height: '150px', display: 'block' }} 
                     />
