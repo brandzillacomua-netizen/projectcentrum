@@ -165,8 +165,21 @@ const NomenclatureV2 = () => {
     if (lines.length === 0) return null
     
     // First line is the spec name
-    const firstLineMatch = lines[0].match(/"?Специфікація\s+""([^""]+)""/i) || lines[0].match(/"?Специфікація\s+([^,]+)/i);
-    const specName = firstLineMatch ? firstLineMatch[1].trim() : "Нова специфікація";
+    let specName = "Нова специфікація";
+    const firstLineMatch = lines[0].match(/Специфікація\s+(.*)/i);
+    if (firstLineMatch) {
+      let content = firstLineMatch[1].trim();
+      content = content.replace(/,+$/, '').trim();
+      while (content.startsWith('"') || content.endsWith('"')) {
+        if (content.startsWith('"')) content = content.substring(1);
+        if (content.endsWith('"')) content = content.slice(0, -1);
+        content = content.trim();
+      }
+      content = content.replace(/""/g, '"');
+      if (content) {
+        specName = content;
+      }
+    }
     
     const result = { productName: specName, components: [] }
     let currentGroupName = 'Деталі' // Default for structural parts
@@ -192,12 +205,17 @@ const NomenclatureV2 = () => {
         const desc = cols[3] || '';
         const qty = parseFloat(cols[4]) || 1;
 
+        let thickness = '';
+        const thickMatch = desc.match(/(\d+(?:\.\d+)?)\s*мм/i);
+        if (thickMatch) thickness = thickMatch[1];
+
         result.components.push({
           name: nomName,
           characteristics: characteristics,
           description: desc,
           qtyPerOne: qty,
-          groupName: currentGroupName
+          groupName: currentGroupName,
+          thickness
         })
       }
     }
@@ -319,26 +337,111 @@ const NomenclatureV2 = () => {
         // 4. Імпорт компонентів
         const createdBOM = [];
         for (const comp of parsed.components) {
-          const fullName = comp.characteristics ? `${comp.name} ${comp.characteristics}`.trim() : comp.name.trim();
+          const originalFullName = comp.characteristics ? `${comp.name} ${comp.characteristics}`.trim() : comp.name.trim();
           const targetGroup = await getGroup(comp.groupName);
 
           const typeKeyword = comp.groupName.includes('Метизи') ? 'Комплектуючі' : 'Деталь';
           const typeObj = types.find(t => t.name.includes(typeKeyword)) || types[0];
 
-          const baseNom = await createOrFind(fullName, {
-            group_id: targetGroup.id,
-            nom_type_id: typeObj?.id,
-            unit: 'шт'
-          });
+          let baseNomId;
 
-          // ОБОВ'ЯЗКОВО створюємо базову характеристику
-          await nomenclatureService.createCharacteristic(baseNom.id, {
-            name: "Базова",
-            code: "BASE",
-            is_base: true
-          }).catch(() => {}); // Ігноруємо якщо вже є
+          const isSheet = originalFullName.toLowerCase().includes('лист');
+          const isPrepMaterial = isSheet && (
+            originalFullName.toLowerCase().includes('карбон') || 
+            originalFullName.toLowerCase().includes('скло') || 
+            originalFullName.toLowerCase().includes('т300') ||
+            originalFullName.toLowerCase().includes('t300')
+          );
+
+          if (isPrepMaterial) {
+            const prepName = `${originalFullName} [Підготовлений]`;
+            const rawName = `${originalFullName} [Непідготовлений]`;
+
+            // 1. Create Raw
+            const rawNom = await createOrFind(rawName, {
+              group_id: targetGroup.id,
+              nom_type_id: typeObj?.id,
+              unit: 'шт'
+            });
+            await nomenclatureService.createCharacteristic(rawNom.id, { name: "Базова", code: "BASE", is_base: true }).catch(() => {});
+            
+            // 2. Create Prep
+            const prepNom = await createOrFind(prepName, {
+              group_id: targetGroup.id,
+              nom_type_id: typeObj?.id,
+              unit: 'шт'
+            });
+            await nomenclatureService.createCharacteristic(prepNom.id, { name: "Базова", code: "BASE", is_base: true }).catch(() => {});
+
+            // 3. Link Prep -> Raw
+            await supabase.from('bom_items').delete().eq('parent_id', prepNom.id);
+            await supabase.from('bom_items').insert([{
+              parent_id: prepNom.id,
+              child_id: rawNom.id,
+              quantity_per_parent: 1
+            }]);
+
+            baseNomId = prepNom.id;
+          } else {
+            const extraPayload = {
+              group_id: targetGroup.id,
+              nom_type_id: typeObj?.id,
+              unit: 'шт'
+            };
+            
+            if (comp.thickness && typeKeyword === 'Деталь') {
+              extraPayload.material_type = `Лист Т300 (${comp.thickness}мм)`;
+              
+              // Automatically create prepared and unprepared sheets if they don't exist
+              const thickStr = `${comp.thickness}мм`;
+              const rawName = `Лист Т300 (${thickStr}) [Непідготовлений]`;
+              const prepName = `Лист Т300 (${thickStr}) [Підготовлений]`;
+              
+              const sheetGroup = await getGroup("Сировина");
+              const rawTypeObj = types.find(t => t.name.toLowerCase().includes('сировин') || t.name.toLowerCase().includes('raw')) || typeObj;
+              
+              const rawNom = await createOrFind(rawName, {
+                group_id: sheetGroup.id,
+                nom_type_id: rawTypeObj?.id,
+                unit: 'шт',
+                type: 'raw',
+                material_type: thickStr
+              });
+              
+              const prepNom = await createOrFind(prepName, {
+                group_id: sheetGroup.id,
+                nom_type_id: rawTypeObj?.id,
+                unit: 'шт',
+                type: 'raw',
+                material_type: thickStr
+              });
+              
+              if (rawNom && prepNom) {
+                const { supabase } = await import('../supabase');
+                await supabase.from('bom_items').delete().eq('parent_id', prepNom.id);
+                await supabase.from('bom_items').insert([{
+                  parent_id: prepNom.id,
+                  child_id: rawNom.id,
+                  quantity_per_parent: 1
+                }]);
+              }
+            } else {
+              extraPayload.material_type = comp.characteristics || '';
+            }
+
+            const baseNom = await createOrFind(originalFullName, extraPayload);
+
+            // ОБОВ'ЯЗКОВО створюємо базову характеристику
+            await nomenclatureService.createCharacteristic(baseNom.id, {
+              name: "Базова",
+              code: "BASE",
+              is_base: true
+            }).catch(() => {}); // Ігноруємо якщо вже є
+            
+            baseNomId = baseNom.id;
+          }
           
-          createdBOM.push({ child_id: baseNom.id, qty: comp.qtyPerOne });
+          createdBOM.push({ child_id: baseNomId, qty: comp.qtyPerOne });
         }
 
         // 5. Створення головного виробу
@@ -357,10 +460,21 @@ const NomenclatureV2 = () => {
           is_base: true
         }).catch(() => {});
 
+        // АГРЕГУЄМО BOM ДЛЯ УНИКНЕННЯ 409 (CONFLICT) при однакових child_id
+        const aggregatedBOM = [];
+        createdBOM.forEach(item => {
+          const existing = aggregatedBOM.find(it => it.child_id === item.child_id);
+          if (existing) {
+            existing.qty += item.qty;
+          } else {
+            aggregatedBOM.push({ ...item });
+          }
+        });
+
         setImportLogs(prev => [...prev, `🔗 Формування специфікації BOM...`]);
         await supabase.from('bom_items').delete().eq('parent_id', parentNom.id);
-        if (createdBOM.length > 0) {
-          const payload = createdBOM.map(it => ({
+        if (aggregatedBOM.length > 0) {
+          const payload = aggregatedBOM.map(it => ({
             parent_id: parentNom.id,
             child_id: it.child_id,
             quantity_per_parent: Number(it.qty) || 1

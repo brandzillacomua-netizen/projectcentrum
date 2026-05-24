@@ -123,6 +123,20 @@ export function createProductionActions({
     return data
   }
 
+  const createWorkCardsBatch = async (taskId, orderId, nomenclatureId, cardsArray) => {
+    const payloads = cardsArray.map(c => ({
+      task_id: taskId, order_id: orderId, nomenclature_id: nomenclatureId,
+      operation: c.operation || 'Нова', machine: c.machine, quantity: Number(c.quantity) || 0,
+      estimated_time: Number(c.estimatedTime) || 0, status: 'new', is_rework: false,
+      card_info: `${c.cardInfo || ''}${Number(c.bufferQty) > 0 ? ` [BZ:${c.bufferQty}]` : ''}`
+    }))
+    
+    const { data } = await supabase.from('work_cards').insert(payloads).select()
+    await supabase.from('tasks').update({ status: 'in-progress' }).eq('id', taskId)
+    fetchData(true)
+    return data
+  }
+
   const startWorkCard = async (taskId, cardId, operatorName, metadata = {}) => {
     const updateData = { status: 'in-progress', started_at: new Date().toISOString(), operator_name: operatorName }
     if (metadata.stage_name) updateData.operation = metadata.stage_name
@@ -311,13 +325,39 @@ export function createProductionActions({
           if (totalToProduce <= 0) return
           const matKeyBase = (part.nom.material_type || part.nom.name || 'Інше').trim()
           const matKey = normalize(matKeyBase)
-          const rawNom = nomenclatures.find(n => (n.type === 'raw' || n.type === 'material') && (normalize(n.name) === matKey || normalize(n.material_type) === matKey))
+          
+          // Look up prepared nomenclature first
+          const normalizedBase = normalizeName(matKeyBase.toLowerCase().replace(' [непідготовлений]', '').replace('[непідготовлений]', '').trim())
+          let rawNom = nomenclatures.find(n => 
+            (n.type === 'raw' || n.type === 'material') && 
+            n.name.includes('[Підготовлений]') && 
+            (normalize(n.name.replace(' [Підготовлений]', '')) === matKey || 
+             normalize(n.name.replace('[Підготовлений]', '')) === matKey ||
+             normalizeName(n.name.replace(' [Підготовлений]', '')) === normalizedBase ||
+             normalizeName(n.name.replace('[Підготовлений]', '')) === normalizedBase)
+          )
+
+          // Fallback to original lookup (non-prepared sheets) if prep sheet nomenclature not found
+          if (!rawNom) {
+            rawNom = nomenclatures.find(n => 
+              (n.type === 'raw' || n.type === 'material') && 
+              (normalize(n.name) === matKey || 
+               normalize(n.material_type) === matKey ||
+               normalizeName(n.name) === normalizeName(matKeyBase))
+            )
+          }
+
           const matId = rawNom?.id || (part.nom.type === 'raw' ? part.nom.id : 'unknown-' + matKey)
           if (!materialSummary[matId]) {
             const unit = (part.nom.type === 'hardware' || part.nom.type === 'fastener') ? 'шт' : 'ЛИСТІВ'
             materialSummary[matId] = { matName: rawNom?.name || matKeyBase, sheets: 0, totalUnits: 0, components: [], inventory_id: null, nomenclature_id: rawNom?.id || (part.nom.type === 'raw' ? part.nom.id : null), unit, partType: rawNom?.type || (part.nom.type === 'raw' ? 'raw' : 'unknown') }
             if (materialSummary[matId].nomenclature_id) {
-              const inv = inventory.find(i => String(i.nomenclature_id) === String(materialSummary[matId].nomenclature_id))
+              const inv = inventory.find(i => 
+                String(i.nomenclature_id) === String(materialSummary[matId].nomenclature_id) && 
+                i.warehouse === 'operational'
+              ) || inventory.find(i => 
+                String(i.nomenclature_id) === String(materialSummary[matId].nomenclature_id)
+              )
               materialSummary[matId].inventory_id = inv?.id || null
             }
           }
@@ -713,7 +753,7 @@ export function createProductionActions({
     createNaryad, handoverTaskToShop2, cancelHandoverToShop2, completeTaskShop2, directHandoverToSGP, handoverToSGP, reserveBZForTask, completePackaging, disposeScrapItem, createReworkNaryad,
     approveWarehouse, approveEngineer, approveDirector,
     upsertNomenclature, deleteNomenclature, saveBOM, removeBOM, syncBOM,
-    addOrder, createWorkCard, startWorkCard, completeWorkCard, confirmBuffer,
+    addOrder, createWorkCard, createWorkCardsBatch, startWorkCard, completeWorkCard, confirmBuffer,
     completeTaskByMaster,
     addManagementTask, updateManagementTask, deleteManagementTask,
     addMachine, updateMachine, deleteMachine,

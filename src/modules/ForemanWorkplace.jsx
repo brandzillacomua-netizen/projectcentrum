@@ -8,7 +8,7 @@ import { supabase } from '../supabase'
 
 const ForemanWorkplace = () => {
   const location = useLocation()
-  const { tasks, orders, workCards, createWorkCard, inventory, completeTaskByMaster, nomenclatures, bomItems, machines, machineOperations, workCardHistory, confirmBuffer, fetchData, reserveBZForTask, fetchTaskArchiveCards, fetchModuleData, machineCalls, currentUser } = useMES()
+  const { tasks, orders, workCards, createWorkCard, createWorkCardsBatch, inventory, completeTaskByMaster, nomenclatures, bomItems, machines, machineOperations, workCardHistory, confirmBuffer, fetchData, reserveBZForTask, fetchTaskArchiveCards, fetchModuleData, machineCalls, currentUser } = useMES()
 
   const activeCalls = (machineCalls || []).filter(c => 
     c.status === 'pending' && 
@@ -505,7 +505,7 @@ const MACHINE_TYPES = [
         if (reqRemainingForThisSplit < 0) reqRemainingForThisSplit = 0
       }
 
-      const createdCards = await apiService.submitCreateWorkCardsBatch(task.id, task.order_id, part.nom.id, cardsBatch, createWorkCard)
+      const createdCards = await apiService.submitCreateWorkCardsBatch(task.id, task.order_id, part.nom.id, cardsBatch, createWorkCardsBatch)
       
       if (isRepair && sheets > 0) {
         const order = task.orders || orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]

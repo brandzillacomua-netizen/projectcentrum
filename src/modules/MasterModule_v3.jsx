@@ -65,6 +65,78 @@ const MasterModule = () => {
   const [tempSets, setTempSets] = useState(0)
   const [tempDeadline, setTempDeadline] = useState('')
 
+  // Preparation Terminal state
+  const [showPrepModal, setShowPrepModal] = useState(false)
+  const [prepQuantities, setPrepQuantities] = useState({})
+  const [prepDeadline, setPrepDeadline] = useState('')
+
+  const handleCreatePrepOrder = async () => {
+    const itemsToCreate = Object.entries(prepQuantities).filter(([_, qty]) => Number(qty) > 0);
+    if (itemsToCreate.length === 0) return alert('Введіть кількість хоча б для одного листа!');
+    
+    setIsSubmitting(true);
+    try {
+      const planSnapshot = {};
+      let totalSheets = 0;
+      for (const [materialId, qty] of itemsToCreate) {
+        const nom = nomenclatures.find(n => n.id === materialId);
+        planSnapshot[materialId] = {
+          name: nom?.name || 'Лист',
+          need: qty,
+          stock: 0,
+          plan: qty
+        };
+        totalSheets += Number(qty);
+      }
+
+      // Generate sequential prep number (e.g. №НП000001)
+      const { count, error: errCount } = await supabase
+        .from('tasks')
+        .select('*', { count: 'exact', head: true })
+        .eq('step', 'Підготовка');
+      
+      const nextNum = (count || 0) + 1;
+      const prepNum = `НП${String(nextNum).padStart(6, '0')}`;
+      planSnapshot._prep_num = prepNum;
+
+      const { data: newTask, error: errTask } = await supabase.from('tasks').insert({
+        step: 'Підготовка',
+        status: 'new',
+        machine_name: 'PREP-TERM',
+        planned_sets: totalSheets,
+        planned_deadline: prepDeadline || null,
+        plan_snapshot: planSnapshot,
+        engineer_conf: true,
+        director_conf: true
+      }).select().single();
+
+      if (errTask) throw errTask;
+
+      for (const [materialId, qty] of itemsToCreate) {
+        const nom = nomenclatures.find(n => n.id === materialId);
+        const { error: errReq } = await supabase.from('material_requests').insert({
+          task_id: newTask.id,
+          nomenclature_id: materialId,
+          quantity: qty,
+          status: 'pending',
+          inventory_id: null,
+          details: `ЗАПИТ НА ПІДГОТОВКУ (${prepNum}): ${nom?.name} — ${qty} шт.`
+        });
+
+        if (errReq) throw errReq;
+      }
+
+      alert('Наряди на підготовку успішно створено!');
+      setShowPrepModal(false);
+      setPrepQuantities({});
+      setPrepDeadline('');
+    } catch (e) {
+      alert('Помилка: ' + e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   const isShop1Task = (t) => {
     if (!t || !t.step) return true;
     const step = t.step.toLowerCase();
@@ -202,6 +274,24 @@ const MasterModule = () => {
   const handlePrint = async () => {
     if (!activeNaryadOrder || isSubmitting) return
 
+    if (!isReprintMode) {
+       for (const m of materialSummary) {
+          if (m.name.toLowerCase().includes('лист') || m.name.toLowerCase().includes('карбон') || m.name.toLowerCase().includes('carbon')) {
+             const requiredSheets = m.sheets;
+             const prepNomName = m.name.includes('[Підготовлений]') ? m.name : `${m.name} [Підготовлений]`;
+             const prepNom = nomenclatures.find(n => n.name === prepNomName || n.name === m.name);
+             if (prepNom) {
+                const bzInv = inventory.find(i => String(i.nomenclature_id) === String(prepNom.id) && (i.type === 'raw' || i.type === 'bz'));
+                const stock = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0;
+                if (stock < requiredSheets) {
+                   alert(`ПОМИЛКА: Недостатньо підготовленого матеріалу "${prepNom.name}". Потрібно: ${requiredSheets}, В наявності: ${stock}. Спочатку створіть Наряд на підготовку сировини.`);
+                   return;
+                }
+             }
+          }
+       }
+    }
+
     setIsSubmitting(true)
     try {
       // Trigger print dialog immediately
@@ -224,6 +314,28 @@ const MasterModule = () => {
   }
 
   const handleReprint = (task) => {
+    if (task.step === 'Підготовка') {
+      setIsReprintMode(true)
+      setReprintTask(task)
+      setSelectedMachine({ name: task.machine_name })
+      const virtualOrder = {
+        id: `prep-${task.id}`,
+        order_num: task.plan_snapshot?._prep_num || 'ПІДГОТОВКА',
+        customer: 'ВИРОБНИЦТВО',
+        deadline: task.planned_deadline,
+        isPrepOrder: true,
+        order_items: Object.entries(task.plan_snapshot || {})
+          .filter(([key]) => !key.startsWith('_'))
+          .map(([nomId, item]) => ({
+            id: `item-${nomId}`,
+            nomenclature_id: nomId,
+            quantity: item.plan,
+            name: item.name
+          }))
+      }
+      setActiveNaryadOrder(virtualOrder)
+      return
+    }
     const order = orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
     if (order) {
       setIsReprintMode(true)
@@ -236,6 +348,16 @@ const MasterModule = () => {
   const materialSummary = useMemo(() => {
     if (!activeNaryadOrder) return []
     const summary = {}
+
+    if (activeNaryadOrder.isPrepOrder) {
+      activeNaryadOrder.order_items?.forEach(item => {
+        const nom = nomenclatures.find(n => n.id === item.nomenclature_id)
+        if (nom) {
+          summary[nom.name] = { name: nom.name, sheets: Number(item.quantity), unit: 'ЛИСТІВ' }
+        }
+      })
+      return Object.values(summary)
+    }
 
     activeNaryadOrder.order_items?.forEach(item => {
       const parts = getBOMParts(item.nomenclature_id)
@@ -255,9 +377,17 @@ const MasterModule = () => {
         })()
         
         const totalToProduce = Math.max(0, totalNeeded - inStock)
-        if (totalToProduce <= 0) return
+        const matKeyBase = (part.nom.material_type || part.nom.name || 'Інше').trim()
+        const normalizedBase = matKeyBase.toLowerCase().replace(' [непідготовлений]', '').replace('[непідготовлений]', '').trim()
+        
+        // Try to match with prepared nomenclature name
+        const prepNom = nomenclatures.find(n => 
+          (n.type === 'raw' || n.type === 'material') && 
+          n.name.includes('[Підготовлений]') && 
+          n.name.toLowerCase().replace(' [підготовлений]', '').replace('[підготовлений]', '').trim() === normalizedBase
+        )
+        const matKey = prepNom ? prepNom.name : matKeyBase
 
-        const matKey = (part.nom.material_type || part.nom.name || 'Інше').trim()
         const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
         const sheets = Math.ceil(totalToProduce / unitsPerSheet)
         const unit = (part.nom.type === 'hardware' || part.nom.type === 'fastener') ? 'шт' : 'ЛИСТІВ'
@@ -269,11 +399,23 @@ const MasterModule = () => {
       })
     })
 
-    return Object.values(summary)
+    const result = Object.values(summary)
+    // Sort by thickness (e.g. "3мм" -> 3)
+    result.sort((a, b) => {
+      const getThick = (name) => {
+        const match = name.match(/\((\d+(?:\.\d+)?)мм\)/i)
+        return match ? parseFloat(match[1]) : 999
+      }
+      return getThick(a.name) - getThick(b.name)
+    })
+    return result
   }, [activeNaryadOrder, inventory, reprintTask, nomenclatures, bomItems, naryadQtys, isReprintMode])
 
   const productNames = useMemo(() => {
     if (!activeNaryadOrder) return ''
+    if (activeNaryadOrder.isPrepOrder) {
+      return 'Підготовка сировини'
+    }
     return activeNaryadOrder.order_items
       ?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name)
       .filter(Boolean)
@@ -281,7 +423,7 @@ const MasterModule = () => {
   }, [activeNaryadOrder, nomenclatures])
 
   const consumableSummary = useMemo(() => {
-    if (!activeNaryadOrder) return []
+    if (!activeNaryadOrder || activeNaryadOrder.isPrepOrder) return []
     const totalSheetsCount = materialSummary.reduce((acc, m) => acc + (Number(m.sheets) || 0), 0)
     if (totalSheetsCount <= 0) return []
 
@@ -312,8 +454,14 @@ const MasterModule = () => {
 
   const renderOrderQueue = () => (
     <section className="grid-col">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-        <h3 style={{ fontSize: '0.85rem', color: '#555', margin: 0 }}><ListChecks size={16} /> ЧЕРГА ЗАМОВЛЕНЬ</h3>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
+        <h3 style={{ fontSize: '0.85rem', color: '#555', margin: 0, flex: 1 }}><ListChecks size={16} /> ЧЕРГА ЗАМОВЛЕНЬ</h3>
+        <button 
+          onClick={() => setShowPrepModal(true)}
+          style={{ background: '#10b981', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer' }}
+        >
+          НАРЯД НА ПІДГОТОВКУ
+        </button>
         <div style={{ position: 'relative' }}>
           <Search size={12} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#444' }} />
           <input style={{ background: '#000', border: '1px solid #222', borderRadius: '8px', padding: '4px 8px 4px 25px', color: '#fff', fontSize: '0.75rem', width: '110px' }} placeholder="Пошук..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
@@ -467,10 +615,18 @@ const MasterModule = () => {
             <div className="v-stack" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {tasks.filter(t => t.status !== 'completed' && t.status !== 'pending' && isShop1Task(t)).map(task => {
                 const order = orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
-                const taskProductNames = order?.order_items
-                  ?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name)
-                  .filter(Boolean)
-                  .join(', ') || 'Вирів...'
+                let taskProductNames = 'Виріб...'
+                if (task.step === 'Підготовка') {
+                  taskProductNames = Object.entries(task.plan_snapshot || {})
+                    .filter(([key]) => !key.startsWith('_'))
+                    .map(([_, it]) => it.name || 'Лист')
+                    .join(', ')
+                } else {
+                  taskProductNames = order?.order_items
+                    ?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name)
+                    .filter(Boolean)
+                    .join(', ') || 'Виріб...'
+                }
 
                 const isSkladConfirmed = task.warehouse_conf === true
                 const isTechConfirmed = task.engineer_conf === true
@@ -480,8 +636,14 @@ const MasterModule = () => {
                   <div key={task.id} style={{ position: 'relative', background: '#111', padding: '20px', borderRadius: '20px', border: '1px solid #222', borderLeft: '4px solid #ff9000' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
-                         <strong style={{ fontSize: '1.2rem', fontWeight: 900, color: '#fff', letterSpacing: '-0.5px' }}>№ {order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}</strong>
-                         <span style={{ fontSize: '0.75rem', color: '#888', fontWeight: 700, marginTop: '2px' }}>{order?.customer || 'ПРЯМИЙ'}</span>
+                         <strong style={{ fontSize: '1.2rem', fontWeight: 900, color: '#fff', letterSpacing: '-0.5px' }}>
+                           {task.step === 'Підготовка' 
+                             ? `№ ${task.plan_snapshot?._prep_num || 'НП------'}` 
+                             : `№ ${order?.order_num || ''}${task.batch_index ? `/${task.batch_index}` : ''}`}
+                         </strong>
+                         <span style={{ fontSize: '0.75rem', color: '#888', fontWeight: 700, marginTop: '2px' }}>
+                           {task.step === 'Підготовка' ? 'ПІДГОТОВКА СИРОВИНИ' : (order?.customer || 'ПРЯМИЙ')}
+                         </span>
                       </div>
                       <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-start' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
@@ -517,24 +679,28 @@ const MasterModule = () => {
                         fontWeight: 1000,
                         border: isSkladConfirmed ? '1px solid #10b981' : '1px solid #222'
                       }}>СКЛАД</div>
-                      <div style={{
-                        fontSize: '0.65rem',
-                        padding: '5px 12px',
-                        borderRadius: '8px',
-                        background: isTechConfirmed ? '#064e3b' : '#1a1a1a',
-                        color: isTechConfirmed ? '#10b981' : '#333',
-                        fontWeight: 1000,
-                        border: isTechConfirmed ? '1px solid #10b981' : '1px solid #222'
-                      }}>ІНЖЕНЕР</div>
-                      <div style={{
-                        fontSize: '0.65rem',
-                        padding: '5px 12px',
-                        borderRadius: '8px',
-                        background: isDirConfirmed ? '#064e3b' : '#1a1a1a',
-                        color: isDirConfirmed ? '#10b981' : '#333',
-                        fontWeight: 1000,
-                        border: isDirConfirmed ? '1px solid #10b981' : '1px solid #222'
-                      }}>ДИРЕКТОР</div>
+                      {task.step !== 'Підготовка' && (
+                        <>
+                          <div style={{
+                            fontSize: '0.65rem',
+                            padding: '5px 12px',
+                            borderRadius: '8px',
+                            background: isTechConfirmed ? '#064e3b' : '#1a1a1a',
+                            color: isTechConfirmed ? '#10b981' : '#333',
+                            fontWeight: 1000,
+                            border: isTechConfirmed ? '1px solid #10b981' : '1px solid #222'
+                          }}>ІНЖЕНЕР</div>
+                          <div style={{
+                            fontSize: '0.65rem',
+                            padding: '5px 12px',
+                            borderRadius: '8px',
+                            background: isDirConfirmed ? '#064e3b' : '#1a1a1a',
+                            color: isDirConfirmed ? '#10b981' : '#333',
+                            fontWeight: 1000,
+                            border: isDirConfirmed ? '1px solid #10b981' : '1px solid #222'
+                          }}>ДИРЕКТОР</div>
+                        </>
+                      )}
                     </div>
                   </div>
                 )
@@ -619,6 +785,7 @@ const MasterModule = () => {
                     <h2 className="doc-ti" style={{ margin: 0, fontSize: '1.8rem', color: '#ff9000', fontWeight: 950, letterSpacing: '-0.02em' }}>
                       НАРЯД № {activeNaryadOrder.order_num}
                       {(() => {
+                        if (activeNaryadOrder.isPrepOrder) return '';
                         if (isReprintMode && reprintTask) {
                           return reprintTask.batch_index ? `/${reprintTask.batch_index}` : '';
                         }
@@ -693,13 +860,48 @@ const MasterModule = () => {
                   </thead>
                   <tbody>
                     {activeNaryadOrder.order_items?.map(it => {
+                      const nom = nomenclatures.find(n => n.id === it.nomenclature_id)
+                      const thisNaryadQty = isReprintMode ? Number(it.quantity) : (naryadQtys[it.id] || 0)
+                      if (thisNaryadQty <= 0) return null
+
+                      if (activeNaryadOrder.isPrepOrder) {
+                        return (
+                          <tr key={it.id} style={{ borderBottom: '1px solid #1a1a1a' }} className="print-tr">
+                            <td style={{ padding: '18px 15px' }}>
+                              <div style={{ fontWeight: 1000, color: '#fff', fontSize: '1rem', letterSpacing: '-0.01em' }} className="print-txt">{nom?.name || '—'}</div>
+                              <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 900, marginTop: '3px', textTransform: 'uppercase' }} className="print-subtxt">{nom?.nomenclature_code || 'БЕЗ КОДУ'}</div>
+                            </td>
+                            <td style={{ padding: '18px 15px', textAlign: 'center', fontSize: '1.1rem', color: '#fff', fontWeight: 900 }}>
+                              {thisNaryadQty.toString()}
+                            </td>
+                            <td style={{ padding: '18px 15px', textAlign: 'center', color: '#555', fontSize: '0.85rem' }}>
+                              —
+                            </td>
+                            <td style={{ padding: '18px 15px', textAlign: 'center', fontSize: '1.2rem', color: '#ff9000', fontWeight: 1000 }}>
+                              {thisNaryadQty.toString()}
+                            </td>
+                            <td style={{ padding: '18px 15px', textAlign: 'center' }}>
+                              <div style={{ fontSize: '0.85rem', color: '#aaa', fontWeight: 700 }} className="print-subtxt">{nom?.name || '—'}</div>
+                            </td>
+                            <td style={{ padding: '18px 15px', textAlign: 'center', color: '#555', fontSize: '0.9rem' }}>
+                              1
+                            </td>
+                            <td style={{ padding: '18px 15px', textAlign: 'center', fontWeight: 1000, color: '#22c55e', fontSize: '1.4rem' }} className="print-accent-g">
+                              {thisNaryadQty.toString()}
+                            </td>
+                            <td style={{ padding: '18px 15px', textAlign: 'center', fontSize: '1rem', color: '#ff9000', fontWeight: 900 }}>
+                              0
+                            </td>
+                          </tr>
+                        )
+                      }
+
                       const planned = getPlannedQty(it.id)
                       const remainingBalance = Math.max(0, Number(it.quantity) - planned)
-                      const thisNaryadQty = naryadQtys[it.id] || 0
 
                       const parts = getBOMParts(it.nomenclature_id)
                       const allParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
-                      const displayParts = allParts.filter(p => p.nom?.type === 'part')
+                      const displayParts = allParts.filter(p => p.nom?.type === 'part' || p.nom?.type === 'raw' || !p.nom?.type)
                       
                       return displayParts.map((part, pIdx) => {
                         const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)]
@@ -753,28 +955,36 @@ const MasterModule = () => {
                       let totalPlan = 0;
                       let totalSheets = 0;
 
-                      activeNaryadOrder.order_items?.forEach(it => {
-                        const thisNaryadQty = naryadQtys[it.id] || 0;
-                        const parts = getBOMParts(it.nomenclature_id);
-                        const allParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }];
-                        const displayParts = allParts.filter(p => p.nom?.type === 'part');
-                        
-                        displayParts.forEach(part => {
-                          const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)];
-                          const need = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1));
-                          const inStock = snapshot ? snapshot.stock : (() => {
-                            const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz');
-                            return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0;
-                          })();
-                          const plan = snapshot ? snapshot.plan : Math.max(0, need - inStock);
-                          const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1;
-                          const sheets = Math.ceil(plan / unitsPerSheet);
-
-                          totalNeed += need;
-                          totalPlan += plan;
-                          if (plan > 0) totalSheets += sheets;
+                      if (activeNaryadOrder.isPrepOrder) {
+                        activeNaryadOrder.order_items?.forEach(it => {
+                          totalNeed += Number(it.quantity);
+                          totalPlan += Number(it.quantity);
+                          totalSheets += Number(it.quantity);
                         });
-                      });
+                      } else {
+                        activeNaryadOrder.order_items?.forEach(it => {
+                          const thisNaryadQty = isReprintMode ? Number(it.quantity) : (naryadQtys[it.id] || 0);
+                          const parts = getBOMParts(it.nomenclature_id);
+                          const allParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }];
+                          const displayParts = allParts.filter(p => p.nom?.type === 'part' || p.nom?.type === 'raw' || !p.nom?.type);
+                          
+                          displayParts.forEach(part => {
+                            const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)];
+                            const need = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1));
+                            const inStock = snapshot ? snapshot.stock : (() => {
+                              const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz');
+                              return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0;
+                            })();
+                            const plan = snapshot ? snapshot.plan : Math.max(0, need - inStock);
+                            const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1;
+                            const sheets = Math.ceil(plan / unitsPerSheet);
+
+                            totalNeed += need;
+                            totalPlan += plan;
+                            if (plan > 0) totalSheets += sheets;
+                          });
+                        });
+                      }
 
                       return (
                         <tr>
@@ -802,11 +1012,11 @@ const MasterModule = () => {
               {materialSummary.length > 0 && (
                 <div className="mat-summary-section" style={{ marginTop: '25px', padding: '20px 30px', borderRadius: '18px', border: '1px solid #222', background: '#070707' }}>
                   <h4 style={{ margin: '0 0 15px', fontSize: '0.75rem', fontWeight: 950, color: '#444', textTransform: 'uppercase' }}>ВІДОМІСТЬ МАТЕРІАЛІВ:</h4>
-                  <div className="mat-flex-row" style={{ display: 'flex', flexWrap: 'nowrap', gap: '25px', overflowX: 'hidden' }}>
+                  <div className="mat-flex-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '25px', overflowX: 'hidden' }}>
                     {materialSummary.map((m, idx) => (
                       <div key={idx} className="mat-card-p" style={{ flex: 1, padding: '0 0 5px 15px', borderLeft: '4px solid #ff9000', minWidth: 'min-content' }}>
                         <div style={{ fontSize: '0.6rem', color: '#555', fontWeight: 800, marginBottom: '3px' }} className="print-subtxt">{m.name || '—'}</div>
-                        <div style={{ fontSize: '1.1rem', fontWeight: 950, color: '#fff' }} className="print-txt">{(Number(m.sheets) || 0).toString()} <small style={{ fontSize: '0.65rem', fontWeight: 400, color: '#444' }} className="print-subtxt">{m.unit || 'ЛИСТІВ'}</small></div>
+                        <div style={{ fontSize: '1.3rem', fontWeight: 950, color: '#fff' }} className="print-txt">{(Number(m.sheets) || 0).toString()} <small style={{ fontSize: '0.65rem', fontWeight: 400, color: '#444' }} className="print-subtxt">{m.unit || 'ЛИСТІВ'}</small></div>
                       </div>
                     ))}
                   </div>
@@ -889,6 +1099,70 @@ const MasterModule = () => {
                 style={{ flex: 2, padding: '12px', background: '#ff9000', color: '#000', border: 'none', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}
               >
                 ДАЛІ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPrepModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="glass-panel" style={{ background: '#0a0a0a', padding: '30px', borderRadius: '24px', border: '1px solid #222', width: '95%', maxWidth: '500px' }}>
+            <h3 style={{ margin: '0 0 20px', fontSize: '1.4rem', color: '#10b981', fontWeight: 900 }}>НАРЯД НА ПІДГОТОВКУ</h3>
+            
+            <div style={{ marginBottom: '20px', paddingRight: '5px' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#444', fontWeight: 800, textTransform: 'uppercase', marginBottom: '12px' }}>СИРОВИНА (НЕПІДГОТОВЛЕНА)</label>
+              {nomenclatures
+                .filter(n => n.name.toLowerCase().includes('непідготовлений'))
+                .sort((a, b) => {
+                  const matchA = a.name.match(/\((\d+(?:\.\d+)?)\s*мм\)/i);
+                  const matchB = b.name.match(/\((\d+(?:\.\d+)?)\s*мм\)/i);
+                  const thickA = matchA ? parseFloat(matchA[1]) : 0;
+                  const thickB = matchB ? parseFloat(matchB[1]) : 0;
+                  return thickA - thickB;
+                })
+                .map(n => {
+                  const qty = prepQuantities[n.id] || '';
+                return (
+                  <div key={n.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', gap: '15px' }}>
+                    <span style={{ fontSize: '0.95rem', color: '#fff', fontWeight: 800 }}>{n.name}</span>
+                    <input 
+                      type="number" 
+                      min="0"
+                      placeholder="0"
+                      value={qty}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setPrepQuantities(prev => ({
+                          ...prev,
+                          [n.id]: val === '' ? '' : Math.max(0, parseInt(val) || 0)
+                        }));
+                      }}
+                      style={{ background: '#111', border: '1px solid #333', color: '#fff', padding: '8px 12px', borderRadius: '10px', fontSize: '1.05rem', fontWeight: 900, textAlign: 'center', width: '80px' }} 
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            
+            <div style={{ marginBottom: '30px' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#444', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>ДЕДЛАЙН</label>
+              <input 
+                type="date" 
+                value={prepDeadline ? prepDeadline.split('T')[0] : ''}
+                onChange={e => setPrepDeadline(e.target.value)}
+                style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '1rem', fontWeight: 800 }} 
+              />
+            </div>
+            
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setShowPrepModal(false)} style={{ flex: 1, padding: '12px', background: '#222', color: '#555', border: 'none', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>СКАСУВАТИ</button>
+              <button 
+                onClick={handleCreatePrepOrder} 
+                disabled={isSubmitting}
+                style={{ flex: 2, padding: '12px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}
+              >
+                {isSubmitting ? 'ЧЕКАЙТЕ...' : 'СТВОРИТИ'}
               </button>
             </div>
           </div>

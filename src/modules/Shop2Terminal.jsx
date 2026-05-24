@@ -751,7 +751,7 @@ const Shop2Terminal = () => {
                     .filter(c => c.card_info?.includes('[ЦЕХ №2]') && (c.status === 'in-progress' || c.status === 'at-buffer' || c.status === 'waiting-buffer'))
                     .reduce((a, c) => a + (c.quantity || 0), 0)
 
-                  const bufferQty = streamingIncoming + Math.max(0, totalIncoming - totalTaken)
+                  const bufferQty = Math.max(streamingIncoming, Math.max(0, totalIncoming - totalTaken))
 
                   return (
                     <div onClick={() => setShowStorageExplorer(true)} style={{ background: '#111', border: '1px solid #8b5cf644', borderRadius: '24px', padding: '20px', cursor: 'pointer', transition: '0.3s', boxShadow: '0 10px 30px -10px rgba(139, 92, 246, 0.2)' }}>

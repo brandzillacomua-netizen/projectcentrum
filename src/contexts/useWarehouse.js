@@ -308,11 +308,17 @@ export function createWarehouseActions({
     if (!req) return
     let parsedName = ''
     try { parsedName = req.details?.split(': ')[1]?.split(' — ')[0]?.trim() } catch (e) {}
-    const invItem = inventory.find(i =>
-      i.id === req.inventory_id ||
-      (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) ||
-      (parsedName && normalize(i.name) === normalize(parsedName))
-    )
+    const invItem = inventory.find(i => {
+      if (i.id === req.inventory_id) return true
+      if (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) return true
+      if (parsedName) {
+        const normName = normalize(i.name)
+        const normParsed = normalize(parsedName)
+        if (normName === normParsed) return true
+        if (normName.includes('[підготовлений]') && normName.replace(' [підготовлений]', '').replace('[підготовлений]', '').trim() === normParsed) return true
+      }
+      return false
+    })
     if (invItem) {
       await supabase.from('inventory').update({ reserved_qty: (Number(invItem.reserved_qty) || 0) + Number(req.quantity) }).eq('id', invItem.id)
       await supabase.from('material_requests').update({ status: 'issued', inventory_id: invItem.id }).eq('id', requestId)
@@ -333,15 +339,22 @@ export function createWarehouseActions({
         try { parsedName = req.details?.split(': ')[1]?.split(' — ')[0]?.trim() } catch (e) {}
         const isSgpItem = parsedName?.toLowerCase().startsWith('іп-') ||
           (req.nomenclature_id && nomenclatures.find(n => String(n.id) === String(req.nomenclature_id))?.type === 'part')
+        const isPrepRequest = (req.details && (req.details.includes('ПІДГОТОВ') || req.details.includes('подготов'))) || 
+          (parsedName && (parsedName.includes('[Непідготовлений]') || parsedName.includes('[неподготовленный]')))
 
         let invItem = inventory.find(i => {
           const baseMatch = String(i.id) === String(req.inventory_id) ||
             (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) ||
-            (parsedName && normalize(i.name) === normalize(parsedName))
+            (parsedName && (
+              normalize(i.name) === normalize(parsedName) ||
+              (normalize(i.name).includes('[підготовлений]') && normalize(i.name).replace(' [підготовлений]', '').replace('[підготовлений]', '').trim() === normalize(parsedName))
+            ))
           if (!baseMatch) return false
           
           if (isSgpItem) {
             return i.type === 'finished' || i.type === 'semi' || i.warehouse === 'sgp'
+          } else if (isPrepRequest) {
+            return i.warehouse === 'production'
           } else {
             // Prioritize operational warehouse for raw materials
             return i.warehouse === 'operational' || !i.warehouse
@@ -349,11 +362,17 @@ export function createWarehouseActions({
         })
 
         if (!invItem) {
-          invItem = inventory.find(i =>
-            String(i.id) === String(req.inventory_id) ||
-            (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) ||
-            (parsedName && normalize(i.name) === normalize(parsedName))
-          )
+          invItem = inventory.find(i => {
+            if (String(i.id) === String(req.inventory_id)) return true
+            if (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) return true
+            if (parsedName) {
+              const normName = normalize(i.name)
+              const normParsed = normalize(parsedName)
+              if (normName === normParsed) return true
+              if (normName.includes('[підготовлений]') && normName.replace(' [підготовлений]', '').replace('[підготовлений]', '').trim() === normParsed) return true
+            }
+            return false
+          })
         }
 
         if (invItem) {

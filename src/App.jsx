@@ -41,6 +41,7 @@ const DirectorModule       = lazy(() => import('./modules/DirectorModule'))
 const OperatorTerminal     = lazy(() => import('./modules/OperatorTerminalV2'))
 const ShippingModule       = lazy(() => import('./modules/ShippingModule'))
 const SupplyModule         = lazy(() => import('./modules/SupplyModuleV2'))
+const PreparationTerminal  = lazy(() => import('./modules/PreparationTerminal'))
 const ForemanWorkplace     = lazy(() => import('./modules/ForemanWorkplace'))
 const PackagingModule      = lazy(() => import('./modules/PackagingModule'))
 const MachinesModule       = lazy(() => import('./modules/MachinesModule'))
@@ -84,6 +85,7 @@ const getAllModules = (badgeCount = 0) => [
   { id: 'director', title: 'Директор Виробництва', icon: <ShieldCheck size={24} />, path: '/director', desc: 'Фінальне підтвердження', color: '#10b981' },
   { id: 'foreman', title: 'Майстер', icon: <Users />, path: '/foreman', desc: 'Розподіл нарядів', color: '#f59e0b' },
   { id: 'operator', title: 'Термінал', icon: <Tablet />, path: '/operator', desc: 'Робоче місце', color: '#ef4444' },
+  { id: 'prep_terminal', title: 'Підготовка', icon: <Tablet />, path: '/prep-terminal', desc: 'Відділ Підготовки', color: '#10b981' },
   { id: 'shop1', title: 'Цех №1 · Термінал', icon: <Tablet />, path: '/shop1', desc: 'Розкрій → Галтовка → Прийомка', color: '#eab308' },
   { id: 'shop2', title: 'Цех №2', icon: <Monitor />, path: '/shop2', desc: 'Черга нарядів', color: '#8b5cf6' },
   { id: 'shop2_terminal', title: 'Цех №2 · Термінал', icon: <Tablet />, path: '/shop2-terminal', desc: 'Пресування → Фарбування → Доопрацювання', color: '#8b5cf6' },
@@ -109,6 +111,7 @@ const getAvailableModules = (currentUser, badgeCount) => {
     if (m.id === 'analytics') return currentUser?.access_rights?.director || currentUser?.access_rights?.master || currentUser?.access_rights?.analytics;
     if (m.id === 'brak') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.director || currentUser?.access_rights?.brak;
     if (m.id === 'reports') return currentUser?.access_rights?.director || currentUser?.access_rights?.reports || currentUser?.position === 'Адмін';
+    if (m.id === 'prep_terminal') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.position?.toLowerCase().includes('вп') || currentUser?.position?.toLowerCase().includes('підготов');
     return currentUser?.access_rights?.[m.id] === true;
   });
 }
@@ -1097,6 +1100,7 @@ const AppContent = () => {
         <Route path="/master" element={<MasterModule />} />
         <Route path="/foreman" element={<ForemanWorkplace />} />
         <Route path="/operator" element={<OperatorTerminal />} />
+        <Route path="/prep-terminal" element={<PreparationTerminal />} />
         <Route path="/shop1" element={<Shop1Terminal />} />
         <Route path="/shop2" element={<Shop2Module />} />
         <Route path="/shop2-terminal" element={<Shop2Terminal />} />

@@ -26,6 +26,31 @@ const DashboardModule = () => {
     }
   }
 
+  const demandData = useMemo(() => {
+    if (!orders || !bomItems) return { globalDemand: {}, productDemand: {} }
+    const activeOrders = orders.filter(o => o.status !== 'completed' && o.status !== 'shipped' && o.status !== 'cancelled')
+    
+    const productDemand = {}
+    activeOrders.forEach(o => {
+      if (o.order_items && o.order_items.length > 0) {
+        o.order_items.forEach(it => {
+          productDemand[it.nomenclature_id] = (productDemand[it.nomenclature_id] || 0) + (Number(it.quantity) || 0)
+        })
+      } else if (o.nomenclature_id) {
+        productDemand[o.nomenclature_id] = (productDemand[o.nomenclature_id] || 0) + (Number(o.quantity) || 0)
+      }
+    })
+    
+    const globalDemand = {}
+    bomItems.forEach(b => {
+      if (productDemand[b.parent_id]) {
+        const qty = Number(b.quantity_per_parent) || 1
+        globalDemand[b.child_id] = (globalDemand[b.child_id] || 0) + (productDemand[b.parent_id] * qty)
+      }
+    })
+    return { globalDemand, productDemand }
+  }, [orders, bomItems])
+
   // Aggregated WIP dashboard data
   const dashboardData = useMemo(() => {
     if (!nomenclatures) return []
@@ -33,11 +58,18 @@ const DashboardModule = () => {
     const filteredNoms = nomenclatures.filter(n => n.type === 'part')
 
     return filteredNoms.map(nom => {
-      // 1. Розкрій (Робота) - status: in-progress or new
+      // 0. Очікують Розкрою - status: new
+      const qCutWait = (workCards || [])
+        .filter(c => String(c.nomenclature_id) === String(nom.id) && 
+                     (c.operation === 'Розкрій' || c.operation === 'Лазерний розкрій') && 
+                     c.status === 'new')
+        .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+
+      // 1. Розкрій (Робота) - status: in-progress
       const qCut = (workCards || [])
         .filter(c => String(c.nomenclature_id) === String(nom.id) && 
                      (c.operation === 'Розкрій' || c.operation === 'Лазерний розкрій') && 
-                     (c.status === 'in-progress' || c.status === 'new'))
+                     c.status === 'in-progress')
         .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
       // 2. Буфер Розкрою - status: at-buffer
@@ -47,11 +79,11 @@ const DashboardModule = () => {
                      c.status === 'at-buffer')
         .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
-      // 3. Галтовка (Робота) - status: in-progress or new
+      // 3. Галтовка (Робота) - status: in-progress
       const qGalt = (workCards || [])
         .filter(c => String(c.nomenclature_id) === String(nom.id) && 
                      c.operation === 'Галтовка' && 
-                     (c.status === 'in-progress' || c.status === 'new'))
+                     c.status === 'in-progress')
         .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
       // 4. Буфер Галтовки - status: at-buffer
@@ -62,16 +94,24 @@ const DashboardModule = () => {
         .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
       // 5. Прийомка (Робота) - status: at-buffer (waiting for sorting)
-      const qPriy = (workCards || [])
+      const qPriyCards = (workCards || [])
         .filter(c => String(c.nomenclature_id) === String(nom.id) && 
-                     c.operation === 'Прийомка')
+                     c.operation === 'Прийомка' &&
+                     c.status !== 'completed')
         .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
-      // 5b. Сортування (Робота) - status: in-progress, at-buffer, or new (not yet sent to Shop 2)
+      const qPriyInv = (inventory || [])
+        .filter(i => String(i.nomenclature_id) === String(nom.id) && 
+                     i.type === 'semi')
+        .reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
+
+      const qPriy = Math.max(qPriyCards, qPriyInv)
+
+      // 5b. Сортування (Робота) - status: in-progress or at-buffer
       const qSortAct = (workCards || [])
         .filter(c => String(c.nomenclature_id) === String(nom.id) && 
                      c.operation === 'Сортування' && 
-                     (c.status === 'in-progress' || c.status === 'at-buffer' || c.status === 'new'))
+                     (c.status === 'in-progress' || c.status === 'at-buffer'))
         .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
       // 6. Буфер Цеху №2 - only cards actually dispatched to Shop 2 buffer
@@ -82,30 +122,58 @@ const DashboardModule = () => {
 
       const qSortInv = (inventory || [])
         .filter(i => String(i.nomenclature_id) === String(nom.id) && 
-                     ['semi', 'semi_shop2'].includes(i.type))
+                     i.type === 'semi_shop2')
         .reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
 
-      const qSort = qSortCards + qSortInv
+      const qSort = Math.max(qSortCards, qSortInv)
 
-      // 7. Малярка (Робота) - status: in-progress or new
+      // 6b. Очікують Малярки - status: new
+      const qMalWait = (workCards || [])
+        .filter(c => String(c.nomenclature_id) === String(nom.id) && 
+                     (c.operation === 'Фарбування' || c.operation === 'Малярка') && 
+                     c.status === 'new')
+        .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+
+      // 7. Малярка (Робота) - status: in-progress
       const qMal = (workCards || [])
         .filter(c => String(c.nomenclature_id) === String(nom.id) && 
                      (c.operation === 'Фарбування' || c.operation === 'Малярка') && 
-                     (c.status === 'in-progress' || c.status === 'new'))
+                     c.status === 'in-progress')
         .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
-      // 8. Пресування (Робота) - status: in-progress or new
+      // 7b. Буфер Малярки - status: at-buffer
+      const qMalBuf = (workCards || [])
+        .filter(c => String(c.nomenclature_id) === String(nom.id) && 
+                     (c.operation === 'Фарбування' || c.operation === 'Малярка') && 
+                     c.status === 'at-buffer')
+        .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+
+      // 8. Пресування (Робота) - status: in-progress
       const qPres = (workCards || [])
         .filter(c => String(c.nomenclature_id) === String(nom.id) && 
                      c.operation === 'Пресування' && 
-                     (c.status === 'in-progress' || c.status === 'new'))
+                     c.status === 'in-progress')
         .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
-      // 9. Доопрацювання (Робота) - status: in-progress, new, or pending
+      // 8b. Буфер Пресування - status: at-buffer
+      const qPresBuf = (workCards || [])
+        .filter(c => String(c.nomenclature_id) === String(nom.id) && 
+                     c.operation === 'Пресування' && 
+                     c.status === 'at-buffer')
+        .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+
+      // 9. Доопрацювання (Робота) - status: in-progress
       const qDoop = (workCards || [])
         .filter(c => String(c.nomenclature_id) === String(nom.id) && 
                      c.operation === 'Доопрацювання' && 
-                     (c.status === 'in-progress' || c.status === 'new' || c.status === 'pending'))
+                     c.status === 'in-progress')
+        .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+
+      // 9b. Буфер Доопрацювання - status: at-buffer
+      const qDoopBuf = (workCards || [])
+        .filter(c => String(c.nomenclature_id) === String(nom.id) && 
+                     c.operation === 'Доопрацювання' && 
+                     c.status === 'at-buffer')
         .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
       // 10. Склад (СГП)
@@ -114,19 +182,20 @@ const DashboardModule = () => {
                      (i.type === 'finished' || i.warehouse === 'sgp'))
         .reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
 
-      // 10b. Склад БЗ
+      // 10b. Склад БЗ (тільки фактичний склад БЗ, wip_bz і bz_shop2 вже враховані в картках в буферах)
       const qBz = (inventory || [])
-        .filter(i => String(i.nomenclature_id) === String(nom.id) && 
-                     ['bz', 'wip_bz', 'bz_shop2'].includes(i.type))
+        .filter(i => String(i.nomenclature_id) === String(nom.id) && i.type === 'bz')
         .reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
 
-      const sum = qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qMal + qPres + qDoop + qSgp + qBz
+      const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qMalWait + qMal + qMalBuf + qPres + qPresBuf + qDoop + qDoopBuf + qSgp + qBz
+      const demand = demandData.globalDemand[nom.id] || 0
 
       return {
         id: nom.id,
         name: nom.name,
         code: nom.code || '',
         type: nom.type,
+        qCutWait,
         qCut,
         qCutBuf,
         qGalt,
@@ -134,15 +203,20 @@ const DashboardModule = () => {
         qPriy,
         qSortAct,
         qSort,
+        qMalWait,
         qMal,
+        qMalBuf,
         qPres,
+        qPresBuf,
         qDoop,
+        qDoopBuf,
         qSgp,
         qBz,
-        sum
+        sum,
+        demand
       }
     })
-  }, [nomenclatures, workCards, inventory])
+  }, [nomenclatures, workCards, inventory, demandData])
 
   // Filter based on search and WIP toggles
   const filteredDashboardData = useMemo(() => {
@@ -153,7 +227,7 @@ const DashboardModule = () => {
       if (!matchesSearch) return false
       if (wipOnly) {
         // WIP only checks if there is any quantity in active stage or buffers
-        const hasWip = (row.qCut + row.qCutBuf + row.qGalt + row.qGaltBuf + row.qPriy + row.qSortAct + row.qSort + row.qMal + row.qPres + row.qDoop) > 0
+        const hasWip = (row.qCutWait + row.qCut + row.qCutBuf + row.qGalt + row.qGaltBuf + row.qPriy + row.qSortAct + row.qSort + row.qMalWait + row.qMal + row.qMalBuf + row.qPres + row.qPresBuf + row.qDoop + row.qDoopBuf) > 0
         return hasWip
       }
       return true
@@ -162,8 +236,9 @@ const DashboardModule = () => {
 
   // Column Totals over all filtered rows
   const totals = useMemo(() => {
-    const res = { qCut: 0, qCutBuf: 0, qGalt: 0, qGaltBuf: 0, qPriy: 0, qSortAct: 0, qSort: 0, qMal: 0, qPres: 0, qDoop: 0, qSgp: 0, qBz: 0, sum: 0 }
+    const res = { qCutWait: 0, qCut: 0, qCutBuf: 0, qGalt: 0, qGaltBuf: 0, qPriy: 0, qSortAct: 0, qSort: 0, qMalWait: 0, qMal: 0, qMalBuf: 0, qPres: 0, qPresBuf: 0, qDoop: 0, qDoopBuf: 0, qSgp: 0, qBz: 0, sum: 0 }
     filteredDashboardData.forEach(row => {
+      res.qCutWait += row.qCutWait
       res.qCut += row.qCut
       res.qCutBuf += row.qCutBuf
       res.qGalt += row.qGalt
@@ -171,9 +246,13 @@ const DashboardModule = () => {
       res.qPriy += row.qPriy
       res.qSortAct += row.qSortAct
       res.qSort += row.qSort
+      res.qMalWait += row.qMalWait
       res.qMal += row.qMal
+      res.qMalBuf += row.qMalBuf
       res.qPres += row.qPres
+      res.qPresBuf += row.qPresBuf
       res.qDoop += row.qDoop
+      res.qDoopBuf += row.qDoopBuf
       res.qSgp += row.qSgp
       res.qBz += row.qBz
       res.sum += row.sum
@@ -315,12 +394,20 @@ const DashboardModule = () => {
         if (!hasWip) return
       }
 
-      // Find if this child belongs to a parent
-      const bomItem = (bomItems || []).find(b => String(b.child_id) === String(row.id))
-      const parentId = bomItem?.parent_id
+      // Find ALL parents this child belongs to
+      const parents = (bomItems || []).filter(b => String(b.child_id) === String(row.id))
+      
+      if (parents.length > 0) {
+        const parentIds = new Set(parents.map(b => String(b.parent_id)))
+        parentIds.forEach(parentId => {
+          if (groups[parentId]) {
+            const bomEntry = parents.find(b => String(b.parent_id) === String(parentId))
+            const qty = bomEntry ? (Number(bomEntry.quantity_per_parent) || 1) : 1
+            const specificDemand = (demandData.productDemand[parentId] || 0) * qty
 
-      if (parentId && groups[parentId]) {
-        groups[parentId].rows.push(row)
+            groups[parentId].rows.push({ ...row, id: row.id + '_' + parentId, demand: specificDemand })
+          }
+        })
       } else {
         groups['other'].rows.push(row)
       }
@@ -328,11 +415,12 @@ const DashboardModule = () => {
 
     // Filter out groups that have no rows
     return Object.values(groups).filter(g => g.rows.length > 0)
-  }, [dashboardData, bomItems, nomenclatures, productTrends, searchQuery, wipOnly])
+  }, [dashboardData, bomItems, nomenclatures, productTrends, searchQuery, wipOnly, demandData])
 
   const getGroupTotals = (rows) => {
-    const res = { qCut: 0, qCutBuf: 0, qGalt: 0, qGaltBuf: 0, qPriy: 0, qSortAct: 0, qSort: 0, qMal: 0, qPres: 0, qDoop: 0, qSgp: 0, qBz: 0, sum: 0 }
+    const res = { qCutWait: 0, qCut: 0, qCutBuf: 0, qGalt: 0, qGaltBuf: 0, qPriy: 0, qSortAct: 0, qSort: 0, qMalWait: 0, qMal: 0, qMalBuf: 0, qPres: 0, qPresBuf: 0, qDoop: 0, qDoopBuf: 0, qSgp: 0, qBz: 0, sum: 0 }
     rows.forEach(row => {
+      res.qCutWait += row.qCutWait
       res.qCut += row.qCut
       res.qCutBuf += row.qCutBuf
       res.qGalt += row.qGalt
@@ -340,9 +428,13 @@ const DashboardModule = () => {
       res.qPriy += row.qPriy
       res.qSortAct += row.qSortAct
       res.qSort += row.qSort
+      res.qMalWait += row.qMalWait
       res.qMal += row.qMal
+      res.qMalBuf += row.qMalBuf
       res.qPres += row.qPres
+      res.qPresBuf += row.qPresBuf
       res.qDoop += row.qDoop
+      res.qDoopBuf += row.qDoopBuf
       res.qSgp += row.qSgp
       res.qBz += row.qBz
       res.sum += row.sum
@@ -350,8 +442,10 @@ const DashboardModule = () => {
     return res
   }
 
-  const renderValue = (val, type = 'normal') => {
-    if (val === 0) {
+  const renderValue = (val, type = 'normal', demand = 0) => {
+    if (!val) val = 0;
+    
+    if (val === 0 && !demand) {
       return <span style={{ color: '#4b5563', fontWeight: 400, opacity: 0.5 }}>0</span>
     }
     let color = '#f3f4f6'
@@ -373,6 +467,11 @@ const DashboardModule = () => {
       border = '1px solid rgba(255, 255, 255, 0.08)'
     }
 
+    let displayVal = val;
+    if (type === 'sum' && demand > 0) {
+      displayVal = `${val} / ${demand}`;
+    }
+
     return (
       <span style={{ 
         fontWeight: 'bold', 
@@ -383,9 +482,10 @@ const DashboardModule = () => {
         borderRadius,
         display: 'inline-block',
         minWidth: '24px',
-        textAlign: 'center'
+        textAlign: 'center',
+        whiteSpace: 'nowrap'
       }}>
-        {val}
+        {displayVal}
       </span>
     )
   }
@@ -542,6 +642,7 @@ const DashboardModule = () => {
                 <tr style={{ background: '#18181b', color: '#a1a1aa', textAlign: 'center', borderBottom: '2px solid #27272a' }}>
                   <th style={{ padding: '14px 18px', textAlign: 'left', fontWeight: 'bold', borderRight: '1px solid #27272a', color: '#f4f4f5' }}>Номенклатура</th>
                   <th style={{ padding: '14px 18px', fontWeight: 'bold', borderRight: '1px solid #27272a', background: 'rgba(255, 144, 0, 0.08)', color: '#ff9000', minWidth: '70px' }}>Сума</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)', color: '#a1a1aa' }}>Очікують Розкрою</th>
                   <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a' }}>Розкрій (Робота)</th>
                   <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)', color: '#a1a1aa' }}>Буфер Розкрою</th>
                   <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a' }}>Галтовка (Робота)</th>
@@ -549,9 +650,13 @@ const DashboardModule = () => {
                   <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a' }}>Прийомка (Робота)</th>
                   <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)', color: '#a1a1aa' }}>Сортування (Робота)</th>
                   <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)', color: '#a1a1aa' }}>Буфер Цеху №2</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)', color: '#a1a1aa' }}>Очікують Малярки</th>
                   <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a' }}>Малярка (Робота)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)', color: '#a1a1aa' }}>Буфер Малярки</th>
                   <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a' }}>Пресування (Робота)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)', color: '#a1a1aa' }}>Буфер Пресування</th>
                   <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a' }}>Доопрацювання (Робота)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)', color: '#a1a1aa' }}>Буфер Доопрацювання</th>
                   <th style={{ padding: '14px 18px', fontWeight: 'bold', borderRight: '1px solid #27272a', background: 'rgba(16, 185, 129, 0.08)', color: '#10b981' }}>Склад (СГП)</th>
                   <th style={{ padding: '14px 18px', fontWeight: 'bold', background: 'rgba(16, 185, 129, 0.08)', color: '#10b981' }}>Склад БЗ</th>
                 </tr>
@@ -559,7 +664,7 @@ const DashboardModule = () => {
               <tbody>
                 {groupedDashboardData.length === 0 ? (
                   <tr>
-                    <td colSpan={14} style={{ padding: '40px', textAlign: 'center', color: '#71717a', fontStyle: 'italic', background: 'transparent' }}>
+                    <td colSpan={19} style={{ padding: '40px', textAlign: 'center', color: '#71717a', fontStyle: 'italic', background: 'transparent' }}>
                       Немає активних деталей за обраними фільтрами
                     </td>
                   </tr>
@@ -571,7 +676,7 @@ const DashboardModule = () => {
                       <React.Fragment key={group.id}>
                         {/* Group Header Row */}
                         <tr style={{ background: '#1c1917', color: '#fff', borderBottom: '2px solid #27272a' }}>
-                          <td colSpan={14} style={{ padding: '14px 18px', textAlign: 'left', fontWeight: 'bold', borderBottom: '1px solid #27272a' }}>
+                          <td colSpan={19} style={{ padding: '14px 18px', textAlign: 'left', fontWeight: 'bold', borderBottom: '1px solid #27272a' }}>
                             <span style={{ color: '#ff9000', marginRight: '8px' }}>📦</span> 
                             {group.name} 
                             {group.code ? ` (${group.code})` : ''}
@@ -591,8 +696,9 @@ const DashboardModule = () => {
                               {row.code && <span style={{ display: 'block', fontSize: '0.72rem', color: '#71717a', fontWeight: 'normal', marginTop: '2px' }}>Код: {row.code}</span>}
                             </td>
                             <td style={{ padding: '12px 18px', textAlign: 'center', background: 'rgba(255, 144, 0, 0.02)', borderRight: '1px solid #27272a', fontWeight: 'bold' }}>
-                              {renderValue(row.sum, 'sum')}
+                              {renderValue(row.sum, 'sum', row.demand)}
                             </td>
+                            <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(row.qCutWait, 'normal')}</td>
                             <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(row.qCut, 'normal')}</td>
                             <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(row.qCutBuf, 'normal')}</td>
                             <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(row.qGalt, 'normal')}</td>
@@ -600,9 +706,13 @@ const DashboardModule = () => {
                             <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(row.qPriy, 'normal')}</td>
                             <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(row.qSortAct, 'normal')}</td>
                             <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(row.qSort, 'normal')}</td>
+                            <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(row.qMalWait, 'normal')}</td>
                             <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(row.qMal, 'normal')}</td>
+                            <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(row.qMalBuf, 'normal')}</td>
                             <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(row.qPres, 'normal')}</td>
+                            <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(row.qPresBuf, 'normal')}</td>
                             <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(row.qDoop, 'normal')}</td>
+                            <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(row.qDoopBuf, 'normal')}</td>
                             <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(16, 185, 129, 0.02)' }}>{renderValue(row.qSgp, 'sgp')}</td>
                             <td style={{ padding: '12px 18px', textAlign: 'center', background: 'rgba(16, 185, 129, 0.02)' }}>{renderValue(row.qBz, 'bz')}</td>
                           </tr>
@@ -616,6 +726,7 @@ const DashboardModule = () => {
                           <td style={{ padding: '12px 18px', textAlign: 'center', background: 'rgba(255, 144, 0, 0.08)', borderRight: '1px solid #27272a', color: '#ff9000' }}>
                             {renderValue(groupTotals.sum, 'sum')}
                           </td>
+                          <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(groupTotals.qCutWait, 'normal')}</td>
                           <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(groupTotals.qCut, 'normal')}</td>
                           <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(groupTotals.qCutBuf, 'normal')}</td>
                           <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(groupTotals.qGalt, 'normal')}</td>
@@ -623,9 +734,13 @@ const DashboardModule = () => {
                           <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(groupTotals.qPriy, 'normal')}</td>
                           <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(groupTotals.qSortAct, 'normal')}</td>
                           <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(groupTotals.qSort, 'normal')}</td>
+                          <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(groupTotals.qMalWait, 'normal')}</td>
                           <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(groupTotals.qMal, 'normal')}</td>
+                          <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(groupTotals.qMalBuf, 'normal')}</td>
                           <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(groupTotals.qPres, 'normal')}</td>
+                          <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(groupTotals.qPresBuf, 'normal')}</td>
                           <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(groupTotals.qDoop, 'normal')}</td>
+                          <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(groupTotals.qDoopBuf, 'normal')}</td>
                           <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(16, 185, 129, 0.08)', color: '#10b981' }}>{renderValue(groupTotals.qSgp, 'sgp')}</td>
                           <td style={{ padding: '12px 18px', textAlign: 'center', background: 'rgba(16, 185, 129, 0.08)', color: '#10b981' }}>{renderValue(groupTotals.qBz, 'bz')}</td>
                         </tr>
@@ -641,6 +756,7 @@ const DashboardModule = () => {
                     <td style={{ padding: '14px 18px', textAlign: 'center', background: 'rgba(255, 144, 0, 0.12)', borderRight: '1px solid #27272a', color: '#ff9000' }}>
                       {renderValue(totals.sum, 'sum')}
                     </td>
+                    <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.02)' }}>{renderValue(totals.qCutWait, 'normal')}</td>
                     <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(totals.qCut, 'normal')}</td>
                     <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.02)' }}>{renderValue(totals.qCutBuf, 'normal')}</td>
                     <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(totals.qGalt, 'normal')}</td>
@@ -648,9 +764,13 @@ const DashboardModule = () => {
                     <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(totals.qPriy, 'normal')}</td>
                     <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.02)' }}>{renderValue(totals.qSortAct, 'normal')}</td>
                     <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.02)' }}>{renderValue(totals.qSort, 'normal')}</td>
+                    <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.02)' }}>{renderValue(totals.qMalWait, 'normal')}</td>
                     <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(totals.qMal, 'normal')}</td>
+                    <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.02)' }}>{renderValue(totals.qMalBuf, 'normal')}</td>
                     <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(totals.qPres, 'normal')}</td>
+                    <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.02)' }}>{renderValue(totals.qPresBuf, 'normal')}</td>
                     <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(totals.qDoop, 'normal')}</td>
+                    <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.02)' }}>{renderValue(totals.qDoopBuf, 'normal')}</td>
                     <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(16, 185, 129, 0.12)', color: '#10b981' }}>{renderValue(totals.qSgp, 'sgp')}</td>
                     <td style={{ padding: '14px 18px', textAlign: 'center', background: 'rgba(16, 185, 129, 0.12)', color: '#10b981' }}>{renderValue(totals.qBz, 'bz')}</td>
                   </tr>

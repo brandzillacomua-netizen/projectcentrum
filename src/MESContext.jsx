@@ -85,7 +85,7 @@ export const MESProvider = ({ children }) => {
     .filter(u => {
       if (!u.position) return false
       const pos = u.position.toLowerCase()
-      return ['оператор', 'галтовщик', 'пресов', 'пресув', 'маляр', 'слюсар', 'чистил', 'працівник', 'вкя', 'якост'].some(kw => pos.includes(kw))
+      return ['оператор', 'галтовщик', 'пресов', 'пресув', 'маляр', 'слюсар', 'чистил', 'працівник', 'вкя', 'якост', 'підготов'].some(kw => pos.includes(kw))
     })
     .map(formatUserName)
     .filter(Boolean)
@@ -145,27 +145,42 @@ export const MESProvider = ({ children }) => {
         sortDept.forEach(u => { if (!merged.find(m => m.id === u.id)) merged.push(u) })
         list = merged
       } else if (stageLower === 'доопрацювання') {
+        const doopDept = (data.systemUsers || []).filter(u => {
+          if (shift && shift !== 'Без зміни') {
+            if (u.shift !== shift && u.shift !== 'Без зміни') return false
+          }
+          return u.department === 'Доопрацювання' || u.department === 'Відділ Доопрацювання'
+        })
         list = list.filter(u => {
           if (!u.position) return false
           const pos = u.position.toLowerCase()
-          return pos.includes('чистил') || pos.includes('слюсар')
+          return pos.includes('слюсар') || pos.includes('майстер') || pos.includes('доопрац')
         })
+        const merged = [...list]
+        doopDept.forEach(u => { if (!merged.find(m => m.id === u.id)) merged.push(u) })
+        list = merged
       } else if (stageLower === 'фарбування') {
         list = list.filter(u => u.position && u.position.toLowerCase().includes('маляр'))
       } else if (stageLower === 'пресування') {
         list = list.filter(u => u.position && (u.position.toLowerCase().includes('прес') || u.position.toLowerCase().includes('пресув')))
+      } else if (stageLower === 'підготовка') {
+        list = list.filter(u => u.position && (
+          u.position.toLowerCase().includes('працівник вп') || 
+          u.position.toLowerCase().includes('підготов') ||
+          u.department === 'Відділ Підготовки'
+        ))
       } else {
         list = list.filter(u => {
           if (!u.position) return false
           const pos = u.position.toLowerCase()
-          return ['оператор', 'галтовщик', 'пресов', 'пресув', 'маляр', 'слюсар', 'чистил', 'працівник', 'вкя', 'якост'].some(kw => pos.includes(kw))
+          return ['оператор', 'галтовщик', 'пресов', 'пресув', 'маляр', 'слюсар', 'чистил', 'працівник', 'вкя', 'якост', 'підготов'].some(kw => pos.includes(kw))
         })
       }
     } else {
       list = list.filter(u => {
         if (!u.position) return false
         const pos = u.position.toLowerCase()
-        return ['оператор', 'галтовщик', 'пресов', 'пресув', 'маляр', 'слюсар', 'чистил', 'працівник', 'вкя', 'якост'].some(kw => pos.includes(kw))
+        return ['оператор', 'галтовщик', 'пресов', 'преsuв', 'маляр', 'слюсар', 'чистил', 'працівник', 'вкя', 'якост', 'підготов'].map(kw => kw === 'преsuв' ? 'пресув' : kw).some(kw => pos.includes(kw))
       })
     }
 
@@ -201,7 +216,7 @@ export const MESProvider = ({ children }) => {
     })
     .map(formatUserName)
     .filter(Boolean)
-  const productionStages = ["Розкрій", "Галтовка", "Пресування", "Фарбування", "Паквання"]
+  const productionStages = ["Підготовка", "Розкрій", "Галтовка", "Пресування", "Фарбування", "Паквання"]
 
   return (
     <MESContext.Provider value={{

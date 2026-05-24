@@ -34,51 +34,66 @@ const ReportsModule = () => {
   } = useMES()
 
   const [activeTab, setActiveTab] = useState('warehouse')
-  const [dateRange, setDateRange] = useState('all') // all, month, week, today
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [workCardHistory, setWorkCardHistory] = useState(initialHistory)
   const [isSyncing, setIsSyncing] = useState(false)
 
-  // Функція для завантаження даних за період (ОПТИМІЗАЦІЯ ДЛЯ 10к-20к записів)
-  const syncHistory = async (range) => {
+  // Функція для завантаження даних за період
+  const syncHistory = async (startStr, endStr) => {
     setIsSyncing(true)
-    let start = null
-    const now = new Date()
-    if (range === 'today') start = new Date(now.setHours(0,0,0,0)).toISOString()
-    if (range === 'week') start = new Date(now.setDate(now.getDate() - 7)).toISOString()
-    if (range === 'month') start = new Date(now.setMonth(now.getMonth() - 1)).toISOString()
+    let startIso = null
+    let endIso = null
     
-    const data = await fetchHistoryRange(start, null)
+    if (startStr) {
+      const d = new Date(startStr)
+      d.setHours(0,0,0,0)
+      startIso = d.toISOString()
+    } else {
+      // Default to 1 month ago if no start date to avoid fetching everything
+      const d = new Date()
+      d.setMonth(d.getMonth() - 1)
+      startIso = d.toISOString()
+    }
+    
+    if (endStr) {
+      const d = new Date(endStr)
+      d.setHours(23,59,59,999)
+      endIso = d.toISOString()
+    }
+    
+    const data = await fetchHistoryRange(startIso, endIso)
     setWorkCardHistory(data)
     setIsSyncing(false)
   }
 
   // Слідкуємо за зміною періоду
   React.useEffect(() => {
-    if (dateRange !== 'all') {
-      syncHistory(dateRange)
+    if (startDate || endDate) {
+      syncHistory(startDate, endDate)
     } else {
       setWorkCardHistory(initialHistory)
     }
-  }, [dateRange, initialHistory])
+  }, [startDate, endDate, initialHistory])
 
   // Date Filtering Logic
   const filterByDate = (dateString) => {
-    if (dateRange === 'all') return true;
+    if (!startDate && !endDate) return true;
     if (!dateString) return false;
     const d = new Date(dateString);
-    const now = new Date();
-    if (dateRange === 'today') {
-      return d.toDateString() === now.toDateString();
+    
+    if (startDate) {
+      const s = new Date(startDate)
+      s.setHours(0,0,0,0)
+      if (d < s) return false;
     }
-    if (dateRange === 'week') {
-      const pastWeek = new Date(now.setDate(now.getDate() - 7));
-      return d >= pastWeek;
+    if (endDate) {
+      const e = new Date(endDate)
+      e.setHours(23,59,59,999)
+      if (d > e) return false;
     }
-    if (dateRange === 'month') {
-      const pastMonth = new Date(now.setMonth(now.getMonth() - 1));
-      return d >= pastMonth;
-    }
+    
     return true;
   }
 
@@ -260,7 +275,7 @@ const ReportsModule = () => {
     return Object.values(stats)
       .filter(s => s.operations > 0 || (searchQuery && s.name.toLowerCase().includes(searchQuery.toLowerCase())))
       .sort((a, b) => b.produced - a.produced);
-  }, [systemUsers, workCardHistory, dateRange, searchQuery])
+  }, [systemUsers, workCardHistory, startDate, endDate, searchQuery])
 
   // 3. Scrap Report
   const scrapStats = useMemo(() => {
@@ -284,7 +299,7 @@ const ReportsModule = () => {
     }, {});
 
     return { list, totalScrap, byStage };
-  }, [workCardHistory, nomenclatures, dateRange, searchQuery])
+  }, [workCardHistory, nomenclatures, startDate, endDate, searchQuery])
 
   // 4. General Analytics
   const generalStats = useMemo(() => {
@@ -306,7 +321,7 @@ const ReportsModule = () => {
       totalSets,
       producedParts
     };
-  }, [tasks, orders, workCardHistory, dateRange])
+  }, [tasks, orders, workCardHistory, startDate, endDate])
 
   const parseMaterialName = (details) => {
     if (!details) return ''
@@ -357,7 +372,100 @@ const ReportsModule = () => {
     return Object.values(stats)
       .filter(s => (s.supplied > 0 || s.used > 0) && (!searchQuery || s.name.toLowerCase().includes(searchQuery.toLowerCase())))
       .sort((a, b) => b.supplied - a.supplied);
-  }, [receptionDocs, requests, inventory, nomenclatures, dateRange, searchQuery])
+  }, [receptionDocs, requests, inventory, nomenclatures, startDate, endDate, searchQuery])
+
+  // 6. Sheets Movement Report
+  const sheetsStats = useMemo(() => {
+    const stats = {};
+
+    const getBaseName = (name) => name.replace(/\[(Непідготовлений|Підготовлений)\]/i, '').trim();
+
+    nomenclatures.filter(n => n.type === 'raw' || n.name.toLowerCase().includes('лист') || n.name.toLowerCase().includes('карбон')).forEach(n => {
+      const baseName = getBaseName(n.name);
+      if (!stats[baseName]) {
+        stats[baseName] = {
+          name: baseName,
+          in_prep: 0,
+          prepared: 0,
+          supplied: 0,
+          used: 0,
+          scrap: 0,
+          actual: 0,
+          reserved: 0
+        };
+      }
+    });
+
+    // На підготуванні
+    tasks.filter(t => t.step === 'Підготовка' && t.status !== 'completed' && filterByDate(t.created_at)).forEach(t => {
+      if (t.plan_snapshot) {
+        let snapshot = t.plan_snapshot;
+        if (typeof snapshot === 'string') {
+          try { snapshot = JSON.parse(snapshot); } catch (e) { snapshot = []; }
+        }
+        if (Array.isArray(snapshot)) {
+          snapshot.forEach(item => {
+            const bName = getBaseName(item.name || item.nom_name || '');
+            if (stats[bName]) {
+              stats[bName].in_prep += Number(item.qty || item.quantity || item.needed || 0);
+            }
+          });
+        }
+      }
+    });
+
+    (receptionDocs || []).filter(d => (d.status === 'completed' || d.status === 'shipped') && filterByDate(d.created_at)).forEach(doc => {
+      (doc.items || []).forEach(item => {
+        const nom = nomenclatures.find(n => String(n.id) === String(item.nomenclature_id));
+        if (nom) {
+          const bName = getBaseName(nom.name);
+          if (stats[bName]) {
+            if (doc.task_id && nom.name.includes('[Підготовлений]')) {
+              stats[bName].prepared += Number(item.qty || item.quantity || item.needed || 0);
+            } else if (!doc.source_warehouse) {
+              stats[bName].supplied += Number(item.qty || item.quantity || item.needed || 0);
+            }
+          }
+        }
+      });
+    });
+
+    workCardHistory.filter(h => filterByDate(h.completed_at)).forEach(h => {
+      const nom = nomenclatures.find(n => String(n.id) === String(h.nomenclature_id));
+      if (nom) {
+        const bName = getBaseName(nom.name);
+        if (stats[bName]) {
+          stats[bName].scrap += Number(h.scrap_qty || 0);
+        }
+      }
+    });
+
+    (requests || []).filter(r => (r.status === 'issued' || r.status === 'completed') && filterByDate(r.created_at)).forEach(r => {
+      const nom = nomenclatures.find(n => String(n.id) === String(r.nomenclature_id));
+      if (nom) {
+        const bName = getBaseName(nom.name);
+        if (stats[bName]) {
+          stats[bName].used += Number(r.quantity || 0);
+        }
+      }
+    });
+
+    (inventory || []).filter(i => i.warehouse === 'operational').forEach(i => {
+      const nom = nomenclatures.find(n => String(n.id) === String(i.nomenclature_id));
+      if (nom) {
+        const bName = getBaseName(nom.name);
+        if (stats[bName]) {
+          stats[bName].actual += Number(i.total_qty || 0);
+          stats[bName].reserved += Number(i.reserved_qty || 0);
+        }
+      }
+    });
+
+    return Object.values(stats)
+      .filter(s => (s.supplied > 0 || s.used > 0 || s.prepared > 0 || s.scrap > 0 || s.actual > 0 || s.in_prep > 0) && (!searchQuery || s.name.toLowerCase().includes(searchQuery.toLowerCase())))
+      .sort((a, b) => b.supplied + b.prepared - a.supplied - a.prepared);
+
+  }, [receptionDocs, requests, workCardHistory, inventory, nomenclatures, tasks, startDate, endDate, searchQuery]);
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -675,6 +783,65 @@ const ReportsModule = () => {
           </div>
         );
 
+      case 'sheets':
+        return (
+          <div className="glass-panel" style={{ background: '#09090b', padding: '30px', borderRadius: '24px', border: '1px solid #27272a', boxShadow: '0 20px 40px rgba(0,0,0,0.4)' }}>
+            <h3 style={{ margin: '0 0 25px', color: '#10b981', fontSize: '1.4rem', display: 'flex', alignItems: 'center', gap: '12px', textTransform: 'uppercase', fontWeight: 950, letterSpacing: '0.5px' }}>
+              <PackageCheck size={24} color="#10b981" /> ДАШБОРД РУХУ ЛИСТІВ (МАТЕРІАЛІВ)
+            </h3>
+            
+            <div style={{ overflowX: 'auto', borderRadius: '16px', border: '1px solid #27272a', background: '#09090b' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ background: '#18181b', color: '#a1a1aa', textAlign: 'left', borderBottom: '2px solid #27272a' }}>
+                    <th style={{ padding: '16px 20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Матеріал (Номенклатура)</th>
+                    <th style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#8b5cf6' }}>На підготуванні</th>
+                    <th style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#3b82f6' }}>Підготовлено</th>
+                    <th style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#10b981' }}>Передано на СО</th>
+                    <th style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#f59e0b' }}>Витрачено</th>
+                    <th style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#ef4444' }}>Брак</th>
+                    <th style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', background: 'rgba(16, 185, 129, 0.08)', color: '#10b981' }}>Фактично на СО</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sheetsStats.map((stat, idx) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid #1a1a1a', background: 'transparent', transition: '0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#18181b'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                      <td style={{ padding: '16px 20px', fontWeight: 900, color: '#f4f4f5', fontSize: '0.95rem' }}>{stat.name}</td>
+                      <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                        {stat.in_prep > 0 ? <span style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#8b5cf6', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.in_prep}</span> : <span style={{ color: '#3f3f46' }}>0</span>}
+                      </td>
+                      <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                        {stat.prepared > 0 ? <span style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.prepared}</span> : <span style={{ color: '#3f3f46' }}>0</span>}
+                      </td>
+                      <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                        {stat.supplied > 0 ? <span style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.supplied}</span> : <span style={{ color: '#3f3f46' }}>0</span>}
+                      </td>
+                      <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                        {stat.used > 0 ? <span style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.used}</span> : <span style={{ color: '#3f3f46' }}>0</span>}
+                      </td>
+                      <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                        {stat.scrap > 0 ? <span style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.scrap}</span> : <span style={{ color: '#3f3f46' }}>0</span>}
+                      </td>
+                      <td style={{ padding: '16px 20px', textAlign: 'center', background: 'rgba(16, 185, 129, 0.02)' }}>
+                        <span style={{ background: 'rgba(16, 185, 129, 0.2)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#10b981', padding: '6px 14px', borderRadius: '10px', fontWeight: 950, fontSize: '1.05rem' }}>
+                          {Math.max(0, stat.actual - stat.reserved)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {sheetsStats.length === 0 && (
+                    <tr>
+                      <td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: '#71717a', fontSize: '0.9rem' }}>
+                        Немає даних за обраний період або пошуковий запит
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+
       case 'analytics':
         return (
           <div className="analytics-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
@@ -744,6 +911,9 @@ const ReportsModule = () => {
             <button onClick={() => setActiveTab('supplies')} className={`report-tab ${activeTab === 'supplies' ? 'active' : ''}`} style={tabStyle(activeTab === 'supplies')}>
               <Truck size={16} /> ПОСТАВКИ
             </button>
+            <button onClick={() => setActiveTab('sheets')} className={`report-tab ${activeTab === 'sheets' ? 'active' : ''}`} style={tabStyle(activeTab === 'sheets')}>
+              <PackageCheck size={16} /> ЛИСТИ
+            </button>
             <button onClick={() => setActiveTab('analytics')} className={`report-tab ${activeTab === 'analytics' ? 'active' : ''}`} style={tabStyle(activeTab === 'analytics')}>
               <TrendingUp size={16} /> АНАЛІТИКА
             </button>
@@ -762,17 +932,33 @@ const ReportsModule = () => {
             </div>
             {/* Date Range */}
             {activeTab !== 'warehouse' && (
-              <div style={{ display: 'flex', background: '#0a0a0a', borderRadius: '10px', border: '1px solid #222', overflow: 'hidden' }}>
-                <select 
-                  value={dateRange} 
-                  onChange={(e) => setDateRange(e.target.value)}
-                  style={{ background: 'transparent', border: 'none', color: '#fff', padding: '10px 15px', fontSize: '0.85rem', outline: 'none', cursor: 'pointer' }}
-                >
-                  <option value="all">За весь час</option>
-                  <option value="month">За місяць</option>
-                  <option value="week">За тиждень</option>
-                  <option value="today">Сьогодні</option>
-                </select>
+              <div style={{ display: 'flex', alignItems: 'center', background: '#0a0a0a', borderRadius: '10px', border: '1px solid #222', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', padding: '0 15px', borderRight: '1px solid #222' }}>
+                  <Calendar size={14} color="#888" style={{ marginRight: '8px' }} />
+                  <span style={{ fontSize: '0.75rem', color: '#666', textTransform: 'uppercase', fontWeight: 800 }}>Період:</span>
+                </div>
+                <input 
+                  type="date" 
+                  value={startDate} 
+                  onChange={(e) => setStartDate(e.target.value)}
+                  style={{ background: 'transparent', border: 'none', color: startDate ? '#fff' : '#555', padding: '10px 15px', fontSize: '0.85rem', outline: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+                />
+                <span style={{ color: '#555' }}>—</span>
+                <input 
+                  type="date" 
+                  value={endDate} 
+                  onChange={(e) => setEndDate(e.target.value)}
+                  style={{ background: 'transparent', border: 'none', color: endDate ? '#fff' : '#555', padding: '10px 15px', fontSize: '0.85rem', outline: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+                />
+                {(startDate || endDate) && (
+                  <button 
+                    onClick={() => { setStartDate(''); setEndDate(''); }}
+                    style={{ background: 'transparent', border: 'none', padding: '10px 15px', cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#ef4444', borderLeft: '1px solid #222' }}
+                    title="Очистити період"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
               </div>
             )}
           </div>

@@ -5,13 +5,14 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 async function inspect() {
-  const { data, error } = await supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(5)
+  const { data, error } = await supabase.from('reception_docs').select('*').limit(1)
   if (error) {
-    console.error(error)
-    return
+    console.error('Error:', error)
+  } else if (data && data.length > 0) {
+    console.log('Columns in reception_docs:', Object.keys(data[0]))
+  } else {
+    console.log('No reception docs found.')
   }
-  console.log('Last 5 reception docs:')
-  console.dir(data, { depth: null })
 }
 
 inspect()

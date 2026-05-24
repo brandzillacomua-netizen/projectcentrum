@@ -4,14 +4,20 @@ const supabaseUrl = 'https://hurzutjytlcvtbvihnry.supabase.co'
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1cnp1dGp5dGxjdnRidmlobnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMjc4NzksImV4cCI6MjA4OTYwMzg3OX0.0GETYIfUpEDVcpcMoZcAe3dLXtiafNNE1eegbbK1XUI'
 const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-async function inspect() {
-  const { data, error } = await supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(5)
+async function run() {
+  const { data: types, error } = await supabase
+    .from('nomenclature_types')
+    .select('*')
+    
   if (error) {
-    console.error(error)
+    console.error('Error fetching nomenclature_types:', error)
     return
   }
-  console.log('Last 5 reception docs:')
-  console.dir(data, { depth: null })
+  
+  console.log("Nomenclature types in database:")
+  types.forEach(t => {
+    console.log(`- ID: ${t.id}, Name: "${t.name}"`)
+  })
 }
 
-inspect()
+run()

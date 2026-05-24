@@ -131,9 +131,14 @@ export const apiService = {
     console.log("JSON Payload:", payload);
     const results = [];
     if (typeof fallback === 'function') {
-      for (const c of cardsArray) {
-        const res = await fallback(taskId, orderId, nomenclatureId, c.operation, c.machine, c.estimatedTime, c.cardInfo, c.quantity, c.bufferQty);
-        if (res) results.push(res);
+      if (fallback.name === 'createWorkCardsBatch' || fallback.length === 4) {
+        const res = await fallback(taskId, orderId, nomenclatureId, cardsArray);
+        if (res) return Array.isArray(res) ? res : [res];
+      } else {
+        for (const c of cardsArray) {
+          const res = await fallback(taskId, orderId, nomenclatureId, c.operation, c.machine, c.estimatedTime, c.cardInfo, c.quantity, c.bufferQty);
+          if (res) results.push(res);
+        }
       }
     }
     return results;

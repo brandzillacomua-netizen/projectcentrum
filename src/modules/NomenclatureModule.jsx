@@ -116,10 +116,24 @@ const NomenclatureModule = () => {
     if (lines.length === 0) return null
 
     // 1. Отримуємо Назву виробу (перший рядок)
-    const firstLine = lines[0].replace(/^"Специфікація\s+""/, '').replace(/"""?,.*$/, '').trim()
+    let specName = "Нова специфікація";
+    const firstLineMatch = lines[0].match(/Специфікація\s+(.*)/i);
+    if (firstLineMatch) {
+      let content = firstLineMatch[1].trim();
+      content = content.replace(/,+$/, '').trim();
+      while (content.startsWith('"') || content.endsWith('"')) {
+        if (content.startsWith('"')) content = content.substring(1);
+        if (content.endsWith('"')) content = content.slice(0, -1);
+        content = content.trim();
+      }
+      content = content.replace(/""/g, '"');
+      if (content) {
+        specName = content;
+      }
+    }
     
     const result = {
-      productName: firstLine,
+      productName: specName,
       components: []
     }
 
@@ -185,7 +199,52 @@ const NomenclatureModule = () => {
           
           setImportLogs(prev => [...prev, `🔍 Обробка: ${fullName}...`])
           
-          let materialType = comp.category === 'structural' && comp.thickness ? `Лист T300 (${comp.thickness}мм)` : comp.characteristics || ''
+          let materialType = comp.category === 'structural' && comp.thickness ? `Лист Т300 (${comp.thickness}мм)` : comp.characteristics || ''
+          
+          if (comp.category === 'structural' && comp.thickness) {
+            const thickStr = `${comp.thickness}мм`;
+            const rawName = `Лист Т300 (${thickStr}) [Непідготовлений]`;
+            const prepName = `Лист Т300 (${thickStr}) [Підготовлений]`;
+
+            // Check if raw sheet exists
+            let rawNom = nomenclatures.find(n => n.name === rawName);
+            if (!rawNom) {
+              const { data: rawData, error: rawErr } = await supabase.from('nomenclatures').insert([{
+                name: rawName,
+                material_type: thickStr,
+                type: 'raw'
+              }]).select().single();
+              if (!rawErr && rawData) {
+                rawNom = rawData;
+                nomenclatures.push(rawData); // Update local cache
+              }
+            }
+
+            // Check if prep sheet exists
+            let prepNom = nomenclatures.find(n => n.name === prepName);
+            if (!prepNom) {
+              const { data: prepData, error: prepErr } = await supabase.from('nomenclatures').insert([{
+                name: prepName,
+                material_type: thickStr,
+                type: 'raw'
+              }]).select().single();
+              if (!prepErr && prepData) {
+                prepNom = prepData;
+                nomenclatures.push(prepData); // Update local cache
+              }
+            }
+
+            // Link them in bom_items
+            if (rawNom && prepNom) {
+              await supabase.from('bom_items').delete().eq('parent_id', prepNom.id);
+              await supabase.from('bom_items').insert([{
+                parent_id: prepNom.id,
+                child_id: rawNom.id,
+                quantity_per_parent: 1
+              }]);
+            }
+          }
+
           const payload = {
             name: fullName,
             type: comp.category === 'structural' ? 'part' : 'hardware',
@@ -215,8 +274,20 @@ const NomenclatureModule = () => {
 
         if (pData && pData[0]) {
           const parentId = pData[0].id
+          
+          // АГРЕГУЄМО BOM ДЛЯ УНИКНЕННЯ 409 (CONFLICT) при одинакових child_id
+          const aggregatedBOM = [];
+          createdBOM.forEach(item => {
+            const existing = aggregatedBOM.find(it => it.child_id === item.child_id);
+            if (existing) {
+              existing.qty += item.qty;
+            } else {
+              aggregatedBOM.push({ ...item });
+            }
+          });
+
           setImportLogs(prev => [...prev, `🔗 Формування специфікації BOM...`])
-          await syncBOM(parentId, createdBOM)
+          await syncBOM(parentId, aggregatedBOM)
           setImportLogs(prev => [...prev, `✅ ІМПОРТ ЗАВЕРШЕНО УСПІШНО!`, `🎉 Виріб готовий до використання.`])
         }
         

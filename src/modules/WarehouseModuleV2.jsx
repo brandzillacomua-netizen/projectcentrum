@@ -51,6 +51,15 @@ const WarehouseModuleV2 = () => {
     return details.split(': ')[1]?.split(' — ')[0]?.trim() || details
   }
 
+  const isPrepRequest = (r) => {
+    if (r.details && (r.details.includes('ПІДГОТОВ') || r.details.includes('ЗАПИТ НА ПІДГОТОВКУ'))) return true
+    if (r.task_id) {
+      const task = (tasks || []).find(t => t.id === r.task_id)
+      if (task && task.step === 'Підготовка') return true
+    }
+    return false
+  }
+
   const [activeTab, setActiveTab] = useState('raw')
   const [showAdd, setShowAdd] = useState(false)
   const [showReception, setShowReception] = useState(false)
@@ -65,7 +74,17 @@ const WarehouseModuleV2 = () => {
   const getMaterialType = (r) => {
     const parsedName = parseMaterialName(r.details)
     const nameLower = parsedName.toLowerCase()
-    const invItem = (inventory || []).find(i => (i.id === r.inventory_id || (parsedName && normalize(i.name) === normalize(parsedName))))
+    const invItem = (inventory || []).find(i => {
+      if (i.id === r.inventory_id) return true
+      if (r.nomenclature_id && String(i.nomenclature_id) === String(r.nomenclature_id)) return true
+      if (parsedName) {
+        const normName = normalize(i.name)
+        const normParsed = normalize(parsedName)
+        if (normName === normParsed) return true
+        if (normName.includes('[підготовлений]') && normName.replace(' [підготовлений]', '').replace('[підготовлений]', '').trim() === normParsed) return true
+      }
+      return false
+    })
     const nom = (nomenclatures || []).find(n => n.id === r.nomenclature_id)
     const normName = normalize(nameLower)
     
@@ -100,6 +119,7 @@ const WarehouseModuleV2 = () => {
           const task = tasks.find(t => t.id === r.task_id)
           if (!task || task.warehouse_conf) return false
         }
+        if (isPrepRequest(r)) return false
         return getMaterialType(r) === tabId
       })
       const uniqueDocs = new Set(filtered.map(r => r.task_id || `order-${r.order_id}`))
@@ -140,6 +160,7 @@ const WarehouseModuleV2 = () => {
       const task = tasks.find(t => t.id === r.task_id)
       if (!task || task.warehouse_conf) return false
     }
+    if (isPrepRequest(r)) return false
     return getMaterialType(r) === activeTab
   })
 
@@ -164,11 +185,17 @@ const WarehouseModuleV2 = () => {
       // EXCLUSION: If it's a finished product (IP- prefix or type 'finished'), 
       // the Operational Warehouse doesn't handle its kitting.
       const nameLower = parsedName.toLowerCase()
-      const matching = (inventory || []).filter(i =>
-        (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) ||
-        (i.id === req.inventory_id) ||
-        (parsedName && normalize(i.name) === normalize(parsedName))
-      )
+      const matching = (inventory || []).filter(i => {
+        if (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) return true
+        if (i.id === req.inventory_id) return true
+        if (parsedName) {
+          const normName = normalize(i.name)
+          const normParsed = normalize(parsedName)
+          if (normName === normParsed) return true
+          if (normName.includes('[підготовлений]') && normName.replace(' [підготовлений]', '').replace('[підготовлений]', '').trim() === normParsed) return true
+        }
+        return false
+      })
       
       const isSgp = nameLower.startsWith('іп-') || matching.some(i => i.type === 'finished' || i.type === 'semi')
       if (isSgp) return
@@ -178,10 +205,16 @@ const WarehouseModuleV2 = () => {
       const invItem = operationalItems[0] || matching[0]
       
       // Calculate Global Availability for context
-      const globalAvailable = (inventory || []).filter(i => 
-        (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) ||
-        (parsedName && normalize(i.name) === normalize(parsedName))
-      ).reduce((acc, i) => acc + (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0), 0)
+      const globalAvailable = (inventory || []).filter(i => {
+        if (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) return true
+        if (parsedName) {
+          const normName = normalize(i.name)
+          const normParsed = normalize(parsedName)
+          if (normName === normParsed) return true
+          if (normName.includes('[підготовлений]') && normName.replace(' [підготовлений]', '').replace('[підготовлений]', '').trim() === normParsed) return true
+        }
+        return false
+      }).reduce((acc, i) => acc + (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0), 0)
 
       const needed = Number(req.quantity)
       if (available < needed) {
@@ -266,15 +299,51 @@ const WarehouseModuleV2 = () => {
     try {
       await apiService.submitInventory(newItem, async (data) => {
         const { supabase } = await import('../supabase')
-        await supabase.from('inventory').insert([{
-          name: data.name,
-          unit: data.unit,
-          total_qty: Number(data.total_qty) || 0,
-          type: data.type || 'raw'
-        }])
+        
+        const normInput = normalize(data.name)
+        const matchedNom = nomenclatures.find(n => {
+          const fullName = `${n.name}${n.material_type ? ` (${n.material_type})` : ''}`
+          return normalize(fullName) === normInput || normalize(n.name) === normInput
+        })
+
+        const itemType = matchedNom ? (matchedNom.type || 'raw') : (data.type || 'raw')
+        const targetNomId = matchedNom ? matchedNom.id : null
+        const targetName = matchedNom ? `${matchedNom.name}${matchedNom.material_type ? ` (${matchedNom.material_type})` : ''}` : data.name
+
+        // Check if item already exists in operational warehouse
+        const existing = (inventory || []).find(i => 
+          i.warehouse === 'operational' &&
+          i.type === itemType &&
+          (
+            (targetNomId && i.nomenclature_id === targetNomId) ||
+            (!targetNomId && normalize(i.name) === normInput)
+          )
+        )
+
+        if (existing) {
+          await supabase.from('inventory')
+            .update({
+              total_qty: (Number(existing.total_qty) || 0) + (Number(data.total_qty) || 0),
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', existing.id)
+        } else {
+          await supabase.from('inventory').insert([{
+            nomenclature_id: targetNomId,
+            name: targetName,
+            unit: data.unit || matchedNom?.unit || 'шт',
+            total_qty: Number(data.total_qty) || 0,
+            reserved_qty: 0,
+            type: itemType,
+            warehouse: 'operational'
+          }])
+        }
       })
       setShowAdd(false)
       setNewItem({ name: '', unit: 'шт', total_qty: '', type: activeTab })
+      if (typeof fetchModuleData === 'function') fetchModuleData('warehouse')
+    } catch (err) {
+      alert('Помилка: ' + err.message)
     } finally {
       setIsProcessing(false)
     }
@@ -334,10 +403,18 @@ const WarehouseModuleV2 = () => {
                   const parsedName = parseMaterialName(req.details)
                   const nameLower = parsedName.toLowerCase()
                   
-                  const matchingInv = (inventory || []).filter(i => 
-                    (i.warehouse === 'operational' || !i.warehouse) && 
-                    (i.id === req.inventory_id || (parsedName && normalize(i.name) === normalize(parsedName)))
-                  )
+                  const matchingInv = (inventory || []).filter(i => {
+                    if (i.warehouse !== 'operational' && i.warehouse) return false
+                    if (i.id === req.inventory_id) return true
+                    if (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) return true
+                    if (parsedName) {
+                      const normName = normalize(i.name)
+                      const normParsed = normalize(parsedName)
+                      if (normName === normParsed) return true
+                      if (normName.includes('[підготовлений]') && normName.replace(' [підготовлений]', '').replace('[підготовлений]', '').trim() === normParsed) return true
+                    }
+                    return false
+                  })
                   
                   const totalOnWh = matchingInv.reduce((sum, i) => sum + (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0), 0)
                   

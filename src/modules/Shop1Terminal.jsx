@@ -70,6 +70,7 @@ export default function Shop1Terminal() {
   const [showCompleteModal, setShowCompleteModal] = useState(false)
   const [finalOperator, setFinalOperator] = useState('')
   const [scrapCount, setScrapCount] = useState(0)
+  const [reworkCount, setReworkCount] = useState(0)
   const [cuttersUsed, setCuttersUsed] = useState(0)
   const [galtPriority, setGaltPriority] = useState(2)
 
@@ -402,6 +403,7 @@ export default function Shop1Terminal() {
 
     setFinalOperator('')
     setScrapCount(0)
+    setReworkCount(0)
     setQcScrapCount(0)
     setQcInspector('')
     setCuttersUsed(0)
@@ -796,7 +798,7 @@ export default function Shop1Terminal() {
     if (!currentCard) return
     setIsProcessing(true)
     try {
-      const goodQty = Math.max(0, (currentCard.quantity || 0) - scrapCount)
+      const goodQty = Math.max(0, (currentCard.quantity || 0) - scrapCount - reworkCount)
       const op = selectedOperator || currentCard.operator_name || 'Сортування'
       const activeShift = selectedShift || currentCard.shift_name || 'Без зміни'
 
@@ -847,12 +849,121 @@ export default function Shop1Terminal() {
         await updateInventoryStock(currentCard.nomenclature_id, scrapCount, 'scrap')
       }
 
+      // 3.5. Перенесення запасів NEED та BZ з Цеху №1 до Цеху №2 в таблиці inventory
+      try {
+        const cardBz = Number(currentCard.buffer_qty) || Number(currentCard.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
+        const cardNeed = Number(currentCard.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Math.max(0, Number(currentCard.quantity) - cardBz))
+
+        const actualNeed = Math.min(goodQty, cardNeed)
+        const actualBz = Math.max(0, goodQty - actualNeed)
+
+        // 3.5.1. Зменшити semi (NEED) в Цеху 1
+        if (actualNeed > 0) {
+          const { data: s1Semi } = await supabase.from('inventory')
+            .select('*')
+            .eq('nomenclature_id', currentCard.nomenclature_id)
+            .eq('type', 'semi')
+            .limit(1).maybeSingle()
+          
+          if (s1Semi) {
+            await supabase.from('inventory')
+              .update({ total_qty: Math.max(0, (Number(s1Semi.total_qty) || 0) - actualNeed) })
+              .eq('id', s1Semi.id)
+          }
+        }
+
+        // 3.5.2. Зменшити wip_bz / bz (BZ) в Цеху 1
+        if (actualBz > 0) {
+          let remainingBz = actualBz
+          const { data: s1Wip } = await supabase.from('inventory')
+            .select('*')
+            .eq('nomenclature_id', currentCard.nomenclature_id)
+            .eq('type', 'wip_bz')
+            .limit(1).maybeSingle()
+          
+          if (s1Wip) {
+            const take = Math.min(Number(s1Wip.total_qty) || 0, remainingBz)
+            await supabase.from('inventory')
+              .update({ total_qty: Math.max(0, (Number(s1Wip.total_qty) || 0) - take) })
+              .eq('id', s1Wip.id)
+            remainingBz -= take
+          }
+
+          if (remainingBz > 0) {
+            const { data: s1Bz } = await supabase.from('inventory')
+              .select('*')
+              .eq('nomenclature_id', currentCard.nomenclature_id)
+              .eq('type', 'bz')
+              .limit(1).maybeSingle()
+            
+            if (s1Bz) {
+              const take = Math.min(Number(s1Bz.total_qty) || 0, remainingBz)
+              await supabase.from('inventory')
+                .update({ total_qty: Math.max(0, (Number(s1Bz.total_qty) || 0) - take) })
+                .eq('id', s1Bz.id)
+            }
+          }
+        }
+
+        // 3.5.3. Збільшити semi_shop2 в Цеху 2
+        if (actualNeed > 0) {
+          const { data: s2Semi } = await supabase.from('inventory')
+            .select('*')
+            .eq('nomenclature_id', currentCard.nomenclature_id)
+            .eq('type', 'semi_shop2')
+            .limit(1).maybeSingle()
+
+          if (s2Semi) {
+            await supabase.from('inventory')
+              .update({ total_qty: (Number(s2Semi.total_qty) || 0) + actualNeed })
+              .eq('id', s2Semi.id)
+          } else {
+            const nom = nomenclatures.find(n => n.id === currentCard.nomenclature_id)
+            await supabase.from('inventory').insert([{
+              nomenclature_id: currentCard.nomenclature_id,
+              name: nom?.name || 'Деталь',
+              total_qty: actualNeed,
+              reserved_qty: 0,
+              type: 'semi_shop2',
+              unit: nom?.unit || 'шт'
+            }])
+          }
+        }
+
+        // 3.5.4. Збільшити bz_shop2 в Цеху 2
+        if (actualBz > 0) {
+          const { data: s2Bz } = await supabase.from('inventory')
+            .select('*')
+            .eq('nomenclature_id', currentCard.nomenclature_id)
+            .eq('type', 'bz_shop2')
+            .limit(1).maybeSingle()
+
+          if (s2Bz) {
+            await supabase.from('inventory')
+              .update({ total_qty: (Number(s2Bz.total_qty) || 0) + actualBz })
+              .eq('id', s2Bz.id)
+          } else {
+            const nom = nomenclatures.find(n => n.id === currentCard.nomenclature_id)
+            await supabase.from('inventory').insert([{
+              nomenclature_id: currentCard.nomenclature_id,
+              name: nom?.name || 'Деталь',
+              total_qty: actualBz,
+              reserved_qty: 0,
+              type: 'bz_shop2',
+              unit: nom?.unit || 'шт'
+            }])
+          }
+        }
+      } catch (invErr) {
+        console.error('Error transferring inventory in sorting:', invErr)
+      }
+
       // 4. Картка → at-shop2-buffer
       const { error: cardErr } = await supabase.from('work_cards').update({
         status: 'at-shop2-buffer',
         operation: 'Сортування',
-        quantity: goodQty,
-        used_in_shop2_qty: 0,
+        quantity: goodQty + reworkCount, // Зберігаємо загальну кількість деталей що пішли в Цех 2
+        used_in_shop2_qty: reworkCount, // Відразу відзначаємо, що частина пішла на доопрацювання
         completed_at: new Date().toISOString()
       }).eq('id', currentCard.id)
 
@@ -866,11 +977,13 @@ export default function Shop1Terminal() {
         .ilike('step', '%ЦЕХ №2%')
         .neq('status', 'completed')
 
+      let shop2TaskId = null;
+
       if (!shop2Tasks || shop2Tasks.length === 0) {
         // Задачі Цеху №2 ще немає (для старих нарядів), створюємо її автоматично як in-progress!
         const { data: s1TaskData } = await supabase.from('tasks').select('*').eq('id', currentCard.task_id).maybeSingle()
         if (s1TaskData) {
-          await supabase.from('tasks').insert([{
+          const { data: newTask } = await supabase.from('tasks').insert([{
             order_id: currentCard.order_id,
             step: 'Пресування [ЦЕХ №2]',
             status: 'in-progress',
@@ -881,16 +994,32 @@ export default function Shop1Terminal() {
             director_conf: true,
             batch_index: s1TaskData.batch_index || null,
             plan_snapshot: { ...(s1TaskData.plan_snapshot || {}), arrivals: [] }
-          }])
+          }]).select('id').single()
+          if (newTask) shop2TaskId = newTask.id
         }
       } else {
+        shop2TaskId = shop2Tasks[0].id
         const waitingTask = shop2Tasks.find(t => t.status === 'waiting')
         if (waitingTask) {
           await supabase.from('tasks').update({ status: 'in-progress' }).eq('id', waitingTask.id)
         }
       }
 
+      // 4.5. Якщо є доопрацювання, створюємо нову картку для Цеху №2
+      if (reworkCount > 0) {
+        await supabase.from('work_cards').insert([{
+          task_id: shop2TaskId || currentCard.task_id, // Використовуємо ID задачі Цеху 2
+          order_id: currentCard.order_id,
+          nomenclature_id: currentCard.nomenclature_id,
+          operation: 'Доопрацювання',
+          quantity: reworkCount,
+          status: 'new',
+          card_info: `[ЦЕХ №2] Автоматично з Сортування`
+        }])
+      }
+
       setScrapCount(0)
+      setReworkCount(0)
       setSelectedCardId(null)
       setScannedIds(prev => prev.filter(id => id !== currentCard.id))
       await fetchData()
@@ -1348,6 +1477,7 @@ export default function Shop1Terminal() {
                 <button onClick={() => {
                   if (currentCard.operation === 'Сортування') {
                     setScrapCount(0);
+                    setReworkCount(0);
                     handleFinishSortingActive();
                   } else {
                     setScrapCount(0);
@@ -1387,27 +1517,59 @@ export default function Shop1Terminal() {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
                     <button onClick={() => setScrapCount(v => Math.max(0, v - 1))}
                       style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
-                    <input type="number" min={0} max={currentCard.quantity} value={scrapCount}
-                      onChange={e => setScrapCount(Math.max(0, Math.min(currentCard.quantity, parseInt(e.target.value) || 0)))}
+                    <input type="number" min={0} max={currentCard.quantity - reworkCount} value={scrapCount}
+                      onChange={e => setScrapCount(Math.max(0, Math.min(currentCard.quantity - reworkCount, parseInt(e.target.value) || 0)))}
                       style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '3.2rem', width: '90px', textAlign: 'center', fontWeight: 900 }} />
-                    <button onClick={() => setScrapCount(v => Math.min(currentCard.quantity, v + 1))}
+                    <button onClick={() => setScrapCount(v => Math.min(currentCard.quantity - reworkCount, v + 1))}
                       style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
                   </div>
-                  <div style={{ marginTop: '10px', fontSize: '0.72rem', color: '#555' }}>
-                    Добре: <strong style={{ color: '#10b981' }}>{Math.max(0, (currentCard.quantity || 0) - scrapCount)} шт</strong>
+                </div>
+
+                {/* Лічильник доопрацювання при сортуванні */}
+                <div style={{ background: '#0d0d0d', borderRadius: '20px', padding: '20px', textAlign: 'center', border: '1px solid #f59e0b22' }}>
+                  <label style={{ color: '#f59e0b', fontWeight: 900, fontSize: '0.7rem', textTransform: 'uppercase', display: 'block', marginBottom: '12px' }}>
+                    КІЛЬКІСТЬ НА ДООПРАЦЮВАННЯ
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
+                    <button onClick={() => setReworkCount(v => Math.max(0, v - 1))}
+                      style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
+                    <input type="number" min={0} max={currentCard.quantity - scrapCount} value={reworkCount}
+                      onChange={e => setReworkCount(Math.max(0, Math.min(currentCard.quantity - scrapCount, parseInt(e.target.value) || 0)))}
+                      style={{ background: 'transparent', border: 'none', color: '#f59e0b', fontSize: '3.2rem', width: '90px', textAlign: 'center', fontWeight: 900 }} />
+                    <button onClick={() => setReworkCount(v => Math.min(currentCard.quantity - scrapCount, v + 1))}
+                      style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
+                  </div>
+                </div>
+
+                <div style={{ background: '#0d0d0d', borderRadius: '20px', padding: '15px', textAlign: 'center', border: '1px solid #10b98122' }}>
+                  <div style={{ fontSize: '0.72rem', color: '#555' }}>
+                    Добре (в буфер): <strong style={{ color: '#10b981' }}>{Math.max(0, (currentCard.quantity || 0) - scrapCount - reworkCount)} шт</strong>
+                    {' · '}Доопрацювання: <strong style={{ color: '#f59e0b' }}>{reworkCount} шт</strong>
                     {' · '}Брак: <strong style={{ color: '#ef4444' }}>{scrapCount} шт</strong>
                   </div>
                 </div>
 
                 <div style={{ background: '#111', padding: '24px', borderRadius: '20px', border: '1px solid #8b5cf622' }}>
-                  <div style={{ marginBottom: '20px' }}>
-                    <label style={labelStyle}>Відповідальний за сортування</label>
-                    <select value={selectedOperator} onChange={e => setSelectedOperator(e.target.value)} style={selectStyle}>
-                      <option value="">— Оберіть оператора —</option>
-                      {operators.map(o => <option key={o} value={o}>{o}</option>)}
+                  <div style={{ marginBottom: '15px' }}>
+                    <label style={labelStyle}>Зміна</label>
+                    <select value={selectedShift} onChange={e => setSelectedShift(e.target.value)} style={selectStyle}>
+                      <option value="">— Оберіть зміну —</option>
+                      <option value="Зміна 1">Зміна 1</option>
+                      <option value="Зміна 2">Зміна 2</option>
+                      <option value="Зміна 3">Зміна 3</option>
+                      <option value="Зміна 4">Зміна 4</option>
+                      <option value="Без зміни">Без зміни</option>
                     </select>
                   </div>
-                  <button onClick={handleSortToShop2} disabled={!selectedOperator || isProcessing}
+
+                  <div style={{ marginBottom: '20px' }}>
+                    <label style={labelStyle}>Відповідальний за сортування</label>
+                    <select value={selectedOperator} onChange={e => setSelectedOperator(e.target.value)} disabled={!selectedShift} style={{ ...selectStyle, opacity: selectedShift ? 1 : 0.5, cursor: selectedShift ? 'pointer' : 'not-allowed' }}>
+                      <option value="">{selectedShift ? '— Оберіть оператора —' : '— Спочатку оберіть зміну —'}</option>
+                      {getFilteredOperators('Сортування', selectedShift, 'Сортування').map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </div>
+                  <button onClick={handleSortToShop2} disabled={!selectedOperator || !selectedShift || isProcessing}
                     style={{
                       background: '#8b5cf6', color: '#fff', border: 'none', width: '100%',
                       height: '64px', borderRadius: '16px', fontSize: '1.2rem', fontWeight: 1000,
@@ -1467,14 +1629,25 @@ export default function Shop1Terminal() {
                 {/* Прийомка: кнопка переводить в at-buffer(Прийомка) */}
                 {isLastBeforeReception ? (
                   <div style={{ background: '#111', padding: '24px', borderRadius: '20px', border: '1px solid #10b98122' }}>
-                    <div style={{ marginBottom: '20px' }}>
-                      <label style={labelStyle}>Відповідальний за прийомку</label>
-                      <select value={selectedOperator} onChange={e => setSelectedOperator(e.target.value)} style={selectStyle}>
-                        <option value="">— Оберіть оператора —</option>
-                        {operators.map(o => <option key={o} value={o}>{o}</option>)}
+                    <div style={{ marginBottom: '15px' }}>
+                      <label style={labelStyle}>Зміна</label>
+                      <select value={selectedShift} onChange={e => setSelectedShift(e.target.value)} style={selectStyle}>
+                        <option value="">— Оберіть зміну —</option>
+                        <option value="Зміна 1">Зміна 1</option>
+                        <option value="Зміна 2">Зміна 2</option>
+                        <option value="Зміна 3">Зміна 3</option>
+                        <option value="Зміна 4">Зміна 4</option>
+                        <option value="Без зміни">Без зміни</option>
                       </select>
                     </div>
-                    <button onClick={handleAcceptToStock} disabled={!selectedOperator || isProcessing}
+                    <div style={{ marginBottom: '20px' }}>
+                      <label style={labelStyle}>Відповідальний за прийомку</label>
+                      <select value={selectedOperator} onChange={e => setSelectedOperator(e.target.value)} disabled={!selectedShift} style={{ ...selectStyle, opacity: selectedShift ? 1 : 0.5, cursor: selectedShift ? 'pointer' : 'not-allowed' }}>
+                        <option value="">{selectedShift ? '— Оберіть оператора —' : '— Спочатку оберіть зміну —'}</option>
+                        {getFilteredOperators('Прийомка', selectedShift, 'Прийомка').map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    </div>
+                    <button onClick={handleAcceptToStock} disabled={!selectedOperator || !selectedShift || isProcessing}
                       style={{
                         background: '#10b981', color: '#fff', border: 'none', width: '100%',
                         height: '64px', borderRadius: '16px', fontSize: '1.3rem', fontWeight: 1000,

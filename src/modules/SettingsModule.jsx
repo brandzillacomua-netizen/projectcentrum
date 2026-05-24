@@ -459,7 +459,7 @@ const SettingsModule = () => {
     setUserForm({
       id: null, login: '', password: '', first_name: '', last_name: '', 
       position: companyPositions?.[0]?.name || 'Оператор', department: companyStructure?.[0]?.name || 'Цех №1', shift: 'Без зміни',
-      access_rights: { dashboard: false, manager: false, master: false, warehouse: false, engineer: false, director: false, foreman: false, operator: true, shipping: false, supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, kanban: false, reports: false }
+      access_rights: { dashboard: false, manager: false, master: false, warehouse: false, engineer: false, director: false, foreman: false, operator: true, prep_terminal: false, shipping: false, supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, kanban: false, reports: false }
     })
   }
 
@@ -468,7 +468,7 @@ const SettingsModule = () => {
       ...user, 
       access_rights: {
         dashboard: false, manager: false, master: false, warehouse: false, engineer: false, 
-        director: false, foreman: false, operator: false, shipping: false, 
+        director: false, foreman: false, operator: false, prep_terminal: false, shipping: false, 
         supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, packaging: false, kanban: false, reports: false,
         ...(user.access_rights || {})
       }
@@ -636,6 +636,7 @@ const SettingsModule = () => {
     { id: 'director', label: 'Директор' },
     { id: 'foreman', label: 'Майстер дільниці' },
     { id: 'operator', label: 'Термінал оператора' },
+    { id: 'prep_terminal', label: 'Термінал Підготовки' },
     { id: 'shop1', label: 'Цех №1 (Розкрій→Прийомка)' },
     { id: 'shop2', label: 'Цех №2 (Черга)' },
     { id: 'shop2_terminal', label: 'Цех №2 · Термінал' },

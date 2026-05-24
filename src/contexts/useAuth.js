@@ -39,13 +39,11 @@ export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers,
     // Cache full user object for instant session restore on next page load
     localStorage.setItem(USER_CACHE_KEY, JSON.stringify(data))
 
-    // Force data refresh on successful login
+    // Force data refresh on successful login without blocking the login UI
     if (fetchData) {
-      try {
-        await fetchData(true)
-      } catch (err) {
+      fetchData(true).catch(err => {
         console.error('Failed to force refresh data after login:', err)
-      }
+      })
     }
 
     return { success: true, user: userWithToken }
