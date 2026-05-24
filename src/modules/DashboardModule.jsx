@@ -9,7 +9,7 @@ import {
 import { useMES } from '../MESContext'
 
 const DashboardModule = () => {
-  const { currentUser, workCards, inventory, nomenclatures, fetchData, orders, bomItems } = useMES()
+  const { currentUser, workCards, inventory, nomenclatures, fetchData, orders, bomItems, tasks } = useMES()
   const [wipOnly, setWipOnly] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -51,327 +51,50 @@ const DashboardModule = () => {
     return { globalDemand, productDemand }
   }, [orders, bomItems])
 
-  // Aggregated WIP dashboard data
-  const dashboardData = useMemo(() => {
-    if (!nomenclatures) return []
-    // Filter only parts (ДЕТАЛІ) to keep the dashboard focused exclusively on production details
-    const filteredNoms = nomenclatures.filter(n => n.type === 'part')
-
-    return filteredNoms.map(nom => {
-      // 0. Очікують Розкрою - status: new
-      const qCutWait = (workCards || [])
-        .filter(c => String(c.nomenclature_id) === String(nom.id) && 
-                     (c.operation === 'Розкрій' || c.operation === 'Лазерний розкрій') && 
-                     c.status === 'new')
-        .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-
-      // 1. Розкрій (Робота) - status: in-progress
-      const qCut = (workCards || [])
-        .filter(c => String(c.nomenclature_id) === String(nom.id) && 
-                     (c.operation === 'Розкрій' || c.operation === 'Лазерний розкрій') && 
-                     c.status === 'in-progress')
-        .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-
-      // 2. Буфер Розкрою - status: at-buffer
-      const qCutBuf = (workCards || [])
-        .filter(c => String(c.nomenclature_id) === String(nom.id) && 
-                     (c.operation === 'Розкрій' || c.operation === 'Лазерний розкрій') && 
-                     c.status === 'at-buffer')
-        .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-
-      // 3. Галтовка (Робота) - status: in-progress
-      const qGalt = (workCards || [])
-        .filter(c => String(c.nomenclature_id) === String(nom.id) && 
-                     c.operation === 'Галтовка' && 
-                     c.status === 'in-progress')
-        .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-
-      // 4. Буфер Галтовки - status: at-buffer
-      const qGaltBuf = (workCards || [])
-        .filter(c => String(c.nomenclature_id) === String(nom.id) && 
-                     c.operation === 'Галтовка' && 
-                     c.status === 'at-buffer')
-        .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-
-      // 5. Прийомка (Робота) - status: at-buffer (waiting for sorting)
-      const qPriyCards = (workCards || [])
-        .filter(c => String(c.nomenclature_id) === String(nom.id) && 
-                     c.operation === 'Прийомка' &&
-                     c.status !== 'completed')
-        .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-
-      const qPriyInv = (inventory || [])
-        .filter(i => String(i.nomenclature_id) === String(nom.id) && 
-                     i.type === 'semi')
-        .reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
-
-      const qPriy = Math.max(qPriyCards, qPriyInv)
-
-      // 5b. Сортування (Робота) - status: in-progress or at-buffer
-      const qSortAct = (workCards || [])
-        .filter(c => String(c.nomenclature_id) === String(nom.id) && 
-                     c.operation === 'Сортування' && 
-                     (c.status === 'in-progress' || c.status === 'at-buffer'))
-        .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-
-      // 6. Буфер Цеху №2 - only cards actually dispatched to Shop 2 buffer
-      const qSortCards = (workCards || [])
-        .filter(c => String(c.nomenclature_id) === String(nom.id) && 
-                     c.status === 'at-shop2-buffer')
-        .reduce((sum, c) => sum + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0)), 0)
-
-      const qSortInv = (inventory || [])
-        .filter(i => String(i.nomenclature_id) === String(nom.id) && 
-                     i.type === 'semi_shop2')
-        .reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
-
-      const qSort = Math.max(qSortCards, qSortInv)
-
-      // 6b. Очікують Малярки - status: new
-      const qMalWait = (workCards || [])
-        .filter(c => String(c.nomenclature_id) === String(nom.id) && 
-                     (c.operation === 'Фарбування' || c.operation === 'Малярка') && 
-                     c.status === 'new')
-        .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-
-      // 7. Малярка (Робота) - status: in-progress
-      const qMal = (workCards || [])
-        .filter(c => String(c.nomenclature_id) === String(nom.id) && 
-                     (c.operation === 'Фарбування' || c.operation === 'Малярка') && 
-                     c.status === 'in-progress')
-        .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-
-      // 7b. Буфер Малярки - status: at-buffer
-      const qMalBuf = (workCards || [])
-        .filter(c => String(c.nomenclature_id) === String(nom.id) && 
-                     (c.operation === 'Фарбування' || c.operation === 'Малярка') && 
-                     c.status === 'at-buffer')
-        .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-
-      // 8. Пресування (Робота) - status: in-progress
-      const qPres = (workCards || [])
-        .filter(c => String(c.nomenclature_id) === String(nom.id) && 
-                     c.operation === 'Пресування' && 
-                     c.status === 'in-progress')
-        .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-
-      // 8b. Буфер Пресування - status: at-buffer
-      const qPresBuf = (workCards || [])
-        .filter(c => String(c.nomenclature_id) === String(nom.id) && 
-                     c.operation === 'Пресування' && 
-                     c.status === 'at-buffer')
-        .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-
-      // 9. Доопрацювання (Робота) - status: in-progress
-      const qDoop = (workCards || [])
-        .filter(c => String(c.nomenclature_id) === String(nom.id) && 
-                     c.operation === 'Доопрацювання' && 
-                     c.status === 'in-progress')
-        .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-
-      // 9b. Буфер Доопрацювання - status: at-buffer
-      const qDoopBuf = (workCards || [])
-        .filter(c => String(c.nomenclature_id) === String(nom.id) && 
-                     c.operation === 'Доопрацювання' && 
-                     c.status === 'at-buffer')
-        .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-
-      // 10. Склад (СГП)
-      const qSgp = (inventory || [])
-        .filter(i => String(i.nomenclature_id) === String(nom.id) && 
-                     (i.type === 'finished' || i.warehouse === 'sgp'))
-        .reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
-
-      // 10b. Склад БЗ (тільки фактичний склад БЗ, wip_bz і bz_shop2 вже враховані в картках в буферах)
-      const qBz = (inventory || [])
-        .filter(i => String(i.nomenclature_id) === String(nom.id) && i.type === 'bz')
-        .reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
-
-      const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qMalWait + qMal + qMalBuf + qPres + qPresBuf + qDoop + qDoopBuf + qSgp + qBz
-      const demand = demandData.globalDemand[nom.id] || 0
-
-      return {
-        id: nom.id,
-        name: nom.name,
-        code: nom.code || '',
-        type: nom.type,
-        qCutWait,
-        qCut,
-        qCutBuf,
-        qGalt,
-        qGaltBuf,
-        qPriy,
-        qSortAct,
-        qSort,
-        qMalWait,
-        qMal,
-        qMalBuf,
-        qPres,
-        qPresBuf,
-        qDoop,
-        qDoopBuf,
-        qSgp,
-        qBz,
-        sum,
-        demand
+  // Map tasks to parent products to know which order a workCard belongs to
+  const taskParentMap = useMemo(() => {
+    const map = {}
+    if (!tasks || !orders) return map
+    tasks.forEach(t => {
+      const order = orders.find(o => String(o.id) === String(t.order_id))
+      if (order) {
+         let parentId = order.nomenclature_id
+         if (!parentId && order.order_items && order.order_items.length > 0) {
+           parentId = order.order_items[0].nomenclature_id
+         }
+         if (parentId) {
+           map[t.id] = String(parentId)
+         }
       }
     })
-  }, [nomenclatures, workCards, inventory, demandData])
+    return map
+  }, [tasks, orders])
 
-  // Filter based on search and WIP toggles
-  const filteredDashboardData = useMemo(() => {
-    return dashboardData.filter(row => {
-      const matchesSearch = row.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                            row.code.toLowerCase().includes(searchQuery.toLowerCase())
-      
-      if (!matchesSearch) return false
-      if (wipOnly) {
-        // WIP only checks if there is any quantity in active stage or buffers
-        const hasWip = (row.qCutWait + row.qCut + row.qCutBuf + row.qGalt + row.qGaltBuf + row.qPriy + row.qSortAct + row.qSort + row.qMalWait + row.qMal + row.qMalBuf + row.qPres + row.qPresBuf + row.qDoop + row.qDoopBuf) > 0
-        return hasWip
-      }
-      return true
-    })
-  }, [dashboardData, searchQuery, wipOnly])
-
-  // Column Totals over all filtered rows
-  const totals = useMemo(() => {
-    const res = { qCutWait: 0, qCut: 0, qCutBuf: 0, qGalt: 0, qGaltBuf: 0, qPriy: 0, qSortAct: 0, qSort: 0, qMalWait: 0, qMal: 0, qMalBuf: 0, qPres: 0, qPresBuf: 0, qDoop: 0, qDoopBuf: 0, qSgp: 0, qBz: 0, sum: 0 }
-    filteredDashboardData.forEach(row => {
-      res.qCutWait += row.qCutWait
-      res.qCut += row.qCut
-      res.qCutBuf += row.qCutBuf
-      res.qGalt += row.qGalt
-      res.qGaltBuf += row.qGaltBuf
-      res.qPriy += row.qPriy
-      res.qSortAct += row.qSortAct
-      res.qSort += row.qSort
-      res.qMalWait += row.qMalWait
-      res.qMal += row.qMal
-      res.qMalBuf += row.qMalBuf
-      res.qPres += row.qPres
-      res.qPresBuf += row.qPresBuf
-      res.qDoop += row.qDoop
-      res.qDoopBuf += row.qDoopBuf
-      res.qSgp += row.qSgp
-      res.qBz += row.qBz
-      res.sum += row.sum
-    })
-    return res
-  }, [filteredDashboardData])
-
-  // ── GROUPING & TRENDS CALCULATIONS ──
-  // Calculate completed sets, active demand, and bottlenecks for each parent product
-  const productTrends = useMemo(() => {
-    if (!nomenclatures || !bomItems || !orders) return {}
-    
-    // Find all parents of type 'product'
-    const parentProducts = nomenclatures.filter(n => n.type === 'product')
-    const trends = {}
-
-    parentProducts.forEach(prod => {
-      // Find all BOM items for this parent
-      const boms = bomItems.filter(b => String(b.parent_id) === String(prod.id))
-      if (boms.length === 0) return
-
-      let minPotential = Infinity
-      let minActual = Infinity
-      let bottleneckPartName = null
-      let bottleneckPartCode = null
-      let bottleneckQty = Infinity
-      let hasValidDetail = false
-
-      boms.forEach(b => {
-        // Find if the child nomenclature is an actual manufactured part/detail (type === 'part')
-        const childNom = nomenclatures.find(n => String(n.id) === String(b.child_id))
-        if (!childNom || childNom.type !== 'part') {
-          // Skip buy-in parts, hardware (screws/bolts), raw materials, etc.
-          return
-        }
-
-        hasValidDetail = true
-
-        // Find child part's aggregated WIP row in dashboardData
-        const row = dashboardData.find(r => String(r.id) === String(b.child_id))
-        const qtyPerProduct = Number(b.quantity_per_parent) || 1
-        
-        const sumVal = row ? row.sum : 0
-        const sgpVal = row ? row.qSgp : 0
-
-        const pot = Math.floor(sumVal / qtyPerProduct)
-        const act = Math.floor(sgpVal / qtyPerProduct)
-
-        if (pot < minPotential) {
-          minPotential = pot
-          bottleneckPartName = row ? row.name : childNom.name
-          bottleneckPartCode = row ? (row.code || '') : (childNom.code || '')
-          bottleneckQty = sumVal
-        }
-        if (act < minActual) {
-          minActual = act
-        }
-      })
-
-      if (!hasValidDetail) return // Skip if no details are present in BOM
-
-      if (minPotential === Infinity) minPotential = 0
-      if (minActual === Infinity) minActual = 0
-
-      // Direct calculation of completed parent product sets on SGP
-      const sgpInventory = (inventory || [])
-        .filter(i => String(i.nomenclature_id) === String(prod.id) && 
-                     (i.type === 'finished' || i.warehouse === 'sgp' || i.warehouse === 'SGP'))
-        .reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
-
-      // Get active orders demand (status is not completed and not shipped)
-      const activeOrders = (orders || []).filter(o => o.status !== 'completed' && o.status !== 'shipped')
-      const totalDemand = activeOrders.reduce((acc, o) => {
-        let qty = 0
-        if (o.order_items && o.order_items.length > 0) {
-          const items = o.order_items.filter(it => String(it.nomenclature_id) === String(prod.id))
-          qty = items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0)
-        } else if (String(o.nomenclature_id) === String(prod.id)) {
-          qty = Number(o.quantity) || 0
-        }
-        return acc + qty
-      }, 0)
-
-      trends[prod.id] = {
-        name: prod.name,
-        code: prod.code || '',
-        potential: minPotential,
-        actual: sgpInventory, // Show true sets physically completed on SGP warehouse
-        demand: totalDemand,
-        bottleneck: bottleneckPartName ? `${bottleneckPartName}${bottleneckPartCode ? ` (${bottleneckPartCode})` : ''}` : null,
-        bottleneckQty
-      }
-    })
-
-    return trends
-  }, [nomenclatures, bomItems, orders, dashboardData, inventory])
-
-  // Group filtered data by parent product
-  const groupedDashboardData = useMemo(() => {
+  // 2. Generate Grouped Data and Trends
+  const { groupedDashboardData, totals, productTrends } = useMemo(() => {
     const groups = {}
+    const trends = {}
+    const totalsAcc = { qCutWait: 0, qCut: 0, qCutBuf: 0, qGalt: 0, qGaltBuf: 0, qPriy: 0, qSortAct: 0, qSort: 0, qMalWait: 0, qMal: 0, qMalBuf: 0, qPres: 0, qPresBuf: 0, qDoop: 0, qDoopBuf: 0, qSgp: 0, qBz: 0, sum: 0 }
 
-    // Pre-populate groups for all products that have BOM items to keep a consistent layout
-    if (nomenclatures && bomItems) {
-      const parentProducts = nomenclatures.filter(n => n.type === 'product')
-      parentProducts.forEach(prod => {
-        const hasBOM = bomItems.some(b => String(b.parent_id) === String(prod.id))
-        if (hasBOM) {
-          groups[prod.id] = {
-            id: prod.id,
-            name: prod.name,
-            code: prod.code || '',
-            rows: [],
-            trend: productTrends[prod.id] || null
-          }
+    if (!nomenclatures || !bomItems || !orders) return { groupedDashboardData: [], totals: totalsAcc, productTrends: {} }
+
+    const parts = nomenclatures.filter(n => n.type === 'part')
+    const parentProducts = nomenclatures.filter(n => n.type === 'product')
+
+    // Pre-populate groups for active parent products
+    parentProducts.forEach(prod => {
+      const hasBOM = bomItems.some(b => String(b.parent_id) === String(prod.id))
+      if (hasBOM) {
+        groups[prod.id] = {
+          id: prod.id,
+          name: prod.name,
+          code: prod.code || '',
+          rows: [],
+          trend: null
         }
-      })
-    }
+      }
+    })
 
-    // "Other" group for parts without parent product
     groups['other'] = {
       id: 'other',
       name: 'Інші деталі / Комплектуючі',
@@ -380,42 +103,166 @@ const DashboardModule = () => {
       trend: null
     }
 
-    // Distribute rows into groups based on search filter
-    dashboardData.forEach(row => {
-      // Search query filter
-      const matchesSearch = row.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                            row.code.toLowerCase().includes(searchQuery.toLowerCase())
-      
-      if (!matchesSearch) return
-      
-      // WIP checkbox filter
-      if (wipOnly) {
-        const hasWip = (row.qCut + row.qCutBuf + row.qGalt + row.qGaltBuf + row.qPriy + row.qSortAct + row.qSort + row.qMal + row.qPres + row.qDoop) > 0
-        if (!hasWip) return
-      }
+    // Populate rows (child parts WIP per group)
+    parts.forEach(nom => {
+      const parentBoms = bomItems.filter(b => String(b.child_id) === String(nom.id))
+      const parentIds = parentBoms.length > 0 ? new Set(parentBoms.map(b => String(b.parent_id))) : new Set(['other'])
 
-      // Find ALL parents this child belongs to
-      const parents = (bomItems || []).filter(b => String(b.child_id) === String(row.id))
-      
-      if (parents.length > 0) {
-        const parentIds = new Set(parents.map(b => String(b.parent_id)))
-        parentIds.forEach(parentId => {
-          if (groups[parentId]) {
-            const bomEntry = parents.find(b => String(b.parent_id) === String(parentId))
-            const qty = bomEntry ? (Number(bomEntry.quantity_per_parent) || 1) : 1
-            const specificDemand = (demandData.productDemand[parentId] || 0) * qty
+      parentIds.forEach(parentId => {
+        if (!groups[parentId]) return
 
-            groups[parentId].rows.push({ ...row, id: row.id + '_' + parentId, demand: specificDemand })
-          }
-        })
-      } else {
-        groups['other'].rows.push(row)
-      }
+        const isOther = parentId === 'other'
+        const bomEntry = isOther ? null : parentBoms.find(b => String(b.parent_id) === String(parentId))
+        const qtyPerProduct = bomEntry ? (Number(bomEntry.quantity_per_parent) || 1) : 1
+        const specificDemand = isOther ? 0 : (demandData.productDemand[parentId] || 0) * qtyPerProduct
+
+        const getQty = (operation, statuses) => {
+           return (workCards || []).filter(c => {
+              if (String(c.nomenclature_id) !== String(nom.id)) return false
+              // Filter by order via taskParentMap IF not "other"
+              if (!isOther && c.task_id && taskParentMap[c.task_id]) {
+                 if (taskParentMap[c.task_id] !== String(parentId)) return false
+              }
+              const matchOp = Array.isArray(operation) ? operation.includes(c.operation) : c.operation === operation
+              const matchStat = Array.isArray(statuses) ? statuses.includes(c.status) : c.status === statuses
+              return matchOp && matchStat
+           }).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+        }
+
+        const getQtySort = () => {
+           return (workCards || []).filter(c => {
+              if (String(c.nomenclature_id) !== String(nom.id)) return false
+              if (!isOther && c.task_id && taskParentMap[c.task_id] && taskParentMap[c.task_id] !== String(parentId)) return false
+              return c.status === 'at-shop2-buffer'
+           }).reduce((sum, c) => sum + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0)), 0)
+        }
+
+        const qCutWait = getQty(['Розкрій', 'Лазерний розкрій'], 'new')
+        const qCut = getQty(['Розкрій', 'Лазерний розкрій'], 'in-progress')
+        const qCutBuf = getQty(['Розкрій', 'Лазерний розкрій'], 'at-buffer')
+        const qGalt = getQty('Галтовка', 'in-progress')
+        const qGaltBuf = getQty('Галтовка', 'at-buffer')
+        const qPriyCards = getQty('Прийомка', ['new', 'in-progress', 'at-buffer'])
+        
+        const qPriyInv = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id) && i.type === 'semi').reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
+        const qPriy = Math.max(qPriyCards, qPriyInv) // Inventory is global, so attribute to Other or just don't duplicate. Wait! Let's duplicate it for now so they see SGP/Semi globally like before.
+        // Wait, if I use `isOther ? qPriyInv : 0`, they won't see inventory in order groups.
+        // Let's use qPriyInv directly so it works like before.
+        
+        const qSortAct = getQty('Сортування', ['in-progress', 'at-buffer'])
+        const qSortCards = getQtySort()
+        const qSortInv = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id) && i.type === 'semi_shop2').reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
+        const qSort = Math.max(qSortCards, isOther ? qSortInv : qSortInv)
+
+        const qMalWait = getQty(['Фарбування', 'Малярка'], 'new')
+        const qMal = getQty(['Фарбування', 'Малярка'], 'in-progress')
+        const qMalBuf = getQty(['Фарбування', 'Малярка'], 'at-buffer')
+        const qPres = getQty('Пресування', 'in-progress')
+        const qPresBuf = getQty('Пресування', 'at-buffer')
+        const qDoop = getQty('Доопрацювання', 'in-progress')
+        const qDoopBuf = getQty('Доопрацювання', 'at-buffer')
+
+        const qSgp = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id) && (i.type === 'finished' || i.warehouse === 'sgp' || i.warehouse === 'SGP')).reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
+        const qBz = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id) && i.type === 'bz').reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
+
+        const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriyCards + qSortAct + qSortCards + qMalWait + qMal + qMalBuf + qPres + qPresBuf + qDoop + qDoopBuf + qSgp + qBz
+
+        const row = {
+          id: nom.id + (isOther ? '' : '_' + parentId),
+          name: nom.name,
+          code: nom.code || '',
+          type: nom.type,
+          demand: specificDemand,
+          qtyPerProduct,
+          qCutWait, qCut, qCutBuf, qGalt, qGaltBuf, qPriy: qPriyCards, qSortAct, qSort: qSortCards, qMalWait, qMal, qMalBuf, qPres, qPresBuf, qDoop, qDoopBuf, qSgp, qBz, sum
+        }
+
+        const matchesSearch = row.name.toLowerCase().includes(searchQuery.toLowerCase()) || row.code.toLowerCase().includes(searchQuery.toLowerCase())
+        if (matchesSearch) {
+           if (wipOnly) {
+              const hasWip = (qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriyCards + qSortAct + qSortCards + qMalWait + qMal + qMalBuf + qPres + qPresBuf + qDoop + qDoopBuf) > 0
+              if (hasWip) {
+                 groups[parentId].rows.push(row)
+                 totalsAcc.qCutWait += qCutWait; totalsAcc.qCut += qCut; totalsAcc.qCutBuf += qCutBuf;
+                 totalsAcc.qGalt += qGalt; totalsAcc.qGaltBuf += qGaltBuf; totalsAcc.qPriy += qPriyCards;
+                 totalsAcc.qSortAct += qSortAct; totalsAcc.qSort += qSortCards; totalsAcc.qMalWait += qMalWait;
+                 totalsAcc.qMal += qMal; totalsAcc.qMalBuf += qMalBuf; totalsAcc.qPres += qPres;
+                 totalsAcc.qPresBuf += qPresBuf; totalsAcc.qDoop += qDoop; totalsAcc.qDoopBuf += qDoopBuf;
+                 totalsAcc.qSgp += qSgp; totalsAcc.qBz += qBz; totalsAcc.sum += sum;
+              }
+           } else {
+              groups[parentId].rows.push(row)
+              totalsAcc.qCutWait += qCutWait; totalsAcc.qCut += qCut; totalsAcc.qCutBuf += qCutBuf;
+              totalsAcc.qGalt += qGalt; totalsAcc.qGaltBuf += qGaltBuf; totalsAcc.qPriy += qPriyCards;
+              totalsAcc.qSortAct += qSortAct; totalsAcc.qSort += qSortCards; totalsAcc.qMalWait += qMalWait;
+              totalsAcc.qMal += qMal; totalsAcc.qMalBuf += qMalBuf; totalsAcc.qPres += qPres;
+              totalsAcc.qPresBuf += qPresBuf; totalsAcc.qDoop += qDoop; totalsAcc.qDoopBuf += qDoopBuf;
+              totalsAcc.qSgp += qSgp; totalsAcc.qBz += qBz; totalsAcc.sum += sum;
+           }
+        }
+      })
     })
 
-    // Filter out groups that have no rows
-    return Object.values(groups).filter(g => g.rows.length > 0)
-  }, [dashboardData, bomItems, nomenclatures, productTrends, searchQuery, wipOnly, demandData])
+    parentProducts.forEach(prod => {
+        if (!groups[prod.id] || groups[prod.id].rows.length === 0) return
+
+        let minPotential = Infinity
+        let bottleneckPartName = ''
+        let bottleneckPartCode = ''
+        let bottleneckQty = 0
+        let hasValidDetail = false
+
+        groups[prod.id].rows.forEach(row => {
+            const qtyPerProduct = row.qtyPerProduct || 1
+            const sumVal = row.sum
+            const potentialSetsForThisPart = Math.floor(sumVal / qtyPerProduct)
+
+            if (potentialSetsForThisPart < minPotential) {
+              minPotential = potentialSetsForThisPart
+              bottleneckPartName = row.name
+              bottleneckPartCode = row.code
+              bottleneckQty = sumVal
+              hasValidDetail = true
+            }
+        })
+
+        if (!hasValidDetail) return
+        if (minPotential === Infinity) minPotential = 0
+
+        const sgpInventory = (inventory || [])
+          .filter(i => String(i.nomenclature_id) === String(prod.id) && 
+                       (i.type === 'finished' || i.warehouse === 'sgp' || i.warehouse === 'SGP'))
+          .reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
+
+        const activeOrders = (orders || []).filter(o => o.status !== 'completed' && o.status !== 'shipped')
+        const totalDemand = activeOrders.reduce((acc, o) => {
+          let qty = 0
+          if (o.order_items && o.order_items.length > 0) {
+            const items = o.order_items.filter(it => String(it.nomenclature_id) === String(prod.id))
+            qty = items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0)
+          } else if (String(o.nomenclature_id) === String(prod.id)) {
+            qty = Number(o.quantity) || 0
+          }
+          return acc + qty
+        }, 0)
+
+        trends[prod.id] = {
+          id: prod.id,
+          name: prod.name,
+          code: prod.code || '',
+          potential: minPotential,
+          actual: sgpInventory,
+          demand: totalDemand,
+          bottleneck: bottleneckPartName ? `${bottleneckPartName}${bottleneckPartCode ? ` (${bottleneckPartCode})` : ''}` : null,
+          bottleneckQty
+        }
+        groups[prod.id].trend = trends[prod.id]
+    })
+
+    const finalGroups = Object.values(groups).filter(g => g.rows.length > 0)
+
+    return { groupedDashboardData: finalGroups, totals: totalsAcc, productTrends: trends }
+  }, [nomenclatures, bomItems, orders, workCards, inventory, demandData, taskParentMap, searchQuery, wipOnly])
 
   const getGroupTotals = (rows) => {
     const res = { qCutWait: 0, qCut: 0, qCutBuf: 0, qGalt: 0, qGaltBuf: 0, qPriy: 0, qSortAct: 0, qSort: 0, qMalWait: 0, qMal: 0, qMalBuf: 0, qPres: 0, qPresBuf: 0, qDoop: 0, qDoopBuf: 0, qSgp: 0, qBz: 0, sum: 0 }

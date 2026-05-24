@@ -17,6 +17,32 @@ import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
 import { supabase } from '../supabase'
 
+const normalizeName = (s) => {
+  if (!s) return '';
+  const mapper = {
+    'а': 'a', 'в': 'b', 'с': 'c', 'е': 'e', 'н': 'h', 'h': 'h',
+    'к': 'k', 'м': 'm', 'о': 'o', 'р': 'p', 'т': 't', 'х': 'x',
+    'у': 'y', 'і': 'i', 'ї': 'i', 'и': 'y', 'п': 'p'
+  };
+  return s.toLowerCase()
+    .trim()
+    .split('')
+    .map(c => mapper[c] || c)
+    .join('')
+    .replace(/[^a-z0-9]/g, '');
+};
+
+const getCleanNormalized = (name) => {
+  if (!name) return '';
+  let clean = name.toLowerCase()
+    .replace(/\[\s*підготовлений\s*\]/gi, '')
+    .replace(/\[\s*непідготовлений\s*\]/gi, '')
+    .replace(/\s*підготовлений\s*/gi, '')
+    .replace(/\s*непідготовлений\s*/gi, '')
+    .trim();
+  return normalizeName(clean);
+};
+
 const MasterModule = () => {
   const {
     orders, tasks, machines, nomenclatures, bomItems, inventory,
@@ -271,24 +297,146 @@ const MasterModule = () => {
     return machines.find(m => m.name === selectedMachine.name) || selectedMachine
   }, [selectedMachine, machines])
 
+  const autoCreatePrepOrder = async (quantities, deadline) => {
+    const itemsToCreate = Object.entries(quantities).filter(([_, qty]) => Number(qty) > 0);
+    if (itemsToCreate.length === 0) return;
+    
+    try {
+      const planSnapshot = {};
+      let totalSheets = 0;
+      for (const [materialId, qty] of itemsToCreate) {
+        const nom = nomenclatures.find(n => n.id === materialId);
+        planSnapshot[materialId] = {
+          name: nom?.name || 'Лист',
+          need: qty,
+          stock: 0,
+          plan: qty
+        };
+        totalSheets += Number(qty);
+      }
+
+      // Generate sequential prep number (e.g. №НП000001)
+      const { count } = await supabase
+        .from('tasks')
+        .select('*', { count: 'exact', head: true })
+        .eq('step', 'Підготовка');
+      
+      const nextNum = (count || 0) + 1;
+      const prepNum = `НП${String(nextNum).padStart(6, '0')}`;
+      planSnapshot._prep_num = prepNum;
+
+      const { data: newTask, error: errTask } = await supabase.from('tasks').insert({
+        step: 'Підготовка',
+        status: 'new',
+        machine_name: 'PREP-TERM',
+        planned_sets: totalSheets,
+        planned_deadline: deadline || null,
+        plan_snapshot: planSnapshot,
+        engineer_conf: true,
+        director_conf: true
+      }).select().single();
+
+      if (errTask) throw errTask;
+
+      for (const [materialId, qty] of itemsToCreate) {
+        const nom = nomenclatures.find(n => n.id === materialId);
+        const { error: errReq } = await supabase.from('material_requests').insert({
+          task_id: newTask.id,
+          nomenclature_id: materialId,
+          quantity: qty,
+          status: 'pending',
+          inventory_id: null,
+          details: `ЗАПИТ НА ПІДГОТОВКУ (${prepNum}): ${nom?.name} — ${qty} шт.`
+        });
+
+        if (errReq) throw errReq;
+      }
+    } catch (e) {
+      console.error('Error auto-creating prep order:', e.message);
+    }
+  };
+
   const handlePrint = async () => {
     if (!activeNaryadOrder || isSubmitting) return
 
     if (!isReprintMode) {
+       let missingPrepQuantities = {}
+       let hasDeficit = false
+       
        for (const m of materialSummary) {
           if (m.name.toLowerCase().includes('лист') || m.name.toLowerCase().includes('карбон') || m.name.toLowerCase().includes('carbon')) {
              const requiredSheets = m.sheets;
-             const prepNomName = m.name.includes('[Підготовлений]') ? m.name : `${m.name} [Підготовлений]`;
-             const prepNom = nomenclatures.find(n => n.name === prepNomName || n.name === m.name);
+             // Robustly find the prepared sheet nomenclature ID
+             const normName = getCleanNormalized(m.name)
+             const prepNom = nomenclatures.find(n => 
+                n.name.toLowerCase().includes('підготовлений') && 
+                !n.name.toLowerCase().includes('непідготовлений') && 
+                getCleanNormalized(n.name) === normName
+             )
+             
              if (prepNom) {
                 const bzInv = inventory.find(i => String(i.nomenclature_id) === String(prepNom.id) && (i.type === 'raw' || i.type === 'bz'));
                 const stock = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0;
+                
                 if (stock < requiredSheets) {
-                   alert(`ПОМИЛКА: Недостатньо підготовленого матеріалу "${prepNom.name}". Потрібно: ${requiredSheets}, В наявності: ${stock}. Спочатку створіть Наряд на підготовку сировини.`);
-                   return;
+                   // Find the corresponding UNPREPARED sheet nomenclature ID for the modal mapping
+                   const rawNom = nomenclatures.find(n => 
+                      n.name.toLowerCase().includes('непідготовлений') && 
+                      getCleanNormalized(n.name) === normName
+                   )
+                   const targetId = rawNom ? rawNom.id : prepNom.id
+                   missingPrepQuantities[targetId] = requiredSheets - stock
+                   hasDeficit = true
                 }
              }
           }
+       }
+       
+       if (hasDeficit) {
+          let errorMsg = 'УВАГА: Недостатньо підготовленого матеріалу на складі СО!\n\n';
+          Object.entries(missingPrepQuantities).forEach(([targetId, deficit]) => {
+             const rawNom = nomenclatures.find(n => n.id === targetId);
+             const normName = rawNom ? getCleanNormalized(rawNom.name) : '';
+             const prepNom = nomenclatures.find(n => 
+                n.name.toLowerCase().includes('підготовлений') && 
+                !n.name.toLowerCase().includes('непідготовлений') && 
+                getCleanNormalized(n.name) === normName
+             );
+             const prepName = prepNom ? prepNom.name : (rawNom ? rawNom.name.replace('Непідготовлений', 'Підготовлений') : 'Лист');
+             
+             const m = materialSummary.find(item => getCleanNormalized(item.name) === normName);
+             const totalNeeded = m ? m.sheets : deficit;
+             const currentStock = Math.max(0, totalNeeded - deficit);
+             
+             errorMsg += `• "${prepName}": Потрібно: ${totalNeeded} шт., в наявності: ${currentStock} шт. (Дефіцит: ${deficit} шт.)\n`;
+          });
+          errorMsg += '\nНатисніть ОК, щоб створити цей наряд. Наряд на підготовку дефіцитних листів буде створено автоматично паралельно!';
+          
+          alert(errorMsg);
+          
+          setIsSubmitting(true);
+          try {
+             // 1. Auto-create prep order first
+             await autoCreatePrepOrder(missingPrepQuantities, naryadDeadline || activeNaryadOrder.deadline);
+             
+             // 2. Trigger print dialog
+             window.print();
+             
+             // 3. Create the main task
+             if (isReprintMode) {
+                setReprintTask(null);
+                setActiveNaryadOrder(null);
+             } else {
+                await apiService.submitCreateTask(activeNaryadOrder.id, '', (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline));
+                setActiveNaryadOrder(null);
+             }
+          } catch (err) {
+             console.error("Naryad creation error:", err);
+             alert("Помилка створення наряду: " + err.message);
+          } finally {
+             setIsSubmitting(false);
+          }
+          return; // Concluded
        }
     }
 
@@ -375,16 +523,15 @@ const MasterModule = () => {
           const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'bz')
           return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
         })()
-        
         const totalToProduce = Math.max(0, totalNeeded - inStock)
         const matKeyBase = (part.nom.material_type || part.nom.name || 'Інше').trim()
-        const normalizedBase = matKeyBase.toLowerCase().replace(' [непідготовлений]', '').replace('[непідготовлений]', '').trim()
         
-        // Try to match with prepared nomenclature name
+        // Match the prepared sheet nomenclature directly by name using robust normalization
+        const normKey = getCleanNormalized(matKeyBase)
         const prepNom = nomenclatures.find(n => 
-          (n.type === 'raw' || n.type === 'material') && 
-          n.name.includes('[Підготовлений]') && 
-          n.name.toLowerCase().replace(' [підготовлений]', '').replace('[підготовлений]', '').trim() === normalizedBase
+          n.name.toLowerCase().includes('підготовлений') && 
+          !n.name.toLowerCase().includes('непідготовлений') && 
+          getCleanNormalized(n.name) === normKey
         )
         const matKey = prepNom ? prepNom.name : matKeyBase
 
@@ -393,7 +540,7 @@ const MasterModule = () => {
         const unit = (part.nom.type === 'hardware' || part.nom.type === 'fastener') ? 'шт' : 'ЛИСТІВ'
 
         if (!summary[matKey]) {
-          summary[matKey] = { name: matKey, sheets: 0, unit }
+          summary[matKey] = { name: matKey, sheets: 0, unit, prepNomId: prepNom ? String(prepNom.id) : null }
         }
         summary[matKey].sheets += sheets
       })

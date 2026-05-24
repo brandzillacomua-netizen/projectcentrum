@@ -2,6 +2,19 @@ import { requestBuilder } from '../api/requestBuilder';
 
 const baseUrl = '/api';
 
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 1200) => {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(id);
+    return response;
+  } catch (err) {
+    clearTimeout(id);
+    throw err;
+  }
+};
+
 export const apiService = {
   submitOrder: async (header, items, fallback, token) => {
     const nomenclatureId = header.nomenclature_id || (items?.length > 0 ? items[0].nomenclature_id : null);
@@ -11,11 +24,12 @@ export const apiService = {
     const activeToken = token || localStorage.getItem('BACKEND_TOKEN') || '';
     const authHeaders = { 'Authorization': activeToken ? `Bearer ${activeToken}` : '', 'Content-Type': 'application/json' };
 
+    let rustSuccess = false;
     // ── PATH 1: Rust backend (Master of Record for production) ──────────────
     try {
       if (nomenclatureId && activeToken) {
         // 1a. Resolve Characteristic
-        const charRes = await fetch(`${baseUrl}/nomenclature/${nomenclatureId}/characteristics`, { headers: authHeaders });
+        const charRes = await fetchWithTimeout(`${baseUrl}/nomenclature/${nomenclatureId}/characteristics`, { headers: authHeaders }, 1200);
         if (charRes.ok) {
           const charData = await charRes.json();
           const charItems = charData.items || charData || [];
@@ -23,16 +37,16 @@ export const apiService = {
             characteristicId = charItems[0].id;
           } else {
             // Auto-create base characteristic
-            const newCharRes = await fetch(`${baseUrl}/nomenclature/${nomenclatureId}/characteristics`, {
+            const newCharRes = await fetchWithTimeout(`${baseUrl}/nomenclature/${nomenclatureId}/characteristics`, {
               method: 'POST', headers: authHeaders,
               body: JSON.stringify({ name: 'Базова', code: 'BASE-' + Date.now().toString().slice(-4), is_base: true })
-            });
+            }, 1200);
             if (newCharRes.ok) characteristicId = (await newCharRes.json()).id;
           }
         }
 
         // 1b. Resolve Counterparty — EXACT name match (enterprise standard)
-        const cpRes = await fetch(`${baseUrl}/counterparties`, { headers: authHeaders });
+        const cpRes = await fetchWithTimeout(`${baseUrl}/counterparties`, { headers: authHeaders }, 1200);
         if (cpRes.ok) {
           const counterparties = (await cpRes.json()).items || [];
           const customerName = (header.customer || '').toLowerCase().trim();
@@ -42,10 +56,10 @@ export const apiService = {
           
           // If not found — create new counterparty
           if (!found) {
-            const newCpRes = await fetch(`${baseUrl}/counterparties`, {
+            const newCpRes = await fetchWithTimeout(`${baseUrl}/counterparties`, {
               method: 'POST', headers: authHeaders,
               body: JSON.stringify({ name: header.customer.trim(), type: 'customer', code: 'CL-' + Date.now().toString().slice(-6) })
-            });
+            }, 1200);
             if (newCpRes.ok) found = await newCpRes.json();
           }
           if (found) customerId = found.id;
@@ -53,8 +67,10 @@ export const apiService = {
 
         // 1c. Build & Send order to Rust
         const payload = requestBuilder.buildOrderPayload({ ...header, customer_id: customerId }, items, characteristicId);
-        const res = await fetch(`${baseUrl}/orders`, { method: 'POST', headers: authHeaders, body: JSON.stringify(payload) });
-        if (!res.ok) {
+        const res = await fetchWithTimeout(`${baseUrl}/orders`, { method: 'POST', headers: authHeaders, body: JSON.stringify(payload) }, 1200);
+        if (res.ok) {
+          rustSuccess = true;
+        } else {
           const errText = await res.text();
           console.error('❌ Rust order failed:', res.status, errText);
         }
@@ -63,13 +79,15 @@ export const apiService = {
       console.warn('⚠️ Rust sync failed (non-blocking):', err.message);
     }
 
-    // ── PATH 2: Supabase CRM (parallel write, never blocks) ─────────────────
-    try {
-      // Pass productName so addOrder() can resolve it to a Supabase nomenclature UUID
-      await fallback(header, items);
-    } catch (err) {
-      console.error('❌ Supabase sync error:', err.message);
-      throw err; // Re-throw so UI shows the error
+    // ── PATH 2: Supabase CRM (parallel write, fallback if Rust offline/failed) ─────────────────
+    if (!rustSuccess) {
+      try {
+        // Pass productName so addOrder() can resolve it to a Supabase nomenclature UUID
+        await fallback(header, items);
+      } catch (err) {
+        console.error('❌ Supabase sync error:', err.message);
+        throw err; // Re-throw so UI shows the error
+      }
     }
 
     return true;

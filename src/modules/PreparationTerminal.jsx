@@ -205,20 +205,30 @@ const PreparationTerminal = () => {
         .eq('status', 'issued');
 
       if (reqs && reqs.length > 0) {
-        for (const req of reqs) {
-          if (req.inventory_id) {
-            const { data: invItem } = await supabase
-              .from('inventory')
-              .select('*')
-              .eq('id', req.inventory_id)
-              .single();
-
-            if (invItem) {
-              await supabase.from('inventory').update({
-                total_qty: Math.max(0, (Number(invItem.total_qty) || 0) - Number(req.quantity)),
-                reserved_qty: Math.max(0, (Number(invItem.reserved_qty) || 0) - Number(req.quantity))
-              }).eq('id', invItem.id);
+        const inventoryIds = reqs.map(r => r.inventory_id).filter(Boolean);
+        if (inventoryIds.length > 0) {
+          const { data: invItems, error: invFetchErr } = await supabase
+            .from('inventory')
+            .select('id, total_qty, reserved_qty')
+            .in('id', inventoryIds);
+          
+          if (!invFetchErr && invItems) {
+            const deductionMap = {};
+            for (const req of reqs) {
+              if (req.inventory_id) {
+                deductionMap[req.inventory_id] = (deductionMap[req.inventory_id] || 0) + Number(req.quantity);
+              }
             }
+
+            const updateOps = invItems.map(invItem => {
+              const deductQty = deductionMap[invItem.id] || 0;
+              return supabase.from('inventory').update({
+                total_qty: Math.max(0, (Number(invItem.total_qty) || 0) - deductQty),
+                reserved_qty: Math.max(0, (Number(invItem.reserved_qty) || 0) - deductQty)
+              }).eq('id', invItem.id);
+            });
+
+            await Promise.all(updateOps);
           }
         }
         // Update requests to completed

@@ -274,10 +274,23 @@ const WarehouseModuleV2 = () => {
     setIsProcessing(true)
     try {
       // 2. Надсилаємо запит тільки на різницю (дефіцит)
+      
+      const itemsToRequest = shortages.items.filter(item => {
+         const nom = nomenclatures.find(n => n.id === item.nomenclature_id);
+         return !(nom && nom.name.includes('[Підготовлений]'));
+      });
+      
+      if (itemsToRequest.length === 0) {
+         alert('Усі дефіцитні позиції — це підготовлені листи. Створіть наряд на підготовку замість запиту на СВ.');
+         setShortages(null);
+         return;
+      }
+      
       await apiService.submitPurchaseRequest(
-        shortages.orderId,
-        shortages.orderNum,
-        shortages.items, // Тут уже missingAmount завдяки моїй правці в useWarehouse
+          shortages.orderId,
+          shortages.orderNum,
+          itemsToRequest, // filtered
+
         shortages.taskId,
         createPurchaseRequest
       )
@@ -432,11 +445,19 @@ const WarehouseModuleV2 = () => {
 
                 const isAllIssued = reqList.every(r => r.status === 'issued')
 
+                const hasMissingSheets = missingItems.some(req => {
+                  const nameLower = parseMaterialName(req.details).toLowerCase()
+                  return nameLower.includes('лист') && nameLower.includes('підготовлений')
+                })
+
                 // Пріоритетність статусів
                 let btnLabel = ''
                 let isAwaiting = false
 
-                if (missingItems.length === 0) {
+                if (hasMissingSheets) {
+                  btnLabel = 'ОЧІКУЄМ ЛИСТИ'
+                  isAwaiting = true
+                } else if (missingItems.length === 0) {
                   // Якщо товару достатньо - завжди показуємо кнопку видачі
                   btnLabel = isAllIssued ? 'ПІДТВЕРДИТИ ВИДАЧУ' : 'ВИДАТИ'
                   isAwaiting = false 
