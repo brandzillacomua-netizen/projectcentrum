@@ -8,7 +8,7 @@ import { useMES } from '../MESContext'
 import { supabase } from '../supabase'
 
 const PreparationTerminal = () => {
-  const { tasks, nomenclatures, inventory, operators, getFilteredOperators, fetchData } = useMES()
+  const { tasks, setTasks, nomenclatures, inventory, operators, getFilteredOperators, fetchData } = useMES()
   
   const [selectedSubTaskId, setSelectedSubTaskId] = useState(null)
   const [selectedShift, setSelectedShift] = useState('')
@@ -93,10 +93,10 @@ const PreparationTerminal = () => {
   const handleStart = async () => {
     if (!currentSubTask || !selectedOperator || !selectedShift) return alert('Оберіть зміну та працівника!')
     setIsProcessing(true)
+    const parentTask = currentSubTask.task
+    const now = new Date().toISOString()
     try {
-      const parentTask = currentSubTask.task
-      
-      // Fetch latest task data from Supabase to avoid race conditions (parallel operators)
+      // Fetch latest snapshot to avoid overwriting parallel changes
       const { data: latestTask, error: fetchErr } = await supabase
         .from('tasks')
         .select('plan_snapshot, started_at')
@@ -113,20 +113,26 @@ const PreparationTerminal = () => {
           status: 'in-progress',
           operator: selectedOperator,
           shift: selectedShift,
-          started_at: new Date().toISOString()
+          started_at: now
         }
       }
 
-      // Update parent task
-      const { error } = await supabase.from('tasks').update({
+      const patchedTask = {
         status: 'in-progress',
-        started_at: latestTask.started_at || new Date().toISOString(),
+        started_at: latestTask.started_at || now,
         plan_snapshot: updatedSnapshot
-      }).eq('id', parentTask.id)
+      }
 
-      if (error) throw error
-      alert('Роботу розпочато!')
-      fetchData(true)
+      // Optimistic update — instant UI response, no waiting for fetchData
+      setTasks(prev => prev.map(t => t.id === parentTask.id ? { ...t, ...patchedTask } : t))
+
+      const { error } = await supabase.from('tasks').update(patchedTask).eq('id', parentTask.id)
+      if (error) {
+        // Rollback on error
+        setTasks(prev => prev.map(t => t.id === parentTask.id ? parentTask : t))
+        throw error
+      }
+      // Realtime subscription in useData.js will confirm the update automatically
     } catch (e) {
       alert('Помилка: ' + e.message)
     } finally {
@@ -265,11 +271,20 @@ const PreparationTerminal = () => {
         if (recError) throw recError
       }
 
-      alert('Частину завдання завершено, сформовано документ на прийомку на СО!')
+      // Optimistic update for task status — no fetchData() needed
+      setTasks(prev => prev.map(t => t.id === parentTask.id ? {
+        ...t,
+        status: allSubTasksCompleted ? 'completed' : 'in-progress',
+        completed_at: allSubTasksCompleted ? new Date().toISOString() : null,
+        good_qty: totalProduced,
+        scrap_qty: totalScrap,
+        plan_snapshot: updatedSnapshot
+      } : t))
+
       setShowCompleteModal(false)
       setSelectedSubTaskId(null)
       setHasUserDeselected(false)
-      fetchData(true)
+      // Realtime subscription in useData.js will confirm DB changes automatically
     } catch (e) {
       alert('Помилка: ' + e.message)
     } finally {
