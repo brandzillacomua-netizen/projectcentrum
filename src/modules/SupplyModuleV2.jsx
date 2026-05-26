@@ -187,32 +187,33 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
     setIsProcessing(true)
     try {
       const items = draftItems.map(d => ({ nomenclature_id: d.nomenclature_id, name: d.name, qty: d.qty }))
-      
-      // Резервуємо на СВ (production) щоб залишки не бралися "з повітря"
-      const reserveUpdates = []
-      draftItems.forEach(d => {
-        const qty = Number(d.qty)
-        const matching = (inventory || []).filter(i => 
-          i.warehouse === 'production' && 
-          (i.nomenclature_id === d.nomenclature_id || normalize(i.name) === normalize(d.name))
-        )
-        if (matching.length > 0) {
-          const best = matching.sort((a, b) => (Number(b.total_qty) || 0) - (Number(a.total_qty) || 0))[0]
-          reserveUpdates.push(
-            supabase.from('inventory').update({
-              reserved_qty: (Number(best.reserved_qty) || 0) + qty
-            }).eq('id', best.id)
+
+      // Резервуємо на СВ (production) тільки якщо відправляємо з СВ
+      if (!isProcurementOnly) {
+        const reserveUpdates = []
+        draftItems.forEach(d => {
+          const qty = Number(d.qty)
+          const matching = (inventory || []).filter(i =>
+            i.warehouse === 'production' &&
+            (i.nomenclature_id === d.nomenclature_id || normalize(i.name) === normalize(d.name))
           )
+          if (matching.length > 0) {
+            const best = matching.sort((a, b) => (Number(b.total_qty) || 0) - (Number(a.total_qty) || 0))[0]
+            reserveUpdates.push(
+              supabase.from('inventory').update({
+                reserved_qty: (Number(best.reserved_qty) || 0) + qty
+              }).eq('id', best.id)
+            )
+          }
+        })
+        if (reserveUpdates.length > 0) {
+          await Promise.all(reserveUpdates)
         }
-      })
-      if (reserveUpdates.length > 0) {
-        await Promise.all(reserveUpdates)
       }
 
-      // Для ручної поставки з СВ на СО створюємо документ зі статусом 'shipped'
-      // Він одразу з'явиться в прийомці СО (operational) і спишеться з СВ при прийомі
-      const targetWh = 'operational'
-      const sourceWh = 'production'
+      const targetWh = isProcurementOnly ? targetWarehouse : 'operational'
+      const sourceWh = isProcurementOnly ? null : 'production'
+      const whLabel = targetWh === 'operational' ? 'СО (Склад Операційний)' : 'СВ (Склад Виробництва)'
       await apiService.submitCreateReceptionDoc(items, null, (its) => createReceptionDoc(its, 'shipped', null, null, targetWh, sourceWh), targetWh, sourceWh)
       setDraftItems([])
       setShowCreate(false)
@@ -575,11 +576,14 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
           )}
           {!showCreate && (
             <button
-              onClick={() => setShowCreate(true)}
+              onClick={() => {
+                setTargetWarehouse('operational')
+                setShowCreate(true)
+              }}
               className="hide-mobile"
               style={{ background: '#ff9000', color: '#000', border: 'none', padding: '10px 22px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem' }}
             >
-              <Plus size={20} /> НОВА ПОСТАВКА З СВ НА СО
+              <Plus size={20} /> {isProcurementOnly ? 'НОВА ПОСТАВКА' : 'ПОСТАВКА НА СО'}
             </button>
           )}
         </div>
@@ -648,23 +652,86 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
 
           {/* CREATE PANEL */}
           {(showCreate || activeMobileSection === 'create') && (
-            <section className="create-panel glass-panel" style={{ background: '#111', borderRadius: '24px', border: '1px solid #222', padding: '35px', maxWidth: '800px', margin: '0 auto', width: '100%' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '35px', alignItems: 'center' }}>
+            <section style={{
+              background: 'linear-gradient(145deg, #0d0d0d, #141414)',
+              borderRadius: '24px',
+              border: '1px solid #222',
+              padding: '30px',
+              maxWidth: '650px',
+              margin: '0 auto',
+              width: '100%',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+              position: 'relative'
+            }}>
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '25px', alignItems: 'center', borderBottom: '1px solid #222', paddingBottom: '20px' }}>
                 <div>
-                  <h2 style={{ fontSize: '1.5rem', fontWeight: 950, color: '#ff9000', margin: 0, letterSpacing: '-0.02em' }}>СФОРМУВАТИ ПОСТАВКУ З СВ НА СО</h2>
-                  <p style={{ color: '#555', fontSize: '0.9rem', margin: '8px 0 0' }}>Оберіть товар та вкажіть кількість для передачі з СВ на СО</p>
+                  <h2 style={{ fontSize: '1.3rem', fontWeight: 900, color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <Truck size={22} style={{ color: '#ff9000' }} />
+                    {isProcurementOnly ? 'НОВА ПОСТАВКА' : 'ПОСТАВКА З СВ НА СО'}
+                  </h2>
+                  <p style={{ color: '#666', fontSize: '0.8rem', margin: '6px 0 0' }}>
+                    {isProcurementOnly 
+                      ? 'Сформувати поставку на Склад Операційний (СО) або Склад Виробництва (СВ)' 
+                      : 'Передати матеріали зі складу виробництва на операційний склад (СО)'}
+                  </p>
                 </div>
-                <button onClick={() => { setShowCreate(false); setActiveMobileSection('registry') }} style={{ background: '#222', border: 'none', color: '#888', cursor: 'pointer', width: '45px', height: '45px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={24} /></button>
+                <button onClick={() => { setShowCreate(false); setDraftItems([]); setActiveMobileSection('registry') }}
+                  style={{ background: '#1c1c1c', border: '1px solid #2a2a2a', color: '#888', cursor: 'pointer', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.2s' }}
+                  onMouseEnter={e => { e.currentTarget.style.background='#ff9000'; e.currentTarget.style.color='#000' }}
+                  onMouseLeave={e => { e.currentTarget.style.background='#1c1c1c'; e.currentTarget.style.color='#888' }}
+                ><X size={18} /></button>
               </div>
 
-              <div className="creation-flow" style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 65px', gap: '15px' }} className="mobile-stack">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                
+                {/* Destination selector (procurement only) */}
+                {isProcurementOnly && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 900, color: '#555', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Пункт призначення</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      {[
+                        { id: 'operational', label: 'СО', desc: 'Склад Операційний', color: '#10b981', icon: '🏭' },
+                        { id: 'production', label: 'СВ', desc: 'Склад Виробництва', color: '#3b82f6', icon: '⚙️' }
+                      ].map(wh => {
+                        const active = targetWarehouse === wh.id
+                        return (
+                          <button
+                            key={wh.id}
+                            onClick={() => setTargetWarehouse(wh.id)}
+                            style={{
+                              background: active ? `${wh.color}15` : '#0d0d0d',
+                              border: `1px solid ${active ? wh.color : '#222'}`,
+                              borderRadius: '12px',
+                              padding: '12px 15px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '10px',
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                              transition: '0.2s'
+                            }}
+                          >
+                            <span style={{ fontSize: '1.2rem' }}>{wh.icon}</span>
+                            <div>
+                              <div style={{ fontWeight: 800, fontSize: '0.85rem', color: active ? wh.color : '#fff' }}>{wh.label}</div>
+                              <div style={{ fontSize: '0.65rem', color: '#555' }}>{wh.desc}</div>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Add Item inputs */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 50px', gap: '10px' }} className="mobile-stack">
                   <div style={{ position: 'relative' }}>
-                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 900, color: '#444', marginBottom: '10px', textTransform: 'uppercase' }}>Номенклатура</label>
+                    <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 900, color: '#555', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Номенклатура</label>
                     <input
                       list="noms-list"
-                      style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '18px', borderRadius: '15px', fontSize: '1.1rem' }}
-                      placeholder="Пошук товару..."
+                      style={{ width: '100%', background: '#0a0a0a', border: '1px solid #222', color: '#fff', padding: '12px 15px', borderRadius: '10px', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }}
+                      placeholder="Оберіть товар..."
                       value={searchQuery}
                       onChange={e => setSearchQuery(e.target.value)}
                     />
@@ -673,35 +740,36 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                     </datalist>
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 900, color: '#444', marginBottom: '10px', textTransform: 'uppercase' }}>Кількість</label>
+                    <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 900, color: '#555', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Кількість</label>
                     <input
                       type="number"
-                      style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '18px', borderRadius: '15px', textAlign: 'center', fontSize: '1.1rem', fontWeight: 700 }}
+                      style={{ width: '100%', background: '#0a0a0a', border: '1px solid #222', color: '#fff', padding: '12px 15px', borderRadius: '10px', fontSize: '0.9rem', outline: 'none', textAlign: 'center', boxSizing: 'border-box' }}
                       placeholder="0"
                       value={selectedQty}
                       onChange={e => setSelectedQty(e.target.value)}
                     />
                   </div>
                   <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                    <button onClick={addToDraft} style={{ height: '62px', width: '100%', background: '#ff9000', color: '#000', border: 'none', borderRadius: '15px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={28} /></button>
+                    <button onClick={addToDraft} style={{ height: '42px', width: '50px', background: '#ff9000', color: '#000', border: 'none', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={20} /></button>
                   </div>
                 </div>
 
-                <div className="draft-preview" style={{ background: 'rgba(0,0,0,0.3)', padding: '25px', borderRadius: '24px', minHeight: '150px', border: '1px solid #1a1a1a' }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 900, color: '#444', marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>СПИСОК ДО ПОСТАВКИ ({draftItems.length})</div>
+                {/* Draft list */}
+                <div style={{ background: '#070707', borderRadius: '14px', border: '1px solid #1a1a1a', padding: '15px' }}>
+                  <div style={{ fontSize: '0.65rem', fontWeight: 900, color: '#444', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '10px' }}>СПИСОК ПОСТАВКИ ({draftItems.length})</div>
                   {draftItems.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '40px 0', color: '#333' }}>
-                      <Package size={40} style={{ marginBottom: '15px', opacity: 0.1 }} />
-                      <p style={{ fontSize: '0.9rem' }}>Додайте товари вище</p>
+                    <div style={{ textAlign: 'center', padding: '25px 0', color: '#333' }}>
+                      <Package size={28} style={{ marginBottom: '8px', opacity: 0.1, display: 'inline-block' }} />
+                      <p style={{ fontSize: '0.75rem', margin: 0 }}>Немає доданих товарів</p>
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto' }}>
                       {draftItems.map((it, idx) => (
-                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '15px 20px', background: '#0a0a0a', borderRadius: '15px', border: '1px solid #222' }}>
-                          <span style={{ fontSize: '1rem', fontWeight: 700 }}>{it.name}</span>
-                          <div style={{ display: 'flex', gap: '25px', alignItems: 'center' }}>
-                            <strong style={{ color: '#ff9000', fontSize: '1.25rem', fontWeight: 950 }}>{it.qty}</strong>
-                            <button onClick={() => setDraftItems(draftItems.filter((_, i) => i !== idx))} style={{ color: '#444', border: 'none', background: 'transparent', cursor: 'pointer', padding: '5px' }}><X size={20} /></button>
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#0d0d0d', borderRadius: '8px', border: '1px solid #222' }}>
+                          <span style={{ fontSize: '0.8rem', color: '#ddd' }}>{it.name}</span>
+                          <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                            <strong style={{ color: '#ff9000', fontSize: '0.9rem' }}>{it.qty}</strong>
+                            <button onClick={() => setDraftItems(draftItems.filter((_, i) => i !== idx))} style={{ color: '#555', border: 'none', background: 'transparent', cursor: 'pointer', padding: '2px' }}><X size={14} /></button>
                           </div>
                         </div>
                       ))}
@@ -709,12 +777,35 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                   )}
                 </div>
 
+                {/* Submit button */}
                 {draftItems.length > 0 && (
                   <button 
                     disabled={isProcessing}
                     onClick={handleSendToWarehouse} 
-                    style={{ width: '100%', padding: '22px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '20px', fontWeight: 950, cursor: isProcessing ? 'not-allowed' : 'pointer', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', marginTop: '15px', boxShadow: '0 15px 30px rgba(16, 185, 129, 0.2)', opacity: isProcessing ? 0.7 : 1 }}>
-                    <Send size={22} /> {isProcessing ? 'СТВОРЕННЯ...' : 'СФОРМУВАТИ ДОКУМЕНТ ТА ПЕРЕДАТИ'}
+                    style={{
+                      width: '100%', 
+                      padding: '14px', 
+                      background: isProcessing ? '#222' : (isProcurementOnly && targetWarehouse === 'production' ? 'linear-gradient(135deg, #3b82f6, #1d4ed8)' : 'linear-gradient(135deg, #10b981, #047857)'), 
+                      color: '#fff', 
+                      border: 'none', 
+                      borderRadius: '12px', 
+                      fontWeight: 900, 
+                      cursor: isProcessing ? 'not-allowed' : 'pointer', 
+                      fontSize: '0.9rem', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      gap: '10px', 
+                      marginTop: '5px',
+                      opacity: isProcessing ? 0.7 : 1,
+                      transition: '0.2s'
+                    }}>
+                    <Send size={16} /> 
+                    {isProcessing 
+                      ? 'ОБРОБКА...' 
+                      : (isProcurementOnly 
+                          ? `ВІДПРАВИТИ НА ${targetWarehouse === 'operational' ? 'СО' : 'СВ'}` 
+                          : 'ВІДПРАВИТИ НА СО')}
                   </button>
                 )}
               </div>
