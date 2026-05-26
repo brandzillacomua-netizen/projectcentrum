@@ -426,7 +426,7 @@ const NomenclatureV2 = () => {
                 }]);
               }
             } else {
-              extraPayload.material_type = comp.characteristics || '';
+              extraPayload.material_type = comp.description || comp.characteristics || '';
             }
 
             const baseNom = await createOrFind(originalFullName, extraPayload);

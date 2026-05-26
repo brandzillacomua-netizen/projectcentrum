@@ -301,7 +301,7 @@ const Shop2Terminal = () => {
   }
   const formatMachine = (name) => {
     if (!name) return '—'
-    const match = name.match(/№\s*(\d+)/)
+    const match = name.match(/№\s*(\S+)/)
     return match ? `№${match[1]}` : name
   }
 

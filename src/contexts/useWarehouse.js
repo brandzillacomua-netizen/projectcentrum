@@ -59,12 +59,29 @@ export function createWarehouseActions({
     // Бронювання на складі-відправнику якщо це переміщення СВ → СО
     if (sourceWH) {
       try {
-        const { data: invData } = await supabase.from('inventory').select('id,nomenclature_id,name,reserved_qty,total_qty').eq('warehouse', sourceWH)
+        const items = requestData.items || []
+        const nomIds = items.map(it => it.nomenclature_id).filter(Boolean)
+        const names = items.map(it => it.name || it.details || '').filter(Boolean)
+        const orFilters = []
+        if (nomIds.length > 0) {
+          orFilters.push(`nomenclature_id.in.(${nomIds.join(',')})`)
+        }
+        if (names.length > 0) {
+          const escapedNames = names.map(n => `"${n.replace(/"/g, '""')}"`).join(',')
+          orFilters.push(`name.in.(${escapedNames})`)
+        }
+
+        let query = supabase.from('inventory').select('id,nomenclature_id,name,reserved_qty,total_qty').eq('warehouse', sourceWH)
+        if (orFilters.length > 0) {
+          query = query.or(orFilters.join(','))
+        }
+
+        const { data: invData } = await query
         const inv = invData || []
 
         // Collect all updates, then run in parallel
         const reserveUpdates = []
-        for (const it of (requestData.items || [])) {
+        for (const it of items) {
           const qty = Number(it.qty ?? it.quantity ?? it.needed ?? 0)
           if (qty <= 0) continue
 
@@ -161,15 +178,42 @@ export function createWarehouseActions({
       }
 
       // ── Fetch both warehouse inventories IN PARALLEL, only needed columns ──
+      const nomIds = items.map(it => it.nomenclature_id).filter(Boolean)
+      const names = items.map(it => it.name || it.reqDetails || it.details || '').filter(Boolean)
+      const orFilters = []
+      if (nomIds.length > 0) {
+        orFilters.push(`nomenclature_id.in.(${nomIds.join(',')})`)
+      }
+      if (names.length > 0) {
+        const escapedNames = names.map(n => `"${n.replace(/"/g, '""')}"`).join(',')
+        orFilters.push(`name.in.(${escapedNames})`)
+      }
+
+      let targetQuery = supabase.from('inventory')
+        .select('id,nomenclature_id,name,type,total_qty,reserved_qty,unit,warehouse')
+        .eq('warehouse', targetWarehouse)
+      
+      let sourceQuery = Promise.resolve({ data: [] })
+
+      if (orFilters.length > 0) {
+        targetQuery = targetQuery.or(orFilters.join(','))
+        if (sourceWarehouse) {
+          sourceQuery = supabase.from('inventory')
+            .select('id,nomenclature_id,name,type,total_qty,reserved_qty,unit,warehouse')
+            .eq('warehouse', sourceWarehouse)
+            .or(orFilters.join(','))
+        }
+      } else {
+        if (sourceWarehouse) {
+          sourceQuery = supabase.from('inventory')
+            .select('id,nomenclature_id,name,type,total_qty,reserved_qty,unit,warehouse')
+            .eq('warehouse', sourceWarehouse)
+        }
+      }
+
       const [targetResult, sourceResult] = await Promise.all([
-        supabase.from('inventory')
-          .select('id,nomenclature_id,name,type,total_qty,reserved_qty,unit,warehouse')
-          .eq('warehouse', targetWarehouse),
-        sourceWarehouse
-          ? supabase.from('inventory')
-              .select('id,nomenclature_id,name,type,total_qty,reserved_qty,unit,warehouse')
-              .eq('warehouse', sourceWarehouse)
-          : Promise.resolve({ data: [] })
+        targetQuery,
+        sourceQuery
       ])
 
       if (targetResult.error) throw targetResult.error
@@ -308,7 +352,32 @@ export function createWarehouseActions({
     if (!req) return
     let parsedName = ''
     try { parsedName = req.details?.split(': ')[1]?.split(' — ')[0]?.trim() } catch (e) {}
-    const invItem = inventory.find(i => {
+
+    const orFilters = []
+    if (req.inventory_id) {
+      orFilters.push(`id.eq.${req.inventory_id}`)
+    }
+    if (req.nomenclature_id) {
+      orFilters.push(`nomenclature_id.eq.${req.nomenclature_id}`)
+    }
+    if (parsedName) {
+      const escapedParsedName = `"${parsedName.replace(/"/g, '""')}"`
+      orFilters.push(`name.eq.${escapedParsedName}`)
+      const prepName = `${parsedName} [підготовлений]`
+      orFilters.push(`name.eq."${prepName.replace(/"/g, '""')}"`)
+    }
+
+    let matchedInventory = []
+    if (orFilters.length > 0) {
+      const { data, error } = await supabase.from('inventory')
+        .select('*')
+        .or(orFilters.join(','))
+      if (!error && data) {
+        matchedInventory = data
+      }
+    }
+
+    const invItem = matchedInventory.find(i => {
       if (i.id === req.inventory_id) return true
       if (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) return true
       if (parsedName) {
@@ -316,20 +385,74 @@ export function createWarehouseActions({
         const normParsed = normalize(parsedName)
         if (normName === normParsed) return true
         if (normName.includes('[підготовлений]') && normName.replace(' [підготовлений]', '').replace('[підготовлений]', '').trim() === normParsed) return true
+        const normNameNoParens = normalize(i.name.replace(/\s*\([^)]*\)$/, ''))
+        if (normNameNoParens === normParsed) return true
       }
       return false
     })
+
     if (invItem) {
       await supabase.from('inventory').update({ reserved_qty: (Number(invItem.reserved_qty) || 0) + Number(req.quantity) }).eq('id', invItem.id)
       await supabase.from('material_requests').update({ status: 'issued', inventory_id: invItem.id }).eq('id', requestId)
     } else {
       await supabase.from('material_requests').update({ status: 'issued' }).eq('id', requestId)
     }
+
+    try {
+      const taskIdToCheck = req.task_id
+      if (taskIdToCheck) {
+        const { data: pendingReqs } = await supabase
+          .from('material_requests')
+          .select('id')
+          .eq('task_id', taskIdToCheck)
+          .eq('status', 'pending')
+        
+         if (!pendingReqs || pendingReqs.length === 0) {
+          await supabase
+            .from('work_cards')
+            .update({ status: 'new' })
+            .eq('task_id', taskIdToCheck)
+            .eq('status', 'waiting-materials')
+        }
+      }
+    } catch (err) {
+      console.error('Error updating work cards after material issuance:', err)
+    }
   }
 
   const issueMaterialsBatch = async (requestIds, taskId = null) => {
     try {
       const relevantRequests = (requests || []).filter(r => requestIds.includes(r.id))
+      const orFilters = []
+      
+      relevantRequests.forEach(req => {
+        if (req.status === 'issued') return
+        let parsedName = ''
+        try { parsedName = req.details?.split(': ')[1]?.split(' — ')[0]?.trim() } catch (e) {}
+        
+        if (req.inventory_id) {
+          orFilters.push(`id.eq.${req.inventory_id}`)
+        }
+        if (req.nomenclature_id) {
+          orFilters.push(`nomenclature_id.eq.${req.nomenclature_id}`)
+        }
+        if (parsedName) {
+          const escapedParsedName = `"${parsedName.replace(/"/g, '""')}"`
+          orFilters.push(`name.eq.${escapedParsedName}`)
+          const prepName = `${parsedName} [підготовлений]`
+          orFilters.push(`name.eq."${prepName.replace(/"/g, '""')}"`)
+        }
+      })
+
+      let matchedInventory = []
+      if (orFilters.length > 0) {
+        const { data, error } = await supabase.from('inventory')
+          .select('*')
+          .or(orFilters.join(','))
+        if (error) throw error
+        matchedInventory = data || []
+      }
+
       const inventoryUpdateMap = {}
       const requestUpdateList = []
 
@@ -342,12 +465,13 @@ export function createWarehouseActions({
         const isPrepRequest = (req.details && (req.details.includes('ПІДГОТОВ') || req.details.includes('подготов'))) || 
           (parsedName && (parsedName.includes('[Непідготовлений]') || parsedName.includes('[неподготовленный]')))
 
-        let invItem = inventory.find(i => {
+        let invItem = matchedInventory.find(i => {
           const baseMatch = String(i.id) === String(req.inventory_id) ||
             (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) ||
             (parsedName && (
               normalize(i.name) === normalize(parsedName) ||
-              (normalize(i.name).includes('[підготовлений]') && normalize(i.name).replace(' [підготовлений]', '').replace('[підготовлений]', '').trim() === normalize(parsedName))
+              (normalize(i.name).includes('[підготовлений]') && normalize(i.name).replace(' [підготовлений]', '').replace('[підготовлений]', '').trim() === normalize(parsedName)) ||
+              normalize(i.name.replace(/\s*\([^)]*\)$/, '')) === normalize(parsedName)
             ))
           if (!baseMatch) return false
           
@@ -362,7 +486,7 @@ export function createWarehouseActions({
         })
 
         if (!invItem) {
-          invItem = inventory.find(i => {
+          invItem = matchedInventory.find(i => {
             if (String(i.id) === String(req.inventory_id)) return true
             if (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) return true
             if (parsedName) {
@@ -389,7 +513,7 @@ export function createWarehouseActions({
       })
 
       const invPromises = Object.entries(inventoryUpdateMap).map(async ([id, addQty]) => {
-        const item = inventory.find(i => String(i.id) === String(id))
+        const item = matchedInventory.find(i => String(i.id) === String(id))
         if (!item) return
         return supabase.from('inventory').update({
           reserved_qty: (Number(item.reserved_qty) || 0) + addQty
@@ -402,6 +526,28 @@ export function createWarehouseActions({
 
       await Promise.all([...invPromises, ...reqPromises])
 
+      // Auto-transition work cards for any task whose material requests are fully issued
+      const uniqueTaskIds = [...new Set(relevantRequests.map(r => r.task_id).filter(Boolean))]
+      for (const tId of uniqueTaskIds) {
+        try {
+          const { data: pendingReqs } = await supabase
+            .from('material_requests')
+            .select('id')
+            .eq('task_id', tId)
+            .eq('status', 'pending')
+          
+          if (!pendingReqs || pendingReqs.length === 0) {
+            await supabase
+              .from('work_cards')
+              .update({ status: 'new' })
+              .eq('task_id', tId)
+              .eq('status', 'waiting-materials')
+          }
+        } catch (err) {
+          console.error(`Error updating work cards for task ${tId}:`, err)
+        }
+      }
+
       if (taskId) {
         await supabase.from('tasks').update({ warehouse_conf: true }).eq('id', taskId)
       }
@@ -412,7 +558,7 @@ export function createWarehouseActions({
         return r
       }))
       if (taskId) {
-      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, warehouse_conf: true } : t))
+        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, warehouse_conf: true } : t))
       }
       fetchData(true)
     } catch (err) {
@@ -422,13 +568,23 @@ export function createWarehouseActions({
   }
 
   const receiveInventory = async (inventoryId, qty) => {
-    const invItem = inventory.find(i => i.id === inventoryId)
-    if (!invItem) return
-    const { error } = await supabase.from('inventory').update({
-      total_qty: (Number(invItem.total_qty) || 0) + Number(qty)
-    }).eq('id', inventoryId)
-    if (!error) fetchData(true)
-    return { error }
+    try {
+      const { data: items, error: fetchErr } = await supabase
+        .from('inventory')
+        .select('total_qty')
+        .eq('id', inventoryId)
+      if (fetchErr || !items || items.length === 0) return { error: fetchErr || 'Item not found' }
+      
+      const invItem = items[0]
+      const { error } = await supabase.from('inventory').update({
+        total_qty: (Number(invItem.total_qty) || 0) + Number(qty)
+      }).eq('id', inventoryId)
+      if (!error) fetchData(true)
+      return { error }
+    } catch (err) {
+      console.error('receiveInventory error:', err)
+      return { error: err }
+    }
   }
 
   const fixInventoryTypes = async () => {

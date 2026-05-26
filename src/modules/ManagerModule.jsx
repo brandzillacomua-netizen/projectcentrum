@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   LayoutDashboard,
   ArrowLeft,
@@ -18,15 +18,49 @@ import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
 import { nomenclatureService } from '../services/nomenclatureService'
+import { supabase } from '../supabase'
 
 const ManagerModule = () => {
-  const { nomenclatures, addOrder, orders, fetchOrders, hasMoreOrders, customers, searchCustomers, currentUser, loading, getOrderProductionProgress } = useMES()
+  const { nomenclatures, addOrder, orders, fetchOrders, hasMoreOrders, searchCustomers, currentUser, loading, getOrderProductionProgress } = useMES()
+  const [localCustomers, setLocalCustomers] = useState([])
+  const searchTimeout = useRef(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   
   // Filtering & Pagination State
   const [dateFilter, setDateFilter] = useState('month')
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(0)
+
+  const generateNextOrderNum = () => {
+    const today = new Date();
+    const dd = String(today.getDate()).padStart(2, '0');
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const yyyy = today.getFullYear();
+    const datePrefix = `${dd}${mm}${yyyy}`;
+    
+    const todayOrders = (orders || []).filter(o => {
+      const num = o.order_num || '';
+      const cleanNum = num.replace(/^№/, '');
+      return cleanNum.startsWith(datePrefix);
+    });
+    
+    let maxSeq = 0;
+    todayOrders.forEach(o => {
+      const num = o.order_num || '';
+      const cleanNum = num.replace(/^№/, '');
+      const parts = cleanNum.split('-');
+      if (parts.length === 2) {
+        const seq = parseInt(parts[1], 10);
+        if (!isNaN(seq) && seq > maxSeq) {
+          maxSeq = seq;
+        }
+      }
+    });
+    
+    const nextSeq = maxSeq + 1;
+    const seqStr = String(nextSeq).padStart(2, '0');
+    return `№${datePrefix}-${seqStr}`;
+  }
 
   const [orderHeader, setOrderHeader] = useState({ 
     orderDate: new Date().toISOString().split('T')[0],
@@ -39,6 +73,15 @@ const ManagerModule = () => {
     deadline: '',
     source: 'Виробництво'
   })
+
+  useEffect(() => {
+    setOrderHeader(prev => {
+      if (!prev.orderNum || prev.orderNum.startsWith('№')) {
+        return { ...prev, orderNum: generateNextOrderNum() };
+      }
+      return prev;
+    });
+  }, [orders]);
   
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [showCustomerHints, setShowCustomerHints] = useState(false)
@@ -81,12 +124,31 @@ const ManagerModule = () => {
   }
 
   const handleCustomerChange = (val) => {
-    setOrderHeader({ ...orderHeader, customer: val })
+    setOrderHeader(prev => ({ ...prev, customer: val }))
+    
+    if (searchTimeout.current) {
+      clearTimeout(searchTimeout.current)
+    }
+    
     if (val.length > 1) {
-      searchCustomers(val)
       setShowCustomerHints(true)
+      searchTimeout.current = setTimeout(async () => {
+        const { data } = await supabase
+          .from('customers')
+          .select('*')
+          .ilike('name', `%${val}%`)
+          .limit(5)
+        
+        setOrderHeader(currentHeader => {
+          if (currentHeader.customer === val && data) {
+            setLocalCustomers(data)
+          }
+          return currentHeader
+        })
+      }, 250)
     } else {
       setShowCustomerHints(false)
+      setLocalCustomers([])
     }
   }
 
@@ -169,9 +231,9 @@ const ManagerModule = () => {
             <form onSubmit={handleOrderSubmit} className="order-form-grid-modern">
               <div className="form-group-modern">
                 <label>№ ЗАМОВЛЕННЯ</label>
-                <div className="input-wrapper">
+                <div className="input-wrapper" style={{ background: 'rgba(255,255,255,0.02)' }}>
                   <Package size={16} />
-                  <input value={orderHeader.orderNum} onChange={e => setOrderHeader({...orderHeader, orderNum: e.target.value})} placeholder="напр. 24-001" />
+                  <input value={orderHeader.orderNum} readOnly style={{ opacity: 0.7, cursor: 'not-allowed' }} placeholder="Генерується автоматично..." />
                 </div>
               </div>
 
@@ -180,9 +242,9 @@ const ManagerModule = () => {
                 <div className="input-wrapper">
                   <User size={16} />
                   <input value={orderHeader.customer} onChange={e => handleCustomerChange(e.target.value)} onBlur={() => setTimeout(() => setShowCustomerHints(false), 200)} placeholder="Почніть вводити назву..." />
-                  {showCustomerHints && customers.length > 0 && (
+                  {showCustomerHints && localCustomers.length > 0 && (
                     <div className="hints-dropdown">
-                      {customers.map(c => <div key={c.id} onClick={() => selectCustomer(c)} className="hint-item">{c.name}</div>)}
+                      {localCustomers.map(c => <div key={c.id} onClick={() => selectCustomer(c)} className="hint-item">{c.name}</div>)}
                     </div>
                   )}
                 </div>

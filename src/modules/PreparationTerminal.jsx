@@ -191,16 +191,16 @@ const PreparationTerminal = () => {
         .filter(([key]) => !key.startsWith('_'))
         .reduce((sum, [_, item]) => sum + (Number(item.actual_scrap) || 0), 0)
 
-      // 2. Update the parent task row
-      const { error: tErr } = await supabase.from('tasks').update({
+      // 2. Prepare database writes
+      const writeOps = []
+
+      writeOps.push(supabase.from('tasks').update({
         status: allSubTasksCompleted ? 'completed' : 'in-progress',
         completed_at: allSubTasksCompleted ? new Date().toISOString() : null,
         good_qty: totalProduced,
         scrap_qty: totalScrap,
         plan_snapshot: updatedSnapshot
-      }).eq('id', parentTask.id)
-
-      if (tErr) throw tErr
+      }).eq('id', parentTask.id))
 
       // 3. Deduct SV inventory for this specific item (Unprepared raw stock)
       const { data: reqs } = await supabase
@@ -215,7 +215,7 @@ const PreparationTerminal = () => {
         if (inventoryIds.length > 0) {
           const { data: invItems, error: invFetchErr } = await supabase
             .from('inventory')
-            .select('id, total_qty, reserved_qty')
+            .select('*')
             .in('id', inventoryIds);
           
           if (!invFetchErr && invItems) {
@@ -226,24 +226,25 @@ const PreparationTerminal = () => {
               }
             }
 
-            const updateOps = invItems.map(invItem => {
+            const updates = invItems.map(invItem => {
               const deductQty = deductionMap[invItem.id] || 0;
-              return supabase.from('inventory').update({
+              return {
+                ...invItem,
                 total_qty: Math.max(0, (Number(invItem.total_qty) || 0) - deductQty),
                 reserved_qty: Math.max(0, (Number(invItem.reserved_qty) || 0) - deductQty)
-              }).eq('id', invItem.id);
+              }
             });
 
-            await Promise.all(updateOps);
+            writeOps.push(supabase.from('inventory').upsert(updates));
           }
         }
         // Update requests to completed
-        await supabase
+        writeOps.push(supabase
           .from('material_requests')
           .update({ status: 'completed' })
           .eq('task_id', parentTask.id)
           .eq('nomenclature_id', nomId)
-          .eq('status', 'issued');
+          .eq('status', 'issued'));
       }
 
       // 4. Create Reception Document for Operational Warehouse (SO)
@@ -255,7 +256,7 @@ const PreparationTerminal = () => {
       }
 
       if (prepNom) {
-        const { error: recError } = await supabase.from('reception_docs').insert([{
+        writeOps.push(supabase.from('reception_docs').insert([{
           items: [{
             nomenclature_id: prepNom.id,
             name: prepNom.name,
@@ -267,8 +268,13 @@ const PreparationTerminal = () => {
           target_warehouse: 'operational',
           source_warehouse: null,
           created_at: new Date().toISOString()
-        }])
-        if (recError) throw recError
+        }]))
+      }
+
+      // Execute all database writes in parallel
+      const results = await Promise.all(writeOps)
+      for (const r of results) {
+        if (r.error) throw r.error
       }
 
       // Optimistic update for task status — no fetchData() needed

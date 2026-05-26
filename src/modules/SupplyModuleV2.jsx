@@ -187,15 +187,37 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
     setIsProcessing(true)
     try {
       const items = draftItems.map(d => ({ nomenclature_id: d.nomenclature_id, name: d.name, qty: d.qty }))
-      // Для ручної прийомки спочатку створюємо документ на СВ (production)
-      // Він з'явиться в реєстрі СВ, і його можна буде "Передати на СО" тільки коли буде наявність
-      const targetWh = 'production'
-      const sourceWh = null
-      await apiService.submitCreateReceptionDoc(items, null, (its) => createReceptionDoc(its, 'ordered', null, null, targetWh, sourceWh), targetWh, sourceWh)
+      
+      // Резервуємо на СВ (production) щоб залишки не бралися "з повітря"
+      const reserveUpdates = []
+      draftItems.forEach(d => {
+        const qty = Number(d.qty)
+        const matching = (inventory || []).filter(i => 
+          i.warehouse === 'production' && 
+          (i.nomenclature_id === d.nomenclature_id || normalize(i.name) === normalize(d.name))
+        )
+        if (matching.length > 0) {
+          const best = matching.sort((a, b) => (Number(b.total_qty) || 0) - (Number(a.total_qty) || 0))[0]
+          reserveUpdates.push(
+            supabase.from('inventory').update({
+              reserved_qty: (Number(best.reserved_qty) || 0) + qty
+            }).eq('id', best.id)
+          )
+        }
+      })
+      if (reserveUpdates.length > 0) {
+        await Promise.all(reserveUpdates)
+      }
+
+      // Для ручної поставки з СВ на СО створюємо документ зі статусом 'shipped'
+      // Він одразу з'явиться в прийомці СО (operational) і спишеться з СВ при прийомі
+      const targetWh = 'operational'
+      const sourceWh = 'production'
+      await apiService.submitCreateReceptionDoc(items, null, (its) => createReceptionDoc(its, 'shipped', null, null, targetWh, sourceWh), targetWh, sourceWh)
       setDraftItems([])
       setShowCreate(false)
       setActiveMobileSection('registry')
-      alert('Готово! Документ створено в Реєстрі. Коли товар буде в наявності, ви зможете "Передати на СО".')
+      alert('Готово! Поставку успішно відправлено на СО.')
     } finally {
       setIsProcessing(false)
     }
@@ -557,7 +579,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
               className="hide-mobile"
               style={{ background: '#ff9000', color: '#000', border: 'none', padding: '10px 22px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem' }}
             >
-              <Plus size={20} /> НОВА ПРИЙОМКА
+              <Plus size={20} /> НОВА ПОСТАВКА З СВ НА СО
             </button>
           )}
         </div>
@@ -629,8 +651,8 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
             <section className="create-panel glass-panel" style={{ background: '#111', borderRadius: '24px', border: '1px solid #222', padding: '35px', maxWidth: '800px', margin: '0 auto', width: '100%' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '35px', alignItems: 'center' }}>
                 <div>
-                  <h2 style={{ fontSize: '1.5rem', fontWeight: 950, color: '#ff9000', margin: 0, letterSpacing: '-0.02em' }}>СФОРМУВАТИ ПРИЙОМКУ</h2>
-                  <p style={{ color: '#555', fontSize: '0.9rem', margin: '8px 0 0' }}>Оберіть товар та вкажіть кількість для передачі на склад</p>
+                  <h2 style={{ fontSize: '1.5rem', fontWeight: 950, color: '#ff9000', margin: 0, letterSpacing: '-0.02em' }}>СФОРМУВАТИ ПОСТАВКУ З СВ НА СО</h2>
+                  <p style={{ color: '#555', fontSize: '0.9rem', margin: '8px 0 0' }}>Оберіть товар та вкажіть кількість для передачі з СВ на СО</p>
                 </div>
                 <button onClick={() => { setShowCreate(false); setActiveMobileSection('registry') }} style={{ background: '#222', border: 'none', color: '#888', cursor: 'pointer', width: '45px', height: '45px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={24} /></button>
               </div>
@@ -666,7 +688,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                 </div>
 
                 <div className="draft-preview" style={{ background: 'rgba(0,0,0,0.3)', padding: '25px', borderRadius: '24px', minHeight: '150px', border: '1px solid #1a1a1a' }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 900, color: '#444', marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>СПИСОК ДО ПРИЙОМКИ ({draftItems.length})</div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 900, color: '#444', marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>СПИСОК ДО ПОСТАВКИ ({draftItems.length})</div>
                   {draftItems.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '40px 0', color: '#333' }}>
                       <Package size={40} style={{ marginBottom: '15px', opacity: 0.1 }} />

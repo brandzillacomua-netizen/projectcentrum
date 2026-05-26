@@ -214,11 +214,19 @@ export function useData() {
   }
 
   // ── LEVEL 2: Full data — called lazily by modules that need it ────────────
+  // ── LEVEL 2: Full data — called lazily by modules that need it ────────────
   const fetchData = async (force = false) => {
     if (!force && Date.now() - lastFetchTime < 1000) return
     try {
       setLastFetchTime(Date.now())
       const threeDaysAgoTasks = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+
+      const needNomenclatures = nomenclatures.length === 0
+      const needBOM = bomItems.length === 0
+      const needMachines = machines.length === 0
+      const needUsers = systemUsers.length === 0
+      const needStructure = companyStructure.length <= fallbackStructure.length
+      const needOperations = machineOperations.length === 0
 
       const [
         { data: latest, error: oErr },
@@ -241,19 +249,19 @@ export function useData() {
         supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).range(0, 99),
         // tasks WITHOUT nested JOIN — avoids the orders(order_items(*)) waterfall
         supabase.from('tasks').select('id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,plan_snapshot,batch_index,planned_deadline,machine_name,created_at,completed_at').or(`status.neq.completed,completed_at.gte.${threeDaysAgoTasks}`).order('created_at', { ascending: false }),
-        supabase.from('nomenclatures').select('*').limit(2000),
-        supabase.from('bom_items').select('*').limit(4000),
-        supabase.from('machines').select('*').order('name'),
-        supabase.from('system_users').select('*').order('login'),
+        needNomenclatures ? supabase.from('nomenclatures').select('*').limit(2000) : Promise.resolve({ data: null }),
+        needBOM ? supabase.from('bom_items').select('*').limit(4000) : Promise.resolve({ data: null }),
+        needMachines ? supabase.from('machines').select('*').order('name') : Promise.resolve({ data: null }),
+        needUsers ? supabase.from('system_users').select('*').order('login') : Promise.resolve({ data: null }),
         supabase.from('management_tasks').select('*').neq('status', 'completed').order('created_at', { ascending: false }),
         supabase.from('work_cards').select('*').neq('status', 'completed').order('created_at', { ascending: true }),
-        supabase.from('company_structure').select('*').order('name').then(res => res, () => ({ data: fallbackStructure, error: null })),
+        needStructure ? supabase.from('company_structure').select('*').order('name').then(res => res, () => ({ data: fallbackStructure, error: null })) : Promise.resolve({ data: null }),
         supabase.from('inventory').select('*').order('name').limit(3000),
         supabase.from('material_requests').select('*').neq('status', 'completed').order('created_at', { ascending: false }),
         supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300),
         supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300),
         supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(200),
-        supabase.from('machine_operations').select('*'),
+        needOperations ? supabase.from('machine_operations').select('*') : Promise.resolve({ data: null }),
         supabase.from('machine_calls').select('*').order('created_at', { ascending: false })
       ])
 
@@ -271,10 +279,10 @@ export function useData() {
       }
 
       if (t) setTasks(t)
-      if (n) setNomenclatures(n)
-      if (b) setBomItems(b)
-      if (mc) setMachines(mc)
-      if (su) setSystemUsers(su)
+      if (needNomenclatures && n) setNomenclatures(n)
+      if (needBOM && b) setBomItems(b)
+      if (needMachines && mc) setMachines(mc)
+      if (needUsers && su) setSystemUsers(su)
       if (mt) setManagementTasks(mt)
       if (wc) setWorkCards(wc)
       if (inv) setInventory(inv)
@@ -282,10 +290,10 @@ export function useData() {
       if (rec) setReceptionDocs(rec)
       if (pr) setPurchaseRequests(pr)
       if (wch) setWorkCardHistory(wch)
-      if (mo) setMachineOperations(mo)
+      if (needOperations && mo) setMachineOperations(mo)
       if (mCalls) setMachineCalls(mCalls)
       
-      if (structRes && structRes.data && structRes.data.length > 0) {
+      if (needStructure && structRes && structRes.data && structRes.data.length > 0) {
         setCompanyStructure(structRes.data)
       }
     } catch (e) {

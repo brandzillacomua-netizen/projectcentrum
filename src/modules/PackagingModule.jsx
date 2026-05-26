@@ -17,16 +17,19 @@ const PackagingModule = () => {
     relevantTasks.forEach(task => {
       const order = orders.find(o => o.id === task.order_id);
       if (!order) return;
+      if (order.order_num && (order.order_num.startsWith('ВБ') || order.order_num.startsWith('VB'))) return;
       
       const bIdx = task.batch_index || '1';
       const key = `${task.order_id}_${bIdx}`;
       
       if (!batchGroups[key]) {
+        const productNames = order.order_items?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ') || '—';
         batchGroups[key] = {
           key,
           orderId: task.order_id,
           orderNum: order.order_num,
           customer: order.customer,
+          productNames,
           batchIndex: bIdx,
           plannedSets: task.planned_sets || 0,
           isPackaged: task.plan_snapshot?._metadata?.is_packaged === true,
@@ -198,7 +201,7 @@ const PackagingModule = () => {
 
     const itemsToRequest = allBOMItems.map(r => ({ 
       nomId: r.nom.id, 
-      name: r.nom.name, 
+      name: r.nom.material_type ? `${r.nom.name} (${r.nom.material_type})` : r.nom.name, 
       qty: r.qty 
     }));
 
@@ -370,7 +373,8 @@ const PackagingModule = () => {
                         {statusLabel}
                       </div>
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: isSelected ? '#aaa' : '#555', fontWeight: 700, marginBottom: '12px' }}>{batch.customer}</div>
+                    <div style={{ fontSize: '0.75rem', color: isSelected ? '#aaa' : '#555', fontWeight: 700, marginBottom: '4px' }}>{batch.customer}</div>
+                    <div style={{ fontSize: '0.75rem', color: '#ff9000', fontWeight: 800, marginBottom: '12px' }}>{batch.productNames}</div>
                     
                     <div style={{ display: 'flex', alignItems: 'center', gap: '15px', paddingTop: '12px', borderTop: '1px solid #1a1a1a' }}>
                       <div style={{ fontSize: '0.65rem', color: '#333', fontWeight: 800 }}>КІЛЬКІСТЬ: <span style={{ color: isSelected ? '#fff' : '#666' }}>{batch.plannedSets} шт</span></div>
@@ -399,6 +403,7 @@ const PackagingModule = () => {
                         <span style={{ background: '#f43f5e', color: '#fff', padding: '4px 12px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 950 }}>ПАРТІЯ</span>
                      </div>
                      <p style={{ margin: 0, color: '#555', fontSize: '1.1rem', fontWeight: 600 }}>Замовник: <strong style={{ color: '#888' }}>{activeBatchData.customer}</strong></p>
+                     <p style={{ margin: '4px 0 0 0', color: '#555', fontSize: '1.1rem', fontWeight: 600 }}>Виріб: <strong style={{ color: '#ff9000' }}>{activeBatchData.productNames}</strong></p>
                    </div>
                    <div style={{ textAlign: 'right', background: '#111', padding: '15px 25px', borderRadius: '20px', border: '1px solid #1a1a1a' }}>
                      <div style={{ fontSize: '0.7rem', color: '#555', textTransform: 'uppercase', fontWeight: 900, marginBottom: '4px' }}>Обсяг пакування</div>
@@ -439,7 +444,14 @@ const PackagingModule = () => {
                                     {getIconForType(item.nom)}
                                   </div>
                                   <div>
-                                    <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#fff', marginBottom: '2px', lineHeight: 1.2 }}>{item.nom.name}</div>
+                                    <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#fff', marginBottom: '2px', lineHeight: 1.2 }}>
+                                      {item.nom.name}
+                                      {item.nom.material_type && (
+                                        <span style={{ fontSize: '0.75rem', color: '#888', marginLeft: '6px', fontWeight: 500 }}>
+                                          {item.nom.material_type}
+                                        </span>
+                                      )}
+                                    </div>
                                     <div style={{ fontSize: '0.6rem', color: isPicked ? '#10b981' : (isPending ? '#eab308' : '#444'), fontWeight: 900, textTransform: 'uppercase' }}>
                                       {isPicked ? 'Підтверджено' : (isPending ? 'В обробці' : 'Очікує')}
                                     </div>
@@ -471,22 +483,22 @@ const PackagingModule = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px' }}>
                   <button 
                     onClick={handleCreateRequest}
-                    disabled={allBOMItems.length === 0 || isProcessing || hasAnyRequests}
+                    disabled={allBOMItems.length === 0 || isProcessing || hasAnyRequests || activeBatchData.isPackaged}
                     style={{ 
                       padding: '25px', 
                       background: '#111', 
-                      color: hasAnyRequests ? '#444' : '#fff', 
+                      color: (hasAnyRequests || activeBatchData.isPackaged) ? '#444' : '#fff', 
                       border: '1px solid #222', 
                       borderRadius: '20px', 
                       fontWeight: 950, 
-                      cursor: (allBOMItems.length > 0 && !isProcessing && !hasAnyRequests) ? 'pointer' : 'not-allowed', 
+                      cursor: (allBOMItems.length > 0 && !isProcessing && !hasAnyRequests && !activeBatchData.isPackaged) ? 'pointer' : 'not-allowed', 
                       transition: '0.3s', 
                       display: 'flex', 
                       alignItems: 'center', 
                       justifyContent: 'center', 
                       gap: '12px', 
                       fontSize: '1rem',
-                      opacity: (allBOMItems.length > 0 && !isProcessing && !hasAnyRequests) ? 1 : 0.5
+                      opacity: (allBOMItems.length > 0 && !isProcessing && !hasAnyRequests && !activeBatchData.isPackaged) ? 1 : 0.5
                     }}
                   >
                     {hasAnyRequests ? (

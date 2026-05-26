@@ -74,40 +74,11 @@ const WarehouseModuleV2 = () => {
   const getMaterialType = (r) => {
     const parsedName = parseMaterialName(r.details)
     const nameLower = parsedName.toLowerCase()
-    const invItem = (inventory || []).find(i => {
-      if (i.id === r.inventory_id) return true
-      if (r.nomenclature_id && String(i.nomenclature_id) === String(r.nomenclature_id)) return true
-      if (parsedName) {
-        const normName = normalize(i.name)
-        const normParsed = normalize(parsedName)
-        if (normName === normParsed) return true
-        if (normName.includes('[підготовлений]') && normName.replace(' [підготовлений]', '').replace('[підготовлений]', '').trim() === normParsed) return true
-      }
-      return false
-    })
-    const nom = (nomenclatures || []).find(n => n.id === r.nomenclature_id)
-    const normName = normalize(nameLower)
     
-    const isRawNom = nom?.type === 'raw' || invItem?.type === 'raw' || 
-                     nameLower.includes('лист') || nameLower.includes('фреза') || 
-                     nameLower.includes('пластина') || nameLower.includes('профіль') ||
-                     nameLower.includes('труба') || nameLower.includes('клей') ||
-                     nameLower.includes('гвинт') || nameLower.includes('гайка') ||
-                     nameLower.includes('шайба') || nameLower.includes('саморіз') ||
-                     nameLower.includes('заклепка') || nameLower.includes('болт') ||
-                     nameLower.includes('метиз') || nameLower.includes('кріпленн') ||
-                     normName.includes('lyst') || normName.includes('freza') || 
-                     normName.includes('plastyna') || normName.includes('profyl') ||
-                     normName.includes('truba') || normName.includes('klei') ||
-                     normName.includes('hvynt') || normName.includes('haika') ||
-                     normName.includes('shaiba') || normName.includes('samoriz') ||
-                     normName.includes('zaklepka') || normName.includes('bolt') ||
-                     normName.includes('metiz') || normName.includes('kriplenn')
-
-    if (!isRawNom && (nameLower.startsWith('іп-') || nameLower.startsWith('ip-') || invItem?.type === 'finished' || invItem?.warehouse === 'sgp')) return 'finished'
-    if (!isRawNom && (invItem?.type === 'semi' || invItem?.warehouse === 'production')) return 'semi'
-    if (!isRawNom && (invItem?.type === 'bz' || invItem?.warehouse === 'sz')) return 'bz'
-    if (!isRawNom && (invItem?.type?.startsWith('scrap') || invItem?.warehouse === 'scrap')) return 'scrap'
+    if (nameLower.startsWith('іп-') || nameLower.startsWith('ip-')) {
+      return 'finished'
+    }
+    
     return 'raw'
   }
 
@@ -193,6 +164,8 @@ const WarehouseModuleV2 = () => {
           const normParsed = normalize(parsedName)
           if (normName === normParsed) return true
           if (normName.includes('[підготовлений]') && normName.replace(' [підготовлений]', '').replace('[підготовлений]', '').trim() === normParsed) return true
+          const normNameNoParens = normalize(i.name.replace(/\s*\([^)]*\)$/, ''))
+          if (normNameNoParens === normParsed) return true
         }
         return false
       })
@@ -425,6 +398,8 @@ const WarehouseModuleV2 = () => {
                       const normParsed = normalize(parsedName)
                       if (normName === normParsed) return true
                       if (normName.includes('[підготовлений]') && normName.replace(' [підготовлений]', '').replace('[підготовлений]', '').trim() === normParsed) return true
+                      const normNameNoParens = normalize(i.name.replace(/\s*\([^)]*\)$/, ''))
+                      if (normNameNoParens === normParsed) return true
                     }
                     return false
                   })

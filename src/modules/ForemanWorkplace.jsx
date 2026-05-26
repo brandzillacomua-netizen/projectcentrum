@@ -10,6 +10,13 @@ const ForemanWorkplace = () => {
   const location = useLocation()
   const { tasks, orders, workCards, createWorkCard, createWorkCardsBatch, inventory, completeTaskByMaster, nomenclatures, bomItems, machines, machineOperations, workCardHistory, confirmBuffer, fetchData, reserveBZForTask, fetchTaskArchiveCards, fetchModuleData, machineCalls, currentUser } = useMES()
 
+  const countAsProduced = (card) => {
+    if (card.status === 'completed' && card.operation === 'Прийомка') return true
+    if (card.status === 'completed' && !card.operation) return true
+    if (card.status === 'at-shop2-buffer') return true
+    return false
+  }
+
   const activeCalls = (machineCalls || []).filter(c => 
     c.status === 'pending' && 
     c.called_role === 'master' && 
@@ -123,9 +130,10 @@ const ForemanWorkplace = () => {
   const [bufferScrapModal, setBufferScrapModal] = useState(null)
   const [bufferScrapCounts, setBufferScrapCounts] = useState({})
   const [archiveCards, setArchiveCards] = useState([]) // Завершені картки (статус completed) для поточного наряду
-  // Local cache: orders for ALL relevant tasks, bypasses global pagination (PAGE_SIZE=20)
   const [allOrdersMap, setAllOrdersMap] = useState({})
-  const [productionCache, setProductionCache] = useState({}) // { taskId: { nomId: producedQty } }
+  const [taskHistory, setTaskHistory] = useState([])
+  const [staticCompletedCards, setStaticCompletedCards] = useState([])
+  const [staticHistory, setStaticHistory] = useState([])
 
   // Load foreman-specific data (workCards, inventory, requests) immediately on mount
   useEffect(() => { fetchModuleData('foreman') }, [])
@@ -165,37 +173,97 @@ const ForemanWorkplace = () => {
       });
   }, [tasks, orders]);
 
-  // ── Load production progress for ALL relevant tasks ──────────────
+  // ── Load static completed progress for ALL relevant tasks ──────────────
   useEffect(() => {
     if (tasks.length === 0) return;
     
     const taskIds = tasks.filter(t => t.status !== 'completed').map(t => t.id);
     if (taskIds.length === 0) return;
 
-    // Fetch ALL completed/shop2-buffer cards for these tasks to get accurate progress
     supabase
       .from('work_cards')
-      .select('task_id, nomenclature_id, quantity, operation, status')
+      .select('id, task_id, nomenclature_id, quantity, operation, status, card_info')
       .in('task_id', taskIds)
-      .in('status', ['completed', 'at-shop2-buffer'])
-
-      .then(({ data, error }) => {
-        if (error) {
-          console.error('Error fetching production cache:', error);
+      .eq('status', 'completed')
+      .then(async ({ data: cardsData, error: cardsError }) => {
+        if (cardsError) {
+          console.error('Error fetching completed cards:', cardsError);
           return;
         }
-        
-        const cache = {};
-        data.forEach(card => {
-          if (!countAsProduced(card)) return;
-          if (!cache[card.task_id]) cache[card.task_id] = {};
-          const tid = card.task_id;
-          const nid = String(card.nomenclature_id);
-          cache[tid][nid] = (cache[tid][nid] || 0) + (Number(card.quantity) || 0);
-        });
-        setProductionCache(cache);
+        setStaticCompletedCards(cardsData || []);
+
+        const cardIds = (cardsData || []).map(c => c.id);
+        if (cardIds.length > 0) {
+          const chunkSize = 500;
+          const promises = [];
+          for (let i = 0; i < cardIds.length; i += chunkSize) {
+            const chunk = cardIds.slice(i, i + chunkSize);
+            promises.push(
+              supabase
+                .from('work_card_history')
+                .select('card_id, nomenclature_id, scrap_qty')
+                .in('card_id', chunk)
+            );
+          }
+          const results = await Promise.all(promises);
+          const historyData = results.flatMap(res => res.data || []);
+          setStaticHistory(historyData);
+        } else {
+          setStaticHistory([]);
+        }
       });
-  }, [tasks]); // Update when tasks change; workCards updates flow through realtime subscription
+  }, [tasks]);
+
+  // ── Compute production, scrap, and redo caches in memory ──────────────
+  const { productionCache, scrapCache, redoCache, allCardsCache } = useMemo(() => {
+    const prodCache = {};
+    const sCache = {};
+    const rCache = {};
+
+    const activeTaskIds = new Set(tasks.filter(t => t.status !== 'completed').map(t => t.id));
+    const activeCards = workCards.filter(c => activeTaskIds.has(c.task_id));
+    const allCards = [...activeCards, ...staticCompletedCards];
+
+    allCards.forEach(card => {
+      const tid = card.task_id;
+      const nid = String(card.nomenclature_id);
+      
+      if (!prodCache[tid]) prodCache[tid] = {};
+      if (!sCache[tid]) sCache[tid] = {};
+      if (!rCache[tid]) rCache[tid] = {};
+
+      if (countAsProduced(card)) {
+        prodCache[tid][nid] = (prodCache[tid][nid] || 0) + (Number(card.quantity) || 0);
+      }
+
+      const isRedo = (card.card_info || '').includes('[REDO]');
+      const isActive = !countAsProduced(card);
+      if (isRedo && isActive) {
+        rCache[tid][nid] = true;
+      }
+    });
+
+    const activeCardIds = new Set(activeCards.map(c => c.id));
+    const activeHistory = workCardHistory.filter(h => h.card_id && activeCardIds.has(h.card_id));
+    const allHistory = [...staticHistory, ...activeHistory];
+
+    allHistory.forEach(h => {
+      const card = allCards.find(c => c.id === h.card_id);
+      if (card) {
+        const tid = card.task_id;
+        const nid = String(h.nomenclature_id);
+        if (!sCache[tid]) sCache[tid] = {};
+        sCache[tid][nid] = (sCache[tid][nid] || 0) + (Number(h.scrap_qty) || 0);
+      }
+    });
+
+    return {
+      productionCache: prodCache,
+      scrapCache: sCache,
+      redoCache: rCache,
+      allCardsCache: allCards
+    };
+  }, [tasks, workCards, workCardHistory, staticCompletedCards, staticHistory]);
 
   useEffect(() => {
     if (location.state?.taskId) {
@@ -203,14 +271,28 @@ const ForemanWorkplace = () => {
     }
   }, [location.state?.taskId])
 
-  // Підвантажуємо архівні картки при зміні активного наряду
+  // Підвантажуємо архівні картки та історію при зміні активного наряду
   useEffect(() => {
     if (activeTaskId) {
-      fetchTaskArchiveCards(activeTaskId).then(cards => {
+      fetchTaskArchiveCards(activeTaskId).then(async (cards) => {
         setArchiveCards(cards || [])
+        
+        const activeTaskCards = workCards.filter(c => c.task_id === activeTaskId)
+        const allTaskCards = [...activeTaskCards, ...(cards || [])]
+        const cardIds = allTaskCards.map(c => c.id)
+        if (cardIds.length > 0) {
+          const { data: histData } = await supabase
+            .from('work_card_history')
+            .select('*')
+            .in('card_id', cardIds)
+          setTaskHistory(histData || [])
+        } else {
+          setTaskHistory([])
+        }
       })
     } else {
       setArchiveCards([])
+      setTaskHistory([])
     }
   }, [activeTaskId, workCards]) // workCards — тригер після будь-якого оновлення
 
@@ -289,16 +371,7 @@ const MACHINE_TYPES = [
   // Картка вважається "виробленою" ЛИШЕ після формальної ПРИЙОМКИ на склад Цеху №1
   // Ланцюжок: Розкрій → at-buffer(Розкрій) → Галтовка → at-buffer(Галтовка) → ПРИЙОМКА → completed
   // Будь-який проміжний стан (at-buffer, in-progress) — ще НЕ вироблено
-  const countAsProduced = (card) => {
-    // completed + Прийомка = офіційно прийнято на склад ✅
-    if (card.status === 'completed' && card.operation === 'Прийомка') return true
-    // completed без operation = старий формат (до впровадження операцій) ✅
-    if (card.status === 'completed' && !card.operation) return true
-    // at-shop2-buffer = пройшло Прийомку та Сортування, передано в буфер Цеху №2 ✅
-    if (card.status === 'at-shop2-buffer') return true
-    // Все інше (at-buffer Розкрій, at-buffer Галтовка, in-progress) = ще в роботі ❌
-    return false
-  }
+
 
 
   const taskCardsCountMap = useMemo(() => {
@@ -315,14 +388,10 @@ const MACHINE_TYPES = [
       if (task.status === 'completed') { map[task.id] = false; return }
       const order = task.orders || orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
       
-      // Combine global workCards (active) + our productionCache (completed)
       const taskCache = productionCache[task.id] || {}
-      const activeCards = workCards.filter(c => c.task_id === task.id)
       
       const isReady = order?.order_items?.every(item => {
-        const parts = bomItems
-          .filter(b => b.parent_id === item.nomenclature_id)
-          .map(b => ({ ...b, nom: nomenclatures.find(n => n.id === b.child_id) }))
+        const parts = getBOMParts(item.nomenclature_id)
         const rows = parts.length > 0
           ? parts
           : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }]
@@ -336,28 +405,27 @@ const MACHINE_TYPES = [
             : (Number(item.quantity) * (Number(part.quantity_per_parent) || 1))
           if (need === 0) return true
           
-          const producedInCache = taskCache[nomId] || 0
-          const producedInActive = activeCards
-            .filter(c => String(c.nomenclature_id) === nomId)
-            .reduce((sum, c) => sum + (countAsProduced(c) ? Number(c.quantity) : 0), 0)
-          
-          return (producedInCache + producedInActive) >= need
+          const produced = taskCache[nomId] || 0
+          const scrap = scrapCache[task.id]?.[nomId] || 0
+          return (produced - scrap) >= need
         })
       })
-      map[task.id] = Boolean(isReady)
+      const taskCards = allCardsCache.filter(c => c.task_id === task.id)
+      const hasActiveInProgressCards = taskCards.some(c => !countAsProduced(c))
+      map[task.id] = Boolean(isReady) && !hasActiveInProgressCards
     })
     return map
-  }, [tasks, orders, allOrdersMap, workCards, nomenclatures, bomItems, productionCache])
+  }, [tasks, orders, allOrdersMap, nomenclatures, bomItems, productionCache, allCardsCache, scrapCache])
 
-  // 0b. Per-task shortage map — needs ДОВИПУСК (scrap exceeded BZ buffer, no REDO card yet)
   const taskShortageMap = useMemo(() => {
     const map = {}
     tasks.forEach(task => {
       if (task.status === 'completed') { map[task.id] = false; return }
       const snapshot = task.plan_snapshot || {}
-      const taskCards = workCards.filter(c => c.task_id === task.id)
-      const cardIds = taskCards.map(c => String(c.id))
-      const taskHistory = workCardHistory.filter(h => cardIds.includes(String(h.card_id)))
+      const taskScrap = scrapCache[task.id] || {}
+      const taskRedo = redoCache[task.id] || {}
+      const taskCards = allCardsCache.filter(c => c.task_id === task.id)
+      
       let hasShortage = false
       Object.keys(snapshot).forEach(nomIdStr => {
         if (hasShortage) return
@@ -365,24 +433,33 @@ const MACHINE_TYPES = [
         if (nom?.type !== 'part') return
         const snap = snapshot[nomIdStr]
         if (!snap) return
+        
         const need = snap.need || 0
+        const stockBZ = snap.stock || 0
         const unitsPerSheet = snap.units_per_sheet || 1
-        const sheets = snap.sheets || 0
+        
         const activeCards = taskCards.filter(c => String(c.nomenclature_id) === String(nomIdStr))
-        const groupScrap = taskHistory
-          .filter(h => activeCards.some(c => String(c.id) === String(h.card_id)))
-          .reduce((sum, h) => sum + (Number(h.scrap_qty) || 0), 0)
-        const initialBZ = (sheets * unitsPerSheet) - need
-        const shortage = (initialBZ - groupScrap) < 0 ? Math.abs(initialBZ - groupScrap) : 0
-        // Needs ДОВИПУСК: shortage > 0 AND no REDO card generated yet
-        if (shortage > 0 && !activeCards.some(c => (c.card_info || '').includes('[REDO]'))) {
+        if (activeCards.length === 0) return
+        
+        const totalSheets = activeCards.reduce((sum, c) => {
+          if (c.operation === 'Склад БЗ') return sum
+          return sum + (c.actualSheets ? Number(c.actualSheets) : Math.ceil((Number(c.quantity) || 0) / unitsPerSheet))
+        }, 0)
+        
+        const totalBZ = (totalSheets * unitsPerSheet) + stockBZ - need
+        const groupScrap = taskScrap[nomIdStr] || 0
+        const shortage = (totalBZ - groupScrap) < 0 ? Math.abs(totalBZ - groupScrap) : 0
+        
+        const hasActiveRedoCard = taskRedo[nomIdStr] || false
+        
+        if (shortage > 0 && !hasActiveRedoCard) {
           hasShortage = true
         }
       })
       map[task.id] = hasShortage
     })
     return map
-  }, [tasks, workCards, workCardHistory, nomenclatures])
+  }, [tasks, scrapCache, redoCache, nomenclatures, allCardsCache])
 
   const relevantTasks = useMemo(() => {
     return tasks
@@ -894,7 +971,8 @@ const MACHINE_TYPES = [
                   const produced = taskCards
                     .filter(c => String(c.nomenclature_id) === String(part.nom?.id))
                     .reduce((sum, c) => sum + (countAsProduced(c) ? Number(c.quantity) : 0), 0)
-                  return produced >= need
+                  const scrap = scrapCache[task.id]?.[String(part.nom?.id)] || 0
+                  return (produced - scrap) >= need
                 })
               })
 
@@ -1387,7 +1465,9 @@ const MACHINE_TYPES = [
 
                       const activeCards = taskCards.filter(c => String(c.nomenclature_id) === String(nomId))
                       const cardIdsStrings = activeCards.map(c => String(c.id))
-                      const groupHistory = workCardHistory.filter(h => h.card_id && cardIdsStrings.includes(String(h.card_id)))
+                      const groupHistory = taskHistory.length > 0 
+                        ? taskHistory.filter(h => h.card_id && cardIdsStrings.includes(String(h.card_id)))
+                        : workCardHistory.filter(h => h.card_id && cardIdsStrings.includes(String(h.card_id)))
 
                       // Вироблено = всі картки що вже виготовлені (completed, at-buffer, на прийомці)
                       const groupProduced = activeCards.reduce((sum, c) => sum + (countAsProduced(c) ? (Number(c.quantity) || 0) : 0), 0)
@@ -1415,10 +1495,14 @@ const MACHINE_TYPES = [
                       }
 
                       const unitsPerSheet = snapshot ? snapshot.units_per_sheet : (Number(nom?.units_per_sheet) || 1)
-                      const sheets = snapshot ? snapshot.sheets : Math.ceil(need / unitsPerSheet)
-                      const initialBZ = (sheets * unitsPerSheet) - need
-                      const bzResult = initialBZ - groupScrap
-                      const shortage = bzResult < 0 ? Math.abs(bzResult) : 0
+                      const stockBZ = snapshot ? (snapshot.stock || 0) : 0
+                      const totalSheets = activeCards.reduce((sum, c) => {
+                        if (c.operation === 'Склад БЗ') return sum
+                        return sum + (c.actualSheets ? Number(c.actualSheets) : Math.ceil((Number(c.quantity) || 0) / unitsPerSheet))
+                      }, 0)
+                      const totalBZ = (totalSheets * unitsPerSheet) + stockBZ - need
+                      const bzResult = totalBZ - groupScrap
+                      const shortage = activeCards.length === 0 ? 0 : (bzResult < 0 ? Math.abs(bzResult) : 0)
 
                       const stages = activeCards.reduce((acc, c) => {
                         if (c.status === 'new') acc.waiting++
@@ -1468,16 +1552,16 @@ const MACHINE_TYPES = [
                                       const machineName = activeCards[0]?.machine || '—'
                                       setGenModal({ task, part: { nom }, total: 1, requirement: shortage, created: 0, machineName, sheets: 1, isRepair: true })
                                     }}
-                                    disabled={activeCards.some(c => (c.card_info || '').includes('[REDO]'))}
+                                    disabled={activeCards.some(c => !countAsProduced(c) && (c.card_info || '').includes('[REDO]'))}
                                     style={{
-                                      background: activeCards.some(c => (c.card_info || '').includes('[REDO]')) ? '#444' : '#ef4444',
+                                      background: activeCards.some(c => !countAsProduced(c) && (c.card_info || '').includes('[REDO]')) ? '#444' : '#ef4444',
                                       color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '0.6rem', fontWeight: 900,
-                                      cursor: activeCards.some(c => (c.card_info || '').includes('[REDO]')) ? 'not-allowed' : 'pointer',
+                                      cursor: activeCards.some(c => !countAsProduced(c) && (c.card_info || '').includes('[REDO]')) ? 'not-allowed' : 'pointer',
                                       textTransform: 'uppercase',
-                                      opacity: activeCards.some(c => (c.card_info || '').includes('[REDO]')) ? 0.6 : 1
+                                      opacity: activeCards.some(c => !countAsProduced(c) && (c.card_info || '').includes('[REDO]')) ? 0.6 : 1
                                     }}
                                   >
-                                    {activeCards.some(c => (c.card_info || '').includes('[REDO]')) ? 'ВЖЕ ДОВИПУЩЕНО' : 'ДОВИПУСК'}
+                                    {activeCards.some(c => !countAsProduced(c) && (c.card_info || '').includes('[REDO]')) ? 'ВЖЕ ДОВИПУЩЕНО' : 'ДОВИПУСК'}
                                   </button>
                                 </div>
                               )}

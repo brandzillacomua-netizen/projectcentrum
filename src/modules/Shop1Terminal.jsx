@@ -59,6 +59,8 @@ export default function Shop1Terminal() {
   // Процеси та UI
   const [isSyncing, setIsSyncing] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [movingScrapIds, setMovingScrapIds] = useState(new Set()) // Per-item loading for scrap transfers
+  const [isBulkMoving, setIsBulkMoving] = useState(false) // Bulk scrap move loading
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
 
   // Форми та модалки
@@ -380,7 +382,7 @@ export default function Shop1Terminal() {
   }
   const formatMachine = (name) => {
     if (!name) return '—'
-    const match = name.match(/№\s*(\d+)/)
+    const match = name.match(/№\s*(\S+)/)
     return match ? `№${match[1]}` : name
   }
 
@@ -392,7 +394,7 @@ export default function Shop1Terminal() {
     setSelectedShift(currentCard?.shift_name || '')
 
     const combined = currentCard?.machine || ''
-    const match = combined.match(/^(.*?) ?№ ?(\d+)$/)
+    const match = combined.match(/^(.*?) ?№ ?(\S+)$/)
     if (match) {
       setSelectedMachine(match[1].trim())
       setMachineNumber(match[2].trim())
@@ -534,7 +536,7 @@ export default function Shop1Terminal() {
 
         // ⚠️ Check if machine is already busy
         const targetNorm = targetMachine.trim().toLowerCase()
-        const targetNumMatch = targetNorm.match(/№\s*(\d+)/)
+        const targetNumMatch = targetNorm.match(/№\s*(\S+)/)
 
         const runningCard = (workCards || []).find(c => {
           if (c.status !== 'in-progress') return false
@@ -547,7 +549,7 @@ export default function Shop1Terminal() {
           if (cMachine === targetNorm) return true
 
           // Match by machine number if both have numbers
-          const cNumMatch = cMachine.match(/№\s*(\d+)/)
+          const cNumMatch = cMachine.match(/№\s*(\S+)/)
           if (cNumMatch && targetNumMatch && cNumMatch[1] === targetNumMatch[1]) return true
 
           return false
@@ -1757,9 +1759,9 @@ export default function Shop1Terminal() {
               onClick={async () => {
                 const scrapItemsToMove = filteredItems.filter(i => Number(i.total_qty) > 0)
                 if (!window.confirm(`Перенести всі позиції (${scrapItemsToMove.length}) у розділ БРАК?`)) return
-                setIsProcessing(true)
+                setIsBulkMoving(true)
                 try {
-                  for (const item of scrapItemsToMove) {
+                  await Promise.all(scrapItemsToMove.map(async (item) => {
                     const { data: existing } = await supabase.from('inventory').select('*').eq('nomenclature_id', item.nomenclature_id).eq('type', 'scrap_ready').limit(1).maybeSingle()
                     if (existing) {
                       await supabase.from('inventory').update({ total_qty: (Number(existing.total_qty) || 0) + (Number(item.total_qty) || 0), updated_at: new Date().toISOString() }).eq('id', existing.id)
@@ -1767,19 +1769,19 @@ export default function Shop1Terminal() {
                     } else {
                       await supabase.from('inventory').update({ type: 'scrap_ready', updated_at: new Date().toISOString() }).eq('id', item.id)
                     }
-                  }
+                  }))
                   await fetchData()
                 } catch (e) { alert('Помилка: ' + e.message) }
-                finally { setIsProcessing(false) }
+                finally { setIsBulkMoving(false) }
               }}
-              disabled={isProcessing}
+              disabled={isBulkMoving}
               style={{
                 width: '100%', background: '#ef4444', color: '#000', border: 'none',
                 padding: '16px', borderRadius: '14px', fontSize: '0.85rem', fontWeight: 1000,
                 cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 gap: '10px', boxShadow: '0 10px 25px rgba(239, 68, 68, 0.2)'
               }}>
-              <AlertTriangle size={18} /> {isProcessing ? 'ПЕРЕНЕСЕННЯ...' : `ПЕРЕНЕСТИ ВСІ ПОЗИЦІЇ (${filteredItems.filter(i => Number(i.total_qty) > 0).length}) В РОЗДІЛ БРАК`}
+              <AlertTriangle size={18} /> {isBulkMoving ? 'ПЕРЕНЕСЕННЯ...' : `ПЕРЕНЕСТИ ВСІ ПОЗИЦІЇ (${filteredItems.filter(i => Number(i.total_qty) > 0).length}) В РОЗДІЛ БРАК`}
             </button>
           </div>
         )}
@@ -1814,7 +1816,7 @@ export default function Shop1Terminal() {
                   {item.type === 'scrap' && (
                     <button
                       onClick={async () => {
-                        setIsProcessing(true)
+                        setMovingScrapIds(prev => new Set([...prev, item.id]))
                         try {
                           const { data: existing } = await supabase.from('inventory').select('*').eq('nomenclature_id', item.nomenclature_id).eq('type', 'scrap_ready').limit(1).maybeSingle()
                           if (existing) {
@@ -1825,16 +1827,17 @@ export default function Shop1Terminal() {
                           }
                           await fetchData()
                         } catch (e) { alert('Помилка: ' + e.message) }
-                        finally { setIsProcessing(false) }
+                        finally { setMovingScrapIds(prev => { const next = new Set(prev); next.delete(item.id); return next }) }
                       }}
-                      disabled={isProcessing}
+                      disabled={movingScrapIds.has(item.id) || isBulkMoving}
                       style={{
                         width: '100%', background: '#ef444415', border: '1px solid #ef444430',
                         color: '#ef4444', padding: '10px', borderRadius: '10px',
                         fontSize: '0.65rem', fontWeight: 900, cursor: 'pointer',
-                        textTransform: 'uppercase', letterSpacing: '0.05em'
+                        textTransform: 'uppercase', letterSpacing: '0.05em',
+                        opacity: (movingScrapIds.has(item.id) || isBulkMoving) ? 0.5 : 1
                       }}>
-                      {isProcessing ? 'Перенесення...' : '⚡ ПЕРЕНЕСТИ В РОЗДІЛ БРАК'}
+                      {movingScrapIds.has(item.id) ? 'Перенесення...' : '⚡ ПЕРЕНЕСТИ В РОЗДІЛ БРАК'}
                     </button>
                   )}
                 </div>

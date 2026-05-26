@@ -199,7 +199,7 @@ const NomenclatureModule = () => {
           
           setImportLogs(prev => [...prev, `🔍 Обробка: ${fullName}...`])
           
-          let materialType = comp.category === 'structural' && comp.thickness ? `Лист Т300 (${comp.thickness}мм)` : comp.characteristics || ''
+          let materialType = comp.category === 'structural' && comp.thickness ? `Лист Т300 (${comp.thickness}мм)` : comp.description || comp.characteristics || ''
           
           if (comp.category === 'structural' && comp.thickness) {
             const thickStr = `${comp.thickness}мм`;
