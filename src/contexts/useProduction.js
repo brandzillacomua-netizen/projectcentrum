@@ -1,4 +1,4 @@
-import { supabase } from '../supabase'
+﻿import { supabase } from '../supabase'
 
 const normalizeName = (s) => {
   if (!s) return '';
@@ -113,86 +113,94 @@ export function createProductionActions({
   const createDovyпускMaterialRequests = async (taskId, orderId, partNom, sheets, quantity) => {
     try {
       const order = orders.find(o => String(o.id) === String(orderId))
-      
+
+      // Strip tag variants for name matching
+      const stripTags = (s) => (s || '').toLowerCase()
+        .replace(/\[\s*підготовлений\s*\]/gi, '')
+        .replace(/\[\s*непідготовлений\s*\]/gi, '')
+        .trim()
+
       const matKeyBase = (partNom?.material_type || partNom?.name || 'Інше').trim()
-      const matKey = normalize(matKeyBase)
-      const normalizedBase = normalizeName(matKeyBase.toLowerCase().replace(' [непідготовлений]', '').replace('[непідготовлений]', '').trim())
-      
-      let rawNom = nomenclatures.find(n => 
-        (n.type === 'raw' || n.type === 'material') && 
-        n.name.includes('[Підготовлений]') && 
-        (normalize(n.name.replace(' [Підготовлений]', '')) === matKey || 
-         normalize(n.name.replace('[Підготовлений]', '')) === matKey ||
-         normalizeName(n.name.replace(' [Підготовлений]', '')) === normalizedBase ||
-         normalizeName(n.name.replace('[Підготовлений]', '')) === normalizedBase)
+      const normalizedBase = normalizeName(stripTags(matKeyBase))
+
+      // [Підготовлений] nom — ALWAYS used for main warehouse request
+      const preparedNom = nomenclatures.find(n =>
+        (n.type === 'raw' || n.type === 'material') &&
+        n.name.toLowerCase().includes('підготовлений') &&
+        !n.name.toLowerCase().includes('непідготовлений') &&
+        normalizeName(stripTags(n.name)) === normalizedBase
       )
 
-      if (!rawNom) {
-        rawNom = nomenclatures.find(n => 
-          (n.type === 'raw' || n.type === 'material') && 
-          (normalize(n.name) === matKey || 
-           normalize(n.material_type) === matKey ||
-           normalizeName(n.name) === normalizeName(matKeyBase))
-        )
-      }
+      // [Непідготовлений] nom — for prep order / СВ request only
+      const unpreparedNom = nomenclatures.find(n =>
+        (n.type === 'raw' || n.type === 'material') &&
+        n.name.toLowerCase().includes('непідготовлений') &&
+        normalizeName(stripTags(n.name)) === normalizedBase
+      ) || nomenclatures.find(n =>
+        (n.type === 'raw' || n.type === 'material') &&
+        !n.name.toLowerCase().includes('підготовлений') &&
+        normalizeName(n.name) === normalizedBase
+      )
 
-      const resolvedNomId = rawNom?.id || partNom?.id || null
-      const resolvedMatName = rawNom?.name || matKeyBase
+      // Fallback: generic match if no prepared nom found
+      const finalPreparedNom = preparedNom || nomenclatures.find(n =>
+        (n.type === 'raw' || n.type === 'material') &&
+        normalizeName(n.name) === normalizedBase
+      )
+
+      const requestNomId = finalPreparedNom?.id || partNom?.id || null
+      const requestNomName = finalPreparedNom?.name || matKeyBase
 
       const requestsToInsert = []
-      
+
       if (sheets > 0) {
-        const invItem = inventory.find(i => String(i.nomenclature_id) === String(resolvedNomId) && i.warehouse === 'operational')
-          || inventory.find(i => String(i.nomenclature_id) === String(resolvedNomId))
-        
+        // Check СО stock of prepared sheets
+        const preparedStock = requestNomId
+          ? Math.max(0, inventory
+              .filter(i => String(i.nomenclature_id) === String(requestNomId))
+              .reduce((sum, i) => sum + Math.max(0, (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0)), 0))
+          : 0
+
+        const sheetsDeficit = Math.max(0, sheets - preparedStock)
+
+        // Main warehouse request — always [Підготовлений]
+        const invItem = requestNomId
+          ? (inventory.find(i => String(i.nomenclature_id) === String(requestNomId) && i.warehouse === 'operational')
+             || inventory.find(i => String(i.nomenclature_id) === String(requestNomId)))
+          : null
+
         requestsToInsert.push({
           order_id: orderId,
           task_id: taskId,
           quantity: sheets,
           status: 'pending',
           inventory_id: invItem?.id || null,
-          nomenclature_id: resolvedNomId,
-          details: `ДОЗАПИТ (БРАК/НЕСТАЧА) для ${order?.order_num || '???'}: ${resolvedMatName} — ${sheets} л.`
+          nomenclature_id: requestNomId,
+          details: `ДОЗАПИТ (БРАК/НЕСТАЧА) для ${order?.order_num || '???'}: ${requestNomName} — ${sheets} л.`
         })
-        
-        // Auto-create preparation task if there's a deficit of prepared sheets in stock
-        const bzInv = inventory.find(i => String(i.nomenclature_id) === String(resolvedNomId) && (i.type === 'raw' || i.type === 'bz'))
-        const stock = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
 
-        if (stock < sheets) {
-          const deficit = sheets - stock
-          const getCleanNormalized = (name) => {
-            if (!name) return '';
-            let clean = name.toLowerCase()
-              .replace(/\[\s*підготовлений\s*\]/gi, '')
-              .replace(/\[\s*непідготовлений\s*\]/gi, '')
-              .replace(/\s*підготовлений\s*/gi, '')
-              .replace(/\s*непідготовлений\s*/gi, '')
-              .trim();
-            return normalizeName(clean);
-          };
-
-          const normKey = getCleanNormalized(resolvedMatName)
-          const rawUnpreparedNom = nomenclatures.find(n =>
-            n.name.toLowerCase().includes('непідготовлений') &&
-            getCleanNormalized(n.name) === normKey
-          )
-          const targetRawId = rawUnpreparedNom ? rawUnpreparedNom.id : resolvedNomId
+        // If СО doesn't have enough — create prep naiad + СВ request for deficit
+        if (sheetsDeficit > 0) {
+          const prepForNomId = unpreparedNom?.id || requestNomId
+          const prepForNomName = unpreparedNom?.name
+            || (requestNomName.includes('[Підготовлений]')
+                ? requestNomName.replace('[Підготовлений]', '[Непідготовлений]')
+                : requestNomName + ' [Непідготовлений]')
 
           try {
             const planSnapshot = {}
-            planSnapshot[targetRawId] = {
-              name: rawUnpreparedNom?.name || resolvedMatName.replace('[Підготовлений]', '[Непідготовлений]'),
-              need: deficit,
+            planSnapshot[prepForNomId] = {
+              name: prepForNomName,
+              need: sheetsDeficit,
               stock: 0,
-              plan: deficit
+              plan: sheetsDeficit
             }
 
             const { count } = await supabase
               .from('tasks')
               .select('*', { count: 'exact', head: true })
               .eq('step', 'Підготовка')
-            
+
             const nextNum = (count || 0) + 1
             const prepNum = `НП${String(nextNum).padStart(6, '0')}`
             planSnapshot._prep_num = prepNum
@@ -201,7 +209,7 @@ export function createProductionActions({
               step: 'Підготовка',
               status: 'new',
               machine_name: 'PREP-TERM',
-              planned_sets: deficit,
+              planned_sets: sheetsDeficit,
               planned_deadline: order?.deadline || null,
               plan_snapshot: planSnapshot,
               engineer_conf: true,
@@ -209,43 +217,53 @@ export function createProductionActions({
             }).select().single()
 
             if (!errTask && newTask) {
+              const svInvItem = prepForNomId
+                ? inventory.find(i => String(i.nomenclature_id) === String(prepForNomId))
+                : null
               await supabase.from('material_requests').insert({
                 task_id: newTask.id,
-                nomenclature_id: targetRawId,
-                quantity: deficit,
+                order_id: orderId,
+                nomenclature_id: prepForNomId,
+                quantity: sheetsDeficit,
                 status: 'pending',
-                inventory_id: null,
-                details: `ЗАПИТ НА ПІДГОТОВКУ (${prepNum}): ${rawUnpreparedNom?.name || resolvedMatName.replace('[Підготовлений]', '[Непідготовлений]')} — ${deficit} шт.`
+                inventory_id: svInvItem?.id || null,
+                details: `ЗАПИТ НА ПІДГОТОВКУ (${prepNum}): ${prepForNomName} — ${sheetsDeficit} л. (для наряду ${order?.order_num || '???'})`
               })
             }
           } catch (e) {
-            console.error('Error auto-creating prep order for dovyпуск:', e)
+            console.error('Error auto-creating prep order for dovypusk:', e)
           }
         }
 
-        nomenclatures.filter(n => n.type === 'consumable' && (Number(n.consumption_per_sheet) || 0) > 0 && (n.name.toLowerCase().startsWith('лист') || n.name.toLowerCase().includes('фреза'))).forEach(cons => {
-          const neededQty = Math.ceil(sheets * Number(cons.consumption_per_sheet))
-          const invItem = inventory.find(i => i.nomenclature_id === cons.id)
-          requestsToInsert.push({
-            order_id: orderId,
-            task_id: taskId,
-            quantity: neededQty,
-            status: 'pending',
-            inventory_id: invItem?.id || null,
-            nomenclature_id: cons.id,
-            details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ДОВИПУСКУ ${order?.order_num || '???'}: ${cons.name} — ${neededQty} од.`
+        // Consumables (фрези etc.) — explicitly exclude raw/material sheets
+        nomenclatures
+          .filter(n =>
+            n.type === 'consumable' &&
+            (Number(n.consumption_per_sheet) || 0) > 0 &&
+            !n.name.toLowerCase().includes('лист')
+          )
+          .forEach(cons => {
+            const neededQty = Math.ceil(sheets * Number(cons.consumption_per_sheet))
+            const consInvItem = inventory.find(i => i.nomenclature_id === cons.id)
+            requestsToInsert.push({
+              order_id: orderId,
+              task_id: taskId,
+              quantity: neededQty,
+              status: 'pending',
+              inventory_id: consInvItem?.id || null,
+              nomenclature_id: cons.id,
+              details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ДОВИПУСКУ ${order?.order_num || '???'}: ${cons.name} — ${neededQty} од.`
+            })
           })
-        })
       }
-      
+
       if (requestsToInsert.length > 0) {
         await supabase.from('material_requests').insert(requestsToInsert)
       }
     } catch (err) {
-      console.error('Error creating dovyпуск material requests:', err)
+      console.error('Error creating dovypusk material requests:', err)
     }
   }
-
   const createWorkCard = async (taskId, orderId, nomenclatureId, operation, machine, estimatedTime, cardInfo, quantity, bufferQty, isRework = false) => {
     const status = isRework ? 'waiting-materials' : 'new'
     const { data: list } = await supabase.from('work_cards').insert([{
