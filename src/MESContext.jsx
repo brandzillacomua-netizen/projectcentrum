@@ -31,7 +31,8 @@ export const MESProvider = ({ children }) => {
     setCurrentUser: data.setCurrentUser, 
     setSystemUsers: data.setSystemUsers, 
     fetchData: data.fetchData,
-    clearAllData: data.clearAllData
+    clearAllData: data.clearAllData,
+    setSessionLoading: data.setSessionLoading
   })
 
   // ── CUSTOMERS ──

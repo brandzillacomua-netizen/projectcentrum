@@ -7,7 +7,7 @@ const USER_CACHE_KEY = 'MES_SESSION_USER'
  * Auth & User Management hooks
  * Returns: { login, logout, upsertUser, deleteUser, searchCustomers }
  */
-export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers, fetchData, clearAllData }) {
+export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers, fetchData, clearAllData, setSessionLoading }) {
 
   const login = async (loginName, password) => {
     // ── Step 1: Authenticate via Supabase (primary, fast) ──────────────────
@@ -34,10 +34,12 @@ export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers,
       .catch(() => {}) // silently ignore — Supabase is master
 
     const userWithToken = { ...data, token }
-    setCurrentUser(userWithToken)
+    // Cache BEFORE setCurrentUser so App.jsx gate never sees sessionLoading=true
     localStorage.setItem('MES_SESSION_LOGIN', data.login)
-    // Cache full user object for instant session restore on next page load
     localStorage.setItem(USER_CACHE_KEY, JSON.stringify(data))
+    // Immediately unblock the session gate — no spinner after login
+    if (setSessionLoading) setSessionLoading(false)
+    setCurrentUser(userWithToken)
 
     // Force data refresh on successful login without blocking the login UI
     if (fetchData) {
