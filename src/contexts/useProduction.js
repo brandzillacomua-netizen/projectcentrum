@@ -905,17 +905,71 @@ export function createProductionActions({
     const vbOrders = (orders || []).filter(o => o.order_num && o.order_num.startsWith('ВБ'))
     const maxNum = vbOrders.reduce((max, o) => { const numPart = o.order_num.replace('ВБ', ''); const num = parseInt(numPart); return isNaN(num) ? max : Math.max(max, num) }, 0)
     const nextOrderNum = `ВБ${String(maxNum + 1).padStart(4, '0')}`
-    const { data: reworkOrder, error: orderErr } = await supabase.from('orders').insert([{ order_num: nextOrderNum, customer: 'ВНУТРІШНЄ ДООПРАЦЮВАННЯ', status: 'in-progress' }]).select().single()
-    if (orderErr) { console.error("Error creating rework order:", orderErr); return }
+
+    // 1. Start inventory update/delete immediately in parallel
+    const nextQty = (Number(scrapItem.total_qty) || 0) - Number(qty)
+    const inventoryPromise = nextQty > 0
+      ? supabase.from('inventory').update({ total_qty: nextQty }).eq('id', scrapItem.id)
+      : supabase.from('inventory').delete().eq('id', scrapItem.id)
+
+    // 2. Sequential path for inserts (Order -> Task -> Card)
+    const { data: reworkOrder, error: orderErr } = await supabase
+      .from('orders')
+      .insert([{ order_num: nextOrderNum, customer: 'ВНУТРІШНЄ ДООПРАЦЮВАННЯ', status: 'in-progress' }])
+      .select()
+      .single()
+
+    if (orderErr) {
+      console.error("Error creating rework order:", orderErr)
+      return
+    }
+
     const orderId = reworkOrder?.id || null
     const plan_snapshot = { [nomId]: { id: nomId, name: nom?.name || scrapItem.name, code: nom?.nomenclature_code || '—', need: qty, stock: 0, plan: qty, is_rework: true } }
-    const { data: taskData } = await supabase.from('tasks').insert([{ order_id: orderId, step: stage, status: 'waiting', machine_name: 'Доопрацювання', estimated_time: 0, engineer_conf: true, warehouse_conf: true, director_conf: true, plan_snapshot: plan_snapshot, planned_sets: 0 }]).select()
+
+    const { data: taskData } = await supabase
+      .from('tasks')
+      .insert([{
+        order_id: orderId,
+        step: stage,
+        status: 'waiting',
+        machine_name: 'Доопрацювання',
+        estimated_time: 0,
+        engineer_conf: true,
+        warehouse_conf: true,
+        director_conf: true,
+        plan_snapshot: plan_snapshot,
+        planned_sets: 0
+      }])
+      .select()
+
     const newTask = taskData?.[0]
-    if (newTask) await supabase.from('work_cards').insert([{ task_id: newTask.id, order_id: orderId, nomenclature_id: nomId, quantity: qty, status: 'pending', operation: stage, card_info: `[REWORK] ${nom?.name || scrapItem.name} — ДООПРАЦЮВАННЯ БРАКУ`, buffer_qty: 0 }])
-    const nextQty = (Number(scrapItem.total_qty) || 0) - Number(qty)
-    if (nextQty > 0) await supabase.from('inventory').update({ total_qty: nextQty }).eq('id', scrapItem.id)
-    else await supabase.from('inventory').delete().eq('id', scrapItem.id)
-    fetchData(true)
+    let cardPromise = Promise.resolve()
+    if (newTask) {
+      cardPromise = supabase
+        .from('work_cards')
+        .insert([{
+          task_id: newTask.id,
+          order_id: orderId,
+          nomenclature_id: nomId,
+          quantity: qty,
+          status: 'pending',
+          operation: stage,
+          card_info: `[REWORK] ${nom?.name || scrapItem.name} — ДООПРАЦЮВАННЯ БРАКУ`,
+          buffer_qty: 0
+        }])
+    }
+
+    // 3. Await all inserts & updates in parallel
+    await Promise.all([inventoryPromise, cardPromise])
+
+    // 4. Refresh only affected tables in parallel (much faster than full fetchData(true))
+    await Promise.all([
+      refreshTable('orders'),
+      refreshTable('tasks'),
+      refreshTable('work_cards'),
+      refreshTable('inventory')
+    ])
   }
 
   return {

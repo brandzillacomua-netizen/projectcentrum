@@ -507,7 +507,7 @@ const MACHINE_TYPES = [
 
   const handleGenerateFromWorksheet = async (task, part, sheets, selectedMachineName, count, localGeneratedCount = 0, totalToReach = 0, isRepair = false, globalTotalCards = null, globalSeqOffset = 0) => {
     const machineObj = findMachine(selectedMachineName)
-    const capacity = isRepair ? 1 : (Number(machineObj?.sheet_capacity) || 1)
+    const capacity = (Number(machineObj?.sheet_capacity) || 1)
     const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
 
     const maxCardsForThisSplit = Math.ceil(sheets / capacity)
@@ -1544,13 +1544,17 @@ const MACHINE_TYPES = [
                                   <div style={{ color: '#ef4444', fontSize: '0.7rem', fontWeight: 950 }}>НЕСТАЧА: {shortage}</div>
                                   <button
                                     onClick={() => {
-                                      const unitsPerSheet = Number(nom?.units_per_sheet) || 1
-                                      const sheetsNeeded = Math.ceil(shortage / unitsPerSheet)
-                                      const machineName = activeCards[0]?.machine || '—'
+                                      const unitsPerSheet = Number(nom?.units_per_sheet) || 1;
+                                      const sheetsNeeded = Math.ceil(shortage / unitsPerSheet);
+                                      const activeCardMachine = activeCards[0]?.machine || (task.plan_snapshot?.[String(nom?.id)]?.machine);
+                                      const resolvedMachine = findMachine(activeCardMachine) || findMachine(MACHINE_TYPES[0]);
+                                      const machineName = MACHINE_TYPES.find(t => t === resolvedMachine?.type || t === resolvedMachine?.name) || resolvedMachine?.name || MACHINE_TYPES[0];
+                                      const capacity = Number(resolvedMachine?.sheet_capacity) || 1;
+                                      const cardsNeeded = Math.ceil(sheetsNeeded / capacity);
                                       setGenModal({
                                         task,
                                         part: { nom },
-                                        total: sheetsNeeded,
+                                        total: cardsNeeded,
                                         requirement: shortage,
                                         created: 0,
                                         machineName,
@@ -1797,26 +1801,74 @@ const MACHINE_TYPES = [
               </div>
             ) : (
               <>
-                <div style={{ background: '#080808', padding: '20px', borderRadius: '20px', border: '1px solid #1a1a1a', marginBottom: '30px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
-                    <span style={{ color: '#555', fontSize: '0.75rem', fontWeight: 800 }}>СТАТУС:</span>
-                    <span style={{ color: '#3b82f6', fontSize: '0.75rem', fontWeight: 900 }}>Згенеровано {genModal.created} з {genModal.total}</span>
+                {genModal.isRepair ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '30px' }}>
+                    {/* Machine selector */}
+                    <div>
+                      <label style={{ display: 'block', color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>
+                        Оберіть верстат для довипуску:
+                      </label>
+                      <select
+                        value={genModal.machineName}
+                        onChange={(e) => {
+                          const newMachineName = e.target.value
+                          const resolvedMachine = findMachine(newMachineName)
+                          const newCapacity = Number(resolvedMachine?.sheet_capacity) || 1
+                          const newCardsNeeded = Math.ceil(genModal.sheets / newCapacity)
+                          setGenModal(prev => ({
+                            ...prev,
+                            machineName: newMachineName,
+                            total: newCardsNeeded
+                          }))
+                        }}
+                        style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '0.95rem', outline: 'none', fontWeight: 800 }}
+                      >
+                        {MACHINE_TYPES.map(t => {
+                          const cap = findMachine(t)?.sheet_capacity || 1
+                          return (
+                            <option key={t} value={t}>{t} (місткість: {cap} л.)</option>
+                          )
+                        })}
+                      </select>
+                    </div>
+
+                    {/* Deficit info cards */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                      <div style={{ background: '#080808', padding: '15px', borderRadius: '15px', border: '1px solid #1a1a1a', textAlign: 'center' }}>
+                        <div style={{ color: '#555', fontSize: '0.65rem', fontWeight: 800 }}>НЕОБХІДНО ЛИСТІВ:</div>
+                        <div style={{ color: '#fff', fontSize: '1.2rem', fontWeight: 950, marginTop: '4px' }}>{genModal.sheets} л.</div>
+                      </div>
+                      <div style={{ background: '#080808', padding: '15px', borderRadius: '15px', border: '1px solid #1a1a1a', textAlign: 'center' }}>
+                        <div style={{ color: '#555', fontSize: '0.65rem', fontWeight: 800 }}>КІЛЬКІСТЬ КАРТ:</div>
+                        <div style={{ color: '#ff9000', fontSize: '1.2rem', fontWeight: 950, marginTop: '4px' }}>{genModal.total} шт.</div>
+                      </div>
+                    </div>
                   </div>
-                  <div style={{ height: '6px', background: '#1a1a1a', borderRadius: '3px', overflow: 'hidden' }}>
-                    <div style={{ width: `${(genModal.created / genModal.total) * 100}%`, height: '100%', background: '#3b82f6', transition: '0.3s' }} />
+                ) : (
+                  <div style={{ background: '#080808', padding: '20px', borderRadius: '20px', border: '1px solid #1a1a1a', marginBottom: '30px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+                      <span style={{ color: '#555', fontSize: '0.75rem', fontWeight: 800 }}>СТАТУС:</span>
+                      <span style={{ color: '#3b82f6', fontSize: '0.75rem', fontWeight: 900 }}>Згенеровано {genModal.created} з {genModal.total}</span>
+                    </div>
+                    <div style={{ height: '6px', background: '#1a1a1a', borderRadius: '3px', overflow: 'hidden' }}>
+                      <div style={{ width: `${(genModal.created / genModal.total) * 100}%`, height: '100%', background: '#3b82f6', transition: '0.3s' }} />
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div style={{ marginBottom: '30px' }}>
                   <label style={{ display: 'block', color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px', textAlign: 'center' }}>
-                    Скільки ще карт згенерувати?
+                    {genModal.isRepair ? 'Кількість карт до друку' : 'Скільки ще карт згенерувати?'}
                   </label>
                   <input
                     type="number"
                     id="gen_count_input"
-                    defaultValue={Math.max(1, genModal.total - genModal.created)}
+                    value={genModal.total}
+                    onChange={(e) => {
+                      const val = Math.max(1, parseInt(e.target.value) || 1)
+                      setGenModal(prev => ({ ...prev, total: val }))
+                    }}
                     min="1"
-                    max={Math.max(1, genModal.total - genModal.created)}
                     style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', fontSize: '2.5rem', fontWeight: 950, textAlign: 'center', padding: '15px', borderRadius: '20px', outline: 'none', borderInline: '4px solid #10b981' }}
                   />
                 </div>

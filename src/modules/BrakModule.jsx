@@ -10,7 +10,6 @@ export default function BrakModule() {
   const [selectedItem, setSelectedItem] = useState(null)
   const [distribution, setDistribution] = useState({ 1: 0, 2: 0, 3: 0, 4: 0 })
   const [viewingCategory, setViewingCategory] = useState(null)
-  const [stepToRework, setStepToRework] = useState(null)
 
   const [isScanning, setIsScanning] = useState(false)
   const [scanError, setScanError] = useState(null)
@@ -258,7 +257,6 @@ export default function BrakModule() {
   const handleRework = async (item, stage) => {
     setIsProcessing(true)
     await createReworkNaryad(item.id, item.total_qty, stage)
-    setStepToRework(null)
     setIsProcessing(false)
     alert(`Створено незалежний наряд на ${stage} для ${item.total_qty} шт.`)
   }
@@ -438,28 +436,12 @@ export default function BrakModule() {
                            onClick={() => handleDispose(item)}
                            style={{ background: '#ef4444', border: 'none', color: '#fff', padding: '10px 15px', borderRadius: '12px', fontWeight: 900, fontSize: '0.75rem', cursor: 'pointer' }}
                          >СПИСАТИ</button>
-                       ) : (
-                         <div style={{ position: 'relative' }}>
-                            <button 
-                              onClick={() => setStepToRework(stepToRework === item.id ? null : item.id)}
-                              style={{ background: '#10b981', border: 'none', color: '#fff', padding: '10px 15px', borderRadius: '12px', fontWeight: 900, fontSize: '0.75rem', cursor: 'pointer' }}
-                            >НА ДОВЕДЕННЯ</button>
-                            
-                            {stepToRework === item.id && (
-                              <div style={{ position: 'absolute', right: 0, top: '45px', background: '#000', border: '1px solid #222', borderRadius: '12px', padding: '10px', minWidth: '180px', zIndex: 100, boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
-                                <div style={{ fontSize: '0.6rem', color: '#555', marginBottom: '8px', fontWeight: 900 }}>ОБЕРІТЬ ЕТАП:</div>
-                                {productionStages.map(s => (
-                                  <div key={s} 
-                                    onClick={() => handleRework(item, s)}
-                                    style={{ padding: '8px 12px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', borderRadius: '8px', transition: '0.2s' }}
-                                    onMouseEnter={e => e.currentTarget.style.background = '#1a1a1a'}
-                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                  >{s}</div>
-                                ))}
-                              </div>
-                            )}
-                         </div>
-                       )}
+                        ) : (
+                          <button 
+                            onClick={() => handleRework(item, 'Доопрацювання')}
+                            style={{ background: '#10b981', border: 'none', color: '#fff', padding: '10px 15px', borderRadius: '12px', fontWeight: 900, fontSize: '0.75rem', cursor: 'pointer' }}
+                          >НА ДООПРАЦЮВАННЯ</button>
+                        )}
                     </div>
                   </div>
                 ))
@@ -522,7 +504,7 @@ export default function BrakModule() {
                       <p style={{ color: '#555', fontSize: '0.8rem', lineHeight: 1.5 }}>
                         {viewingCategory === 4 
                           ? 'У цій категорії знаходиться безнадійний брак. Ви можете списати ці деталі, і вони будуть назавжди враховані як збитки у відповідному документі.' 
-                          : 'Деталі у цій категорії підлягають доведенню до ладу. Ви можете створити наряд, який запустить ці деталі знову в роботу, а по завершенню вони потраплять на склад БЗ.'}
+                          : 'Деталі у цій категорії підлягають доопрацюванню. Ви можете створити наряд, який запустить ці деталі знову в роботу, а по завершенню вони потраплять на склад БЗ.'}
                       </p>
                       <button 
                         onClick={() => setViewingCategory(null)}

@@ -1087,8 +1087,9 @@ export default function Shop1Terminal() {
 
       if (cardErr) throw cardErr
 
-      // Картка тепер у буфері Прийомки — показуємо в черзі для сканування
-      // НЕ закриваємо картку — щоб оператор одразу бачив що вона чекає Сортування
+      // Картка тепер у буфері Прийомки — закриваємо її та повертаємось на головний екран
+      setSelectedCardId(null)
+      setScannedIds(prev => prev.filter(id => id !== currentCard.id))
       await fetchData()
     } catch (e) {
       console.error('Acceptance error:', e)
