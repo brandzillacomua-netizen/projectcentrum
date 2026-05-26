@@ -79,11 +79,11 @@ const getAllModules = (badgeCount = 0) => [
   { id: 'dashboard', title: 'Дашборд WIP', icon: <LayoutDashboard />, path: '/dashboard', desc: 'Моніторинг незавершеного виробництва', color: '#ff9000' },
   { id: 'manager', title: 'Менеджер', icon: <LayoutDashboard />, path: '/manager', desc: 'Замовлення та планування', color: '#ff9000' },
   { id: 'kanban', title: 'Задачі', icon: <KanbanSquare />, path: '/tasks', desc: 'Внутрішні доручення', color: '#8b5cf6', badge: badgeCount },
-  { id: 'master', title: 'Цех №1', icon: <Monitor />, path: '/master', desc: 'Управління зміною', color: '#3b82f6' },
+  { id: 'master', title: 'ЦЕХ №1 – Створення нарядів', icon: <Monitor />, path: '/master', desc: 'Управління зміною', color: '#3b82f6' },
   { id: 'warehouse', title: 'Склад Оперативний', icon: <Warehouse />, path: '/warehouse', desc: 'Матеріали та залишки', color: '#10b981' },
   { id: 'engineer', title: 'Інженер', icon: <FileCodeIcon />, path: '/engineer', desc: 'CNC та специфікації', color: '#8b5cf6' },
   { id: 'director', title: 'Директор Виробництва', icon: <ShieldCheck size={24} />, path: '/director', desc: 'Фінальне підтвердження', color: '#10b981' },
-  { id: 'foreman', title: 'Майстер', icon: <Users />, path: '/foreman', desc: 'Розподіл нарядів', color: '#f59e0b' },
+  { id: 'foreman', title: 'ЦЕХ №1 – Створення РК', icon: <Users />, path: '/foreman', desc: 'Розподіл нарядів', color: '#f59e0b' },
   { id: 'operator', title: 'Термінал', icon: <Tablet />, path: '/operator', desc: 'Робоче місце', color: '#ef4444' },
   { id: 'prep_terminal', title: 'Підготовка', icon: <Tablet />, path: '/prep-terminal', desc: 'Відділ Підготовки', color: '#10b981' },
   { id: 'shop1', title: 'Цех №1 · Термінал', icon: <Tablet />, path: '/shop1', desc: 'Розкрій → Галтовка → Прийомка', color: '#eab308' },
@@ -116,12 +116,57 @@ const getAvailableModules = (currentUser, badgeCount) => {
   });
 }
 
+const CATEGORY_MAP = {
+  dashboard: 'admin_analytics',
+  manager: 'admin_analytics',
+  kanban: 'admin_analytics',
+  director: 'admin_analytics',
+  analytics: 'admin_analytics',
+  reports: 'admin_analytics',
+  machines: 'admin_analytics',
+  access: 'admin_analytics',
+  settings: 'admin_analytics',
+
+  master: 'production',
+  shop2: 'production',
+  foreman: 'production',
+  engineer: 'production',
+
+  operator: 'terminals',
+  prep_terminal: 'terminals',
+  shop1: 'terminals',
+  shop2_terminal: 'terminals',
+
+  warehouse: 'logistics',
+  supply: 'logistics',
+  procurement: 'logistics',
+  packaging: 'logistics',
+  shipping: 'logistics',
+  nomenclature_v2: 'logistics',
+  nomenclature: 'logistics'
+};
+
+const CATEGORIES = [
+  { id: 'admin_analytics', title: 'Керування та Аналітика', color: '#ff9000' },
+  { id: 'production', title: 'Виробництво', color: '#3b82f6' },
+  { id: 'terminals', title: 'Термінали дільниць', color: '#ef4444' },
+  { id: 'logistics', title: 'Склад та Логістика', color: '#10b981' },
+  { id: 'other', title: 'Інші розділи', color: '#888' }
+];
+
 const GlobalUserNav = () => {
   const { currentUser, managementTasks, requests, workCards, purchaseRequests, receptionDocs, nomenclatures, machineCalls, machines } = useMES();
   const location = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeSubPanel, setActiveSubPanel] = useState(null); // 'notifications' or null
+  const [openCategories, setOpenCategories] = useState({
+    admin_analytics: true,
+    production: true,
+    terminals: true,
+    logistics: true,
+    other: true
+  });
 
   const handleCloseMenu = () => {
     setMenuOpen(false);
@@ -726,49 +771,110 @@ const GlobalUserNav = () => {
             <div style={{ fontSize: '0.65rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '5px 10px 10px 10px' }}>
               Доступні розділи
             </div>
-            {modules.map(m => {
-              const isActive = location.pathname === m.path;
+            {CATEGORIES.map(cat => {
+              const catModules = modules.filter(m => (CATEGORY_MAP[m.id] || 'other') === cat.id);
+              if (catModules.length === 0) return null;
+
+              const isOpen = openCategories[cat.id];
+
               return (
-                <Link 
-                  key={m.id} 
-                  to={m.path} 
-                  className={`sidebar-link ${isActive ? 'active' : ''}`}
-                  onClick={handleCloseMenu}
-                >
-                  <div style={{ 
-                    color: isActive ? '#ff9000' : m.color, 
-                    background: isActive ? 'rgba(255,144,0,0.1)' : 'rgba(0,0,0,0.2)', 
-                    width: '32px', 
-                    height: '32px', 
-                    borderRadius: '10px', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    transition: '0.2s',
-                    flexShrink: 0
-                  }}>
-                    {React.cloneElement(m.icon, { size: 16 })}
+                <div key={cat.id} style={{ display: 'flex', flexDirection: 'column' }}>
+                  {/* Category Header (Accordion toggle) */}
+                  <div 
+                    onClick={() => setOpenCategories(prev => ({ ...prev, [cat.id]: !prev[cat.id] }))}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 12px',
+                      cursor: 'pointer',
+                      borderRadius: '10px',
+                      background: 'rgba(255,255,255,0.02)',
+                      border: '1px solid rgba(255,255,255,0.04)',
+                      marginTop: '8px',
+                      marginBottom: '4px',
+                      transition: 'all 0.2s ease',
+                      userSelect: 'none'
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
+                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)';
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: cat.color }} />
+                      <span style={{ fontSize: '0.72rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#aaa' }}>
+                        {cat.title}
+                      </span>
+                      <span style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800 }}>
+                        ({catModules.length})
+                      </span>
+                    </div>
+                    <ChevronDown 
+                      size={14} 
+                      color="#555" 
+                      style={{ 
+                        transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', 
+                        transition: 'transform 0.2s ease' 
+                      }} 
+                    />
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-                    <span style={{ fontSize: '0.82rem', fontWeight: 800 }}>{m.title}</span>
-                    <span style={{ fontSize: '0.62rem', color: '#444', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', fontWeight: 500, marginTop: '2px' }}>
-                      {m.desc}
-                    </span>
-                  </div>
-                  {m.badge > 0 && (
-                    <span style={{ 
-                      background: m.color, 
-                      color: '#fff', 
-                      padding: '2px 8px', 
-                      borderRadius: '10px', 
-                      fontSize: '0.6rem', 
-                      fontWeight: 900,
-                      boxShadow: `0 2px 8px ${m.color}40`
-                    }}>
-                      {m.badge}
-                    </span>
+
+                  {/* Modules under this Category */}
+                  {isOpen && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: '8px' }}>
+                      {catModules.map(m => {
+                        const isActive = location.pathname === m.path;
+                        return (
+                          <Link 
+                            key={m.id} 
+                            to={m.path} 
+                            className={`sidebar-link ${isActive ? 'active' : ''}`}
+                            onClick={handleCloseMenu}
+                          >
+                            <div style={{ 
+                              color: isActive ? '#ff9000' : m.color, 
+                              background: isActive ? 'rgba(255,144,0,0.1)' : 'rgba(0,0,0,0.2)', 
+                              width: '32px', 
+                              height: '32px', 
+                              borderRadius: '10px', 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center',
+                              transition: '0.2s',
+                              flexShrink: 0
+                            }}>
+                              {React.cloneElement(m.icon, { size: 16 })}
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                              <span style={{ fontSize: '0.82rem', fontWeight: 800 }}>{m.title}</span>
+                              <span style={{ fontSize: '0.62rem', color: '#444', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', fontWeight: 500, marginTop: '2px' }}>
+                                {m.desc}
+                              </span>
+                            </div>
+                            {m.badge > 0 && (
+                              <span style={{ 
+                                background: m.color, 
+                                color: '#fff', 
+                                padding: '2px 8px', 
+                                borderRadius: '10px', 
+                                fontSize: '0.6rem', 
+                                fontWeight: 900,
+                                boxShadow: `0 2px 8px ${m.color}40`
+                              }}>
+                                {m.badge}
+                              </span>
+                            )}
+                          </Link>
+                        );
+                      })}
+                    </div>
                   )}
-                </Link>
+                </div>
               );
             })}
           </div>
