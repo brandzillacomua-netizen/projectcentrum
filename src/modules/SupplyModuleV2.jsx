@@ -34,6 +34,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
   const [shortageModal, setShortageModal] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [processingDocs, setProcessingDocs] = useState(new Set())
+  const [targetWarehouse, setTargetWarehouse] = useState('operational') // 'operational'=СО, 'production'=СВ
 
 
   const parseMaterialName = (details) => {
