@@ -1,4 +1,4 @@
-﻿import { supabase } from '../supabase'
+import { supabase } from '../supabase'
 
 const normalizeName = (s) => {
   if (!s) return '';
@@ -157,7 +157,7 @@ export function createProductionActions({
         // Check СО stock of prepared sheets
         const preparedStock = requestNomId
           ? Math.max(0, inventory
-              .filter(i => String(i.nomenclature_id) === String(requestNomId))
+              .filter(i => String(i.nomenclature_id) === String(requestNomId) && i.warehouse === 'operational')
               .reduce((sum, i) => sum + Math.max(0, (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0)), 0))
           : 0
 
@@ -926,6 +926,7 @@ export function createProductionActions({
     completeTaskByMaster,
     addManagementTask, updateManagementTask, deleteManagementTask,
     addMachine, updateMachine, deleteMachine,
-    getOrderProductionProgress
+    getOrderProductionProgress,
+    createDovyпускMaterialRequests
   }
 }

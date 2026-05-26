@@ -8,7 +8,7 @@ import { supabase } from '../supabase'
 
 const ForemanWorkplace = () => {
   const location = useLocation()
-  const { tasks, orders, workCards, createWorkCard, createWorkCardsBatch, inventory, completeTaskByMaster, nomenclatures, bomItems, machines, machineOperations, workCardHistory, confirmBuffer, fetchData, reserveBZForTask, fetchTaskArchiveCards, fetchModuleData, machineCalls, currentUser } = useMES()
+  const { tasks, orders, workCards, createWorkCard, createWorkCardsBatch, inventory, completeTaskByMaster, nomenclatures, bomItems, machines, machineOperations, workCardHistory, confirmBuffer, fetchData, reserveBZForTask, fetchTaskArchiveCards, fetchModuleData, machineCalls, currentUser, createDovyпускMaterialRequests } = useMES()
 
   const countAsProduced = (card) => {
     if (card.status === 'completed' && card.operation === 'Прийомка') return true
@@ -507,7 +507,7 @@ const MACHINE_TYPES = [
 
   const handleGenerateFromWorksheet = async (task, part, sheets, selectedMachineName, count, localGeneratedCount = 0, totalToReach = 0, isRepair = false, globalTotalCards = null, globalSeqOffset = 0) => {
     const machineObj = findMachine(selectedMachineName)
-    const capacity = Number(machineObj?.sheet_capacity) || 1
+    const capacity = isRepair ? 1 : (Number(machineObj?.sheet_capacity) || 1)
     const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
 
     const maxCardsForThisSplit = Math.ceil(sheets / capacity)
@@ -574,7 +574,9 @@ const MACHINE_TYPES = [
           cardInfo: `${prefix}${currentSeq}/${displayTotal}${originalNeed > 0 ? ` [NEED:${originalNeed}]` : ''} [REQ:${reqInThisLoading}] [BZ:${bzInThisLoading}]`,
           quantity: qtyInThisLoading,
           bufferQty: bzInThisLoading,
-          actualSheets: sheetsInThisLoading
+          actualSheets: sheetsInThisLoading,
+          status: isRepair ? 'waiting-materials' : 'new',
+          is_rework: isRepair
         })
 
         sheetsRemainingForThisSplit -= sheetsInThisLoading
@@ -585,15 +587,8 @@ const MACHINE_TYPES = [
       const createdCards = await apiService.submitCreateWorkCardsBatch(task.id, task.order_id, part.nom.id, cardsBatch, createWorkCardsBatch)
       
       if (isRepair && sheets > 0) {
-        const order = task.orders || orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
-        const matName = part.nom?.material_type || part.nom?.name || 'Склад Оперативний'
-        await supabase.from('material_requests').insert([{
-          order_id: task.order_id,
-          task_id: task.id,
-          quantity: sheets,
-          status: 'pending',
-          details: `ДОЗАПИТ (БРАК/НЕСТАЧА) для ${order?.order_num || '???'}: ${matName} — ${sheets} л.`
-        }])
+        const totalQty = finalCount * capacity * unitsPerSheet;
+        await createDovyпускMaterialRequests(task.id, task.order_id, part.nom, sheets, totalQty);
       }
 
       if (createdCards && createdCards.length > 0) {
@@ -1549,8 +1544,19 @@ const MACHINE_TYPES = [
                                   <div style={{ color: '#ef4444', fontSize: '0.7rem', fontWeight: 950 }}>НЕСТАЧА: {shortage}</div>
                                   <button
                                     onClick={() => {
+                                      const unitsPerSheet = Number(nom?.units_per_sheet) || 1
+                                      const sheetsNeeded = Math.ceil(shortage / unitsPerSheet)
                                       const machineName = activeCards[0]?.machine || '—'
-                                      setGenModal({ task, part: { nom }, total: 1, requirement: shortage, created: 0, machineName, sheets: 1, isRepair: true })
+                                      setGenModal({
+                                        task,
+                                        part: { nom },
+                                        total: sheetsNeeded,
+                                        requirement: shortage,
+                                        created: 0,
+                                        machineName,
+                                        sheets: sheetsNeeded,
+                                        isRepair: true
+                                      })
                                     }}
                                     disabled={activeCards.some(c => !countAsProduced(c) && (c.card_info || '').includes('[REDO]'))}
                                     style={{
