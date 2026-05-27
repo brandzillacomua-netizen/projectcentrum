@@ -1,0 +1,24 @@
+column_name,data_type,column_default,is_nullable
+id,uuid,gen_random_uuid(),NO
+card_id,uuid,null,YES
+nomenclature_id,uuid,null,YES
+stage_name,text,null,NO
+operator_name,text,null,YES
+qty_at_start,integer,null,YES
+qty_completed,integer,null,YES
+scrap_qty,integer,0,YES
+started_at,timestamp with time zone,null,YES
+completed_at,timestamp with time zone,null,YES
+created_at,timestamp with time zone,now(),YES
+is_archived_scrap,boolean,false,YES
+machine,text,null,YES
+machine_id,uuid,null,YES
+manager_name,text,null,YES
+shift_name,text,null,YES
+machine_name,text,null,YES
+cutters_used,integer,0,YES
+qc_scrap_reason,text,null,YES
+qc_scrap_comment,text,null,YES
+galt_priority,integer,2,YES
+card_info,text,null,YES
+task_id,uuid,null,YES

@@ -248,31 +248,46 @@ export function createProductionActions({
         
         if (opData && opData.side2_cut_ops) {
           const cutterOps = opData.side2_cut_ops.filter(op => op.startsWith('__CUTTER__Reference:') || op.startsWith('__CUTTER__:'))
+          const machineSpecificCutters = {}
           cutterOps.forEach(op => {
             const parts = op.split(':')
             const cutterNomId = parts[1]
             const qtyPerSheet = parseFloat(parts[2]) || 0
             if (cutterNomId && qtyPerSheet > 0) {
-              hasMachineSpecificCutters = true
               const totalQty = Math.ceil(sheets * qtyPerSheet)
               const cutterNom = nomenclatures.find(n => String(n.id) === String(cutterNomId))
-              if (cutterNom) {
-                const consInvItem = inventory.find(i => String(i.nomenclature_id) === String(cutterNomId) && i.warehouse === 'operational')
-                  || inventory.find(i => String(i.nomenclature_id) === String(cutterNomId))
-                requestsToInsert.push({
-                  order_id: orderId,
-                  task_id: taskId,
-                  quantity: totalQty,
-                  status: 'pending',
-                  inventory_id: consInvItem?.id || null,
-                  nomenclature_id: cutterNom.id,
-                  details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ДОВИПУСКУ ${order?.order_num || '???'}: ${cutterNom.name} — ${totalQty} од. (для ${partNom?.name || '???'})`
-                })
+              if (cutterNom && cutterNom.name.trim().toLowerCase() !== 'фреза') {
+                hasMachineSpecificCutters = true
+                const cleanName = cutterNom.name.trim()
+                const key = cleanName.toLowerCase()
+                if (!machineSpecificCutters[key]) {
+                  machineSpecificCutters[key] = {
+                    name: cleanName,
+                    qty: 0,
+                    nomenclature_id: cutterNom.id
+                  }
+                }
+                machineSpecificCutters[key].qty += totalQty
               }
             }
           })
+
+          Object.values(machineSpecificCutters).forEach(item => {
+            const consInvItem = inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id) && i.warehouse === 'operational')
+              || inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id))
+            requestsToInsert.push({
+              order_id: orderId,
+              task_id: taskId,
+              quantity: item.qty,
+              status: 'pending',
+              inventory_id: consInvItem?.id || null,
+              nomenclature_id: item.nomenclature_id,
+              details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ДОВИПУСКУ ${order?.order_num || '???'}: ${item.name} — ${item.qty} од. (для ${partNom?.name || '???'})`
+            })
+          })
         }
 
+        const fallbackCons = {}
         nomenclatures
           .filter(n =>
             n.type === 'consumable' &&
@@ -284,18 +299,32 @@ export function createProductionActions({
             if (hasMachineSpecificCutters && cons.name.toLowerCase().includes('фреза')) {
               return
             }
-            const neededQty = Math.ceil(sheets * Number(cons.consumption_per_sheet))
-            const consInvItem = inventory.find(i => i.nomenclature_id === cons.id)
-            requestsToInsert.push({
-              order_id: orderId,
-              task_id: taskId,
-              quantity: neededQty,
-              status: 'pending',
-              inventory_id: consInvItem?.id || null,
-              nomenclature_id: cons.id,
-              details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ДОВИПУСКУ ${order?.order_num || '???'}: ${cons.name} — ${neededQty} од.`
-            })
+            const cleanName = cons.name.trim()
+            const key = cleanName.toLowerCase()
+            const totalQty = Math.ceil(sheets * Number(cons.consumption_per_sheet))
+            if (!fallbackCons[key]) {
+              fallbackCons[key] = {
+                name: cleanName,
+                qty: 0,
+                nomenclature_id: cons.id
+              }
+            }
+            fallbackCons[key].qty += totalQty
           })
+
+        Object.values(fallbackCons).forEach(item => {
+          const consInvItem = inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id) && i.warehouse === 'operational')
+            || inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id))
+          requestsToInsert.push({
+            order_id: orderId,
+            task_id: taskId,
+            quantity: item.qty,
+            status: 'pending',
+            inventory_id: consInvItem?.id || null,
+            nomenclature_id: item.nomenclature_id,
+            details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ДОВИПУСКУ ${order?.order_num || '???'}: ${item.name} — ${item.qty} од.`
+          })
+        })
       }
 
       if (requestsToInsert.length > 0) {
@@ -367,7 +396,7 @@ export function createProductionActions({
   const CHAIN_SHOP1 = ['Розкрій', 'Галтовка', 'Прийомка']
   const CHAIN_GENERAL = ['Розкрій', 'Галтовка', 'Пресування', 'Фарбування', 'Паквання']
 
-  const confirmBuffer = async (cardId, scrapData = {}, cuttersUsed = 0) => {
+  const confirmBuffer = async (cardId, scrapData = {}, cuttersUsed = 0, cuttersBreakdown = null) => {
     const card = workCards.find(c => c.id === cardId)
     if (!card) return
     const totalScrap = typeof scrapData === 'number' ? scrapData : Object.values(scrapData).reduce((acc, c) => acc + Number(c), 0)
@@ -387,7 +416,11 @@ export function createProductionActions({
       : { status: 'completed', quantity: qtyCompleted, machine: null, machine_id: null }
 
     const machineTag = `[MACHINE_ID:${card.machine_id || ''}] [MACHINE_NAME:${card.machine || ''}]`
-    const historyCardInfo = (machineTag + ' ' + (card.card_info || '')).trim()
+    let breakdownStr = ''
+    if (cuttersBreakdown && Object.keys(cuttersBreakdown).length > 0) {
+      breakdownStr = ` [CUTTERS_BREAKDOWN:${JSON.stringify(cuttersBreakdown)}]`
+    }
+    const historyCardInfo = (machineTag + ' ' + (card.card_info || '') + breakdownStr).trim()
 
     await Promise.all([
       supabase.from('work_card_history').insert([{
@@ -396,7 +429,7 @@ export function createProductionActions({
         qty_at_start: card.quantity, qty_completed: qtyCompleted, scrap_qty: totalScrap,
         cutters_used: Number(cuttersUsed) || 0, started_at: card.started_at, completed_at: new Date().toISOString()
       }]),
-      supabase.from('work_cards').update({ ...cardUpdate, cutters_used: Number(cuttersUsed) || 0 }).eq('id', cardId)
+      supabase.from('work_cards').update({ ...cardUpdate, cutters_used: Number(cuttersUsed) || 0, card_info: historyCardInfo }).eq('id', cardId)
     ])
 
     if (isRework) {

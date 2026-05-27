@@ -24,7 +24,7 @@ const translateCyrillic = (str) => {
 }
 
 const OperatorTerminal = () => {
-  const { workCards, orders, nomenclatures, startWorkCard, completeWorkCard, confirmBuffer, fetchData, operators, productionStages, machines, workCardHistory, getFilteredOperators, getFilteredManagers, systemUsers, currentUser } = useMES()
+  const { workCards, orders, nomenclatures, startWorkCard, completeWorkCard, confirmBuffer, fetchData, operators, productionStages, machines, workCardHistory, getFilteredOperators, getFilteredManagers, systemUsers, currentUser, machineOperations } = useMES()
   const [selectedCardId, setSelectedCardId] = useState(null)
   const [selectedStage, setSelectedStage] = useState('')
   const [selectedOperator, setSelectedOperator] = useState('')
@@ -46,6 +46,7 @@ const OperatorTerminal = () => {
   const [showScrapModal, setShowScrapModal] = useState(false)
   const [scrapCounts, setScrapCounts] = useState({})
   const [cuttersUsed, setCuttersUsed] = useState(0)
+  const [cuttersBreakdown, setCuttersBreakdown] = useState({})
   const [showPinModal, setShowPinModal] = useState(false)
   const [pin, setPin] = useState('')
   const [pinError, setPinError] = useState(false)
@@ -229,14 +230,58 @@ const OperatorTerminal = () => {
       setSelectedMaster('')
       setSelectedShift('')
       setSelectedMachine('')
+      setCuttersBreakdown({})
     } else {
       setSelectedStage('')
       setSelectedOperator('')
       setSelectedMaster('')
       setSelectedShift('')
       setSelectedMachine('')
+      setCuttersBreakdown({})
     }
   }, [selectedCardId, workCards])
+
+  const getCuttersForCard = (card) => {
+    if (!card) return []
+    const task = tasks?.find(t => String(t.id) === String(card.task_id))
+    const targetMachine = task?.machine_name || card.machine || ''
+    
+    const opData = machineOperations?.find(o => 
+      String(o.nomenclature_id) === String(card.nomenclature_id) &&
+      (o.machine_type === targetMachine || o.machine_id === targetMachine)
+    )
+    
+    const cutters = []
+    if (opData && opData.side2_cut_ops) {
+      const cutterOps = opData.side2_cut_ops.filter(op => op.startsWith('__CUTTER__Reference:') || op.startsWith('__CUTTER__:'))
+      cutterOps.forEach(op => {
+        const parts = op.split(':')
+        const cutterNomId = parts[1]
+        if (cutterNomId) {
+          const cutterNom = nomenclatures?.find(n => String(n.id) === String(cutterNomId))
+          if (cutterNom && cutterNom.name.trim().toLowerCase() !== 'фреза') {
+            const cleanName = cutterNom.name.trim()
+            if (!cutters.includes(cleanName)) {
+              cutters.push(cleanName)
+            }
+          }
+        }
+      })
+    }
+    
+    if (cutters.length === 0 && nomenclatures) {
+      nomenclatures
+        .filter(n => n.type === 'consumable' && n.name.trim().toLowerCase() !== 'фреза' && n.name.toLowerCase().includes('фреза'))
+        .forEach(n => {
+          const cleanName = n.name.trim()
+          if (!cutters.includes(cleanName)) {
+            cutters.push(cleanName)
+          }
+        })
+    }
+    
+    return cutters
+  }
 
   const getCardDept = (card) => {
     if (!card) return null
@@ -355,6 +400,7 @@ const OperatorTerminal = () => {
     const nom = getNomFromCard(currentCard)
     setScrapCounts({ [nom?.id]: 0 })
     setCuttersUsed(0)
+    setCuttersBreakdown({})
     setShowScrapModal(true)
   }
 
@@ -362,7 +408,8 @@ const OperatorTerminal = () => {
     if (!currentCard) return
     setIsProcessing(true)
     try {
-      await apiService.submitBufferConfirmation(currentCard.id, scrapCounts, confirmBuffer, cuttersUsed)
+      const cuttersQty = matchesStage(currentCard.operation, 'Розкрій') ? Object.values(cuttersBreakdown).reduce((sum, v) => sum + (Number(v) || 0), 0) : 0
+      await apiService.submitBufferConfirmation(currentCard.id, scrapCounts, confirmBuffer, cuttersQty, cuttersBreakdown)
       setSelectedCardId(null)
       setShowScrapModal(false)
       setScannedCardIds(prev => prev.filter(id => id !== currentCard.id))
@@ -630,12 +677,12 @@ const OperatorTerminal = () => {
 
       {showScrapModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.96)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10020, padding: '20px' }}>
-          <div style={{ background: '#111', width: '100%', maxWidth: '500px', borderRadius: '32px', border: '1px solid #333', overflow: 'hidden' }}>
-            <div style={{ padding: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#1a1a1a' }}>
+          <div style={{ background: '#111', width: '100%', maxWidth: '500px', borderRadius: '32px', border: '1px solid #333', display: 'flex', flexDirection: 'column', maxHeight: '90vh', overflow: 'hidden' }}>
+            <div style={{ padding: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#1a1a1a', flexShrink: 0 }}>
               <h3 style={{ margin: 0 }}>ЗАВЕРШИТИ — {currentCard.operation?.toUpperCase()}</h3>
               <button onClick={() => setShowScrapModal(false)} style={{ background: 'transparent', border: 'none', color: '#555' }}><X size={26} /></button>
             </div>
-            <div style={{ padding: '30px', textAlign: 'center' }}>
+            <div style={{ padding: '30px', textAlign: 'center', overflowY: 'auto', flex: 1 }}>
               <h2 style={{ margin: '0 0 20px' }}>{getNomFromCard(currentCard)?.name}</h2>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -648,16 +695,39 @@ const OperatorTerminal = () => {
                   </div>
                 </div>
 
-                {matchesStage(currentCard.operation, 'Розкрій') && (
-                  <div style={{ background: '#000', padding: '20px', borderRadius: '20px', border: '1px solid #eab308' }}>
-                    <label style={{ color: '#eab308', fontWeight: 900, display: 'block', marginBottom: '15px' }}>ФАКТИЧНО ФРЕЗ ВИКОРИСТАНО</label>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px' }}>
-                      <button onClick={() => setCuttersUsed(Math.max(0, cuttersUsed - 1))} style={{ width: '50px', height: '50px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', borderRadius: '12px' }}>-</button>
-                      <input type="number" value={cuttersUsed} onChange={e => setCuttersUsed(parseInt(e.target.value) || 0)} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '3rem', width: '100px', textAlign: 'center' }} />
-                      <button onClick={() => setCuttersUsed(cuttersUsed + 1)} style={{ width: '50px', height: '50px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', borderRadius: '12px' }}>+</button>
+                {matchesStage(currentCard.operation, 'Розкрій') && (() => {
+                  const cardCutters = getCuttersForCard(currentCard)
+                  return (
+                    <div style={{ background: '#000', padding: '20px', borderRadius: '20px', border: '1px solid #eab308', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                      <label style={{ color: '#eab308', fontWeight: 900, display: 'block', textTransform: 'uppercase' }}>ФАКТИЧНО ФРЕЗ ВИКОРИСТАНО</label>
+                      {cardCutters.map(cutterName => {
+                        const currentVal = cuttersBreakdown[cutterName] || 0
+                        return (
+                          <div key={cutterName} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#111', padding: '10px 15px', borderRadius: '12px', border: '1px solid #222' }}>
+                            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#aaa', maxWidth: '60%', textAlign: 'left' }}>{cutterName}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <button onClick={() => setCuttersBreakdown(p => ({ ...p, [cutterName]: Math.max(0, currentVal - 1) }))}
+                                type="button"
+                                style={{ width: '36px', height: '36px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', borderRadius: '8px', cursor: 'pointer', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</button>
+                              <input type="number" min={0} value={currentVal}
+                                onChange={e => {
+                                  const val = Math.max(0, parseInt(e.target.value) || 0)
+                                  setCuttersBreakdown(p => ({ ...p, [cutterName]: val }))
+                                }}
+                                style={{ background: 'transparent', border: 'none', color: '#eab308', fontSize: '1.3rem', width: '50px', textAlign: 'center', fontWeight: 900 }} />
+                              <button onClick={() => setCuttersBreakdown(p => ({ ...p, [cutterName]: currentVal + 1 }))}
+                                type="button"
+                                style={{ width: '36px', height: '36px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', borderRadius: '8px', cursor: 'pointer', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                      <div style={{ borderTop: '1px solid #222', paddingTop: '10px', fontSize: '0.8rem', color: '#555' }}>
+                        Всього використано: <strong style={{ color: '#eab308' }}>{Object.values(cuttersBreakdown).reduce((sum, v) => sum + (Number(v) || 0), 0)} шт</strong>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )
+                })()}
               </div>
 
               <button onClick={handleFinalFinish} style={{ width: '100%', background: '#10b981', color: '#fff', border: 'none', padding: '20px', borderRadius: '15px', fontWeight: 900, marginTop: '30px' }}>ПІДТВЕРДИТИ ТА В БУФЕР</button>

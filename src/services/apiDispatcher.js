@@ -251,11 +251,11 @@ export const apiService = {
     return true;
   },
 
-  submitBufferConfirmation: async (cardId, scrapData, fallback, cuttersUsed = 0) => {
-    const payload = { action: 'BUFFER_CONFIRMATION', cardId, scrapData, cuttersUsed };
+  submitBufferConfirmation: async (cardId, scrapData, fallback, cuttersUsed = 0, cuttersBreakdown = null) => {
+    const payload = { action: 'BUFFER_CONFIRMATION', cardId, scrapData, cuttersUsed, cuttersBreakdown };
     console.log("%c--- 📦 BACKEND ACTION: BUFFER RECEPTION ---", "color: #ef4444; font-weight: bold; font-size: 14px; text-decoration: underline;");
     console.log("JSON Payload:", payload);
-    if (typeof fallback === 'function') await fallback(cardId, scrapData, cuttersUsed);
+    if (typeof fallback === 'function') await fallback(cardId, scrapData, cuttersUsed, cuttersBreakdown);
     return true;
   },
 

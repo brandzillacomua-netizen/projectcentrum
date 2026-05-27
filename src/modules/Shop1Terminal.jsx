@@ -45,7 +45,7 @@ const MACHINE_TYPES = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function Shop1Terminal() {
-  const { workCards, nomenclatures, operators, getFilteredOperators, getFilteredManagers, managers, workCardHistory, inventory, fetchData, createWorkCard, orders, bomItems, tasks, currentUser, machines, systemUsers } = useMES()
+  const { workCards, nomenclatures, operators, getFilteredOperators, getFilteredManagers, managers, workCardHistory, inventory, fetchData, createWorkCard, orders, bomItems, tasks, currentUser, machines, systemUsers, machineOperations } = useMES()
 
   const [currentTime, setCurrentTime] = useState(new Date())
   const [selectedCardId, setSelectedCardId] = useState(null)
@@ -74,6 +74,7 @@ export default function Shop1Terminal() {
   const [scrapCount, setScrapCount] = useState(0)
   const [reworkCount, setReworkCount] = useState(0)
   const [cuttersUsed, setCuttersUsed] = useState(0)
+  const [cuttersBreakdown, setCuttersBreakdown] = useState({})
   const [galtPriority, setGaltPriority] = useState(2)
 
   // Emergency Machine Call Modal state
@@ -409,8 +410,60 @@ export default function Shop1Terminal() {
     setQcScrapCount(0)
     setQcInspector('')
     setCuttersUsed(0)
+    // Pre-populate breakdown with all known cutters at 0
+    // so keys exist even if operator doesn't touch +/−
+    if (currentCard?.operation === 'Розкрій') {
+      const initCutters = getCuttersForCard(currentCard)
+      const initBreakdown = {}
+      initCutters.forEach(name => { initBreakdown[name] = 0 })
+      setCuttersBreakdown(initBreakdown)
+    } else {
+      setCuttersBreakdown({})
+    }
     setGaltPriority(currentCard?.galt_priority || 2)
   }, [selectedCardId, currentCard])
+
+  const getCuttersForCard = (card) => {
+    if (!card) return []
+    const task = tasks?.find(t => String(t.id) === String(card.task_id))
+    const targetMachine = task?.machine_name || card.machine || ''
+    
+    const opData = machineOperations?.find(o => 
+      String(o.nomenclature_id) === String(card.nomenclature_id) &&
+      (o.machine_type === targetMachine || o.machine_id === targetMachine)
+    )
+    
+    const cutters = []
+    if (opData && opData.side2_cut_ops) {
+      const cutterOps = opData.side2_cut_ops.filter(op => op.startsWith('__CUTTER__Reference:') || op.startsWith('__CUTTER__:'))
+      cutterOps.forEach(op => {
+        const parts = op.split(':')
+        const cutterNomId = parts[1]
+        if (cutterNomId) {
+          const cutterNom = nomenclatures?.find(n => String(n.id) === String(cutterNomId))
+          if (cutterNom && cutterNom.name.trim().toLowerCase() !== 'фреза') {
+            const cleanName = cutterNom.name.trim()
+            if (!cutters.includes(cleanName)) {
+              cutters.push(cleanName)
+            }
+          }
+        }
+      })
+    }
+    
+    if (cutters.length === 0 && nomenclatures) {
+      nomenclatures
+        .filter(n => n.type === 'consumable' && n.name.trim().toLowerCase() !== 'фреза' && n.name.toLowerCase().includes('фреза'))
+        .forEach(n => {
+          const cleanName = n.name.trim()
+          if (!cutters.includes(cleanName)) {
+            cutters.push(cleanName)
+          }
+        })
+    }
+    
+    return cutters
+  }
 
 
   // Уніфікована функція запису в інвентар (без bz_qty колонки)
@@ -593,10 +646,16 @@ export default function Shop1Terminal() {
       const qtyDone = Math.max(0, (currentCard.quantity || 0) - scrapCount)
       const op = finalOperator || currentCard.operator_name || 'Не вказано'
       const activeShift = selectedShift || currentCard.shift_name || 'Без зміни'
-      const cuttersQty = currentCard.operation === 'Розкрій' ? cuttersUsed : null
+      const cuttersQty = currentCard.operation === 'Розкрій' ? Object.values(cuttersBreakdown).reduce((sum, v) => sum + (Number(v) || 0), 0) : null
       const priorityVal = currentCard.operation === 'Розкрій' ? galtPriority : (currentCard.galt_priority || 2)
 
-      // 1. Записуємо в history
+      let breakdownStr = ''
+      if (currentCard.operation === 'Розкрій' && Object.keys(cuttersBreakdown).length > 0) {
+        breakdownStr = ` [CUTTERS_BREAKDOWN:${JSON.stringify(cuttersBreakdown)}]`
+      }
+      const historyCardInfo = ((currentCard.card_info || '') + breakdownStr).trim()
+
+      // 1. Записуємо в history (galt_priority не існує в work_card_history!)
       await supabase.from('work_card_history').insert([{
         card_id: currentCard.id,
         nomenclature_id: currentCard.nomenclature_id,
@@ -607,12 +666,12 @@ export default function Shop1Terminal() {
         scrap_qty: scrapCount,
         started_at: currentCard.started_at,
         completed_at: new Date().toISOString(),
-        is_archived_scrap: scrapCount > 0, // Автоматично архівуємо брак, бо він вже в інвентар пішов
+        is_archived_scrap: scrapCount > 0,
         shift_name: activeShift,
         manager_name: currentCard.manager_name,
         machine_name: currentCard.machine,
         cutters_used: cuttersQty,
-        galt_priority: priorityVal
+        card_info: historyCardInfo
       }])
 
       // 2. Оновлюємо картку (тільки перехід у буфер, фінальна прийомка далі)
@@ -622,6 +681,7 @@ export default function Shop1Terminal() {
         operator_name: op,
         shift_name: activeShift,
         cutters_used: cuttersQty,
+        card_info: historyCardInfo,
         galt_priority: priorityVal,
         completed_at: new Date().toISOString()
       }).eq('id', currentCard.id)
@@ -719,7 +779,13 @@ export default function Shop1Terminal() {
     try {
       const op = finalOperator || currentCard.operator_name || 'Брак'
       const activeShift = selectedShift || currentCard.shift_name || 'Без зміни'
-      const cuttersQty = currentCard.operation === 'Розкрій' ? cuttersUsed : null
+      const cuttersQty = currentCard.operation === 'Розкрій' ? Object.values(cuttersBreakdown).reduce((sum, v) => sum + (Number(v) || 0), 0) : null
+
+      let breakdownStr = ''
+      if (currentCard.operation === 'Розкрій' && Object.keys(cuttersBreakdown).length > 0) {
+        breakdownStr = ` [CUTTERS_BREAKDOWN:${JSON.stringify(cuttersBreakdown)}]`
+      }
+      const historyCardInfo = ((currentCard.card_info || '') + breakdownStr).trim()
 
       // 1. Записуємо в history
       await supabase.from('work_card_history').insert([{
@@ -736,6 +802,7 @@ export default function Shop1Terminal() {
         shift_name: activeShift,
         manager_name: currentCard.manager_name,
         machine_name: currentCard.machine,
+        card_info: historyCardInfo,
         cutters_used: cuttersQty
       }])
 
@@ -745,6 +812,7 @@ export default function Shop1Terminal() {
         quantity: 0,
         operator_name: op,
         shift_name: activeShift,
+        card_info: historyCardInfo,
         cutters_used: cuttersQty
       }).eq('id', currentCard.id)
 
@@ -2288,8 +2356,8 @@ export default function Shop1Terminal() {
       {/* ── Модалка завершення етапу ──────────────────────────────────────── */}
       {showCompleteModal && currentCard && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10020, padding: '20px' }}>
-          <div style={{ background: '#111', width: '100%', maxWidth: '460px', borderRadius: '26px', border: '1px solid #252525', overflow: 'hidden' }}>
-            <div style={{ padding: '20px 22px', background: '#161616', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ background: '#111', width: '100%', maxWidth: '460px', borderRadius: '26px', border: '1px solid #252525', display: 'flex', flexDirection: 'column', maxHeight: '90vh', overflow: 'hidden' }}>
+            <div style={{ padding: '20px 22px', background: '#161616', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 900 }}>
                   ЗАВЕРШИТИ · {currentCard.operation?.toUpperCase()}
@@ -2302,7 +2370,7 @@ export default function Shop1Terminal() {
               </div>
               <button onClick={() => setShowCompleteModal(false)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}><X size={22} /></button>
             </div>
-            <div style={{ padding: '24px 22px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+            <div style={{ padding: '24px 22px', display: 'flex', flexDirection: 'column', gap: '18px', overflowY: 'auto', flex: 1 }}>
               <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900 }}>{getNom(currentCard)?.name}</h3>
 
               {/* Пріоритет галтовки (Тільки для Розкрою) */}
@@ -2367,25 +2435,41 @@ export default function Shop1Terminal() {
               </div>
 
               {/* Фактична кількість фрез (Тільки для Розкрою) */}
-              {currentCard.operation === 'Розкрій' && (
-                <div style={{ background: '#0d0d0d', borderRadius: '14px', padding: '18px', textAlign: 'center', border: '1px solid #eab30822' }}>
-                  <label style={{ color: '#eab308', fontWeight: 900, fontSize: '0.7rem', textTransform: 'uppercase', display: 'block', marginBottom: '12px' }}>
-                    ФАКТИЧНА КІЛЬКІСТЬ ФРЕЗ
-                  </label>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
-                    <button onClick={() => setCuttersUsed(v => Math.max(0, v - 1))}
-                      style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
-                    <input type="number" min={0} value={cuttersUsed}
-                      onChange={e => setCuttersUsed(Math.max(0, parseInt(e.target.value) || 0))}
-                      style={{ background: 'transparent', border: 'none', color: '#eab308', fontSize: '3.2rem', width: '90px', textAlign: 'center', fontWeight: 900 }} />
-                    <button onClick={() => setCuttersUsed(v => v + 1)}
-                      style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
+              {currentCard.operation === 'Розкрій' && (() => {
+                const cardCutters = getCuttersForCard(currentCard)
+                return (
+                  <div style={{ background: '#0d0d0d', borderRadius: '14px', padding: '18px', border: '1px solid #eab30822', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    <label style={{ color: '#eab308', fontWeight: 900, fontSize: '0.7rem', textTransform: 'uppercase', display: 'block', textAlign: 'center' }}>
+                      ФАКТИЧНА КІЛЬКІСТЬ ФРЕЗ
+                    </label>
+                    {cardCutters.map(cutterName => {
+                      const currentVal = cuttersBreakdown[cutterName] || 0
+                      return (
+                        <div key={cutterName} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#121212', padding: '10px 15px', borderRadius: '10px', border: '1px solid #222' }}>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#aaa', maxWidth: '60%', textAlign: 'left' }}>{cutterName}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <button onClick={() => setCuttersBreakdown(p => ({ ...p, [cutterName]: Math.max(0, currentVal - 1) }))}
+                              type="button"
+                              style={{ width: '32px', height: '32px', background: '#1c1c1c', border: '1px solid #333', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                            <input type="number" min={0} value={currentVal}
+                              onChange={e => {
+                                const val = Math.max(0, parseInt(e.target.value) || 0)
+                                setCuttersBreakdown(p => ({ ...p, [cutterName]: val }))
+                              }}
+                              style={{ background: 'transparent', border: 'none', color: '#eab308', fontSize: '1.2rem', width: '50px', textAlign: 'center', fontWeight: 900 }} />
+                            <button onClick={() => setCuttersBreakdown(p => ({ ...p, [cutterName]: currentVal + 1 }))}
+                              type="button"
+                              style={{ width: '32px', height: '32px', background: '#1c1c1c', border: '1px solid #333', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                    <div style={{ borderTop: '1px solid #222', paddingTop: '10px', textAlign: 'center', fontSize: '0.72rem', color: '#555' }}>
+                      Всього використано: <strong style={{ color: '#eab308' }}>{Object.values(cuttersBreakdown).reduce((sum, v) => sum + (Number(v) || 0), 0)} шт</strong>
+                    </div>
                   </div>
-                  <div style={{ marginTop: '10px', fontSize: '0.72rem', color: '#555' }}>
-                    Використано для цієї карти: <strong style={{ color: '#eab308' }}>{cuttersUsed} шт</strong>
-                  </div>
-                </div>
-              )}
+                )
+              })()}
 
               {/* Лічильник браку */}
               <div style={{ background: '#0d0d0d', borderRadius: '14px', padding: '18px', textAlign: 'center' }}>

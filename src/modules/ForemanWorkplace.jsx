@@ -78,21 +78,37 @@ const ForemanWorkplace = () => {
 
       if (reqError) console.warn('Error fetching material requests:', reqError.message)
 
-      const cardIds = taskCards.map(c => c.id)
-      if (cardIds.length === 0) {
+      // 2. Fetch ALL card IDs for this task directly from DB
+      //    (taskCards from state may be missing completed/archived cards if archiveCards hasn't loaded yet)
+      const { data: allTaskCardsDB } = await supabase
+        .from('work_cards')
+        .select('id')
+        .eq('task_id', task.id)
+
+      const stateCardIds = taskCards.map(c => c.id)
+      const dbCardIds = (allTaskCardsDB || []).map(c => c.id)
+      const allCardIds = [...new Set([...stateCardIds, ...dbCardIds])]
+
+      console.log('[Report] task:', task.id, '| stateCards:', stateCardIds.length, '| dbCards:', dbCardIds.length, '| total:', allCardIds.length)
+
+      if (allCardIds.length === 0) {
         setReportData({ historyRows: [], taskCards, materialRequests: materialRequests || [] })
         setReportLoading(false)
         return
       }
 
-      // 2. Fetch all work_card_history rows for these cards
+      // 3. Fetch all work_card_history rows for ALL cards of this task
       const { data: historyRows, error } = await supabase
         .from('work_card_history')
         .select('*')
-        .in('card_id', cardIds)
+        .in('card_id', allCardIds)
         .order('completed_at', { ascending: true })
 
       if (error) throw error
+
+      const cutterRows = (historyRows || []).filter(r => r.cutters_used > 0 || (r.card_info || '').includes('CUTTERS_BREAKDOWN'))
+      console.log('[Report] historyRows:', historyRows?.length, '| cutterRows:', cutterRows.length)
+      cutterRows.forEach(r => console.log('[Report] cutterRow:', { id: r.id, stage: r.stage_name, cutters_used: r.cutters_used, card_info: r.card_info }))
 
       setReportData({ historyRows: historyRows || [], taskCards, materialRequests: materialRequests || [] })
     } catch (e) {
@@ -2604,6 +2620,61 @@ const MACHINE_TYPES = [
                 ? cutterRequests.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
                 : 0
 
+              const plannedCuttersBreakdown = {}
+              cutterRequests.forEach(r => {
+                const name = r.nomenclature?.name || 'Фреза'
+                plannedCuttersBreakdown[name] = (plannedCuttersBreakdown[name] || 0) + (Number(r.quantity) || 0)
+              })
+
+              const actualCuttersBreakdown = {}
+              reportData.historyRows.forEach(row => {
+                const info = row.card_info || ''
+                // Robust JSON extraction: find [CUTTERS_BREAKDOWN:{ ... }] using bracket counting
+                const markerIdx = info.indexOf('[CUTTERS_BREAKDOWN:')
+                let parsed = null
+                if (markerIdx !== -1) {
+                  const jsonStart = info.indexOf('{', markerIdx)
+                  if (jsonStart !== -1) {
+                    let depth = 0
+                    let jsonEnd = -1
+                    for (let i = jsonStart; i < info.length; i++) {
+                      if (info[i] === '{') depth++
+                      else if (info[i] === '}') {
+                        depth--
+                        if (depth === 0) { jsonEnd = i; break }
+                      }
+                    }
+                    if (jsonEnd !== -1) {
+                      try {
+                        parsed = JSON.parse(info.slice(jsonStart, jsonEnd + 1))
+                      } catch (e) {
+                        console.warn('Failed to parse cutters breakdown from card_info:', e, info.slice(jsonStart, jsonEnd + 1))
+                      }
+                    }
+                  }
+                }
+                if (parsed) {
+                  Object.entries(parsed).forEach(([cutterName, qty]) => {
+                    actualCuttersBreakdown[cutterName] = (actualCuttersBreakdown[cutterName] || 0) + (Number(qty) || 0)
+                  })
+                } else if (Number(row.cutters_used) > 0) {
+                  const plannedNames = Object.keys(plannedCuttersBreakdown)
+                  if (plannedNames.length === 1) {
+                    const name = plannedNames[0]
+                    actualCuttersBreakdown[name] = (actualCuttersBreakdown[name] || 0) + Number(row.cutters_used)
+                  } else if (plannedNames.length > 1) {
+                    plannedNames.forEach(name => {
+                      // Distribute proportionally by plan, or just add to generic key
+                    })
+                    const name = 'Фреза (без деталей)'
+                    actualCuttersBreakdown[name] = (actualCuttersBreakdown[name] || 0) + Number(row.cutters_used)
+                  } else {
+                    const name = 'Фреза'
+                    actualCuttersBreakdown[name] = (actualCuttersBreakdown[name] || 0) + Number(row.cutters_used)
+                  }
+                }
+              })
+
               const totalActualMs = reportData.historyRows.reduce((sum, row) => {
                 if (row.started_at && row.completed_at) {
                   const diff = new Date(row.completed_at) - new Date(row.started_at)
@@ -2657,9 +2728,38 @@ const MACHINE_TYPES = [
 
                     <div style={{ background: '#111', border: '1px solid #222', borderRadius: '16px', padding: '15px' }}>
                       <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>Фрези (Розкрій)</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <div>План: <strong style={{ color: '#fff' }}>{totalPlannedCutters} шт</strong></div>
-                        <div>Факт: <strong style={{ color: '#eab308' }} className="text-accent-orange">{totalActualCutters} шт</strong></div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderBottom: '1px solid #222', paddingBottom: '6px' }}>
+                          <span>План: <strong style={{ color: '#fff' }}>{totalPlannedCutters} шт</strong></span>
+                          <span>Факт: <strong style={{ color: '#eab308' }} className="text-accent-orange">{totalActualCutters} шт</strong></span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {(() => {
+                            const allCutterNames = Array.from(new Set([
+                              ...Object.keys(plannedCuttersBreakdown),
+                              ...Object.keys(actualCuttersBreakdown)
+                            ]))
+                            if (allCutterNames.length === 0) {
+                              return <div style={{ fontSize: '0.65rem', color: '#444', textAlign: 'center' }}>Немає витрат фрез</div>
+                            }
+                            return allCutterNames.map(name => {
+                              const planVal = plannedCuttersBreakdown[name] || 0
+                              const factVal = actualCuttersBreakdown[name] || 0
+                              const isExcess = factVal > planVal
+                              return (
+                                <div key={name} style={{ fontSize: '0.68rem', borderBottom: '1px solid #1a1a1a', paddingBottom: '4px' }}>
+                                  <div style={{ color: isExcess ? '#ef4444' : '#aaa', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={name} className={isExcess ? 'text-accent-red' : ''}>
+                                    {isExcess && '⚠️ '}{name}
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2px', color: '#888' }}>
+                                    <span>План: <strong style={{ color: '#bbb' }}>{planVal} шт</strong></span>
+                                    <span>Факт: <strong style={{ color: isExcess ? '#ef4444' : '#bbb' }} className={isExcess ? 'text-accent-red' : 'text-accent-orange'}>{factVal} шт</strong></span>
+                                  </div>
+                                </div>
+                              )
+                            })
+                          })()}
+                        </div>
                       </div>
                     </div>
 
