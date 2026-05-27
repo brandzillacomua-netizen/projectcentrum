@@ -356,6 +356,9 @@ export function useData() {
       } else if (tableName === 'machine_operations') {
         const { data } = await supabase.from('machine_operations').select('*')
         if (data) setMachineOperations(data)
+      } else if (tableName === 'nomenclatures') {
+        const { data } = await supabase.from('nomenclatures').select('*').limit(2000)
+        if (data) setNomenclatures(data)
       }
     } catch (e) { console.error(`Error refreshing ${tableName}:`, e) }
   }

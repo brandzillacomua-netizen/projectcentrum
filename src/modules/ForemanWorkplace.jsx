@@ -1930,9 +1930,9 @@ const MACHINE_TYPES = [
               o.nomenclature_id === nomenclature?.id && 
               (o.machine_type === m.machine || (mac && o.machine_id === mac.id))
             )
-            const s1Ops = opData?.side1_ops || []
-            const s2Ops = opData?.side2_ops || []
-            const s2CutOps = opData?.side2_cut_ops || []
+            const s1Ops = (opData?.side1_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:'))
+            const s2Ops = (opData?.side2_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:'))
+            const s2CutOps = (opData?.side2_cut_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:'))
             
             const maxOps = Math.max(10, s1Ops.length, s2Ops.length, s2CutOps.length)
             const opRows = Array.from({ length: maxOps }).map((_, i) => ({
@@ -2249,11 +2249,13 @@ const MACHINE_TYPES = [
         // Consumables summary
         const cuttersSummary = {}
         materialRequests.forEach(r => {
-          const name = r.nomenclature?.name || r.details || ''
-          const nameLower = name.toLowerCase()
-          if (nameLower.includes('фреза')) {
-            const key = 'Фреза'
-            cuttersSummary[key] = (cuttersSummary[key] || 0) + (Number(r.quantity) || 0)
+          let displayName = r.nomenclature?.name || ''
+          if (!displayName && r.details) {
+            const match = r.details.match(/:\s*(Фреза[^-—]+)(?:[-—]|$)/i)
+            displayName = match ? match[1].trim() : r.details
+          }
+          if (displayName.toLowerCase().includes('фреза')) {
+            cuttersSummary[displayName] = (cuttersSummary[displayName] || 0) + (Number(r.quantity) || 0)
           }
         })
 

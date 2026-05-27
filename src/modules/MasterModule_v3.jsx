@@ -43,13 +43,21 @@ const getCleanNormalized = (name) => {
   return normalizeName(clean);
 };
 
+const MACHINE_TYPES = [
+  'CNC 1200x800 - 4 листи (Малий)',
+  'CNC 3050(16)х16 - 3-12 листів (швидкісний)',
+  'CNC 3060х1600 - 3-36 листів (Три Головий)',
+  'CNC 6000x2000 - 4 - 96 листів (Дракон)',
+  'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
+]
+
 const MasterModule = () => {
   const {
     orders, tasks, machines, nomenclatures, bomItems, inventory,
     totalProduced, totalScrapCount,
     createNaryad, issueMaterials, approveWarehouse,
     fetchModuleData,
-    machineCalls, currentUser, supabase
+    machineCalls, currentUser, supabase, machineOperations
   } = useMES()
 
   // Load module-specific data on mount (inventory, work_cards, requests)
@@ -79,6 +87,7 @@ const MasterModule = () => {
   const [activeNaryadOrder, setActiveNaryadOrder] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [selectedMachine, setSelectedMachine] = useState(null)
+  const [rowMachines, setRowMachines] = useState({}) // { [partNomId]: machineType }
   const [isReprintMode, setIsReprintMode] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
@@ -138,19 +147,20 @@ const MasterModule = () => {
 
       if (errTask) throw errTask;
 
-      for (const [materialId, qty] of itemsToCreate) {
-        const nom = nomenclatures.find(n => n.id === materialId);
-        const { error: errReq } = await supabase.from('material_requests').insert({
+      const requestsToInsert = itemsToCreate.map(([materialId, qty]) => {
+        const nom = nomenclatures.find(n => n.id === materialId)
+        return {
           task_id: newTask.id,
           nomenclature_id: materialId,
           quantity: qty,
           status: 'pending',
           inventory_id: null,
           details: `ЗАПИТ НА ПІДГОТОВКУ (${prepNum}): ${nom?.name} — ${qty} шт.`
-        });
+        }
+      })
 
-        if (errReq) throw errReq;
-      }
+      const { error: errReq } = await supabase.from('material_requests').insert(requestsToInsert)
+      if (errReq) throw errReq;
 
       alert('Наряди на підготовку успішно створено!');
       setShowPrepModal(false);
@@ -247,6 +257,7 @@ const MasterModule = () => {
   const handleOpenNaryadModal = (order, sets, deadline) => {
     setIsReprintMode(false)
     setSelectedMachine(null)
+    setRowMachines({})
     setActiveNaryadOrder(order)
     setIsDrawerOpen(false)
     setNaryadDeadline(deadline || order.deadline || '')
@@ -338,19 +349,20 @@ const MasterModule = () => {
 
       if (errTask) throw errTask;
 
-      for (const [materialId, qty] of itemsToCreate) {
-        const nom = nomenclatures.find(n => n.id === materialId);
-        const { error: errReq } = await supabase.from('material_requests').insert({
+      const requestsToInsert = itemsToCreate.map(([materialId, qty]) => {
+        const nom = nomenclatures.find(n => n.id === materialId)
+        return {
           task_id: newTask.id,
           nomenclature_id: materialId,
           quantity: qty,
           status: 'pending',
           inventory_id: null,
           details: `ЗАПИТ НА ПІДГОТОВКУ (${prepNum}): ${nom?.name} — ${qty} шт.`
-        });
+        }
+      })
 
-        if (errReq) throw errReq;
-      }
+      const { error: errReq } = await supabase.from('material_requests').insert(requestsToInsert)
+      if (errReq) throw errReq;
     } catch (e) {
       console.error('Error auto-creating prep order:', e.message);
     }
@@ -359,6 +371,57 @@ const MasterModule = () => {
   const handlePrint = async () => {
     if (!activeNaryadOrder || isSubmitting) return
 
+    if (activeNaryadOrder.isPrepOrder) {
+      setIsSubmitting(true)
+      try {
+        window.print()
+        if (isReprintMode) {
+          setReprintTask(null)
+          setActiveNaryadOrder(null)
+        } else {
+          await apiService.submitCreateTask(activeNaryadOrder.id, 'PREP-TERM', (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline))
+          setActiveNaryadOrder(null)
+        }
+      } catch (err) {
+        console.error(err)
+        alert("Помилка: " + err.message)
+      } finally {
+        setIsSubmitting(false)
+      }
+      return
+    }
+
+    // Group items by machine type
+    const machineGroups = {}
+    if (!isReprintMode) {
+      activeNaryadOrder.order_items?.forEach(item => {
+        const currentQty = naryadQtys[item.id] || 0
+        if (currentQty <= 0) return
+
+        const parts = getBOMParts(item.nomenclature_id)
+        const displayParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }]
+        
+        displayParts.forEach(part => {
+          if (!part.nom || part.nom.type === 'hardware' || part.nom.type === 'fastener') return
+
+          const machineType = rowMachines[part.nom.id]
+          if (machineType) {
+            if (!machineGroups[machineType]) {
+              machineGroups[machineType] = {}
+            }
+            machineGroups[machineType][item.id] = currentQty
+          }
+        })
+      })
+    }
+
+    const groupTypes = Object.keys(machineGroups)
+
+    if (!isReprintMode && groupTypes.length === 0) {
+      alert("Будь ласка, оберіть верстат для деталей.")
+      return
+    }
+
     if (!isReprintMode) {
        let missingPrepQuantities = {}
        let hasDeficit = false
@@ -366,7 +429,6 @@ const MasterModule = () => {
        for (const m of materialSummary) {
           if (m.name.toLowerCase().includes('лист') || m.name.toLowerCase().includes('карбон') || m.name.toLowerCase().includes('carbon')) {
              const requiredSheets = m.sheets;
-             // Robustly find the prepared sheet nomenclature ID
              const normName = getCleanNormalized(m.name)
              const prepNom = nomenclatures.find(n => 
                 n.name.toLowerCase().includes('підготовлений') && 
@@ -379,7 +441,6 @@ const MasterModule = () => {
                 const stock = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0;
                 
                 if (stock < requiredSheets) {
-                   // Find the corresponding UNPREPARED sheet nomenclature ID for the modal mapping
                    const rawNom = nomenclatures.find(n => 
                       n.name.toLowerCase().includes('непідготовлений') && 
                       getCleanNormalized(n.name) === normName
@@ -410,7 +471,7 @@ const MasterModule = () => {
              
              errorMsg += `• "${prepName}": Потрібно: ${totalNeeded} шт., в наявності: ${currentStock} шт. (Дефіцит: ${deficit} шт.)\n`;
           });
-          errorMsg += '\nНатисніть ОК, щоб створити цей наряд. Наряд на підготовку дефіцитних листів буде створено автоматично паралельно!';
+          errorMsg += '\nНатисніть ОК, щоб створити ці наряди. Наряд на підготовку дефіцитних листів буде створено автоматично паралельно!';
           
           alert(errorMsg);
           
@@ -422,14 +483,15 @@ const MasterModule = () => {
              // 2. Trigger print dialog
              window.print();
              
-             // 3. Create the main task
-             if (isReprintMode) {
-                setReprintTask(null);
-                setActiveNaryadOrder(null);
-             } else {
-                await apiService.submitCreateTask(activeNaryadOrder.id, '', (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline));
-                setActiveNaryadOrder(null);
+             // 3. Create tasks per machine group
+             for (const mType of groupTypes) {
+                const groupQtys = {}
+                activeNaryadOrder.order_items?.forEach(item => {
+                  groupQtys[item.id] = machineGroups[mType][item.id] || 0
+                })
+                await apiService.submitCreateTask(activeNaryadOrder.id, mType, (oid, m) => createNaryad(oid, m, groupQtys, naryadDeadline));
              }
+             setActiveNaryadOrder(null);
           } catch (err) {
              console.error("Naryad creation error:", err);
              alert("Помилка створення наряду: " + err.message);
@@ -449,8 +511,14 @@ const MasterModule = () => {
         setReprintTask(null)
         setActiveNaryadOrder(null)
       } else {
-        // Call with custom quantities and deadline
-        await apiService.submitCreateTask(activeNaryadOrder.id, '', (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline))
+        // Create tasks per machine group
+        for (const mType of groupTypes) {
+           const groupQtys = {}
+           activeNaryadOrder.order_items?.forEach(item => {
+             groupQtys[item.id] = machineGroups[mType][item.id] || 0
+           })
+           await apiService.submitCreateTask(activeNaryadOrder.id, mType, (oid, m) => createNaryad(oid, m, groupQtys, naryadDeadline))
+        }
         setActiveNaryadOrder(null)
       }
     } catch (err) {
@@ -462,6 +530,37 @@ const MasterModule = () => {
   }
 
   const handleReprint = (task) => {
+    let resolvedType = MACHINE_TYPES.find(t => t === task.machine_name)
+    if (!resolvedType && task.machine_name) {
+      const physicalMac = machines?.find(m => m.name === task.machine_name)
+      if (physicalMac && MACHINE_TYPES.includes(physicalMac.type)) {
+        resolvedType = physicalMac.type
+      } else {
+        const normName = task.machine_name.toLowerCase()
+        if (normName.includes('3050(16)x1600') || normName.includes('3050(16)х1600') || normName.includes('3050(16)') || normName.includes('16x16') || normName.includes('16х16')) {
+          resolvedType = 'CNC 3050(16)х16 - 3-12 листів (швидкісний)'
+        } else if (normName.includes('дракон') || normName.includes('60x20') || normName.includes('6000x2000') || normName.includes('6000х2000')) {
+          resolvedType = 'CNC 6000x2000 - 4 - 96 листів (Дракон)'
+        } else if (normName.includes('малий') || normName.includes('12x8') || normName.includes('1200x800') || normName.includes('12х8') || normName.includes('1200х800')) {
+          resolvedType = 'CNC 1200x800 - 4 листи (Малий)'
+        } else if (normName.includes('фея') || normName.includes('ke xin') || normName.includes('kexin')) {
+          resolvedType = 'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
+        } else if (normName.includes('3060') || normName.includes('три головий') || normName.includes('3060х1600')) {
+          resolvedType = 'CNC 3060х1600 - 3-36 листів (Три Головий)'
+        }
+      }
+    }
+
+    const initialRowMachines = {}
+    if (task.step !== 'Підготовка') {
+      Object.keys(task.plan_snapshot || {}).forEach(partId => {
+        if (!partId.startsWith('_') && partId !== 'materialSummary') {
+          initialRowMachines[partId] = resolvedType || task.machine_name
+        }
+      })
+    }
+    setRowMachines(initialRowMachines)
+
     if (task.step === 'Підготовка') {
       setIsReprintMode(true)
       setReprintTask(task)
@@ -571,16 +670,125 @@ const MasterModule = () => {
 
   const consumableSummary = useMemo(() => {
     if (!activeNaryadOrder || activeNaryadOrder.isPrepOrder) return []
+
+    const machineSpecificCutters = {}
+    let hasMachineSpecificCutters = false
+
+    activeNaryadOrder.order_items?.forEach(item => {
+      const parts = getBOMParts(item.nomenclature_id)
+      const displayParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }]
+
+      const currentQty = isReprintMode ? Number(item.quantity) : (naryadQtys[item.id] || 0)
+      if (currentQty <= 0) return
+
+      displayParts.forEach(part => {
+        if (!part.nom || part.nom.type === 'hardware' || part.nom.type === 'fastener') return
+
+        const machineName = rowMachines[part.nom.id]
+        if (!machineName) return
+
+        const snapshot = reprintTask?.plan_snapshot?.[String(part.nom.id)]
+        const totalNeeded = snapshot ? snapshot.need : (currentQty * (Number(part.quantity_per_parent) || 1))
+        const inStock = snapshot ? snapshot.stock : (() => {
+          const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'bz')
+          return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
+        })()
+        const totalToProduce = Math.max(0, totalNeeded - inStock)
+        const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
+        const sheets = Math.ceil(totalToProduce / unitsPerSheet)
+
+        if (sheets <= 0) return
+
+        const opData = machineOperations?.find(o => 
+          String(o.nomenclature_id) === String(part.nom.id) &&
+          (o.machine_type === machineName || o.machine_id === machineName)
+        )
+
+        if (opData && opData.side2_cut_ops) {
+          const cutterOps = opData.side2_cut_ops.filter(op => op.startsWith('__CUTTER__Reference:') || op.startsWith('__CUTTER__:'))
+          cutterOps.forEach(op => {
+            const opParts = op.split(':')
+            const cutterNomId = opParts[1]
+            const qtyPerSheet = parseFloat(opParts[2]) || 0
+            if (cutterNomId && qtyPerSheet > 0) {
+              hasMachineSpecificCutters = true
+              const totalQty = Math.ceil(sheets * qtyPerSheet)
+              const cutterNom = nomenclatures.find(n => String(n.id) === String(cutterNomId))
+              if (cutterNom && cutterNom.name.trim().toLowerCase() !== 'фреза') {
+                const cleanName = cutterNom.name.trim()
+                const key = cleanName.toLowerCase()
+                if (!machineSpecificCutters[key]) {
+                  machineSpecificCutters[key] = {
+                    name: cleanName,
+                    total: 0
+                  }
+                }
+                machineSpecificCutters[key].total += totalQty
+              }
+            }
+          })
+        }
+      })
+    })
+
+    if (hasMachineSpecificCutters) {
+      return Object.values(machineSpecificCutters)
+    }
+
+    // Fallback: default database consumables, excluding generic "Фреза"
     const totalSheetsCount = materialSummary.reduce((acc, m) => acc + (Number(m.sheets) || 0), 0)
     if (totalSheetsCount <= 0) return []
 
-    return nomenclatures
-      .filter(n => n.type === 'consumable' && (Number(n.consumption_per_sheet) || 0) > 0)
-      .map(n => ({
-        name: n.name,
-        total: Math.ceil(totalSheetsCount * Number(n.consumption_per_sheet))
-      }))
-  }, [activeNaryadOrder, materialSummary, nomenclatures])
+    const fallbackConsumables = {}
+    nomenclatures
+      .filter(n => n.type === 'consumable' && (Number(n.consumption_per_sheet) || 0) > 0 && n.name.trim().toLowerCase() !== 'фреза')
+      .forEach(n => {
+        const cleanName = n.name.trim()
+        const key = cleanName.toLowerCase()
+        const total = Math.ceil(totalSheetsCount * Number(n.consumption_per_sheet))
+        if (!fallbackConsumables[key]) {
+          fallbackConsumables[key] = {
+            name: cleanName,
+            total: 0
+          }
+        }
+        fallbackConsumables[key].total += total
+      })
+
+    return Object.values(fallbackConsumables)
+  }, [activeNaryadOrder, materialSummary, nomenclatures, rowMachines, machineOperations, naryadQtys, isReprintMode, reprintTask, inventory])
+
+  const isPrintDisabled = useMemo(() => {
+    if (isSubmitting) return true
+    if (!activeNaryadOrder) return true
+    if (activeNaryadOrder.isPrepOrder) return false
+
+    let hasUnassigned = false
+    activeNaryadOrder.order_items?.forEach(item => {
+      const currentQty = isReprintMode ? Number(item.quantity) : (naryadQtys[item.id] || 0)
+      if (currentQty <= 0) return
+
+      const parts = getBOMParts(item.nomenclature_id)
+      const displayParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }]
+      
+      displayParts.forEach(part => {
+        if (!part.nom || part.nom.type === 'hardware' || part.nom.type === 'fastener') return
+
+        const snapshot = reprintTask?.plan_snapshot?.[String(part.nom.id)]
+        const totalNeeded = snapshot ? snapshot.need : (currentQty * (Number(part.quantity_per_parent) || 1))
+        const inStock = snapshot ? snapshot.stock : (() => {
+          const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'bz')
+          return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
+        })()
+        const totalToProduce = Math.max(0, totalNeeded - inStock)
+        if (totalToProduce > 0 && !rowMachines[part.nom.id]) {
+          hasUnassigned = true
+        }
+      })
+    })
+
+    return hasUnassigned
+  }, [activeNaryadOrder, isSubmitting, isReprintMode, naryadQtys, nomenclatures, bomItems, inventory, reprintTask, rowMachines])
 
   const renderAnalytics = () => (
     <div className="analytics-scroll" style={{ overflowX: 'auto', marginBottom: '25px', display: 'flex', gap: '15px', paddingBottom: '10px' }}>
@@ -995,14 +1203,15 @@ const MasterModule = () => {
                 <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                   <thead>
                     <tr style={{ background: '#111', textAlign: 'left', color: '#555' }} className="print-thr">
-                      <th style={{ padding: '12px 15px', width: '30%', borderBottom: '1.5px solid #222' }}>ДЕТАЛЬ В РОЗКРІЙ</th>
+                      <th style={{ padding: '12px 15px', width: '22%', borderBottom: '1.5px solid #222' }}>ДЕТАЛЬ В РОЗКРІЙ</th>
+                      <th style={{ padding: '12px 15px', width: '18%', textAlign: 'center', borderBottom: '1.5px solid #222' }}>ВЕРСТАТ</th>
                       <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%' }}>ПОТРЕБА</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '10%' }}>СКЛАД БЗ</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%' }}>СКЛАД БЗ</th>
                       <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%', color: '#ff9000' }}>ПЛАН</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '22%' }}>МАТЕРІАЛ</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '15%' }}>МАТЕРІАЛ</th>
                       <th style={{ padding: '12px 15px', textAlign: 'center', width: '7%' }}>ШТ/Л</th>
                       <th style={{ padding: '12px 15px', textAlign: 'center', width: '7%', color: '#22c55e' }}>ЛИСТІВ</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%', color: '#ff9000' }}>БЗ</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '7%', color: '#ff9000' }}>БЗ</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1017,6 +1226,9 @@ const MasterModule = () => {
                             <td style={{ padding: '18px 15px' }}>
                               <div style={{ fontWeight: 1000, color: '#fff', fontSize: '1rem', letterSpacing: '-0.01em' }} className="print-txt">{nom?.name || '—'}</div>
                               <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 900, marginTop: '3px', textTransform: 'uppercase' }} className="print-subtxt">{nom?.nomenclature_code || 'БЕЗ КОДУ'}</div>
+                            </td>
+                            <td style={{ padding: '18px 15px', textAlign: 'center', fontSize: '0.85rem', color: '#aaa', fontWeight: 800 }}>
+                              PREP-TERM
                             </td>
                             <td style={{ padding: '18px 15px', textAlign: 'center', fontSize: '1.1rem', color: '#fff', fontWeight: 900 }}>
                               {thisNaryadQty.toString()}
@@ -1069,6 +1281,47 @@ const MasterModule = () => {
                             <td style={{ padding: '18px 15px' }}>
                               <div style={{ fontWeight: 1000, color: '#fff', fontSize: '1rem', letterSpacing: '-0.01em' }} className="print-txt">{part.nom?.name || '—'}</div>
                               <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 900, marginTop: '3px', textTransform: 'uppercase' }} className="print-subtxt">{part.nom?.nomenclature_code || 'БЕЗ КОДУ'}</div>
+                            </td>
+                            <td style={{ padding: '18px 15px', textAlign: 'center' }}>
+                              {totalToProduce > 0 ? (
+                                <>
+                                  <div className="no-print">
+                                    <select 
+                                      value={rowMachines[part.nom?.id] || ''}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setRowMachines(prev => ({
+                                          ...prev,
+                                          [part.nom?.id]: val
+                                        }));
+                                      }}
+                                      style={{ 
+                                        background: '#111', 
+                                        border: '1px solid #333', 
+                                        color: '#fff', 
+                                        padding: '5px 8px', 
+                                        borderRadius: '10px', 
+                                        fontSize: '0.8rem', 
+                                        fontWeight: 800,
+                                        outline: 'none',
+                                        cursor: 'pointer',
+                                        width: '100%',
+                                        maxWidth: '180px'
+                                      }}
+                                    >
+                                      <option value="">-- Оберіть верстат --</option>
+                                      {MACHINE_TYPES.map(type => (
+                                        <option key={type} value={type}>{type.split(' - ')[0]}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <span className="print-only" style={{ fontSize: '0.85rem', fontWeight: 800, color: '#eee' }}>
+                                    {rowMachines[part.nom?.id] ? rowMachines[part.nom?.id].split(' - ')[0] : '—'}
+                                  </span>
+                                </>
+                              ) : (
+                                <span style={{ color: '#444', fontSize: '0.85rem' }}>—</span>
+                              )}
                             </td>
                             <td style={{ padding: '18px 15px', textAlign: 'center', fontSize: '1.1rem', color: '#fff', fontWeight: 900 }}>
                               {totalNeeded.toString()}
@@ -1170,18 +1423,27 @@ const MasterModule = () => {
                 </div>
               )}
 
-              {consumableSummary.length > 0 && (
-                <div className="consumable-summary-section" style={{ marginTop: '15px', padding: '20px 30px', borderRadius: '18px', border: '1px solid #222', background: 'rgba(59,130,246,0.05)' }}>
-                  <h4 style={{ margin: '0 0 15px', fontSize: '0.75rem', fontWeight: 950, color: '#3b82f6', textTransform: 'uppercase' }}>ВИТРАТНІ МАТЕРІАЛИ:</h4>
-                  <div className="mat-flex-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '25px' }}>
-                    {consumableSummary.map((c, idx) => (
-                      <div key={idx} className="mat-card-p" style={{ padding: '0 0 5px 15px', borderLeft: '4px solid #3b82f6', minWidth: '150px' }}>
-                        <div style={{ fontSize: '0.6rem', color: '#555', fontWeight: 800, marginBottom: '3px' }} className="print-subtxt">{c.name}</div>
-                        <div style={{ fontSize: '1.1rem', fontWeight: 950, color: '#fff' }} className="print-txt">{(Number(c.total) || 0).toString()} <small style={{ fontSize: '0.65rem', fontWeight: 400, color: '#444' }} className="print-subtxt">ОД.</small></div>
-                      </div>
-                    ))}
+              {!activeNaryadOrder.isPrepOrder && isPrintDisabled ? (
+                <div className="consumable-summary-section no-print" style={{ marginTop: '15px', padding: '20px 30px', borderRadius: '18px', border: '1px solid rgba(239,68,68,0.2)', background: 'rgba(239,68,68,0.02)' }}>
+                  <h4 style={{ margin: '0 0 10px', fontSize: '0.75rem', fontWeight: 950, color: '#ef4444', textTransform: 'uppercase' }}>ВИТРАТНІ МАТЕРІАЛИ:</h4>
+                  <div style={{ color: '#aaa', fontSize: '0.85rem', fontWeight: 700 }}>
+                    ⚠️ Оберіть верстат для кожної деталі в таблиці, щоб розрахувати та відобразити необхідні фрези.
                   </div>
                 </div>
+              ) : (
+                consumableSummary.length > 0 && (
+                  <div className="consumable-summary-section" style={{ marginTop: '15px', padding: '20px 30px', borderRadius: '18px', border: '1px solid #222', background: 'rgba(59,130,246,0.05)' }}>
+                    <h4 style={{ margin: '0 0 15px', fontSize: '0.75rem', fontWeight: 950, color: '#3b82f6', textTransform: 'uppercase' }}>ВИТРАТНІ МАТЕРІАЛИ:</h4>
+                    <div className="mat-flex-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '25px' }}>
+                      {consumableSummary.map((c, idx) => (
+                        <div key={idx} className="mat-card-p" style={{ padding: '0 0 5px 15px', borderLeft: '4px solid #3b82f6', minWidth: '150px' }}>
+                          <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800, marginBottom: '3px' }} className="print-subtxt">{c.name}</div>
+                          <div style={{ fontSize: '1.1rem', fontWeight: 950, color: '#fff' }} className="print-txt">{(Number(c.total) || 0).toString()} <small style={{ fontSize: '0.65rem', fontWeight: 400, color: '#444' }} className="print-subtxt">ОД.</small></div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
               )}
             </div>
 
@@ -1189,18 +1451,18 @@ const MasterModule = () => {
               <button onClick={() => { setActiveNaryadOrder(null); setReprintTask(null); }} style={{ background: '#222', color: '#fff', border: 'none', padding: '12px 30px', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>СКАСУВАТИ</button>
               <button
                 onClick={handlePrint}
-                disabled={isSubmitting}
+                disabled={isPrintDisabled}
                 style={{
-                  background: isSubmitting ? '#444' : '#ff9000',
-                  color: isSubmitting ? '#888' : '#000',
+                  background: isPrintDisabled ? '#222' : '#ff9000',
+                  color: isPrintDisabled ? '#555' : '#000',
                   border: 'none',
                   padding: '12px 45px',
                   borderRadius: '12px',
                   fontWeight: 950,
-                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                  cursor: isPrintDisabled ? 'not-allowed' : 'pointer',
                   fontSize: '0.9rem',
                   transition: '0.2s',
-                  opacity: isSubmitting ? 0.7 : 1
+                  opacity: isPrintDisabled ? 0.6 : 1
                 }}
               >
                 {isSubmitting ? 'ЧЕКАЙТЕ...' : (isReprintMode ? 'ПОВТОРНИЙ ДРУК' : 'ДРУКУВАТИ ТА В РОБОТУ')}

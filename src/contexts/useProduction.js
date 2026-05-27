@@ -17,6 +17,7 @@ const normalizeName = (s) => {
 
 export function createProductionActions({
   orders, tasks, inventory, nomenclatures, bomItems, workCards,
+  machineOperations,
   setTasks, setWorkCards, setWorkCardHistory, setManagementTasks, setMachines,
   normalize, refreshTable, fetchData,
   deductIssuedMaterialsForTask
@@ -235,14 +236,54 @@ export function createProductionActions({
           }
         }
 
-        // Consumables (фрези etc.) — explicitly exclude raw/material sheets
+        // Consumables (фрези etc.)
+        let hasMachineSpecificCutters = false
+        const task = tasks.find(t => String(t.id) === String(taskId))
+        const targetMachine = task?.machine_name || ''
+        
+        const opData = machineOperations?.find(o => 
+          String(o.nomenclature_id) === String(partNom?.id) &&
+          (o.machine_type === targetMachine || o.machine_id === targetMachine)
+        )
+        
+        if (opData && opData.side2_cut_ops) {
+          const cutterOps = opData.side2_cut_ops.filter(op => op.startsWith('__CUTTER__Reference:') || op.startsWith('__CUTTER__:'))
+          cutterOps.forEach(op => {
+            const parts = op.split(':')
+            const cutterNomId = parts[1]
+            const qtyPerSheet = parseFloat(parts[2]) || 0
+            if (cutterNomId && qtyPerSheet > 0) {
+              hasMachineSpecificCutters = true
+              const totalQty = Math.ceil(sheets * qtyPerSheet)
+              const cutterNom = nomenclatures.find(n => String(n.id) === String(cutterNomId))
+              if (cutterNom) {
+                const consInvItem = inventory.find(i => String(i.nomenclature_id) === String(cutterNomId) && i.warehouse === 'operational')
+                  || inventory.find(i => String(i.nomenclature_id) === String(cutterNomId))
+                requestsToInsert.push({
+                  order_id: orderId,
+                  task_id: taskId,
+                  quantity: totalQty,
+                  status: 'pending',
+                  inventory_id: consInvItem?.id || null,
+                  nomenclature_id: cutterNom.id,
+                  details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ДОВИПУСКУ ${order?.order_num || '???'}: ${cutterNom.name} — ${totalQty} од. (для ${partNom?.name || '???'})`
+                })
+              }
+            }
+          })
+        }
+
         nomenclatures
           .filter(n =>
             n.type === 'consumable' &&
             (Number(n.consumption_per_sheet) || 0) > 0 &&
+            n.name.trim().toLowerCase() !== 'фреза' &&
             !n.name.toLowerCase().includes('лист')
           )
           .forEach(cons => {
+            if (hasMachineSpecificCutters && cons.name.toLowerCase().includes('фреза')) {
+              return
+            }
             const neededQty = Math.ceil(sheets * Number(cons.consumption_per_sheet))
             const consInvItem = inventory.find(i => i.nomenclature_id === cons.id)
             requestsToInsert.push({
@@ -552,15 +593,50 @@ export function createProductionActions({
       const tData = (taskData && taskData.length > 0) ? taskData[0] : null
       if (taskError) throw taskError
 
-      for (const upd of bzStockDeductions) {
-        await supabase.from('inventory').update({ total_qty: upd.next_qty }).eq('id', upd.id)
-        const invItem = inventory.find(i => i.id === upd.id)
-        if (invItem && tData) {
-          const usedQty = (Number(invItem.total_qty) || 0) - upd.next_qty
-          if (usedQty > 0) {
-            const { data: bzCardData } = await supabase.from('work_cards').insert([{ task_id: tData.id, order_id: orderId, nomenclature_id: invItem.nomenclature_id, quantity: usedQty, status: 'completed', operation: 'Склад БЗ', card_info: '[ЗІ СКЛАДУ БЗ]' }]).select()
-            const bzCard = (bzCardData && bzCardData.length > 0) ? bzCardData[0] : null
-            await supabase.from('work_card_history').insert([{ card_id: bzCard?.id || null, nomenclature_id: invItem.nomenclature_id, stage_name: 'Склад БЗ', operator_name: 'Склад (БРОНЬ)', qty_at_start: usedQty, qty_completed: usedQty, scrap_qty: 0, completed_at: new Date().toISOString() }])
+      if (bzStockDeductions.length > 0) {
+        await Promise.all(
+          bzStockDeductions.map(upd =>
+            supabase.from('inventory').update({ total_qty: upd.next_qty }).eq('id', upd.id)
+          )
+        )
+
+        const cardsToInsert = []
+        bzStockDeductions.forEach(upd => {
+          const invItem = inventory.find(i => i.id === upd.id)
+          if (invItem && tData) {
+            const usedQty = (Number(invItem.total_qty) || 0) - upd.next_qty
+            if (usedQty > 0) {
+              cardsToInsert.push({
+                task_id: tData.id,
+                order_id: orderId,
+                nomenclature_id: invItem.nomenclature_id,
+                quantity: usedQty,
+                status: 'completed',
+                operation: 'Склад БЗ',
+                card_info: '[ЗІ СКЛАДУ БЗ]'
+              })
+            }
+          }
+        })
+
+        if (cardsToInsert.length > 0) {
+          const { data: bzCardData, error: cardError } = await supabase
+            .from('work_cards')
+            .insert(cardsToInsert)
+            .select()
+
+          if (!cardError && bzCardData && bzCardData.length > 0) {
+            const historyToInsert = bzCardData.map(bzCard => ({
+              card_id: bzCard.id,
+              nomenclature_id: bzCard.nomenclature_id,
+              stage_name: 'Склад БЗ',
+              operator_name: 'Склад (БРОНЬ)',
+              qty_at_start: bzCard.quantity,
+              qty_completed: bzCard.quantity,
+              scrap_qty: 0,
+              completed_at: new Date().toISOString()
+            }))
+            await supabase.from('work_card_history').insert(historyToInsert)
           }
         }
       }
@@ -572,9 +648,71 @@ export function createProductionActions({
         const unitLabel = info.unit === 'ЛИСТІВ' ? 'л.' : 'од.';
         return { order_id: orderId, task_id: tData.id, quantity: qtyToRequest, status: 'pending', inventory_id: info.inventory_id, nomenclature_id: info.nomenclature_id, details: `СКЛАД ОПЕРАТИВНИЙ: ${info.matName} — ${qtyToRequest} ${unitLabel} (Разом: ${info.totalUnits} шт | Для: ${info.components.join(', ')})` }
       })
+
+      // Add machine-specific cutters
+      const machineSpecificCutters = {}
+      let hasMachineSpecificCutters = false
+      const partIds = Object.keys(plan_snapshot).filter(k => !k.startsWith('_') && k !== 'materialSummary')
+      
+      partIds.forEach(partId => {
+        const partInfo = plan_snapshot[partId]
+        const sheetsNeeded = Number(partInfo.sheets) || 0
+        if (sheetsNeeded <= 0) return
+
+        // Find matching machine operation
+        const opData = machineOperations?.find(o => 
+          String(o.nomenclature_id) === String(partId) &&
+          (o.machine_type === machineName || o.machine_id === machineName)
+        )
+        if (opData && opData.side2_cut_ops) {
+          const cutterOps = opData.side2_cut_ops.filter(op => op.startsWith('__CUTTER__Reference:') || op.startsWith('__CUTTER__:'))
+          cutterOps.forEach(op => {
+            const parts = op.split(':')
+            const cutterNomId = parts[1]
+            const qtyPerSheet = parseFloat(parts[2]) || 0
+            if (cutterNomId && qtyPerSheet > 0) {
+              hasMachineSpecificCutters = true
+              const totalQty = Math.ceil(sheetsNeeded * qtyPerSheet)
+              const cutterNom = nomenclatures.find(n => String(n.id) === String(cutterNomId))
+              if (cutterNom) {
+                const cleanName = cutterNom.name.trim()
+                const key = cleanName.toLowerCase()
+                if (!machineSpecificCutters[key]) {
+                  machineSpecificCutters[key] = {
+                    name: cleanName,
+                    qty: 0,
+                    components: [],
+                    nomenclature_id: cutterNom.id
+                  }
+                }
+                machineSpecificCutters[key].qty += totalQty
+                machineSpecificCutters[key].components.push(`${partInfo.name}: ${totalQty} шт (${sheetsNeeded} л.)`)
+              }
+            }
+          })
+        }
+      })
+
+      Object.values(machineSpecificCutters).forEach(item => {
+        const invItem = inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id) && i.warehouse === 'operational')
+          || inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id))
+        requestsToInsert.push({
+          order_id: orderId,
+          task_id: tData.id,
+          quantity: item.qty,
+          status: 'pending',
+          inventory_id: invItem?.id || null,
+          nomenclature_id: item.nomenclature_id,
+          details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ${order.order_num}: ${item.name} — ${item.qty} од. (Для: ${item.components.join(', ')})`
+        })
+      })
+
       const totalActualSheets = allMaterials.filter(m => m.unit === 'ЛИСТІВ').reduce((acc, m) => acc + (m.sheets || 0), 0)
       if (totalActualSheets > 0) {
-        nomenclatures.filter(n => n.type === 'consumable' && (Number(n.consumption_per_sheet) || 0) > 0 && (n.name.toLowerCase().startsWith('лист') || n.name.toLowerCase().includes('фреза'))).forEach(cons => {
+        nomenclatures.filter(n => n.type === 'consumable' && (Number(n.consumption_per_sheet) || 0) > 0 && n.name.trim().toLowerCase() !== 'фреза' && (n.name.toLowerCase().startsWith('лист') || n.name.toLowerCase().includes('фреза'))).forEach(cons => {
+          if (hasMachineSpecificCutters && cons.name.toLowerCase().includes('фреза')) {
+            return
+          }
           const neededQty = Math.ceil(totalActualSheets * Number(cons.consumption_per_sheet))
           const invItem = inventory.find(i => i.nomenclature_id === cons.id)
           requestsToInsert.push({ order_id: orderId, task_id: tData.id, quantity: neededQty, status: 'pending', inventory_id: invItem?.id || null, nomenclature_id: cons.id, details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ${order.order_num}: ${cons.name} — ${neededQty} од.` })
@@ -784,6 +922,29 @@ export function createProductionActions({
       const actualBzQty = Number(bzTotal)
       const { data: card, error: cardErr } = await supabase.from('work_cards').insert([{ task_id: taskId, order_id: task.order_id, nomenclature_id: nomenclatureId, quantity: totalQty, operation: 'Пакування/СГП', status: 'completed', operator_name: 'Система', completed_at: new Date().toISOString(), card_info: `[ЦЕХ №2] [NEED:${needQty}] [BZ:${bzTotal}] Наряд №${order?.order_num || ''}${task.batch_index ? `/${task.batch_index}` : ''} [ПРЯМА ПЕРЕДАЧА]` }]).select().single()
       if (cardErr) throw cardErr
+
+      // Оновлюємо used_in_shop2_qty на source-картках (розподіляємо по черзі)
+      const { data: sourceCards } = await supabase.from('work_cards')
+        .select('*')
+        .eq('order_id', task.order_id)
+        .eq('nomenclature_id', nomenclatureId)
+        .eq('status', 'at-shop2-buffer')
+
+      if (sourceCards && sourceCards.length > 0) {
+        const sortedSource = sourceCards.sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+        let remaining = totalQty
+        for (const srcCard of sortedSource) {
+          if (remaining <= 0) break
+          const available = (Number(srcCard.quantity) || 0) - (Number(srcCard.used_in_shop2_qty) || 0)
+          if (available <= 0) continue
+          const toUse = Math.min(available, remaining)
+          await supabase.from('work_cards')
+            .update({ used_in_shop2_qty: (Number(srcCard.used_in_shop2_qty) || 0) + toUse })
+            .eq('id', srcCard.id)
+          remaining -= toUse
+        }
+      }
+
       const inventoryUpdates = []
       const subFromS2 = async (nid, iqty, itype) => {
         if (!iqty || iqty <= 0) return

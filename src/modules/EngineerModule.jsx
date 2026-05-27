@@ -26,7 +26,7 @@ const MACHINE_TYPES = [
 ]
 
 const MachineOperationsTab = () => {
-  const { nomenclatures, machines, machineOperations, supabase, bomItems } = useMES()
+  const { nomenclatures, machines, machineOperations, supabase, bomItems, refreshTable } = useMES()
   const [selectedNom, setSelectedNom] = useState('')
   const [selectedMachine, setSelectedMachine] = useState('')
   const [side1Ops, setSide1Ops] = useState([])
@@ -35,7 +35,6 @@ const MachineOperationsTab = () => {
   const [uploading, setUploading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
-  // Load existing if available
   React.useEffect(() => {
     if (selectedNom && selectedMachine) {
       const existing = machineOperations?.find(o => 
@@ -43,9 +42,9 @@ const MachineOperationsTab = () => {
         (o.machine_type === selectedMachine || o.machine_id === selectedMachine)
       )
       if (existing) {
-        setSide1Ops(existing.side1_ops || [])
-        setSide2Ops(existing.side2_ops || [])
-        setSide2CutOps(existing.side2_cut_ops || [])
+        setSide1Ops((existing.side1_ops || []).filter(op => !op.startsWith('__CUTTER__:')))
+        setSide2Ops((existing.side2_ops || []).filter(op => !op.startsWith('__CUTTER__:')))
+        setSide2CutOps((existing.side2_cut_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:')))
       } else {
         setSide1Ops([])
         setSide2Ops([])
@@ -57,19 +56,22 @@ const MachineOperationsTab = () => {
   const handleSave = async () => {
     if (!selectedNom || !selectedMachine) return alert('Оберіть номенклатуру та тип верстата')
     const isType = MACHINE_TYPES.includes(selectedMachine)
+    
+    const existing = machineOperations?.find(o => 
+      o.nomenclature_id === selectedNom && 
+      (o.machine_type === selectedMachine || o.machine_id === selectedMachine)
+    )
+    const existingCutters = existing ? (existing.side2_cut_ops || []).filter(op => op.startsWith('__CUTTER__:')) : []
+
     const payload = {
       nomenclature_id: selectedNom,
       machine_id: isType ? null : selectedMachine,
       machine_type: isType ? selectedMachine : null,
       side1_ops: side1Ops.filter(Boolean),
       side2_ops: side2Ops.filter(Boolean),
-      side2_cut_ops: side2CutOps.filter(Boolean)
+      side2_cut_ops: [...side2CutOps.filter(Boolean), ...existingCutters]
     }
     
-    const existing = machineOperations?.find(o => 
-      o.nomenclature_id === selectedNom && 
-      (o.machine_type === selectedMachine || o.machine_id === selectedMachine)
-    )
     if (existing) {
       await supabase.from('machine_operations').update(payload).eq('id', existing.id)
     } else {
@@ -78,107 +80,111 @@ const MachineOperationsTab = () => {
     alert('Збережено!')
   }
 
-  const handleFileUpload = async (e) => {
-    const files = Array.from(e.target.files)
-    if (!files.length) return
-    setUploading(true)
+  const resolveMachineType = (machineName) => {
+    if (!machineName) return null
+    const normMac = machineName.toLowerCase()
+    if (normMac.includes('3050(16)x1600') || normMac.includes('3050(16)х1600') || normMac.includes('3050(16)') || normMac.includes('16x16') || normMac.includes('16х16')) {
+      return 'CNC 3050(16)х16 - 3-12 листів (швидкісний)'
+    } else if (normMac.includes('дракон') || normMac.includes('60x20') || normMac.includes('6000x2000') || normMac.includes('6000х2000')) {
+      return 'CNC 6000x2000 - 4 - 96 листів (Дракон)'
+    } else if (normMac.includes('малий') || normMac.includes('12x8') || normMac.includes('1200x800') || normMac.includes('12х8') || normMac.includes('1200х800')) {
+      return 'CNC 1200x800 - 4 листи (Малий)'
+    } else if (normMac.includes('три головий') || normMac.includes('триголовий') || normMac.includes('3060') || normMac.includes('30x16') || normMac.includes('30х16')) {
+      return 'CNC 3060х1600 - 3-36 листів (Три Головий)'
+    } else if (normMac.includes('фея') || normMac.includes('ke xin')) {
+      return 'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
+    }
+    const exactType = MACHINE_TYPES.find(t => t.toLowerCase() === machineName.toLowerCase() || t.toLowerCase().includes(machineName.toLowerCase()))
+    if (exactType) return exactType
+    return null
+  }
 
-    let successCount = 0
-    let failMessages = []
+  const resolveCutterNomenclature = async (cutterSize, localNomsCopy) => {
+    let cleanSize = cutterSize.trim()
+    let nomName = cleanSize
+    if (!nomName.toLowerCase().startsWith('фреза')) {
+      nomName = `Фреза ${cleanSize}`
+    }
 
-    for (const file of files) {
-      try {
-        const text = await file.text()
-        // Handle Windows (CRLF) and Unix (LF) line endings
-        const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+    let nom = localNomsCopy.find(n => n.name.toLowerCase() === nomName.toLowerCase())
+    if (!nom) {
+      const newNomPayload = {
+        name: nomName,
+        type: 'consumable',
+        consumption_per_sheet: 0.5
+      }
+      const { data, error } = await supabase
+        .from('nomenclatures')
+        .insert(newNomPayload)
+        .select()
+        .single()
+        
+      if (error) {
+        console.error(`Error creating cutter nomenclature ${nomName}:`, error)
+        throw new Error(`Не вдалося створити номенклатуру фрези "${nomName}": ${error.message}`)
+      }
+      nom = data
+      localNomsCopy.push(nom)
+      await refreshTable('nomenclatures')
+    }
+    return nom
+  }
 
-        if (lines.length < 4) {
-          throw new Error('Файл занадто короткий. Очікується мінімум 4 рядки.')
-        }
+  const parseConsolidatedCsv = async (text, localNomsCopy) => {
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+    if (lines.length === 0) return []
 
-        // Формат файлу:
-        // Рядок 0: Назва станку (перша комірка)
-        // Рядок 1: Назва номенклатури (перша комірка)
-        // Рядок 2: Заголовки — пропускаємо
-        // Рядки 3+: Операції — кожен рядок: "сторона1,сторона2,вирізка"
+    const normalizeKey = (s) => {
+      if (!s) return ''
+      const mapper = {
+        'а': 'a', 'в': 'b', 'с': 'c', 'е': 'e', 'н': 'h', 'h': 'h',
+        'к': 'k', 'м': 'm', 'о': 'o', 'р': 'p', 'т': 't', 'х': 'x',
+        'у': 'y', 'і': 'i', 'ї': 'i', 'и': 'y', 'п': 'p'
+      }
+      return s.toLowerCase()
+        .trim()
+        .split('')
+        .map(c => mapper[c] || c)
+        .join('')
+        .replace(/[^a-z0-9]/g, '')
+    }
 
-        const macName = lines[0].split(',')[0].trim()
-        const nomName = lines[1].split(',')[0].trim()
+    const findNomenclature = (cellText) => {
+      if (!cellText) return null
+      const lower = cellText.toLowerCase()
+      if (lower.startsWith('операція') || lower.startsWith('operation') || lower.startsWith('уп') || lower.startsWith('up') || lower.startsWith('№') || lower.startsWith('фреза') || lower.includes('сторона')) {
+        return null
+      }
 
-        let detectedType = null
-        let detectedMachineId = null
+      const csvNomKey = normalizeKey(cellText)
+      if (!csvNomKey) return null
 
-        // Розумне розпізнавання назв станків/типів з CSV файлу
-        const normMac = macName.toLowerCase()
-        if (normMac.includes('3050(16)x1600') || normMac.includes('3050(16)х1600') || normMac.includes('3050(16)') || normMac.includes('16x16') || normMac.includes('16х16')) {
-          detectedType = 'CNC 3050(16)х16 - 3-12 листів (швидкісний)'
-        } else if (normMac.includes('дракон') || normMac.includes('60x20') || normMac.includes('6000x2000') || normMac.includes('6000х2000')) {
-          detectedType = 'CNC 6000x2000 - 4 - 96 листів (Дракон)'
-        } else if (normMac.includes('малий') || normMac.includes('12x8') || normMac.includes('1200x800') || normMac.includes('12х8') || normMac.includes('1200х800')) {
-          detectedType = 'CNC 1200x800 - 4 листи (Малий)'
-        } else if (normMac.includes('три головий') || normMac.includes('триголовий') || normMac.includes('3060') || normMac.includes('30x16') || normMac.includes('30х16')) {
-          detectedType = 'CNC 3060х1600 - 3-36 листів (Три Головий)'
-        } else if (normMac.includes('фея') || normMac.includes('ke xin')) {
-          detectedType = 'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
-        } else {
-          // Check if matching a known machine type
-          const exactType = MACHINE_TYPES.find(t => t.toLowerCase() === macName.toLowerCase() || t.toLowerCase().includes(macName.toLowerCase()))
-          if (exactType) {
-            detectedType = exactType
-          } else {
-            // Fallback to searching machine name
-            const mac = machines.find(m => m.name.toLowerCase() === macName.toLowerCase() || m.name.toLowerCase().includes(macName.toLowerCase()))
-            if (mac) {
-              detectedType = mac.type || mac.name
-              if (!MACHINE_TYPES.includes(detectedType)) {
-                detectedMachineId = mac.id
-                detectedType = null
-              }
-            }
-          }
-        }
+      let nom = localNomsCopy.find(n => normalizeKey(n.name) === csvNomKey)
+        || localNomsCopy.find(n => {
+             const dbNomKey = normalizeKey(n.name)
+             return csvNomKey.startsWith(dbNomKey) || dbNomKey.startsWith(csvNomKey)
+           })
 
-        if (!detectedType && !detectedMachineId) {
-          throw new Error(`Тип або верстат "${macName}" не знайдено в базі. Очікується один з типів:\n${MACHINE_TYPES.join('\n')}`)
-        }
-
-        const normalizeKey = (s) => {
-          if (!s) return ''
-          const homoglyphs = {
-            'a': 'а', 'b': 'в', 'c': 'с', 'e': 'е', 'h': 'н', 'k': 'к', 'm': 'м', 'o': 'о', 'p': 'р', 't': 'т', 'x': 'х', 'y': 'у'
+      if (!nom) {
+        const getTokens = (s) => {
+          if (!s) return []
+          const mapper = {
+            'а': 'a', 'в': 'b', 'с': 'c', 'е': 'e', 'н': 'h', 'h': 'h',
+            'к': 'k', 'м': 'm', 'о': 'o', 'р': 'p', 'т': 't', 'х': 'x',
+            'у': 'y', 'і': 'i', 'ї': 'i', 'и': 'y', 'п': 'p'
           }
           return s.toLowerCase()
-            .replace(/[\r\n\s_\-]/g, '')
-            .split('')
-            .map(c => homoglyphs[c] || c)
-            .join('')
+            .split(/[\r\n\s_\-\(\),]/)
+            .filter(Boolean)
+            .map(tok => tok.split('').map(c => mapper[c] || c).join(''))
         }
 
-        const csvNomKey = normalizeKey(nomName)
-        let nom = nomenclatures.find(n => normalizeKey(n.name) === csvNomKey)
-          || nomenclatures.find(n => {
-               const dbNomKey = normalizeKey(n.name)
-               return csvNomKey.startsWith(dbNomKey) || dbNomKey.startsWith(csvNomKey)
-             })
-
-        if (!nom) {
-          // Спробуємо знайти за найбільшим збігом токенів (частин назви)
-          const getTokens = (s) => {
-            if (!s) return []
-            const homoglyphs = {
-              'a': 'а', 'b': 'в', 'c': 'с', 'e': 'е', 'h': 'н', 'k': 'к', 'm': 'м', 'o': 'о', 'p': 'р', 't': 'т', 'x': 'х', 'y': 'у'
-            }
-            return s.toLowerCase()
-              .split(/[\r\n\s_\-\(\),]/)
-              .filter(Boolean)
-              .map(tok => tok.split('').map(c => homoglyphs[c] || c).join(''))
-          }
-
-          const csvTokens = getTokens(nomName)
+        const csvTokens = getTokens(cellText)
+        if (csvTokens.length > 0) {
           let bestNom = null
           let bestScore = 0
 
-          for (const n of nomenclatures) {
+          for (const n of localNomsCopy) {
             const dbTokens = getTokens(n.name)
             let common = 0
             const tempDb = [...dbTokens]
@@ -199,51 +205,185 @@ const MachineOperationsTab = () => {
             nom = bestNom
           }
         }
+      }
+      return nom
+    }
 
-        if (!nom) {
-          throw new Error(`Номенклатура "${nomName}" не знайдена в базі.`)
+    const containsMachineHeaders = lines.some(l => l.split(',')[0].trim().toLowerCase().startsWith('станок'))
+    
+    const rawBlocks = []
+    if (!containsMachineHeaders) {
+      if (lines.length < 4) {
+        throw new Error('Файл занадто короткий. Очікується мінімум 4 рядки.')
+      }
+      const macName = lines[0].split(',')[0].trim()
+      const nomName = lines[1].split(',')[0].trim()
+      const matchedNom = findNomenclature(nomName)
+      if (!matchedNom) {
+        throw new Error(`Номенклатура "${nomName}" не знайдена в базі.`)
+      }
+      
+      const rows = []
+      for (let i = 2; i < lines.length; i++) {
+        rows.push(lines[i].split(','))
+      }
+      rawBlocks.push({
+        machineName: macName,
+        nomenclature: matchedNom,
+        rows
+      })
+    } else {
+      let currentMachineName = null
+      let currentBlock = null
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]
+        const parts = line.split(',').map(p => p.trim())
+        const cell0 = parts[0] || ''
+
+        if (cell0.toLowerCase().startsWith('станок')) {
+          currentMachineName = cell0
+          currentBlock = null
+          continue
         }
 
-        const s1 = [], s2 = [], s2c = []
-        for (let i = 3; i < lines.length; i++) {
-          const parts = lines[i].split(',')
+        const matchedNom = findNomenclature(cell0)
+        if (matchedNom) {
+          currentBlock = {
+            machineName: currentMachineName || 'Невідомий станок',
+            nomenclature: matchedNom,
+            rows: []
+          }
+          rawBlocks.push(currentBlock)
+          continue
+        }
+
+        if (currentBlock && line.replace(/,/g, '').trim()) {
+          currentBlock.rows.push(parts)
+        }
+      }
+    }
+
+    const processedBlocks = []
+    for (const rb of rawBlocks) {
+      const s1 = [], s2 = [], s2c = []
+      const cuttersMap = {}
+
+      for (const parts of rb.rows) {
+        const isHeaderRow = parts[0]?.toLowerCase().includes('операція') ||
+                            parts[1]?.toLowerCase().includes('операція') ||
+                            parts[2]?.toLowerCase().includes('операція')
+
+        if (!isHeaderRow) {
           if (parts[0]?.trim()) s1.push(parts[0].trim())
           if (parts[1]?.trim()) s2.push(parts[1].trim())
           if (parts[2]?.trim()) s2c.push(parts[2].trim())
         }
 
-        const payload = {
-          nomenclature_id: nom.id,
-          machine_id: detectedMachineId,
-          machine_type: detectedType,
-          side1_ops: s1,
-          side2_ops: s2,
-          side2_cut_ops: s2c
+        const cutterSize = parts[3]?.trim()
+        const cutterQtyStr = parts[4]?.trim()
+
+        if (cutterSize && cutterQtyStr &&
+            !cutterSize.toLowerCase().includes('фреза') &&
+            !cutterQtyStr.toLowerCase().includes('к-сть') &&
+            !cutterQtyStr.toLowerCase().includes('шт')) {
+          const qtyVal = parseInt(cutterQtyStr, 10)
+          if (!isNaN(qtyVal)) {
+            cuttersMap[cutterSize] = qtyVal
+          }
+        }
+      }
+
+      processedBlocks.push({
+        machineName: rb.machineName,
+        nomenclature: rb.nomenclature,
+        s1,
+        s2,
+        s2c,
+        cuttersMap
+      })
+    }
+
+    return processedBlocks
+  }
+
+  const handleFileUpload = async (e) => {
+    const files = Array.from(e.target.files)
+    if (!files.length) return
+    setUploading(true)
+
+    let successCount = 0
+    let failMessages = []
+    const localNomsCopy = [...nomenclatures]
+
+    for (const file of files) {
+      try {
+        const text = await file.text()
+        const blocks = await parseConsolidatedCsv(text, localNomsCopy)
+        
+        if (blocks.length === 0) {
+          throw new Error('У файлі не знайдено жодної операції.')
         }
 
-        // We must query the DB directly to find existing because we might have just inserted it in a previous loop iteration!
-        const { data: dbOps } = await supabase
-          .from('machine_operations')
-          .select('id')
-          .eq('nomenclature_id', nom.id)
-          // We can't filter by machine_type easily if it's null, so we fetch all for this nomenclature and find in JS
-        
-        let existingId = null;
-        if (dbOps && dbOps.length > 0) {
-          // fetch full records to match machine_type / machine_id
-          const { data: fullOps } = await supabase.from('machine_operations').select('*').in('id', dbOps.map(d => d.id))
-          const existing = fullOps?.find(o => 
-            ((detectedType && o.machine_type === detectedType) || (detectedMachineId && o.machine_id === detectedMachineId))
-          )
-          if (existing) existingId = existing.id
-        }
+        for (const block of blocks) {
+          let detectedType = resolveMachineType(block.machineName)
+          let detectedMachineId = null
 
-        if (existingId) {
-          await supabase.from('machine_operations').update(payload).eq('id', existingId)
-        } else {
-          await supabase.from('machine_operations').insert(payload)
+          if (!detectedType) {
+            const mac = machines.find(m => m.name.toLowerCase() === block.machineName.toLowerCase() || m.name.toLowerCase().includes(block.machineName.toLowerCase()))
+            if (mac) {
+              detectedType = mac.type || mac.name
+              if (!MACHINE_TYPES.includes(detectedType)) {
+                detectedMachineId = mac.id
+                detectedType = null
+              }
+            }
+          }
+
+          if (!detectedType && !detectedMachineId) {
+            if (block.s1.length === 0 && block.s2.length === 0 && block.s2c.length === 0) {
+              continue
+            }
+            throw new Error(`Тип або верстат "${block.machineName}" не знайдено в базі.`)
+          }
+
+          const finalCutters = []
+          for (const [size, qty] of Object.entries(block.cuttersMap)) {
+            const cutterNom = await resolveCutterNomenclature(size, localNomsCopy)
+            finalCutters.push(`__CUTTER__:${cutterNom.id}:${qty}`)
+          }
+
+          const side2CutOpsWithCutters = [...block.s2c, ...finalCutters]
+
+          const payload = {
+            nomenclature_id: block.nomenclature.id,
+            machine_id: detectedMachineId,
+            machine_type: detectedType,
+            side1_ops: block.s1,
+            side2_ops: block.s2,
+            side2_cut_ops: side2CutOpsWithCutters
+          }
+
+          const { data: dbOps } = await supabase
+            .from('machine_operations')
+            .select('id')
+            .eq('nomenclature_id', block.nomenclature.id)
+          
+          let existingId = null
+          if (dbOps && dbOps.length > 0) {
+            const { data: fullOps } = await supabase.from('machine_operations').select('*').in('id', dbOps.map(d => d.id))
+            const existing = fullOps?.find(o => 
+              ((detectedType && o.machine_type === detectedType) || (detectedMachineId && o.machine_id === detectedMachineId))
+            )
+            if (existing) existingId = existing.id
+          }
+
+          if (existingId) {
+            await supabase.from('machine_operations').update(payload).eq('id', existingId)
+          } else {
+            await supabase.from('machine_operations').insert(payload)
+          }
         }
-        
         successCount++
       } catch (err) {
         failMessages.push(`${file.name}: ${err.message}`)
@@ -260,39 +400,6 @@ const MachineOperationsTab = () => {
     }
   }
 
-  const parseCsvOps = (text, nomName, machineText) => {
-    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
-    if (lines.length === 0) return { s1: [], s2: [], s2c: [] }
-
-    let startIndex = 0
-    if (lines.length >= 3) {
-      const line0 = lines[0].toLowerCase()
-      const line1 = lines[1].toLowerCase()
-      
-      const isStandard = 
-        line0.includes('cnc') || 
-        line0.includes('станок') || 
-        line0.includes('верстат') ||
-        line1.includes(nomName.toLowerCase().split('-')[0]) ||
-        lines[2].toLowerCase().includes('сторона') ||
-        lines[2].toLowerCase().includes('side') ||
-        lines[2].toLowerCase().includes('виріз')
-        
-      if (isStandard) {
-        startIndex = 3
-      }
-    }
-
-    const s1 = [], s2 = [], s2c = []
-    for (let i = startIndex; i < lines.length; i++) {
-      const parts = lines[i].split(',')
-      if (parts[0]?.trim()) s1.push(parts[0].trim())
-      if (parts[1]?.trim()) s2.push(parts[1].trim())
-      if (parts[2]?.trim()) s2c.push(parts[2].trim())
-    }
-    return { s1, s2, s2c }
-  }
-
   const handleSingleRowImport = async (e, op, nom) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -303,27 +410,43 @@ const MachineOperationsTab = () => {
       const mac = machines.find(m => m.id === op.machine_id)
       const macText = op.machine_type || mac?.name || ''
       
-      const { s1, s2, s2c } = parseCsvOps(text, nomName, macText)
+      const localNomsCopy = [...nomenclatures]
+      const blocks = await parseConsolidatedCsv(text, localNomsCopy)
       
-      if (s1.length === 0 && s2.length === 0 && s2c.length === 0) {
-        throw new Error('У файлі не знайдено жодної операції.')
+      const matchedBlock = blocks.find(b => {
+        if (String(b.nomenclature.id) !== String(nom.id)) return false
+        const bType = resolveMachineType(b.machineName)
+        const targetType = resolveMachineType(macText)
+        return bType === targetType
+      })
+
+      if (!matchedBlock) {
+        throw new Error(`У файлі не знайдено операцій для номенклатури "${nomName}" на верстаті "${macText}".`)
       }
 
+      const finalCutters = []
+      for (const [size, qty] of Object.entries(matchedBlock.cuttersMap)) {
+        const cutterNom = await resolveCutterNomenclature(size, localNomsCopy)
+        finalCutters.push(`__CUTTER__:${cutterNom.id}:${qty}`)
+      }
+
+      const side2CutOpsWithCutters = [...matchedBlock.s2c, ...finalCutters]
+
       const payload = {
-        side1_ops: s1,
-        side2_ops: s2,
-        side2_cut_ops: s2c
+        side1_ops: matchedBlock.s1,
+        side2_ops: matchedBlock.s2,
+        side2_cut_ops: side2CutOpsWithCutters
       }
 
       const { error } = await supabase.from('machine_operations').update(payload).eq('id', op.id)
       if (error) throw error
 
-      alert(`✅ Успішно оновлено операції для "${nomName}" (зчитано ${s1.length + s2.length + s2c.length} операцій)!`)
+      alert(`✅ Успішно оновлено операції для "${nomName}"!`)
       
       if (selectedNom === op.nomenclature_id && selectedMachine === (op.machine_type || op.machine_id)) {
-        setSide1Ops(s1)
-        setSide2Ops(s2)
-        setSide2CutOps(s2c)
+        setSide1Ops(matchedBlock.s1)
+        setSide2Ops(matchedBlock.s2)
+        setSide2CutOps(matchedBlock.s2c)
       }
     } catch (err) {
       alert(`❌ Помилка імпорту: ${err.message}`)
@@ -448,11 +571,25 @@ const MachineOperationsTab = () => {
                           <div style={{ flex: 1 }}>
                             <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{nom?.name || '—'}</div>
                             <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '2px' }}>{macText}</div>
+                            {(() => {
+                              const cutterOps = (op.side2_cut_ops || []).filter(o => o.startsWith('__CUTTER__:'))
+                              if (cutterOps.length === 0) return null
+                              const cuttersText = cutterOps.map(c => {
+                                const parts = c.split(':')
+                                const cNom = nomenclatures.find(n => String(n.id) === String(parts[1]))
+                                return `${cNom ? cNom.name : 'Фреза'} (${parts[2]} шт/л.)`
+                              }).join(', ')
+                              return (
+                                <div style={{ fontSize: '0.75rem', color: '#10b981', marginTop: '4px', display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                  <span style={{ fontWeight: 600 }}>Витрата фрез на лист:</span> {cuttersText}
+                                </div>
+                              )
+                            })()}
                           </div>
                           <div style={{ display: 'flex', gap: '6px', fontSize: '0.7rem', color: '#555' }}>
-                            <span style={{ background: '#1a1a2e', padding: '3px 8px', borderRadius: '20px', color: '#60a5fa' }}>1ст: {(op.side1_ops || []).length}</span>
-                            <span style={{ background: '#1a1a2e', padding: '3px 8px', borderRadius: '20px', color: '#34d399' }}>2ст: {(op.side2_ops || []).length}</span>
-                            <span style={{ background: '#1a1a2e', padding: '3px 8px', borderRadius: '20px', color: '#f59e0b' }}>вир: {(op.side2_cut_ops || []).length}</span>
+                            <span style={{ background: '#1a1a2e', padding: '3px 8px', borderRadius: '20px', color: '#60a5fa' }}>1ст: {(op.side1_ops || []).filter(o => !o.startsWith('__CUTTER__:')).length}</span>
+                            <span style={{ background: '#1a1a2e', padding: '3px 8px', borderRadius: '20px', color: '#34d399' }}>2ст: {(op.side2_ops || []).filter(o => !o.startsWith('__CUTTER__:')).length}</span>
+                            <span style={{ background: '#1a1a2e', padding: '3px 8px', borderRadius: '20px', color: '#f59e0b' }}>вир: {(op.side2_cut_ops || []).filter(o => !o.startsWith('__CUTTER__:') && !o.startsWith('__CUTTER__Reference:')).length}</span>
                           </div>
                           <label style={{ 
                             padding: '6px 12px', 

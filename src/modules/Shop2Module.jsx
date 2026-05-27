@@ -747,16 +747,7 @@ const Shop2Module = () => {
                 </div>
 
                 {(() => {
-                  const itemsToCheck = getTaskDisplayItems(task, order)
-                  const allCards = [...(workCards || []), ...(archiveCards || [])]
-
-                  const isAllDone = itemsToCheck.length > 0 && itemsToCheck.every(a => {
-                    return allCards.some(wc =>
-                      String(wc.task_id) === String(task.id) &&
-                      String(wc.nomenclature_id) === String(a.nom?.id) &&
-                      wc.status === 'completed'
-                    )
-                  })
+                  const isAllDone = checkIfTaskIsAllDone(task, order)
 
                   if (isAllDone && task.status !== 'completed') {
                     return (

@@ -65,6 +65,7 @@ export const MESProvider = ({ children }) => {
     nomenclatures: data.nomenclatures, 
     bomItems: data.bomItems, 
     workCards: data.workCards,
+    machineOperations: data.machineOperations,
     setTasks: data.setTasks, 
     setWorkCards: data.setWorkCards, 
     setWorkCardHistory: data.setWorkCardHistory, 

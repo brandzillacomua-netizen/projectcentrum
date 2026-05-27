@@ -83,6 +83,11 @@ const ManagerModule = () => {
     });
   }, [orders]);
   
+  const clientOrders = (orders || []).filter(o => {
+    const num = o.order_num || ''
+    return !num.startsWith('ВБ') && !num.startsWith('VB')
+  })
+
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [showCustomerHints, setShowCustomerHints] = useState(false)
   const [rustProducts, setRustProducts] = useState([])
@@ -332,7 +337,7 @@ const ManagerModule = () => {
                      </tr>
                    </thead>
                    <tbody>
-                         {orders.map(order => {
+                         {clientOrders.map(order => {
                            const nom = nomenclatures.find(n => String(n.id) === String(order.nomenclature_id));
                            const prodName = nom ? nom.name : (order.accessories || '—');
                            const ordQty = order.quantity || 0;
@@ -354,7 +359,7 @@ const ManagerModule = () => {
 
              {/* Mobile Registry View (Cards) */}
              <div className="mobile-registry-cards mobile-only">
-                {orders.map(order => (
+                {clientOrders.map(order => (
                   <div key={order.id} onClick={() => setSelectedOrder(order)} className="mobile-order-card">
                      <div className="card-top">
                         <span className="card-order-num">#{order.order_num}</span>
@@ -370,7 +375,7 @@ const ManagerModule = () => {
                 ))}
              </div>
 
-             {orders.length === 0 && !loading && (
+             {clientOrders.length === 0 && !loading && (
                 <div style={{ textAlign: 'center', padding: '60px', color: '#444', fontSize: '1rem' }}>Замовлень не знайдено</div>
              )}
           </div>
