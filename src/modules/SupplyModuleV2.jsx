@@ -538,43 +538,42 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
             <h1 className="hide-mobile" style={{ margin: 0, fontSize: '1.2rem', fontWeight: 950, letterSpacing: '-0.02em' }}>{isProcurementOnly ? 'Постачання' : 'Склад Виробництва'}</h1>
             <h1 className="mobile-only" style={{ margin: 0, fontSize: '1rem', fontWeight: 950 }}>{isProcurementOnly ? 'ПОСТАЧАННЯ' : 'СКЛАД ВИРОБНИЦТВА'}</h1>
           </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <div className="hide-mobile" style={{ color: '#555', fontSize: '0.75rem', fontWeight: 600 }}>
-             {currentUser?.first_name} {currentUser?.last_name}
-          </div>
           {!isProcurementOnly && (
             <button
               onClick={() => setShowReception(!showReception)}
               style={{
-                background: showReception ? '#3b82f6' : '#1a1a1a',
-                color: '#fff',
-                border: 'none',
+                background: showReception 
+                  ? 'linear-gradient(135deg, #0ea5e9, #0284c7)' 
+                  : (incomingReceptionCount > 0 ? 'rgba(14, 165, 233, 0.2)' : 'rgba(14, 165, 233, 0.08)'),
+                color: showReception ? '#000' : '#0ea5e9',
+                border: showReception ? 'none' : '1px solid rgba(14, 165, 233, 0.4)',
                 padding: '10px 20px',
                 borderRadius: '12px',
                 fontSize: '0.8rem',
-                fontWeight: 800,
+                fontWeight: 900,
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
                 cursor: 'pointer',
-                position: 'relative'
+                position: 'relative',
+                boxShadow: incomingReceptionCount > 0 ? '0 0 15px rgba(14, 165, 233, 0.4)' : 'none',
+                animation: incomingReceptionCount > 0 ? 'pulse-blue 2s infinite' : 'none',
+                transition: 'all 0.2s'
               }}
             >
-              <Truck size={16} /> ПРИЙОМКА
+              <Truck size={16} /> <span>ПРИЙОМКА</span>
               {incomingReceptionCount > 0 && (
-                <span style={{ 
-                  position: 'absolute', top: '-10px', right: '-10px',
-                  background: '#ef4444', color: '#fff', fontSize: '0.6rem',
-                  width: '20px', height: '20px', borderRadius: '50%',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontWeight: 900, border: '2px solid #111'
-                }}>
+                <span className="badge-count anim-pulse">
                   {incomingReceptionCount}
                 </span>
               )}
             </button>
           )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <div className="hide-mobile" style={{ color: '#555', fontSize: '0.75rem', fontWeight: 600 }}>
+             {currentUser?.first_name} {currentUser?.last_name}
+          </div>
           {!showCreate && (
             <button
               onClick={() => {
@@ -591,6 +590,59 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
       </nav>
 
       <div className="module-content" style={{ padding: '25px', overflowY: 'auto', flex: 1 }}>
+        
+        {/* RECEPTION ALERT BANNER */}
+        {!isProcurementOnly && incomingReceptionCount > 0 && (
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(2, 132, 199, 0.05))',
+            border: '1px solid rgba(14, 165, 233, 0.3)',
+            borderRadius: '20px',
+            padding: '15px 25px',
+            marginBottom: '25px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            boxShadow: '0 4px 20px rgba(14, 165, 233, 0.15)',
+            animation: 'pulse-blue 2s infinite',
+            flexWrap: 'wrap',
+            gap: '15px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+              <div style={{ background: '#0ea5e9', padding: '12px', borderRadius: '14px', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Truck size={22} />
+              </div>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#fff' }}>
+                  У ВАС Є НОВІ ПОСТАВКИ ДЛЯ ПРИЙОМКИ НА СВ!
+                </h4>
+                <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#888' }}>
+                  Очікує підтвердження: <strong style={{ color: '#0ea5e9' }}>{incomingReceptionCount}</strong> документ(ів)
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowReception(true)}
+              style={{
+                background: '#0ea5e9',
+                color: '#000',
+                border: 'none',
+                padding: '12px 24px',
+                borderRadius: '12px',
+                fontWeight: 900,
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+                textTransform: 'uppercase',
+                boxShadow: '0 4px 12px rgba(14, 165, 233, 0.3)',
+                transition: '0.2s',
+                letterSpacing: '0.05em'
+              }}
+              onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+              onMouseLeave={e => e.currentTarget.style.transform = 'none'}
+            >
+              Відкрити прийомку
+            </button>
+          </div>
+        )}
         
         {/* RECEPTION DRAWER */}
         {!isProcurementOnly && showReception && (

@@ -74,8 +74,10 @@ const WarehouseModuleV2 = () => {
   const getMaterialType = (r) => {
     const parsedName = parseMaterialName(r.details)
     const nameLower = parsedName.toLowerCase()
+    const nom = r.nomenclature_id ? nomenclatures.find(n => String(n.id) === String(r.nomenclature_id)) : null
+    const isSgp = (nom?.type === 'part' || nom?.type === 'product' || nameLower.includes('іп') || nameLower.includes('ip') || nameLower.startsWith('іп-') || nameLower.startsWith('ip-'))
     
-    if (nameLower.startsWith('іп-') || nameLower.startsWith('ip-')) {
+    if (isSgp) {
       return 'finished'
     }
     
@@ -170,7 +172,8 @@ const WarehouseModuleV2 = () => {
         return false
       })
       
-      const isSgp = nameLower.startsWith('іп-') || matching.some(i => i.type === 'finished' || i.type === 'semi')
+      const nom = req.nomenclature_id ? nomenclatures.find(n => String(n.id) === String(req.nomenclature_id)) : null
+      const isSgp = (nom?.type === 'part' || nom?.type === 'product' || nameLower.includes('іп') || nameLower.includes('ip') || nameLower.startsWith('іп-') || nameLower.startsWith('ip-') || matching.some(i => i.type === 'finished' || i.type === 'semi' || i.type === 'part'))
       if (isSgp) return
 
       const operationalItems = matching.filter(i => i.warehouse === 'operational' || !i.warehouse)
@@ -337,15 +340,48 @@ const WarehouseModuleV2 = () => {
 
   return (
     <div className="warehouse-module-v2" style={{ background: '#080808', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
-      <nav className="module-nav" style={{ flexShrink: 0 }}>
-        <Link to="/" className="back-link"><ArrowLeft size={18} /> <span className="hide-mobile">Назад</span></Link>
-        <div className="module-title-group">
-          <WarehouseIcon className="text-secondary" size={24} />
-          <h1 className="hide-mobile">СКЛАД ОПЕРАТИВНИЙ</h1>
-          <h1 className="mobile-only" style={{ fontSize: '1rem' }}>СКЛАД ОПЕРАТИВНИЙ</h1>
+      <nav className="module-nav" style={{ flexShrink: 0, padding: '15px 25px', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #222' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <Link to="/" className="back-link" style={{ color: '#555', transition: '0.3s' }}><ArrowLeft size={18} /> <span className="hide-mobile">Назад</span></Link>
+          <div className="module-title-group" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <WarehouseIcon className="text-secondary" size={24} style={{ color: '#ff9000' }} />
+            <h1 className="hide-mobile" style={{ margin: 0, fontSize: '1.2rem', fontWeight: 950, letterSpacing: '-0.02em' }}>СКЛАД ОПЕРАТИВНИЙ</h1>
+            <h1 className="mobile-only" style={{ margin: 0, fontSize: '1rem', fontWeight: 950 }}>СКЛАД ОПЕРАТИВНИЙ</h1>
+          </div>
+          <button
+            onClick={() => setShowReception(!showReception)}
+            style={{
+              background: showReception 
+                ? 'linear-gradient(135deg, #0ea5e9, #0284c7)' 
+                : (pendingDocs.length > 0 ? 'rgba(14, 165, 233, 0.2)' : 'rgba(14, 165, 233, 0.08)'),
+              color: showReception ? '#000' : '#0ea5e9',
+              border: showReception ? 'none' : '1px solid rgba(14, 165, 233, 0.4)',
+              padding: '10px 20px',
+              borderRadius: '12px',
+              fontSize: '0.8rem',
+              fontWeight: 900,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'pointer',
+              position: 'relative',
+              boxShadow: pendingDocs.length > 0 ? '0 0 15px rgba(14, 165, 233, 0.4)' : 'none',
+              animation: pendingDocs.length > 0 ? 'pulse-blue 2s infinite' : 'none',
+              transition: 'all 0.2s'
+            }}
+          >
+            <Truck size={16} /> <span>ПРИЙОМКА</span>
+            {pendingDocs.length > 0 && (
+              <span className="badge-count anim-pulse">
+                {pendingDocs.length}
+              </span>
+            )}
+          </button>
         </div>
-        <div style={{ fontSize: '0.75rem', color: '#555' }}>
-          {currentUser?.first_name} {currentUser?.last_name}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <div className="hide-mobile" style={{ color: '#555', fontSize: '0.75rem', fontWeight: 600 }}>
+            {currentUser?.first_name} {currentUser?.last_name}
+          </div>
         </div>
       </nav>
 
@@ -406,7 +442,8 @@ const WarehouseModuleV2 = () => {
                   
                   const totalOnWh = matchingInv.reduce((sum, i) => sum + (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0), 0)
                   
-                  const isSgp = nameLower.startsWith('іп-') || matchingInv.some(i => i.type === 'finished' || i.type === 'semi')
+                  const nom = req.nomenclature_id ? nomenclatures.find(n => String(n.id) === String(req.nomenclature_id)) : null
+                  const isSgp = (nom?.type === 'part' || nom?.type === 'product' || nameLower.includes('іп') || nameLower.includes('ip') || nameLower.startsWith('іп-') || nameLower.startsWith('ip-') || matchingInv.some(i => i.type === 'finished' || i.type === 'semi' || i.type === 'part'))
                   if (isSgp) return
                   
                   // Додаємо те, що вже видано (зарезервовано) саме для цього наряду
@@ -509,6 +546,59 @@ const WarehouseModuleV2 = () => {
           </div>
         )}
 
+        {/* RECEPTION ALERT BANNER */}
+        {pendingDocs.length > 0 && (
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(2, 132, 199, 0.05))',
+            border: '1px solid rgba(14, 165, 233, 0.3)',
+            borderRadius: '20px',
+            padding: '15px 25px',
+            marginBottom: '25px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            boxShadow: '0 4px 20px rgba(14, 165, 233, 0.15)',
+            animation: 'pulse-blue 2s infinite',
+            flexWrap: 'wrap',
+            gap: '15px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+              <div style={{ background: '#0ea5e9', padding: '12px', borderRadius: '14px', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Truck size={22} />
+              </div>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#fff' }}>
+                  У ВАС Є НОВІ ПОСТАВКИ ДЛЯ ПРИЙОМКИ!
+                </h4>
+                <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#888' }}>
+                  Очікує підтвердження: <strong style={{ color: '#0ea5e9' }}>{pendingDocs.length}</strong> документ(ів)
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowReception(true)}
+              style={{
+                background: '#0ea5e9',
+                color: '#000',
+                border: 'none',
+                padding: '12px 24px',
+                borderRadius: '12px',
+                fontWeight: 900,
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+                textTransform: 'uppercase',
+                boxShadow: '0 4px 12px rgba(14, 165, 233, 0.3)',
+                transition: '0.2s',
+                letterSpacing: '0.05em'
+              }}
+              onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+              onMouseLeave={e => e.currentTarget.style.transform = 'none'}
+            >
+              Відкрити прийомку
+            </button>
+          </div>
+        )}
+
         {/* TABS */}
         <div style={{ display: 'flex', gap: '10px', marginBottom: '25px', overflowX: 'auto', paddingBottom: '5px' }}>
           {tabs.map(tab => (
@@ -569,38 +659,6 @@ const WarehouseModuleV2 = () => {
                   onChange={e => setSearchQuery(e.target.value)}
                 />
               </div>
-              <button
-                onClick={() => setShowReception(!showReception)}
-                style={{ 
-                  background: 'rgba(255,255,255,0.03)', 
-                  color: '#fff', 
-                  border: '1px solid rgba(255,255,255,0.05)', 
-                  padding: '8px 15px', 
-                  borderRadius: '10px', 
-                  fontWeight: 800, 
-                  cursor: 'pointer', 
-                  position: 'relative', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '8px',
-                  transition: '0.2s'
-                }}
-              >
-                <Truck size={18} />
-                <span className="hide-mobile">ПРИЙОМКА</span>
-                {pendingDocs.length > 0 && (
-                  <span style={{ 
-                    position: 'absolute', top: '-8px', right: '-8px',
-                    background: '#ef4444', height: '20px', width: '20px', 
-                    borderRadius: '50%', fontSize: '0.65rem', fontWeight: 1000,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    border: '2px solid #080808', boxShadow: '0 4px 10px rgba(239, 68, 68, 0.4)',
-                    animation: 'pulse-red 2s infinite'
-                  }}>
-                    {pendingDocs.length}
-                  </span>
-                )}
-              </button>
               <button
                 onClick={() => setShowAdd(!showAdd)}
                 style={{ background: '#222', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '10px', cursor: 'pointer' }}

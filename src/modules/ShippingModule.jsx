@@ -25,7 +25,7 @@ import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
 
 const ShippingModule = () => {
-  const { orders, tasks, nomenclatures, updateOrderStatus, supabase, fetchData, currentUser } = useMES()
+  const { orders, tasks, nomenclatures, updateOrderStatus, supabase, fetchData, currentUser, deductIssuedMaterialsForTask } = useMES()
   const [activeMobileSection, setActiveMobileSection] = useState('ready')
   const [selectedBatch, setSelectedBatch] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -65,6 +65,11 @@ const ShippingModule = () => {
     
     try {
       setIsProcessing(true)
+      
+      // 1. Списуємо матеріали/деталі зі складу (зменшуємо загальну та зарезервовану кількість)
+      await deductIssuedMaterialsForTask(task.id)
+
+      // 2. Оновлюємо статус відвантаження в метаданих наряду
       const newSnapshot = {
         ...(task.plan_snapshot || {}),
         _metadata: {

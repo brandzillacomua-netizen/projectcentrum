@@ -102,6 +102,56 @@ const Shop2Module = () => {
     return (items || []).filter(item => item.nom?.type === 'part')
   }
 
+  const checkIfTaskIsAllDone = (taskObj, orderObj) => {
+    if (!taskObj) return false
+    if (taskObj.status === 'completed') return true
+
+    const itemsToCheck = getTaskDisplayItems(taskObj, orderObj)
+    if (itemsToCheck.length === 0) return false
+
+    return itemsToCheck.every(item => {
+      const nomId = item.nom?.id
+      if (!nomId) return false
+
+      // 1. Calculate remaining buffer in Shop 2
+      const bufSrcCards = (workCards || []).filter(c =>
+        String(c.order_id) === String(taskObj.order_id) &&
+        String(c.nomenclature_id) === String(nomId) &&
+        c.status === 'at-shop2-buffer'
+      )
+      const bufTotal = bufSrcCards.reduce((s, c) => s + (Number(c.quantity) || 0), 0)
+      const bufUsed = bufSrcCards.reduce((s, c) => s + (Number(c.used_in_shop2_qty) || 0), 0)
+      const total2 = bufTotal - bufUsed
+
+      // If there are still unallocated parts in the buffer, it's not done
+      if (total2 > 0) return false
+
+      // 2. Active work cards in Shop 2 for this task and nomenclature
+      const nomCards = (workCards || []).filter(wc =>
+        String(wc.task_id) === String(taskObj.id) &&
+        String(wc.nomenclature_id) === String(nomId)
+      )
+
+      // If there are no work cards in progress/buffer AND no parts have arrived yet, it's waiting for Shop 1
+      if (nomCards.length === 0 && bufTotal === 0) return false
+
+      // If there are active cards that are not completed, it's not done
+      const hasUncompleted = nomCards.some(wc => wc.status !== 'completed')
+      if (hasUncompleted) return false
+
+      // 3. Must have at least one completed card for this nomenclature
+      const allCards = [...(workCards || []), ...(archiveCards || [])]
+      const hasCompleted = allCards.some(wc =>
+        String(wc.task_id) === String(taskObj.id) &&
+        String(wc.nomenclature_id) === String(nomId) &&
+        wc.status === 'completed'
+      )
+
+      return hasCompleted
+    })
+  }
+
+
 
   const handleUpdateStage = async (task, nomId, stageName) => {
     if (!task || !nomId) return
@@ -329,19 +379,10 @@ const Shop2Module = () => {
                       ) : task.status === 'waiting' ? (
                         <div style={{ background: '#333', color: '#666', padding: '3px 8px', borderRadius: '8px', fontSize: '0.6rem', fontWeight: 950 }}>ОЧІКУЄ</div>
                       ) : (() => {
-                        const itemsToCheck = getTaskDisplayItems(task, order)
-                        const allCards = [...(workCards || []), ...(archiveCards || [])]
-
-                        const isAllDone = itemsToCheck.length > 0 && itemsToCheck.every(a => {
-                          return allCards.some(wc =>
-                            String(wc.task_id) === String(task.id) &&
-                            String(wc.nomenclature_id) === String(a.nom?.id) &&
-                            wc.status === 'completed'
-                          )
-                        })
+                        const isAllDone = checkIfTaskIsAllDone(task, order)
 
                         if (isAllDone) {
-                          return <div style={{ background: '#10b981', color: '#fff', padding: '3px 8px', borderRadius: '8px', fontSize: '0.6rem', fontWeight: 950, boxShadow: '0 0 10px rgba(16, 185, 129, 0.4)' }}>ГОТОВО</div>
+                          return <div style={{ background: '#10b981', color: '#fff', padding: '3px 8px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 950, boxShadow: '0 0 10px rgba(16, 185, 129, 0.4)' }}>ГОТОВО</div>
                         }
                         return null
                       })()}
@@ -353,18 +394,7 @@ const Shop2Module = () => {
                   )}
                   {isCompleted && <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 900, marginTop: '8px' }}>ВИКОНАНО</div>}
                   {!isCompleted && task.status !== 'waiting' && (() => {
-
-                    const snapshot = task.plan_snapshot || {}
-                    const arrivals = snapshot.arrivals || []
-                    const allCards = [...(workCards || []), ...(archiveCards || [])]
-
-                    const isAllDone = arrivals.length > 0 && arrivals.every(a => {
-                      return allCards.some(wc =>
-                        String(wc.task_id) === String(task.id) &&
-                        String(wc.nomenclature_id) === String(a.id) &&
-                        wc.status === 'completed'
-                      )
-                    })
+                    const isAllDone = checkIfTaskIsAllDone(task, order)
 
                     if (isAllDone) {
                       return (
@@ -442,10 +472,7 @@ const Shop2Module = () => {
                   </div>
                   <div style={{ display: 'flex', gap: '15px' }}>
                     {(() => {
-                      // Використовуємо об'єднаний список (активні + архівні) для перевірки готовності наряду
-                      const allCardsForTask = [...(workCards || []), ...(archiveCards || [])]
-                      const taskCards = allCardsForTask.filter(c => String(c.task_id) === String(task.id))
-                      const allCardsDone = taskCards.length > 0 && taskCards.every(c => c.status === 'completed')
+                      const allCardsDone = checkIfTaskIsAllDone(task, order)
 
                       if (task.status !== 'completed' && allCardsDone) {
                         return (
@@ -623,7 +650,7 @@ const Shop2Module = () => {
                                   const bufUsed = bufSrcCards.reduce((s, c) => s + (Number(c.used_in_shop2_qty) || 0), 0)
                                   const total2 = bufTotal - bufUsed
 
-                                  if (task.status === 'completed' || (existingCard && existingCard.status === 'completed')) {
+                                  if (task.status === 'completed' || (existingCard && existingCard.status === 'completed' && total2 <= 0)) {
                                     return <div style={{ color: '#10b981', fontSize: '0.7rem', fontWeight: 900 }}>ГОТОВО</div>
                                   }
 

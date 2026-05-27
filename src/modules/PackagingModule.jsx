@@ -142,8 +142,15 @@ const PackagingModule = () => {
       const name = (item.nom.name || '').toLowerCase();
       const code = (item.nom.nomenclature_code || '').toLowerCase();
       
-      // 1. ДЕТАЛІ (СГП) - Перевіряємо префікс ІП або тип
-      if (name.startsWith('іп-') || code.startsWith('іп-') || type.includes('деталь') || type.includes('виріб') || type.includes('сгп')) {
+      // 1. ДЕТАЛІ (СГП) - Перевіряємо префікс ІП, тип або якщо це деталі з цеху/складу (part)
+      if (
+        name.includes('іп') || 
+        code.includes('іп') || 
+        type.includes('part') || 
+        type.includes('деталь') || 
+        type.includes('виріб') || 
+        type.includes('сгп')
+      ) {
         categories.sgp.items.push(item);
       } 
       // 2. СТІЙКИ - Окрема категорія
@@ -226,8 +233,7 @@ const PackagingModule = () => {
       setIsProcessing(true);
       
       for (const task of activeBatchData.tasks) {
-        // 1. Списуємо матеріали зі складу (видані запити)
-        await deductIssuedMaterialsForTask(task.id);
+        // 1. Оновлюємо статус пакування в метаданих наряду (списання резерву відбудеться при відвантаженні логістикою)
 
         // 2. Оновлюємо статус пакування в метаданих наряду
         const newSnapshot = { 
@@ -274,7 +280,7 @@ const PackagingModule = () => {
     const name = (nom.name || '').toLowerCase();
     const type = (nom.type || '').toLowerCase();
     
-    if (name.startsWith('іп-') || type.includes('деталь')) return <Package size={16} color="#f43f5e" />
+    if (name.includes('іп') || type.includes('part') || type.includes('деталь')) return <Package size={16} color="#f43f5e" />
     if (name.includes('стійка')) return <Layers size={16} color="#8b5cf6" />
     if (name.includes('гвинт') || name.includes('гайка') || type.includes('метиз')) return <Wrench size={16} color="#06b6d4" />
     return <Box size={16} color="#444" />
@@ -414,14 +420,18 @@ const PackagingModule = () => {
                 <div style={{ background: '#070707', borderRadius: '28px', padding: '30px', flex: 1, border: '1px solid #151515', marginBottom: '30px', overflowY: 'auto' }}>
                   
                   {Object.entries(categorizedBOM).map(([key, cat]) => (
-                    cat.items.length > 0 && (
-                      <div key={key} style={{ marginBottom: '40px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', borderBottom: `1px solid ${cat.color}22`, paddingBottom: '12px' }}>
-                          <div style={{ color: cat.color }}>{cat.icon}</div>
-                          <h4 style={{ margin: 0, fontSize: '0.9rem', color: cat.color, fontWeight: 900, letterSpacing: '1px' }}>{cat.title}</h4>
-                          <span style={{ marginLeft: 'auto', color: '#333', fontSize: '0.8rem', fontWeight: 800 }}>{cat.items.length} ПОЗИЦІЙ</span>
+                    <div key={key} style={{ marginBottom: '40px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', borderBottom: `1px solid ${cat.color}22`, paddingBottom: '12px' }}>
+                        <div style={{ color: cat.color }}>{cat.icon}</div>
+                        <h4 style={{ margin: 0, fontSize: '0.9rem', color: cat.color, fontWeight: 900, letterSpacing: '1px' }}>{cat.title}</h4>
+                        <span style={{ marginLeft: 'auto', color: '#333', fontSize: '0.8rem', fontWeight: 800 }}>{cat.items.length} ПОЗИЦІЙ</span>
+                      </div>
+                      
+                      {cat.items.length === 0 ? (
+                        <div style={{ color: '#444', fontSize: '0.75rem', fontStyle: 'italic', padding: '15px', background: '#080808', borderRadius: '14px', border: '1px dashed #1a1a1a' }}>
+                          Немає деталей для цієї категорії
                         </div>
-                        
+                      ) : (
                         <div className="bom-required-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
                           {cat.items.map((item, idx) => {
                             const reqRequest = orderRequests.find(r => String(r.nomenclature_id) === String(item.nom.id))
@@ -467,8 +477,8 @@ const PackagingModule = () => {
                             )
                           })}
                         </div>
-                      </div>
-                    )
+                      )}
+                    </div>
                   ))}
 
                   {Object.values(categorizedBOM).every(c => c.items.length === 0) && (

@@ -460,8 +460,12 @@ export function createWarehouseActions({
         if (req.status === 'issued') return
         let parsedName = ''
         try { parsedName = req.details?.split(': ')[1]?.split(' — ')[0]?.trim() } catch (e) {}
-        const isSgpItem = parsedName?.toLowerCase().startsWith('іп-') ||
-          (req.nomenclature_id && nomenclatures.find(n => String(n.id) === String(req.nomenclature_id))?.type === 'part')
+        const isSgpItem = parsedName?.toLowerCase().includes('іп') ||
+          parsedName?.toLowerCase().includes('ip') ||
+          (req.nomenclature_id && (() => {
+            const t = nomenclatures.find(n => String(n.id) === String(req.nomenclature_id))?.type
+            return t === 'part' || t === 'product'
+          })())
         const isPrepRequest = (req.details && (req.details.includes('ПІДГОТОВ') || req.details.includes('подготов'))) || 
           (parsedName && (parsedName.includes('[Непідготовлений]') || parsedName.includes('[неподготовленный]')))
 

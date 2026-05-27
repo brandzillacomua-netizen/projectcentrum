@@ -58,6 +58,7 @@ const ForemanWorkplace = () => {
   const [reportLoading, setReportLoading] = useState(false)
   const [reportData, setReportData] = useState(null)
   const [reportStageFilter, setReportStageFilter] = useState('All')
+  const [reportDetailModal, setReportDetailModal] = useState(null) // 'accepted' | 'scrap' | null
 
   const [printNaryadQueue, setPrintNaryadQueue] = useState(null)
   const [naryadPrintLoading, setNaryadPrintLoading] = useState(false)
@@ -2445,7 +2446,7 @@ const MACHINE_TYPES = [
           alignItems: 'center',
           justifyContent: 'center',
           padding: '20px'
-        }} className="no-print">
+        }} className="report-modal-backdrop">
           <div style={{
             background: '#0d0d0d',
             border: '1px solid #222',
@@ -2458,10 +2459,11 @@ const MACHINE_TYPES = [
             boxShadow: '0 20px 50px rgba(0, 0, 0, 0.7)',
             position: 'relative',
             color: '#fff'
-          }}>
+          }} className="printable-report-area">
             {/* Close Button */}
             <button
               onClick={() => setShowReportModal(false)}
+              className="close-btn-print"
               style={{
                 position: 'absolute',
                 top: '20px',
@@ -2522,6 +2524,7 @@ const MACHINE_TYPES = [
                   const snapEntry = snapshot[nomId]
                   if (!snapEntry) return
                   const nom = nomenclatures.find(n => String(n.id) === String(nomId))
+                  if (nom && nom.type !== 'part') return
                   partsList.push({
                     nomId: String(nomId),
                     nom: nom,
@@ -2590,7 +2593,6 @@ const MACHINE_TYPES = [
               totalScrap = reportData.historyRows.reduce((sum, row) => sum + (Number(row.scrap_qty) || 0), 0)
               const totalActualCutters = reportData.historyRows.reduce((sum, row) => sum + (Number(row.cutters_used) || 0), 0)
               
-              // Calculate total planned cutters from warehouse material requests for this task
               const cutterRequests = (reportData.materialRequests || []).filter(r => {
                 const nomName = r.nomenclature?.name?.toLowerCase() || ''
                 const detailsStr = r.details?.toLowerCase() || ''
@@ -2600,7 +2602,6 @@ const MACHINE_TYPES = [
                 ? cutterRequests.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
                 : 0
 
-               // Fact time calculation
               const totalActualMs = reportData.historyRows.reduce((sum, row) => {
                 if (row.started_at && row.completed_at) {
                   const diff = new Date(row.completed_at) - new Date(row.started_at)
@@ -2610,7 +2611,6 @@ const MACHINE_TYPES = [
               }, 0)
               const totalActualSeconds = Math.round(totalActualMs / 1000)
 
-              // Format duration into 00год. 00хв. 00с format
               const formatDurationHMS = (totalSeconds) => {
                 if (totalSeconds === null || totalSeconds === undefined || totalSeconds < 0) return '—'
                 const hours = Math.floor(totalSeconds / 3600)
@@ -2620,7 +2620,6 @@ const MACHINE_TYPES = [
                 return `${pad(hours)}год. ${pad(minutes)}хв. ${pad(seconds)}с`
               }
 
-              // Product names
               let productNames = currentOrder?.order_items?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ')
               if (!productNames && currentTask.plan_snapshot) {
                 productNames = Object.values(currentTask.plan_snapshot)
@@ -2639,39 +2638,35 @@ const MACHINE_TYPES = [
                       Наряд №{currentOrder?.order_num}{currentTask.batch_index ? `/${currentTask.batch_index}` : ''}
                     </h3>
                     <div style={{ color: '#aaa', fontSize: '0.9rem', marginTop: '6px', fontWeight: 700 }}>
-                      Виріб: <strong style={{ color: '#ef4444' }}>{productNames || '—'}</strong>
+                      Виріб: <strong style={{ color: '#ef4444' }} className="text-accent-red">{productNames || '—'}</strong>
                       {currentOrder?.customer && ` | Замовник: ${currentOrder.customer}`}
                     </div>
                   </div>
 
-                  {/* Stats Grid */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '15px', marginBottom: '30px' }}>
                     
-                    {/* Time spent */}
                     <div style={{ background: '#111', border: '1px solid #222', borderRadius: '16px', padding: '15px' }}>
                       <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>Час виконання</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <div>План: <strong style={{ color: '#fff' }}>{currentTask.estimated_time ? formatDurationHMS(Number(currentTask.estimated_time) * 60) : '—'}</strong></div>
-                        <div>Факт: <strong style={{ color: '#3b82f6' }}>{formatDurationHMS(totalActualSeconds)}</strong></div>
+                        <div>Факт: <strong style={{ color: '#3b82f6' }} className="text-accent-blue">{formatDurationHMS(totalActualSeconds)}</strong></div>
                       </div>
                     </div>
 
-                    {/* Cutters */}
                     <div style={{ background: '#111', border: '1px solid #222', borderRadius: '16px', padding: '15px' }}>
                       <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>Фрези (Розкрій)</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <div>План: <strong style={{ color: '#fff' }}>{totalPlannedCutters} шт</strong></div>
-                        <div>Факт: <strong style={{ color: '#eab308' }}>{totalActualCutters} шт</strong></div>
+                        <div>Факт: <strong style={{ color: '#eab308' }} className="text-accent-orange">{totalActualCutters} шт</strong></div>
                       </div>
                     </div>
 
-                    {/* Sheets */}
                     <div style={{ background: '#111', border: '1px solid #222', borderRadius: '16px', padding: '15px' }}>
                       <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>Листи (Матеріал)</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderBottom: '1px solid #222', paddingBottom: '6px' }}>
                           <span>План: <strong style={{ color: '#fff' }}>{totalPlannedSheets} л.</strong></span>
-                          <span>Факт: <strong style={{ color: totalActualSheets > totalPlannedSheets ? '#ef4444' : '#10b981' }}>{totalActualSheets} л.</strong></span>
+                          <span>Факт: <strong style={{ color: totalActualSheets > totalPlannedSheets ? '#ef4444' : '#10b981' }} className={totalActualSheets > totalPlannedSheets ? 'text-accent-red' : 'text-accent-green'}>{totalActualSheets} л.</strong></span>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                           {Object.entries(materialStats).length > 0 ? (
@@ -2679,12 +2674,12 @@ const MACHINE_TYPES = [
                               const isExcess = stats.actualSheets > stats.plannedSheets
                               return (
                                 <div key={matName} style={{ fontSize: '0.68rem', borderBottom: '1px solid #1a1a1a', paddingBottom: '4px' }}>
-                                  <div style={{ color: isExcess ? '#ef4444' : '#aaa', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={matName}>
+                                  <div style={{ color: isExcess ? '#ef4444' : '#aaa', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={matName} className={isExcess ? 'text-accent-red' : ''}>
                                     {isExcess && '⚠️ '}{matName}
                                   </div>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2px', color: '#888' }}>
                                     <span>План: <strong style={{ color: '#bbb' }}>{stats.plannedSheets} л.</strong></span>
-                                    <span>Факт: <strong style={{ color: isExcess ? '#ef4444' : '#bbb' }}>{stats.actualSheets} л.</strong></span>
+                                    <span>Факт: <strong style={{ color: isExcess ? '#ef4444' : '#bbb' }} className={isExcess ? 'text-accent-red' : 'text-accent-green'}>{stats.actualSheets} л.</strong></span>
                                   </div>
                                 </div>
                               )
@@ -2696,32 +2691,68 @@ const MACHINE_TYPES = [
                       </div>
                     </div>
 
-                    {/* Parts */}
                     <div style={{ background: '#111', border: '1px solid #222', borderRadius: '16px', padding: '15px' }}>
-                      <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>Деталі & Брак</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <div>План: <strong style={{ color: '#fff' }}>{totalPlannedParts} шт</strong></div>
-                        <div>Факт: <strong style={{ color: '#10b981' }}>{totalActualParts} шт</strong> <span style={{ color: '#ef4444', fontSize: '0.7rem' }}>(брак: {totalScrap} шт)</span></div>
+                      <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>Деталі та Брак</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 500 }}>План:</span>
+                          <strong style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 700 }}>{totalPlannedParts} шт</strong>
+                        </div>
+                        
+                        {/* Прийнято: Clickable for breakdown */}
+                        <div 
+                          onClick={() => setReportDetailModal('accepted')}
+                          style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'opacity 0.2s' }}
+                          onMouseEnter={e => e.currentTarget.style.opacity = 0.8}
+                          onMouseLeave={e => e.currentTarget.style.opacity = 1}
+                          title="Клікніть для деталізації прийнятих деталей"
+                        >
+                          <span style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 500 }}>Прийнято:</span>
+                          <strong 
+                            style={{ 
+                              color: '#10b981', 
+                              fontSize: '0.9rem', 
+                              fontWeight: 700, 
+                              borderBottom: '1px dashed #10b981',
+                              paddingBottom: '1px'
+                            }} 
+                            className="text-accent-green"
+                          >
+                            {totalActualParts} шт
+                          </strong>
+                        </div>
+
+                        {/* Брак: Clickable for breakdown */}
+                        <div 
+                          onClick={() => setReportDetailModal('scrap')}
+                          style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'opacity 0.2s' }}
+                          onMouseEnter={e => e.currentTarget.style.opacity = 0.8}
+                          onMouseLeave={e => e.currentTarget.style.opacity = 1}
+                          title="Клікніть для деталізації браку за етапами"
+                        >
+                          <span style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 500 }}>Брак:</span>
+                          <strong 
+                            style={{ 
+                              color: '#ef4444', 
+                              fontSize: '0.9rem', 
+                              fontWeight: 700, 
+                              borderBottom: '1px dashed #ef4444',
+                              paddingBottom: '1px'
+                            }} 
+                            className="text-accent-red"
+                          >
+                            {totalScrap} шт
+                          </strong>
+                        </div>
                       </div>
                     </div>
                   </div>
 
                   {(() => {
-                    // Calculate Time Analytics
                     const timeStats = {
                       totalShop1: 0,
-                      stages: {
-                        'Розкрій': { total: 0, count: 0 },
-                        'Галтовка': { total: 0, count: 0 },
-                        'Прийомка': { total: 0, count: 0 },
-                        'Сортування': { total: 0, count: 0 }
-                      },
-                      buffers: {
-                        'Буфер Розкрою': { total: 0, count: 0 },
-                        'Буфер Галтовки': { total: 0, count: 0 },
-                        'Буфер Прийомки': { total: 0, count: 0 },
-                        'Буфер Сортування': { total: 0, count: 0 }
-                      }
+                      stages: { 'Розкрій': { total: 0, count: 0 }, 'Галтовка': { total: 0, count: 0 }, 'Прийомка': { total: 0, count: 0 }, 'Сортування': { total: 0, count: 0 } },
+                      buffers: { 'Буфер Розкрою': { total: 0, count: 0 }, 'Буфер Галтовки': { total: 0, count: 0 }, 'Буфер Прийомки': { total: 0, count: 0 }, 'Буфер Сортування': { total: 0, count: 0 } }
                     }
 
                     let firstStart = null
@@ -2755,35 +2786,48 @@ const MACHINE_TYPES = [
                       timeStats.totalShop1 = Math.max(0, Math.round((lastCompleted - firstStart) / 1000))
                     }
 
+                    const totalActiveSec = Object.values(timeStats.stages).reduce((sum, s) => sum + s.total, 0)
+                    const totalBufferSec = Object.values(timeStats.buffers).reduce((sum, b) => sum + b.total, 0)
+                    const activeCardIds = new Set(reportData.historyRows.map(h => h.card_id))
+                    const numCards = activeCardIds.size || reportData.taskCards.length || 1
+
                     return (
                       <div style={{ background: '#111', border: '1px solid #222', borderRadius: '20px', padding: '20px', marginBottom: '30px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '15px' }}>
                           <Clock size={14} /> Аналітика перебування деталей в Цеху №1
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
-                          {/* Total Shop 1 Time */}
                           <div style={{ background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: '14px', padding: '15px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
                             <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '6px' }}>Загальний час у Цеху №1</div>
-                            <div style={{ fontSize: '1.6rem', fontWeight: 1000, color: '#10b981' }}>
+                            <div style={{ fontSize: '1.6rem', fontWeight: 1000, color: '#10b981' }} className="text-accent-green">
                               {timeStats.totalShop1 > 0 ? formatDurationHMS(timeStats.totalShop1) : '—'}
                             </div>
-                            <div style={{ fontSize: '0.6rem', color: '#555', marginTop: '4px' }}>Від першого розкрою до передачі в Цех №2</div>
+                            <div style={{ fontSize: '0.6rem', color: '#555', marginTop: '4px', borderBottom: '1px solid #222', paddingBottom: '8px', width: '100%' }}>Від першого розкрою до передачі в Цех №2</div>
+                            
+                            <div style={{ fontSize: '0.7rem', color: '#aaa', marginTop: '8px', width: '100%', display: 'flex', flexDirection: 'column', gap: '5px', textAlign: 'left' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span style={{ color: '#888' }}>Сер. робота / картку:</span>
+                                <strong style={{ color: '#3b82f6' }} className="text-accent-blue">{formatDurationHMS(Math.round(totalActiveSec / numCards))}</strong>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span style={{ color: '#888' }}>Сер. буфер / картку:</span>
+                                <strong style={{ color: '#f59e0b' }} className="text-accent-orange">{formatDurationHMS(Math.round(totalBufferSec / numCards))}</strong>
+                              </div>
+                            </div>
                           </div>
 
-                          {/* Stage Times */}
                           <div style={{ background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: '14px', padding: '15px' }}>
                             <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', borderBottom: '1px solid #111', paddingBottom: '4px' }}>Робочі етапи (Активна робота)</div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.75rem' }}>
                               {Object.entries(timeStats.stages).filter(([name]) => name !== 'Прийомка').map(([name, s]) => (
                                 <div key={name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                   <span style={{ color: '#aaa', fontWeight: 600 }}>{name}:</span>
-                                  <strong style={{ color: '#3b82f6' }}>{s.total > 0 ? formatDurationHMS(s.total) : '—'}</strong>
+                                  <strong style={{ color: '#3b82f6' }} className="text-accent-blue">{s.total > 0 ? formatDurationHMS(s.total) : '00год. 00хв. 00с'}</strong>
                                 </div>
                               ))}
                             </div>
                           </div>
 
-                          {/* Buffer — LIVE current state */}
                           <div style={{ background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: '14px', padding: '15px' }}>
                             <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', borderBottom: '1px solid #111', paddingBottom: '4px' }}>Буфери накопичення (Зараз)</div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.75rem' }}>
@@ -2795,17 +2839,22 @@ const MACHINE_TYPES = [
                                 )
                                 const totalQty = bufCards.reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
                                 const cardCount = bufCards.length
+                                const bufferNameMap = { 'Розкрій': 'Буфер Розкрою', 'Галтовка': 'Буфер Галтовки', 'Прийомка': 'Буфер Прийомки', 'Сортування': 'Буфер Сортування' }
+                                const bufKey = bufferNameMap[stageName]
+                                const bufferTotal = timeStats.buffers[bufKey]?.total || 0
                                 return (
-                                  <div key={stageName} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ color: '#aaa', fontWeight: 600 }}>Буфер {stageName}:</span>
-                                    {cardCount > 0 ? (
-                                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <strong style={{ color: '#f59e0b' }}>{totalQty} шт</strong>
-                                        <span style={{ color: '#555', fontSize: '0.65rem' }}>({cardCount} карт.)</span>
-                                      </span>
-                                    ) : (
-                                      <strong style={{ color: '#333' }}>—</strong>
-                                    )}
+                                  <div key={stageName} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #151515', paddingBottom: '4px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <span style={{ color: '#aaa', fontWeight: 600 }}>Буфер {stageName}:</span>
+                                      {cardCount > 0 && (
+                                        <span style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                                          Зараз: {totalQty} шт
+                                        </span>
+                                      )}
+                                    </div>
+                                    <strong style={{ color: '#f59e0b' }} className="text-accent-orange">
+                                      {bufferTotal > 0 ? formatDurationHMS(bufferTotal) : '00год. 00хв. 00с'}
+                                    </strong>
                                   </div>
                                 )
                               })}
@@ -2816,14 +2865,12 @@ const MACHINE_TYPES = [
                     )
                   })()}
 
-                  {/* Chronology of stages */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
                     <h4 style={{ fontSize: '1rem', fontWeight: 900, margin: 0, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                       Хронологічний лог етапів
                     </h4>
                     
-                    {/* Premium glassmorphic stage filter buttons */}
-                    <div style={{ display: 'flex', gap: '4px', background: '#0a0a0a', padding: '4px', borderRadius: '10px', border: '1px solid #222' }}>
+                    <div style={{ display: 'flex', gap: '4px', background: '#0a0a0a', padding: '4px', borderRadius: '10px', border: '1px solid #222' }} className="no-print">
                       {['All', 'Розкрій', 'Галтовка', 'Прийомка', 'Сортування'].map(stage => {
                         const isSelected = reportStageFilter === stage
                         let color = '#555'
@@ -2832,30 +2879,14 @@ const MACHINE_TYPES = [
                           color = '#fff'
                           bg = stage === 'All' ? '#222' : stage === 'Розкрій' ? '#3b82f6' : stage === 'Галтовка' ? '#eab308' : '#10b981'
                         }
-
-                        const labelMap = {
-                          'All': 'Всі етапи',
-                          'Розкрій': 'Розкрій',
-                          'Галтовка': 'Галтовка',
-                          'Прийомка': 'Прийомка',
-                          'Сортування': 'Сортування'
-                        }
-
+                        const labelMap = { 'All': 'Всі етапи', 'Розкрій': 'Розкрій', 'Галтовка': 'Галтовка', 'Прийомка': 'Прийомка', 'Сортування': 'Сортування' }
                         return (
                           <button
                             key={stage}
                             onClick={() => setReportStageFilter(stage)}
                             style={{
-                              border: 'none',
-                              background: bg,
-                              color: isSelected ? (stage === 'All' ? '#fff' : '#000') : color,
-                              padding: '5px 12px',
-                              borderRadius: '7px',
-                              fontSize: '0.65rem',
-                              fontWeight: 900,
-                              cursor: 'pointer',
-                              transition: 'all 0.15s ease',
-                              textTransform: 'uppercase',
+                              border: 'none', background: bg, color: isSelected ? (stage === 'All' ? '#fff' : '#000') : color,
+                              padding: '5px 12px', borderRadius: '7px', fontSize: '0.65rem', fontWeight: 900, cursor: 'pointer', transition: 'all 0.15s ease', textTransform: 'uppercase',
                               boxShadow: isSelected && stage !== 'All' ? `0 2px 8px ${bg}44` : 'none'
                             }}
                           >
@@ -2926,15 +2957,23 @@ const MACHINE_TYPES = [
                                   <td style={{ padding: '12px 15px', textAlign: 'center', color: '#fff', fontWeight: 700 }}>{planStr}</td>
                                   <td style={{ padding: '12px 15px', textAlign: 'center', color: '#3b82f6', fontWeight: 700 }}>{factStr}</td>
                                   <td style={{ padding: '12px 15px' }}>
-                                    <span style={{
-                                      background: row.stage_name.startsWith('Буфер') ? '#a78bfa1e' : row.stage_name === 'Розкрій' ? '#3b82f61a' : row.stage_name === 'Галтовка' ? '#eab3081a' : row.stage_name === 'Прийомка' || row.stage_name === 'completed' ? '#10b9811a' : '#14b8a61a',
-                                      color: row.stage_name.startsWith('Буфер') ? '#a78bfa' : row.stage_name === 'Розкрій' ? '#3b82f6' : row.stage_name === 'Галтовка' ? '#eab308' : row.stage_name === 'Прийомка' || row.stage_name === 'completed' ? '#10b981' : '#14b8a6',
-                                      padding: '4px 8px',
-                                      borderRadius: '6px',
-                                      fontWeight: 900,
-                                      fontSize: '0.7rem',
-                                      border: row.stage_name.startsWith('Буфер') ? '1px solid #a78bfa33' : 'none'
-                                    }}>
+                                    <span
+                                      className={`stage-badge stage-${
+                                        row.stage_name.startsWith('Буфер') ? 'buffer' :
+                                        row.stage_name === 'Розкрій' ? 'cutting' :
+                                        row.stage_name === 'Галтовка' ? 'tumbling' :
+                                        (row.stage_name === 'Прийомка' || row.stage_name === 'completed') ? 'reception' : 'sorting'
+                                      }`}
+                                      style={{
+                                        background: row.stage_name.startsWith('Буфер') ? '#a78bfa1e' : row.stage_name === 'Розкрій' ? '#3b82f61a' : row.stage_name === 'Галтовка' ? '#eab3081a' : row.stage_name === 'Прийомка' || row.stage_name === 'completed' ? '#10b9811a' : '#14b8a61a',
+                                        color: row.stage_name.startsWith('Буфер') ? '#a78bfa' : row.stage_name === 'Розкрій' ? '#3b82f6' : row.stage_name === 'Галтовка' ? '#eab308' : row.stage_name === 'Прийомка' || row.stage_name === 'completed' ? '#10b981' : '#14b8a6',
+                                        padding: '4px 8px',
+                                        borderRadius: '6px',
+                                        fontWeight: 900,
+                                        fontSize: '0.7rem',
+                                        border: row.stage_name.startsWith('Буфер') ? '1px solid #a78bfa33' : 'none'
+                                      }}
+                                    >
                                       {row.stage_name === 'completed' ? 'Прийомка' : row.stage_name}
                                     </span>
                                   </td>
@@ -2963,7 +3002,7 @@ const MACHINE_TYPES = [
                     )
                   })()}
 
-                  <div style={{ marginTop: '25px', display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                  <div style={{ marginTop: '25px', display: 'flex', gap: '10px', justifyContent: 'flex-end' }} className="print-actions-row">
                     <button
                       onClick={() => window.print()}
                       style={{
@@ -3002,6 +3041,192 @@ const MACHINE_TYPES = [
               )
             })() : null}
           </div>
+
+          {/* ───── ДЕТАЛІЗАЦІЯ ПРИЙНЯТОГО / БРАКУ (no-print) ───── */}
+          {reportDetailModal && (
+            <div 
+              className="no-print"
+              onClick={() => setReportDetailModal(null)}
+              style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(0, 0, 0, 0.8)',
+                backdropFilter: 'blur(8px)',
+                zIndex: 45000,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '20px'
+              }}
+            >
+              <div 
+                onClick={e => e.stopPropagation()}
+                style={{
+                  background: '#0d0d0d',
+                  border: '1px solid #222',
+                  borderRadius: '20px',
+                  width: '100%',
+                  maxWidth: '550px',
+                  maxHeight: '85vh',
+                  overflowY: 'auto',
+                  padding: '25px',
+                  boxShadow: '0 20px 40px rgba(0, 0, 0, 0.6)',
+                  position: 'relative',
+                  color: '#fff'
+                }}
+              >
+                {/* Close button */}
+                <button
+                  onClick={() => setReportDetailModal(null)}
+                  style={{
+                    position: 'absolute',
+                    top: '15px',
+                    right: '15px',
+                    background: '#222',
+                    border: 'none',
+                    color: '#fff',
+                    width: '30px',
+                    height: '30px',
+                    borderRadius: '50%',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <X size={16} />
+                </button>
+
+                {reportDetailModal === 'accepted' ? (() => {
+                  const acceptedMap = {}
+                  const acceptedRows = (reportData?.historyRows || []).filter(h => h.stage_name === 'Прийомка' || h.stage_name === 'completed')
+                  
+                  acceptedRows.forEach(row => {
+                    const nomId = String(row.nomenclature_id)
+                    if (!acceptedMap[nomId]) {
+                      const nom = nomenclatures.find(n => String(n.id) === nomId)
+                      acceptedMap[nomId] = {
+                        name: nom?.name || 'Невідома деталь',
+                        code: nom?.nomenclature_code || 'БЕЗ КОДУ',
+                        qty: 0
+                      }
+                    }
+                    acceptedMap[nomId].qty += (Number(row.qty_completed) || 0)
+                  })
+
+                  const items = Object.values(acceptedMap).sort((a, b) => b.qty - a.qty)
+
+                  return (
+                    <div>
+                      <h3 style={{ margin: '0 0 20px 0', fontSize: '1.2rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981' }}>
+                        <CheckCircle2 size={20} /> Деталізація прийнятих деталей
+                      </h3>
+                      {items.length === 0 ? (
+                        <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>Деталей ще не прийнято</div>
+                      ) : (
+                        <div style={{ background: '#111', borderRadius: '14px', border: '1px solid #222', overflow: 'hidden' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
+                            <thead>
+                              <tr style={{ background: '#161616', color: '#666', borderBottom: '1px solid #222', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase' }}>
+                                <th style={{ padding: '10px 12px' }}>Деталь</th>
+                                <th style={{ padding: '10px 12px', textAlign: 'right' }}>Прийнято</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {items.map((item, idx) => (
+                                <tr key={idx} style={{ borderBottom: idx < items.length - 1 ? '1px solid #1a1a1a' : 'none' }}>
+                                  <td style={{ padding: '10px 12px' }}>
+                                    <div style={{ fontWeight: 800, color: '#fff' }}>{item.name}</div>
+                                    <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '2px' }}>{item.code}</div>
+                                  </td>
+                                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 900, color: '#10b981', fontSize: '0.9rem' }}>
+                                    {item.qty} шт
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })() : (() => {
+                  const scrapRows = (reportData?.historyRows || []).filter(h => (Number(h.scrap_qty) || 0) > 0)
+                  
+                  const items = scrapRows.map(row => {
+                    const nom = nomenclatures.find(n => String(n.id) === String(row.nomenclature_id))
+                    const dateStr = row.completed_at
+                      ? new Date(row.completed_at).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' }) + ' ' + new Date(row.completed_at).toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit' })
+                      : '—'
+                    return {
+                      name: nom?.name || 'Невідома деталь',
+                      code: nom?.nomenclature_code || 'БЕЗ КОДУ',
+                      stage: row.stage_name === 'completed' ? 'Прийомка' : row.stage_name,
+                      qty: Number(row.scrap_qty) || 0,
+                      operator: row.operator_name || '—',
+                      shift: row.shift_name || '—',
+                      machine: row.machine_name || '—',
+                      time: dateStr
+                    }
+                  }).sort((a, b) => b.qty - a.qty)
+
+                  return (
+                    <div>
+                      <h3 style={{ margin: '0 0 20px 0', fontSize: '1.2rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444' }}>
+                        <AlertTriangle size={20} /> Деталізація браку за етапами
+                      </h3>
+                      {items.length === 0 ? (
+                        <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>Бракованих деталей немає</div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          {items.map((item, idx) => (
+                            <div key={idx} style={{ background: '#111', border: '1px solid #222', borderRadius: '12px', padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, marginRight: '15px' }}>
+                                <div style={{ fontWeight: 800, color: '#fff', fontSize: '0.8rem' }}>{item.name}</div>
+                                <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '2px' }}>{item.code}</div>
+                                <div style={{ display: 'flex', gap: '10px', marginTop: '6px', fontSize: '0.65rem', color: '#888', flexWrap: 'wrap' }}>
+                                  <span>Етап: <strong style={{ color: '#aaa' }}>{item.stage}</strong></span>
+                                  {item.machine && item.machine !== '—' && (
+                                    <span>Верстат: <strong style={{ color: '#aaa' }}>{item.machine}</strong></span>
+                                  )}
+                                  <span>Оператор: <strong style={{ color: '#aaa' }}>{item.operator}</strong></span>
+                                </div>
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                <div style={{ color: '#ef4444', fontWeight: 900, fontSize: '1rem' }}>+{item.qty} шт</div>
+                                <div style={{ fontSize: '0.6rem', color: '#444', marginTop: '2px' }}>{item.time}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+
+                <button 
+                  onClick={() => setReportDetailModal(null)}
+                  style={{
+                    width: '100%',
+                    background: '#222',
+                    color: '#fff',
+                    border: '1px solid #333',
+                    padding: '12px',
+                    borderRadius: '10px',
+                    cursor: 'pointer',
+                    fontWeight: 800,
+                    marginTop: '20px',
+                    fontSize: '0.85rem',
+                    transition: '0.2s'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#333'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#222'}
+                >
+                  Закрити
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -3009,10 +3234,164 @@ const MACHINE_TYPES = [
         __html: `
         @media print {
           @page { size: A4 portrait; margin: 0; }
-          html, body { background: #fff; color: #000; margin: 0; padding: 0; }
+          * {
+            box-shadow: none !important;
+            text-shadow: none !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            filter: none !important;
+            -webkit-filter: none !important;
+          }
+          html, body { 
+            background: #fff !important; 
+            background-color: #fff !important; 
+            color: #000 !important; 
+            margin: 0 !important; 
+            padding: 0 !important; 
+            width: 100% !important;
+            height: auto !important;
+            overflow: visible !important;
+          }
           .no-print { display: none !important; }
-          .print-overlay { position: static !important; background: #fff !important; padding: 0 !important; overflow: visible !important; }
-          .a4-page { boxShadow: none !important; margin: 0 !important; pageBreakAfter: always !important; }
+          .module-nav,
+          .master-grid {
+            display: none !important;
+          }
+          
+          /* Hide normal workplace containers */
+          .foreman-module {
+            background: #fff !important;
+            background-color: #fff !important;
+            color: #000 !important;
+            min-height: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            width: 100% !important;
+            height: auto !important;
+          }
+          
+          /* Show print queue elements or report backdrop */
+          .a4-page {
+            box-shadow: none !important;
+            margin: 0 !important;
+            page-break-after: always !important;
+            page-break-inside: avoid !important;
+          }
+          
+          .print-overlay { 
+            position: static !important; 
+            background: #fff !important; 
+            padding: 0 !important; 
+            overflow: visible !important; 
+          }
+          
+          /* Modal Backdrop Reset */
+          .report-modal-backdrop {
+            position: static !important;
+            background: #fff !important;
+            background-color: #fff !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            width: 100% !important;
+            height: auto !important;
+            overflow: visible !important;
+            display: block !important;
+            box-shadow: none !important;
+            border: none !important;
+          }
+          
+          /* Printable Report styling */
+          .printable-report-area {
+            position: static !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            max-height: none !important;
+            overflow: visible !important;
+            background: #fff !important;
+            background-color: #fff !important;
+            color: #000 !important;
+            padding: 15mm 20mm !important; /* Beautiful A4 margins inside container to prevent printer clipping */
+            margin: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+            border-radius: 0 !important;
+            display: block !important;
+          }
+          
+          /* Dark to Light Print Mapping */
+          .printable-report-area div, 
+          .printable-report-area table, 
+          .printable-report-area tr, 
+          .printable-report-area td, 
+          .printable-report-area th, 
+          .printable-report-area h3, 
+          .printable-report-area h4, 
+          .printable-report-area strong, 
+          .printable-report-area span {
+            background: transparent !important;
+            color: #000 !important;
+            border-color: #ddd !important;
+            box-shadow: none !important;
+          }
+          .printable-report-area strong {
+            border-bottom: none !important;
+            text-decoration: none !important;
+          }
+          
+          /* Printable Accent Colors with high specificity */
+          .printable-report-area .text-accent-blue,
+          .printable-report-area strong.text-accent-blue,
+          .printable-report-area span.text-accent-blue,
+          .printable-report-area div.text-accent-blue {
+            color: #1d4ed8 !important;
+          }
+          .printable-report-area .text-accent-green,
+          .printable-report-area strong.text-accent-green,
+          .printable-report-area span.text-accent-green,
+          .printable-report-area div.text-accent-green {
+            color: #047857 !important;
+          }
+          .printable-report-area .text-accent-orange,
+          .printable-report-area strong.text-accent-orange,
+          .printable-report-area span.text-accent-orange,
+          .printable-report-area div.text-accent-orange {
+            color: #b45309 !important;
+          }
+          .printable-report-area .text-accent-red,
+          .printable-report-area strong.text-accent-red,
+          .printable-report-area span.text-accent-red,
+          .printable-report-area div.text-accent-red {
+            color: #b91c1c !important;
+          }
+          
+          /* Printable stage badges in history log */
+          .printable-report-area span.stage-badge {
+            background: #f3f4f6 !important;
+            border: 1px solid #d1d5db !important;
+            padding: 3px 6px !important;
+            border-radius: 4px !important;
+          }
+          .printable-report-area span.stage-badge.stage-buffer { color: #6d28d9 !important; border-color: #c084fc !important; background: #faf5ff !important; }
+          .printable-report-area span.stage-badge.stage-cutting { color: #1d4ed8 !important; border-color: #93c5fd !important; background: #eff6ff !important; }
+          .printable-report-area span.stage-badge.stage-tumbling { color: #b45309 !important; border-color: #fde047 !important; background: #fefce8 !important; }
+          .printable-report-area span.stage-badge.stage-reception { color: #047857 !important; border-color: #6ee7b7 !important; background: #ecfdf5 !important; }
+          .printable-report-area span.stage-badge.stage-sorting { color: #0f766e !important; border-color: #5eead4 !important; background: #f0fdfa !important; }
+          
+          /* Hide UI actions on printout */
+          .printable-report-area .print-actions-row {
+            display: none !important;
+          }
+          .printable-report-area .close-btn-print {
+            display: none !important;
+          }
+          
+          /* SVG icons print adaptation */
+          .printable-report-area svg {
+            color: inherit !important;
+            stroke: currentColor !important;
+          }
         }
         .animate-spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -3022,7 +3401,7 @@ const MACHINE_TYPES = [
         }
         .mobile-only { display: none; }
 
-        @media (max-width: 1024px) {
+        @media screen and (max-width: 1024px) {
           .hide-mobile { display: none !important; }
           .mobile-only { display: block !important; }
           .master-grid { display: block !important; }

@@ -23,14 +23,14 @@ export function createProductionActions({
 }) {
 
   const approveWarehouse = async (taskId) => { await supabase.from('tasks').update({ warehouse_conf: true }).eq('id', taskId); fetchData(true) }
-  const approveEngineer  = async (taskId) => { await supabase.from('tasks').update({ engineer_conf: true }).eq('id', taskId); fetchData(true) }
-  const approveDirector  = async (taskId) => {
+  const approveEngineer = async (taskId) => { await supabase.from('tasks').update({ engineer_conf: true }).eq('id', taskId); fetchData(true) }
+  const approveDirector = async (taskId) => {
     await supabase.from('tasks').update({ director_conf: true }).eq('id', taskId);
     const targetTask = tasks.find(t => String(t.id) === String(taskId))
     if (targetTask && targetTask.order_id) {
-      const existingShop2 = tasks.find(t => 
-        String(t.order_id) === String(targetTask.order_id) && 
-        t.step?.includes('Пресування') && 
+      const existingShop2 = tasks.find(t =>
+        String(t.order_id) === String(targetTask.order_id) &&
+        t.step?.includes('Пресування') &&
         t.batch_index === targetTask.batch_index
       )
       if (!existingShop2) {
@@ -52,7 +52,7 @@ export function createProductionActions({
   }
 
   const upsertNomenclature = async (nom) => { await supabase.from('nomenclatures').upsert([nom]); fetchData(true) }
-  const deleteNomenclature = async (id)  => { await supabase.from('nomenclatures').delete().eq('id', id); fetchData(true) }
+  const deleteNomenclature = async (id) => { await supabase.from('nomenclatures').delete().eq('id', id); fetchData(true) }
 
   const saveBOM = async (parentId, childId, qty) => {
     await supabase.from('bom_items').upsert([{ parent_id: parentId, child_id: childId, quantity_per_parent: Number(qty) }], { onConflict: 'parent_id, child_id' })
@@ -157,8 +157,8 @@ export function createProductionActions({
         // Check СО stock of prepared sheets
         const preparedStock = requestNomId
           ? Math.max(0, inventory
-              .filter(i => String(i.nomenclature_id) === String(requestNomId) && i.warehouse === 'operational')
-              .reduce((sum, i) => sum + Math.max(0, (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0)), 0))
+            .filter(i => String(i.nomenclature_id) === String(requestNomId) && i.warehouse === 'operational')
+            .reduce((sum, i) => sum + Math.max(0, (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0)), 0))
           : 0
 
         const sheetsDeficit = Math.max(0, sheets - preparedStock)
@@ -166,7 +166,7 @@ export function createProductionActions({
         // Main warehouse request — always [Підготовлений]
         const invItem = requestNomId
           ? (inventory.find(i => String(i.nomenclature_id) === String(requestNomId) && i.warehouse === 'operational')
-             || inventory.find(i => String(i.nomenclature_id) === String(requestNomId)))
+            || inventory.find(i => String(i.nomenclature_id) === String(requestNomId)))
           : null
 
         requestsToInsert.push({
@@ -184,8 +184,8 @@ export function createProductionActions({
           const prepForNomId = unpreparedNom?.id || requestNomId
           const prepForNomName = unpreparedNom?.name
             || (requestNomName.includes('[Підготовлений]')
-                ? requestNomName.replace('[Підготовлений]', '[Непідготовлений]')
-                : requestNomName + ' [Непідготовлений]')
+              ? requestNomName.replace('[Підготовлений]', '[Непідготовлений]')
+              : requestNomName + ' [Непідготовлений]')
 
           try {
             const planSnapshot = {}
@@ -274,14 +274,14 @@ export function createProductionActions({
     }]).select()
     const data = (list && list.length > 0) ? list[0] : null
     await supabase.from('tasks').update({ status: 'in-progress' }).eq('id', taskId)
-    
+
     if (isRework) {
       const partNom = nomenclatures.find(n => n.id === nomenclatureId)
       const unitsPerSheet = partNom?.units_per_sheet || 1
       const sheets = Math.ceil(Number(quantity) / unitsPerSheet)
       await createDovyпускMaterialRequests(taskId, orderId, partNom, sheets, Number(quantity))
     }
-    
+
     fetchData(true)
     return data
   }
@@ -293,7 +293,7 @@ export function createProductionActions({
       estimated_time: Number(c.estimatedTime) || 0, status: c.status || 'new', is_rework: c.is_rework || false,
       card_info: `${c.cardInfo || ''}${Number(c.bufferQty) > 0 ? ` [BZ:${c.bufferQty}]` : ''}`
     }))
-    
+
     const { data } = await supabase.from('work_cards').insert(payloads).select()
     // Optimistic update: append new cards to local state immediately (no full fetchData)
     if (data && data.length > 0) {
@@ -309,7 +309,7 @@ export function createProductionActions({
   const startWorkCard = async (taskId, cardId, operatorName, metadata = {}) => {
     const updateData = { status: 'in-progress', started_at: new Date().toISOString(), operator_name: operatorName }
     if (metadata.stage_name) updateData.operation = metadata.stage_name
-    if (metadata.machine_id)  updateData.machine_id = metadata.machine_id
+    if (metadata.machine_id) updateData.machine_id = metadata.machine_id
     if (metadata.machine_name) updateData.machine = metadata.machine_name
     setWorkCards(prev => prev.map(c => c.id === cardId ? { ...c, ...updateData } : c))
     const { error } = await supabase.from('work_cards').update(updateData).eq('id', cardId)
@@ -323,7 +323,7 @@ export function createProductionActions({
     if (error) { console.error('Error completing card:', error); refreshTable('work_cards') }
   }
 
-  const CHAIN_SHOP1   = ['Розкрій', 'Галтовка', 'Прийомка']
+  const CHAIN_SHOP1 = ['Розкрій', 'Галтовка', 'Прийомка']
   const CHAIN_GENERAL = ['Розкрій', 'Галтовка', 'Пресування', 'Фарбування', 'Паквання']
 
   const confirmBuffer = async (cardId, scrapData = {}, cuttersUsed = 0) => {
@@ -457,7 +457,7 @@ export function createProductionActions({
       if (!batches[key]) batches[key] = { qty, isPackaged, isProduced }
       else { if (qty > batches[key].qty) batches[key].qty = qty; if (isPackaged) batches[key].isPackaged = true; if (isProduced) batches[key].isProduced = true }
     })
-    const planned  = Object.values(batches).reduce((acc, b) => acc + b.qty, 0)
+    const planned = Object.values(batches).reduce((acc, b) => acc + b.qty, 0)
     const packaged = Object.values(batches).filter(b => b.isPackaged).reduce((acc, b) => acc + b.qty, 0)
     const produced = Object.values(batches).filter(b => b.isProduced).reduce((acc, b) => acc + b.qty, 0)
     let status = order.status
@@ -494,25 +494,25 @@ export function createProductionActions({
           if (totalToProduce <= 0) return
           const matKeyBase = (part.nom.material_type || part.nom.name || 'Інше').trim()
           const matKey = normalize(matKeyBase)
-          
+
           // Look up prepared nomenclature first
           const normalizedBase = normalizeName(matKeyBase.toLowerCase().replace(' [непідготовлений]', '').replace('[непідготовлений]', '').trim())
-          let rawNom = nomenclatures.find(n => 
-            (n.type === 'raw' || n.type === 'material') && 
-            n.name.includes('[Підготовлений]') && 
-            (normalize(n.name.replace(' [Підготовлений]', '')) === matKey || 
-             normalize(n.name.replace('[Підготовлений]', '')) === matKey ||
-             normalizeName(n.name.replace(' [Підготовлений]', '')) === normalizedBase ||
-             normalizeName(n.name.replace('[Підготовлений]', '')) === normalizedBase)
+          let rawNom = nomenclatures.find(n =>
+            (n.type === 'raw' || n.type === 'material') &&
+            n.name.includes('[Підготовлений]') &&
+            (normalize(n.name.replace(' [Підготовлений]', '')) === matKey ||
+              normalize(n.name.replace('[Підготовлений]', '')) === matKey ||
+              normalizeName(n.name.replace(' [Підготовлений]', '')) === normalizedBase ||
+              normalizeName(n.name.replace('[Підготовлений]', '')) === normalizedBase)
           )
 
           // Fallback to original lookup (non-prepared sheets) if prep sheet nomenclature not found
           if (!rawNom) {
-            rawNom = nomenclatures.find(n => 
-              (n.type === 'raw' || n.type === 'material') && 
-              (normalize(n.name) === matKey || 
-               normalize(n.material_type) === matKey ||
-               normalizeName(n.name) === normalizeName(matKeyBase))
+            rawNom = nomenclatures.find(n =>
+              (n.type === 'raw' || n.type === 'material') &&
+              (normalize(n.name) === matKey ||
+                normalize(n.material_type) === matKey ||
+                normalizeName(n.name) === normalizeName(matKeyBase))
             )
           }
 
@@ -521,10 +521,10 @@ export function createProductionActions({
             const unit = (part.nom.type === 'hardware' || part.nom.type === 'fastener') ? 'шт' : 'ЛИСТІВ'
             materialSummary[matId] = { matName: rawNom?.name || matKeyBase, sheets: 0, totalUnits: 0, components: [], inventory_id: null, nomenclature_id: rawNom?.id || (part.nom.type === 'raw' ? part.nom.id : null), unit, partType: rawNom?.type || (part.nom.type === 'raw' ? 'raw' : 'unknown') }
             if (materialSummary[matId].nomenclature_id) {
-              const inv = inventory.find(i => 
-                String(i.nomenclature_id) === String(materialSummary[matId].nomenclature_id) && 
+              const inv = inventory.find(i =>
+                String(i.nomenclature_id) === String(materialSummary[matId].nomenclature_id) &&
                 i.warehouse === 'operational'
-              ) || inventory.find(i => 
+              ) || inventory.find(i =>
                 String(i.nomenclature_id) === String(materialSummary[matId].nomenclature_id)
               )
               materialSummary[matId].inventory_id = inv?.id || null
