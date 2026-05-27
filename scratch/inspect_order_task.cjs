@@ -5,14 +5,14 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-async function checkColumns() {
-  // Let's do a select limit 1 to see the keys of returned record
-  const { data, error } = await supabase.from('work_cards').select('*').limit(1);
-  if (error) {
-    console.error("Error fetching work_cards:", error);
-    return;
-  }
-  console.log("Single work_cards record:", data);
+async function run() {
+  const { data: tasks, error } = await supabase
+    .from('tasks')
+    .select('*')
+    .eq('order_id', 'bb00aa1d-615e-447b-9c11-f0b074e5c040');
+  
+  if (error) console.error(error);
+  else console.log('Tasks for order:', JSON.stringify(tasks, null, 2));
 }
 
-checkColumns();
+run();

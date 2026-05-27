@@ -54,7 +54,11 @@ const Shop2Module = () => {
   // Фільтруємо наряди для Цеху №2 (Пресування/ЦЕХ №2)
   const relevantTasks = useMemo(() => {
     return tasks
-      .filter(t => t.step?.includes('Пресування') || t.step?.includes('ЦЕХ №2'))
+      .filter(t => 
+        t.step?.includes('Пресування') || 
+        t.step?.includes('ЦЕХ №2') ||
+        t.step?.includes('Доопрацювання')  // ВБ-накази з відділу браку
+      )
       .sort((a, b) => {
         if (a.status === 'completed' && b.status !== 'completed') return 1
         if (a.status !== 'completed' && b.status === 'completed') return -1
@@ -78,6 +82,18 @@ const Shop2Module = () => {
     if (!task) return []
     const snapshot = task.plan_snapshot || {}
     const arrivals = snapshot.arrivals || []
+
+    // ВБ-наряд (доопрацювання браку): plan_snapshot = { nomId: { id, name, need, is_rework: true } }
+    // Немає arrivals і немає order_items — беремо прямо зі snapshot
+    const snapshotValues = Object.values(snapshot).filter(v => v && typeof v === 'object' && v.id && v.is_rework)
+    if (snapshotValues.length > 0) {
+      return snapshotValues.map(s => ({
+        nom: (nomenclatures || []).find(n => String(n.id) === String(s.id)) || { id: s.id, name: s.name, type: 'part' },
+        need: Number(s.need) || 0,
+        bz: 0,
+        code: (nomenclatures || []).find(n => String(n.id) === String(s.id))?.nomenclature_code || '—'
+      }))
+    }
 
     let items = arrivals.length > 0 ? arrivals.map(a => ({
       nom: (nomenclatures || []).find(n => String(n?.id) === String(a?.id)),

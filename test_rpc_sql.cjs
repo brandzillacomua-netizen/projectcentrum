@@ -7,7 +7,16 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 async function run() {
   try {
-    const { data, error } = await supabase.rpc('exec_sql', { sql: 'ALTER TABLE company_positions ADD COLUMN IF NOT EXISTS start_page TEXT;' });
+    const { data, error } = await supabase.rpc('exec_sql', { sql: `
+      SELECT 
+        tgname AS trigger_name,
+        relname AS table_name,
+        proname AS function_name
+      FROM pg_trigger
+      JOIN pg_class ON pg_class.oid = tgrelid
+      JOIN pg_proc ON pg_proc.oid = tgfoid
+      WHERE relname IN ('work_card_history', 'work_cards', 'inventory');
+    ` });
     console.log('exec_sql result:', { data, error });
   } catch (e) {
     console.error('exec_sql caught error:', e);

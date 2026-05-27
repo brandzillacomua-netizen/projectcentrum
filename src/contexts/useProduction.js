@@ -1070,7 +1070,7 @@ export function createProductionActions({
       if (!bz) throw new Error("Товар не знайдено на складі БЗ")
       const nextReserved = (Number(bz.reserved_qty) || 0) + Number(qty)
       await supabase.from('inventory').update({ reserved_qty: nextReserved }).eq('id', bz.id)
-      await supabase.from('work_cards').insert([{ task_id: taskId, order_id: orderId, nomenclature_id: nomenclatureId, quantity: qty, status: 'completed', operation: 'Склад БЗ', card_info: '[ЗІ СКЛАДУ БЗ]', buffer_qty: 0 }])
+      await supabase.from('work_cards').insert([{ task_id: taskId, order_id: orderId, nomenclature_id: nomenclatureId, quantity: qty, status: 'completed', operation: 'Склад БЗ', card_info: '[ЗІ СКЛАДУ БЗ]' }])
       await supabase.from('work_card_history').insert([{ task_id: taskId, nomenclature_id: nomenclatureId, stage_name: 'Склад БЗ', operator_name: 'Система (БРОНЬ)', qty_at_start: qty, qty_completed: qty, scrap_qty: 0, completed_at: new Date().toISOString() }])
       fetchData(true); return { success: true }
     } catch (err) { console.error(err); throw err }
@@ -1147,10 +1147,9 @@ export function createProductionActions({
           order_id: orderId,
           nomenclature_id: nomId,
           quantity: qty,
-          status: 'pending',
+          status: 'new',
           operation: stage,
-          card_info: `[REWORK] ${nom?.name || scrapItem.name} — ДООПРАЦЮВАННЯ БРАКУ`,
-          buffer_qty: 0
+          card_info: `[REWORK] [ЦЕХ №2] ${nom?.name || scrapItem.name} — ДООПРАЦЮВАННЯ БРАКУ`
         }])
     }
 
