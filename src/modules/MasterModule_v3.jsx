@@ -2014,6 +2014,8 @@ const MasterModule = () => {
             width: 100% !important;
             background: #fff !important;
             overflow: visible !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
 
           /* Force box-sizing and white backgrounds */
@@ -2032,15 +2034,31 @@ const MasterModule = () => {
           }
           
            /* DYNAMIC CONTAINER FOR A4 */
+          /* CRITICAL FIX: position:fixed breaks print on mobile browsers (Chrome Android, Safari iOS) */
+          .worksheet-modal-overlay {
+            position: static !important;
+            inset: auto !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: auto !important;
+            background: #fff !important;
+            z-index: auto !important;
+            display: block !important;
+            padding: 0 !important;
+            align-items: unset !important;
+            justify-content: unset !important;
+          }
+          
           .print-target { 
-            position: relative !important; 
+            position: static !important; 
             width: 100% !important;
             max-width: 100% !important;
             background: #fff !important; 
             display: block !important;
-            padding: 10mm 15mm !important; /* Extremely safe 15mm side margins inside the container */
+            padding: 10mm 15mm !important;
             margin: 0 auto !important;
-            z-index: 99999 !important;
+            z-index: auto !important;
             overflow: visible !important;
             box-sizing: border-box !important;
           }
@@ -2048,14 +2066,17 @@ const MasterModule = () => {
           .worksheet-panel {
             background: #fff !important;
             width: 100% !important;
-            max-width: 100% !important; /* Scale content to fit screen/paper */
+            max-width: 100% !important;
             height: auto !important;
             max-height: none !important;
             overflow: visible !important;
             border: none !important;
+            border-radius: 0 !important;
             padding: 0 !important;
             margin: 0 !important;
-            display: block !important; /* Disable flex layout in print */
+            display: block !important;
+            /* Undo any transform/translate that hides content on mobile */
+            transform: none !important;
           }
           
           .worksheet-header-area { 
