@@ -1625,15 +1625,6 @@ const MasterModule = () => {
             overflow: visible !important;
             box-sizing: border-box !important;
           }
-            min-height: 100% !important;
-            background: #fff !important; 
-            display: block !important;
-            padding: 3mm !important;
-            margin: 0 !important;
-            z-index: 99999 !important;
-            overflow: visible !important;
-            box-sizing: border-box !important;
-          }
           
           .worksheet-panel {
             background: #fff !important;
