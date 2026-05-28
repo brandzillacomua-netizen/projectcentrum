@@ -533,8 +533,8 @@ const Shop2Terminal = () => {
           {renderQueue()}
         </div>
 
-        {isDrawerOpen && <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000 }} onClick={() => setIsDrawerOpen(false)} />}
-        <div style={{ position: 'fixed', left: isDrawerOpen ? 0 : '-300px', top: 0, bottom: 0, width: '300px', background: '#121212', zIndex: 1001, transition: '0.3s', display: 'flex', flexDirection: 'column' }}>
+        {isDrawerOpen && <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 99999 }} onClick={() => setIsDrawerOpen(false)} />}
+        <div style={{ position: 'fixed', left: isDrawerOpen ? 0 : '-300px', top: 0, bottom: 0, width: '300px', background: '#121212', zIndex: 100000, transition: '0.3s', display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #222' }}>
             <span style={{ fontSize: '0.8rem', fontWeight: 900 }}>ОБЕРІТЬ КАРТУ</span>
             <X size={20} onClick={() => setIsDrawerOpen(false)} style={{ cursor: 'pointer' }} />

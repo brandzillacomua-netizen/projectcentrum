@@ -171,7 +171,7 @@ const CATEGORIES = [
 ];
 
 const GlobalUserNav = () => {
-  const { currentUser, managementTasks, requests, workCards, purchaseRequests, receptionDocs, nomenclatures, machineCalls, machines } = useMES();
+  const { currentUser, managementTasks, requests, workCards, purchaseRequests, receptionDocs, nomenclatures, machineCalls, machines, tasks, orders, bomItems, workCardHistory, supabase } = useMES();
   const location = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -183,6 +183,71 @@ const GlobalUserNav = () => {
     management_analytics: true,
     tech_settings: true
   });
+
+  const [completedCards, setCompletedCards] = useState([]);
+  const [completedHistory, setCompletedHistory] = useState([]);
+
+  const isManager = useMemo(() => {
+    if (!currentUser) return false;
+    return (
+      currentUser?.access_rights?.director ||
+      currentUser?.access_rights?.master ||
+      currentUser?.access_rights?.foreman ||
+      (currentUser?.position && (
+        currentUser.position.toLowerCase().includes('директор') ||
+        currentUser.position.toLowerCase().includes('нач') ||
+        currentUser.position.toLowerCase().includes('начальник') ||
+        currentUser.position.toLowerCase().includes('майстер')
+      ))
+    );
+  }, [currentUser]);
+
+  const activeTasks = useMemo(() => {
+    return (tasks || []).filter(t => t.status !== 'completed');
+  }, [tasks]);
+
+  useEffect(() => {
+    if (!currentUser || !isManager || activeTasks.length === 0) {
+      setCompletedCards([]);
+      setCompletedHistory([]);
+      return;
+    }
+
+    const taskIds = activeTasks.map(t => t.id);
+
+    supabase
+      .from('work_cards')
+      .select('*')
+      .in('task_id', taskIds)
+      .eq('status', 'completed')
+      .then(async ({ data: cardsData, error: cardsError }) => {
+        if (cardsError) {
+          console.error('Error fetching completed cards for notifications:', cardsError);
+          return;
+        }
+        setCompletedCards(cardsData || []);
+
+        const cardIds = (cardsData || []).map(c => c.id);
+        if (cardIds.length > 0) {
+          const chunkSize = 500;
+          const promises = [];
+          for (let i = 0; i < cardIds.length; i += chunkSize) {
+            const chunk = cardIds.slice(i, i + chunkSize);
+            promises.push(
+              supabase
+                .from('work_card_history')
+                .select('card_id, nomenclature_id, scrap_qty')
+                .in('card_id', chunk)
+            );
+          }
+          const results = await Promise.all(promises);
+          const historyData = results.flatMap(res => res.data || []);
+          setCompletedHistory(historyData);
+        } else {
+          setCompletedHistory([]);
+        }
+      });
+  }, [currentUser, isManager, tasks, workCards, workCardHistory, supabase]);
 
   const handleCloseMenu = () => {
     setMenuOpen(false);
@@ -437,8 +502,118 @@ const GlobalUserNav = () => {
       });
     }
 
+    // 7. Shortage / Dovyпуск notifications for Managers
+    if (isManager && tasks) {
+      const prodCache = {};
+      const sCache = {};
+      const rCache = {};
+
+      const activeTaskIds = new Set(activeTasks.map(t => t.id));
+      const activeCards = workCards.filter(c => activeTaskIds.has(c.task_id));
+      const allCards = [...activeCards, ...completedCards];
+
+      const countAsProduced = (card) => {
+        if (card.status === 'completed' && card.operation === 'Прийомка') return true;
+        if (card.status === 'completed' && !card.operation) return true;
+        if (card.status === 'at-shop2-buffer') return true;
+        return false;
+      };
+
+      allCards.forEach(card => {
+        const tid = card.task_id;
+        const nid = String(card.nomenclature_id);
+        
+        if (!prodCache[tid]) prodCache[tid] = {};
+        if (!sCache[tid]) sCache[tid] = {};
+        if (!rCache[tid]) rCache[tid] = {};
+
+        if (countAsProduced(card)) {
+          prodCache[tid][nid] = (prodCache[tid][nid] || 0) + (Number(card.quantity) || 0);
+        }
+
+        const isRedo = (card.card_info || '').includes('[REDO]');
+        const isActive = !countAsProduced(card);
+        if (isRedo && isActive) {
+          rCache[tid][nid] = true;
+        }
+      });
+
+      const activeCardIds = new Set(activeCards.map(c => c.id));
+      const activeHistory = (workCardHistory || []).filter(h => h.card_id && activeCardIds.has(h.card_id));
+      const allHistory = [...completedHistory, ...activeHistory];
+
+      allHistory.forEach(h => {
+        const card = allCards.find(c => c.id === h.card_id);
+        if (card) {
+          const tid = card.task_id;
+          const nid = String(h.nomenclature_id);
+          if (!sCache[tid]) sCache[tid] = {};
+          sCache[tid][nid] = (sCache[tid][nid] || 0) + (Number(h.scrap_qty) || 0);
+        }
+      });
+
+      activeTasks.forEach(task => {
+        const snapshot = task.plan_snapshot || {};
+        const taskScrap = sCache[task.id] || {};
+        const taskRedo = rCache[task.id] || {};
+        const taskCards = allCards.filter(c => c.task_id === task.id);
+        
+        let hasShortage = false;
+        let shortageDetails = '';
+
+        Object.keys(snapshot).forEach(nomIdStr => {
+          if (hasShortage) return;
+          const nom = nomenclatures.find(n => String(n.id) === String(nomIdStr));
+          if (nom?.type !== 'part') return;
+          const snap = snapshot[nomIdStr];
+          if (!snap) return;
+          
+          const need = snap.need || 0;
+          const stockBZ = snap.stock || 0;
+          const unitsPerSheet = snap.units_per_sheet || 1;
+          
+          const activeCardsForNom = taskCards.filter(c => String(c.nomenclature_id) === String(nomIdStr));
+          if (activeCardsForNom.length === 0) return;
+          
+          const totalSheets = activeCardsForNom.reduce((sum, c) => {
+            if (c.operation === 'Склад БЗ') return sum;
+            return sum + (c.actualSheets ? Number(c.actualSheets) : Math.ceil((Number(c.quantity) || 0) / unitsPerSheet));
+          }, 0);
+          
+          const totalBZ = (totalSheets * unitsPerSheet) + stockBZ - need;
+          const groupScrap = taskScrap[nomIdStr] || 0;
+          const shortage = (totalBZ - groupScrap) < 0 ? Math.abs(totalBZ - groupScrap) : 0;
+          
+          const hasActiveRedoCard = taskRedo[nomIdStr] || false;
+          
+          if (shortage > 0 && !hasActiveRedoCard) {
+            hasShortage = true;
+            shortageDetails = `${nom.name || 'деталь'} (нестача: ${shortage} шт.)`;
+          }
+        });
+
+        if (hasShortage) {
+          const order = orders?.find(o => o.id === task.order_id);
+          const orderNum = order ? order.order_num : '???';
+          const customer = order ? order.customer : '???';
+
+          list.push({
+            id: `shortage-${task.id}`,
+            type: 'shortage',
+            title: `⚠️ Потрібен довипуск: Наряд №${orderNum}`,
+            description: `Нестача по: ${shortageDetails}. Замовник: ${customer}`,
+            createdAt: task.created_at || new Date().toISOString(),
+            path: '/foreman',
+            state: { taskId: task.id },
+            color: '#ef4444',
+            icon: <AlertTriangle size={14} />
+          });
+        }
+      });
+    }
+
     return list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  }, [currentUser, managementTasks, requests, workCards, purchaseRequests, receptionDocs, machineCalls, machines]);
+  }, [currentUser, managementTasks, requests, workCards, purchaseRequests, receptionDocs, machineCalls, machines, isManager, activeTasks, completedCards, completedHistory, tasks, orders, bomItems, workCardHistory]);
 
   const unreadCount = useMemo(() => {
     return notifications.filter(n => !readIds.includes(n.id)).length;
@@ -449,7 +624,7 @@ const GlobalUserNav = () => {
       setReadIds(prev => [...prev, n.id]);
     }
     handleCloseMenu();
-    navigate(n.path);
+    navigate(n.path, n.state ? { state: n.state } : undefined);
   };
 
   const handleMarkAllAsRead = () => {

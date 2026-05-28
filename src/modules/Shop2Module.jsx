@@ -300,22 +300,24 @@ const Shop2Module = () => {
         top: 0,
         zIndex: 100
       }}>
-        <Link to="/" className="back-link" style={{
-          color: '#fff',
-          textDecoration: 'none',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          fontWeight: 700,
-          fontSize: '0.85rem'
-        }}>
-          <ArrowLeft size={18} /> <span className="hide-mobile">На головну</span>
-        </Link>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <Link to="/" className="back-link" style={{
+            color: '#fff',
+            textDecoration: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            fontWeight: 700,
+            fontSize: '0.85rem'
+          }}>
+            <ArrowLeft size={18} /> <span className="hide-mobile">На головну</span>
+          </Link>
           <button onClick={() => setIsDrawerOpen(true)} className="burger-btn-labeled mobile-only">
             <Menu size={20} />
             <span>Черга</span>
           </button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <Monitor size={22} color="#8b5cf6" />
           <h1 style={{ margin: 0, textTransform: 'uppercase', fontSize: '1rem', fontWeight: 900 }}>ЦЕХ №2</h1>
         </div>
@@ -343,7 +345,7 @@ const Shop2Module = () => {
         <div
           className="drawer-backdrop"
           onClick={() => setIsDrawerOpen(false)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, backdropFilter: 'blur(4px)' }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 99999, backdropFilter: 'blur(4px)' }}
         />
       )}
 
@@ -1093,7 +1095,7 @@ const Shop2Module = () => {
         }
         @media (max-width: 768px) {
           .hide-mobile { display: none; }
-          .side-panel { position: fixed; left: 0; top: 0; bottom: 0; z-index: 1001; transform: translateX(-100%); width: 280px !important; }
+          .side-panel { position: fixed; left: 0; top: 0; bottom: 0; z-index: 100000; transform: translateX(-100%); width: 280px !important; }
           .drawer-open { transform: translateX(0); }
         }
         .anim-fade-in { animation: fadeIn 0.4s ease-out; }
