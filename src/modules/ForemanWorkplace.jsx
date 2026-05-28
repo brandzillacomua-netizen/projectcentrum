@@ -3564,7 +3564,7 @@ const MACHINE_TYPES = [
             left: 0; 
             top: 0; 
             bottom: 0; 
-            z-index: 1001; 
+            z-index: 100000; 
             transform: translateX(-100%); 
             width: 280px !important; 
             height: 100% !important;
