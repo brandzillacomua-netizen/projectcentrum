@@ -1063,6 +1063,26 @@ const MasterModule = () => {
             >
               <Menu size={16} />
               <span>Черга</span>
+              {pendingOrders.length > 0 && (
+                <span
+                  style={{
+                    background: '#ef4444',
+                    color: '#fff',
+                    borderRadius: '50%',
+                    minWidth: '18px',
+                    height: '18px',
+                    fontSize: '0.65rem',
+                    fontWeight: 950,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '0 4px',
+                    marginLeft: '2px'
+                  }}
+                >
+                  {pendingOrders.length}
+                </span>
+              )}
             </button>
             <button
               onClick={() => {
