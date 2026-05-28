@@ -1678,11 +1678,11 @@ const MasterModule = () => {
 
           /* COLUMN SIZING (PERCENTAGES TOTAL: 100%) */
           .col-name { width: 32% !important; text-align: left !important; }
-          .col-plan { width: 10% !important; text-align: center !important; white-space: nowrap !important; }
-          .col-material { width: 24% !important; text-align: left !important; }
-          .col-qty-sh { width: 10% !important; text-align: center !important; white-space: nowrap !important; }
-          .col-sheets { width: 12% !important; text-align: center !important; white-space: nowrap !important; }
-          .col-bz { width: 12% !important; text-align: center !important; white-space: nowrap !important; }
+          .col-plan { width: 8% !important; text-align: center !important; white-space: nowrap !important; }
+          .col-material { width: 15% !important; text-align: left !important; }
+          .col-qty-sh { width: 7% !important; text-align: center !important; white-space: nowrap !important; }
+          .col-sheets { width: 10% !important; text-align: center !important; white-space: nowrap !important; }
+          .col-bz { width: 28% !important; text-align: center !important; white-space: nowrap !important; }
 
           .print-thr th {
              padding: 4px 3px !important;
