@@ -1619,7 +1619,7 @@ const MasterModule = () => {
             max-width: 100% !important;
             background: #fff !important; 
             display: block !important;
-            padding: 0 !important;
+            padding: 10mm 15mm !important; /* Extremely safe 15mm side margins inside the container */
             margin: 0 auto !important;
             z-index: 99999 !important;
             overflow: visible !important;
