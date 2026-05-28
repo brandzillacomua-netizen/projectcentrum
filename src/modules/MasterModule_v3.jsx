@@ -1634,6 +1634,7 @@ const MasterModule = () => {
             border: none !important;
             padding: 0 !important;
             margin: 0 !important;
+            display: block !important; /* Disable flex layout in print */
           }
           
           .worksheet-header-area { 
@@ -1641,6 +1642,7 @@ const MasterModule = () => {
             padding: 0 0 10px 0 !important;
             margin-bottom: 15px !important;
             width: 100% !important;
+            display: block !important;
           }
 
           .doc-ti { 
@@ -1653,6 +1655,7 @@ const MasterModule = () => {
             padding: 10px 15px !important;
             margin-bottom: 15px !important;
             width: 100% !important;
+            display: block !important;
           }
 
           .print-prod-info {
@@ -1673,16 +1676,17 @@ const MasterModule = () => {
             border-collapse: collapse !important; 
             width: 100% !important; 
             border: 2px solid #000 !important;
-            table-layout: fixed !important;
+            table-layout: fixed !important; /* Use fixed for guaranteed sizing */
+            margin: 0 auto !important;
           }
 
           /* COLUMN SIZING (PERCENTAGES TOTAL: 100%) */
-          .col-name { width: 32% !important; text-align: left !important; }
-          .col-plan { width: 8% !important; text-align: center !important; white-space: nowrap !important; }
-          .col-material { width: 15% !important; text-align: left !important; }
-          .col-qty-sh { width: 7% !important; text-align: center !important; white-space: nowrap !important; }
+          .col-name { width: 30% !important; text-align: left !important; }
+          .col-plan { width: 10% !important; text-align: center !important; white-space: nowrap !important; }
+          .col-material { width: 25% !important; text-align: left !important; }
+          .col-qty-sh { width: 10% !important; text-align: center !important; white-space: nowrap !important; }
           .col-sheets { width: 10% !important; text-align: center !important; white-space: nowrap !important; }
-          .col-bz { width: 28% !important; text-align: center !important; white-space: nowrap !important; }
+          .col-bz { width: 15% !important; text-align: center !important; white-space: nowrap !important; }
 
           .print-thr th {
              padding: 4px 3px !important;
