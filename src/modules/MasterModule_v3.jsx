@@ -1203,15 +1203,15 @@ const MasterModule = () => {
                 <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                   <thead>
                     <tr style={{ background: '#111', textAlign: 'left', color: '#555' }} className="print-thr">
-                      <th style={{ padding: '12px 15px', width: '22%', borderBottom: '1.5px solid #222' }}>ДЕТАЛЬ В РОЗКРІЙ</th>
-                      <th style={{ padding: '12px 15px', width: '18%', textAlign: 'center', borderBottom: '1.5px solid #222' }}>ВЕРСТАТ</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%' }}>ПОТРЕБА</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%' }}>СКЛАД БЗ</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%', color: '#ff9000' }}>ПЛАН</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '15%' }}>МАТЕРІАЛ</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '7%' }}>ШТ/Л</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '7%', color: '#22c55e' }}>ЛИСТІВ</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '7%', color: '#ff9000' }}>БЗ</th>
+                      <th style={{ padding: '12px 15px', width: '22%', borderBottom: '1.5px solid #222' }} className="col-name">ДЕТАЛЬ В РОЗКРІЙ</th>
+                      <th style={{ padding: '12px 15px', width: '18%', textAlign: 'center', borderBottom: '1.5px solid #222' }} className="no-print">ВЕРСТАТ</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%' }} className="no-print">ПОТРЕБА</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%' }} className="no-print">СКЛАД БЗ</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%', color: '#ff9000' }} className="col-plan">ПЛАН</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '15%' }} className="col-material">МАТЕРІАЛ</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '7%' }} className="col-qty-sh">ШТ/Л</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '7%', color: '#22c55e' }} className="col-sheets">ЛИСТІВ</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '7%', color: '#ff9000' }} className="col-bz">БЗ</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1223,32 +1223,34 @@ const MasterModule = () => {
                       if (activeNaryadOrder.isPrepOrder) {
                         return (
                           <tr key={it.id} style={{ borderBottom: '1px solid #1a1a1a' }} className="print-tr">
-                            <td style={{ padding: '18px 15px' }}>
+                            <td style={{ padding: '18px 15px' }} className="col-name">
                               <div style={{ fontWeight: 1000, color: '#fff', fontSize: '1rem', letterSpacing: '-0.01em' }} className="print-txt">{nom?.name || '—'}</div>
-                              <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 900, marginTop: '3px', textTransform: 'uppercase' }} className="print-subtxt">{nom?.nomenclature_code || 'БЕЗ КОДУ'}</div>
+                              {nom?.nomenclature_code && (
+                                <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 900, marginTop: '3px', textTransform: 'uppercase' }} className="print-subtxt">{nom.nomenclature_code}</div>
+                              )}
                             </td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center', fontSize: '0.85rem', color: '#aaa', fontWeight: 800 }}>
+                            <td style={{ padding: '18px 15px', textAlign: 'center', fontSize: '0.85rem', color: '#aaa', fontWeight: 800 }} className="no-print">
                               PREP-TERM
                             </td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center', fontSize: '1.1rem', color: '#fff', fontWeight: 900 }}>
+                            <td style={{ padding: '18px 15px', textAlign: 'center', fontSize: '1.1rem', color: '#fff', fontWeight: 900 }} className="no-print">
                               {thisNaryadQty.toString()}
                             </td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center', color: '#555', fontSize: '0.85rem' }}>
+                            <td style={{ padding: '18px 15px', textAlign: 'center', color: '#555', fontSize: '0.85rem' }} className="no-print">
                               —
                             </td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center', fontSize: '1.2rem', color: '#ff9000', fontWeight: 1000 }}>
+                            <td style={{ padding: '18px 15px', textAlign: 'center', fontSize: '1.2rem', color: '#ff9000', fontWeight: 1000 }} className="col-plan">
                               {thisNaryadQty.toString()}
                             </td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center' }}>
+                            <td style={{ padding: '18px 15px', textAlign: 'center' }} className="col-material">
                               <div style={{ fontSize: '0.85rem', color: '#aaa', fontWeight: 700 }} className="print-subtxt">{nom?.name || '—'}</div>
                             </td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center', color: '#555', fontSize: '0.9rem' }}>
+                            <td style={{ padding: '18px 15px', textAlign: 'center', color: '#555', fontSize: '0.9rem' }} className="col-qty-sh">
                               1
                             </td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center', fontWeight: 1000, color: '#22c55e', fontSize: '1.4rem' }} className="print-accent-g">
+                            <td style={{ padding: '18px 15px', textAlign: 'center', fontWeight: 1000, color: '#22c55e', fontSize: '1.4rem' }} className="col-sheets print-accent-g">
                               {thisNaryadQty.toString()}
                             </td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center', fontSize: '1rem', color: '#ff9000', fontWeight: 900 }}>
+                            <td style={{ padding: '18px 15px', textAlign: 'center', fontSize: '1rem', color: '#ff9000', fontWeight: 900 }} className="col-bz">
                               0
                             </td>
                           </tr>
@@ -1278,11 +1280,13 @@ const MasterModule = () => {
 
                         return (
                           <tr key={`${it.id}-${pIdx}`} style={{ borderBottom: '1px solid #1a1a1a' }} className="print-tr">
-                            <td style={{ padding: '18px 15px' }}>
+                            <td style={{ padding: '18px 15px' }} className="col-name">
                               <div style={{ fontWeight: 1000, color: '#fff', fontSize: '1rem', letterSpacing: '-0.01em' }} className="print-txt">{part.nom?.name || '—'}</div>
-                              <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 900, marginTop: '3px', textTransform: 'uppercase' }} className="print-subtxt">{part.nom?.nomenclature_code || 'БЕЗ КОДУ'}</div>
+                              {part.nom?.nomenclature_code && (
+                                <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 900, marginTop: '3px', textTransform: 'uppercase' }} className="print-subtxt">{part.nom.nomenclature_code}</div>
+                              )}
                             </td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center' }}>
+                            <td style={{ padding: '18px 15px', textAlign: 'center' }} className="no-print">
                               {totalToProduce > 0 ? (
                                 <>
                                   <div className="no-print">
@@ -1323,25 +1327,25 @@ const MasterModule = () => {
                                 <span style={{ color: '#444', fontSize: '0.85rem' }}>—</span>
                               )}
                             </td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center', fontSize: '1.1rem', color: '#fff', fontWeight: 900 }}>
+                            <td style={{ padding: '18px 15px', textAlign: 'center', fontSize: '1.1rem', color: '#fff', fontWeight: 900 }} className="no-print">
                               {totalNeeded.toString()}
                             </td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center', color: '#555', fontSize: '0.85rem' }}>
+                            <td style={{ padding: '18px 15px', textAlign: 'center', color: '#555', fontSize: '0.85rem' }} className="no-print">
                               {inStock.toString()}
                             </td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center', fontSize: '1.2rem', color: '#ff9000', fontWeight: 1000 }}>
+                            <td style={{ padding: '18px 15px', textAlign: 'center', fontSize: '1.2rem', color: '#ff9000', fontWeight: 1000 }} className="col-plan">
                               {totalToProduce.toString()}
                             </td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center' }}>
+                            <td style={{ padding: '18px 15px', textAlign: 'center' }} className="col-material">
                               <div style={{ fontSize: '0.85rem', color: '#aaa', fontWeight: 700 }} className="print-subtxt">{part.nom?.material_type || '—'}</div>
                             </td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center', color: '#555', fontSize: '0.9rem' }}>
+                            <td style={{ padding: '18px 15px', textAlign: 'center', color: '#555', fontSize: '0.9rem' }} className="col-qty-sh">
                               {unitsPerSheet.toString()}
                             </td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center', fontWeight: 1000, color: '#22c55e', fontSize: '1.4rem' }} className="print-accent-g">
+                            <td style={{ padding: '18px 15px', textAlign: 'center', fontWeight: 1000, color: '#22c55e', fontSize: '1.4rem' }} className="col-sheets print-accent-g">
                               {totalToProduce > 0 ? (sheets || 0).toString() : '0'}
                             </td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center', fontSize: '1rem', color: '#ff9000', fontWeight: 900 }}>
+                            <td style={{ padding: '18px 15px', textAlign: 'center', fontSize: '1rem', color: '#ff9000', fontWeight: 900 }} className="col-bz">
                               {totalToProduce > 0 ? `+${(sheets * unitsPerSheet) - totalToProduce}` : '0'}
                             </td>
                           </tr>
@@ -1388,20 +1392,19 @@ const MasterModule = () => {
 
                       return (
                         <tr>
-                          <td style={{ padding: '12px 15px', fontWeight: 1000, fontSize: '1.1rem', textTransform: 'uppercase', border: '1px solid #000' }} className="print-txt">ЗАГАЛЬНИЙ ПІДСУМОК:</td>
-                          <td style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.2rem', border: '1px solid #000' }} className="print-txt">
-                            {totalNeed.toString()}
-                          </td>
-                          <td style={{ border: '1px solid #000' }}></td>
-                          <td style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.4rem', color: '#ff9000', border: '1px solid #000' }} className="print-txt">
+                          <td style={{ padding: '12px 15px', fontWeight: 1000, fontSize: '1.1rem', textTransform: 'uppercase', border: '1px solid #000' }} className="col-name print-txt">ЗАГАЛЬНИЙ ПІДСУМОК:</td>
+                          <td className="no-print" style={{ border: '1px solid #000' }}></td>
+                          <td className="no-print" style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.2rem', border: '1px solid #000' }}>{totalNeed.toString()}</td>
+                          <td className="no-print" style={{ border: '1px solid #000' }}></td>
+                          <td style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.4rem', color: '#ff9000', border: '1px solid #000' }} className="col-plan print-txt">
                             {totalPlan.toString()}
                           </td>
-                          <td style={{ border: '1px solid #000' }}></td>
-                          <td style={{ border: '1px solid #000' }}></td>
-                          <td style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.6rem', color: '#22c55e', border: '1px solid #000' }} className="print-accent-g">
+                          <td style={{ border: '1px solid #000' }} className="col-material"></td>
+                          <td style={{ border: '1px solid #000' }} className="col-qty-sh"></td>
+                          <td style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.6rem', color: '#22c55e', border: '1px solid #000' }} className="col-sheets print-accent-g">
                             {totalSheets.toString()}
                           </td>
-                          <td style={{ border: '1px solid #000' }}></td>
+                          <td className="col-bz" style={{ border: '1px solid #000' }}></td>
                         </tr>
                       );
                     })()}
@@ -1583,9 +1586,17 @@ const MasterModule = () => {
         @media print {
           @page { 
             size: A4 portrait; 
-            margin: 0 !important; 
+            margin: 8mm !important; /* Safe zone margin for physical printers */
           }
           
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            background: #fff !important;
+            overflow: visible !important;
+          }
+
           /* Force box-sizing and white backgrounds */
           * { 
             visibility: hidden !important; 
@@ -1601,25 +1612,33 @@ const MasterModule = () => {
             visibility: visible !important; 
           }
           
-          /* FIXED WIDTH CONTAINER FOR A4 */
+           /* DYNAMIC CONTAINER FOR A4 */
           .print-target { 
-            position: absolute !important; 
-            top: 0 !important; 
-            left: 0 !important;
-            width: 210mm !important;
-            min-height: 297mm !important;
+            position: relative !important; 
+            width: 100% !important;
+            max-width: 100% !important;
             background: #fff !important; 
             display: block !important;
-            padding: 10mm !important;
+            padding: 0 !important;
+            margin: 0 auto !important;
+            z-index: 99999 !important;
+            overflow: visible !important;
+            box-sizing: border-box !important;
+          }
+            min-height: 100% !important;
+            background: #fff !important; 
+            display: block !important;
+            padding: 3mm !important;
             margin: 0 !important;
             z-index: 99999 !important;
             overflow: visible !important;
+            box-sizing: border-box !important;
           }
           
           .worksheet-panel {
             background: #fff !important;
             width: 100% !important;
-            max-width: 190mm !important; /* Content area */
+            max-width: 100% !important; /* Scale content to fit screen/paper */
             height: auto !important;
             border: none !important;
             padding: 0 !important;
@@ -1658,47 +1677,51 @@ const MasterModule = () => {
             display: block !important;
           }
 
-          /* STRICT TABLE LAYOUT */
+           /* STRICT TABLE LAYOUT */
           .print-table { 
             border-collapse: collapse !important; 
-            width: 190mm !important; 
+            width: 100% !important; 
             border: 2px solid #000 !important;
             table-layout: fixed !important;
           }
 
-          /* COLUMN SIZING (TOTAL: 190mm) */
-          /* Name: 80, Need: 15, Stock: 15, Plan: 15, Material: 30, QTY/SH: 10, Sheets: 10, Surplus: 15 */
-          .print-table th:nth-child(1), .print-table td:nth-child(1) { width: 80mm !important; text-align: left !important; }
-          .print-table th:nth-child(2), .print-table td:nth-child(2) { width: 15mm !important; text-align: center !important; white-space: nowrap !important; }
-          .print-table th:nth-child(3), .print-table td:nth-child(3) { width: 15mm !important; text-align: center !important; white-space: nowrap !important; }
-          .print-table th:nth-child(4), .print-table td:nth-child(4) { width: 15mm !important; text-align: center !important; white-space: nowrap !important; }
-          .print-table th:nth-child(5), .print-table td:nth-child(5) { width: 30mm !important; text-align: left !important; }
-          .print-table th:nth-child(6), .print-table td:nth-child(6) { width: 10mm !important; text-align: center !important; white-space: nowrap !important; }
-          .print-table th:nth-child(7), .print-table td:nth-child(7) { width: 10mm !important; text-align: center !important; white-space: nowrap !important; }
-          .print-table th:nth-child(8), .print-table td:nth-child(8) { width: 15mm !important; text-align: center !important; white-space: nowrap !important; }
+          /* COLUMN SIZING (PERCENTAGES TOTAL: 100%) */
+          .col-name { width: 32% !important; text-align: left !important; }
+          .col-plan { width: 10% !important; text-align: center !important; white-space: nowrap !important; }
+          .col-material { width: 24% !important; text-align: left !important; }
+          .col-qty-sh { width: 10% !important; text-align: center !important; white-space: nowrap !important; }
+          .col-sheets { width: 12% !important; text-align: center !important; white-space: nowrap !important; }
+          .col-bz { width: 12% !important; text-align: center !important; white-space: nowrap !important; }
 
           .print-thr th {
              padding: 4px 3px !important;
-             font-size: 0.65rem !important;
+             font-size: 0.6rem !important;
              border: 1px solid #000 !important;
              background: #eee !important;
              text-transform: uppercase !important;
           }
           .print-tr td {
-            padding: 3px 4px !important;
-            border: 1px solid #000 !important;
-            font-size: 0.75rem !important;
-            vertical-align: middle !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
-            word-break: break-all !important;
+             padding: 3px 4px !important;
+             border: 1px solid #000 !important;
+             font-size: 0.65rem !important;
+             vertical-align: middle !important;
+             overflow: hidden !important;
+             text-overflow: ellipsis !important;
+             word-break: break-all !important;
+          }
+          .col-name, .col-name * {
+             font-size: 0.6rem !important;
+             line-height: 1.1 !important;
+          }
+          .print-tr td * {
+             font-size: 0.65rem !important;
           }
           .print-tf td {
-            font-weight: bold !important;
-            font-size: 1rem !important;
-            padding: 6px 5px !important;
-            border: 2px solid #000 !important;
-            background: #eee !important;
+             font-weight: bold !important;
+             font-size: 0.85rem !important;
+             padding: 6px 5px !important;
+             border: 2px solid #000 !important;
+             background: #eee !important;
           }
           
           .print-txt { font-weight: bold !important; }
@@ -1717,7 +1740,15 @@ const MasterModule = () => {
             margin-bottom: 5px !important;
           }
           
-          .no-print { display: none !important; }
+          .no-print, .no-print * {
+            display: none !important;
+            visibility: hidden !important;
+            width: 0 !important;
+            height: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            border: none !important;
+          }
           ::-webkit-scrollbar { display: none !important; }
         }
       `}} />

@@ -74,7 +74,19 @@ export function useData() {
   const [companyStructure, setCompanyStructure] = useState(fromCache('companyStructure', fallbackStructure))
   const [companyPositions, setCompanyPositions] = useState(fromCache('companyPositions', fallbackPositions))
   
-  const [currentUser, setCurrentUser] = useState(null)
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const cached = localStorage.getItem(USER_CACHE_KEY)
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        const token = localStorage.getItem('BACKEND_TOKEN')
+        return { ...parsed, token }
+      }
+    } catch (e) {
+      console.warn('Failed to parse cached user:', e)
+    }
+    return null
+  })
   // sessionLoading = false immediately if user cache exists (portal shows without any network wait)
   // sessionLoading = true only if login key exists but no cached user object (forces DB verify before showing portal)
   const [sessionLoading, setSessionLoading] = useState(() => {

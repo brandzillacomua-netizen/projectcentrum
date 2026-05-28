@@ -38,8 +38,24 @@ const ForemanWorkplace = () => {
     }
   }
 
-  const [activeTaskId, setActiveTaskId] = useState(location.state?.taskId || null)
-  const [activeView, setActiveView] = useState('worksheet')
+  const [activeTaskId, setActiveTaskId] = useState(() => {
+    return location.state?.taskId || localStorage.getItem('foreman_active_task_id') || null
+  })
+  const [activeView, setActiveView] = useState(() => {
+    return localStorage.getItem('foreman_active_view') || 'worksheet'
+  })
+
+  useEffect(() => {
+    if (activeTaskId) {
+      localStorage.setItem('foreman_active_task_id', activeTaskId)
+    } else {
+      localStorage.removeItem('foreman_active_task_id')
+    }
+  }, [activeTaskId])
+
+  useEffect(() => {
+    localStorage.setItem('foreman_active_view', activeView)
+  }, [activeView])
   const [selectedMachines, setSelectedMachines] = useState({})
   const [editingSplits, setEditingSplits] = useState({}) // { nomId: [{machine, qty}] }
   const saveTimeoutRef = useRef(null)
@@ -288,6 +304,7 @@ const ForemanWorkplace = () => {
     }
   }, [location.state?.taskId])
 
+
   // Підвантажуємо архівні картки та історію при зміні активного наряду
   useEffect(() => {
     if (activeTaskId) {
@@ -521,6 +538,36 @@ const MACHINE_TYPES = [
         return new Date(b.created_at) - new Date(a.created_at)
       })
   }, [tasks, taskReadinessMap, taskShortageMap, taskCardsCountMap])
+
+  // ── Dynamic document title for PDF printouts ──────────────
+  useEffect(() => {
+    const originalTitle = document.title
+    if (printQueue) {
+      const order = orders.find(o => o.id === printQueue.task?.order_id) || allOrdersMap[printQueue.task?.order_id]
+      const nomenclature = nomenclatures.find(n => n.id === (printQueue.part?.nomenclature_id || printQueue.part?.nom?.id))
+      const orderNum = order?.order_num || ''
+      const nomName = nomenclature?.name || ''
+      document.title = `РК №${orderNum} ${nomName}`.trim()
+    } else if (printNaryadQueue) {
+      const { task, order } = printNaryadQueue
+      const orderNum = order?.order_num || ''
+      const customer = order?.customer || ''
+      const displayDate = task.created_at
+        ? new Date(task.created_at).toLocaleDateString('uk-UA')
+        : ''
+      document.title = `НАРЯД №${orderNum} від ${displayDate} ${customer}`.trim()
+    } else if (showReportModal && reportTaskId) {
+      const currentTask = relevantTasks.find(t => t.id === reportTaskId) || tasks.find(t => t.id === reportTaskId)
+      const currentOrder = orders.find(o => o.id === currentTask?.order_id) || allOrdersMap[currentTask?.order_id]
+      const orderNum = currentOrder?.order_num || ''
+      const customer = currentOrder?.customer || ''
+      document.title = `ЗВІТ ПО НАРЯДУ №${orderNum} ${customer}`.trim()
+    }
+
+    return () => {
+      document.title = originalTitle
+    }
+  }, [printQueue, printNaryadQueue, showReportModal, reportTaskId, orders, allOrdersMap, nomenclatures, tasks, relevantTasks])
 
   const handleGenerateFromWorksheet = async (task, part, sheets, selectedMachineName, count, localGeneratedCount = 0, totalToReach = 0, isRepair = false, globalTotalCards = null, globalSeqOffset = 0) => {
     const machineObj = findMachine(selectedMachineName)
@@ -1958,7 +2005,7 @@ const MACHINE_TYPES = [
             }))
 
             return (
-              <div key={i} className="a4-page" style={{ width: '210mm', height: '297mm', background: '#fff', padding: '10mm', margin: '0 auto 40px auto', pageBreakAfter: 'always', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>
+              <div key={i} className="a4-page" style={{ width: '210mm', height: '297mm', background: '#fff', padding: '10mm', margin: '0 auto 40px auto', pageBreakAfter: i === printQueue.metadata.length - 1 ? 'avoid' : 'always', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>
                 <div style={{ height: '100%', display: 'flex', flexDirection: 'column', border: '1.5px solid #000' }}>
                   {[1, 2].map(blockIdx => (
                     <div key={blockIdx} style={{ borderBottom: '1.5px solid #000', marginBottom: blockIdx === 1 ? '20px' : '0' }}>
@@ -3376,8 +3423,13 @@ const MACHINE_TYPES = [
           .a4-page {
             box-shadow: none !important;
             margin: 0 !important;
-            page-break-after: always !important;
+            height: 296mm !important;
+            page-break-after: always;
             page-break-inside: avoid !important;
+          }
+          .a4-page:last-child,
+          .a4-page:last-of-type {
+            page-break-after: avoid !important;
           }
           
           .print-overlay { 

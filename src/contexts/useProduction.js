@@ -563,7 +563,7 @@ export function createProductionActions({
           const totalToProduce = Math.max(0, totalNeeded - inStockQty)
           const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
           let sheets = Math.ceil(totalToProduce / unitsPerSheet)
-          plan_snapshot[part.nom.id] = { id: part.nom.id, name: part.nom.name, code: part.nom.nomenclature_code, need: totalNeeded, stock: inStockQty, plan: totalToProduce, units_per_sheet: unitsPerSheet, sheets: sheets, material: part.nom.material_type, order_item_id: item.id }
+          plan_snapshot[part.nom.id] = { id: part.nom.id, name: part.nom.name, code: part.nom.nomenclature_code, need: totalNeeded, stock: inStockQty, plan: totalToProduce, units_per_sheet: unitsPerSheet, sheets: sheets, material: part.nom.material_type, order_item_id: item.id, selected_machine: machineName }
           if (usedFromStock > 0 && invItem) bzStockDeductions.push({ id: invItem.id, next_qty: (Number(invItem.total_qty) || 0) - usedFromStock })
           if (totalToProduce <= 0) return
           const matKeyBase = (part.nom.material_type || part.nom.name || 'Інше').trim()
@@ -752,6 +752,25 @@ export function createProductionActions({
         })
       }
       if (requestsToInsert.length > 0) await supabase.from('material_requests').insert(requestsToInsert)
+      
+      const consumablesSnapshot = []
+      Object.values(machineSpecificCutters).forEach(item => {
+        consumablesSnapshot.push({ name: item.name, total: item.qty })
+      })
+      if (totalActualSheets > 0) {
+        nomenclatures.filter(n => n.type === 'consumable' && (Number(n.consumption_per_sheet) || 0) > 0 && n.name.trim().toLowerCase() !== 'фреза' && (n.name.toLowerCase().startsWith('лист') || n.name.toLowerCase().includes('фреза'))).forEach(cons => {
+          if (hasMachineSpecificCutters && cons.name.toLowerCase().includes('фреза')) {
+            return
+          }
+          const neededQty = Math.ceil(totalActualSheets * Number(cons.consumption_per_sheet))
+          consumablesSnapshot.push({ name: cons.name.trim(), total: neededQty })
+        })
+      }
+      plan_snapshot.consumables = consumablesSnapshot
+      if (tData) {
+        await supabase.from('tasks').update({ plan_snapshot }).eq('id', tData.id)
+      }
+
       fetchData()
     } catch (err) { console.error('Error creating naryad:', err.message) }
   }
