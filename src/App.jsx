@@ -76,31 +76,40 @@ const FileCodeIcon = () => (
 )
 
 const getAllModules = (badgeCount = 0) => [
+  // 1. Цех 1 (Розкрій та Підготовка)
+  { id: 'prep_terminal', title: 'Підготовка', icon: <Tablet />, path: '/prep-terminal', desc: 'Відділ Підготовки', color: '#10b981' },
+  { id: 'master', title: 'ЦЕХ №1 – Створення нарядів', icon: <Monitor />, path: '/master', desc: 'Управління зміною', color: '#3b82f6' },
+  { id: 'foreman', title: 'ЦЕХ №1 – Створення РК', icon: <Users />, path: '/foreman', desc: 'Розподіл нарядів', color: '#f59e0b' },
+  { id: 'shop1', title: 'Цех №1 · Термінал', icon: <Tablet />, path: '/shop1', desc: 'Розкрій → Галтовка → Прийомка', color: '#eab308' },
+  { id: 'operator', title: 'Термінал', icon: <Tablet />, path: '/operator', desc: 'Робоче місце', color: '#ef4444' },
+
+  // 2. Цех 2
+  { id: 'shop2', title: 'Цех №2', icon: <Monitor />, path: '/shop2', desc: 'Черга нарядів', color: '#8b5cf6' },
+  { id: 'shop2_terminal', title: 'Цех №2 · Термінал', icon: <Tablet />, path: '/shop2-terminal', desc: 'Пресування → Фарбування → Доопрацювання', color: '#8b5cf6' },
+
+  // 3. Склад, Постачання та Логістика
+  { id: 'warehouse', title: 'Склад Оперативний', icon: <Warehouse />, path: '/warehouse', desc: 'Матеріали та залишки', color: '#10b981' },
+  { id: 'supply', title: 'Склад Виробництва', icon: <Warehouse />, path: '/supply', desc: 'Управління запасами та запити', color: '#06b6d4' },
+  { id: 'procurement', title: 'Постачання', icon: <ShoppingBag />, path: '/procurement', desc: 'Закупівля ТМЦ у постачальників', color: '#ec4899' },
+  { id: 'packaging', title: 'Пакування', icon: <Package />, path: '/packaging', desc: 'Комплектування', color: '#f43f5e' },
+  { id: 'shipping', title: 'Логістика', icon: <Truck />, path: '/shipping', desc: 'Відвантаження', color: '#ec4899' },
+
+  // 4. Керування та Аналітика
   { id: 'dashboard', title: 'Дашборд WIP', icon: <LayoutDashboard />, path: '/dashboard', desc: 'Моніторинг незавершеного виробництва', color: '#ff9000' },
   { id: 'manager', title: 'Менеджер', icon: <LayoutDashboard />, path: '/manager', desc: 'Замовлення та планування', color: '#ff9000' },
   { id: 'kanban', title: 'Задачі', icon: <KanbanSquare />, path: '/tasks', desc: 'Внутрішні доручення', color: '#8b5cf6', badge: badgeCount },
-  { id: 'master', title: 'ЦЕХ №1 – Створення нарядів', icon: <Monitor />, path: '/master', desc: 'Управління зміною', color: '#3b82f6' },
-  { id: 'warehouse', title: 'Склад Оперативний', icon: <Warehouse />, path: '/warehouse', desc: 'Матеріали та залишки', color: '#10b981' },
-  { id: 'engineer', title: 'Інженер', icon: <FileCodeIcon />, path: '/engineer', desc: 'CNC та специфікації', color: '#8b5cf6' },
   { id: 'director', title: 'Директор Виробництва', icon: <ShieldCheck size={24} />, path: '/director', desc: 'Фінальне підтвердження', color: '#10b981' },
-  { id: 'foreman', title: 'ЦЕХ №1 – Створення РК', icon: <Users />, path: '/foreman', desc: 'Розподіл нарядів', color: '#f59e0b' },
-  { id: 'operator', title: 'Термінал', icon: <Tablet />, path: '/operator', desc: 'Робоче місце', color: '#ef4444' },
-  { id: 'prep_terminal', title: 'Підготовка', icon: <Tablet />, path: '/prep-terminal', desc: 'Відділ Підготовки', color: '#10b981' },
-  { id: 'shop1', title: 'Цех №1 · Термінал', icon: <Tablet />, path: '/shop1', desc: 'Розкрій → Галтовка → Прийомка', color: '#eab308' },
-  { id: 'shop2', title: 'Цех №2', icon: <Monitor />, path: '/shop2', desc: 'Черга нарядів', color: '#8b5cf6' },
-  { id: 'shop2_terminal', title: 'Цех №2 · Термінал', icon: <Tablet />, path: '/shop2-terminal', desc: 'Пресування → Фарбування → Доопрацювання', color: '#8b5cf6' },
-  { id: 'packaging', title: 'Пакування', icon: <Package />, path: '/packaging', desc: 'Комплектування', color: '#f43f5e' },
-  { id: 'shipping', title: 'Логістика', icon: <Truck />, path: '/shipping', desc: 'Відвантаження', color: '#ec4899' },
-  { id: 'supply', title: 'Склад Виробництва', icon: <Warehouse />, path: '/supply', desc: 'Управління запасами та запити', color: '#06b6d4' },
-  { id: 'procurement', title: 'Постачання', icon: <ShoppingBag />, path: '/procurement', desc: 'Закупівля ТМЦ у постачальників', color: '#ec4899' },
+  { id: 'analytics', title: 'Аналітика', icon: <TrendingUp />, path: '/analytics', desc: 'Статистика та KPI', color: '#8b5cf6' },
+  { id: 'reports', title: 'Звіти (1С)', icon: <BarChart2 />, path: '/reports', desc: 'Зведена аналітика та звіти', color: '#10b981' },
+
+  // 5. Технічні дані та Конфігурація
+  { id: 'engineer', title: 'Інженер', icon: <FileCodeIcon />, path: '/engineer', desc: 'CNC та специфікації', color: '#8b5cf6' },
   { id: 'nomenclature_v2', title: 'Номенклатура', icon: <Menu />, path: '/nomenclature-v2', desc: 'Управління каталогом', color: '#8b5cf6' },
   { id: 'nomenclature', title: 'База', icon: <Settings />, path: '/nomenclature', desc: 'Номенклатура', color: '#6366f1' },
   { id: 'machines', title: 'Станки', icon: <Cpu />, path: '/machines', desc: 'Обладнання', color: '#f97316' },
-  { id: 'analytics', title: 'Аналітика', icon: <TrendingUp />, path: '/analytics', desc: 'Статистика та KPI', color: '#8b5cf6' },
+  { id: 'settings', title: 'Система', icon: <Settings />, path: '/settings', desc: 'Конфігурація', color: '#444' },
   { id: 'access', title: 'Система Доступу', icon: <ShieldCheck />, path: '/access', desc: 'Контроль проходів (Fortnet)', color: '#ff9000' },
-  { id: 'brak', title: 'ВКЯ', icon: <AlertTriangle />, path: '/brak', desc: 'Контроль якості та облік браку', color: '#ef4444' },
-  { id: 'reports', title: 'Звіти (1С)', icon: <BarChart2 />, path: '/reports', desc: 'Зведена аналітика та звіти', color: '#10b981' },
-  { id: 'settings', title: 'Система', icon: <Settings />, path: '/settings', desc: 'Конфігурація', color: '#444' }
+  { id: 'brak', title: 'ВКЯ', icon: <AlertTriangle />, path: '/brak', desc: 'Контроль якості та облік браку', color: '#ef4444' }
 ]
 
 const getAvailableModules = (currentUser, badgeCount) => {
@@ -117,41 +126,48 @@ const getAvailableModules = (currentUser, badgeCount) => {
 }
 
 const CATEGORY_MAP = {
-  dashboard: 'admin_analytics',
-  manager: 'admin_analytics',
-  kanban: 'admin_analytics',
-  director: 'admin_analytics',
-  analytics: 'admin_analytics',
-  reports: 'admin_analytics',
-  machines: 'admin_analytics',
-  access: 'admin_analytics',
-  settings: 'admin_analytics',
+  // Цех 1
+  master: 'shop1',
+  foreman: 'shop1',
+  shop1: 'shop1',
+  prep_terminal: 'shop1',
+  operator: 'shop1',
 
-  master: 'production',
-  shop2: 'production',
-  foreman: 'production',
-  engineer: 'production',
+  // Цех 2
+  shop2: 'shop2',
+  shop2_terminal: 'shop2',
 
-  operator: 'terminals',
-  prep_terminal: 'terminals',
-  shop1: 'terminals',
-  shop2_terminal: 'terminals',
+  // Склад, Постачання та Логістика
+  warehouse: 'warehouse_logistics',
+  supply: 'warehouse_logistics',
+  procurement: 'warehouse_logistics',
+  packaging: 'warehouse_logistics',
+  shipping: 'warehouse_logistics',
 
-  warehouse: 'logistics',
-  supply: 'logistics',
-  procurement: 'logistics',
-  packaging: 'logistics',
-  shipping: 'logistics',
-  nomenclature_v2: 'logistics',
-  nomenclature: 'logistics'
+  // Керування та Аналітика
+  dashboard: 'management_analytics',
+  manager: 'management_analytics',
+  kanban: 'management_analytics',
+  director: 'management_analytics',
+  analytics: 'management_analytics',
+  reports: 'management_analytics',
+
+  // Технічні дані та Конфігурація
+  engineer: 'tech_settings',
+  nomenclature_v2: 'tech_settings',
+  nomenclature: 'tech_settings',
+  machines: 'tech_settings',
+  settings: 'tech_settings',
+  access: 'tech_settings',
+  brak: 'tech_settings'
 };
 
 const CATEGORIES = [
-  { id: 'admin_analytics', title: 'Керування та Аналітика', color: '#ff9000' },
-  { id: 'production', title: 'Виробництво', color: '#3b82f6' },
-  { id: 'terminals', title: 'Термінали дільниць', color: '#ef4444' },
-  { id: 'logistics', title: 'Склад та Логістика', color: '#10b981' },
-  { id: 'other', title: 'Інші розділи', color: '#888' }
+  { id: 'shop1', title: 'Цех №1 (Розкрій та Підготовка)', color: '#ff9000' },
+  { id: 'shop2', title: 'Цех №2 (Пресування та Фарбування)', color: '#8b5cf6' },
+  { id: 'warehouse_logistics', title: 'Склад, Постачання та Логістика', color: '#10b981' },
+  { id: 'management_analytics', title: 'Керування та Аналітика', color: '#3b82f6' },
+  { id: 'tech_settings', title: 'Технічні дані та Конфігурація', color: '#6b7280' }
 ];
 
 const GlobalUserNav = () => {
@@ -161,11 +177,11 @@ const GlobalUserNav = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeSubPanel, setActiveSubPanel] = useState(null); // 'notifications' or null
   const [openCategories, setOpenCategories] = useState({
-    admin_analytics: true,
-    production: true,
-    terminals: true,
-    logistics: true,
-    other: true
+    shop1: true,
+    shop2: true,
+    warehouse_logistics: true,
+    management_analytics: true,
+    tech_settings: true
   });
 
   const handleCloseMenu = () => {
