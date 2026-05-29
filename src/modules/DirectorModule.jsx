@@ -804,7 +804,7 @@ const DirectorModule = () => {
 
         .glass-nav-director {
           display: flex; justify-content: space-between; align-items: center;
-          padding: 0 40px; height: var(--nav-h); min-height: var(--nav-h); background: #050505;
+          padding: 0 40px 0 75px; height: var(--nav-h); min-height: var(--nav-h); background: #050505;
           border-bottom: 1px solid #111;
         }
         .nav-left { display: flex; align-items: center; gap: 40px; }
@@ -1151,10 +1151,82 @@ const DirectorModule = () => {
 
         @media (max-width: 768px) {
           .drawer-content { width: 100%; }
-          .modal-content { width: 90%; }
-          .matrix-container { padding: 15px; }
-          .sticky-col { width: 60px; min-width: 60px; }
-          .day-num { font-size: 0.9rem; }
+          .modal-content { width: 95vw; max-width: 95vw; border-radius: 20px; }
+          .matrix-container { padding: 10px; }
+          .sticky-col-strategic { width: 60px; min-width: 60px; }
+          .day-num-small { font-size: 0.95rem; }
+          
+          /* Navigation Bar optimization */
+          .glass-nav-director {
+            padding: 0 15px 0 75px !important;
+            height: 70px;
+          }
+          .brand-group { gap: 8px; }
+          .brand-group h1 { font-size: 1rem !important; }
+          .brand-group h1 .text-dim { display: none !important; }
+          .brand-group svg { width: 20px; height: 20px; }
+          
+          /* Confirm button in nav always visible & compact */
+          .btn-notifications {
+            min-width: auto !important;
+            padding: 8px 12px !important;
+            border-radius: 10px;
+          }
+          .btn-notifications .btn-label {
+            display: none !important;
+          }
+          
+          /* Strategic Header (Calendar & Meta) */
+          .strategic-header {
+            height: auto;
+            min-height: auto;
+            padding: 12px 15px !important;
+            flex-direction: column;
+            gap: 12px;
+            align-items: stretch;
+            border-bottom: 1px solid #222;
+          }
+          .month-selector-group {
+            justify-content: space-between;
+            width: 100%;
+          }
+          .month-info-badge {
+            padding: 6px 16px;
+            font-size: 0.9rem;
+          }
+          .month-name-compact, .year-val-compact {
+            font-size: 0.9rem;
+          }
+          .header-meta-actions {
+            justify-content: space-between;
+            width: 100%;
+            gap: 10px;
+          }
+          .analysis-summary-mini {
+            font-size: 0.7rem;
+          }
+
+          /* Table details modal stacking */
+          .dossier-main-grid {
+            grid-template-columns: 1fr !important;
+            height: auto;
+          }
+          .order-dossier-dashboard {
+            height: 80vh;
+          }
+          .dossier-left, .dossier-right {
+            padding: 15px !important;
+            overflow-y: visible;
+          }
+          
+          /* Adjust cells spacing */
+          .product-head {
+            width: 200px;
+            min-width: 200px;
+          }
+          .product-name-horizontal {
+            font-size: 0.8rem;
+          }
         }
       `}} />
     </div>

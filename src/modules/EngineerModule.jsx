@@ -325,6 +325,79 @@ const MachineOperationsTab = () => {
           throw new Error('У файлі не знайдено жодної операції.')
         }
 
+        // Try to extract parent product name from filename (e.g. "Product - Part.csv")
+        const fileNameWithoutExt = file.name.substring(0, file.name.lastIndexOf('.')) || file.name
+        const hyphenIndex = fileNameWithoutExt.indexOf(' - ')
+        let parentProductName = null
+        if (hyphenIndex !== -1) {
+          parentProductName = fileNameWithoutExt.substring(0, hyphenIndex).trim()
+        } else {
+          const parts = fileNameWithoutExt.split('-')
+          if (parts.length > 1) {
+            parentProductName = parts[0].trim()
+          }
+        }
+
+        let matchedProduct = null
+        if (parentProductName) {
+          const cleanSearchName = parentProductName.toLowerCase().replace(/[^a-z0-9а-яіїєґ]/g, '')
+          // Try exact match after cleaning
+          matchedProduct = localNomsCopy.find(n => 
+            n.type === 'product' && 
+            n.name.toLowerCase().replace(/[^a-z0-9а-яіїєґ]/g, '') === cleanSearchName
+          )
+
+          // Substring match fallback
+          if (!matchedProduct) {
+            matchedProduct = localNomsCopy.find(n => 
+              n.type === 'product' && 
+              (n.name.toLowerCase().includes(parentProductName.toLowerCase()) || 
+               parentProductName.toLowerCase().includes(n.name.toLowerCase()))
+            )
+          }
+
+          // Token-based score match fallback
+          if (!matchedProduct) {
+            const getTokens = (s) => {
+              if (!s) return []
+              const mapper = {
+                'а': 'a', 'в': 'b', 'с': 'c', 'е': 'e', 'н': 'h', 'h': 'h',
+                'к': 'k', 'м': 'm', 'о': 'o', 'р': 'p', 'т': 't', 'х': 'x',
+                'у': 'y', 'і': 'i', 'ї': 'i', 'и': 'y', 'п': 'p'
+              }
+              return s.toLowerCase()
+                .split(/[\r\n\s_\-\(\),]/)
+                .filter(Boolean)
+                .map(tok => tok.split('').map(c => mapper[c] || c).join(''))
+            }
+            const searchTokens = getTokens(parentProductName)
+            if (searchTokens.length > 0) {
+              let bestNom = null
+              let bestScore = 0
+              for (const n of localNomsCopy) {
+                if (n.type !== 'product') continue
+                const dbTokens = getTokens(n.name)
+                let common = 0
+                const tempDb = [...dbTokens]
+                for (const t of searchTokens) {
+                  const idx = tempDb.indexOf(t)
+                  if (idx !== -1) {
+                    common++
+                    tempDb.splice(idx, 1)
+                  }
+                }
+                if (common > bestScore) {
+                  bestScore = common
+                  bestNom = n
+                }
+              }
+              if (bestNom && (bestScore / searchTokens.length >= 0.6 || bestScore >= 3)) {
+                matchedProduct = bestNom
+              }
+            }
+          }
+        }
+
         for (const block of blocks) {
           let detectedType = resolveMachineType(block.machineName)
           let detectedMachineId = null
@@ -383,12 +456,35 @@ const MachineOperationsTab = () => {
           } else {
             await supabase.from('machine_operations').insert(payload)
           }
+
+          // Link the part to the product in bom_items if matchedProduct was identified
+          if (matchedProduct) {
+            const childId = block.nomenclature.id
+            const parentId = matchedProduct.id
+            const { data: existingBom } = await supabase
+              .from('bom_items')
+              .select('id')
+              .eq('parent_id', parentId)
+              .eq('child_id', childId)
+            
+            if (!existingBom || existingBom.length === 0) {
+              await supabase.from('bom_items').insert({
+                parent_id: parentId,
+                child_id: childId,
+                quantity_per_parent: 1
+              })
+            }
+          }
         }
         successCount++
       } catch (err) {
         failMessages.push(`${file.name}: ${err.message}`)
       }
     }
+    
+    // Refresh tables to update active UI cache
+    await refreshTable('machine_operations')
+    await refreshTable('bom_items')
     
     setUploading(false)
     e.target.value = ''
@@ -539,6 +635,21 @@ const MachineOperationsTab = () => {
                   groupName = singleLetterIdx > 0
                     ? parts.slice(0, singleLetterIdx).join('-')
                     : (parts.length >= 2 ? parts.slice(0, 2).join('-') : name.split(' ')[0])
+                  
+                  // Спроба знайти відповідний готовий виріб за префіксом (наприклад, KH/KR -> KHARAK)
+                  const cleanGroup = groupName.toLowerCase().replace(/[^a-z0-9]/g, '')
+                  const products = nomenclatures.filter(n => n.type === 'product')
+                  const matchedProduct = products.find(p => {
+                    const cleanProdName = p.name.toLowerCase().replace(/[^a-z0-9]/g, '')
+                    const normProd = cleanProdName.replace('kharak', 'kh').replace('kulytsya', 'kl').replace('кулиця', 'kl')
+                    return normProd.includes(cleanGroup) || cleanGroup.includes(normProd) ||
+                           (cleanGroup.startsWith('kh') && normProd.includes(cleanGroup.replace('kh', 'kharak'))) ||
+                           (cleanGroup.startsWith('kr') && normProd.includes(cleanGroup.replace('kr', 'kharak')))
+                  })
+
+                  if (matchedProduct) {
+                    groupName = matchedProduct.name
+                  }
                   
                   if (!acc[groupName]) acc[groupName] = []
                   acc[groupName].push({ op, nom })

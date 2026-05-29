@@ -371,6 +371,9 @@ export function useData() {
       } else if (tableName === 'nomenclatures') {
         const { data } = await supabase.from('nomenclatures').select('*').limit(2000)
         if (data) setNomenclatures(data)
+      } else if (tableName === 'bom_items') {
+        const { data } = await supabase.from('bom_items').select('*').limit(4000)
+        if (data) setBomItems(data)
       }
     } catch (e) { console.error(`Error refreshing ${tableName}:`, e) }
   }
