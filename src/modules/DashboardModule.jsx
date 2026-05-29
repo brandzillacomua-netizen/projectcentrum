@@ -180,8 +180,8 @@ const DashboardModule = () => {
         const matchesSearch = row.name.toLowerCase().includes(searchQuery.toLowerCase()) || row.code.toLowerCase().includes(searchQuery.toLowerCase())
         if (matchesSearch) {
            if (wipOnly) {
-              const hasWip = (qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriyCards + qSortAct + qSortCards + qMalWait + qMal + qMalBuf + qPres + qPresBuf + qDoop + qDoopBuf) > 0
-              if (hasWip) {
+              const hasActiveOrder = !isOther && (demandData.productDemand[parentId] || 0) > 0
+              if (hasActiveOrder) {
                  groups[parentId].rows.push(row)
                  totalsAcc.qCutWait += qCutWait; totalsAcc.qCut += qCut; totalsAcc.qCutBuf += qCutBuf;
                  totalsAcc.qGalt += qGalt; totalsAcc.qGaltBuf += qGaltBuf; totalsAcc.qPriy += qPriyCards;
@@ -415,7 +415,7 @@ const DashboardModule = () => {
                 onChange={e => setWipOnly(e.target.checked)}
                 style={{ width: '18px', height: '18px', accentColor: '#ff9000', cursor: 'pointer' }}
               />
-              <span>Тільки з деталями в роботі (WIP)</span>
+              <span>Тільки ті, на які є замовлення</span>
             </label>
           </div>
 
@@ -483,29 +483,29 @@ const DashboardModule = () => {
           {/* ========================================== */}
           {/*        SPREADSHEET REPLICA (GROUPED)       */}
           {/* ========================================== */}
-          <div style={{ overflowX: 'auto', borderRadius: '16px', border: '1px solid #27272a', background: '#09090b', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', padding: '1px' }}>
+          <div style={{ overflow: 'auto', maxHeight: 'calc(100vh - 280px)', borderRadius: '16px', border: '1px solid #27272a', background: '#09090b', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', padding: '1px' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'inherit', fontSize: '0.8rem', color: '#f4f4f5' }}>
               <thead>
                 <tr style={{ background: '#18181b', color: '#a1a1aa', textAlign: 'center', borderBottom: '2px solid #27272a' }}>
-                  <th style={{ padding: '14px 18px', textAlign: 'left', fontWeight: 'bold', borderRight: '1px solid #27272a', color: '#f4f4f5' }}>Номенклатура</th>
-                  <th style={{ padding: '14px 18px', fontWeight: 'bold', borderRight: '1px solid #27272a', background: 'rgba(255, 144, 0, 0.08)', color: '#ff9000', minWidth: '70px' }}>Сума</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)', color: '#a1a1aa' }}>Очікують Розкрою</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a' }}>Розкрій (Робота)</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)', color: '#a1a1aa' }}>Буфер Розкрою</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a' }}>Галтовка (Робота)</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)', color: '#a1a1aa' }}>Буфер Галтовки</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a' }}>Прийомка (Робота)</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)', color: '#a1a1aa' }}>Сортування (Робота)</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)', color: '#a1a1aa' }}>Буфер Цеху №2</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)', color: '#a1a1aa' }}>Очікують Малярки</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a' }}>Малярка (Робота)</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)', color: '#a1a1aa' }}>Буфер Малярки</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a' }}>Пресування (Робота)</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)', color: '#a1a1aa' }}>Буфер Пресування</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a' }}>Доопрацювання (Робота)</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)', color: '#a1a1aa' }}>Буфер Доопрацювання</th>
-                  <th style={{ padding: '14px 18px', fontWeight: 'bold', borderRight: '1px solid #27272a', background: 'rgba(16, 185, 129, 0.08)', color: '#10b981' }}>Склад (СГП)</th>
-                  <th style={{ padding: '14px 18px', fontWeight: 'bold', background: 'rgba(16, 185, 129, 0.08)', color: '#10b981' }}>Склад БЗ</th>
+                  <th style={{ padding: '14px 18px', textAlign: 'left', fontWeight: 'bold', borderRight: '1px solid #27272a', color: '#f4f4f5', position: 'sticky', top: 0, zIndex: 10, background: '#18181b' }}>Номенклатура</th>
+                  <th style={{ padding: '14px 18px', fontWeight: 'bold', borderRight: '1px solid #27272a', background: '#251b14', color: '#ff9000', minWidth: '70px', position: 'sticky', top: 0, zIndex: 10 }}>Сума</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: '#18181b', color: '#a1a1aa', position: 'sticky', top: 0, zIndex: 10 }}>Очікують Розкрою</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', position: 'sticky', top: 0, zIndex: 10, background: '#18181b' }}>Розкрій (Робота)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: '#18181b', color: '#a1a1aa', position: 'sticky', top: 0, zIndex: 10 }}>Буфер Розкрою</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', position: 'sticky', top: 0, zIndex: 10, background: '#18181b' }}>Галтовка (Робота)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: '#18181b', color: '#a1a1aa', position: 'sticky', top: 0, zIndex: 10 }}>Буфер Галтовки</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', position: 'sticky', top: 0, zIndex: 10, background: '#18181b' }}>Прийомка (Робота)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: '#18181b', color: '#a1a1aa', position: 'sticky', top: 0, zIndex: 10 }}>Сортування (Робота)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: '#18181b', color: '#a1a1aa', position: 'sticky', top: 0, zIndex: 10 }}>Буфер Цеху №2</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: '#18181b', color: '#a1a1aa', position: 'sticky', top: 0, zIndex: 10 }}>Очікують Малярки</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', position: 'sticky', top: 0, zIndex: 10, background: '#18181b' }}>Малярка (Робота)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: '#18181b', color: '#a1a1aa', position: 'sticky', top: 0, zIndex: 10 }}>Буфер Малярки</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', position: 'sticky', top: 0, zIndex: 10, background: '#18181b' }}>Пресування (Робота)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: '#18181b', color: '#a1a1aa', position: 'sticky', top: 0, zIndex: 10 }}>Буфер Пресування</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', position: 'sticky', top: 0, zIndex: 10, background: '#18181b' }}>Доопрацювання (Робота)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: '#18181b', color: '#a1a1aa', position: 'sticky', top: 0, zIndex: 10 }}>Буфер Доопрацювання</th>
+                  <th style={{ padding: '14px 18px', fontWeight: 'bold', borderRight: '1px solid #27272a', background: '#12251e', color: '#10b981', position: 'sticky', top: 0, zIndex: 10 }}>Склад (СГП)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: 'bold', background: '#12251e', color: '#10b981', position: 'sticky', top: 0, zIndex: 10 }}>Склад БЗ</th>
                 </tr>
               </thead>
               <tbody>
