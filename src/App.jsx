@@ -873,7 +873,7 @@ const GlobalUserNav = () => {
                   CRM <span style={{ color: '#ff9000' }}>КУЛИЦЯ</span>
                 </span>
                 <span style={{ fontSize: '0.55rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', marginTop: '1px' }}>
-                  MES SYSTEM v2.0
+                  MES SYSTEM v1.0
                 </span>
               </div>
             </div>

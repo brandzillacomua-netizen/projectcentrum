@@ -285,7 +285,7 @@ const ShippingModule = () => {
                 <div className="doc-meta-grid">
                    <div className="meta-box">
                       <label>ВІДПРАВНИК</label>
-                      <div className="val">REBRAND STUDIO / CENTRUM</div>
+                      <div className="val">REBRAND STUDIO / КУЛИЦЯ</div>
                    </div>
                    <div className="meta-box">
                       <label>ОТРИМУВАЧ</label>

@@ -540,7 +540,7 @@ export function createProductionActions({
     return { total: totalQty, planned, produced, packaged, isFullyPackaged: packaged >= totalQty && totalQty > 0, isFullyPlanned: planned >= totalQty && totalQty > 0, status }
   }
 
-  const createNaryad = async (orderId, machineName, customQuantities = null, customDeadline = null) => {
+  const createNaryad = async (orderId, machineName, customQuantities = null, customDeadline = null, customRowMachines = null) => {
     try {
       const order = orders.find(o => o.id === orderId)
       if (!order) return
@@ -563,7 +563,8 @@ export function createProductionActions({
           const totalToProduce = Math.max(0, totalNeeded - inStockQty)
           const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
           let sheets = Math.ceil(totalToProduce / unitsPerSheet)
-          plan_snapshot[part.nom.id] = { id: part.nom.id, name: part.nom.name, code: part.nom.nomenclature_code, need: totalNeeded, stock: inStockQty, plan: totalToProduce, units_per_sheet: unitsPerSheet, sheets: sheets, material: part.nom.material_type, order_item_id: item.id, selected_machine: machineName }
+          const selectedMachine = (customRowMachines && customRowMachines[part.nom.id]) || machineName;
+          plan_snapshot[part.nom.id] = { id: part.nom.id, name: part.nom.name, code: part.nom.nomenclature_code, need: totalNeeded, stock: inStockQty, plan: totalToProduce, units_per_sheet: unitsPerSheet, sheets: sheets, material: part.nom.material_type, order_item_id: item.id, selected_machine: selectedMachine }
           if (usedFromStock > 0 && invItem) bzStockDeductions.push({ id: invItem.id, next_qty: (Number(invItem.total_qty) || 0) - usedFromStock })
           if (totalToProduce <= 0) return
           const matKeyBase = (part.nom.material_type || part.nom.name || 'Інше').trim()

@@ -339,7 +339,7 @@ export const requestBuilder = {
   buildExternalUserPayload: (userData) => {
     return {
       full_name: `${userData.first_name || ''} ${userData.last_name || ''}`.trim() || userData.login,
-      email: userData.login.includes('@') ? userData.login : `${userData.login}@centrum.com`,
+      email: userData.login.includes('@') ? userData.login : `${userData.login}@kulytsya.com`,
       password: userData.password,
       department: userData.position || 'Виробництво'
     };

@@ -399,12 +399,13 @@ const MasterModule = () => {
       setIsSubmitting(true)
       document.title = `НАРЯД № ${activeNaryadOrder.order_num} ${dateStr} ВИРОБНИЦТВО`;
       try {
-        window.print()
         if (isReprintMode) {
+          window.print()
           setReprintTask(null)
           setActiveNaryadOrder(null)
         } else {
           await apiService.submitCreateTask(activeNaryadOrder.id, 'PREP-TERM', (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline))
+          window.print()
           setActiveNaryadOrder(null)
         }
       } catch (err) {
@@ -419,36 +420,15 @@ const MasterModule = () => {
 
     document.title = `НАРЯД № ${activeNaryadOrder.order_num}${batchSuffix} ${dateStr} ${customerStr}`;
 
-    // Group items by machine type
-    const machineGroups = {}
-    if (!isReprintMode) {
-      activeNaryadOrder.order_items?.forEach(item => {
-        const currentQty = naryadQtys[item.id] || 0
-        if (currentQty <= 0) return
+    const uniqueMachines = Array.from(new Set(
+      Object.values(rowMachines).filter(Boolean)
+    ))
 
-        const parts = getBOMParts(item.nomenclature_id)
-        const displayParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }]
-
-        displayParts.forEach(part => {
-          if (!part.nom || part.nom.type === 'hardware' || part.nom.type === 'fastener') return
-
-          const machineType = rowMachines[part.nom.id]
-          if (machineType) {
-            if (!machineGroups[machineType]) {
-              machineGroups[machineType] = {}
-            }
-            machineGroups[machineType][item.id] = currentQty
-          }
-        })
-      })
-    }
-
-    const groupTypes = Object.keys(machineGroups)
-
-    if (!isReprintMode && groupTypes.length === 0) {
+    if (!isReprintMode && uniqueMachines.length === 0) {
       alert("Будь ласка, оберіть верстат для деталей.")
       return
     }
+    const taskMachineName = uniqueMachines.length === 1 ? uniqueMachines[0] : (uniqueMachines.length > 1 ? "Різні верстати" : "Не вказано")
 
     if (!isReprintMode) {
       let missingPrepQuantities = {}
@@ -508,17 +488,12 @@ const MasterModule = () => {
           // 1. Auto-create prep order first
           await autoCreatePrepOrder(missingPrepQuantities, naryadDeadline || activeNaryadOrder.deadline);
 
-          // 2. Trigger print dialog
+          // 2. Create task
+          await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines));
+
+          // 3. Trigger print dialog
           window.print();
 
-          // 3. Create tasks per machine group
-          for (const mType of groupTypes) {
-            const groupQtys = {}
-            activeNaryadOrder.order_items?.forEach(item => {
-              groupQtys[item.id] = machineGroups[mType][item.id] || 0
-            })
-            await apiService.submitCreateTask(activeNaryadOrder.id, mType, (oid, m) => createNaryad(oid, m, groupQtys, naryadDeadline));
-          }
           setActiveNaryadOrder(null);
         } catch (err) {
           console.error("Naryad creation error:", err);
@@ -533,21 +508,13 @@ const MasterModule = () => {
 
     setIsSubmitting(true)
     try {
-      // Trigger print dialog immediately
-      window.print()
-
       if (isReprintMode) {
+        window.print()
         setReprintTask(null)
         setActiveNaryadOrder(null)
       } else {
-        // Create tasks per machine group
-        for (const mType of groupTypes) {
-          const groupQtys = {}
-          activeNaryadOrder.order_items?.forEach(item => {
-            groupQtys[item.id] = machineGroups[mType][item.id] || 0
-          })
-          await apiService.submitCreateTask(activeNaryadOrder.id, mType, (oid, m) => createNaryad(oid, m, groupQtys, naryadDeadline))
-        }
+        await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines))
+        window.print()
         setActiveNaryadOrder(null)
       }
     } catch (err) {
@@ -585,7 +552,8 @@ const MasterModule = () => {
     if (task.step !== 'Підготовка') {
       Object.keys(task.plan_snapshot || {}).forEach(partId => {
         if (!partId.startsWith('_') && partId !== 'materialSummary') {
-          initialRowMachines[partId] = resolvedType || task.machine_name
+          const snapshotPart = task.plan_snapshot[partId]
+          initialRowMachines[partId] = snapshotPart?.selected_machine || resolvedType || task.machine_name
         }
       })
     }
