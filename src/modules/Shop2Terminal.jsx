@@ -484,7 +484,7 @@ const Shop2Terminal = () => {
               <label style={{ color: '#ef4444', fontWeight: 900, display: 'block', marginBottom: '15px', fontSize: '0.75rem' }}>КІЛЬКІСТЬ БРАКОВАНИХ ДЕТАЛЕЙ</label>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px' }}>
                 <button onClick={() => setScrapCounts(p => ({ ...p, [nom?.id]: Math.max(0, currentScrap - 1) }))} style={{ width: '60px', height: '60px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', borderRadius: '15px', fontSize: '1.5rem' }}>-</button>
-                <input type="number" value={currentScrap} onChange={e => setScrapCounts(p => ({ ...p, [nom?.id]: parseInt(e.target.value) || 0 }))} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '3.5rem', width: '120px', textAlign: 'center', fontWeight: 900 }} />
+                <input type="number" value={currentScrap === 0 ? '' : currentScrap} placeholder="0" onChange={e => { const val = e.target.value; setScrapCounts(p => ({ ...p, [nom?.id]: val === '' ? 0 : (parseInt(val) || 0) })) }} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '3.5rem', width: '120px', textAlign: 'center', fontWeight: 900 }} />
                 <button onClick={() => setScrapCounts(p => ({ ...p, [nom?.id]: currentScrap + 1 }))} style={{ width: '60px', height: '60px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', borderRadius: '15px', fontSize: '1.5rem' }}>+</button>
               </div>
             </div>

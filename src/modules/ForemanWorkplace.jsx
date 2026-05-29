@@ -360,7 +360,7 @@ const MACHINE_TYPES = [
     if (baseNameLower.includes('12x8') || baseNameLower.includes('1200x800') || baseNameLower.includes('малий')) {
       return { sheet_capacity: 4, name: 'CNC 1200x800 - 4 листи (Малий)' }
     }
-    if (baseNameLower.includes('16x16') || baseNameLower.includes('3050(16)') || baseNameLower.includes('швидкісний')) {
+    if (baseNameLower.includes('16x16') || baseNameLower.includes('3050(16)') || baseNameLower.includes('швидкісний') || baseNameLower.includes('3050x1600') || baseNameLower.includes('3050х1600') || baseNameLower.includes('3050')) {
       return { sheet_capacity: 12, name: 'CNC 3050(16)х16 - 3-12 листів (швидкісний)' }
     }
     if (baseNameLower.includes('30x16') || baseNameLower.includes('3060x1600') || baseNameLower.includes('3060х1600') || baseNameLower.includes('три головий') || baseNameLower.includes('триголовий')) {

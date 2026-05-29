@@ -8,7 +8,7 @@ import { useMES } from '../MESContext'
 import { supabase } from '../supabase'
 
 const PreparationTerminal = () => {
-  const { tasks, setTasks, nomenclatures, operators, getFilteredOperators, fetchData } = useMES()
+  const { tasks, setTasks, nomenclatures, operators, getFilteredOperators, fetchData, requests, inventory, orders } = useMES()
 
   const [selectedSubTaskId, setSelectedSubTaskId] = useState(null)
   const [selectedShift, setSelectedShift] = useState('')
@@ -21,6 +21,7 @@ const PreparationTerminal = () => {
   const [showCompleteModal, setShowCompleteModal] = useState(false)
   const [completeQty, setCompleteQty] = useState(0)
   const [scrapQty, setScrapQty] = useState(0)
+  const [scrapReason, setScrapReason] = useState('')
 
   // Clear operator when task selection changes
   useEffect(() => {
@@ -146,6 +147,7 @@ const PreparationTerminal = () => {
     if (!currentSubTask) return
     setCompleteQty(currentSubTask.plan)
     setScrapQty(0)
+    setScrapReason('')
     setShowCompleteModal(true)
   }
 
@@ -160,20 +162,39 @@ const PreparationTerminal = () => {
       const material = nomenclatures.find(n => String(n.id) === String(nomId))
       if (!material) throw new Error('Не знайдено номенклатуру матеріалу!')
 
-      const { data: latestTask, error: fetchErr } = await supabase
-        .from('tasks')
-        .select('plan_snapshot')
-        .eq('id', parentTask.id)
-        .single()
-      if (fetchErr) throw fetchErr
+      if (scrapQty > 0 && !scrapReason.trim()) {
+        throw new Error('Будь ласка, вкажіть причину браку!')
+      }
 
-      const updatedSnapshot = { ...(latestTask.plan_snapshot || {}) }
-      updatedSnapshot[nomId] = {
-        ...(updatedSnapshot[nomId] || {}),
-        status: 'completed',
-        completed_at: new Date().toISOString(),
-        actual_complete: completeQty,
-        actual_scrap: scrapQty
+      const updatedSnapshot = { ...(parentTask.plan_snapshot || {}) }
+      const currentItem = updatedSnapshot[nomId] || {}
+
+      if (scrapQty > 0) {
+        // If there is scrap, accumulate and reset the item for the scrap count
+        updatedSnapshot[nomId] = {
+          ...currentItem,
+          status: 'new',
+          plan: Number(scrapQty),
+          operator: '',
+          started_at: null,
+          total_good: (Number(currentItem.total_good) || 0) + Number(completeQty),
+          total_scrap: (Number(currentItem.total_scrap) || 0) + Number(scrapQty),
+          scrap_reason: scrapReason.trim(),
+          actual_complete: completeQty,
+          actual_scrap: scrapQty
+        }
+      } else {
+        // Fully completed
+        updatedSnapshot[nomId] = {
+          ...currentItem,
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+          total_good: (Number(currentItem.total_good) || 0) + Number(completeQty),
+          total_scrap: (Number(currentItem.total_scrap) || 0) + Number(scrapQty),
+          actual_complete: completeQty,
+          actual_scrap: scrapQty,
+          scrap_reason: ''
+        }
       }
 
       const allSubTasksCompleted = Object.entries(updatedSnapshot)
@@ -182,11 +203,11 @@ const PreparationTerminal = () => {
 
       const totalProduced = Object.entries(updatedSnapshot)
         .filter(([key]) => !key.startsWith('_'))
-        .reduce((sum, [_, item]) => sum + (Number(item.actual_complete) || 0), 0)
+        .reduce((sum, [_, item]) => sum + (Number(item.total_good) || Number(item.actual_complete) || 0), 0)
 
       const totalScrap = Object.entries(updatedSnapshot)
         .filter(([key]) => !key.startsWith('_'))
-        .reduce((sum, [_, item]) => sum + (Number(item.actual_scrap) || 0), 0)
+        .reduce((sum, [_, item]) => sum + (Number(item.total_scrap) || Number(item.actual_scrap) || 0), 0)
 
       const writeOps = []
 
@@ -195,24 +216,22 @@ const PreparationTerminal = () => {
         completed_at: allSubTasksCompleted ? new Date().toISOString() : null,
         good_qty: totalProduced,
         scrap_qty: totalScrap,
-        plan_snapshot: updatedSnapshot
+        plan_snapshot: updatedSnapshot,
+        warehouse_conf: scrapQty > 0 ? false : parentTask.warehouse_conf
       }).eq('id', parentTask.id))
 
-      const { data: reqs } = await supabase
-        .from('material_requests')
-        .select('*')
-        .eq('task_id', parentTask.id)
-        .eq('nomenclature_id', nomId)
-        .eq('status', 'issued')
+      // Get requests locally from real-time state
+      const reqs = (requests || []).filter(r => 
+        String(r.task_id) === String(parentTask.id) &&
+        String(r.nomenclature_id) === String(nomId) &&
+        r.status === 'issued'
+      )
 
       if (reqs && reqs.length > 0) {
         const inventoryIds = reqs.map(r => r.inventory_id).filter(Boolean)
         if (inventoryIds.length > 0) {
-          const { data: invItems, error: invFetchErr } = await supabase
-            .from('inventory')
-            .select('*')
-            .in('id', inventoryIds)
-          if (!invFetchErr && invItems) {
+          const invItems = (inventory || []).filter(i => inventoryIds.includes(i.id))
+          if (invItems.length > 0) {
             const deductionMap = {}
             for (const req of reqs) {
               if (req.inventory_id) {
@@ -255,6 +274,22 @@ const PreparationTerminal = () => {
         }]))
       }
 
+      if (scrapQty > 0) {
+        const order = (orders || []).find(o => String(o.id) === String(parentTask.order_id))
+        const orderNum = order?.order_num || '???'
+        
+        const detailsText = `СВ: ${material.name} — ${scrapQty} л. (Дозабезпечення браку наряд #${orderNum}${parentTask.batch_index ? `/${parentTask.batch_index}` : ''})`
+        
+        writeOps.push(supabase.from('material_requests').insert({
+          task_id: parentTask.id,
+          order_id: parentTask.order_id,
+          nomenclature_id: nomId,
+          quantity: scrapQty,
+          status: 'pending',
+          details: detailsText
+        }))
+      }
+
       const results = await Promise.all(writeOps)
       for (const r of results) {
         if (r.error) throw r.error
@@ -266,7 +301,8 @@ const PreparationTerminal = () => {
         completed_at: allSubTasksCompleted ? new Date().toISOString() : null,
         good_qty: totalProduced,
         scrap_qty: totalScrap,
-        plan_snapshot: updatedSnapshot
+        plan_snapshot: updatedSnapshot,
+        warehouse_conf: scrapQty > 0 ? false : parentTask.warehouse_conf
       } : t))
 
       setShowCompleteModal(false)
@@ -610,30 +646,60 @@ const PreparationTerminal = () => {
 
             <div style={{ marginBottom: '25px' }}>
               <label style={{ display: 'block', fontSize: '0.8rem', color: '#888', fontWeight: 900, marginBottom: '10px' }}>ГОТОВИХ ЛИСТІВ (ШТ)</label>
-              <input
-                type="number"
-                value={completeQty}
-                onChange={e => setCompleteQty(Number(e.target.value))}
-                style={{ width: '100%', background: '#111', border: '2px solid #10b981', color: '#fff', padding: '20px', borderRadius: '16px', fontSize: '2rem', fontWeight: 950, textAlign: 'center', boxSizing: 'border-box' }}
-              />
+              <div style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '20px', borderRadius: '16px', fontSize: '2rem', fontWeight: 950, textAlign: 'center', boxSizing: 'border-box' }}>
+                {completeQty}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '8px', textAlign: 'center' }}>
+                Вираховується як: План ({currentSubTask.plan} шт) - Брак ({scrapQty} шт)
+              </div>
             </div>
 
-            <div style={{ marginBottom: '30px' }}>
+            <div style={{ marginBottom: '25px' }}>
               <label style={{ display: 'block', fontSize: '0.8rem', color: '#ef4444', fontWeight: 900, marginBottom: '10px' }}>БРАК (ШТ)</label>
               <input
                 type="number"
-                value={scrapQty}
-                onChange={e => setScrapQty(Number(e.target.value))}
+                min="0"
+                max={currentSubTask.plan}
+                value={scrapQty === 0 ? '' : scrapQty}
+                placeholder="0"
+                onChange={e => {
+                  const val = e.target.value
+                  const parsed = val === '' ? 0 : Number(val)
+                  const num = Math.max(0, Math.min(currentSubTask.plan, isNaN(parsed) ? 0 : parsed))
+                  setScrapQty(num)
+                  setCompleteQty(currentSubTask.plan - num)
+                }}
                 style={{ width: '100%', background: '#111', border: '1px solid #ef4444', color: '#ef4444', padding: '20px', borderRadius: '16px', fontSize: '2rem', fontWeight: 950, textAlign: 'center', boxSizing: 'border-box' }}
               />
             </div>
 
+            {scrapQty > 0 && (
+              <div style={{ marginBottom: '30px' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', color: '#ff9000', fontWeight: 900, marginBottom: '10px' }}>ПРИЧИНА БРАКУ (ОБОВ'ЯЗКОВО)</label>
+                <input
+                  type="text"
+                  value={scrapReason}
+                  onChange={e => setScrapReason(e.target.value)}
+                  placeholder="Вкажіть причину браку..."
+                  style={{ width: '100%', background: '#111', border: '1px solid #ff9000', color: '#fff', padding: '15px', borderRadius: '16px', fontSize: '1rem', boxSizing: 'border-box' }}
+                  required
+                />
+              </div>
+            )}
+
             <button
-              disabled={isProcessing}
+              disabled={isProcessing || (scrapQty > 0 && !scrapReason.trim())}
               onClick={submitCompletion}
-              style={{ width: '100%', padding: '20px', background: '#10b981', color: '#000', border: 'none', borderRadius: '16px', fontSize: '1.1rem', fontWeight: 950, cursor: isProcessing ? 'not-allowed' : 'pointer', opacity: isProcessing ? 0.7 : 1 }}
+              style={{
+                width: '100%', padding: '20px',
+                background: scrapQty > 0 ? '#ff9000' : '#10b981',
+                color: '#000', border: 'none', borderRadius: '16px',
+                fontSize: '1.1rem', fontWeight: 950,
+                cursor: (isProcessing || (scrapQty > 0 && !scrapReason.trim())) ? 'not-allowed' : 'pointer',
+                opacity: (isProcessing || (scrapQty > 0 && !scrapReason.trim())) ? 0.7 : 1
+              }}
             >
-              {isProcessing ? 'ОБРОБКА...' : 'ПІДТВЕРДИТИ ТА ОПРИБУТКУВАТИ'}
+              {isProcessing ? 'ОБРОБКА...' : (scrapQty > 0 ? 'ПІДТВЕРДИТИ І ЗАПРОСИТИ НА СВ' : 'ПІДТВЕРДИТИ ТА ОПРИБУТКУВАТИ')}
             </button>
           </div>
         </div>

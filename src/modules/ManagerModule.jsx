@@ -21,7 +21,7 @@ import { nomenclatureService } from '../services/nomenclatureService'
 import { supabase } from '../supabase'
 
 const ManagerModule = () => {
-  const { nomenclatures, addOrder, orders, fetchOrders, hasMoreOrders, searchCustomers, currentUser, loading, getOrderProductionProgress } = useMES()
+  const { nomenclatures, addOrder, orders, fetchOrders, hasMoreOrders, searchCustomers, currentUser, loading, getOrderProductionProgress, refreshTable } = useMES()
   const [localCustomers, setLocalCustomers] = useState([])
   const searchTimeout = useRef(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -128,7 +128,7 @@ const ManagerModule = () => {
     return map[s] || s?.toUpperCase()
   }
 
-  const handleCustomerChange = (val) => {
+  const handleCustomerChange = async (val) => {
     setOrderHeader(prev => ({ ...prev, customer: val }))
     
     if (searchTimeout.current) {
@@ -138,15 +138,10 @@ const ManagerModule = () => {
     if (val.length > 1) {
       setShowCustomerHints(true)
       searchTimeout.current = setTimeout(async () => {
-        const { data } = await supabase
-          .from('customers')
-          .select('*')
-          .ilike('name', `%${val}%`)
-          .limit(5)
-        
+        const results = await searchCustomers(val)
         setOrderHeader(currentHeader => {
-          if (currentHeader.customer === val && data) {
-            setLocalCustomers(data)
+          if (currentHeader.customer === val && results) {
+            setLocalCustomers(results)
           }
           return currentHeader
         })
@@ -176,6 +171,9 @@ const ManagerModule = () => {
       
       const items = [{ nomenclature_id: orderHeader.nomenclature_id, quantity: orderHeader.quantity }]
       await apiService.submitOrder(headerWithInfo, items, addOrder, currentUser?.token)
+      
+      // Refresh customers list so the newly saved customer appears in dropdown
+      refreshTable('customers')
       
       setOrderHeader({ 
         ...orderHeader,

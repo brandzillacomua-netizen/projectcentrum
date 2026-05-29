@@ -407,7 +407,7 @@ const OperatorTerminal = () => {
                 <label style={{ color: '#ef4444', fontWeight: 900, display: 'block', marginBottom: '15px' }}>КІЛЬКІСТЬ БРАКУ</label>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px' }}>
                   <button onClick={() => setScrapCounts(p => ({ ...p, [getNomFromCard(currentCard)?.id]: Math.max(0, (p[getNomFromCard(currentCard)?.id] || 0) - 1) }))} style={{ width: '50px', height: '50px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', borderRadius: '12px' }}>-</button>
-                  <input type="number" value={scrapCounts[getNomFromCard(currentCard)?.id] || 0} onChange={e => setScrapCounts({ [getNomFromCard(currentCard)?.id]: parseInt(e.target.value) || 0 })} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '3rem', width: '100px', textAlign: 'center' }} />
+                  <input type="number" value={scrapCounts[getNomFromCard(currentCard)?.id] === 0 ? '' : (scrapCounts[getNomFromCard(currentCard)?.id] || '')} placeholder="0" onChange={e => { const val = e.target.value; setScrapCounts({ [getNomFromCard(currentCard)?.id]: val === '' ? 0 : (parseInt(val) || 0) }) }} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '3rem', width: '100px', textAlign: 'center' }} />
                   <button onClick={() => setScrapCounts(p => ({ ...p, [getNomFromCard(currentCard)?.id]: (p[getNomFromCard(currentCard)?.id] || 0) + 1 }))} style={{ width: '50px', height: '50px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', borderRadius: '12px' }}>+</button>
                 </div>
               </div>

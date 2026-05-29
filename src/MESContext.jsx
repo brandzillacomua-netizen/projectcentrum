@@ -37,9 +37,12 @@ export const MESProvider = ({ children }) => {
 
   // ── CUSTOMERS ──
   const searchCustomers = async (query) => {
-    if (!query) return
-    const { data: cData } = await supabase.from('customers').select('*').ilike('name', `%${query}%`).limit(5)
-    if (cData) data.setCustomers(cData)
+    if (!query) return []
+    const { data: cData } = await supabase.from('customers').select('*').ilike('name', `%${query}%`).limit(20)
+    // IMPORTANT: do NOT call setCustomers here — that would replace the full
+    // cached list with just 5 search hits, breaking every other dropdown.
+    // Instead return the results for the caller to use locally.
+    return cData || []
   }
 
   // ── WAREHOUSE ──

@@ -534,7 +534,7 @@ const MasterModule = () => {
         resolvedType = physicalMac.type
       } else {
         const normName = task.machine_name.toLowerCase()
-        if (normName.includes('3050(16)x1600') || normName.includes('3050(16)х1600') || normName.includes('3050(16)') || normName.includes('16x16') || normName.includes('16х16')) {
+        if (normName.includes('3050(16)x1600') || normName.includes('3050(16)х1600') || normName.includes('3050(16)') || normName.includes('16x16') || normName.includes('16х16') || normName.includes('3050x1600') || normName.includes('3050х1600') || normName.includes('3050')) {
           resolvedType = 'CNC 3050(16)х16 - 3-12 листів (швидкісний)'
         } else if (normName.includes('дракон') || normName.includes('60x20') || normName.includes('6000x2000') || normName.includes('6000х2000')) {
           resolvedType = 'CNC 6000x2000 - 4 - 96 листів (Дракон)'

@@ -252,8 +252,16 @@ const NomenclatureModule = () => {
             units_per_sheet: comp.unitsPerSheet || 0
           }
           
-          // Шукаємо за повною назвою
-          const existing = nomenclatures.find(n => n.name === fullName)
+          // Шукаємо за повною назвою з урахуванням однакових на вигляд літер (латиниця/кирилиця)
+          const normalizeHomoglyphs = (str) => {
+            if (!str) return ''
+            const mapper = {
+              'а': 'a', 'в': 'b', 'с': 'c', 'е': 'e', 'н': 'h', 'к': 'k', 'м': 'm', 'о': 'o', 'р': 'p', 'т': 't', 'х': 'x', 'у': 'y', 'і': 'i', 'ї': 'i'
+            }
+            return str.toLowerCase().trim().split('').map(c => mapper[c] || c).join('').replace(/[^a-z0-9]/g, '')
+          }
+          const normalizedFullName = normalizeHomoglyphs(fullName)
+          const existing = nomenclatures.find(n => normalizeHomoglyphs(n.name) === normalizedFullName)
           if (existing) payload.id = existing.id
           
           const { data: upserted, error } = await supabase.from('nomenclatures').upsert([payload]).select()

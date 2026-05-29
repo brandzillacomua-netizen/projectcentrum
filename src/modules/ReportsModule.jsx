@@ -14,7 +14,8 @@ import {
   PackageCheck,
   Search,
   X,
-  Truck
+  Truck,
+  Scissors
 } from 'lucide-react'
 import { useMES } from '../MESContext'
 
@@ -390,31 +391,36 @@ const ReportsModule = () => {
           supplied: 0,
           used: 0,
           scrap: 0,
-          actual: 0,
-          reserved: 0
+          actual_sv: 0,
+          reserved_sv: 0,
+          actual_so: 0,
+          reserved_so: 0
         };
       }
     });
 
-    // На підготуванні
-    tasks.filter(t => t.step === 'Підготовка' && t.status !== 'completed' && filterByDate(t.created_at)).forEach(t => {
+    // На підготуванні & Брак підготовки
+    tasks.filter(t => t.step === 'Підготовка' && filterByDate(t.created_at)).forEach(t => {
       if (t.plan_snapshot) {
         let snapshot = t.plan_snapshot;
         if (typeof snapshot === 'string') {
-          try { snapshot = JSON.parse(snapshot); } catch (e) { snapshot = []; }
+          try { snapshot = JSON.parse(snapshot); } catch (e) { snapshot = {}; }
         }
-        if (Array.isArray(snapshot)) {
-          snapshot.forEach(item => {
+        if (snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot)) {
+          Object.values(snapshot).forEach(item => {
             const bName = getBaseName(item.name || item.nom_name || '');
             if (stats[bName]) {
-              stats[bName].in_prep += Number(item.qty || item.quantity || item.needed || 0);
+              if (t.status !== 'completed' && t.warehouse_conf === true) {
+                stats[bName].in_prep += Number(item.plan || item.qty || item.quantity || item.need || 0);
+              }
+              stats[bName].scrap += Number(item.total_scrap || item.actual_scrap || 0);
             }
           });
         }
       }
     });
 
-    (receptionDocs || []).filter(d => (d.status === 'completed' || d.status === 'shipped') && filterByDate(d.created_at)).forEach(doc => {
+    (receptionDocs || []).filter(d => d.status === 'completed' && filterByDate(d.created_at)).forEach(doc => {
       (doc.items || []).forEach(item => {
         const nom = nomenclatures.find(n => String(n.id) === String(item.nomenclature_id));
         if (nom) {
@@ -422,7 +428,7 @@ const ReportsModule = () => {
           if (stats[bName]) {
             if (doc.task_id && nom.name.includes('[Підготовлений]')) {
               stats[bName].prepared += Number(item.qty || item.quantity || item.needed || 0);
-            } else if (!doc.source_warehouse) {
+            } else if (!doc.source_warehouse && nom.name.includes('[Непідготовлений]')) {
               stats[bName].supplied += Number(item.qty || item.quantity || item.needed || 0);
             }
           }
@@ -430,6 +436,7 @@ const ReportsModule = () => {
       });
     });
 
+    // Брак з історії карток (якщо є)
     workCardHistory.filter(h => filterByDate(h.completed_at)).forEach(h => {
       const nom = nomenclatures.find(n => String(n.id) === String(h.nomenclature_id));
       if (nom) {
@@ -440,9 +447,10 @@ const ReportsModule = () => {
       }
     });
 
+    // Витрачено
     (requests || []).filter(r => (r.status === 'issued' || r.status === 'completed') && filterByDate(r.created_at)).forEach(r => {
       const nom = nomenclatures.find(n => String(n.id) === String(r.nomenclature_id));
-      if (nom) {
+      if (nom && nom.name.includes('[Підготовлений]')) {
         const bName = getBaseName(nom.name);
         if (stats[bName]) {
           stats[bName].used += Number(r.quantity || 0);
@@ -450,22 +458,105 @@ const ReportsModule = () => {
       }
     });
 
-    (inventory || []).filter(i => i.warehouse === 'operational').forEach(i => {
+    // Фактично на СВ (Непідготовлені)
+    (inventory || []).filter(i => i.warehouse === 'production').forEach(i => {
       const nom = nomenclatures.find(n => String(n.id) === String(i.nomenclature_id));
-      if (nom) {
+      if (nom && nom.name.includes('[Непідготовлений]')) {
         const bName = getBaseName(nom.name);
         if (stats[bName]) {
-          stats[bName].actual += Number(i.total_qty || 0);
-          stats[bName].reserved += Number(i.reserved_qty || 0);
+          stats[bName].actual_sv += Number(i.total_qty || 0);
+          stats[bName].reserved_sv += Number(i.reserved_qty || 0);
+        }
+      }
+    });
+
+    // Фактично на СО (Підготовлені)
+    (inventory || []).filter(i => i.warehouse === 'operational').forEach(i => {
+      const nom = nomenclatures.find(n => String(n.id) === String(i.nomenclature_id));
+      if (nom && nom.name.includes('[Підготовлений]')) {
+        const bName = getBaseName(nom.name);
+        if (stats[bName]) {
+          stats[bName].actual_so += Number(i.total_qty || 0);
+          stats[bName].reserved_so += Number(i.reserved_qty || 0);
         }
       }
     });
 
     return Object.values(stats)
-      .filter(s => (s.supplied > 0 || s.used > 0 || s.prepared > 0 || s.scrap > 0 || s.actual > 0 || s.in_prep > 0) && (!searchQuery || s.name.toLowerCase().includes(searchQuery.toLowerCase())))
+      .filter(s => (s.supplied > 0 || s.used > 0 || s.prepared > 0 || s.scrap > 0 || s.actual_sv > 0 || s.actual_so > 0 || s.in_prep > 0) && (!searchQuery || s.name.toLowerCase().includes(searchQuery.toLowerCase())))
       .sort((a, b) => b.supplied + b.prepared - a.supplied - a.prepared);
 
   }, [receptionDocs, requests, workCardHistory, inventory, nomenclatures, tasks, startDate, endDate, searchQuery]);
+
+  // 7. Cutters Movement Report
+  const cuttersStats = useMemo(() => {
+    const stats = {};
+
+    nomenclatures
+      .filter(n => n.type === 'consumable' && n.name.trim().toLowerCase() !== 'фреза' && n.name.toLowerCase().includes('фреза'))
+      .forEach(n => {
+        const cleanName = n.name.trim();
+        if (!stats[cleanName]) {
+          stats[cleanName] = {
+            id: n.id,
+            name: cleanName,
+            supplied: 0,
+            used: 0,
+            actual: 0,
+            reserved: 0
+          };
+        }
+      });
+
+    // Отримано на склад (Поставки)
+    (receptionDocs || []).filter(d => d.status === 'completed' && filterByDate(d.created_at)).forEach(doc => {
+      (doc.items || []).forEach(item => {
+        const nom = nomenclatures.find(n => String(n.id) === String(item.nomenclature_id));
+        if (nom && nom.type === 'consumable' && nom.name.toLowerCase().includes('фреза')) {
+          const cleanName = nom.name.trim();
+          if (stats[cleanName]) {
+            stats[cleanName].supplied += Number(item.qty || item.quantity || item.needed || 0);
+          }
+        }
+      });
+    });
+
+    // Використано фрез з історії деталей
+    workCardHistory.filter(h => filterByDate(h.completed_at)).forEach(h => {
+      if (h.card_info && h.card_info.includes('[CUTTERS_BREAKDOWN:')) {
+        try {
+          const match = h.card_info.match(/\[CUTTERS_BREAKDOWN:({.*?})\]/);
+          if (match && match[1]) {
+            const breakdown = JSON.parse(match[1]);
+            Object.entries(breakdown).forEach(([cutterName, qty]) => {
+              const cleanCutterName = cutterName.trim();
+              if (stats[cleanCutterName]) {
+                stats[cleanCutterName].used += Number(qty) || 0;
+              }
+            });
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+    });
+
+    // Фактично на Складі
+    (inventory || []).forEach(i => {
+      const nom = nomenclatures.find(n => String(n.id) === String(i.nomenclature_id));
+      if (nom && nom.type === 'consumable' && nom.name.toLowerCase().includes('фреза')) {
+        const cleanName = nom.name.trim();
+        if (stats[cleanName]) {
+          stats[cleanName].actual += Number(i.total_qty || 0);
+          stats[cleanName].reserved += Number(i.reserved_qty || 0);
+        }
+      }
+    });
+
+    return Object.values(stats)
+      .filter(s => (s.supplied > 0 || s.used > 0 || s.actual > 0) && (!searchQuery || s.name.toLowerCase().includes(searchQuery.toLowerCase())))
+      .sort((a, b) => b.used - a.used);
+  }, [receptionDocs, workCardHistory, inventory, nomenclatures, startDate, endDate, searchQuery]);
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -795,12 +886,13 @@ const ReportsModule = () => {
                 <thead>
                   <tr style={{ background: '#18181b', color: '#a1a1aa', textAlign: 'left', borderBottom: '2px solid #27272a' }}>
                     <th style={{ padding: '16px 20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Матеріал (Номенклатура)</th>
+                    <th style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#3b82f6' }}>Отримано на СВ</th>
                     <th style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#8b5cf6' }}>На підготуванні</th>
-                    <th style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#3b82f6' }}>Підготовлено</th>
-                    <th style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#10b981' }}>Передано на СО</th>
+                    <th style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#10b981' }}>Підготовлено (На СО)</th>
                     <th style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#f59e0b' }}>Витрачено</th>
                     <th style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#ef4444' }}>Брак</th>
-                    <th style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', background: 'rgba(16, 185, 129, 0.08)', color: '#10b981' }}>Фактично на СО</th>
+                    <th style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', background: 'rgba(59, 130, 246, 0.08)', color: '#3b82f6' }}>Залишок СВ (Непідгот.)</th>
+                    <th style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', background: 'rgba(16, 185, 129, 0.08)', color: '#10b981' }}>Залишок СО (Підгот.)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -808,19 +900,71 @@ const ReportsModule = () => {
                     <tr key={idx} style={{ borderBottom: '1px solid #1a1a1a', background: 'transparent', transition: '0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#18181b'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                       <td style={{ padding: '16px 20px', fontWeight: 900, color: '#f4f4f5', fontSize: '0.95rem' }}>{stat.name}</td>
                       <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                        {stat.supplied > 0 ? <span style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.supplied}</span> : <span style={{ color: '#3f3f46' }}>0</span>}
+                      </td>
+                      <td style={{ padding: '16px 20px', textAlign: 'center' }}>
                         {stat.in_prep > 0 ? <span style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#8b5cf6', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.in_prep}</span> : <span style={{ color: '#3f3f46' }}>0</span>}
                       </td>
                       <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                        {stat.prepared > 0 ? <span style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.prepared}</span> : <span style={{ color: '#3f3f46' }}>0</span>}
-                      </td>
-                      <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                        {stat.supplied > 0 ? <span style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.supplied}</span> : <span style={{ color: '#3f3f46' }}>0</span>}
+                        {stat.prepared > 0 ? <span style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.prepared}</span> : <span style={{ color: '#3f3f46' }}>0</span>}
                       </td>
                       <td style={{ padding: '16px 20px', textAlign: 'center' }}>
                         {stat.used > 0 ? <span style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.used}</span> : <span style={{ color: '#3f3f46' }}>0</span>}
                       </td>
                       <td style={{ padding: '16px 20px', textAlign: 'center' }}>
                         {stat.scrap > 0 ? <span style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.scrap}</span> : <span style={{ color: '#3f3f46' }}>0</span>}
+                      </td>
+                      <td style={{ padding: '16px 20px', textAlign: 'center', background: 'rgba(59, 130, 246, 0.02)' }}>
+                        <span style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)', color: '#3b82f6', padding: '6px 14px', borderRadius: '10px', fontWeight: 950, fontSize: '1.05rem' }}>
+                          {Math.max(0, stat.actual_sv - stat.reserved_sv)}
+                        </span>
+                      </td>
+                      <td style={{ padding: '16px 20px', textAlign: 'center', background: 'rgba(16, 185, 129, 0.02)' }}>
+                        <span style={{ background: 'rgba(16, 185, 129, 0.2)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#10b981', padding: '6px 14px', borderRadius: '10px', fontWeight: 950, fontSize: '1.05rem' }}>
+                          {Math.max(0, stat.actual_so - stat.reserved_so)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {sheetsStats.length === 0 && (
+                    <tr>
+                      <td colSpan={8} style={{ padding: '40px', textAlign: 'center', color: '#71717a', fontSize: '0.9rem' }}>
+                        Немає даних за обраний період або пошуковий запит
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+
+      case 'cutters':
+        return (
+          <div className="glass-panel" style={{ background: '#09090b', padding: '30px', borderRadius: '24px', border: '1px solid #27272a', boxShadow: '0 20px 40px rgba(0,0,0,0.4)' }}>
+            <h3 style={{ margin: '0 0 25px', color: '#ff9000', fontSize: '1.4rem', display: 'flex', alignItems: 'center', gap: '12px', textTransform: 'uppercase', fontWeight: 950, letterSpacing: '0.5px' }}>
+              <Scissors size={24} color="#ff9000" /> ДАШБОРД ВИКОРИСТАННЯ ФРЕЗ
+            </h3>
+            
+            <div style={{ overflowX: 'auto', borderRadius: '16px', border: '1px solid #27272a', background: '#09090b' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ background: '#18181b', color: '#a1a1aa', textAlign: 'left', borderBottom: '2px solid #27272a' }}>
+                    <th style={{ padding: '16px 20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Назва фрези (Розхідник)</th>
+                    <th style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#3b82f6' }}>Отримано на склад</th>
+                    <th style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#ef4444' }}>Використано (шт)</th>
+                    <th style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', background: 'rgba(16, 185, 129, 0.08)', color: '#10b981' }}>Фактично на Складі</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cuttersStats.map((stat, idx) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid #1a1a1a', background: 'transparent', transition: '0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#18181b'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                      <td style={{ padding: '16px 20px', fontWeight: 900, color: '#f4f4f5', fontSize: '0.95rem' }}>{stat.name}</td>
+                      <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                        {stat.supplied > 0 ? <span style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.supplied}</span> : <span style={{ color: '#3f3f46' }}>0</span>}
+                      </td>
+                      <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                        {stat.used > 0 ? <span style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.used}</span> : <span style={{ color: '#3f3f46' }}>0</span>}
                       </td>
                       <td style={{ padding: '16px 20px', textAlign: 'center', background: 'rgba(16, 185, 129, 0.02)' }}>
                         <span style={{ background: 'rgba(16, 185, 129, 0.2)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#10b981', padding: '6px 14px', borderRadius: '10px', fontWeight: 950, fontSize: '1.05rem' }}>
@@ -829,10 +973,10 @@ const ReportsModule = () => {
                       </td>
                     </tr>
                   ))}
-                  {sheetsStats.length === 0 && (
+                  {cuttersStats.length === 0 && (
                     <tr>
-                      <td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: '#71717a', fontSize: '0.9rem' }}>
-                        Немає даних за обраний період або пошуковий запит
+                      <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: '#71717a', fontSize: '0.9rem' }}>
+                        Немає даних про використання фрез
                       </td>
                     </tr>
                   )}
@@ -913,6 +1057,9 @@ const ReportsModule = () => {
             </button>
             <button onClick={() => setActiveTab('sheets')} className={`report-tab ${activeTab === 'sheets' ? 'active' : ''}`} style={tabStyle(activeTab === 'sheets')}>
               <PackageCheck size={16} /> ЛИСТИ
+            </button>
+            <button onClick={() => setActiveTab('cutters')} className={`report-tab ${activeTab === 'cutters' ? 'active' : ''}`} style={tabStyle(activeTab === 'cutters')}>
+              <Scissors size={16} /> ФРЕЗИ
             </button>
             <button onClick={() => setActiveTab('analytics')} className={`report-tab ${activeTab === 'analytics' ? 'active' : ''}`} style={tabStyle(activeTab === 'analytics')}>
               <TrendingUp size={16} /> АНАЛІТИКА

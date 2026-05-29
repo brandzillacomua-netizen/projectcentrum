@@ -23,9 +23,16 @@ export function createProductionActions({
   deductIssuedMaterialsForTask
 }) {
 
-  const approveWarehouse = async (taskId) => { await supabase.from('tasks').update({ warehouse_conf: true }).eq('id', taskId); fetchData(true) }
-  const approveEngineer = async (taskId) => { await supabase.from('tasks').update({ engineer_conf: true }).eq('id', taskId); fetchData(true) }
+  const approveWarehouse = async (taskId) => {
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, warehouse_conf: true } : t))
+    await supabase.from('tasks').update({ warehouse_conf: true }).eq('id', taskId)
+  }
+  const approveEngineer = async (taskId) => {
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, engineer_conf: true } : t))
+    await supabase.from('tasks').update({ engineer_conf: true }).eq('id', taskId)
+  }
   const approveDirector = async (taskId) => {
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, director_conf: true } : t))
     await supabase.from('tasks').update({ director_conf: true }).eq('id', taskId);
     const targetTask = tasks.find(t => String(t.id) === String(taskId))
     if (targetTask && targetTask.order_id) {
@@ -35,7 +42,7 @@ export function createProductionActions({
         t.batch_index === targetTask.batch_index
       )
       if (!existingShop2) {
-        await supabase.from('tasks').insert([{
+        const { data: newShop2 } = await supabase.from('tasks').insert([{
           order_id: targetTask.order_id,
           step: 'Пресування [ЦЕХ №2]',
           status: 'waiting',
@@ -46,24 +53,26 @@ export function createProductionActions({
           director_conf: true,
           batch_index: targetTask.batch_index || null,
           plan_snapshot: { ...(targetTask.plan_snapshot || {}), arrivals: [] }
-        }])
+        }]).select()
+        if (newShop2 && newShop2.length > 0) {
+          setTasks(prev => [...prev, newShop2[0]])
+        }
       }
     }
-    fetchData(true)
   }
 
-  const upsertNomenclature = async (nom) => { await supabase.from('nomenclatures').upsert([nom]); fetchData(true) }
-  const deleteNomenclature = async (id) => { await supabase.from('nomenclatures').delete().eq('id', id); fetchData(true) }
+  const upsertNomenclature = async (nom) => { await supabase.from('nomenclatures').upsert([nom]); refreshTable('nomenclatures') }
+  const deleteNomenclature = async (id) => { await supabase.from('nomenclatures').delete().eq('id', id); refreshTable('nomenclatures') }
 
   const saveBOM = async (parentId, childId, qty) => {
     await supabase.from('bom_items').upsert([{ parent_id: parentId, child_id: childId, quantity_per_parent: Number(qty) }], { onConflict: 'parent_id, child_id' })
-    fetchData(true)
+    refreshTable('bom_items')
   }
-  const removeBOM = async (bomId) => { await supabase.from('bom_items').delete().eq('id', bomId); fetchData(true) }
+  const removeBOM = async (bomId) => { await supabase.from('bom_items').delete().eq('id', bomId); refreshTable('bom_items') }
   const syncBOM = async (parentId, items) => {
     await supabase.from('bom_items').delete().eq('parent_id', parentId)
     if (items.length > 0) await supabase.from('bom_items').insert(items.map(it => ({ parent_id: parentId, child_id: it.child_id, quantity_per_parent: Number(it.qty) })))
-    fetchData(true)
+    refreshTable('bom_items')
   }
 
   const addOrder = async (header, items) => {
@@ -108,7 +117,8 @@ export function createProductionActions({
       });
     }
 
-    fetchData(true)
+    // Optimistic: add to orders state immediately, then refresh in background
+    refreshTable('orders')
   }
 
   const createDovyпускMaterialRequests = async (taskId, orderId, partNom, sheets, quantity) => {
@@ -352,7 +362,9 @@ export function createProductionActions({
       await createDovyпускMaterialRequests(taskId, orderId, partNom, sheets, Number(quantity))
     }
 
-    fetchData(true)
+    // Only refresh affected tables (work_cards + tasks), not everything
+    refreshTable('work_cards')
+    refreshTable('tasks')
     return data
   }
 
@@ -480,19 +492,20 @@ export function createProductionActions({
   }
 
   const completeTaskByMaster = async (taskId) => {
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'completed', completed_at: new Date().toISOString() } : t))
     await deductIssuedMaterialsForTask(taskId)
     await supabase.from('tasks').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', taskId)
-    fetchData(true)
+    refreshTable('inventory')
   }
 
   const addManagementTask = async (taskPayload, currentUserLogin) => {
     const { data, error } = await supabase.from('management_tasks').insert([{ ...taskPayload, created_by: currentUserLogin || 'system', created_at: new Date().toISOString() }]).select()
-    if (!error) fetchData(true)
+    if (!error && data?.[0]) setManagementTasks(prev => [data[0], ...prev])
     return { data: data?.[0], error }
   }
   const updateManagementTask = async (taskId, updates) => {
+    setManagementTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updates } : t))
     const { error } = await supabase.from('management_tasks').update(updates).eq('id', taskId)
-    if (!error) fetchData(true)
     return { error }
   }
   const deleteManagementTask = async (taskId) => {
@@ -503,12 +516,12 @@ export function createProductionActions({
 
   const addMachine = async (machineData) => {
     const { data, error } = await supabase.from('machines').insert([machineData]).select()
-    if (!error) fetchData(true)
+    if (!error && data?.[0]) setMachines(prev => [...prev, data[0]])
     return { data: data?.[0], error }
   }
   const updateMachine = async (id, updates) => {
+    setMachines(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m))
     const { error } = await supabase.from('machines').update(updates).eq('id', id)
-    if (!error) fetchData(true)
     return { error }
   }
   const deleteMachine = async (id) => {
@@ -772,7 +785,8 @@ export function createProductionActions({
         await supabase.from('tasks').update({ plan_snapshot }).eq('id', tData.id)
       }
 
-      fetchData()
+      // Refresh only what was changed: tasks + material_requests
+      await Promise.all([refreshTable('tasks'), refreshTable('material_requests')])
     } catch (err) { console.error('Error creating naryad:', err.message) }
   }
 
@@ -935,7 +949,7 @@ export function createProductionActions({
       }
       if (shop2Task) await supabase.from('tasks').delete().eq('id', shop2Task.id)
       await supabase.from('tasks').update({ status: 'in-progress', completed_at: null }).eq('id', taskId)
-      fetchData()
+      refreshTable('tasks'); refreshTable('inventory')
     } catch (err) { console.error('Cancel handover error:', err); throw err }
   }
 
@@ -1092,13 +1106,13 @@ export function createProductionActions({
       await supabase.from('inventory').update({ reserved_qty: nextReserved }).eq('id', bz.id)
       await supabase.from('work_cards').insert([{ task_id: taskId, order_id: orderId, nomenclature_id: nomenclatureId, quantity: qty, status: 'completed', operation: 'Склад БЗ', card_info: '[ЗІ СКЛАДУ БЗ]' }])
       await supabase.from('work_card_history').insert([{ task_id: taskId, nomenclature_id: nomenclatureId, stage_name: 'Склад БЗ', operator_name: 'Система (БРОНЬ)', qty_at_start: qty, qty_completed: qty, scrap_qty: 0, completed_at: new Date().toISOString() }])
-      fetchData(true); return { success: true }
+      refreshTable('inventory'); refreshTable('work_cards'); return { success: true }
     } catch (err) { console.error(err); throw err }
   }
 
   const completePackaging = async (orderId) => {
     await supabase.from('orders').update({ status: 'packaged' }).eq('id', orderId)
-    fetchData(true)
+    refreshTable('orders')
   }
 
   const disposeScrapItem = async (invId, qty) => {
@@ -1108,7 +1122,7 @@ export function createProductionActions({
     if (nextQty > 0) await supabase.from('inventory').update({ total_qty: nextQty }).eq('id', invId)
     else await supabase.from('inventory').delete().eq('id', invId)
     await supabase.from('reception_docs').insert([{ doc_num: `DIS-${Date.now().toString().slice(-6)}`, type: 'scrap_disposal', status: 'completed', items: JSON.stringify([{ name: item.name, qty: qty, nomenclature_id: item.nomenclature_id, disposed_at: new Date().toISOString() }]) }])
-    fetchData(true)
+    refreshTable('inventory')
   }
 
   const createReworkNaryad = async (invId, qty, stage) => {

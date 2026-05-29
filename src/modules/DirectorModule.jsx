@@ -1171,9 +1171,11 @@ const DirectorModule = () => {
             min-width: auto !important;
             padding: 8px 12px !important;
             border-radius: 10px;
+            gap: 8px !important;
           }
           .btn-notifications .btn-label {
-            display: none !important;
+            display: inline-block !important;
+            font-size: 0.7rem !important;
           }
           
           /* Strategic Header (Calendar & Meta) */

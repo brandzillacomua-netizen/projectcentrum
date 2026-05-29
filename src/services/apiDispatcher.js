@@ -1,8 +1,37 @@
 import { requestBuilder } from '../api/requestBuilder';
+import { supabase } from '../supabase';
 
 const baseUrl = '/api';
 
-const fetchWithTimeout = async (url, options = {}, timeoutMs = 1200) => {
+// ── Rust availability cache ────────────────────────────────────────────────
+// Avoids N×1200ms timeouts when Rust is offline.
+// Resets every 2 minutes so we retry if backend comes back online.
+let rustAvailable = null;
+let rustLastCheck = 0;
+const RUST_CACHE_TTL = 2 * 60 * 1000; // 2 min
+
+const checkRustAvailability = async (token) => {
+  const now = Date.now();
+  if (rustAvailable !== null && now - rustLastCheck < RUST_CACHE_TTL) {
+    return rustAvailable;
+  }
+  try {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 600); // 600ms ping
+    const res = await fetch(`${baseUrl}/health`, {
+      headers: { 'Authorization': token ? `Bearer ${token}` : '' },
+      signal: controller.signal
+    });
+    clearTimeout(id);
+    rustAvailable = res.ok;
+  } catch {
+    rustAvailable = false;
+  }
+  rustLastCheck = now;
+  return rustAvailable;
+};
+
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 800) => {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -15,80 +44,98 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = 1200) => {
   }
 };
 
-export const apiService = {
-  submitOrder: async (header, items, fallback, token) => {
+// Fire-and-forget Rust sync — does NOT block the UI
+const syncToRustAsync = async (header, items, token) => {
+  try {
+    const activeToken = token || localStorage.getItem('BACKEND_TOKEN') || '';
+    if (!activeToken) return;
+
+    const isUp = await checkRustAvailability(activeToken);
+    if (!isUp) return;
+
+    const authHeaders = { 'Authorization': `Bearer ${activeToken}`, 'Content-Type': 'application/json' };
     const nomenclatureId = header.nomenclature_id || (items?.length > 0 ? items[0].nomenclature_id : null);
+    if (!nomenclatureId) return;
+
     let characteristicId = '00000000-0000-0000-0000-000000000000';
     let customerId = '00000000-0000-0000-0000-000000000000';
 
-    const activeToken = token || localStorage.getItem('BACKEND_TOKEN') || '';
-    const authHeaders = { 'Authorization': activeToken ? `Bearer ${activeToken}` : '', 'Content-Type': 'application/json' };
+    // Resolve characteristic + counterparty IN PARALLEL
+    const [charRes, cpRes] = await Promise.all([
+      fetchWithTimeout(`${baseUrl}/nomenclature/${nomenclatureId}/characteristics`, { headers: authHeaders }, 800),
+      fetchWithTimeout(`${baseUrl}/counterparties`, { headers: authHeaders }, 800)
+    ]);
 
-    let rustSuccess = false;
-    // ── PATH 1: Rust backend (Master of Record for production) ──────────────
-    try {
-      if (nomenclatureId && activeToken) {
-        // 1a. Resolve Characteristic
-        const charRes = await fetchWithTimeout(`${baseUrl}/nomenclature/${nomenclatureId}/characteristics`, { headers: authHeaders }, 1200);
-        if (charRes.ok) {
-          const charData = await charRes.json();
-          const charItems = charData.items || charData || [];
-          if (charItems.length > 0) {
-            characteristicId = charItems[0].id;
-          } else {
-            // Auto-create base characteristic
-            const newCharRes = await fetchWithTimeout(`${baseUrl}/nomenclature/${nomenclatureId}/characteristics`, {
-              method: 'POST', headers: authHeaders,
-              body: JSON.stringify({ name: 'Базова', code: 'BASE-' + Date.now().toString().slice(-4), is_base: true })
-            }, 1200);
-            if (newCharRes.ok) characteristicId = (await newCharRes.json()).id;
-          }
-        }
-
-        // 1b. Resolve Counterparty — EXACT name match (enterprise standard)
-        const cpRes = await fetchWithTimeout(`${baseUrl}/counterparties`, { headers: authHeaders }, 1200);
-        if (cpRes.ok) {
-          const counterparties = (await cpRes.json()).items || [];
-          const customerName = (header.customer || '').toLowerCase().trim();
-          
-          // Exact match first
-          let found = counterparties.find(c => c.name.toLowerCase().trim() === customerName);
-          
-          // If not found — create new counterparty
-          if (!found) {
-            const newCpRes = await fetchWithTimeout(`${baseUrl}/counterparties`, {
-              method: 'POST', headers: authHeaders,
-              body: JSON.stringify({ name: header.customer.trim(), type: 'customer', code: 'CL-' + Date.now().toString().slice(-6) })
-            }, 1200);
-            if (newCpRes.ok) found = await newCpRes.json();
-          }
-          if (found) customerId = found.id;
-        }
-
-        // 1c. Build & Send order to Rust
-        const payload = requestBuilder.buildOrderPayload({ ...header, customer_id: customerId }, items, characteristicId);
-        const res = await fetchWithTimeout(`${baseUrl}/orders`, { method: 'POST', headers: authHeaders, body: JSON.stringify(payload) }, 1200);
-        if (res.ok) {
-          rustSuccess = true;
-        } else {
-          const errText = await res.text();
-          console.error('❌ Rust order failed:', res.status, errText);
-        }
+    if (charRes.ok) {
+      const charData = await charRes.json();
+      const charItems = charData.items || charData || [];
+      if (charItems.length > 0) {
+        characteristicId = charItems[0].id;
+      } else {
+        const newCharRes = await fetchWithTimeout(`${baseUrl}/nomenclature/${nomenclatureId}/characteristics`, {
+          method: 'POST', headers: authHeaders,
+          body: JSON.stringify({ name: 'Базова', code: 'BASE-' + Date.now().toString().slice(-4), is_base: true })
+        }, 800);
+        if (newCharRes.ok) characteristicId = (await newCharRes.json()).id;
       }
-    } catch (err) {
-      console.warn('⚠️ Rust sync failed (non-blocking):', err.message);
     }
 
-    // ── PATH 2: Supabase CRM (parallel write, fallback if Rust offline/failed) ─────────────────
-    if (!rustSuccess) {
+    if (cpRes.ok) {
+      const counterparties = (await cpRes.json()).items || [];
+      const customerName = (header.customer || '').toLowerCase().trim();
+      let found = counterparties.find(c => c.name.toLowerCase().trim() === customerName);
+      if (!found) {
+        const newCpRes = await fetchWithTimeout(`${baseUrl}/counterparties`, {
+          method: 'POST', headers: authHeaders,
+          body: JSON.stringify({ name: header.customer.trim(), type: 'customer', code: 'CL-' + Date.now().toString().slice(-6) })
+        }, 800);
+        if (newCpRes.ok) found = await newCpRes.json();
+      }
+      if (found) customerId = found.id;
+    }
+
+    const payload = requestBuilder.buildOrderPayload({ ...header, customer_id: customerId }, items, characteristicId);
+    await fetchWithTimeout(`${baseUrl}/orders`, { method: 'POST', headers: authHeaders, body: JSON.stringify(payload) }, 800);
+  } catch (err) {
+    // Non-blocking — never surfaces to UI
+    console.warn('⚠️ Rust async sync failed (non-blocking):', err.message);
+    rustAvailable = false; // Mark as unavailable so next call skips immediately
+    rustLastCheck = Date.now();
+  }
+};
+
+export const apiService = {
+  submitOrder: async (header, items, fallback, token) => {
+    // ── Step 1: Save customer to Supabase immediately ──────────────────────
+    if (header.customer) {
       try {
-        // Pass productName so addOrder() can resolve it to a Supabase nomenclature UUID
-        await fallback(header, items);
+        const trimmedName = header.customer.trim();
+        const { data: existing } = await supabase
+          .from('customers')
+          .select('id')
+          .ilike('name', trimmedName)
+          .maybeSingle();
+        if (!existing) {
+          await supabase
+            .from('customers')
+            .insert([{ name: trimmedName, official_name: header.official_customer?.trim() || '' }]);
+        }
       } catch (err) {
-        console.error('❌ Supabase sync error:', err.message);
-        throw err; // Re-throw so UI shows the error
+        console.warn('⚠️ Failed to auto-create customer:', err.message);
       }
     }
+
+    // ── Step 2: Save order to Supabase (primary, instant) ─────────────────
+    // This is the real write — Rust is just a mirror/sync
+    try {
+      await fallback(header, items);
+    } catch (err) {
+      console.error('❌ Supabase order error:', err.message);
+      throw err;
+    }
+
+    // ── Step 3: Fire-and-forget Rust sync (does NOT block UI) ─────────────
+    syncToRustAsync(header, items, token).catch(() => {});
 
     return true;
   },
@@ -260,7 +307,6 @@ export const apiService = {
   },
 
   submitMachine: async (data, fallback) => {
-    // Для верстатів поки що не використовуємо зовнішній бекенд, працюємо через Supabase
     console.log("%c--- 📦 BACKEND ACTION: MACHINE ADD ---", "color: #ff9000; font-weight: bold; font-size: 14px; text-decoration: underline;");
     console.log("JSON Payload:", data);
     if (typeof fallback === 'function') await fallback(data);
@@ -275,17 +321,14 @@ export const apiService = {
   },
 
   submitUserAction: async (userData, fallback, token) => {
-    // Зовнішній бекенд не використовується — зберігаємо лише в Supabase через MESContext
     if (typeof fallback === 'function') await fallback(userData);
     return true;
   },
 
   submitLogin: async (login, password) => {
-    // Fire-and-forget: 500ms hard timeout, never blocks the UI login flow
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 500);
-
       const res = await fetch(baseUrl + '/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -293,19 +336,13 @@ export const apiService = {
         signal: controller.signal
       });
       clearTimeout(timeoutId);
-
-      if (!res.ok) {
-        return null;
-      }
-
+      if (!res.ok) return null;
       const contentType = res.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
-        const data = await res.json();
-        return data;
+        return await res.json();
       }
       return null;
-    } catch (err) {
-      // Backend offline or slow — silently ignore, Supabase is the master auth source
+    } catch {
       return null;
     }
   }

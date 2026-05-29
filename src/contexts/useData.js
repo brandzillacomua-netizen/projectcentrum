@@ -374,6 +374,21 @@ export function useData() {
       } else if (tableName === 'bom_items') {
         const { data } = await supabase.from('bom_items').select('*').limit(4000)
         if (data) setBomItems(data)
+      } else if (tableName === 'customers') {
+        const { data } = await supabase.from('customers').select('id,name,official_name').order('name').limit(500)
+        if (data) setCustomers(data)
+      } else if (tableName === 'purchase_requests') {
+        const { data } = await supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300)
+        if (data) setPurchaseRequests(data)
+      } else if (tableName === 'reception_docs') {
+        const { data } = await supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300)
+        if (data) setReceptionDocs(data)
+      } else if (tableName === 'material_requests') {
+        const { data } = await supabase.from('material_requests').select('*').neq('status', 'completed').order('created_at', { ascending: false })
+        if (data) setRequests(data)
+      } else if (tableName === 'work_card_history') {
+        const { data } = await supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(200)
+        if (data) setWorkCardHistory(data)
       }
     } catch (e) { console.error(`Error refreshing ${tableName}:`, e) }
   }
@@ -553,6 +568,13 @@ export function useData() {
         supabase.from('company_positions').select('*').order('name').then(({ data, error }) => {
           if (!error && data && data.length > 0) setCompanyPositions(data)
         })
+      })
+      // Клієнти — менеджер, реалтайм оновлення при додаванні нових замовників
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'customers' }, (payload) => {
+        setCustomers(prev => prev.some(c => c.id === payload.new.id) ? prev : [...prev, payload.new].sort((a, b) => (a.name || '').localeCompare(b.name || '')))
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'customers' }, (payload) => {
+        setCustomers(prev => prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c))
       })
       .subscribe()
     return () => { supabase.removeChannel(channel2) }

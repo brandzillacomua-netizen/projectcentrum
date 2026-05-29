@@ -1588,8 +1588,11 @@ export default function Shop1Terminal() {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
                     <button onClick={() => setScrapCount(v => Math.max(0, v - 1))}
                       style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
-                    <input type="number" min={0} max={currentCard.quantity - reworkCount} value={scrapCount}
-                      onChange={e => setScrapCount(Math.max(0, Math.min(currentCard.quantity - reworkCount, parseInt(e.target.value) || 0)))}
+                    <input type="number" min={0} max={currentCard.quantity - reworkCount} value={scrapCount === 0 ? '' : scrapCount} placeholder="0"
+                      onChange={e => {
+                        const val = e.target.value;
+                        setScrapCount(val === '' ? 0 : Math.max(0, Math.min(currentCard.quantity - reworkCount, parseInt(val) || 0)))
+                      }}
                       style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '3.2rem', width: '90px', textAlign: 'center', fontWeight: 900 }} />
                     <button onClick={() => setScrapCount(v => Math.min(currentCard.quantity - reworkCount, v + 1))}
                       style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
@@ -1604,8 +1607,11 @@ export default function Shop1Terminal() {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
                     <button onClick={() => setReworkCount(v => Math.max(0, v - 1))}
                       style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
-                    <input type="number" min={0} max={currentCard.quantity - scrapCount} value={reworkCount}
-                      onChange={e => setReworkCount(Math.max(0, Math.min(currentCard.quantity - scrapCount, parseInt(e.target.value) || 0)))}
+                    <input type="number" min={0} max={currentCard.quantity - scrapCount} value={reworkCount === 0 ? '' : reworkCount} placeholder="0"
+                      onChange={e => {
+                        const val = e.target.value;
+                        setReworkCount(val === '' ? 0 : Math.max(0, Math.min(currentCard.quantity - scrapCount, parseInt(val) || 0)))
+                      }}
                       style={{ background: 'transparent', border: 'none', color: '#f59e0b', fontSize: '3.2rem', width: '90px', textAlign: 'center', fontWeight: 900 }} />
                     <button onClick={() => setReworkCount(v => Math.min(currentCard.quantity - scrapCount, v + 1))}
                       style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
@@ -2451,10 +2457,10 @@ export default function Shop1Terminal() {
                             <button onClick={() => setCuttersBreakdown(p => ({ ...p, [cutterName]: Math.max(0, currentVal - 1) }))}
                               type="button"
                               style={{ width: '32px', height: '32px', background: '#1c1c1c', border: '1px solid #333', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
-                            <input type="number" min={0} value={currentVal}
+                            <input type="number" min={0} value={currentVal === 0 ? '' : currentVal} placeholder="0"
                               onChange={e => {
-                                const val = Math.max(0, parseInt(e.target.value) || 0)
-                                setCuttersBreakdown(p => ({ ...p, [cutterName]: val }))
+                                const val = e.target.value
+                                setCuttersBreakdown(p => ({ ...p, [cutterName]: val === '' ? 0 : Math.max(0, parseInt(val) || 0) }))
                               }}
                               style={{ background: 'transparent', border: 'none', color: '#eab308', fontSize: '1.2rem', width: '50px', textAlign: 'center', fontWeight: 900 }} />
                             <button onClick={() => setCuttersBreakdown(p => ({ ...p, [cutterName]: currentVal + 1 }))}
@@ -2479,8 +2485,11 @@ export default function Shop1Terminal() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
                   <button onClick={() => setScrapCount(v => Math.max(0, v - 1))}
                     style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
-                  <input type="number" min={0} max={currentCard.quantity} value={scrapCount}
-                    onChange={e => setScrapCount(Math.max(0, Math.min(currentCard.quantity, parseInt(e.target.value) || 0)))}
+                  <input type="number" min={0} max={currentCard.quantity} value={scrapCount === 0 ? '' : scrapCount} placeholder="0"
+                    onChange={e => {
+                      const val = e.target.value;
+                      setScrapCount(val === '' ? 0 : Math.max(0, Math.min(currentCard.quantity, parseInt(val) || 0)))
+                    }}
                     style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '3.2rem', width: '90px', textAlign: 'center', fontWeight: 900 }} />
                   <button onClick={() => setScrapCount(v => Math.min(currentCard.quantity, v + 1))}
                     style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
@@ -2587,8 +2596,11 @@ export default function Shop1Terminal() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
                   <button onClick={() => setQcScrapCount(v => Math.max(0, v - 1))}
                     style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
-                  <input type="number" min={0} max={currentCard.quantity} value={qcScrapCount}
-                    onChange={e => setQcScrapCount(Math.max(0, Math.min(currentCard.quantity, parseInt(e.target.value) || 0)))}
+                  <input type="number" min={0} max={currentCard.quantity} value={qcScrapCount === 0 ? '' : qcScrapCount} placeholder="0"
+                    onChange={e => {
+                      const val = e.target.value;
+                      setQcScrapCount(val === '' ? 0 : Math.max(0, Math.min(currentCard.quantity, parseInt(val) || 0)))
+                    }}
                     style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '3.2rem', width: '90px', textAlign: 'center', fontWeight: 900 }} />
                   <button onClick={() => setQcScrapCount(v => Math.min(currentCard.quantity, v + 1))}
                     style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>

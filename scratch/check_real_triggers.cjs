@@ -9,21 +9,30 @@ if (urlMatch && keyMatch) {
   const supabase = createClient(urlMatch[1], keyMatch[1])
   
   const check = async () => {
-    console.log("Checking triggers on work_cards:")
+    console.log("Checking triggers on all tables:")
     const sql = `
       SELECT 
-        tgname AS trigger_name,
-        proname AS function_name,
-        prosrc AS function_source
-      FROM pg_trigger
-      JOIN pg_proc ON pg_proc.oid = tgfoid
-      WHERE tgrelid = 'work_cards'::regclass;
+        c.relname AS table_name,
+        t.tgname AS trigger_name,
+        p.proname AS function_name,
+        p.prosrc AS function_source
+      FROM pg_trigger t
+      JOIN pg_class c ON c.oid = t.tgrelid
+      JOIN pg_proc p ON p.oid = t.tgfoid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public';
     `;
     const { data, error } = await supabase.rpc('exec_sql', { sql })
     if (error) {
       console.error('RPC Error:', error)
     } else {
-      console.log('Triggers found:', JSON.stringify(data, null, 2))
+      console.log('Triggers found:')
+      for (const row of data || []) {
+        console.log(`Table: "${row.table_name}" | Trigger: "${row.trigger_name}" | Function: "${row.function_name}"`)
+        if (row.function_source && row.function_source.includes('http')) {
+          console.log(`  Source contains HTTP/cURL call!`)
+        }
+      }
     }
   }
   

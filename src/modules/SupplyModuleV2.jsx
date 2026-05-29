@@ -53,12 +53,23 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
     return isRelevantStatus && (pr.destination_warehouse === 'production' || !pr.destination_warehouse)
   })
 
-  // Запити від Відділу Підготовки (Непідготовлений карбон)
-  const prepRequests = (requests || []).filter(r => 
-    r.status === 'pending' && 
-    r.details && 
-    r.details.includes('ЗАПИТ НА ПІДГОТОВКУ')
-  )
+  // Запити від Відділу Підготовки (Непідготовлений карбон та дозабезпечення браку)
+  const prepRequests = (requests || []).filter(r => {
+    if (r.status !== 'pending') return false
+    if (r.details && (
+      r.details.includes('ЗАПИТ НА ПІДГОТОВКУ') || 
+      r.details.includes('ПІДГОТОВ') || 
+      r.details.includes('браку') || 
+      r.details.includes('Дозабезпечення')
+    )) {
+      return true
+    }
+    if (r.task_id) {
+      const task = (tasks || []).find(t => t.id === r.task_id)
+      if (task && task.step === 'Підготовка') return true
+    }
+    return false
+  })
 
   const groupedPrepRequests = useMemo(() => {
     const groups = {}

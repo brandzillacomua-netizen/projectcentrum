@@ -11,22 +11,17 @@ if (urlMatch && keyMatch) {
   const check = async () => {
     const { data, error } = await supabase
       .from('nomenclatures')
-      .select('id, name, type')
-      .ilike('name', '%KHARAK%')
+      .select('*')
+      .or('name.ilike.%210%,name.ilike.%218%')
     
     if (error) {
       console.error(error)
       return
     }
     
+    console.log(`Found ${data.length} nomenclatures containing 210 or 218:`)
     data.forEach(n => {
-      console.log(`Name: "${n.name}"`)
-      const chars = []
-      for (let i = 0; i < n.name.length; i++) {
-        const code = n.name.charCodeAt(i)
-        chars.push(`${n.name[i]}: ${code} (${code >= 1040 && code <= 1103 ? 'Cyrillic' : 'Latin/Other'})`)
-      }
-      console.log(chars.join(', '))
+      console.log(`- ID: ${n.id}, Type: ${n.type}, Name: "${n.name}"`)
     })
   }
   

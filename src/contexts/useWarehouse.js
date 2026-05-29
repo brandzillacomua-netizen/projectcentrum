@@ -23,14 +23,14 @@ export function createWarehouseActions({
       order_id: orderId, task_id: taskId, order_num: orderNum,
       items: processedItems, status: 'pending', destination_warehouse: 'production'
     }])
-    if (!error) fetchData(true)
+    if (!error) refreshTable('purchase_requests')
     return { error }
   }
 
   const updatePurchaseRequestStatus = async (id, status, destWarehouse = 'production') => {
     const { error } = await supabase.from('purchase_requests')
       .update({ status, destination_warehouse: destWarehouse }).eq('id', id)
-    if (!error) fetchData(true)
+    if (!error) refreshTable('purchase_requests')
     return { error }
   }
 
@@ -124,7 +124,9 @@ export function createWarehouseActions({
       return { error: recError }
     }
 
-    fetchData(true)
+    refreshTable('purchase_requests')
+    refreshTable('inventory')
+    refreshTable('reception_docs')
     return { success: true }
   }
 
@@ -136,7 +138,7 @@ export function createWarehouseActions({
       target_warehouse: targetWH, source_warehouse: sourceWH,
       created_at: new Date().toISOString()
     }]).select()
-    if (!error) fetchData(true)
+    if (!error) refreshTable('reception_docs')
     return { data: (data && data.length > 0) ? data[0] : null, error }
   }
 
@@ -146,7 +148,7 @@ export function createWarehouseActions({
     if (newSource) updateData.source_warehouse = newSource
     
     const { error } = await supabase.from('reception_docs').update(updateData).eq('id', docId)
-    if (!error) fetchData(true)
+    if (!error) refreshTable('reception_docs')
     return { error }
   }
 
@@ -173,7 +175,7 @@ export function createWarehouseActions({
 
       if (items.length === 0) {
         await supabase.from('reception_docs').update({ status: 'completed' }).eq('id', docId)
-        fetchData(true)
+        refreshTable('reception_docs')
         return
       }
 
@@ -336,7 +338,11 @@ export function createWarehouseActions({
         }
       }
 
-      fetchData(true)
+      refreshTable('inventory')
+      refreshTable('reception_docs')
+      if (doc.task_id || doc.order_id) {
+        refreshTable('purchase_requests')
+      }
       alert('Прийомку успішно завершено! Склад оновлено.')
     } catch (err) {
       console.error('CRITICAL: confirmReception crash:', err)
@@ -564,7 +570,9 @@ export function createWarehouseActions({
       if (taskId) {
         setTasks(prev => prev.map(t => t.id === taskId ? { ...t, warehouse_conf: true } : t))
       }
-      fetchData(true)
+      refreshTable('inventory')
+      refreshTable('material_requests')
+      refreshTable('work_cards')
     } catch (err) {
       console.error('Batch issue error:', err)
       throw err
@@ -583,7 +591,7 @@ export function createWarehouseActions({
       const { error } = await supabase.from('inventory').update({
         total_qty: (Number(invItem.total_qty) || 0) + Number(qty)
       }).eq('id', inventoryId)
-      if (!error) fetchData(true)
+      if (!error) refreshTable('inventory')
       return { error }
     } catch (err) {
       console.error('receiveInventory error:', err)
@@ -593,7 +601,7 @@ export function createWarehouseActions({
 
   const fixInventoryTypes = async () => {
     const { error } = await supabase.from('inventory').update({ type: 'wip_bz' }).eq('type', 'bz')
-    if (!error) fetchData(true)
+    if (!error) refreshTable('inventory')
     return { error }
   }
 
@@ -667,7 +675,7 @@ export function createWarehouseActions({
     if (requestsToInsert.length > 0) {
       const { error } = await supabase.from('material_requests').insert(requestsToInsert)
       if (error) console.error("Picking Request Error:", error)
-      fetchData(true)
+      refreshTable('material_requests')
     }
   }
 

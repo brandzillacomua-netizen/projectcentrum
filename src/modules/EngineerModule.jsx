@@ -83,7 +83,7 @@ const MachineOperationsTab = () => {
   const resolveMachineType = (machineName) => {
     if (!machineName) return null
     const normMac = machineName.toLowerCase()
-    if (normMac.includes('3050(16)x1600') || normMac.includes('3050(16)х1600') || normMac.includes('3050(16)') || normMac.includes('16x16') || normMac.includes('16х16')) {
+    if (normMac.includes('3050(16)x1600') || normMac.includes('3050(16)х1600') || normMac.includes('3050(16)') || normMac.includes('16x16') || normMac.includes('16х16') || normMac.includes('3050x1600') || normMac.includes('3050х1600') || normMac.includes('3050')) {
       return 'CNC 3050(16)х16 - 3-12 листів (швидкісний)'
     } else if (normMac.includes('дракон') || normMac.includes('60x20') || normMac.includes('6000x2000') || normMac.includes('6000х2000')) {
       return 'CNC 6000x2000 - 4 - 96 листів (Дракон)'
@@ -134,6 +134,42 @@ const MachineOperationsTab = () => {
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
     if (lines.length === 0) return []
 
+    const parseCsvLine = (line) => {
+      const result = []
+      let current = ''
+      let inQuotes = false
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i]
+        if (char === '"') {
+          inQuotes = !inQuotes
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim())
+          current = ''
+        } else {
+          current += char
+        }
+      }
+      result.push(current.trim())
+      return result.map(val => {
+        let clean = val
+        if (clean.startsWith('"') && clean.endsWith('"')) {
+          clean = clean.slice(1, -1)
+        }
+        return clean.trim()
+      })
+    }
+
+    const cleanNomenclatureLine = (line) => {
+      let clean = line.trim()
+      while (clean.endsWith(',')) {
+        clean = clean.slice(0, -1).trim()
+      }
+      if (clean.startsWith('"') && clean.endsWith('"')) {
+        clean = clean.slice(1, -1).trim()
+      }
+      return clean
+    }
+
     const normalizeKey = (s) => {
       if (!s) return ''
       const mapper = {
@@ -162,7 +198,7 @@ const MachineOperationsTab = () => {
       let nom = localNomsCopy.find(n => normalizeKey(n.name) === csvNomKey)
         || localNomsCopy.find(n => {
              const dbNomKey = normalizeKey(n.name)
-             return csvNomKey.startsWith(dbNomKey) || dbNomKey.startsWith(csvNomKey)
+             return csvNomKey.startsWith(dbNomKey)
            })
 
       if (!nom) {
@@ -174,7 +210,7 @@ const MachineOperationsTab = () => {
             'у': 'y', 'і': 'i', 'ї': 'i', 'и': 'y', 'п': 'p'
           }
           return s.toLowerCase()
-            .split(/[\r\n\s_\-\(\),]/)
+            .split(/[\r\n\s_\-\(\),'"\`.\[\]\\/`]/)
             .filter(Boolean)
             .map(tok => tok.split('').map(c => mapper[c] || c).join(''))
         }
@@ -201,23 +237,30 @@ const MachineOperationsTab = () => {
             }
           }
 
-          if (bestNom && (bestScore / csvTokens.length >= 0.7 || bestScore >= 4)) {
-            nom = bestNom
+          if (bestNom) {
+            const dbTokens = getTokens(bestNom.name)
+            const ratio = bestScore / Math.max(csvTokens.length, dbTokens.length)
+            if (ratio >= 0.75 || bestScore >= 5) {
+              nom = bestNom
+            }
           }
         }
       }
       return nom
     }
 
-    const containsMachineHeaders = lines.some(l => l.split(',')[0].trim().toLowerCase().startsWith('станок'))
+    const containsMachineHeaders = lines.some(l => {
+      const firstCol = parseCsvLine(l)[0] || ''
+      return firstCol.toLowerCase().startsWith('станок')
+    })
     
     const rawBlocks = []
     if (!containsMachineHeaders) {
       if (lines.length < 4) {
         throw new Error('Файл занадто короткий. Очікується мінімум 4 рядки.')
       }
-      const macName = lines[0].split(',')[0].trim()
-      const nomName = lines[1].split(',')[0].trim()
+      const macName = cleanNomenclatureLine(lines[0])
+      const nomName = cleanNomenclatureLine(lines[1])
       const matchedNom = findNomenclature(nomName)
       if (!matchedNom) {
         throw new Error(`Номенклатура "${nomName}" не знайдена в базі.`)
@@ -225,7 +268,7 @@ const MachineOperationsTab = () => {
       
       const rows = []
       for (let i = 2; i < lines.length; i++) {
-        rows.push(lines[i].split(','))
+        rows.push(parseCsvLine(lines[i]))
       }
       rawBlocks.push({
         machineName: macName,
@@ -238,7 +281,7 @@ const MachineOperationsTab = () => {
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i]
-        const parts = line.split(',').map(p => p.trim())
+        const parts = parseCsvLine(line)
         const cell0 = parts[0] || ''
 
         if (cell0.toLowerCase().startsWith('станок')) {
@@ -366,7 +409,7 @@ const MachineOperationsTab = () => {
                 'у': 'y', 'і': 'i', 'ї': 'i', 'и': 'y', 'п': 'p'
               }
               return s.toLowerCase()
-                .split(/[\r\n\s_\-\(\),]/)
+                .split(/[\r\n\s_\-\(\),'"\`.\[\]\\/`]/)
                 .filter(Boolean)
                 .map(tok => tok.split('').map(c => mapper[c] || c).join(''))
             }

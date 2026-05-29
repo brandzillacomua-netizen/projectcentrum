@@ -568,10 +568,10 @@ export default function BrakModule() {
                                    >-</button>
                                    <input 
                                       type="number"
-                                      value={distribution[c.cat] || ''}
+                                      value={distribution[c.cat] === 0 ? '' : distribution[c.cat]}
                                       onChange={(e) => {
-                                        const val = parseInt(e.target.value) || 0
-                                        setDistribution(prev => ({ ...prev, [c.cat]: Math.max(0, val) }))
+                                        const val = e.target.value
+                                        setDistribution(prev => ({ ...prev, [c.cat]: val === '' ? 0 : Math.max(0, parseInt(val) || 0) }))
                                       }}
                                       placeholder="0"
                                       style={{ width: '50px', textAlign: 'center', background: 'transparent', border: 'none', color: '#fff', fontSize: '1.1rem', fontWeight: 1000, outline: 'none' }}
@@ -714,8 +714,11 @@ export default function BrakModule() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
                   <button onClick={() => setQcScrapCount(v => Math.max(0, v - 1))}
                     style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
-                  <input type="number" min={0} max={scannedCard.quantity} value={qcScrapCount}
-                    onChange={e => setQcScrapCount(Math.max(0, Math.min(scannedCard.quantity, parseInt(e.target.value) || 0)))}
+                  <input type="number" min={0} max={scannedCard.quantity} value={qcScrapCount === 0 ? '' : qcScrapCount} placeholder="0"
+                    onChange={e => {
+                      const val = e.target.value;
+                      setQcScrapCount(val === '' ? 0 : Math.max(0, Math.min(scannedCard.quantity, parseInt(val) || 0)))
+                    }}
                     style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '3.2rem', width: '90px', textAlign: 'center', fontWeight: 900, outline: 'none' }} />
                   <button onClick={() => setQcScrapCount(v => Math.min(scannedCard.quantity, v + 1))}
                     style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
