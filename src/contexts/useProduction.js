@@ -768,9 +768,10 @@ export function createProductionActions({
         if (sheetsNeeded <= 0) return
 
         // Find matching machine operation
+        const targetMach = partInfo.selected_machine || machineName
         const opData = machineOperations?.find(o => 
           String(o.nomenclature_id) === String(partId) &&
-          (o.machine_type === machineName || o.machine_id === machineName)
+          (o.machine_type === targetMach || o.machine_id === targetMach)
         )
         if (opData && opData.side2_cut_ops) {
           const cutterOps = opData.side2_cut_ops.filter(op => op.startsWith('__CUTTER__Reference:') || op.startsWith('__CUTTER__:'))

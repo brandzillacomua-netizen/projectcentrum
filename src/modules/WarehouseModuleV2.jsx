@@ -603,7 +603,7 @@ const WarehouseModuleV2 = () => {
                             ) : (
                               <span style={{ display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
                                 <strong style={{ color: isConsumable ? '#f59e0b' : '#aaa' }}>{r.quantity} од.</strong>
-                                {isConsumable && (
+                                {isConsumable && currentUser?.position === 'Адмін' && (
                                   <button
                                     onClick={() => setEditingQty(prev => ({ ...prev, [r.id]: String(r.quantity) }))}
                                     style={{ background: 'transparent', border: 'none', padding: '2px 4px', cursor: 'pointer', color: '#555', display: 'flex', alignItems: 'center', transition: '0.15s' }}
