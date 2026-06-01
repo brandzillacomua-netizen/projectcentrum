@@ -30,21 +30,64 @@ const ShippingModule = () => {
   const [selectedBatch, setSelectedBatch] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
 
-  // Знаходимо партії, які вже запаковані
-  const readyBatches = (tasks || []).filter(t => 
-    t.status === 'completed' && 
-    t.plan_snapshot?._metadata?.is_packaged === true &&
-    t.plan_snapshot?._metadata?.is_shipped !== true
-  ).map(t => {
-    const order = (orders || []).find(o => String(o.id) === String(t.order_id))
-    return {
-      ...t,
-      orderNum: order?.order_num || '???',
-      customer: order?.customer || 'Unknown',
-      orderId: t.order_id,
-      deadline: order?.deadline
-    }
-  })
+  // Знаходимо партії, які вже запаковані (унікальні по order_id + batch_index)
+  const readyBatches = React.useMemo(() => {
+    const allReadyTasks = (tasks || []).filter(t => 
+      t.status === 'completed' && 
+      t.plan_snapshot?._metadata?.is_packaged === true &&
+      t.plan_snapshot?._metadata?.is_shipped !== true
+    )
+
+    // Групуємо по order_id та batch_index
+    const uniqueBatchesMap = {}
+    allReadyTasks.forEach(t => {
+      const key = `${t.order_id}_${t.batch_index ?? '0'}`
+      if (!uniqueBatchesMap[key]) {
+        uniqueBatchesMap[key] = []
+      }
+      uniqueBatchesMap[key].push(t)
+    })
+
+    return Object.values(uniqueBatchesMap).map(taskList => {
+      const t = taskList.find(x => x.step?.includes('Пресування') || x.step?.includes('ЦЕХ №2')) || taskList[0]
+      const order = (orders || []).find(o => String(o.id) === String(t.order_id))
+      
+      // Динамічно збираємо список номенклатур з усіх завдань цієї партії
+      const nomMap = {}
+      taskList.forEach(taskItem => {
+        const snapshot = taskItem.plan_snapshot || {}
+        Object.keys(snapshot).forEach(k => {
+          if (
+            k.startsWith('_') || 
+            ['materialSummary', 'arrivals', 'arrival_doc_id', 'arrival_doc', 'nomenclatures', 'consumables'].includes(k)
+          ) return
+          const nom = nomenclatures.find(n => String(n.id) === String(k))
+          if (nom && nom.type === 'part') {
+            const entry = snapshot[k] || {}
+            const qty = Number(entry.need) || Number(entry.plan) || 0
+            if (qty > 0) {
+              nomMap[k] = {
+                id: k,
+                name: nom.name,
+                qty: qty,
+                unit: nom.unit || 'шт'
+              }
+            }
+          }
+        })
+      })
+
+      return {
+        ...t,
+        orderNum: order?.order_num || '???',
+        customer: order?.customer || 'Unknown',
+        orderId: t.order_id,
+        deadline: order?.deadline,
+        batchTasks: taskList,
+        nomenclaturesList: Object.values(nomMap)
+      }
+    })
+  }, [tasks, orders, nomenclatures])
 
   // Замовлення, які ще в процесі консолідації
   const inConsolidation = orders.filter(o => o.status !== 'shipped' && o.status !== 'cancelled')
@@ -66,19 +109,25 @@ const ShippingModule = () => {
     try {
       setIsProcessing(true)
       
-      // 1. Списуємо матеріали/деталі зі складу (зменшуємо загальну та зарезервовану кількість)
-      await deductIssuedMaterialsForTask(task.id)
-
-      // 2. Оновлюємо статус відвантаження в метаданих наряду
-      const newSnapshot = {
-        ...(task.plan_snapshot || {}),
-        _metadata: {
-          ...(task.plan_snapshot?._metadata || {}),
-          is_shipped: true,
-          shipped_at: new Date().toISOString()
-        }
+      const tasksToShip = task.batchTasks || [task]
+      
+      // 1. Списуємо матеріали/деталі зі складу для всіх нарядів цієї партії
+      for (const t of tasksToShip) {
+        await deductIssuedMaterialsForTask(t.id)
       }
-      await supabase.from('tasks').update({ plan_snapshot: newSnapshot }).eq('id', task.id)
+
+      // 2. Оновлюємо статус відвантаження в метаданих для всіх нарядів цієї партії
+      for (const t of tasksToShip) {
+        const newSnapshot = {
+          ...(t.plan_snapshot || {}),
+          _metadata: {
+            ...(t.plan_snapshot?._metadata || {}),
+            is_shipped: true,
+            shipped_at: new Date().toISOString()
+          }
+        }
+        await supabase.from('tasks').update({ plan_snapshot: newSnapshot }).eq('id', t.id)
+      }
       
       const { data: siblingTasks } = await supabase.from('tasks').select('plan_snapshot').eq('order_id', task.orderId)
       const allShipped = (siblingTasks || []).every(st => st.plan_snapshot?._metadata?.is_shipped === true)
@@ -178,16 +227,16 @@ const ShippingModule = () => {
                     </div>
 
                     <div className="items-preview">
-                      {batch.plan_snapshot?.nomenclatures?.slice(0, 4).map((item, i) => (
-                        <div key={i} className="item-row">
-                          <span className="item-name">{nomenclatures.find(n => n.id === item.id)?.name || item.name}</span>
-                          <span className="item-qty">{item.qty} {item.unit || 'шт'}</span>
-                        </div>
-                      ))}
-                      {batch.plan_snapshot?.nomenclatures?.length > 4 && (
-                        <div className="more-items">+{batch.plan_snapshot.nomenclatures.length - 4} інших позицій</div>
-                      )}
-                    </div>
+                       {batch.nomenclaturesList?.slice(0, 4).map((item, i) => (
+                         <div key={i} className="item-row">
+                           <span className="item-name">{item.name}</span>
+                           <span className="item-qty">{item.qty} {item.unit || 'шт'}</span>
+                         </div>
+                       ))}
+                       {batch.nomenclaturesList?.length > 4 && (
+                         <div className="more-items">+{batch.nomenclaturesList.length - 4} інших позицій</div>
+                       )}
+                     </div>
 
                     <div className="batch-card-footer">
                       <div className="deadline-tag">
@@ -312,10 +361,10 @@ const ShippingModule = () => {
                          </tr>
                       </thead>
                       <tbody>
-                         {selectedBatch.plan_snapshot?.nomenclatures?.map((item, idx) => (
+                         {selectedBatch.nomenclaturesList?.map((item, idx) => (
                            <tr key={idx}>
                               <td>{idx + 1}</td>
-                              <td className="item-name-cell">{nomenclatures.find(n => n.id === item.id)?.name || item.name}</td>
+                              <td className="item-name-cell">{item.name}</td>
                               <td style={{ textAlign: 'center' }}>{item.unit || 'шт'}</td>
                               <td style={{ textAlign: 'right', fontWeight: 900 }}>{item.qty}</td>
                            </tr>

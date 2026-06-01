@@ -643,10 +643,10 @@ const Shop2Module = () => {
                           const snap = task.plan_snapshot || {}
                           const arrival = (snap.arrivals || []).find(a => String(a.id) === String(item.nom?.id))
 
-                          const actualArrived = arrival ? (Number(arrival.semi) || 0) + (Number(arrival.bz) || 0) : totalArrived
+                          const actualArrived = Math.max(totalArrived, arrival ? (Number(arrival.semi) || 0) + (Number(arrival.bz) || 0) : 0)
 
                           const displayNeed = plannedNeed
-                          const displayBz = arrival ? (Number(arrival.bz) || 0) : (totalArrived > plannedNeed ? totalArrived - plannedNeed : 0)
+                          const displayBz = Math.max(arrival ? (Number(arrival.bz) || 0) : 0, totalArrived > plannedNeed ? totalArrived - plannedNeed : 0)
                           const displayTotal = displayNeed + displayBz
 
                           // Загальна кількість деталей, яка вже пішла в процес (згенеровані робочі карти в Цеху №2)
@@ -915,7 +915,9 @@ const Shop2Module = () => {
                           byNom[nid].totalUsed += (Number(c.used_in_shop2_qty) || 0)
                         })
 
-                        if (Object.keys(byNom).length === 0) {
+                        const activeEntries = Object.entries(byNom).filter(([_, data]) => (data.totalArrived - data.totalUsed) > 0)
+
+                        if (activeEntries.length === 0) {
                           return (
                             <div style={{ color: '#222', fontSize: '0.85rem', fontWeight: 700, padding: '20px', gridColumn: '1/-1' }}>
                               {task.status === 'waiting'
@@ -925,7 +927,7 @@ const Shop2Module = () => {
                           )
                         }
 
-                        return Object.entries(byNom).map(([nomId, data]) => {
+                        return activeEntries.map(([nomId, data]) => {
                           const nom = (nomenclatures || []).find(n => String(n?.id) === nomId)
                           const remaining = data.totalArrived - data.totalUsed
                           const shop2Cards = [...(workCards || []), ...(archiveCards || []).filter(ac => !(workCards || []).some(wc => wc.id === ac.id))].filter(c =>
@@ -938,8 +940,7 @@ const Shop2Module = () => {
                           const arrival = (snap.arrivals || []).find(a => String(a.id) === nomId)
                           const displayItemsForNeed = getTaskDisplayItems(task, order)
                           const matchedDi = displayItemsForNeed.find(di => String(di.nom?.id) === nomId)
-                          const need = arrival ? (Number(arrival.semi) || 0) + (Number(arrival.bz) || 0)
-                            : (matchedDi ? Number(matchedDi.need) : 0)
+                          const need = Math.max(matchedDi ? Number(matchedDi.need) : 0, arrival ? (Number(arrival.semi) || 0) + (Number(arrival.bz) || 0) : 0)
 
                           return (
                             <div key={nomId} style={{ background: '#111', borderRadius: '24px', padding: '22px', border: remaining > 0 ? '1px solid #8b5cf644' : '1px solid #1a1a1a', boxShadow: remaining > 0 ? '0 0 20px rgba(139,92,246,0.1)' : 'none' }}>

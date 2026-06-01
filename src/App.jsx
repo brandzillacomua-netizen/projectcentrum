@@ -58,6 +58,7 @@ const AccessModule         = lazy(() => import('./modules/AccessModule'))
 const ReportsModule        = lazy(() => import('./modules/ReportsModule'))
 const DashboardModule      = lazy(() => import('./modules/DashboardModule'))
 const MachineCallModule    = lazy(() => import('./modules/MachineCallModule'))
+const TumblingTerminal     = lazy(() => import('./modules/TumblingTerminal'))
 
 import { MESProvider, useMES } from './MESContext'
 
@@ -81,6 +82,7 @@ const getAllModules = (badgeCount = 0) => [
   { id: 'master', title: 'ЦЕХ №1 – Створення нарядів', icon: <Monitor />, path: '/master', desc: 'Управління зміною', color: '#3b82f6' },
   { id: 'foreman', title: 'ЦЕХ №1 – Створення РК', icon: <Users />, path: '/foreman', desc: 'Розподіл нарядів', color: '#f59e0b' },
   { id: 'shop1', title: 'Цех №1 · Термінал', icon: <Tablet />, path: '/shop1', desc: 'Розкрій → Галтовка → Прийомка', color: '#eab308' },
+  { id: 'tumbling_terminal', title: 'Екран Галтовки', icon: <Tablet />, path: '/tumbling-terminal', desc: 'Дільниця галтовки', color: '#06b6d4' },
   { id: 'operator', title: 'Термінал', icon: <Tablet />, path: '/operator', desc: 'Робоче місце', color: '#ef4444' },
 
   // 2. Цех 2
@@ -121,6 +123,7 @@ const getAvailableModules = (currentUser, badgeCount) => {
     if (m.id === 'brak') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.director || currentUser?.access_rights?.brak;
     if (m.id === 'reports') return currentUser?.access_rights?.director || currentUser?.access_rights?.reports || currentUser?.position === 'Адмін';
     if (m.id === 'prep_terminal') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.position?.toLowerCase().includes('вп') || currentUser?.position?.toLowerCase().includes('підготов');
+    if (m.id === 'tumbling_terminal') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.tumbling_terminal;
     return currentUser?.access_rights?.[m.id] === true;
   });
 }
@@ -131,6 +134,7 @@ const CATEGORY_MAP = {
   foreman: 'shop1',
   shop1: 'shop1',
   prep_terminal: 'shop1',
+  tumbling_terminal: 'shop1',
   operator: 'shop1',
 
   // Цех 2
@@ -1405,6 +1409,7 @@ const AppContent = () => {
         <Route path="/operator" element={<OperatorTerminal />} />
         <Route path="/prep-terminal" element={<PreparationTerminal />} />
         <Route path="/shop1" element={<Shop1Terminal />} />
+        <Route path="/tumbling-terminal" element={<TumblingTerminal />} />
         <Route path="/shop2" element={<Shop2Module />} />
         <Route path="/shop2-terminal" element={<Shop2Terminal />} />
         <Route path="/packaging" element={<PackagingModule />} />

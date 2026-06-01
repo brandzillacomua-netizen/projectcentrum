@@ -651,21 +651,24 @@ export default function Shop1Terminal() {
     setIsProcessing(true)
     try {
       const now = new Date().toISOString()
-      // Записуємо проміжного оператора в history із stage_name = 'Розкрій (перезмінка)'
+      const shiftChangeInfo = `[REPLACED_BY:${shiftChangeOperator} (${shiftChangeShift})]`
+      const historyCardInfo = ((currentCard.card_info || '') + ' ' + shiftChangeInfo).trim()
+
+      // Записуємо проміжного оператора в history (того, хто працював до цього моменту)
       await supabase.from('work_card_history').insert([{
         card_id: currentCard.id,
         nomenclature_id: currentCard.nomenclature_id,
         stage_name: 'Розкрій (перезмінка)',
-        operator_name: shiftChangeOperator,
+        operator_name: currentCard.operator_name || 'Не вказано',
         qty_at_start: currentCard.quantity,
         qty_completed: currentCard.quantity,
         scrap_qty: 0,
-        started_at: currentCard.started_at,
+        started_at: currentCard.started_at || now,
         completed_at: now,
-        shift_name: shiftChangeShift,
+        shift_name: currentCard.shift_name || 'Без зміни',
         manager_name: currentCard.manager_name,
         machine_name: currentCard.machine,
-        card_info: currentCard.card_info || ''
+        card_info: historyCardInfo
       }])
       // Оновлюємо оператора на картці (щоб таймер показував нового)
       await supabase.from('work_cards').update({
@@ -954,7 +957,7 @@ export default function Shop1Terminal() {
 
       // Calculations for inventory transfers
       const cardBz = Number(currentCard.buffer_qty) || Number(currentCard.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
-      const cardNeed = Number(currentCard.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Math.max(0, Number(currentCard.quantity) - cardBz))
+      const cardNeed = Number(currentCard.card_info?.match(/\[REQ:(\d+)\]/)?.[1]) || Number(currentCard.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Math.max(0, Number(currentCard.quantity) - cardBz))
       const actualNeed = Math.min(goodQty, cardNeed)
       const actualBz = Math.max(0, goodQty - actualNeed)
 
@@ -1498,7 +1501,7 @@ export default function Shop1Terminal() {
             <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800, marginTop: '6px', textTransform: 'uppercase' }}>
               ЗАМОВЛЕННЯ №{orders?.find(o => o.id === currentCard.order_id)?.order_num || '—'} · Картка #{currentCard.id.slice(-8).toUpperCase()} · {(() => {
                 const bz = Number(currentCard.buffer_qty) || Number(currentCard.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
-                const need = Number(currentCard.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Number(currentCard.quantity) - bz)
+                const need = Number(currentCard.card_info?.match(/\[REQ:(\d+)\]/)?.[1]) || Number(currentCard.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Number(currentCard.quantity) - bz)
                 if (bz > 0) return `${currentCard.quantity} шт (${need} + ${bz} БЗ)`
                 return `${currentCard.quantity} шт`
               })()}

@@ -1740,11 +1740,15 @@ const MACHINE_TYPES = [
                                       return (
                                         <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                                           <span style={{ fontSize: '0.5rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', alignSelf: 'center' }}>Перезмінка:</span>
-                                          {cardShiftChanges.map((h, i) => (
-                                            <span key={i} style={{ fontSize: '0.5rem', background: '#f59e0b11', border: '1px solid #f59e0b22', color: '#f59e0b', padding: '1px 6px', borderRadius: '5px', fontWeight: 800 }}>
-                                              {h.operator_name}
-                                            </span>
-                                          ))}
+                                          {cardShiftChanges.map((h, i) => {
+                                            const replacedMatch = h.card_info?.match(/\[REPLACED_BY:(.*?)\]/)
+                                            const replacement = replacedMatch ? replacedMatch[1].split(' (')[0] : ''
+                                            return (
+                                              <span key={i} style={{ fontSize: '0.5rem', background: '#f59e0b11', border: '1px solid #f59e0b22', color: '#f59e0b', padding: '1px 6px', borderRadius: '5px', fontWeight: 800 }}>
+                                                {h.operator_name}{replacement ? ` ➔ ${replacement}` : ''}
+                                              </span>
+                                            )
+                                          })}
                                         </div>
                                       )
                                     })()}
@@ -3184,6 +3188,17 @@ const MACHINE_TYPES = [
                                   <td style={{ padding: '12px 15px' }}>
                                     <div style={{ color: '#fff', fontWeight: 800 }}>{row.operator_name}</div>
                                     <div style={{ color: '#555', fontSize: '0.65rem' }}>{row.shift_name}</div>
+                                    {(() => {
+                                      const replacedMatch = row.card_info?.match(/\[REPLACED_BY:(.*?)\]/)
+                                      if (replacedMatch) {
+                                        return (
+                                          <div style={{ color: '#f59e0b', fontSize: '0.65rem', marginTop: '4px', fontWeight: 700 }}>
+                                            ↳ Замінено на: {replacedMatch[1]}
+                                          </div>
+                                        )
+                                      }
+                                      return null
+                                    })()}
                                   </td>
                                   <td style={{ padding: '12px 15px', color: '#888' }}>
                                     {row.machine_name || row.machine || '—'}

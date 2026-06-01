@@ -445,7 +445,7 @@ const OperatorTerminal = () => {
               <div style={{ fontSize: '0.65rem', opacity: 0.7 }}>
                 №{orders?.find(o => o.id === card.order_id)?.order_num || '—'} | {(() => {
                   const bz = Number(card.buffer_qty) || Number(card.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
-                  const need = Number(card.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Number(card.quantity) - bz)
+                  const need = Number(card.card_info?.match(/\[REQ:(\d+)\]/)?.[1]) || Number(card.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Number(card.quantity) - bz)
                   if (bz > 0) return `${card.quantity} шт (${need}+${bz} БЗ)`
                   return `${card.quantity} шт`
                 })()} | {card.operation} {getSheetsFromCard(card) ? `| Лист ${getSheetsFromCard(card)}` : ''}
@@ -509,7 +509,7 @@ const OperatorTerminal = () => {
                     <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800 }}>
                       ЗАМОВЛЕННЯ №{orders?.find(o => o.id === currentCard.order_id)?.order_num || '—'} | КАРТКА #{currentCard.id.slice(0, 8).toUpperCase()}... | {(() => {
                         const bz = Number(currentCard.buffer_qty) || Number(currentCard.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
-                        const need = Number(currentCard.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Number(currentCard.quantity) - bz)
+                        const need = Number(currentCard.card_info?.match(/\[REQ:(\d+)\]/)?.[1]) || Number(currentCard.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Number(currentCard.quantity) - bz)
                         if (bz > 0) return `${currentCard.quantity} ШТ (${need}+${bz} БЗ)`
                         return `${currentCard.quantity} ШТ`
                       })()}
