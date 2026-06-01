@@ -472,8 +472,13 @@ export function useData() {
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, (payload) => {
-        if (payload.eventType === 'UPDATE') setInventory(prev => prev.map(i => i.id === payload.new.id ? { ...i, ...payload.new } : i))
-        else if (payload.eventType === 'INSERT') setInventory(prev => [payload.new, ...prev])
+        if (payload.eventType === 'UPDATE') {
+          setInventory(prev => prev.map(i => i.id === payload.new.id ? { ...i, ...payload.new } : i))
+        } else if (payload.eventType === 'INSERT') {
+          setInventory(prev => prev.some(i => i.id === payload.new.id) ? prev : [payload.new, ...prev])
+        } else if (payload.eventType === 'DELETE') {
+          setInventory(prev => prev.filter(i => i.id !== payload.old.id))
+        }
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'work_card_history' }, (payload) => {
         setWorkCardHistory(prev => prev.some(h => h.id === payload.new.id) ? prev : [payload.new, ...prev].slice(0, 300))
