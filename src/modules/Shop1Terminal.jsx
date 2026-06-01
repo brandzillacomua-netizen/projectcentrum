@@ -1107,24 +1107,6 @@ export default function Shop1Terminal() {
             bz: actualBz
           }]
           
-          // Merge BZ cards into updatedArrivals at task creation
-          if (bzCards && bzCards.length > 0) {
-            bzCards.forEach(bzCard => {
-              const bzNom = nomenclatures.find(n => n.id === bzCard.nomenclature_id)
-              const matchIdx = updatedArrivals.findIndex(a => String(a.id) === String(bzCard.nomenclature_id))
-              if (matchIdx >= 0) {
-                updatedArrivals[matchIdx].semi = (Number(updatedArrivals[matchIdx].semi) || 0) + Number(bzCard.quantity)
-              } else {
-                updatedArrivals.push({
-                  id: bzCard.nomenclature_id,
-                  name: bzNom?.name || 'Деталь',
-                  semi: Number(bzCard.quantity),
-                  bz: 0
-                })
-              }
-            })
-          }
-
           writePromises.push(
             supabase.from('tasks').insert([{
               id: shop2TaskId,

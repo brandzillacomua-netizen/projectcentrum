@@ -674,11 +674,11 @@ export function createProductionActions({
           if (invItem) {
             const usedQty = (Number(invItem.total_qty) || 0) - upd.next_qty
             if (usedQty > 0) {
-              const s2Semi = inventory.find(i => String(i.nomenclature_id) === String(invItem.nomenclature_id) && i.type === 'semi_shop2')
-              if (s2Semi) {
+              const sgpFinished = inventory.find(i => String(i.nomenclature_id) === String(invItem.nomenclature_id) && i.type === 'finished')
+              if (sgpFinished) {
                 s2InventoryUpdates.push({
-                  ...s2Semi,
-                  total_qty: (Number(s2Semi.total_qty) || 0) + usedQty
+                  ...sgpFinished,
+                  total_qty: (Number(sgpFinished.total_qty) || 0) + usedQty
                 })
               } else {
                 const nom = nomenclatures.find(n => n.id === invItem.nomenclature_id)
@@ -687,7 +687,7 @@ export function createProductionActions({
                   name: nom?.name || invItem.name || 'Деталь',
                   total_qty: usedQty,
                   reserved_qty: 0,
-                  type: 'semi_shop2',
+                  type: 'finished',
                   unit: nom?.unit || invItem.unit || 'шт'
                 })
               }
@@ -719,7 +719,7 @@ export function createProductionActions({
                 order_id: orderId,
                 nomenclature_id: invItem.nomenclature_id,
                 quantity: usedQty,
-                status: 'at-shop2-buffer',
+                status: 'completed',
                 operation: 'Склад БЗ',
                 card_info: '[ЗІ СКЛАДУ БЗ]'
               })
@@ -1048,6 +1048,12 @@ export function createProductionActions({
           else { const nom = nomenclatures.find(n => n.id === nomId); await supabase.from('inventory').insert([{ nomenclature_id: nomId, name: nom?.name || 'BZ Item', unit: nom?.unit || 'шт', total_qty: totalToMove, reserved_qty: 0, type: 'bz' }]) }
           for (const s of shop2Stock) { if (s.type === 'bz_shop2') await supabase.from('inventory').update({ total_qty: 0 }).eq('id', s.id); else await supabase.from('inventory').delete().eq('id', s.id) }
         }
+        
+        // Also reset semi_shop2 to 0 for these nomenclatures
+        const semiShop2Item = (inventory || []).find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'semi_shop2')
+        if (semiShop2Item && (Number(semiShop2Item.total_qty) || 0) > 0) {
+          await supabase.from('inventory').update({ total_qty: 0 }).eq('id', semiShop2Item.id)
+        }
       }
       refreshTable('inventory'); refreshTable('tasks')
     } catch (err) { console.error('Error completing Shop 2 task:', err); throw err }
@@ -1113,19 +1119,24 @@ export function createProductionActions({
       }
 
       const inventoryUpdates = []
-      const subFromS2 = async (nid, iqty, itype) => {
-        if (!iqty || iqty <= 0) return
-        let remaining = iqty
-        const { data: rows } = await supabase.from('inventory').select('*').eq('nomenclature_id', nid).eq('type', itype)
-        for (const r of (rows || [])) {
+      const subFromS2Unified = async (nid, totalDeductQty) => {
+        if (!totalDeductQty || totalDeductQty <= 0) return
+        let remaining = totalDeductQty
+        const { data: rows } = await supabase.from('inventory').select('*').eq('nomenclature_id', nid).in('type', ['semi_shop2', 'bz_shop2'])
+        const sortedRows = (rows || []).sort((a, b) => {
+          if (a.type === 'semi_shop2' && b.type === 'bz_shop2') return -1
+          if (a.type === 'bz_shop2' && b.type === 'semi_shop2') return 1
+          return 0
+        })
+        for (const r of sortedRows) {
           const current = Number(r.total_qty) || 0
           const take = Math.min(current, remaining)
           if (take > 0) { inventoryUpdates.push({ ...r, total_qty: current - take }); remaining -= take }
           if (remaining <= 0) break
         }
       }
-      await subFromS2(nomenclatureId, finishedQty, 'semi_shop2')
-      await subFromS2(nomenclatureId, actualBzQty, 'bz_shop2')
+      const totalQtyToDeduct = finishedQty + actualBzQty
+      await subFromS2Unified(nomenclatureId, totalQtyToDeduct)
       if (finishedQty > 0) {
         const { data: finishedItem } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomenclatureId).eq('type', 'finished').limit(1).maybeSingle()
         if (finishedItem) inventoryUpdates.push({ ...finishedItem, total_qty: (Number(finishedItem.total_qty) || 0) + finishedQty })
@@ -1209,33 +1220,29 @@ export function createProductionActions({
       const updates = []
       const inserts = []
 
-      // 1. Subtract semi_shop2
-      if (!isRework && finishedQty > 0) {
-        let remainingNeedQty = finishedQty
-        const s2SemiRows = existingInv?.filter(i => (nomId && String(i.nomenclature_id) === String(nomId) || i.name === nomName) && i.type === 'semi_shop2') || []
-        for (const r of s2SemiRows) {
-          const current = Number(r.total_qty) || 0
-          const take = Math.min(current, remainingNeedQty)
-          if (take > 0) {
-            updates.push({ ...r, total_qty: current - take })
-            remainingNeedQty -= take
-          }
-          if (remainingNeedQty <= 0) break
-        }
-      }
+      // Unified deduction of totalQty from semi_shop2 and bz_shop2
+      if (!isRework && totalQty > 0) {
+        let remaining = totalQty
+        const s2Rows = existingInv?.filter(i => 
+          (nomId && String(i.nomenclature_id) === String(nomId) || i.name === nomName) && 
+          (i.type === 'semi_shop2' || i.type === 'bz_shop2')
+        ) || []
+        
+        // Sort: semi_shop2 first, then bz_shop2
+        const sortedS2Rows = [...s2Rows].sort((a, b) => {
+          if (a.type === 'semi_shop2' && b.type === 'bz_shop2') return -1
+          if (a.type === 'bz_shop2' && b.type === 'semi_shop2') return 1
+          return 0
+        })
 
-      // 2. Subtract bz_shop2
-      if (!isRework && actualBzQty > 0) {
-        let remainingBz = actualBzQty
-        const s2BzRows = existingInv?.filter(i => (nomId && String(i.nomenclature_id) === String(nomId) || i.name === nomName) && i.type === 'bz_shop2') || []
-        for (const r of s2BzRows) {
+        for (const r of sortedS2Rows) {
           const current = Number(r.total_qty) || 0
-          const take = Math.min(current, remainingBz)
+          const take = Math.min(current, remaining)
           if (take > 0) {
             updates.push({ ...r, total_qty: current - take })
-            remainingBz -= take
+            remaining -= take
           }
-          if (remainingBz <= 0) break
+          if (remaining <= 0) break
         }
       }
 
@@ -1295,10 +1302,10 @@ export function createProductionActions({
       const nextTotal = Math.max(0, (Number(bz.total_qty) || 0) - Number(qty))
       await supabase.from('inventory').update({ total_qty: nextTotal }).eq('id', bz.id)
 
-      // 2. Increase total_qty of Shop 2 semi_shop2 inventory
-      const { data: s2Semi } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomenclatureId).eq('type', 'semi_shop2').limit(1).maybeSingle()
-      if (s2Semi) {
-        await supabase.from('inventory').update({ total_qty: (Number(s2Semi.total_qty) || 0) + Number(qty) }).eq('id', s2Semi.id)
+      // 2. Increase total_qty of SGP finished inventory
+      const { data: sgpFinished } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomenclatureId).eq('type', 'finished').limit(1).maybeSingle()
+      if (sgpFinished) {
+        await supabase.from('inventory').update({ total_qty: (Number(sgpFinished.total_qty) || 0) + Number(qty) }).eq('id', sgpFinished.id)
       } else {
         const nom = nomenclatures.find(n => n.id === nomenclatureId)
         await supabase.from('inventory').insert([{
@@ -1306,43 +1313,53 @@ export function createProductionActions({
           name: nom?.name || bz.name || 'Деталь',
           total_qty: qty,
           reserved_qty: 0,
-          type: 'semi_shop2',
+          type: 'finished',
           unit: nom?.unit || bz.unit || 'шт'
         }])
       }
 
-      // 3. Update arrivals in Shop 2 task if it exists
-      const { data: shop2Tasks } = await supabase.from('tasks').select('*').eq('order_id', orderId).ilike('step', '%ЦЕХ №2%').neq('status', 'completed')
-      if (shop2Tasks && shop2Tasks.length > 0) {
-        const s2Task = shop2Tasks[0]
-        const existingArrivals = s2Task.plan_snapshot?.arrivals || []
-        const updatedArrivals = [...existingArrivals]
-        const matchIdx = updatedArrivals.findIndex(a => String(a.id) === String(nomenclatureId))
-        if (matchIdx >= 0) {
-          updatedArrivals[matchIdx] = {
-            ...updatedArrivals[matchIdx],
-            semi: (Number(updatedArrivals[matchIdx].semi) || 0) + Number(qty)
+      // 3. Update stock/plan values in task plan_snapshot
+      const { data: s2Tasks } = await supabase.from('tasks').select('*').eq('order_id', orderId)
+      if (s2Tasks) {
+        for (const t of s2Tasks) {
+          if (t.plan_snapshot && t.plan_snapshot[String(nomenclatureId)]) {
+            const entry = { ...t.plan_snapshot[String(nomenclatureId)] }
+            entry.stock = (Number(entry.stock) || 0) + Number(qty)
+            entry.plan = Math.max(0, (Number(entry.plan) || 0) - Number(qty))
+            
+            const nextSnapshot = {
+              ...t.plan_snapshot,
+              [String(nomenclatureId)]: entry
+            }
+            await supabase.from('tasks').update({ plan_snapshot: nextSnapshot }).eq('id', t.id)
           }
-        } else {
-          const nom = nomenclatures.find(n => n.id === nomenclatureId)
-          updatedArrivals.push({
-            id: nomenclatureId,
-            name: nom?.name || bz.name || 'Деталь',
-            semi: Number(qty),
-            bz: 0
-          })
         }
-        await supabase.from('tasks').update({
-          plan_snapshot: {
-            ...(s2Task.plan_snapshot || {}),
-            arrivals: updatedArrivals
-          }
-        }).eq('id', s2Task.id)
       }
 
-      // 4. Create work card in at-shop2-buffer status
-      await supabase.from('work_cards').insert([{ task_id: taskId, order_id: orderId, nomenclature_id: nomenclatureId, quantity: qty, status: 'at-shop2-buffer', operation: 'Склад БЗ', card_info: '[ЗІ СКЛАДУ БЗ]' }])
-      await supabase.from('work_card_history').insert([{ task_id: taskId, nomenclature_id: nomenclatureId, stage_name: 'Склад БЗ', operator_name: 'Система (БРОНЬ)', qty_at_start: qty, qty_completed: qty, scrap_qty: 0, completed_at: new Date().toISOString() }])
+      // 4. Create work card in completed status
+      const { data: newCards } = await supabase.from('work_cards').insert([{ 
+        task_id: taskId, 
+        order_id: orderId, 
+        nomenclature_id: nomenclatureId, 
+        quantity: qty, 
+        status: 'completed', 
+        operation: 'Склад БЗ', 
+        card_info: '[ЗІ СКЛАДУ БЗ]' 
+      }]).select()
+      
+      const newCard = newCards && newCards.length > 0 ? newCards[0] : null
+      if (newCard) {
+        await supabase.from('work_card_history').insert([{ 
+          card_id: newCard.id,
+          nomenclature_id: nomenclatureId, 
+          stage_name: 'Склад БЗ', 
+          operator_name: 'Система (БРОНЬ)', 
+          qty_at_start: qty, 
+          qty_completed: qty, 
+          scrap_qty: 0, 
+          completed_at: new Date().toISOString() 
+        }])
+      }
       
       refreshTable('inventory'); refreshTable('work_cards'); refreshTable('tasks'); return { success: true }
     } catch (err) { console.error(err); throw err }

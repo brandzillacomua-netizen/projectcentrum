@@ -11,11 +11,14 @@ import {
   Archive,
   AlertTriangle,
   Search,
-  History
+  History,
+  Pencil,
+  Check
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
+import { supabase as supabaseClient } from '../supabase'
 
 const WarehouseModuleV2 = () => {
   const {
@@ -70,6 +73,9 @@ const WarehouseModuleV2 = () => {
   const [processingDocs, setProcessingDocs] = useState(new Set())
   const [processingTasks, setProcessingTasks] = useState(new Set())
   const [expandedDoc, setExpandedDoc] = useState(null)
+  // editingQty: { [requestId]: inputValue }
+  const [editingQty, setEditingQty] = useState({})
+  const [savingQty, setSavingQty] = useState(new Set())
 
   const getMaterialType = (r) => {
     const parsedName = parseMaterialName(r.details)
@@ -314,6 +320,22 @@ const WarehouseModuleV2 = () => {
     }
   }
 
+  // Save edited consumable quantity to material_requests
+  const handleSaveConsumableQty = async (reqId) => {
+    const newVal = parseFloat(editingQty[reqId])
+    if (isNaN(newVal) || newVal < 0) return
+    setSavingQty(prev => new Set(prev).add(reqId))
+    try {
+      await supabaseClient.from('material_requests').update({ quantity: newVal }).eq('id', reqId)
+      if (typeof fetchModuleData === 'function') fetchModuleData('warehouse')
+    } catch (err) {
+      alert('Помилка збереження: ' + err.message)
+    } finally {
+      setSavingQty(prev => { const n = new Set(prev); n.delete(reqId); return n })
+      setEditingQty(prev => { const n = { ...prev }; delete n[reqId]; return n })
+    }
+  }
+
   // Handle adding new inventory item (hybrid: log + save)
   const handleAddInventory = async (e) => {
     e.preventDefault()
@@ -540,10 +562,62 @@ const WarehouseModuleV2 = () => {
                 return (
                   <div key={key} style={{ minWidth: '300px', background: '#111', padding: '15px', borderRadius: '15px', border: '1px solid #222' }}>
                     <strong style={{ display: 'block', fontSize: '0.75rem', marginBottom: '10px' }}>НАРЯД #{displayNum}</strong>
-                    <ul style={{ fontSize: '0.8rem', color: '#888', paddingLeft: '15px', marginBottom: '15px' }}>
+                    <ul style={{ listStyle: 'none', padding: 0, marginBottom: '15px' }}>
                       {reqList.map(r => {
                         const parsedName = parseMaterialName(r.details)
-                        return <li key={r.id}>{parsedName || r.details} — {r.quantity} од.</li>
+                        const nom = r.nomenclature_id ? (nomenclatures || []).find(n => String(n.id) === String(r.nomenclature_id)) : null
+                        const isConsumable = nom?.type === 'consumable' || (parsedName || '').toLowerCase().includes('фреза')
+                        const isEditing = editingQty.hasOwnProperty(r.id)
+                        const isSaving = savingQty.has(r.id)
+                        return (
+                          <li key={r.id} style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            fontSize: '0.78rem', color: '#888', padding: '4px 0',
+                            borderBottom: '1px solid #1a1a1a'
+                          }}>
+                            <span style={{ flex: 1, marginRight: '8px' }}>{parsedName || r.details}</span>
+                            {isEditing ? (
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={editingQty[r.id]}
+                                  onChange={e => setEditingQty(prev => ({ ...prev, [r.id]: e.target.value }))}
+                                  onKeyDown={e => { if (e.key === 'Enter') handleSaveConsumableQty(r.id); if (e.key === 'Escape') setEditingQty(prev => { const n={...prev}; delete n[r.id]; return n }) }}
+                                  autoFocus
+                                  style={{
+                                    width: '60px', background: '#000', border: '1px solid #ff9000',
+                                    color: '#fff', borderRadius: '5px', padding: '3px 6px',
+                                    fontSize: '0.78rem', outline: 'none'
+                                  }}
+                                />
+                                <button
+                                  onClick={() => handleSaveConsumableQty(r.id)}
+                                  disabled={isSaving}
+                                  style={{ background: '#10b981', border: 'none', borderRadius: '4px', padding: '3px 6px', cursor: 'pointer', color: '#000', display: 'flex', alignItems: 'center' }}
+                                  title="Зберегти"
+                                >
+                                  {isSaving ? '...' : <Check size={12} />}
+                                </button>
+                              </span>
+                            ) : (
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
+                                <strong style={{ color: isConsumable ? '#f59e0b' : '#aaa' }}>{r.quantity} од.</strong>
+                                {isConsumable && (
+                                  <button
+                                    onClick={() => setEditingQty(prev => ({ ...prev, [r.id]: String(r.quantity) }))}
+                                    style={{ background: 'transparent', border: 'none', padding: '2px 4px', cursor: 'pointer', color: '#555', display: 'flex', alignItems: 'center', transition: '0.15s' }}
+                                    title="Редагувати кількість"
+                                    onMouseEnter={e => e.currentTarget.style.color = '#ff9000'}
+                                    onMouseLeave={e => e.currentTarget.style.color = '#555'}
+                                  >
+                                    <Pencil size={11} />
+                                  </button>
+                                )}
+                              </span>
+                            )}
+                          </li>
+                        )
                       })}
                     </ul>
                     <button

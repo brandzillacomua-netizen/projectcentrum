@@ -133,21 +133,41 @@ const Shop2Module = () => {
       }))
     }
 
-    let items = arrivals.length > 0 ? arrivals.map(a => ({
-      nom: (nomenclatures || []).find(n => String(n?.id) === String(a?.id)),
-      need: snapshot[String(a?.id)]?.need !== undefined ? Number(snapshot[String(a?.id)]?.need) : (a?.semi || 0),
-      bz: a?.bz || 0,
-      code: (nomenclatures || []).find(n => String(n?.id) === String(a?.id))?.nomenclature_code
-    })) : (orderObj?.order_items || []).flatMap(item => {
+    let items = arrivals.length > 0 ? arrivals.map(a => {
+      const snapEntry = snapshot[String(a?.id)]
+      let needQty = a?.semi || 0
+      if (snapEntry !== undefined) {
+        needQty = snapEntry.plan !== undefined ? Number(snapEntry.plan) : Number(snapEntry.need || 0)
+      }
+      return {
+        nom: (nomenclatures || []).find(n => String(n?.id) === String(a?.id)),
+        need: needQty,
+        bz: a?.bz || 0,
+        code: (nomenclatures || []).find(n => String(n?.id) === String(a?.id))?.nomenclature_code
+      }
+    }) : (orderObj?.order_items || []).flatMap(item => {
       const parts = getBOMParts(item?.nomenclature_id)
-      return parts.length > 0 ? parts.map(p => ({
-        nom: p.nom,
-        need: snapshot[String(p.nom?.id)]?.need !== undefined ? Number(snapshot[String(p.nom?.id)]?.need) : (Number(item?.quantity) || 0) * (Number(p.quantity_per_parent) || 1),
-        bz: 0,
-        code: p.nom?.nomenclature_code
-      })) : [{
+      return parts.length > 0 ? parts.map(p => {
+        const snapEntry = snapshot[String(p.nom?.id)]
+        let needQty = (Number(item?.quantity) || 0) * (Number(p.quantity_per_parent) || 1)
+        if (snapEntry !== undefined) {
+          needQty = snapEntry.plan !== undefined ? Number(snapEntry.plan) : Number(snapEntry.need || 0)
+        }
+        return {
+          nom: p.nom,
+          need: needQty,
+          bz: 0,
+          code: p.nom?.nomenclature_code
+        }
+      }) : [{
         nom: (nomenclatures || []).find(n => String(n?.id) === String(item?.nomenclature_id)),
-        need: snapshot[String(item?.nomenclature_id)]?.need !== undefined ? Number(snapshot[String(item?.nomenclature_id)]?.need) : (Number(item?.quantity) || 0),
+        need: (() => {
+          const snapEntry = snapshot[String(item?.nomenclature_id)]
+          if (snapEntry !== undefined) {
+            return snapEntry.plan !== undefined ? Number(snapEntry.plan) : Number(snapEntry.need || 0)
+          }
+          return Number(item?.quantity) || 0
+        })(),
         bz: 0,
         code: (nomenclatures || []).find(n => String(n?.id) === String(item?.nomenclature_id))?.nomenclature_code
       }]
