@@ -489,7 +489,7 @@ export function createProductionActions({
           if (netQtyForOrder > 0) {
             const match = existingItems?.find(i => i.type === 'semi')
             if (match) {
-              updates.push({ id: match.id, total_qty: (Number(match.total_qty) || 0) + netQtyForOrder })
+              updates.push({ ...match, total_qty: (Number(match.total_qty) || 0) + netQtyForOrder })
             } else {
               inserts.push({ nomenclature_id: nom.id, name: nom.name, unit: nom.unit || 'шт', total_qty: netQtyForOrder, reserved_qty: 0, type: 'semi' })
             }
@@ -497,7 +497,7 @@ export function createProductionActions({
           if (actualBuffer > 0) {
             const match = existingItems?.find(i => i.type === 'wip_bz')
             if (match) {
-              updates.push({ id: match.id, total_qty: (Number(match.total_qty) || 0) + actualBuffer })
+              updates.push({ ...match, total_qty: (Number(match.total_qty) || 0) + actualBuffer })
             } else {
               inserts.push({ nomenclature_id: nom.id, name: nom.name, unit: nom.unit || 'шт', total_qty: actualBuffer, reserved_qty: 0, type: 'wip_bz' })
             }
@@ -1105,7 +1105,7 @@ export function createProductionActions({
           const current = Number(r.total_qty) || 0
           const take = Math.min(current, remainingNeed)
           if (take > 0) {
-            updates.push({ id: r.id, total_qty: current - take })
+            updates.push({ ...r, total_qty: current - take })
             remainingNeed -= take
           }
           if (remainingNeed <= 0) break
@@ -1120,7 +1120,7 @@ export function createProductionActions({
           const current = Number(r.total_qty) || 0
           const take = Math.min(current, remainingBz)
           if (take > 0) {
-            updates.push({ id: r.id, total_qty: current - take })
+            updates.push({ ...r, total_qty: current - take })
             remainingBz -= take
           }
           if (remainingBz <= 0) break
@@ -1131,7 +1131,7 @@ export function createProductionActions({
       if (finishedQty > 0) {
         const finishedItem = existingInv?.find(i => (nomId && String(i.nomenclature_id) === String(nomId) || i.name === nomName) && i.type === 'finished')
         if (finishedItem) {
-          updates.push({ id: finishedItem.id, total_qty: (Number(finishedItem.total_qty) || 0) + finishedQty })
+          updates.push({ ...finishedItem, total_qty: (Number(finishedItem.total_qty) || 0) + finishedQty })
         } else {
           const nom = nomenclatures.find(n => n.id === nomId)
           inserts.push({ nomenclature_id: nomId, name: nom?.name || nomName || 'Готова продукція', unit: nom?.unit || 'шт', total_qty: finishedQty, reserved_qty: 0, type: 'finished' })
@@ -1142,7 +1142,7 @@ export function createProductionActions({
       if (actualBzQty > 0) {
         const bzItem = existingInv?.find(i => (nomId && String(i.nomenclature_id) === String(nomId) || i.name === nomName) && i.type === 'bz')
         if (bzItem) {
-          updates.push({ id: bzItem.id, total_qty: (Number(bzItem.total_qty) || 0) + actualBzQty })
+          updates.push({ ...bzItem, total_qty: (Number(bzItem.total_qty) || 0) + actualBzQty })
         } else {
           const nom = nomenclatures.find(n => n.id === nomId)
           inserts.push({ nomenclature_id: nomId, name: nom?.name || nomName || 'Запас БЗ', unit: nom?.unit || 'шт', total_qty: actualBzQty, reserved_qty: 0, type: 'bz' })

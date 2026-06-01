@@ -629,14 +629,14 @@ export function createWarehouseActions({
       // Single batch SELECT instead of N individual selects
       const { data: items } = await supabase
         .from('inventory')
-        .select('id, total_qty, reserved_qty')
+        .select('*')
         .in('id', ids)
 
       if (!items || items.length === 0) return
 
       // Compute all new values in memory, then single upsert
       const updates = items.map(item => ({
-        id: item.id,
+        ...item,
         total_qty: Math.max(0, (Number(item.total_qty) || 0) - (deductionMap[item.id] || 0)),
         reserved_qty: Math.max(0, (Number(item.reserved_qty) || 0) - (deductionMap[item.id] || 0))
       }))

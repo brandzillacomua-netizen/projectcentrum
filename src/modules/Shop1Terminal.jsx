@@ -917,7 +917,7 @@ export default function Shop1Terminal() {
       if (actualNeed > 0) {
         const s1Semi = findItem('semi')
         if (s1Semi) {
-          invUpdates.push({ id: s1Semi.id, total_qty: Math.max(0, (Number(s1Semi.total_qty) || 0) - actualNeed) })
+          invUpdates.push({ ...s1Semi, total_qty: Math.max(0, (Number(s1Semi.total_qty) || 0) - actualNeed) })
         }
       }
 
@@ -927,14 +927,14 @@ export default function Shop1Terminal() {
         const s1Wip = findItem('wip_bz')
         if (s1Wip) {
           const take = Math.min(Number(s1Wip.total_qty) || 0, remainingBz)
-          invUpdates.push({ id: s1Wip.id, total_qty: Math.max(0, (Number(s1Wip.total_qty) || 0) - take) })
+          invUpdates.push({ ...s1Wip, total_qty: Math.max(0, (Number(s1Wip.total_qty) || 0) - take) })
           remainingBz -= take
         }
         if (remainingBz > 0) {
           const s1Bz = findItem('bz')
           if (s1Bz) {
             const take = Math.min(Number(s1Bz.total_qty) || 0, remainingBz)
-            invUpdates.push({ id: s1Bz.id, total_qty: Math.max(0, (Number(s1Bz.total_qty) || 0) - take) })
+            invUpdates.push({ ...s1Bz, total_qty: Math.max(0, (Number(s1Bz.total_qty) || 0) - take) })
           }
         }
       }
@@ -943,7 +943,7 @@ export default function Shop1Terminal() {
       if (actualNeed > 0) {
         const s2Semi = findItem('semi_shop2')
         if (s2Semi) {
-          invUpdates.push({ id: s2Semi.id, total_qty: (Number(s2Semi.total_qty) || 0) + actualNeed })
+          invUpdates.push({ ...s2Semi, total_qty: (Number(s2Semi.total_qty) || 0) + actualNeed })
         } else {
           const nom = nomenclatures.find(n => n.id === currentCard.nomenclature_id)
           invInserts.push({
@@ -961,7 +961,7 @@ export default function Shop1Terminal() {
       if (actualBz > 0) {
         const s2Bz = findItem('bz_shop2')
         if (s2Bz) {
-          invUpdates.push({ id: s2Bz.id, total_qty: (Number(s2Bz.total_qty) || 0) + actualBz })
+          invUpdates.push({ ...s2Bz, total_qty: (Number(s2Bz.total_qty) || 0) + actualBz })
         } else {
           const nom = nomenclatures.find(n => n.id === currentCard.nomenclature_id)
           invInserts.push({
@@ -979,7 +979,7 @@ export default function Shop1Terminal() {
       if (scrapCount > 0) {
         const scrapItem = findItem('scrap')
         if (scrapItem) {
-          invUpdates.push({ id: scrapItem.id, total_qty: (Number(scrapItem.total_qty) || 0) + scrapCount, updated_at: new Date().toISOString() })
+          invUpdates.push({ ...scrapItem, total_qty: (Number(scrapItem.total_qty) || 0) + scrapCount, updated_at: new Date().toISOString() })
         } else {
           const nom = nomenclatures.find(n => n.id === currentCard.nomenclature_id)
           invInserts.push({
