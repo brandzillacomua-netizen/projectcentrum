@@ -75,8 +75,11 @@ const WarehouseModuleV2 = () => {
     const parsedName = parseMaterialName(r.details)
     const nameLower = parsedName.toLowerCase()
     const nom = r.nomenclature_id ? nomenclatures.find(n => String(n.id) === String(r.nomenclature_id)) : null
-    const isSgp = (nom?.type === 'part' || nom?.type === 'product' || nameLower.includes('іп') || nameLower.includes('ip') || nameLower.startsWith('іп-') || nameLower.startsWith('ip-'))
     
+    if (nom?.type === 'part') return 'semi'
+    if (nom?.type === 'product') return 'finished'
+
+    const isSgp = (nameLower.includes('іп') || nameLower.includes('ip') || nameLower.startsWith('іп-') || nameLower.startsWith('ip-'))
     if (isSgp) {
       return 'finished'
     }
@@ -116,10 +119,21 @@ const WarehouseModuleV2 = () => {
     const isOperational = i.warehouse === 'operational' || !i.warehouse
     if (!isOperational) return false
 
-    if (activeTab === 'bz') return i.type === 'bz' && matchesSearch
-    if (activeTab === 'scrap') return i.type?.startsWith('scrap') && matchesSearch
-    
     const itemType = i.type || 'raw'
+
+    if (activeTab === 'bz') return itemType === 'bz' && matchesSearch
+    if (activeTab === 'scrap') return itemType.startsWith('scrap') && matchesSearch
+    
+    if (activeTab === 'raw') {
+      return (itemType === 'raw' || itemType === 'consumable' || itemType === 'hardware') && matchesSearch
+    }
+    if (activeTab === 'semi') {
+      return (itemType === 'semi' || itemType === 'part') && matchesSearch
+    }
+    if (activeTab === 'finished') {
+      return (itemType === 'finished' || itemType === 'product') && matchesSearch
+    }
+
     return itemType === activeTab && matchesSearch
   })
 
