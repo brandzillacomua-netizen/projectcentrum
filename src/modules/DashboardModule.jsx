@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { 
   ArrowLeft, 
@@ -9,10 +9,54 @@ import {
 import { useMES } from '../MESContext'
 
 const DashboardModule = () => {
-  const { currentUser, workCards, inventory, nomenclatures, fetchData, orders, bomItems, tasks } = useMES()
+  const { currentUser, workCards, inventory, nomenclatures, fetchData, orders, bomItems, tasks, supabase } = useMES()
   const [wipOnly, setWipOnly] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [shippedQuantities, setShippedQuantities] = useState({})
+
+  // Fetch all tasks for active orders to count shipped batch quantities
+  useEffect(() => {
+    if (!orders || orders.length === 0) return
+    const activeOrderIds = orders
+      .filter(o => o.status !== 'completed' && o.status !== 'shipped' && o.status !== 'cancelled')
+      .map(o => o.id)
+
+    if (activeOrderIds.length === 0) {
+      setShippedQuantities({})
+      return
+    }
+
+    supabase
+      .from('tasks')
+      .select('id, order_id, planned_sets, plan_snapshot, batch_index')
+      .in('order_id', activeOrderIds)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Error fetching tasks for active orders:', error)
+          return
+        }
+        if (!data) return
+
+        const shippedByOrder = {}
+        const seenBatches = new Set()
+
+        data.forEach(t => {
+          const isShipped = t.plan_snapshot?._metadata?.is_shipped === true
+          if (isShipped) {
+            const batchIdx = t.batch_index || '1'
+            const key = `${t.order_id}_${batchIdx}`
+            if (!seenBatches.has(key)) {
+              seenBatches.add(key)
+              const qty = Number(t.planned_sets) || 0
+              shippedByOrder[t.order_id] = (shippedByOrder[t.order_id] || 0) + qty
+            }
+          }
+        })
+
+        setShippedQuantities(shippedByOrder)
+      })
+  }, [orders, supabase])
 
   // Refetch data on mount and provide manual refresh
   const handleRefresh = async () => {
@@ -32,12 +76,15 @@ const DashboardModule = () => {
     
     const productDemand = {}
     activeOrders.forEach(o => {
+      const shipped = shippedQuantities[o.id] || 0
       if (o.order_items && o.order_items.length > 0) {
         o.order_items.forEach(it => {
-          productDemand[it.nomenclature_id] = (productDemand[it.nomenclature_id] || 0) + (Number(it.quantity) || 0)
+          const remainingQty = Math.max(0, (Number(it.quantity) || 0) - shipped)
+          productDemand[it.nomenclature_id] = (productDemand[it.nomenclature_id] || 0) + remainingQty
         })
       } else if (o.nomenclature_id) {
-        productDemand[o.nomenclature_id] = (productDemand[o.nomenclature_id] || 0) + (Number(o.quantity) || 0)
+        const remainingQty = Math.max(0, (Number(o.quantity) || 0) - shipped)
+        productDemand[o.nomenclature_id] = (productDemand[o.nomenclature_id] || 0) + remainingQty
       }
     })
     
@@ -49,7 +96,7 @@ const DashboardModule = () => {
       }
     })
     return { globalDemand, productDemand }
-  }, [orders, bomItems])
+  }, [orders, bomItems, shippedQuantities])
 
   // Map tasks to parent products to know which order a workCard belongs to
   const taskParentMap = useMemo(() => {
@@ -234,14 +281,15 @@ const DashboardModule = () => {
                        (i.type === 'finished' || i.warehouse === 'sgp' || i.warehouse === 'SGP'))
           .reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
 
-        const activeOrders = (orders || []).filter(o => o.status !== 'completed' && o.status !== 'shipped')
+        const activeOrders = (orders || []).filter(o => o.status !== 'completed' && o.status !== 'shipped' && o.status !== 'cancelled')
         const totalDemand = activeOrders.reduce((acc, o) => {
+          const shipped = shippedQuantities[o.id] || 0
           let qty = 0
           if (o.order_items && o.order_items.length > 0) {
             const items = o.order_items.filter(it => String(it.nomenclature_id) === String(prod.id))
-            qty = items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0)
+            qty = items.reduce((sum, it) => sum + Math.max(0, (Number(it.quantity) || 0) - shipped), 0)
           } else if (String(o.nomenclature_id) === String(prod.id)) {
-            qty = Number(o.quantity) || 0
+            qty = Math.max(0, (Number(o.quantity) || 0) - shipped)
           }
           return acc + qty
         }, 0)
@@ -262,7 +310,7 @@ const DashboardModule = () => {
     const finalGroups = Object.values(groups).filter(g => g.rows.length > 0)
 
     return { groupedDashboardData: finalGroups, totals: totalsAcc, productTrends: trends }
-  }, [nomenclatures, bomItems, orders, workCards, inventory, demandData, taskParentMap, searchQuery, wipOnly])
+  }, [nomenclatures, bomItems, orders, workCards, inventory, demandData, taskParentMap, searchQuery, wipOnly, shippedQuantities])
 
   const getGroupTotals = (rows) => {
     const res = { qCutWait: 0, qCut: 0, qCutBuf: 0, qGalt: 0, qGaltBuf: 0, qPriy: 0, qSortAct: 0, qSort: 0, qMalWait: 0, qMal: 0, qMalBuf: 0, qPres: 0, qPresBuf: 0, qDoop: 0, qDoopBuf: 0, qSgp: 0, qBz: 0, sum: 0 }

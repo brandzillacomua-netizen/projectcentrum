@@ -126,6 +126,9 @@ const WarehouseModuleV2 = () => {
     const isOperational = i.warehouse === 'operational' || !i.warehouse
     if (!isOperational) return false
 
+    // Only show items with positive stock
+    if ((Number(i.total_qty) || 0) <= 0) return false
+
     const itemType = i.type || 'raw'
 
     if (activeTab === 'bz') return itemType === 'bz' && matchesSearch

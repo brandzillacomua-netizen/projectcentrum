@@ -12,6 +12,7 @@ const ForemanWorkplace = () => {
 
   const countAsProduced = (card) => {
     if (card.status === 'completed' && card.operation === 'Прийомка') return true
+    if (card.status === 'completed' && (card.operation || '').startsWith('Склад')) return true
     if (card.status === 'completed' && !card.operation) return true
     if (card.status === 'at-shop2-buffer') return true
     return false
@@ -63,6 +64,7 @@ const ForemanWorkplace = () => {
   const [printQueue, setPrintQueue] = useState(null)
   const [partialCounts, setPartialCounts] = useState({}) // For partial generation in modal
   const [isGenerating, setIsGenerating] = useState(false)
+  const generatingLockRef = useRef(false)
   const [isCompletingTask, setIsCompletingTask] = useState(false) // Захист від подвійного кліку "ВИКОНАНО"
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
@@ -411,7 +413,7 @@ const MACHINE_TYPES = [
   const taskCardsCountMap = useMemo(() => {
     const map = {}
     tasks.forEach(task => {
-      map[task.id] = workCards.filter(c => c.task_id === task.id).length
+      map[task.id] = workCards.filter(c => c.task_id === task.id && c.operation !== 'Склад БЗ').length
     })
     return map
   }, [tasks, workCards])
@@ -473,7 +475,8 @@ const MACHINE_TYPES = [
         const unitsPerSheet = snap.units_per_sheet || 1
         
         const activeCards = taskCards.filter(c => String(c.nomenclature_id) === String(nomIdStr))
-        if (activeCards.length === 0) return
+        const activeProductionCards = activeCards.filter(c => c.operation !== 'Склад БЗ')
+        if (activeProductionCards.length === 0) return
         
         const totalSheets = activeCards.reduce((sum, c) => {
           if (c.operation === 'Склад БЗ') return sum
@@ -570,6 +573,12 @@ const MACHINE_TYPES = [
   }, [printQueue, printNaryadQueue, showReportModal, reportTaskId, orders, allOrdersMap, nomenclatures, tasks, relevantTasks])
 
   const handleGenerateFromWorksheet = async (task, part, sheets, selectedMachineName, count, localGeneratedCount = 0, totalToReach = 0, isRepair = false, globalTotalCards = null, globalSeqOffset = 0) => {
+    if (generatingLockRef.current) {
+      console.warn("Generation already in progress, ignoring duplicate call.");
+      return
+    }
+    generatingLockRef.current = true
+
     const machineObj = findMachine(selectedMachineName)
     const capacity = (Number(machineObj?.sheet_capacity) || 1)
     const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
@@ -578,8 +587,36 @@ const MACHINE_TYPES = [
     const displayTotal = globalTotalCards || maxCardsForThisSplit
 
     // CLAMP: Don't allow generating more than planned for this specific machine split
-    const finalCount = Math.min(count, maxCardsForThisSplit - localGeneratedCount)
-    if (finalCount <= 0) return
+    let finalCount = Math.min(count, maxCardsForThisSplit - localGeneratedCount)
+    if (finalCount <= 0) {
+      generatingLockRef.current = false
+      return
+    }
+
+    if (!isRepair) {
+      // Query the database to get the absolute up-to-date count of existing cards
+      let dbCardsCount = 0
+      try {
+        const { data, error } = await supabase
+          .from('work_cards')
+          .select('id, is_rework, operation')
+          .eq('task_id', task.id)
+          .eq('nomenclature_id', part.nom?.id)
+        if (!error && data) {
+          // Exclude BZ buffer cards — they are not production cutting cards
+          dbCardsCount = data.filter(c => !c.is_rework && c.operation !== 'Склад БЗ').length
+        }
+      } catch (err) {
+        console.error("Error fetching dbCardsCount:", err)
+      }
+      
+      finalCount = Math.min(finalCount, displayTotal - dbCardsCount)
+    }
+
+    if (finalCount <= 0) {
+      generatingLockRef.current = false
+      return
+    }
 
     // DYNAMIC NUMBERING: Find absolute max sequence across ALL machines for this nomenclature
     const existingNomenclatureCards = (workCards || []).filter(wc => 
@@ -681,6 +718,7 @@ const MACHINE_TYPES = [
       setTimeout(() => {
         setIsGenerating(false)
         setGenModal(null)
+        generatingLockRef.current = false
       }, 500)
     }
   }
@@ -1561,7 +1599,8 @@ const MACHINE_TYPES = [
                       }, 0)
                       const totalBZ = (totalSheets * unitsPerSheet) + stockBZ - need
                       const bzResult = totalBZ - groupScrap
-                      const shortage = activeCards.length === 0 ? 0 : (bzResult < 0 ? Math.abs(bzResult) : 0)
+                      const activeProductionCards = activeCards.filter(c => c.operation !== 'Склад БЗ')
+                      const shortage = activeProductionCards.length === 0 ? 0 : (bzResult < 0 ? Math.abs(bzResult) : 0)
 
                       const stages = activeCards.reduce((acc, c) => {
                         if (c.status === 'new') acc.waiting++
@@ -1693,6 +1732,22 @@ const MACHINE_TYPES = [
                                         <AlertTriangle size={10} /> БРАК: {cardScrap} ШТ
                                       </div>
                                     )}
+                                    {(() => {
+                                      const cardShiftChanges = groupHistory
+                                        .filter(h => String(h.card_id) === String(card.id) && h.stage_name === 'Розкрій (перезмінка)')
+                                        .sort((a, b) => new Date(a.completed_at) - new Date(b.completed_at))
+                                      if (cardShiftChanges.length === 0) return null
+                                      return (
+                                        <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                          <span style={{ fontSize: '0.5rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', alignSelf: 'center' }}>Перезмінка:</span>
+                                          {cardShiftChanges.map((h, i) => (
+                                            <span key={i} style={{ fontSize: '0.5rem', background: '#f59e0b11', border: '1px solid #f59e0b22', color: '#f59e0b', padding: '1px 6px', borderRadius: '5px', fontWeight: 800 }}>
+                                              {h.operator_name}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      )
+                                    })()}
                                   </div>
                                 </div>
                               )

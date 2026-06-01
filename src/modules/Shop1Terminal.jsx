@@ -77,6 +77,11 @@ export default function Shop1Terminal() {
   const [cuttersBreakdown, setCuttersBreakdown] = useState({})
   const [galtPriority, setGaltPriority] = useState(2)
 
+  // Перезмінка (тільки Розкрій)
+  const [showShiftChangeModal, setShowShiftChangeModal] = useState(false)
+  const [shiftChangeOperator, setShiftChangeOperator] = useState('')
+  const [shiftChangeShift, setShiftChangeShift] = useState('')
+
   // Emergency Machine Call Modal state
   const [machineCallModal, setMachineCallModal] = useState(null)
   const [machineCallSuccess, setMachineCallSuccess] = useState('')
@@ -390,7 +395,9 @@ export default function Shop1Terminal() {
   // Автоматичне скидання полів при зміні обраної картки
   useEffect(() => {
     setSelectedOperator('')
-    const name = currentUser?.first_name ? `${currentUser.first_name} ${currentUser.last_name || ''}`.trim() : (currentUser?.login || '')
+    const fullName = [currentUser?.first_name, currentUser?.last_name].filter(Boolean).join(' ')
+    const displayName = fullName || currentUser?.login || ''
+    const name = currentUser?.position ? `${displayName} (${currentUser.position})` : displayName
     setSelectedManager(name)
     setSelectedShift(currentCard?.shift_name || '')
 
@@ -421,7 +428,7 @@ export default function Shop1Terminal() {
       setCuttersBreakdown({})
     }
     setGaltPriority(currentCard?.galt_priority || 2)
-  }, [selectedCardId, currentCard])
+  }, [selectedCardId, currentCard, currentUser])
 
   const getCuttersForCard = (card) => {
     if (!card) return []
@@ -636,6 +643,43 @@ export default function Shop1Terminal() {
       if (!scannedIds.includes(currentCard.id)) setScannedIds(prev => [...prev, currentCard.id])
     } catch (e) { alert('Помилка: ' + e.message) }
     finally { setIsProcessing(false) }
+  }
+
+  // ── ДІЯ 1.5: ПЕРЕЗМІНКА (тільки Розкрій) — фіксує оператора без зупинки ─
+  const handleShiftChange = async () => {
+    if (!currentCard || !shiftChangeOperator || !shiftChangeShift) return
+    setIsProcessing(true)
+    try {
+      const now = new Date().toISOString()
+      // Записуємо проміжного оператора в history із stage_name = 'Розкрій (перезмінка)'
+      await supabase.from('work_card_history').insert([{
+        card_id: currentCard.id,
+        nomenclature_id: currentCard.nomenclature_id,
+        stage_name: 'Розкрій (перезмінка)',
+        operator_name: shiftChangeOperator,
+        qty_at_start: currentCard.quantity,
+        qty_completed: currentCard.quantity,
+        scrap_qty: 0,
+        started_at: currentCard.started_at,
+        completed_at: now,
+        shift_name: shiftChangeShift,
+        manager_name: currentCard.manager_name,
+        machine_name: currentCard.machine,
+        card_info: currentCard.card_info || ''
+      }])
+      // Оновлюємо оператора на картці (щоб таймер показував нового)
+      await supabase.from('work_cards').update({
+        operator_name: shiftChangeOperator,
+        shift_name: shiftChangeShift,
+        started_at: now // скидаємо таймер на нового оператора
+      }).eq('id', currentCard.id)
+      setShowShiftChangeModal(false)
+      setShiftChangeOperator('')
+      setShiftChangeShift('')
+      fetchData().catch(() => {})
+    } catch (e) {
+      alert('Помилка перезмінки: ' + e.message)
+    } finally { setIsProcessing(false) }
   }
 
   // ── ДІЯ 2: Завершити етап → БУФЕР (in-progress → at-buffer) ──────────
@@ -882,8 +926,8 @@ export default function Shop1Terminal() {
         })
       }
 
-      // Parallel Read: fetch existing inventory, Shop 2 tasks, and s1TaskData in parallel
-      const [existingInvResult, shop2TasksResult, s1TaskResult] = await Promise.all([
+      // Parallel Read: fetch existing inventory, Shop 2 tasks, s1TaskData, and BZ cards in parallel
+      const [existingInvResult, shop2TasksResult, s1TaskResult, bzCardsResult] = await Promise.all([
         supabase.from('inventory')
           .select('*')
           .eq('nomenclature_id', currentCard.nomenclature_id)
@@ -896,12 +940,17 @@ export default function Shop1Terminal() {
         supabase.from('tasks')
           .select('*')
           .eq('id', currentCard.task_id)
-          .maybeSingle()
+          .maybeSingle(),
+        supabase.from('work_cards')
+          .select('nomenclature_id, quantity')
+          .eq('task_id', currentCard.task_id)
+          .eq('operation', 'Склад БЗ')
       ])
 
       const existingItems = existingInvResult.data || []
       const shop2Tasks = shop2TasksResult.data || []
       const s1TaskData = s1TaskResult.data
+      const bzCards = bzCardsResult.data || []
 
       // Calculations for inventory transfers
       const cardBz = Number(currentCard.buffer_qty) || Number(currentCard.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
@@ -1054,6 +1103,25 @@ export default function Shop1Terminal() {
             semi: actualNeed,
             bz: actualBz
           }]
+          
+          // Merge BZ cards into updatedArrivals at task creation
+          if (bzCards && bzCards.length > 0) {
+            bzCards.forEach(bzCard => {
+              const bzNom = nomenclatures.find(n => n.id === bzCard.nomenclature_id)
+              const matchIdx = updatedArrivals.findIndex(a => String(a.id) === String(bzCard.nomenclature_id))
+              if (matchIdx >= 0) {
+                updatedArrivals[matchIdx].semi = (Number(updatedArrivals[matchIdx].semi) || 0) + Number(bzCard.quantity)
+              } else {
+                updatedArrivals.push({
+                  id: bzCard.nomenclature_id,
+                  name: bzNom?.name || 'Деталь',
+                  semi: Number(bzCard.quantity),
+                  bz: 0
+                })
+              }
+            })
+          }
+
           writePromises.push(
             supabase.from('tasks').insert([{
               id: shop2TaskId,
@@ -1089,6 +1157,7 @@ export default function Shop1Terminal() {
             bz: actualBz
           })
         }
+
 
         writePromises.push(
           supabase.from('tasks').update({
@@ -1567,9 +1636,31 @@ export default function Shop1Terminal() {
                   {formatTime(currentCard.started_at)}
                 </div>
 
-                <div style={{ color: '#444', fontSize: '0.7rem', marginTop: '15px', marginBottom: '30px', fontWeight: 800, textTransform: 'uppercase' }}>
+                <div style={{ color: '#444', fontSize: '0.7rem', marginTop: '15px', fontWeight: 800, textTransform: 'uppercase' }}>
                   ОПЕРАТОР: <span style={{ color: '#888' }}>{currentCard.operator_name || '—'}</span>
                 </div>
+
+                {/* Список усіх попередніх операторів перезмінки */}
+                {currentCard.operation === 'Розкрій' && (() => {
+                  const shiftHistory = (workCardHistory || []).filter(h =>
+                    String(h.card_id) === String(currentCard.id) &&
+                    h.stage_name === 'Розкрій (перезмінка)'
+                  ).sort((a, b) => new Date(a.completed_at) - new Date(b.completed_at))
+                  if (shiftHistory.length === 0) return null
+                  return (
+                    <div style={{ margin: '10px auto 0', maxWidth: '340px', background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: '12px', padding: '10px 14px' }}>
+                      <div style={{ fontSize: '0.55rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.08em' }}>Попередні виконавці</div>
+                      {shiftHistory.map((h, i) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0', borderBottom: i < shiftHistory.length - 1 ? '1px solid #111' : 'none' }}>
+                          <span style={{ fontSize: '0.65rem', color: '#666', fontWeight: 700 }}>#{i + 1} {h.operator_name}</span>
+                          <span style={{ fontSize: '0.55rem', color: '#333', fontWeight: 700 }}>{h.shift_name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
+
+                <div style={{ marginBottom: '30px' }} />
 
                 {/* Стрілка куди піде картка */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '25px', background: '#f59e0b0d', border: '1px solid #f59e0b22', borderRadius: '14px', padding: '12px', flexWrap: 'wrap' }}>
@@ -1585,6 +1676,37 @@ export default function Shop1Terminal() {
                     </>
                   )}
                 </div>
+
+                {/* Кнопка ПЕРЕЗМІНКА — тільки для Розкрою */}
+                {currentCard.operation === 'Розкрій' && (
+                  <button
+                    onClick={() => {
+                      setShiftChangeOperator('')
+                      setShiftChangeShift('')
+                      setShowShiftChangeModal(true)
+                    }}
+                    style={{
+                      background: 'transparent',
+                      color: '#f59e0b',
+                      border: '2px solid #f59e0b40',
+                      padding: '14px',
+                      width: '100%',
+                      borderRadius: '14px',
+                      fontSize: '0.95rem',
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                      marginBottom: '12px',
+                      letterSpacing: '0.04em',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    🔄 ПЕРЕЗМІНКА
+                  </button>
+                )}
 
                 <button onClick={() => {
                   if (currentCard.operation === 'Сортування') {
@@ -2561,8 +2683,90 @@ export default function Shop1Terminal() {
         </div>
       )}
 
+      {/* ── Модалка ПЕРЕЗМІНКА (тільки Розкрій) ─────────────────────────────── */}
+      {showShiftChangeModal && currentCard && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10030, padding: '20px' }}>
+          <div style={{ background: '#111', width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid #f59e0b40', overflow: 'hidden', boxShadow: '0 20px 60px rgba(245,158,11,0.15)' }}>
+            {/* Header */}
+            <div style={{ padding: '20px 22px', background: '#161616', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f59e0b20' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 950, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  🔄 ПЕРЕЗМІНКА · РОЗКРІЙ
+                </h3>
+                <div style={{ fontSize: '0.6rem', color: '#555', marginTop: '3px', fontWeight: 700 }}>
+                  Картка продовжує роботу — змінюється виконавець
+                </div>
+              </div>
+              <button onClick={() => setShowShiftChangeModal(false)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}><X size={22} /></button>
+            </div>
+
+            <div style={{ padding: '24px 22px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              {/* Поточний оператор */}
+              <div style={{ background: '#0d0d0d', borderRadius: '12px', padding: '12px 16px', border: '1px solid #1e1e1e' }}>
+                <div style={{ fontSize: '0.55rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', marginBottom: '4px' }}>Поточний виконавець</div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#888' }}>{currentCard.operator_name || '—'}</div>
+                <div style={{ fontSize: '0.6rem', color: '#333', marginTop: '2px' }}>{currentCard.shift_name || '—'}</div>
+              </div>
+
+              {/* Нова зміна */}
+              <div>
+                <label style={labelStyle}>Нова зміна</label>
+                <select value={shiftChangeShift} onChange={e => setShiftChangeShift(e.target.value)} style={selectStyle}>
+                  <option value="">— Оберіть зміну —</option>
+                  <option value="Зміна 1">Зміна 1</option>
+                  <option value="Зміна 2">Зміна 2</option>
+                  <option value="Зміна 3">Зміна 3</option>
+                  <option value="Зміна 4">Зміна 4</option>
+                  <option value="Без зміни">Без зміни</option>
+                </select>
+              </div>
+
+              {/* Новий оператор */}
+              <div>
+                <label style={labelStyle}>Новий виконавець</label>
+                <select
+                  value={shiftChangeOperator}
+                  onChange={e => setShiftChangeOperator(e.target.value)}
+                  disabled={!shiftChangeShift}
+                  style={{ ...selectStyle, opacity: shiftChangeShift ? 1 : 0.5, cursor: shiftChangeShift ? 'pointer' : 'not-allowed' }}
+                >
+                  <option value="">{shiftChangeShift ? '— Оберіть оператора —' : '— Спочатку оберіть зміну —'}</option>
+                  {getFilteredOperators('Цех №1', shiftChangeShift, 'Розкрій').map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+
+              {/* Кнопка підтвердження */}
+              <button
+                onClick={handleShiftChange}
+                disabled={!shiftChangeOperator || !shiftChangeShift || isProcessing}
+                style={{
+                  background: shiftChangeOperator && shiftChangeShift ? '#f59e0b' : '#222',
+                  color: shiftChangeOperator && shiftChangeShift ? '#000' : '#444',
+                  border: 'none',
+                  padding: '18px',
+                  borderRadius: '16px',
+                  fontSize: '1rem',
+                  fontWeight: 950,
+                  cursor: shiftChangeOperator && shiftChangeShift ? 'pointer' : 'not-allowed',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  transition: 'all 0.2s'
+                }}
+              >
+                {isProcessing ? 'ЗБЕРЕЖЕННЯ...' : '🔄 ПІДТВЕРДИТИ ПЕРЕЗМІНКУ'}
+              </button>
+
+              <div style={{ textAlign: 'center', fontSize: '0.6rem', color: '#333', fontWeight: 700 }}>
+                Картка залишається в роботі · Таймер скинеться на нового оператора
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Модалка корекції браку від ВКЯ ─────────────────────────────────── */}
       {showQCModal && currentCard && (
+
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10025, padding: '20px' }}>
           <div style={{ background: '#111', width: '100%', maxWidth: '460px', borderRadius: '26px', border: '1px solid #ef444440', overflow: 'hidden', boxShadow: '0 20px 60px rgba(239,68,68,0.15)' }}>
             <div style={{ padding: '20px 22px', background: '#161616', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ef444420' }}>

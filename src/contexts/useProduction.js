@@ -666,11 +666,47 @@ export function createProductionActions({
       if (taskError) throw taskError
 
       if (bzStockDeductions.length > 0) {
-        await Promise.all(
-          bzStockDeductions.map(upd =>
+        const s2InventoryUpdates = []
+        const s2InventoryInserts = []
+
+        bzStockDeductions.forEach(upd => {
+          const invItem = inventory.find(i => i.id === upd.id)
+          if (invItem) {
+            const usedQty = (Number(invItem.total_qty) || 0) - upd.next_qty
+            if (usedQty > 0) {
+              const s2Semi = inventory.find(i => String(i.nomenclature_id) === String(invItem.nomenclature_id) && i.type === 'semi_shop2')
+              if (s2Semi) {
+                s2InventoryUpdates.push({
+                  ...s2Semi,
+                  total_qty: (Number(s2Semi.total_qty) || 0) + usedQty
+                })
+              } else {
+                const nom = nomenclatures.find(n => n.id === invItem.nomenclature_id)
+                s2InventoryInserts.push({
+                  nomenclature_id: invItem.nomenclature_id,
+                  name: nom?.name || invItem.name || 'Деталь',
+                  total_qty: usedQty,
+                  reserved_qty: 0,
+                  type: 'semi_shop2',
+                  unit: nom?.unit || invItem.unit || 'шт'
+                })
+              }
+            }
+          }
+        })
+
+        const bzWriteOps = [
+          ...bzStockDeductions.map(upd =>
             supabase.from('inventory').update({ total_qty: upd.next_qty }).eq('id', upd.id)
           )
-        )
+        ]
+        if (s2InventoryUpdates.length > 0) {
+          bzWriteOps.push(supabase.from('inventory').upsert(s2InventoryUpdates))
+        }
+        if (s2InventoryInserts.length > 0) {
+          bzWriteOps.push(supabase.from('inventory').insert(s2InventoryInserts))
+        }
+        await Promise.all(bzWriteOps)
 
         const cardsToInsert = []
         bzStockDeductions.forEach(upd => {
@@ -683,7 +719,7 @@ export function createProductionActions({
                 order_id: orderId,
                 nomenclature_id: invItem.nomenclature_id,
                 quantity: usedQty,
-                status: 'completed',
+                status: 'at-shop2-buffer',
                 operation: 'Склад БЗ',
                 card_info: '[ЗІ СКЛАДУ БЗ]'
               })
@@ -923,9 +959,23 @@ export function createProductionActions({
           t.batch_index === task.batch_index
         )
         if (existingShop2Task) {
-          await supabase.from('tasks').update({ plan_snapshot: { ...(existingShop2Task.plan_snapshot || {}), arrival_doc_id: moveDoc?.id || null, arrivals } }).eq('id', existingShop2Task.id)
+          await supabase.from('tasks').update({
+            status: 'in-progress',
+            plan_snapshot: { ...(existingShop2Task.plan_snapshot || {}), arrival_doc_id: moveDoc?.id || null, arrivals }
+          }).eq('id', existingShop2Task.id)
         } else {
-          await supabase.from('tasks').insert([{ order_id: task.order_id, step: 'Пресування [ЦЕХ №2]', status: 'waiting', planned_sets: task.planned_sets || 0, estimated_time: task.estimated_time || 0, engineer_conf: true, warehouse_conf: true, director_conf: true, batch_index: task.batch_index || null, plan_snapshot: { ...task.plan_snapshot, arrival_doc_id: moveDoc?.id || null, arrivals } }])
+          await supabase.from('tasks').insert([{
+            order_id: task.order_id,
+            step: 'Пресування [ЦЕХ №2]',
+            status: 'in-progress',
+            planned_sets: task.planned_sets || 0,
+            estimated_time: task.estimated_time || 0,
+            engineer_conf: true,
+            warehouse_conf: true,
+            director_conf: true,
+            batch_index: task.batch_index || null,
+            plan_snapshot: { ...task.plan_snapshot, arrival_doc_id: moveDoc?.id || null, arrivals }
+          }])
         }
       } catch (e) { console.error("BZ/Transfer error:", e) }
 
@@ -1240,11 +1290,61 @@ export function createProductionActions({
     try {
       const { data: bz } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomenclatureId).eq('type', 'bz').limit(1).maybeSingle()
       if (!bz) throw new Error("Товар не знайдено на складі БЗ")
-      const nextReserved = (Number(bz.reserved_qty) || 0) + Number(qty)
-      await supabase.from('inventory').update({ reserved_qty: nextReserved }).eq('id', bz.id)
-      await supabase.from('work_cards').insert([{ task_id: taskId, order_id: orderId, nomenclature_id: nomenclatureId, quantity: qty, status: 'completed', operation: 'Склад БЗ', card_info: '[ЗІ СКЛАДУ БЗ]' }])
+      
+      // 1. Decrease total_qty of the main BZ storage
+      const nextTotal = Math.max(0, (Number(bz.total_qty) || 0) - Number(qty))
+      await supabase.from('inventory').update({ total_qty: nextTotal }).eq('id', bz.id)
+
+      // 2. Increase total_qty of Shop 2 semi_shop2 inventory
+      const { data: s2Semi } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomenclatureId).eq('type', 'semi_shop2').limit(1).maybeSingle()
+      if (s2Semi) {
+        await supabase.from('inventory').update({ total_qty: (Number(s2Semi.total_qty) || 0) + Number(qty) }).eq('id', s2Semi.id)
+      } else {
+        const nom = nomenclatures.find(n => n.id === nomenclatureId)
+        await supabase.from('inventory').insert([{
+          nomenclature_id: nomenclatureId,
+          name: nom?.name || bz.name || 'Деталь',
+          total_qty: qty,
+          reserved_qty: 0,
+          type: 'semi_shop2',
+          unit: nom?.unit || bz.unit || 'шт'
+        }])
+      }
+
+      // 3. Update arrivals in Shop 2 task if it exists
+      const { data: shop2Tasks } = await supabase.from('tasks').select('*').eq('order_id', orderId).ilike('step', '%ЦЕХ №2%').neq('status', 'completed')
+      if (shop2Tasks && shop2Tasks.length > 0) {
+        const s2Task = shop2Tasks[0]
+        const existingArrivals = s2Task.plan_snapshot?.arrivals || []
+        const updatedArrivals = [...existingArrivals]
+        const matchIdx = updatedArrivals.findIndex(a => String(a.id) === String(nomenclatureId))
+        if (matchIdx >= 0) {
+          updatedArrivals[matchIdx] = {
+            ...updatedArrivals[matchIdx],
+            semi: (Number(updatedArrivals[matchIdx].semi) || 0) + Number(qty)
+          }
+        } else {
+          const nom = nomenclatures.find(n => n.id === nomenclatureId)
+          updatedArrivals.push({
+            id: nomenclatureId,
+            name: nom?.name || bz.name || 'Деталь',
+            semi: Number(qty),
+            bz: 0
+          })
+        }
+        await supabase.from('tasks').update({
+          plan_snapshot: {
+            ...(s2Task.plan_snapshot || {}),
+            arrivals: updatedArrivals
+          }
+        }).eq('id', s2Task.id)
+      }
+
+      // 4. Create work card in at-shop2-buffer status
+      await supabase.from('work_cards').insert([{ task_id: taskId, order_id: orderId, nomenclature_id: nomenclatureId, quantity: qty, status: 'at-shop2-buffer', operation: 'Склад БЗ', card_info: '[ЗІ СКЛАДУ БЗ]' }])
       await supabase.from('work_card_history').insert([{ task_id: taskId, nomenclature_id: nomenclatureId, stage_name: 'Склад БЗ', operator_name: 'Система (БРОНЬ)', qty_at_start: qty, qty_completed: qty, scrap_qty: 0, completed_at: new Date().toISOString() }])
-      refreshTable('inventory'); refreshTable('work_cards'); return { success: true }
+      
+      refreshTable('inventory'); refreshTable('work_cards'); refreshTable('tasks'); return { success: true }
     } catch (err) { console.error(err); throw err }
   }
 

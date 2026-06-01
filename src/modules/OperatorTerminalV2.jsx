@@ -224,22 +224,25 @@ const OperatorTerminal = () => {
 
   useEffect(() => {
     const card = workCards.find(c => c.id === selectedCardId)
+    const fullName = [currentUser?.first_name, currentUser?.last_name].filter(Boolean).join(' ')
+    const displayName = fullName || currentUser?.login || ''
+    const masterName = currentUser?.position ? `${displayName} (${currentUser.position})` : displayName
     if (card) {
       setSelectedStage(card.operation || '')
       setSelectedOperator('')
-      setSelectedMaster('')
+      setSelectedMaster(masterName)
       setSelectedShift('')
       setSelectedMachine('')
       setCuttersBreakdown({})
     } else {
       setSelectedStage('')
       setSelectedOperator('')
-      setSelectedMaster('')
+      setSelectedMaster(masterName)
       setSelectedShift('')
       setSelectedMachine('')
       setCuttersBreakdown({})
     }
-  }, [selectedCardId, workCards])
+  }, [selectedCardId, workCards, currentUser])
 
   const getCuttersForCard = (card) => {
     if (!card) return []

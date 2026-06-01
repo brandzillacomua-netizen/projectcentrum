@@ -132,7 +132,10 @@ const Shop2Terminal = () => {
     const card = workCards.find(c => String(c.id) === String(selectedCardId))
     if (card) {
       setSelectedStage(card.operation || '')
-      if (currentUser?.login) setSelectedManager(currentUser.login)
+      const fullName = [currentUser?.first_name, currentUser?.last_name].filter(Boolean).join(' ')
+      const displayName = fullName || currentUser?.login || ''
+      const managerName = currentUser?.position ? `${displayName} (${currentUser.position})` : displayName
+      if (managerName) setSelectedManager(managerName)
     }
   }, [selectedCardId, currentUser])
 

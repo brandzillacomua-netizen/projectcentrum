@@ -756,9 +756,8 @@ const MasterModule = () => {
     return Object.values(fallbackConsumables)
   }, [activeNaryadOrder, materialSummary, nomenclatures, rowMachines, machineOperations, naryadQtys, isReprintMode, reprintTask, inventory])
 
-  const isPrintDisabled = useMemo(() => {
-    if (isSubmitting) return true
-    if (!activeNaryadOrder) return true
+  const hasUnassignedMachines = useMemo(() => {
+    if (!activeNaryadOrder) return false
     if (activeNaryadOrder.isPrepOrder) return false
 
     let hasUnassigned = false
@@ -786,7 +785,13 @@ const MasterModule = () => {
     })
 
     return hasUnassigned
-  }, [activeNaryadOrder, isSubmitting, isReprintMode, naryadQtys, nomenclatures, bomItems, inventory, reprintTask, rowMachines])
+  }, [activeNaryadOrder, isReprintMode, naryadQtys, nomenclatures, bomItems, inventory, reprintTask, rowMachines])
+
+  const isPrintDisabled = useMemo(() => {
+    if (isSubmitting) return true
+    if (!activeNaryadOrder) return true
+    return hasUnassignedMachines
+  }, [isSubmitting, activeNaryadOrder, hasUnassignedMachines])
 
   const renderAnalytics = () => (
     <div className="analytics-scroll" style={{ overflowX: 'auto', marginBottom: '25px', display: 'flex', gap: '15px', paddingBottom: '10px' }}>
@@ -1691,7 +1696,7 @@ const MasterModule = () => {
                 </div>
               )}
 
-              {!activeNaryadOrder.isPrepOrder && isPrintDisabled ? (
+              {!activeNaryadOrder.isPrepOrder && hasUnassignedMachines ? (
                 <div className="consumable-summary-section no-print" style={{ marginTop: '15px', padding: '20px 30px', borderRadius: '18px', border: '1px solid rgba(239,68,68,0.2)', background: 'rgba(239,68,68,0.02)' }}>
                   <h4 style={{ margin: '0 0 10px', fontSize: '0.75rem', fontWeight: 950, color: '#ef4444', textTransform: 'uppercase' }}>ВИТРАТНІ МАТЕРІАЛИ:</h4>
                   <div style={{ color: '#aaa', fontSize: '0.85rem', fontWeight: 700 }}>

@@ -1363,7 +1363,8 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                     {(inventory || [])
                       .filter(i => (i.name || '').toLowerCase().includes(searchQuery.toLowerCase()) && 
                                    i.type !== 'finished' && i.type !== 'product' && 
-                                   i.warehouse === (isProcurementOnly ? 'procurement' : 'production'))
+                                   i.warehouse === (isProcurementOnly ? 'procurement' : 'production') &&
+                                   (Number(i.total_qty) || 0) > 0)
                       .map(item => (
                         <tr key={item.id} style={{ borderBottom: '1px solid #151515' }}>
                           <td style={{ padding: '15px', fontWeight: 700 }}>{item.name}</td>

@@ -28,9 +28,26 @@ const Shop2Module = () => {
   const [isGenerating, setIsGenerating] = useState(false)
   const [selectedStages, setSelectedStages] = useState({})
   const [archiveCards, setArchiveCards] = useState([])
+  const [staticCompletedCards, setStaticCompletedCards] = useState([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [showVictory, setShowVictory] = useState(false)
   const itemsPerPage = 8
+
+  const hasBufferParts = (task) => {
+    return (workCards || []).some(c => {
+      if (String(c.order_id) !== String(task.order_id)) return false
+      if (c.status !== 'at-shop2-buffer') return false
+      const available = (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0)
+      if (available <= 0) return false
+      
+      // Match batch_index if present
+      if (task.batch_index !== null && task.batch_index !== undefined) {
+        const cardTask = tasks.find(t => t.id === c.task_id)
+        if (cardTask && cardTask.batch_index !== task.batch_index) return false
+      }
+      return true
+    })
+  }
 
   useEffect(() => {
     if (location.state?.taskId) {
@@ -62,11 +79,32 @@ const Shop2Module = () => {
       .sort((a, b) => {
         if (a.status === 'completed' && b.status !== 'completed') return 1
         if (a.status !== 'completed' && b.status === 'completed') return -1
-        if (a.status === 'waiting' && b.status !== 'waiting') return 1
-        if (a.status !== 'waiting' && b.status === 'waiting') return -1
+        const aWaiting = a.status === 'waiting' && !hasBufferParts(a)
+        const bWaiting = b.status === 'waiting' && !hasBufferParts(b)
+        if (aWaiting && !bWaiting) return 1
+        if (!aWaiting && bWaiting) return -1
         return new Date(b.created_at) - new Date(a.created_at)
       })
-  }, [tasks])
+  }, [tasks, workCards])
+
+  // Завантажуємо завершені карти для всіх активних нарядів Цеху №2 для коректного розрахунку статусу готово в списку черги
+  useEffect(() => {
+    const activeTaskIds = relevantTasks.filter(t => t.status !== 'completed').map(t => t.id)
+    if (activeTaskIds.length === 0) {
+      setStaticCompletedCards([])
+      return
+    }
+
+    supabase.from('work_cards')
+      .select('id, task_id, nomenclature_id, quantity, operation, status, card_info')
+      .in('task_id', activeTaskIds)
+      .eq('status', 'completed')
+      .then(({ data, error }) => {
+        if (!error && data) {
+          setStaticCompletedCards(data)
+        }
+      })
+  }, [relevantTasks, workCards])
 
 
   const getBOMParts = (nomenclatureId) => {
@@ -129,9 +167,16 @@ const Shop2Module = () => {
       const nomId = item.nom?.id
       if (!nomId) return false
 
+      const s1Task = tasks.find(t =>
+        String(t.order_id) === String(taskObj.order_id) &&
+        t.batch_index === taskObj.batch_index &&
+        !(t.step?.includes('Пресування') || t.step?.includes('ЦЕХ №2') || t.step?.includes('Доопрацювання'))
+      )
+      const s1TaskId = s1Task?.id
+
       // 1. Calculate remaining buffer in Shop 2
       const bufSrcCards = (workCards || []).filter(c =>
-        String(c.order_id) === String(taskObj.order_id) &&
+        String(c.task_id) === String(s1TaskId) &&
         String(c.nomenclature_id) === String(nomId) &&
         c.status === 'at-shop2-buffer'
       )
@@ -156,7 +201,11 @@ const Shop2Module = () => {
       if (hasUncompleted) return false
 
       // 3. Must have at least one completed card for this nomenclature
-      const allCards = [...(workCards || []), ...(archiveCards || []).filter(ac => !(workCards || []).some(wc => wc.id === ac.id))]
+      const allCards = [
+        ...(workCards || []), 
+        ...(archiveCards || []).filter(ac => !(workCards || []).some(wc => wc.id === ac.id)),
+        ...(staticCompletedCards || []).filter(sc => String(sc.task_id) === String(taskObj.id) && !(workCards || []).some(wc => wc.id === sc.id))
+      ]
       const hasCompleted = allCards.some(wc =>
         String(wc.task_id) === String(taskObj.id) &&
         String(wc.nomenclature_id) === String(nomId) &&
@@ -226,10 +275,17 @@ const Shop2Module = () => {
 
       const order = orders.find(o => o.id === task.order_id)
 
+      const s1Task = tasks.find(t =>
+        String(t.order_id) === String(task.order_id) &&
+        t.batch_index === task.batch_index &&
+        !(t.step?.includes('Пресування') || t.step?.includes('ЦЕХ №2') || t.step?.includes('Доопрацювання'))
+      )
+      const s1TaskId = s1Task?.id
+
       // Знаходимо at-shop2-buffer картки для цієї номенклатури (source картки)
       const sourceCards = (workCards || [])
         .filter(c =>
-          String(c.order_id) === String(task.order_id) &&
+          String(c.task_id) === String(s1TaskId) &&
           String(c.nomenclature_id) === String(nomId) &&
           c.status === 'at-shop2-buffer'
         )
@@ -386,15 +442,15 @@ const Shop2Module = () => {
                     cursor: 'pointer',
                     transition: '0.2s',
                     borderBottom: '1px solid #1a1a1a',
-                    opacity: task.status === 'waiting' ? 0.5 : 1
+                    opacity: (task.status === 'waiting' && !hasBufferParts(task)) ? 0.5 : 1
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontWeight: 800, fontSize: '1rem', color: isCompleted ? '#444' : task.status === 'waiting' ? '#555' : '#fff' }}>№ {order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}</div>
+                    <div style={{ fontWeight: 800, fontSize: '1rem', color: isCompleted ? '#444' : (task.status === 'waiting' && !hasBufferParts(task)) ? '#555' : '#fff' }}>№ {order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       {isCompleted ? (
                         <CheckCircle2 size={14} color="#10b981" />
-                      ) : task.status === 'waiting' ? (
+                      ) : (task.status === 'waiting' && !hasBufferParts(task)) ? (
                         <div style={{ background: '#333', color: '#666', padding: '3px 8px', borderRadius: '8px', fontSize: '0.6rem', fontWeight: 950 }}>ОЧІКУЄ</div>
                       ) : (() => {
                         const isAllDone = checkIfTaskIsAllDone(task, order)
@@ -407,11 +463,14 @@ const Shop2Module = () => {
                     </div>
                   </div>
                   <div style={{ fontSize: '0.75rem', color: isCompleted ? '#222' : '#555', marginTop: '4px' }}>{order?.customer}</div>
-                  {task.status === 'waiting' && (
+                  {task.status === 'waiting' && !hasBufferParts(task) && (
                     <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 900, marginTop: '8px' }}>ЧЕК. ДЕТАЛІ З ЦЕХ №1</div>
                   )}
+                  {task.status === 'waiting' && hasBufferParts(task) && (
+                    <div style={{ fontSize: '0.6rem', color: '#8b5cf6', fontWeight: 900, marginTop: '8px' }}>Є ДЕТАЛІ В БУФЕРІ</div>
+                  )}
                   {isCompleted && <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 900, marginTop: '8px' }}>ВИКОНАНО</div>}
-                  {!isCompleted && task.status !== 'waiting' && (() => {
+                  {!isCompleted && (task.status !== 'waiting' || hasBufferParts(task)) && (() => {
                     const isAllDone = checkIfTaskIsAllDone(task, order)
 
                     if (isAllDone) {
@@ -565,9 +624,16 @@ const Shop2Module = () => {
                           // Планова потреба з BOM
                           const plannedNeed = Number(item.need) || 0
 
+                          const s1Task = tasks.find(t =>
+                            String(t.order_id) === String(task.order_id) &&
+                            t.batch_index === task.batch_index &&
+                            !(t.step?.includes('Пресування') || t.step?.includes('ЦЕХ №2') || t.step?.includes('Доопрацювання'))
+                          )
+                          const s1TaskId = s1Task?.id
+
                           // Реально прийшло в буфер Цеху №2 з сортування
                           const s2CardsForNom = (workCards || []).filter(c =>
-                            String(c.order_id) === String(task.order_id) &&
+                            String(c.task_id) === String(s1TaskId) &&
                             String(c.nomenclature_id) === String(item.nom?.id) &&
                             c.status === 'at-shop2-buffer'
                           )
@@ -659,11 +725,7 @@ const Shop2Module = () => {
                                   })
 
                                   // Залишок буфера з at-shop2-buffer карток
-                                  const bufSrcCards = (workCards || []).filter(c =>
-                                    String(c.order_id) === String(task.order_id) &&
-                                    String(c.nomenclature_id) === String(item.nom?.id) &&
-                                    c.status === 'at-shop2-buffer'
-                                  )
+                                  const bufSrcCards = s2CardsForNom
                                   const bufTotal = bufSrcCards.reduce((s, c) => s + (Number(c.quantity) || 0), 0)
                                   const bufUsed = bufSrcCards.reduce((s, c) => s + (Number(c.used_in_shop2_qty) || 0), 0)
                                   const total2 = bufTotal - bufUsed
@@ -830,10 +892,16 @@ const Shop2Module = () => {
                     </h3>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '15px' }}>
                       {(() => {
+                        const s1Task = tasks.find(t =>
+                          String(t.order_id) === String(task.order_id) &&
+                          t.batch_index === task.batch_index &&
+                          !(t.step?.includes('Пресування') || t.step?.includes('ЦЕХ №2') || t.step?.includes('Доопрацювання'))
+                        )
+                        const s1TaskId = s1Task?.id
+
                         // Читаємо at-shop2-buffer картки з Shop1 для цього наряду
-                        // Шукаємо за order_id (task.order_id), бо ці картки належать задачі Цеху №1
                         const shop2BufferCards = (workCards || []).filter(c =>
-                          String(c.order_id) === String(task.order_id) &&
+                          String(c.task_id) === String(s1TaskId) &&
                           c.status === 'at-shop2-buffer'
                         )
 

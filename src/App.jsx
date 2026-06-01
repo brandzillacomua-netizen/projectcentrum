@@ -514,6 +514,7 @@ const GlobalUserNav = () => {
 
       const countAsProduced = (card) => {
         if (card.status === 'completed' && card.operation === 'Прийомка') return true;
+        if (card.status === 'completed' && (card.operation || '').startsWith('Склад')) return true;
         if (card.status === 'completed' && !card.operation) return true;
         if (card.status === 'at-shop2-buffer') return true;
         return false;
@@ -573,7 +574,8 @@ const GlobalUserNav = () => {
           const unitsPerSheet = snap.units_per_sheet || 1;
           
           const activeCardsForNom = taskCards.filter(c => String(c.nomenclature_id) === String(nomIdStr));
-          if (activeCardsForNom.length === 0) return;
+          const activeProductionCards = activeCardsForNom.filter(c => c.operation !== 'Склад БЗ');
+          if (activeProductionCards.length === 0) return;
           
           const totalSheets = activeCardsForNom.reduce((sum, c) => {
             if (c.operation === 'Склад БЗ') return sum;
