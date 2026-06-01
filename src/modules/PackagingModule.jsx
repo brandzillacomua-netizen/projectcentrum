@@ -132,9 +132,10 @@ const PackagingModule = () => {
     // Групуємо за категоріями (як у специфікації)
     const categories = {
       sgp: { title: '1. ДЕТАЛІ / ГОТОВІ ВИРОБИ (СГП)', items: [], color: '#f43f5e', icon: <Package size={18} /> },
-      hardware: { title: '2. МЕТИЗИ (Гвинти/Гайки)', items: [], color: '#06b6d4', icon: <Wrench size={18} /> },
-      spacers: { title: '3. СТІЙКИ', items: [], color: '#8b5cf6', icon: <Layers size={18} /> },
-      other: { title: '4. НАКЛАДКИ / ТРИМАЧІ / УПАКОВКА', items: [], color: '#eab308', icon: <FileArchive size={18} /> }
+      mounts: { title: '2. КРІПЛЕННЯ / 3Д ДРУК', items: [], color: '#eab308', icon: <Layers size={18} /> },
+      hardware: { title: '3. МЕТИЗИ (Гвинти/Гайки)', items: [], color: '#06b6d4', icon: <Wrench size={18} /> },
+      spacers: { title: '4. СТІЙКИ', items: [], color: '#8b5cf6', icon: <Layers size={18} /> },
+      other: { title: '5. НАКЛАДКИ / ТРИМАЧІ / УПАКОВКА', items: [], color: '#3b82f6', icon: <FileArchive size={18} /> }
     };
 
     Object.values(map).forEach(item => {
@@ -142,8 +143,12 @@ const PackagingModule = () => {
       const name = (item.nom.name || '').toLowerCase();
       const code = (item.nom.nomenclature_code || '').toLowerCase();
       
-      // 1. ДЕТАЛІ (СГП) - Перевіряємо префікс ІП, тип або якщо це деталі з цеху/складу (part)
-      if (
+      // 1. КРІПЛЕННЯ / 3Д ДРУК - Перевіряємо спочатку mounts (кріплення) або 3D printed components (друк)
+      if (name.includes('кріплення') || name.includes('друк') || name.includes('3д')) {
+        categories.mounts.items.push(item);
+      }
+      // 2. ДЕТАЛІ (СГП) - Перевіряємо префікс ІП, тип або якщо це деталі з цеху/складу (part)
+      else if (
         name.includes('іп') || 
         code.includes('іп') || 
         type.includes('part') || 
@@ -153,15 +158,15 @@ const PackagingModule = () => {
       ) {
         categories.sgp.items.push(item);
       } 
-      // 2. СТІЙКИ - Окрема категорія
+      // 3. СТІЙКИ - Окрема категорія
       else if (name.includes('стійка') || type.includes('стійк')) {
         categories.spacers.items.push(item);
       }
-      // 3. МЕТИЗИ
+      // 4. МЕТИЗИ
       else if (type.includes('метиз') || type.includes('гвинт') || type.includes('гайка') || name.includes('гвинт') || name.includes('гайка')) {
         categories.hardware.items.push(item);
       } 
-      // 4. ІНШЕ
+      // 5. ІНШЕ
       else {
         categories.other.items.push(item);
       }
@@ -280,6 +285,7 @@ const PackagingModule = () => {
     const name = (nom.name || '').toLowerCase();
     const type = (nom.type || '').toLowerCase();
     
+    if (name.includes('кріплення') || name.includes('друк') || name.includes('3д')) return <Layers size={16} color="#eab308" />
     if (name.includes('іп') || type.includes('part') || type.includes('деталь')) return <Package size={16} color="#f43f5e" />
     if (name.includes('стійка')) return <Layers size={16} color="#8b5cf6" />
     if (name.includes('гвинт') || name.includes('гайка') || type.includes('метиз')) return <Wrench size={16} color="#06b6d4" />
@@ -419,19 +425,16 @@ const PackagingModule = () => {
 
                 <div style={{ background: '#070707', borderRadius: '28px', padding: '30px', flex: 1, border: '1px solid #151515', marginBottom: '30px', overflowY: 'auto' }}>
                   
-                  {Object.entries(categorizedBOM).map(([key, cat]) => (
-                    <div key={key} style={{ marginBottom: '40px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', borderBottom: `1px solid ${cat.color}22`, paddingBottom: '12px' }}>
-                        <div style={{ color: cat.color }}>{cat.icon}</div>
-                        <h4 style={{ margin: 0, fontSize: '0.9rem', color: cat.color, fontWeight: 900, letterSpacing: '1px' }}>{cat.title}</h4>
-                        <span style={{ marginLeft: 'auto', color: '#333', fontSize: '0.8rem', fontWeight: 800 }}>{cat.items.length} ПОЗИЦІЙ</span>
-                      </div>
-                      
-                      {cat.items.length === 0 ? (
-                        <div style={{ color: '#444', fontSize: '0.75rem', fontStyle: 'italic', padding: '15px', background: '#080808', borderRadius: '14px', border: '1px dashed #1a1a1a' }}>
-                          Немає деталей для цієї категорії
+                  {Object.entries(categorizedBOM).map(([key, cat]) => {
+                    if (cat.items.length === 0) return null;
+                    return (
+                      <div key={key} style={{ marginBottom: '40px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', borderBottom: `1px solid ${cat.color}22`, paddingBottom: '12px' }}>
+                          <div style={{ color: cat.color }}>{cat.icon}</div>
+                          <h4 style={{ margin: 0, fontSize: '0.9rem', color: cat.color, fontWeight: 900, letterSpacing: '1px' }}>{cat.title}</h4>
+                          <span style={{ marginLeft: 'auto', color: '#333', fontSize: '0.8rem', fontWeight: 800 }}>{cat.items.length} ПОЗИЦІЙ</span>
                         </div>
-                      ) : (
+                        
                         <div className="bom-required-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
                           {cat.items.map((item, idx) => {
                             const reqRequest = orderRequests.find(r => String(r.nomenclature_id) === String(item.nom.id))
@@ -477,9 +480,9 @@ const PackagingModule = () => {
                             )
                           })}
                         </div>
-                      )}
-                    </div>
-                  ))}
+                      </div>
+                    );
+                  })}
 
                   {Object.values(categorizedBOM).every(c => c.items.length === 0) && (
                     <div style={{ padding: '60px', textAlign: 'center', color: '#444', border: '2px dashed #151515', borderRadius: '20px' }}>

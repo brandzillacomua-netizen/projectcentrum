@@ -1009,10 +1009,35 @@ export function createProductionActions({
       const nom = nomenclatures.find(n => String(n.id) === String(nomenclatureId))
       const order = orders.find(o => String(o.id) === String(task?.order_id))
       if (!task || !nom) return
+
+      // Calculate sibling completed cards finished sum
+      const { data: siblingCards } = await supabase.from('work_cards')
+        .select('id, quantity, card_info, operation')
+        .eq('task_id', taskId)
+        .eq('nomenclature_id', nomenclatureId)
+        .eq('status', 'completed')
+
+      let siblingFinishedSum = 0
+      for (const sib of (siblingCards || [])) {
+        const sibTotal = Number(sib.quantity) || 0
+        const sibBzTotal = Number(sib.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
+        const sibNeedQty = Number(sib.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Math.max(0, sibTotal - sibBzTotal))
+        const sibIsRework = sib.card_info?.includes('[REWORK]') || sib.operation === 'Доопрацювання' || sib.card_info?.includes('Автоматично з Сортування')
+        const sibFinished = sibIsRework ? 0 : Math.min(sibTotal, sibNeedQty)
+        siblingFinishedSum += sibFinished
+      }
+
       const totalQty = Number(needQty) + Number(bzTotal)
-      const finishedQty = Number(needQty)
-      const actualBzQty = Number(bzTotal)
-      const { data: card, error: cardErr } = await supabase.from('work_cards').insert([{ task_id: taskId, order_id: task.order_id, nomenclature_id: nomenclatureId, quantity: totalQty, operation: 'Пакування/СГП', status: 'completed', operator_name: 'Система', completed_at: new Date().toISOString(), card_info: `[ЦЕХ №2] [NEED:${needQty}] [BZ:${bzTotal}] Наряд №${order?.order_num || ''}${task.batch_index ? `/${task.batch_index}` : ''} [ПРЯМА ПЕРЕДАЧА]` }]).select().single()
+
+      let plannedNeed = Number(needQty)
+      const taskNeed = Number(task.plan_snapshot?.[String(nomenclatureId)]?.need)
+      if (taskNeed && !isNaN(taskNeed)) plannedNeed = taskNeed
+
+      const remainingNeed = Math.max(0, plannedNeed - siblingFinishedSum)
+      const finishedQty = Math.min(totalQty, remainingNeed)
+      const actualBzQty = Math.max(0, totalQty - finishedQty)
+
+      const { data: card, error: cardErr } = await supabase.from('work_cards').insert([{ task_id: taskId, order_id: task.order_id, nomenclature_id: nomenclatureId, quantity: totalQty, operation: 'Пакування/СГП', status: 'completed', operator_name: 'Система', completed_at: new Date().toISOString(), card_info: `[ЦЕХ №2] [NEED:${finishedQty}] [BZ:${actualBzQty}] Наряд №${order?.order_num || ''}${task.batch_index ? `/${task.batch_index}` : ''} [ПРЯМА ПЕРЕДАЧА]` }]).select().single()
       if (cardErr) throw cardErr
 
       // Оновлюємо used_in_shop2_qty на source-картках (розподіляємо по черзі)
@@ -1070,17 +1095,54 @@ export function createProductionActions({
 
   const handoverToSGP = async (cardId) => {
     try {
-      const { data: freshCard } = await supabase.from('work_cards').select('id, status, nomenclature_id, quantity, card_info, order_id').eq('id', cardId).single()
+      const { data: freshCard } = await supabase.from('work_cards').select('id, status, nomenclature_id, quantity, card_info, order_id, task_id, operation').eq('id', cardId).single()
       if (!freshCard) return
       if (freshCard.status === 'completed') { alert('Ця картка вже передана на СГП і завершена. Повторна передача неможлива.'); return }
       const card = freshCard
       const nomId = card.nomenclature_id
       const totalQty = Number(card.quantity) || 0
-      const bzTotal = Number(card.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
-      const needQty = Number(card.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Math.max(0, totalQty - bzTotal))
-      const isRework = card.card_info?.includes('[REWORK]')
-      const finishedQty = isRework ? 0 : Math.min(totalQty, needQty)
-      const actualBzQty = isRework ? totalQty : Math.max(0, totalQty - finishedQty)
+      const isRework = card.card_info?.includes('[REWORK]') || card.operation === 'Доопрацювання' || card.card_info?.includes('Автоматично з Сортування')
+
+      // Calculate plannedNeed from task plan_snapshot
+      let plannedNeed = 0
+      if (card.task_id) {
+        const { data: tData } = await supabase.from('tasks').select('plan_snapshot').eq('id', card.task_id).maybeSingle()
+        if (tData && tData.plan_snapshot) {
+          const snap = tData.plan_snapshot
+          plannedNeed = Number(snap[String(nomId)]?.need) || 0
+          if (!plannedNeed && snap.arrivals) {
+            const arrVal = snap.arrivals.find(a => String(a.id) === String(nomId))
+            if (arrVal) plannedNeed = Number(arrVal.semi) || 0
+          }
+        }
+      }
+      if (!plannedNeed) {
+        const order = orders.find(o => String(o.id) === String(card.order_id))
+        const directItem = order?.order_items?.find(it => String(it.nomenclature_id) === String(nomId))
+        if (directItem) plannedNeed = Number(directItem.quantity) || 0
+      }
+
+      // Calculate sibling completed cards finished sum
+      const { data: siblingCards } = await supabase.from('work_cards')
+        .select('id, quantity, card_info, operation')
+        .eq('task_id', card.task_id)
+        .eq('nomenclature_id', nomId)
+        .eq('status', 'completed')
+
+      let siblingFinishedSum = 0
+      for (const sib of (siblingCards || [])) {
+        if (sib.id === cardId) continue
+        const sibTotal = Number(sib.quantity) || 0
+        const sibBzTotal = Number(sib.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
+        const sibNeedQty = Number(sib.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Math.max(0, sibTotal - sibBzTotal))
+        const sibIsRework = sib.card_info?.includes('[REWORK]') || sib.operation === 'Доопрацювання' || sib.card_info?.includes('Автоматично з Сортування')
+        const sibFinished = sibIsRework ? 0 : Math.min(sibTotal, sibNeedQty)
+        siblingFinishedSum += sibFinished
+      }
+
+      const remainingNeed = Math.max(0, plannedNeed - siblingFinishedSum)
+      const finishedQty = Math.min(totalQty, remainingNeed)
+      const actualBzQty = Math.max(0, totalQty - finishedQty)
       const nomName = card.card_info?.split('\n')[0]?.trim()
 
       const typesToFetch = ['semi_shop2', 'bz_shop2', 'finished', 'bz']
@@ -1098,23 +1160,23 @@ export function createProductionActions({
       const inserts = []
 
       // 1. Subtract semi_shop2
-      if (finishedQty > 0) {
-        let remainingNeed = finishedQty
+      if (!isRework && finishedQty > 0) {
+        let remainingNeedQty = finishedQty
         const s2SemiRows = existingInv?.filter(i => (nomId && String(i.nomenclature_id) === String(nomId) || i.name === nomName) && i.type === 'semi_shop2') || []
         for (const r of s2SemiRows) {
           const current = Number(r.total_qty) || 0
-          const take = Math.min(current, remainingNeed)
+          const take = Math.min(current, remainingNeedQty)
           if (take > 0) {
             updates.push({ ...r, total_qty: current - take })
-            remainingNeed -= take
+            remainingNeedQty -= take
           }
-          if (remainingNeed <= 0) break
+          if (remainingNeedQty <= 0) break
         }
       }
 
       // 2. Subtract bz_shop2
-      if (bzTotal > 0) {
-        let remainingBz = bzTotal
+      if (!isRework && actualBzQty > 0) {
+        let remainingBz = actualBzQty
         const s2BzRows = existingInv?.filter(i => (nomId && String(i.nomenclature_id) === String(nomId) || i.name === nomName) && i.type === 'bz_shop2') || []
         for (const r of s2BzRows) {
           const current = Number(r.total_qty) || 0
@@ -1149,9 +1211,11 @@ export function createProductionActions({
         }
       }
 
+      const updatedCardInfo = `[ЦЕХ №2] [NEED:${finishedQty}] [BZ:${actualBzQty}] ${card.card_info || ''}`.trim().slice(0, 500)
+
       const writeOps = [
         supabase.from('work_card_history').insert([{ card_id: cardId, nomenclature_id: nomId, stage_name: 'Пакування/СГП', operator_name: 'Система (ТЕРМІНАЛ)', qty_at_start: totalQty, qty_completed: totalQty, scrap_qty: 0, completed_at: new Date().toISOString() }]),
-        supabase.from('work_cards').update({ status: 'completed', operation: 'Пакування/СГП' }).eq('id', cardId)
+        supabase.from('work_cards').update({ status: 'completed', operation: 'Пакування/СГП', card_info: updatedCardInfo }).eq('id', cardId)
       ]
       if (updates.length > 0) writeOps.push(supabase.from('inventory').upsert(updates))
       if (inserts.length > 0) writeOps.push(supabase.from('inventory').insert(inserts))

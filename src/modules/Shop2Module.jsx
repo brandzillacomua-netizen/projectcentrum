@@ -156,7 +156,7 @@ const Shop2Module = () => {
       if (hasUncompleted) return false
 
       // 3. Must have at least one completed card for this nomenclature
-      const allCards = [...(workCards || []), ...(archiveCards || [])]
+      const allCards = [...(workCards || []), ...(archiveCards || []).filter(ac => !(workCards || []).some(wc => wc.id === ac.id))]
       const hasCompleted = allCards.some(wc =>
         String(wc.task_id) === String(taskObj.id) &&
         String(wc.nomenclature_id) === String(nomId) &&
@@ -555,7 +555,7 @@ const Shop2Module = () => {
 
                         return (displayItems || []).map((item, idx) => {
                           const stage = selectedStages[String(item.nom?.id)] || task.plan_snapshot?.[String(item.nom?.id)]?.shop2_stage
-                          const allCardsForCheck = [...(workCards || []), ...(archiveCards || [])]
+                          const allCardsForCheck = [...(workCards || []), ...(archiveCards || []).filter(ac => !(workCards || []).some(wc => wc.id === ac.id))]
                           const existingCard = allCardsForCheck.find(wc => {
                             const idMatch = String(wc.task_id) === String(task.id) && String(wc.nomenclature_id) === String(item.nom?.id)
                             const opMatch = String(wc.operation || '').toLowerCase().trim() === String(stage || '').toLowerCase().trim()
@@ -584,7 +584,7 @@ const Shop2Module = () => {
                           const displayTotal = displayNeed + displayBz
 
                           // Загальна кількість деталей, яка вже пішла в процес (згенеровані робочі карти в Цеху №2)
-                          const allShop2CardsForNom = [...(workCards || []), ...(archiveCards || [])].filter(c =>
+                          const allShop2CardsForNom = [...(workCards || []), ...(archiveCards || []).filter(ac => !(workCards || []).some(wc => wc.id === ac.id))].filter(c =>
                             String(c.task_id) === String(task.id) && String(c.nomenclature_id) === String(item.nom?.id)
                           )
                           const totalInProcess = allShop2CardsForNom.reduce((s, c) => s + (Number(c.quantity) || 0), 0)
@@ -651,7 +651,7 @@ const Shop2Module = () => {
                                   const stage = selectedStages[String(item.nom?.id)] || task.plan_snapshot?.[String(item.nom?.id)]?.shop2_stage
 
                                   // Обчислюємо, чи вже була згенерована картка (з активних або архівних)
-                                  const allCardsForCheck = [...(workCards || []), ...(archiveCards || [])]
+                                  const allCardsForCheck = [...(workCards || []), ...(archiveCards || []).filter(ac => !(workCards || []).some(wc => wc.id === ac.id))]
                                   const existingCard = allCardsForCheck.find(wc => {
                                     const idMatch = String(wc.task_id) === String(task.id) && String(wc.nomenclature_id) === String(item.nom?.id)
                                     const opMatch = String(wc.operation || '').toLowerCase().trim() === String(stage || '').toLowerCase().trim()
@@ -860,7 +860,7 @@ const Shop2Module = () => {
                         return Object.entries(byNom).map(([nomId, data]) => {
                           const nom = (nomenclatures || []).find(n => String(n?.id) === nomId)
                           const remaining = data.totalArrived - data.totalUsed
-                          const shop2Cards = [...(workCards || []), ...(archiveCards || [])].filter(c =>
+                          const shop2Cards = [...(workCards || []), ...(archiveCards || []).filter(ac => !(workCards || []).some(wc => wc.id === ac.id))].filter(c =>
                             String(c.task_id) === String(task.id) && String(c.nomenclature_id) === nomId
                           )
                           const inWork = shop2Cards.reduce((s, c) => s + (Number(c.quantity) || 0), 0)

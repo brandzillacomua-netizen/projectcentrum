@@ -1042,9 +1042,18 @@ export default function Shop1Terminal() {
       )
 
       // Task preparation
+      let updatedArrivals = []
+      const nom = nomenclatures.find(n => n.id === currentCard.nomenclature_id)
+
       if (!shop2Tasks || shop2Tasks.length === 0) {
         if (s1TaskData) {
           shop2TaskId = generateUUID()
+          updatedArrivals = [{
+            id: currentCard.nomenclature_id,
+            name: nom?.name || 'Деталь',
+            semi: actualNeed,
+            bz: actualBz
+          }]
           writePromises.push(
             supabase.from('tasks').insert([{
               id: shop2TaskId,
@@ -1057,18 +1066,39 @@ export default function Shop1Terminal() {
               warehouse_conf: true,
               director_conf: true,
               batch_index: s1TaskData.batch_index || null,
-              plan_snapshot: { ...(s1TaskData.plan_snapshot || {}), arrivals: [] }
+              plan_snapshot: { ...(s1TaskData.plan_snapshot || {}), arrivals: updatedArrivals }
             }])
           )
         }
       } else {
         shop2TaskId = shop2Tasks[0].id
-        const waitingTask = shop2Tasks.find(t => t.status === 'waiting')
-        if (waitingTask) {
-          writePromises.push(
-            supabase.from('tasks').update({ status: 'in-progress' }).eq('id', waitingTask.id)
-          )
+        const existingArrivals = shop2Tasks[0]?.plan_snapshot?.arrivals || []
+        updatedArrivals = [...existingArrivals]
+        const matchIdx = updatedArrivals.findIndex(a => String(a.id) === String(currentCard.nomenclature_id))
+        if (matchIdx >= 0) {
+          updatedArrivals[matchIdx] = {
+            ...updatedArrivals[matchIdx],
+            semi: (Number(updatedArrivals[matchIdx].semi) || 0) + actualNeed,
+            bz: (Number(updatedArrivals[matchIdx].bz) || 0) + actualBz
+          }
+        } else {
+          updatedArrivals.push({
+            id: currentCard.nomenclature_id,
+            name: nom?.name || 'Деталь',
+            semi: actualNeed,
+            bz: actualBz
+          })
         }
+
+        writePromises.push(
+          supabase.from('tasks').update({
+            status: 'in-progress',
+            plan_snapshot: {
+              ...(shop2Tasks[0].plan_snapshot || {}),
+              arrivals: updatedArrivals
+            }
+          }).eq('id', shop2Tasks[0].id)
+        )
       }
 
       // Rework Card
