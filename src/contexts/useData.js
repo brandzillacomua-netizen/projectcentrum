@@ -258,7 +258,7 @@ export function useData() {
         { data: mo },
         { data: mCalls }
       ] = await Promise.all([
-        supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).range(0, 999),
+        supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).range(0, 99),
         // tasks WITHOUT nested JOIN — avoids the orders(order_items(*)) waterfall
         supabase.from('tasks').select('id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,plan_snapshot,batch_index,planned_deadline,machine_name,created_at,completed_at').or(`status.neq.completed,completed_at.gte.${threeDaysAgoTasks}`).order('created_at', { ascending: false }),
         needNomenclatures ? supabase.from('nomenclatures').select('*').limit(2000) : Promise.resolve({ data: null }),

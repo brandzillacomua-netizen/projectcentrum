@@ -632,7 +632,7 @@ export default function Shop1Terminal() {
         machine: targetMachine,
         card_info: ((currentCard.card_info || '').replace('[SHOP:1]', '').trim() + ' [SHOP:1]').trim()
       }).eq('id', currentCard.id)
-      await fetchData()
+      fetchData().catch(() => {})
       if (!scannedIds.includes(currentCard.id)) setScannedIds(prev => [...prev, currentCard.id])
     } catch (e) { alert('Помилка: ' + e.message) }
     finally { setIsProcessing(false) }
@@ -694,7 +694,7 @@ export default function Shop1Terminal() {
       setShowCompleteModal(false)
       setScrapCount(0)
       setSelectedCardId(null)
-      await fetchData()
+      fetchData().catch(() => {})
     } catch (e) {
       console.error('Buffer error:', e)
       alert('Помилка буфера: ' + e.message)
@@ -766,7 +766,7 @@ export default function Shop1Terminal() {
         shift_name: selectedShift,
         machine: currentCard.machine || 'Не вказано'
       }).eq('id', currentCard.id)
-      await fetchData()
+      fetchData().catch(() => {})
       if (!scannedIds.includes(currentCard.id)) setScannedIds(prev => [...prev, currentCard.id])
     } catch (e) { alert('Помилка: ' + e.message) }
     finally { setIsProcessing(false) }
@@ -834,7 +834,7 @@ export default function Shop1Terminal() {
         true      // isRework = true
       )
 
-      await fetchData()
+      fetchData().catch(() => {})
       setShowCompleteModal(false)
       setSelectedCardId(null)
       alert('Запит на перевипуск створено успішно!')
@@ -853,7 +853,7 @@ export default function Shop1Terminal() {
         completed_at: new Date().toISOString()
       }).eq('id', currentCard.id)
 
-      await fetchData()
+      fetchData().catch(() => {})
     } catch (e) {
       console.error('Error completing sorting to buffer:', e)
       alert('Помилка завершення сортування: ' + e.message)
@@ -872,227 +872,238 @@ export default function Shop1Terminal() {
       const op = selectedOperator || currentCard.operator_name || 'Сортування'
       const activeShift = selectedShift || currentCard.shift_name || 'Без зміни'
 
-      // 1. Записуємо history запис для активної стадії Сортування
-      try {
-        await supabase.from('work_card_history').insert([{
-          card_id: currentCard.id,
-          nomenclature_id: currentCard.nomenclature_id,
-          stage_name: 'Сортування',
-          operator_name: op,
-          qty_at_start: currentCard.quantity,
-          qty_completed: goodQty,
-          scrap_qty: scrapCount,
-          started_at: currentCard.started_at || new Date().toISOString(),
-          completed_at: currentCard.completed_at || new Date().toISOString(),
-          is_archived_scrap: scrapCount > 0,
-          shift_name: activeShift,
-          manager_name: currentCard.manager_name,
-          machine_name: currentCard.machine
-        }])
-      } catch (err) {
-        console.error('Error writing active Sorting history:', err)
+      const generateUUID = () => {
+        if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+          return crypto.randomUUID()
+        }
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8)
+          return v.toString(16)
+        })
       }
 
-      // 2. Записуємо history запис для Буфера Сортування
-      try {
-        const bufferStart = currentCard.completed_at || currentCard.started_at || new Date().toISOString()
-        await supabase.from('work_card_history').insert([{
-          card_id: currentCard.id,
-          nomenclature_id: currentCard.nomenclature_id,
-          stage_name: 'Буфер Сортування',
-          operator_name: op,
-          qty_at_start: goodQty,
-          qty_completed: goodQty,
-          scrap_qty: 0,
-          started_at: bufferStart,
-          completed_at: new Date().toISOString(),
-          shift_name: activeShift,
-          manager_name: currentCard.manager_name,
-          machine_name: currentCard.machine
-        }])
-      } catch (err) {
-        console.error('Error writing Sorting Buffer history:', err)
+      // Parallel Read: fetch existing inventory, Shop 2 tasks, and s1TaskData in parallel
+      const [existingInvResult, shop2TasksResult, s1TaskResult] = await Promise.all([
+        supabase.from('inventory')
+          .select('*')
+          .eq('nomenclature_id', currentCard.nomenclature_id)
+          .in('type', ['semi', 'wip_bz', 'bz', 'semi_shop2', 'bz_shop2', 'scrap']),
+        supabase.from('tasks')
+          .select('*')
+          .eq('order_id', currentCard.order_id)
+          .ilike('step', '%ЦЕХ №2%')
+          .neq('status', 'completed'),
+        supabase.from('tasks')
+          .select('*')
+          .eq('id', currentCard.task_id)
+          .maybeSingle()
+      ])
+
+      const existingItems = existingInvResult.data || []
+      const shop2Tasks = shop2TasksResult.data || []
+      const s1TaskData = s1TaskResult.data
+
+      // Calculations for inventory transfers
+      const cardBz = Number(currentCard.buffer_qty) || Number(currentCard.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
+      const cardNeed = Number(currentCard.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Math.max(0, Number(currentCard.quantity) - cardBz))
+      const actualNeed = Math.min(goodQty, cardNeed)
+      const actualBz = Math.max(0, goodQty - actualNeed)
+
+      const invUpdates = []
+      const invInserts = []
+      const findItem = (type) => existingItems.find(i => i.type === type)
+
+      // 3.5.1. Зменшити semi (NEED) в Цеху 1
+      if (actualNeed > 0) {
+        const s1Semi = findItem('semi')
+        if (s1Semi) {
+          invUpdates.push({ id: s1Semi.id, total_qty: Math.max(0, (Number(s1Semi.total_qty) || 0) - actualNeed) })
+        }
+      }
+
+      // 3.5.2. Зменшити wip_bz / bz (BZ) в Цеху 1
+      if (actualBz > 0) {
+        let remainingBz = actualBz
+        const s1Wip = findItem('wip_bz')
+        if (s1Wip) {
+          const take = Math.min(Number(s1Wip.total_qty) || 0, remainingBz)
+          invUpdates.push({ id: s1Wip.id, total_qty: Math.max(0, (Number(s1Wip.total_qty) || 0) - take) })
+          remainingBz -= take
+        }
+        if (remainingBz > 0) {
+          const s1Bz = findItem('bz')
+          if (s1Bz) {
+            const take = Math.min(Number(s1Bz.total_qty) || 0, remainingBz)
+            invUpdates.push({ id: s1Bz.id, total_qty: Math.max(0, (Number(s1Bz.total_qty) || 0) - take) })
+          }
+        }
+      }
+
+      // 3.5.3. Збільшити semi_shop2 в Цеху 2
+      if (actualNeed > 0) {
+        const s2Semi = findItem('semi_shop2')
+        if (s2Semi) {
+          invUpdates.push({ id: s2Semi.id, total_qty: (Number(s2Semi.total_qty) || 0) + actualNeed })
+        } else {
+          const nom = nomenclatures.find(n => n.id === currentCard.nomenclature_id)
+          invInserts.push({
+            nomenclature_id: currentCard.nomenclature_id,
+            name: nom?.name || 'Деталь',
+            total_qty: actualNeed,
+            reserved_qty: 0,
+            type: 'semi_shop2',
+            unit: nom?.unit || 'шт'
+          })
+        }
+      }
+
+      // 3.5.4. Збільшити bz_shop2 в Цеху 2
+      if (actualBz > 0) {
+        const s2Bz = findItem('bz_shop2')
+        if (s2Bz) {
+          invUpdates.push({ id: s2Bz.id, total_qty: (Number(s2Bz.total_qty) || 0) + actualBz })
+        } else {
+          const nom = nomenclatures.find(n => n.id === currentCard.nomenclature_id)
+          invInserts.push({
+            nomenclature_id: currentCard.nomenclature_id,
+            name: nom?.name || 'Деталь',
+            total_qty: actualBz,
+            reserved_qty: 0,
+            type: 'bz_shop2',
+            unit: nom?.unit || 'шт'
+          })
+        }
       }
 
       // 3. Якщо є брак при сортуванні — записуємо його в інвентар
       if (scrapCount > 0) {
-        await updateInventoryStock(currentCard.nomenclature_id, scrapCount, 'scrap')
+        const scrapItem = findItem('scrap')
+        if (scrapItem) {
+          invUpdates.push({ id: scrapItem.id, total_qty: (Number(scrapItem.total_qty) || 0) + scrapCount, updated_at: new Date().toISOString() })
+        } else {
+          const nom = nomenclatures.find(n => n.id === currentCard.nomenclature_id)
+          invInserts.push({
+            name: nom?.name || 'Деталь',
+            unit: nom?.unit || 'шт',
+            total_qty: scrapCount,
+            type: 'scrap',
+            nomenclature_id: currentCard.nomenclature_id
+          })
+        }
       }
 
-      // 3.5. Перенесення запасів NEED та BZ з Цеху №1 до Цеху №2 в таблиці inventory
-      try {
-        const cardBz = Number(currentCard.buffer_qty) || Number(currentCard.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
-        const cardNeed = Number(currentCard.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Math.max(0, Number(currentCard.quantity) - cardBz))
+      // History entries to write
+      const historyToInsert = []
+      historyToInsert.push({
+        card_id: currentCard.id,
+        nomenclature_id: currentCard.nomenclature_id,
+        stage_name: 'Сортування',
+        operator_name: op,
+        qty_at_start: currentCard.quantity,
+        qty_completed: goodQty,
+        scrap_qty: scrapCount,
+        started_at: currentCard.started_at || new Date().toISOString(),
+        completed_at: currentCard.completed_at || new Date().toISOString(),
+        is_archived_scrap: scrapCount > 0,
+        shift_name: activeShift,
+        manager_name: currentCard.manager_name,
+        machine_name: currentCard.machine
+      })
 
-        const actualNeed = Math.min(goodQty, cardNeed)
-        const actualBz = Math.max(0, goodQty - actualNeed)
+      const bufferStart = currentCard.completed_at || currentCard.started_at || new Date().toISOString()
+      historyToInsert.push({
+        card_id: currentCard.id,
+        nomenclature_id: currentCard.nomenclature_id,
+        stage_name: 'Буфер Сортування',
+        operator_name: op,
+        qty_at_start: goodQty,
+        qty_completed: goodQty,
+        scrap_qty: 0,
+        started_at: bufferStart,
+        completed_at: new Date().toISOString(),
+        shift_name: activeShift,
+        manager_name: currentCard.manager_name,
+        machine_name: currentCard.machine
+      })
 
-        // 3.5.1. Зменшити semi (NEED) в Цеху 1
-        if (actualNeed > 0) {
-          const { data: s1Semi } = await supabase.from('inventory')
-            .select('*')
-            .eq('nomenclature_id', currentCard.nomenclature_id)
-            .eq('type', 'semi')
-            .limit(1).maybeSingle()
-          
-          if (s1Semi) {
-            await supabase.from('inventory')
-              .update({ total_qty: Math.max(0, (Number(s1Semi.total_qty) || 0) - actualNeed) })
-              .eq('id', s1Semi.id)
-          }
-        }
+      // Task & Card writes
+      let shop2TaskId = null
+      const writePromises = []
 
-        // 3.5.2. Зменшити wip_bz / bz (BZ) в Цеху 1
-        if (actualBz > 0) {
-          let remainingBz = actualBz
-          const { data: s1Wip } = await supabase.from('inventory')
-            .select('*')
-            .eq('nomenclature_id', currentCard.nomenclature_id)
-            .eq('type', 'wip_bz')
-            .limit(1).maybeSingle()
-          
-          if (s1Wip) {
-            const take = Math.min(Number(s1Wip.total_qty) || 0, remainingBz)
-            await supabase.from('inventory')
-              .update({ total_qty: Math.max(0, (Number(s1Wip.total_qty) || 0) - take) })
-              .eq('id', s1Wip.id)
-            remainingBz -= take
-          }
+      // Work card update
+      writePromises.push(
+        supabase.from('work_cards').update({
+          status: 'at-shop2-buffer',
+          operation: 'Сортування',
+          quantity: goodQty + reworkCount,
+          used_in_shop2_qty: reworkCount,
+          completed_at: new Date().toISOString()
+        }).eq('id', currentCard.id)
+      )
 
-          if (remainingBz > 0) {
-            const { data: s1Bz } = await supabase.from('inventory')
-              .select('*')
-              .eq('nomenclature_id', currentCard.nomenclature_id)
-              .eq('type', 'bz')
-              .limit(1).maybeSingle()
-            
-            if (s1Bz) {
-              const take = Math.min(Number(s1Bz.total_qty) || 0, remainingBz)
-              await supabase.from('inventory')
-                .update({ total_qty: Math.max(0, (Number(s1Bz.total_qty) || 0) - take) })
-                .eq('id', s1Bz.id)
-            }
-          }
-        }
-
-        // 3.5.3. Збільшити semi_shop2 в Цеху 2
-        if (actualNeed > 0) {
-          const { data: s2Semi } = await supabase.from('inventory')
-            .select('*')
-            .eq('nomenclature_id', currentCard.nomenclature_id)
-            .eq('type', 'semi_shop2')
-            .limit(1).maybeSingle()
-
-          if (s2Semi) {
-            await supabase.from('inventory')
-              .update({ total_qty: (Number(s2Semi.total_qty) || 0) + actualNeed })
-              .eq('id', s2Semi.id)
-          } else {
-            const nom = nomenclatures.find(n => n.id === currentCard.nomenclature_id)
-            await supabase.from('inventory').insert([{
-              nomenclature_id: currentCard.nomenclature_id,
-              name: nom?.name || 'Деталь',
-              total_qty: actualNeed,
-              reserved_qty: 0,
-              type: 'semi_shop2',
-              unit: nom?.unit || 'шт'
-            }])
-          }
-        }
-
-        // 3.5.4. Збільшити bz_shop2 в Цеху 2
-        if (actualBz > 0) {
-          const { data: s2Bz } = await supabase.from('inventory')
-            .select('*')
-            .eq('nomenclature_id', currentCard.nomenclature_id)
-            .eq('type', 'bz_shop2')
-            .limit(1).maybeSingle()
-
-          if (s2Bz) {
-            await supabase.from('inventory')
-              .update({ total_qty: (Number(s2Bz.total_qty) || 0) + actualBz })
-              .eq('id', s2Bz.id)
-          } else {
-            const nom = nomenclatures.find(n => n.id === currentCard.nomenclature_id)
-            await supabase.from('inventory').insert([{
-              nomenclature_id: currentCard.nomenclature_id,
-              name: nom?.name || 'Деталь',
-              total_qty: actualBz,
-              reserved_qty: 0,
-              type: 'bz_shop2',
-              unit: nom?.unit || 'шт'
-            }])
-          }
-        }
-      } catch (invErr) {
-        console.error('Error transferring inventory in sorting:', invErr)
-      }
-
-      // 4. Картка → at-shop2-buffer
-      const { error: cardErr } = await supabase.from('work_cards').update({
-        status: 'at-shop2-buffer',
-        operation: 'Сортування',
-        quantity: goodQty + reworkCount, // Зберігаємо загальну кількість деталей що пішли в Цех 2
-        used_in_shop2_qty: reworkCount, // Відразу відзначаємо, що частина пішла на доопрацювання
-        completed_at: new Date().toISOString()
-      }).eq('id', currentCard.id)
-
-      if (cardErr) throw cardErr
-
-      // 2. Знаходимо задачу Цеху №2 і активуємо її (waiting → in-progress)
-      const { data: shop2Tasks } = await supabase
-        .from('tasks')
-        .select('id, status')
-        .eq('order_id', currentCard.order_id)
-        .ilike('step', '%ЦЕХ №2%')
-        .neq('status', 'completed')
-
-      let shop2TaskId = null;
-
+      // Task preparation
       if (!shop2Tasks || shop2Tasks.length === 0) {
-        // Задачі Цеху №2 ще немає (для старих нарядів), створюємо її автоматично як in-progress!
-        const { data: s1TaskData } = await supabase.from('tasks').select('*').eq('id', currentCard.task_id).maybeSingle()
         if (s1TaskData) {
-          const { data: newTask } = await supabase.from('tasks').insert([{
-            order_id: currentCard.order_id,
-            step: 'Пресування [ЦЕХ №2]',
-            status: 'in-progress',
-            planned_sets: s1TaskData.planned_sets || 0,
-            estimated_time: s1TaskData.estimated_time || 0,
-            engineer_conf: true,
-            warehouse_conf: true,
-            director_conf: true,
-            batch_index: s1TaskData.batch_index || null,
-            plan_snapshot: { ...(s1TaskData.plan_snapshot || {}), arrivals: [] }
-          }]).select('id').single()
-          if (newTask) shop2TaskId = newTask.id
+          shop2TaskId = generateUUID()
+          writePromises.push(
+            supabase.from('tasks').insert([{
+              id: shop2TaskId,
+              order_id: currentCard.order_id,
+              step: 'Пресування [ЦЕХ №2]',
+              status: 'in-progress',
+              planned_sets: s1TaskData.planned_sets || 0,
+              estimated_time: s1TaskData.estimated_time || 0,
+              engineer_conf: true,
+              warehouse_conf: true,
+              director_conf: true,
+              batch_index: s1TaskData.batch_index || null,
+              plan_snapshot: { ...(s1TaskData.plan_snapshot || {}), arrivals: [] }
+            }])
+          )
         }
       } else {
         shop2TaskId = shop2Tasks[0].id
         const waitingTask = shop2Tasks.find(t => t.status === 'waiting')
         if (waitingTask) {
-          await supabase.from('tasks').update({ status: 'in-progress' }).eq('id', waitingTask.id)
+          writePromises.push(
+            supabase.from('tasks').update({ status: 'in-progress' }).eq('id', waitingTask.id)
+          )
         }
       }
 
-      // 4.5. Якщо є доопрацювання, створюємо нову картку для Цеху №2
+      // Rework Card
       if (reworkCount > 0) {
-        await supabase.from('work_cards').insert([{
-          task_id: shop2TaskId || currentCard.task_id, // Використовуємо ID задачі Цеху 2
-          order_id: currentCard.order_id,
-          nomenclature_id: currentCard.nomenclature_id,
-          operation: 'Доопрацювання',
-          quantity: reworkCount,
-          status: 'new',
-          card_info: `[ЦЕХ №2] Автоматично з Сортування`
-        }])
+        writePromises.push(
+          supabase.from('work_cards').insert([{
+            task_id: shop2TaskId || currentCard.task_id,
+            order_id: currentCard.order_id,
+            nomenclature_id: currentCard.nomenclature_id,
+            operation: 'Доопрацювання',
+            quantity: reworkCount,
+            status: 'new',
+            card_info: `[ЦЕХ №2] Автоматично з Сортування`
+          }])
+        )
+      }
+
+      // Inventory writes
+      if (invUpdates.length > 0) writePromises.push(supabase.from('inventory').upsert(invUpdates))
+      if (invInserts.length > 0) writePromises.push(supabase.from('inventory').insert(invInserts))
+
+      // History writes
+      writePromises.push(supabase.from('work_card_history').insert(historyToInsert))
+
+      // Execute all writes in parallel!
+      const results = await Promise.all(writePromises)
+      for (const res of results) {
+        if (res.error) throw res.error
       }
 
       setScrapCount(0)
       setReworkCount(0)
       setSelectedCardId(null)
       setScannedIds(prev => prev.filter(id => id !== currentCard.id))
-      await fetchData()
+      fetchData().catch(() => {})
       alert(`✅ ${goodQty} шт відправлено в буфер Цеху №2!`)
     } catch (e) {
       console.error('Sort to shop2 error:', e)
@@ -1158,7 +1169,7 @@ export default function Shop1Terminal() {
       // Картка тепер у буфері Прийомки — закриваємо її та повертаємось на головний екран
       setSelectedCardId(null)
       setScannedIds(prev => prev.filter(id => id !== currentCard.id))
-      await fetchData()
+      fetchData().catch(() => {})
     } catch (e) {
       console.error('Acceptance error:', e)
       alert('Помилка прийомки: ' + (e.message || 'Невідома помилка'))
@@ -1214,7 +1225,7 @@ export default function Shop1Terminal() {
       setQcInspector('')
       setQcReason('Биття цанги')
       setQcCustomReason('')
-      await fetchData()
+      fetchData().catch(() => {})
       if (newQty === 0) {
         setSelectedCardId(null)
         setScannedIds(prev => prev.filter(id => id !== currentCard.id))
@@ -1262,7 +1273,7 @@ export default function Shop1Terminal() {
       const { error } = await supabase.from('work_card_history').update({ is_archived_scrap: true }).in('id', idsToMark)
       if (error) throw error
 
-      await fetchData()
+      fetchData().catch(() => {})
     } catch (err) {
       console.error('Archive scrap error:', err)
       alert('Помилка архівації браку: ' + err.message)
