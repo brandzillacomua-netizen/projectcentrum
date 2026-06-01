@@ -76,10 +76,17 @@ const WarehouseModuleV2 = () => {
     const nameLower = parsedName.toLowerCase()
     const nom = r.nomenclature_id ? nomenclatures.find(n => String(n.id) === String(r.nomenclature_id)) : null
     
-    if (nom?.type === 'part') return 'semi'
+    if (nom?.type === 'part') return 'finished'
     if (nom?.type === 'product') return 'finished'
 
-    const isSgp = (nameLower.includes('іп') || nameLower.includes('ip') || nameLower.startsWith('іп-') || nameLower.startsWith('ip-'))
+    const isSgp = (
+      nameLower.startsWith('іп-') || 
+      nameLower.startsWith('ip-') || 
+      nameLower.startsWith('kr-') || 
+      nameLower.startsWith('kh-') || 
+      (nameLower.includes('іп') && !nameLower.includes('кріплення') && !nameLower.includes('друк') && !nameLower.includes('3д')) ||
+      nameLower.includes('ip')
+    )
     if (isSgp) {
       return 'finished'
     }
@@ -187,7 +194,17 @@ const WarehouseModuleV2 = () => {
       })
       
       const nom = req.nomenclature_id ? nomenclatures.find(n => String(n.id) === String(req.nomenclature_id)) : null
-      const isSgp = (nom?.type === 'part' || nom?.type === 'product' || nameLower.includes('іп') || nameLower.includes('ip') || nameLower.startsWith('іп-') || nameLower.startsWith('ip-') || matching.some(i => i.type === 'finished' || i.type === 'semi' || i.type === 'part'))
+      const isSgp = (
+        nom?.type === 'part' || 
+        nom?.type === 'product' || 
+        nameLower.startsWith('іп-') || 
+        nameLower.startsWith('ip-') || 
+        nameLower.startsWith('kr-') || 
+        nameLower.startsWith('kh-') || 
+        (nameLower.includes('іп') && !nameLower.includes('кріплення') && !nameLower.includes('друк') && !nameLower.includes('3д')) ||
+        nameLower.includes('ip') ||
+        matching.some(i => i.type === 'finished' || i.type === 'semi' || i.type === 'part')
+      )
       if (isSgp) return
 
       const operationalItems = matching.filter(i => i.warehouse === 'operational' || !i.warehouse)
@@ -457,7 +474,17 @@ const WarehouseModuleV2 = () => {
                   const totalOnWh = matchingInv.reduce((sum, i) => sum + (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0), 0)
                   
                   const nom = req.nomenclature_id ? nomenclatures.find(n => String(n.id) === String(req.nomenclature_id)) : null
-                  const isSgp = (nom?.type === 'part' || nom?.type === 'product' || nameLower.includes('іп') || nameLower.includes('ip') || nameLower.startsWith('іп-') || nameLower.startsWith('ip-') || matchingInv.some(i => i.type === 'finished' || i.type === 'semi' || i.type === 'part'))
+                  const isSgp = (
+                    nom?.type === 'part' || 
+                    nom?.type === 'product' || 
+                    nameLower.startsWith('іп-') || 
+                    nameLower.startsWith('ip-') || 
+                    nameLower.startsWith('kr-') || 
+                    nameLower.startsWith('kh-') || 
+                    (nameLower.includes('іп') && !nameLower.includes('кріплення') && !nameLower.includes('друк') && !nameLower.includes('3д')) ||
+                    nameLower.includes('ip') ||
+                    matchingInv.some(i => i.type === 'finished' || i.type === 'semi' || i.type === 'part')
+                  )
                   if (isSgp) return
                   
                   // Додаємо те, що вже видано (зарезервовано) саме для цього наряду

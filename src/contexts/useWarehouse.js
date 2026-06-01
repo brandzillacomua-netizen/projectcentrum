@@ -466,12 +466,18 @@ export function createWarehouseActions({
         if (req.status === 'issued') return
         let parsedName = ''
         try { parsedName = req.details?.split(': ')[1]?.split(' — ')[0]?.trim() } catch (e) {}
-        const isSgpItem = parsedName?.toLowerCase().includes('іп') ||
+        const isSgpItem = (
+          parsedName?.toLowerCase().startsWith('іп-') ||
+          parsedName?.toLowerCase().startsWith('ip-') ||
+          parsedName?.toLowerCase().startsWith('kr-') ||
+          parsedName?.toLowerCase().startsWith('kh-') ||
+          (parsedName?.toLowerCase().includes('іп') && !parsedName?.toLowerCase().includes('кріплення') && !parsedName?.toLowerCase().includes('друк') && !parsedName?.toLowerCase().includes('3д')) ||
           parsedName?.toLowerCase().includes('ip') ||
           (req.nomenclature_id && (() => {
             const t = nomenclatures.find(n => String(n.id) === String(req.nomenclature_id))?.type
             return t === 'part' || t === 'product'
           })())
+        )
         const isPrepRequest = (req.details && (req.details.includes('ПІДГОТОВ') || req.details.includes('подготов'))) || 
           (parsedName && (parsedName.includes('[Непідготовлений]') || parsedName.includes('[неподготовленный]')))
 
@@ -522,17 +528,26 @@ export function createWarehouseActions({
         }
       })
 
-      const invPromises = Object.entries(inventoryUpdateMap).map(async ([id, addQty]) => {
+      const invUpdates = Object.entries(inventoryUpdateMap).map(([id, addQty]) => {
         const item = matchedInventory.find(i => String(i.id) === String(id))
-        if (!item) return
-        return supabase.from('inventory').update({
+        if (!item) return null
+        return {
+          ...item,
           reserved_qty: (Number(item.reserved_qty) || 0) + addQty
-        }).eq('id', id)
-      })
+        }
+      }).filter(Boolean)
 
-      const reqPromises = requestUpdateList.map(upd =>
-        supabase.from('material_requests').update({ status: upd.status, inventory_id: upd.inventory_id }).eq('id', upd.id)
-      )
+      const invPromises = invUpdates.length > 0
+        ? [supabase.from('inventory').upsert(invUpdates)]
+        : []
+
+      const reqPromises = requestUpdateList.length > 0
+        ? [supabase.from('material_requests').upsert(requestUpdateList.map(upd => ({
+            id: upd.id,
+            status: upd.status,
+            inventory_id: upd.inventory_id
+          })))]
+        : []
 
       await Promise.all([...invPromises, ...reqPromises])
 
