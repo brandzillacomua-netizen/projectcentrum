@@ -59,7 +59,7 @@ const ManagerModule = () => {
     
     const nextSeq = maxSeq + 1;
     const seqStr = String(nextSeq).padStart(2, '0');
-    return `№${datePrefix}-${seqStr}`;
+    return `${datePrefix}-${seqStr}`;
   }
 
   const [orderHeader, setOrderHeader] = useState({ 
@@ -76,7 +76,7 @@ const ManagerModule = () => {
 
   useEffect(() => {
     setOrderHeader(prev => {
-      if (!prev.orderNum || prev.orderNum.startsWith('№')) {
+      if (!prev.orderNum) {
         return { ...prev, orderNum: generateNextOrderNum() };
       }
       return prev;
