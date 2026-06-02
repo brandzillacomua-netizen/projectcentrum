@@ -326,6 +326,9 @@ export function createWarehouseActions({
         if (r.error) throw r.error
       }
 
+      refreshTable('inventory')
+      refreshTable('reception_docs')
+
       if (doc.task_id || doc.order_id) {
         let destWhToComplete = ''
         if (targetWarehouse === 'production') destWhToComplete = 'procurement'
@@ -334,16 +337,13 @@ export function createWarehouseActions({
           let q = supabase.from('purchase_requests').update({ status: 'completed' }).eq('destination_warehouse', destWhToComplete)
           if (doc.task_id) q = q.eq('task_id', doc.task_id)
           else q = q.eq('order_id', doc.order_id)
-          await q
+          q.then(() => {
+            refreshTable('purchase_requests')
+          }).catch(err => {
+            console.error('Error updating purchase requests in background:', err)
+          })
         }
       }
-
-      refreshTable('inventory')
-      refreshTable('reception_docs')
-      if (doc.task_id || doc.order_id) {
-        refreshTable('purchase_requests')
-      }
-      alert('Прийомку успішно завершено! Склад оновлено.')
     } catch (err) {
       console.error('CRITICAL: confirmReception crash:', err)
       await supabase.from('reception_docs').update({ status: 'shipped' }).eq('id', docId).neq('status', 'completed')
