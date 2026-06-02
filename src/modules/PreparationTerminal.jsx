@@ -46,7 +46,11 @@ const PreparationTerminal = () => {
 
   // Generate virtual sub-tasks for each item in task's plan_snapshot
   const prepSubTasks = []
-  tasks.filter(t => t.step === 'Підготовка' && t.status !== 'completed' && t.warehouse_conf === true).forEach(t => {
+  tasks.filter(t => 
+    t.step === 'Підготовка' && 
+    t.status !== 'completed' && 
+    (t.warehouse_conf === true || Object.values(t.plan_snapshot || {}).some(item => item.status === 'in-progress' || item.status === 'completed'))
+  ).forEach(t => {
     if (t.plan_snapshot) {
       Object.entries(t.plan_snapshot).forEach(([nomId, item]) => {
         if (nomId.startsWith('_')) return
