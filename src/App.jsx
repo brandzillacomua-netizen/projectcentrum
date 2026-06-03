@@ -971,12 +971,30 @@ const GlobalUserNav = () => {
     return notifications.filter(n => !readIds.includes(n.id)).length;
   }, [notifications, readIds]);
 
-  // Request browser Notification permission on mount
+  // Request browser Notification permission and register SW on mount
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js')
+        .then(reg => console.log('Service Worker registered successfully:', reg.scope))
+        .catch(err => console.error('Service Worker registration failed:', err));
+    }
   }, []);
+
+  // Listen to SW navigation messages
+  useEffect(() => {
+    const handleMessage = (event) => {
+      if (event.data && event.data.type === 'NAVIGATE') {
+        navigate(event.data.path);
+      }
+    };
+    navigator.serviceWorker?.addEventListener('message', handleMessage);
+    return () => {
+      navigator.serviceWorker?.removeEventListener('message', handleMessage);
+    };
+  }, [navigate]);
 
   // Monitor notifications and trigger HTML5 Push when a new unread notification arrives
   useEffect(() => {
@@ -988,16 +1006,33 @@ const GlobalUserNav = () => {
 
     newUnread.forEach(n => {
       try {
-        const notif = new Notification(n.title, {
+        const title = n.title;
+        const options = {
           body: n.description,
           icon: '/kulytsya.png', // Fallback to logo
-          tag: n.id // Prevent duplicates
-        });
-        notif.onclick = () => {
-          window.focus();
-          handleNotificationClick(n);
-          notif.close();
+          tag: n.id, // Prevent duplicates
+          data: n
         };
+
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.ready.then(registration => {
+            registration.showNotification(title, options);
+          }).catch(err => {
+            const notif = new Notification(title, options);
+            notif.onclick = () => {
+              window.focus();
+              handleNotificationClick(n);
+              notif.close();
+            };
+          });
+        } else {
+          const notif = new Notification(title, options);
+          notif.onclick = () => {
+            window.focus();
+            handleNotificationClick(n);
+            notif.close();
+          };
+        }
       } catch (err) {
         console.warn('Failed to trigger native notification:', err);
       }
