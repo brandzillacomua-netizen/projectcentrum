@@ -61,6 +61,7 @@ const MachineCallModule    = lazy(() => import('./modules/MachineCallModule'))
 const TumblingTerminal     = lazy(() => import('./modules/TumblingTerminal'))
 
 import { MESProvider, useMES } from './MESContext'
+import { subscribeToPush } from './services/pushService'
 
 // ── Shared loading fallback ─────────────────────────────────────────────────────
 const ModuleLoader = () => (
@@ -971,17 +972,26 @@ const GlobalUserNav = () => {
     return notifications.filter(n => !readIds.includes(n.id)).length;
   }, [notifications, readIds]);
 
-  // Request browser Notification permission and register SW on mount
+  // ─── Service Worker реєстрація + Web Push підписка ──────────────────────────
   useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js')
-        .then(reg => console.log('Service Worker registered successfully:', reg.scope))
-        .catch(err => console.error('Service Worker registration failed:', err));
-    }
+    if (!('serviceWorker' in navigator)) return;
+    // Реєструємо SW (завжди, незалежно від логіну)
+    navigator.serviceWorker.register('/sw.js')
+      .then(reg => console.log('[SW] Registered:', reg.scope))
+      .catch(err => console.error('[SW] Registration failed:', err));
   }, []);
+
+  // Підписуємо пристрій на Web Push кожного разу при вході з нового пристрою
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    // Невелика затримка щоб SW встиг зареєструватись
+    const timer = setTimeout(() => {
+      subscribeToPush(currentUser.id).then(ok => {
+        if (ok) console.log('[Push] ✅ Пристрій підписано для юзера', currentUser.id);
+      });
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [currentUser?.id]);
 
   // Listen to SW navigation messages
   useEffect(() => {
@@ -989,12 +999,16 @@ const GlobalUserNav = () => {
       if (event.data && event.data.type === 'NAVIGATE') {
         navigate(event.data.path);
       }
+      if (event.data && event.data.type === 'SUBSCRIPTION_CHANGED' && currentUser?.id) {
+        // Браузер сам оновив підписку — зберігаємо нову
+        subscribeToPush(currentUser.id);
+      }
     };
     navigator.serviceWorker?.addEventListener('message', handleMessage);
     return () => {
       navigator.serviceWorker?.removeEventListener('message', handleMessage);
     };
-  }, [navigate]);
+  }, [navigate, currentUser?.id]);
 
   // Monitor notifications and trigger HTML5 Push when a new unread notification arrives
   useEffect(() => {

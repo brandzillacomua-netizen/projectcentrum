@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { supabase } from '../supabase'
+import { sendPushToUsers } from '../services/pushService'
 
 const CACHE_KEY = 'MES_APP_CACHE_V1'
 const USER_CACHE_KEY = 'MES_SESSION_USER'  // Full user object for instant restore
@@ -404,6 +405,9 @@ export function useData() {
 
   // --- PERSISTENCE (дебаунс 2с + тільки критичні поля щоб не блокувати UI) ---
   const cacheTimerRef = useRef(null)
+  // Ref для завжди актуального списку користувачів в realtime-клозюрах
+  const systemUsersRef = useRef([])
+  useEffect(() => { systemUsersRef.current = systemUsers }, [systemUsers])
   useEffect(() => {
     if (cacheTimerRef.current) clearTimeout(cacheTimerRef.current)
     cacheTimerRef.current = setTimeout(() => {
@@ -492,7 +496,28 @@ export function useData() {
   useEffect(() => {
     const channel2 = supabase.channel('mes-secondary-updates')
       // Замовлення — менеджер, директор
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
+        refreshTable('orders')
+        // Push-сповіщення директору та майстрам при новому замовленні
+        const notifyIds = (systemUsersRef.current || []).filter(u => {
+          if (!u?.access_rights) return false
+          return u.access_rights.director || u.access_rights.master || u.access_rights.manager
+        }).map(u => u.id)
+        if (notifyIds.length > 0) {
+          const orderNum = payload.new?.order_num || ''
+          const customer = payload.new?.customer || ''
+          sendPushToUsers(
+            notifyIds,
+            '📦 Нове замовлення',
+            `№ ${orderNum}${customer ? ` — ${customer}` : ''} очікує на створення наряду`,
+            '/manager'
+          ).catch(() => {})
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, () => {
+        refreshTable('orders')
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'orders' }, () => {
         refreshTable('orders')
       })
       // Управлінські задачі — Kanban
@@ -506,18 +531,34 @@ export function useData() {
         }
       })
       // Запити матеріалів — склад, майстер
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'material_requests' }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          setRequests(prev => prev.some(r => r.id === payload.new.id) ? prev : [payload.new, ...prev])
-        } else if (payload.eventType === 'UPDATE') {
-          if (payload.new.status === 'completed') {
-            setRequests(prev => prev.filter(r => r.id !== payload.new.id))
-          } else {
-            setRequests(prev => prev.map(r => r.id === payload.new.id ? { ...r, ...payload.new } : r))
-          }
-        } else if (payload.eventType === 'DELETE') {
-          setRequests(prev => prev.filter(r => r.id !== payload.old.id))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'material_requests' }, (payload) => {
+        setRequests(prev => prev.some(r => r.id === payload.new.id) ? prev : [payload.new, ...prev])
+        // Пуш пакувальнику (КОМПЛЕКТУВАННЯ) або складу (звичайний запит)
+        const isPackaging = payload.new?.details?.includes('КОМПЛЕКТУВАННЯ')
+        const notifyIds = (systemUsersRef.current || []).filter(u => {
+          if (!u?.access_rights) return false
+          if (isPackaging) return u.access_rights.warehouse || u.access_rights.supply
+          return u.access_rights.warehouse
+        }).map(u => u.id)
+        if (notifyIds.length > 0) {
+          const details = payload.new?.details || ''
+          sendPushToUsers(
+            notifyIds,
+            isPackaging ? '📦 Запит на комплектування' : '📋 Новий запит ТМЦ',
+            details.length > 80 ? details.substring(0, 80) + '…' : details,
+            isPackaging ? '/warehouse' : '/warehouse'
+          ).catch(() => {})
         }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'material_requests' }, (payload) => {
+        if (payload.new.status === 'completed') {
+          setRequests(prev => prev.filter(r => r.id !== payload.new.id))
+        } else {
+          setRequests(prev => prev.map(r => r.id === payload.new.id ? { ...r, ...payload.new } : r))
+        }
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'material_requests' }, (payload) => {
+        setRequests(prev => prev.filter(r => r.id !== payload.old.id))
       })
       // Документи прийомки — склад, постачання
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reception_docs' }, (payload) => {
@@ -530,14 +571,29 @@ export function useData() {
         }
       })
       // Запити на закупівлю — постачання
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'purchase_requests' }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          setPurchaseRequests(prev => prev.some(p => p.id === payload.new.id) ? prev : [payload.new, ...prev])
-        } else if (payload.eventType === 'UPDATE') {
-          setPurchaseRequests(prev => prev.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p))
-        } else if (payload.eventType === 'DELETE') {
-          setPurchaseRequests(prev => prev.filter(p => p.id !== payload.old.id))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'purchase_requests' }, (payload) => {
+        setPurchaseRequests(prev => prev.some(p => p.id === payload.new.id) ? prev : [payload.new, ...prev])
+        // Пуш постачальникам та директору виробництва
+        const notifyIds = (systemUsersRef.current || []).filter(u => {
+          if (!u?.access_rights) return false
+          return u.access_rights.supply || u.access_rights.procurement || u.access_rights.director
+        }).map(u => u.id)
+        if (notifyIds.length > 0) {
+          const orderNum = payload.new?.order_num || ''
+          const dest = payload.new?.destination_warehouse === 'production' ? 'СВ' : 'СО'
+          sendPushToUsers(
+            notifyIds,
+            '🛒 Новий запит постачання',
+            `Замовлення №${orderNum} → ${dest} потребує закупівлі матеріалів`,
+            '/supply'
+          ).catch(() => {})
         }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'purchase_requests' }, (payload) => {
+        setPurchaseRequests(prev => prev.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p))
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'purchase_requests' }, (payload) => {
+        setPurchaseRequests(prev => prev.filter(p => p.id !== payload.old.id))
       })
       // Станки і користувачі — рідко змінюються, повний refetch
       .on('postgres_changes', { event: '*', schema: 'public', table: 'machines' }, () => {
