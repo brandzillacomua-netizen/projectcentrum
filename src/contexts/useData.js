@@ -699,8 +699,34 @@ export function useData() {
 
   // --- INITIAL DATA FETCH + SESSION init run in parallel ---
   // fetchCritical does NOT depend on currentUser, so start it immediately
+  const lastVisibilityRefreshRef = useRef(0)
+
   useEffect(() => {
     fetchCritical()
+
+    const handleRefresh = () => {
+      const now = Date.now()
+      // Throttle refresh to once every 5 seconds maximum
+      if (now - lastVisibilityRefreshRef.current > 5000) {
+        lastVisibilityRefreshRef.current = now
+        console.log('[App Reactivation] Refreshing critical data on focus/visibility change')
+        fetchCritical().catch(err => console.error(err))
+      }
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        handleRefresh()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handleRefresh)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleRefresh)
+    }
   }, [])
 
 
