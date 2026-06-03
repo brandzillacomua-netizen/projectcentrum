@@ -468,7 +468,7 @@ const PackagingModule = () => {
                             const isPicked = reqRequest?.status === 'completed' || reqRequest?.status === 'issued'
                             const isPending = reqRequest?.status === 'pending'
                             const isExcluded = excludedNomIds.has(item.nom.id)
-                            const canToggle = !hasAnyRequests && !activeBatchData.isPackaged
+                            const canToggle = !hasAnyRequests && !activeBatchData.isPackaged && !isPicked
 
                             return (
                               <div key={idx} style={{ 
@@ -499,8 +499,8 @@ const PackagingModule = () => {
                                       width: '20px',
                                       height: '20px',
                                       borderRadius: '6px',
-                                      border: `2px solid ${isExcluded ? '#444' : '#f43f5e'}`,
-                                      background: isExcluded ? 'transparent' : '#f43f5e',
+                                      border: `2px solid ${isExcluded ? '#444' : (isPicked ? '#10b981' : '#f43f5e')}`,
+                                      background: isExcluded ? 'transparent' : (isPicked ? '#10b981' : '#f43f5e'),
                                       display: 'flex',
                                       alignItems: 'center',
                                       justifyContent: 'center',

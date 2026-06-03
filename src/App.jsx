@@ -311,6 +311,38 @@ const GlobalUserNav = () => {
     const availableModules = getAvailableModules(currentUser, 0);
     const hasModule = (id) => availableModules.some(m => m.id === id);
 
+    // 0. New Orders awaiting Batch/Task Creation
+    const hasOrderCreationAccess = hasModule('director') || hasModule('master') || hasModule('foreman');
+    if (hasOrderCreationAccess && orders) {
+      orders.forEach(order => {
+        if (order.order_num && (order.order_num.startsWith('ВБ') || order.order_num.startsWith('VB'))) return;
+        
+        const orderTasks = (tasks || []).filter(t => t.order_id === order.id);
+        if (orderTasks.length === 0 && order.status !== 'completed' && order.status !== 'cancelled' && order.status !== 'shipped') {
+          let path = '/';
+          if (hasModule('master')) path = '/master';
+          else if (hasModule('foreman')) path = '/foreman';
+          else if (hasModule('director')) path = '/director';
+
+          const productNames = (order.order_items || [])
+            .map(it => nomenclatures?.find(n => n.id === it.nomenclature_id)?.name)
+            .filter(Boolean)
+            .join(', ') || '—';
+
+          list.push({
+            id: `order-new-${order.id}`,
+            type: 'order_new',
+            title: `Нове замовлення № ${order.order_num}`,
+            description: `Очікує на створення наряду. Виріб: ${productNames}`,
+            createdAt: order.created_at,
+            path,
+            color: '#3b82f6',
+            icon: <Monitor size={14} />
+          });
+        }
+      });
+    }
+
     // 1. Kanban Tasks
     if (hasModule('kanban') && managementTasks) {
       managementTasks.forEach(t => {
