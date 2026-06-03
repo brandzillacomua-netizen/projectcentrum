@@ -55,10 +55,23 @@ async function createVapidAuthHeader(
 
   const signingInput = `${enc(header)}.${enc(payload)}`;
 
-  const keyData = base64UrlToUint8Array(privateKeyB64);
+  const pubBytes = base64UrlToUint8Array(publicKeyB64);
+  const xBytes = pubBytes.slice(1, 33);
+  const yBytes = pubBytes.slice(33, 65);
+  const x = uint8ArrayToBase64Url(xBytes);
+  const y = uint8ArrayToBase64Url(yBytes);
+
+  const jwk = {
+    kty: "EC",
+    crv: "P-256",
+    x,
+    y,
+    d: privateKeyB64,
+  };
+
   const cryptoKey = await crypto.subtle.importKey(
-    "pkcs8",
-    keyData,
+    "jwk",
+    jwk,
     { name: "ECDSA", namedCurve: "P-256" },
     false,
     ["sign"]
