@@ -52,8 +52,10 @@ const Shop2Module = () => {
   useEffect(() => {
     if (location.state?.taskId) {
       setActiveTaskId(location.state.taskId)
+    } else if (location.state?.highlightTaskId) {
+      setActiveTaskId(location.state.highlightTaskId)
     }
-  }, [location.state?.taskId])
+  }, [location.state])
 
   // Завантажуємо завершені карти при зміні наряду
   useEffect(() => {

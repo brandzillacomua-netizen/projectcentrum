@@ -165,7 +165,7 @@ export default function Shop1Terminal() {
   const [detailStage, setDetailStage] = useState(null)
   const [detailTab, setDetailTab] = useState('work')
   const [showStorageExplorer, setShowStorageExplorer] = useState(false)
-  const [activeExplorerTab, setActiveExplorerTab] = useState('semi')
+  const [activeExplorerTab, setActiveExplorerTab] = useState('reception')
 
   // Локальна черга сканованого
   const [scannedIds, setScannedIds] = useState(() => {
@@ -1935,25 +1935,89 @@ export default function Shop1Terminal() {
   // ── Рендер: Експорер складу (СЕНСОРНИЙ РЕЖИМ) ───────────────────────────
   const renderStorageExplorer = () => {
     const explorerTabs = [
-      { id: 'semi', label: 'НАПІВФАБРИКАТИ', icon: <Layers size={16} />, color: '#10b981' },
-      { id: 'bz', label: 'БЗ (на ЦЕХ №2)', icon: <ClipboardList size={16} />, color: '#eab308' },
+      { id: 'reception', label: 'ПРИЙОМКА', icon: <Package size={16} />, color: '#3b82f6' },
+      { id: 'sorting', label: 'СОРТУВАННЯ', icon: <ClipboardList size={16} />, color: '#8b5cf6' },
       { id: 'scrap', label: 'БРАК / ВІДХОДИ', icon: <AlertTriangle size={16} />, color: '#ef4444' },
     ]
-    const filteredItems = (inventory || []).filter(i => {
-      const nom = nomenclatures.find(n => n.id === i.nomenclature_id)
-      if (nom && nom.type && nom.type !== 'part') return false
-      if (activeExplorerTab === 'bz') return i.type === 'bz' || i.type === 'wip_bz'
-      return i.type === activeExplorerTab
-    })
+
+    let filteredItems = []
+
+    if (activeExplorerTab === 'reception') {
+      // Get cards at operation 'Прийомка' in status 'at-buffer' or 'in-progress'
+      const receptionCards = (workCards || []).filter(c => {
+        const nom = getNom(c)
+        if (nom && nom.type && nom.type !== 'part') return false
+        return c.operation === 'Прийомка' && (c.status === 'at-buffer' || c.status === 'in-progress')
+      })
+      // Group by nomenclature
+      const grouped = receptionCards.reduce((acc, card) => {
+        const nomId = card.nomenclature_id
+        if (!acc[nomId]) {
+          const nom = nomenclatures.find(n => n.id === nomId)
+          acc[nomId] = {
+            id: `reception-${nomId}`,
+            nomenclature_id: nomId,
+            name: nom?.name || '—',
+            unit: nom?.unit || 'од',
+            total_qty: 0,
+            updated_at: card.updated_at || card.created_at || new Date().toISOString(),
+            type: 'reception'
+          }
+        }
+        acc[nomId].total_qty += Number(card.quantity) || 0
+        const cardTime = new Date(card.updated_at || card.created_at || 0)
+        if (cardTime > new Date(acc[nomId].updated_at)) {
+          acc[nomId].updated_at = card.updated_at || card.created_at
+        }
+        return acc
+      }, {})
+      filteredItems = Object.values(grouped)
+    } else if (activeExplorerTab === 'sorting') {
+      // Get cards at operation 'Сортування' in status 'at-buffer' or 'in-progress'
+      const sortingCards = (workCards || []).filter(c => {
+        const nom = getNom(c)
+        if (nom && nom.type && nom.type !== 'part') return false
+        return c.operation === 'Сортування' && (c.status === 'at-buffer' || c.status === 'in-progress')
+      })
+      // Group by nomenclature
+      const grouped = sortingCards.reduce((acc, card) => {
+        const nomId = card.nomenclature_id
+        if (!acc[nomId]) {
+          const nom = nomenclatures.find(n => n.id === nomId)
+          acc[nomId] = {
+            id: `sorting-${nomId}`,
+            nomenclature_id: nomId,
+            name: nom?.name || '—',
+            unit: nom?.unit || 'од',
+            total_qty: 0,
+            updated_at: card.updated_at || card.created_at || new Date().toISOString(),
+            type: 'sorting'
+          }
+        }
+        acc[nomId].total_qty += Number(card.quantity) || 0
+        const cardTime = new Date(card.updated_at || card.created_at || 0)
+        if (cardTime > new Date(acc[nomId].updated_at)) {
+          acc[nomId].updated_at = card.updated_at || card.created_at
+        }
+        return acc
+      }, {})
+      filteredItems = Object.values(grouped)
+    } else {
+      filteredItems = (inventory || []).filter(i => {
+        const nom = nomenclatures.find(n => n.id === i.nomenclature_id)
+        if (nom && nom.type && nom.type !== 'part') return false
+        return i.type === activeExplorerTab
+      })
+    }
 
     return (
-      <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: '#0a0a0a', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: '#0a0a0a', display: 'flex', flexDirection: 'column', paddingHeight: '100%', paddingTop: '75px' }}>
         <div style={{ padding: '20px', borderBottom: '1px solid #111', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ background: '#10b98120', padding: '8px', borderRadius: '10px' }}><Package size={20} color="#10b981" /></div>
+            <div style={{ background: '#3b82f620', padding: '8px', borderRadius: '10px' }}><Package size={20} color="#3b82f6" /></div>
             <div>
-              <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 1000 }}>КВІТ-СКЛАД ЦЕХУ №1</h2>
-              <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 800, textTransform: 'uppercase' }}>Моніторинг запасів та браку</div>
+              <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 1000 }}>ХАБ-СКЛАД ЦЕХУ 1</h2>
+              <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 800, textTransform: 'uppercase' }}>Моніторинг деталей на прийомці, сортуванні та складі</div>
             </div>
           </div>
           <button onClick={() => setShowStorageExplorer(false)} style={{ background: '#1a1a1a', border: 'none', color: '#fff', width: '40px', height: '40px', borderRadius: '12px', cursor: 'pointer' }}>
@@ -1961,11 +2025,11 @@ export default function Shop1Terminal() {
           </button>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px', padding: '15px 20px', background: '#0d0d0d' }}>
+        <div style={{ display: 'flex', gap: '8px', padding: '15px 20px', background: '#0d0d0d', overflowX: 'auto' }}>
           {explorerTabs.map(t => (
             <button key={t.id} onClick={() => setActiveExplorerTab(t.id)}
               style={{
-                flex: 1, background: activeExplorerTab === t.id ? t.color : '#0a0a0a',
+                flex: 1, minWidth: '110px', background: activeExplorerTab === t.id ? t.color : '#0a0a0a',
                 color: activeExplorerTab === t.id ? '#000' : '#444', border: 'none',
                 padding: '12px', borderRadius: '12px', fontWeight: 900, fontSize: '0.65rem',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
@@ -2032,7 +2096,9 @@ export default function Shop1Terminal() {
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontSize: '1.5rem', fontWeight: 1000, color: explorerTabs.find(t => t.id === activeExplorerTab).color }}>{item.total_qty}</div>
-                      <div style={{ fontSize: '0.5rem', color: '#333', fontWeight: 900 }}>ЗАЛИШОК</div>
+                      <div style={{ fontSize: '0.5rem', color: '#333', fontWeight: 900 }}>
+                        {activeExplorerTab === 'reception' ? 'В ПРИЙОМЦІ' : activeExplorerTab === 'sorting' ? 'СОРТУВАННЯ' : 'ЗАЛИШОК'}
+                      </div>
                     </div>
                   </div>
 
@@ -2178,6 +2244,11 @@ export default function Shop1Terminal() {
           })
           const sortingQty = sortingCards.reduce((a, c) => a + (Number(c.quantity) || 0), 0)
 
+          const receptionCards = sortingCards.filter(c => c.operation === 'Прийомка')
+          const realSortingCards = sortingCards.filter(c => c.operation === 'Сортування')
+          const receptionQty = receptionCards.reduce((a, c) => a + (Number(c.quantity) || 0), 0)
+          const realSortingQty = realSortingCards.reduce((a, c) => a + (Number(c.quantity) || 0), 0)
+
           // Інвентар складу НФ (вже прийняті на склад)
           const semiQty = (inventory || []).filter(i => {
             if (i.type !== 'semi' || i.nomenclature_id === null || i.nomenclature_id === undefined) return false
@@ -2198,69 +2269,46 @@ export default function Shop1Terminal() {
           }).reduce((a, i) => a + (Number(i.total_qty) || 0), 0)
 
           const isActive = sortingQty > 0
+          const cardColor = '#10b981'
 
           return (
             <div onClick={() => setShowStorageExplorer(true)}
               style={{
-                background: isActive
-                  ? 'linear-gradient(145deg, #0f1a20 0%, #050a0e 100%)'
-                  : 'linear-gradient(145deg, #0d1a15 0%, #050a08 100%)',
-                border: isActive ? '1px solid #8b5cf630' : '1px solid #10b98130',
-                borderTop: isActive ? '4px solid #8b5cf6' : '4px solid #10b981',
-                borderRadius: '22px', padding: '20px 16px', cursor: 'pointer',
-                boxShadow: isActive ? '0 8px 24px rgba(139,92,246,0.15)' : '0 8px 24px rgba(0,0,0,0.3)',
+                background: 'linear-gradient(145deg, #0d1a15 0%, #050a08 100%)',
+                border: '1px solid #10b98130',
+                borderTop: '4px solid #10b981',
+                borderRadius: '20px', padding: '20px 16px', cursor: 'pointer',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
                 transition: 'all 0.2s ease',
                 gridArea: 'storage'
               }}
               className="s1-stage-card-storage s1-stage-hover">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <span style={{ fontSize: '0.65rem', fontWeight: 1000, color: isActive ? '#8b5cf6' : '#10b981', textTransform: 'uppercase', letterSpacing: '0.12em' }}>ПРИЙОМКА / СКЛАД</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px' }}>
+                <span style={{ fontSize: '0.65rem', fontWeight: 1000, color: cardColor, textTransform: 'uppercase', letterSpacing: '0.12em' }}>ХАБ-СКЛАД ЦЕХУ 1</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   {isActive && (
                     <div style={{
-                      background: '#8b5cf6', color: '#fff',
-                      padding: '2px 8px', borderRadius: '6px',
-                      fontSize: '0.5rem', fontWeight: 950, letterSpacing: '0.5px'
+                      background: cardColor, color: '#000',
+                      padding: '2.5px 8px', borderRadius: '6px',
+                      fontSize: '0.52rem', fontWeight: 950, letterSpacing: '0.5px'
                     }}>
-                      {sortingCards.length} карт. на сорт.
+                      АКТИВНО
                     </div>
                   )}
-                  <ClipboardList size={14} color={isActive ? '#8b5cf6' : '#10b981'} style={{ opacity: 0.5 }} />
+                  <ClipboardList size={14} color={cardColor} style={{ opacity: 0.5 }} />
                 </div>
               </div>
 
-              {/* Рядок: деталі що зараз у прийомці (Сортування) */}
-              {isActive && (
-                <div style={{
-                  background: '#8b5cf610', border: '1px solid #8b5cf620',
-                  borderRadius: '10px', padding: '8px 12px', marginBottom: '12px',
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                }}>
-                  <div>
-                    <div style={{ fontSize: '0.5rem', color: '#8b5cf6', fontWeight: 1000, textTransform: 'uppercase' }}>В ПРИЙОМЦІ (СОРТУВАННЯ)</div>
-                    <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '2px' }}>
-                      {sortingCards.map(c => {
-                        const n = (nomenclatures || []).find(n => String(n.id) === String(c.nomenclature_id))
-                        return `${n?.name || '—'}: ${c.quantity} шт`
-                      }).join(' · ')}
-                    </div>
-                  </div>
-                  <div style={{ fontSize: '1.8rem', fontWeight: 1000, color: '#8b5cf6', lineHeight: 1 }}>
-                    {sortingQty}<small style={{ fontSize: '0.45rem', opacity: 0.4, marginLeft: '2px' }}>шт</small>
-                  </div>
-                </div>
-              )}
-
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '6px' }}>
                 {[
-                  { label: 'СКЛАД НФ', val: semiQty, color: '#10b981' },
-                  { label: 'БЗ (СТ)', val: bzQty, color: '#eab308' },
+                  { label: 'ПРИЙОМКА', val: receptionQty, color: '#3b82f6' },
+                  { label: 'СОРТУВАННЯ', val: realSortingQty, color: '#8b5cf6' },
                   { label: 'БРАК', val: scrapQty, color: '#ef4444' },
                 ].map(({ label, val, color }, i) => (
                   <div key={label} style={i > 0 ? { borderLeft: '1px solid #111', paddingLeft: '6px' } : {}}>
-                    <div style={{ fontSize: '0.5rem', color: '#333', fontWeight: 1000, marginBottom: '2px', textTransform: 'uppercase' }}>{label}</div>
+                    <div style={{ fontSize: '0.45rem', color: '#333', fontWeight: 1000, marginBottom: '2px', textTransform: 'uppercase' }}>{label}</div>
                     <div style={{
-                      fontSize: '1.3rem', fontWeight: 1000, letterSpacing: '-0.02em',
+                      fontSize: '1.2rem', fontWeight: 1000, letterSpacing: '-0.02em',
                       color: val > 0 ? color : '#1a1a1a'
                     }}>
                       {val}

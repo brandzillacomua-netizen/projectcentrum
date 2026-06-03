@@ -303,8 +303,12 @@ const ForemanWorkplace = () => {
   useEffect(() => {
     if (location.state?.taskId) {
       setActiveTaskId(location.state.taskId)
+      setActiveView('worksheet')
+    } else if (location.state?.highlightTaskId) {
+      setActiveTaskId(location.state.highlightTaskId)
+      setActiveView('worksheet')
     }
-  }, [location.state?.taskId])
+  }, [location.state])
 
 
   // Підвантажуємо архівні картки та історію при зміні активного наряду

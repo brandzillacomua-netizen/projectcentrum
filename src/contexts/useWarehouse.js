@@ -683,7 +683,7 @@ export function createWarehouseActions({
         quantity: neededQty,
         status: 'pending',
         inventory_id: null,
-        details: `ЗАПИТ НА КОМПЛЕКТУВАННЯ (${order?.order_num || ''}${batchSuffix}): ${item.name} — ${neededQty} шт.`
+        details: `ЗАПИТ НА КОМПЛЕКТУВАННЯ (СГП) (${order?.order_num || ''}${batchSuffix}): ${item.name} — ${neededQty} шт.`
       })
     }
 

@@ -35,6 +35,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
   const [isProcessing, setIsProcessing] = useState(false)
   const [processingDocs, setProcessingDocs] = useState(new Set())
   const [targetWarehouse, setTargetWarehouse] = useState('operational') // 'operational'=СО, 'production'=СВ
+  const [expandedPRs, setExpandedPRs] = useState(new Set())
 
 
   const parseMaterialName = (details) => {
@@ -1034,12 +1035,26 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                     (r.status === 'pending' || r.status === 'accepted' || r.status === 'ordered')
                   )
 
+                  const relatedReception = (receptionDocs || []).find(rd => 
+                    (rd.task_id ? String(rd.task_id) === String(currentTaskId) : String(rd.order_id) === String(pr.order_id)) && 
+                    (rd.status === 'ordered' || rd.status === 'shipped')
+                  )
+
+                  const isExpanded = expandedPRs.has(pr.id) || (!expandedPRs.has(`collapsed-${pr.id}`) && pr.status !== 'ordered' && !relatedReception)
+
                   return (
                     <div key={pr.id} className="request-card" style={{ background: '#111', padding: '25px', borderRadius: '24px', border: '1px solid #222', borderLeft: pr.status === 'accepted' ? '4px solid #3b82f6' : '4px solid #ef4444' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
-                        <strong style={pr.status === 'accepted' ? { color: '#3b82f6', fontSize: '1rem' } : { color: '#ef4444', fontSize: '1rem' }}>
-                          НАРЯД #{pr.order_num}
-                        </strong>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
+                          <strong style={pr.status === 'accepted' ? { color: '#3b82f6', fontSize: '1rem' } : { color: '#ef4444', fontSize: '1rem' }}>
+                            НАРЯД #{pr.order_num}
+                          </strong>
+                          {relatedReception && (
+                            <span style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '4px 10px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase' }}>
+                              Відправлено на {relatedReception.target_warehouse === 'operational' ? 'СО' : 'СВ'} (Прийомка #{relatedReception.id.slice(0, 6).toUpperCase()})
+                            </span>
+                          )}
+                        </div>
                         <div style={{ display: 'flex', gap: '8px' }}>
                           {pr.status === 'pending' && isProcurementOnly && (
                             <button 
@@ -1129,76 +1144,96 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                           )}
                         </div>
                       </div>
-                      <div style={{ fontSize: '0.9rem', color: '#888' }}>
-                        {(() => {
-                          const items = pr.items || []
-                          const aggregated = []
-                          
-                          // Розраховуємо "віртуальну броню" для відображення
-                          const otherManualDocs = (receptionDocs || []).filter(d => d.status === 'ordered' && d.source_warehouse === 'production')
-                          const virtualReservedMap = {}
-                          otherManualDocs.forEach(d => {
-                            (d.items || []).forEach(item => {
-                              const k = item.nomenclature_id ? String(item.nomenclature_id) : normalize(item.name || item.reqDetails || item.details)
-                              virtualReservedMap[k] = (virtualReservedMap[k] || 0) + (Number(item.qty || item.needed || item.quantity) || 0)
-                            })
-                          })
-
-                          items.forEach((it, idx) => {
-                            const name = resolveItemName(it, idx)
-                            const parsedName = parseMaterialName(name)
-                            const nomId = it.nomenclature_id
-                            
-                            const existing = aggregated.find(a => (a.nomenclature_id && a.nomenclature_id === nomId) || normalize(a.parsedName) === normalize(parsedName))
-                            if (existing) {
-                              existing.needed += Number(resolveItemQty(it)) || 0
-                            } else {
-                              const matchingItems = (inventory || []).filter(i =>
-                                (i.warehouse === 'production' || !i.warehouse) &&
-                                (
-                                  (nomId && String(i.nomenclature_id) === String(nomId)) ||
-                                  (normalize(i.name) === normalize(parsedName)) ||
-                                  (i.name && parsedName && normalize(i.name).includes(normalize(parsedName))) ||
-                                  (i.name && parsedName && normalize(parsedName).includes(normalize(i.name))) ||
-                                  (it.inventory_id && String(i.id) === String(it.inventory_id))
-                                )
-                              )
-                              const totalStock = matchingItems.reduce((acc, i) => acc + (Number(i.total_qty) || 0), 0)
-                              const dbReserved = matchingItems.reduce((acc, i) => acc + (Number(i.reserved_qty) || 0), 0)
-                              const vKey = it.nomenclature_id ? String(it.nomenclature_id) : normalize(parsedName)
-                              const vReserved = virtualReservedMap[vKey] || 0
-                              
-                              const freeStock = Math.max(0, totalStock - dbReserved - vReserved)
-                              const alreadyReserved = Number(it.reserved_from_stock) || 0
-                              const available = freeStock + alreadyReserved
-                              aggregated.push({
-                                ...it,
-                                name,
-                                parsedName,
-                                available,
-                                needed: isProcurementOnly ? (Number(it.missingAmount || it.qty || it.needed) || 0) : (Number(resolveItemQty(it)) || 0)
-                              })
-                            }
-                          })
-
-                          return aggregated.map((it, idx) => {
-                            const isDeficit = !isProcurementOnly && (it.available < it.needed)
-                            return (
-                              <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ color: isDeficit ? '#ef4444' : '#888' }}>{it.name}</span>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  {!isProcurementOnly && (
-                                    <span style={{ fontSize: '0.65rem', color: isDeficit ? '#ef4444' : '#10b981', fontWeight: 800 }}>
-                                      ({it.available} в наявності)
-                                    </span>
-                                  )}
-                                  <strong style={{ color: isDeficit ? '#ef4444' : '#fff' }}>{it.needed}</strong>
-                                </div>
-                              </div>
-                            )
-                          })
-                        })()}
+                      <div 
+                        onClick={() => {
+                          const next = new Set(expandedPRs)
+                          if (isExpanded) {
+                            next.delete(pr.id)
+                            next.add(`collapsed-${pr.id}`)
+                          } else {
+                            next.add(pr.id)
+                            next.delete(`collapsed-${pr.id}`)
+                          }
+                          setExpandedPRs(next)
+                        }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: '15px 0 10px', fontSize: '0.8rem', color: '#555', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}
+                      >
+                        <span>Специфікація ({(pr.items || []).length} позицій)</span>
+                        <span style={{ fontSize: '0.7rem', color: '#ff9000' }}>{isExpanded ? '▲ Приховати' : '▼ Показати список'}</span>
                       </div>
+
+                      {isExpanded && (
+                        <div style={{ fontSize: '0.9rem', color: '#888' }}>
+                          {(() => {
+                            const items = pr.items || []
+                            const aggregated = []
+                            
+                            // Розраховуємо "віртуальну броню" для відображення
+                            const otherManualDocs = (receptionDocs || []).filter(d => d.status === 'ordered' && d.source_warehouse === 'production')
+                            const virtualReservedMap = {}
+                            otherManualDocs.forEach(d => {
+                              (d.items || []).forEach(item => {
+                                const k = item.nomenclature_id ? String(item.nomenclature_id) : normalize(item.name || item.reqDetails || item.details)
+                                virtualReservedMap[k] = (virtualReservedMap[k] || 0) + (Number(item.qty || item.needed || item.quantity) || 0)
+                              })
+                            })
+
+                            items.forEach((it, idx) => {
+                              const name = resolveItemName(it, idx)
+                              const parsedName = parseMaterialName(name)
+                              const nomId = it.nomenclature_id
+                              
+                              const existing = aggregated.find(a => (a.nomenclature_id && a.nomenclature_id === nomId) || normalize(a.parsedName) === normalize(parsedName))
+                              if (existing) {
+                                existing.needed += Number(resolveItemQty(it)) || 0
+                              } else {
+                                const matchingItems = (inventory || []).filter(i =>
+                                  (i.warehouse === 'production' || !i.warehouse) &&
+                                  (
+                                    (nomId && String(i.nomenclature_id) === String(nomId)) ||
+                                    (normalize(i.name) === normalize(parsedName)) ||
+                                    (i.name && parsedName && normalize(i.name).includes(normalize(parsedName))) ||
+                                    (i.name && parsedName && normalize(parsedName).includes(normalize(i.name))) ||
+                                    (it.inventory_id && String(i.id) === String(it.inventory_id))
+                                  )
+                                )
+                                const totalStock = matchingItems.reduce((acc, i) => acc + (Number(i.total_qty) || 0), 0)
+                                const dbReserved = matchingItems.reduce((acc, i) => acc + (Number(i.reserved_qty) || 0), 0)
+                                const vKey = it.nomenclature_id ? String(it.nomenclature_id) : normalize(parsedName)
+                                const vReserved = virtualReservedMap[vKey] || 0
+                                
+                                const freeStock = Math.max(0, totalStock - dbReserved - vReserved)
+                                const alreadyReserved = Number(it.reserved_from_stock) || 0
+                                const available = freeStock + alreadyReserved
+                                aggregated.push({
+                                  ...it,
+                                  name,
+                                  parsedName,
+                                  available,
+                                  needed: isProcurementOnly ? (Number(it.missingAmount || it.qty || it.needed) || 0) : (Number(resolveItemQty(it)) || 0)
+                                })
+                              }
+                            })
+
+                            return aggregated.map((it, idx) => {
+                              const isDeficit = !isProcurementOnly && (it.available < it.needed)
+                              return (
+                                <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span style={{ color: isDeficit ? '#ef4444' : '#888' }}>{it.name}</span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    {!isProcurementOnly && (
+                                      <span style={{ fontSize: '0.65rem', color: isDeficit ? '#ef4444' : '#10b981', fontWeight: 800 }}>
+                                        ({it.available} в наявності)
+                                      </span>
+                                    )}
+                                    <strong style={{ color: isDeficit ? '#ef4444' : '#fff' }}>{it.needed}</strong>
+                                  </div>
+                                </div>
+                              )
+                            })
+                          })()}
+                        </div>
+                      )}
                     </div>
                   )
                 })}

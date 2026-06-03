@@ -78,6 +78,10 @@ const WarehouseModuleV2 = () => {
   const [savingQty, setSavingQty] = useState(new Set())
 
   const getMaterialType = (r) => {
+    if (r.details && (r.details.includes('ЗАПИТ НА КОМПЛЕКТУВАННЯ') || r.details.includes('ПАКУВАННЯ'))) {
+      return 'finished'
+    }
+
     const parsedName = parseMaterialName(r.details)
     const nameLower = parsedName.toLowerCase()
     const nom = r.nomenclature_id ? nomenclatures.find(n => String(n.id) === String(r.nomenclature_id)) : null

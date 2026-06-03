@@ -1,12 +1,37 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { Package, ArrowLeft, ClipboardList, CheckCircle2, Box, Send, AlertCircle, Wrench, FileArchive, Zap, ListChecks, Layers, Clock, Scan, Loader2 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useMES } from '../MESContext'
 
 const PackagingModule = () => {
+  const location = useLocation();
   const { orders, tasks, nomenclatures, bomItems, submitPickingRequest, requests, supabase, fetchData, completePackaging, deductIssuedMaterialsForTask } = useMES()
   const [selectedBatch, setSelectedBatch] = useState(null) // { orderId, batchIndex }
   const [isProcessing, setIsProcessing] = useState(false)
+  const [excludedNomIds, setExcludedNomIds] = useState(new Set())
+
+  // Set page title
+  useEffect(() => {
+    document.title = "Відділ Пакування | Centrum"
+  }, [])
+
+  // Reset excluded items when active batch changes
+  useEffect(() => {
+    setExcludedNomIds(new Set())
+  }, [selectedBatch])
+
+    // Auto-select batch if passed from notifications
+  useEffect(() => {
+    const tid = location.state?.highlightTaskId || location.state?.taskId;
+    if (tid && tasks && tasks.length > 0) {
+      const task = tasks.find(t => String(t.id) === String(tid));
+      if (task) {
+        const bIdx = task.batch_index || '1';
+        const key = `${task.order_id}_${bIdx}`;
+        setSelectedBatch({ key, orderId: task.order_id, batchIndex: bIdx });
+      }
+    }
+  }, [location.state, tasks]);
 
   // 1. ГРУПУЄМО НАРЯДИ ДЛЯ ЧЕРГИ
   const batchList = useMemo(() => {
@@ -194,7 +219,8 @@ const PackagingModule = () => {
         .map(r => String(r.nomenclature_id))
     );
 
-    const is100PercentCovered = allBOMItems.length > 0 && allBOMItems.every(req => confirmedNoms.has(String(req.nom.id)));
+    const activeBOMItems = allBOMItems.filter(item => !excludedNomIds.has(item.nom.id));
+    const is100PercentCovered = activeBOMItems.length > 0 && activeBOMItems.every(req => confirmedNoms.has(String(req.nom.id)));
     const completedCount = relevant.filter(r => r.status === 'completed' || r.status === 'issued').length;
 
     return {
@@ -203,15 +229,16 @@ const PackagingModule = () => {
       isReadyToFinalize: is100PercentCovered,
       hasAnyRequests: relevant.length > 0
     };
-  }, [activeBatchData, requests, allBOMItems]);
+  }, [activeBatchData, requests, allBOMItems, excludedNomIds]);
 
   const handleCreateRequest = async () => {
-    if (allBOMItems.length === 0) {
-      alert("Не знайдено елементів для комплектування.");
+    const activeBOMItems = allBOMItems.filter(item => !excludedNomIds.has(item.nom.id));
+    if (activeBOMItems.length === 0) {
+      alert("Не знайдено активних елементів для комплектування (всі виключені).");
       return;
     }
 
-    const itemsToRequest = allBOMItems.map(r => ({ 
+    const itemsToRequest = activeBOMItems.map(r => ({ 
       nomId: r.nom.id, 
       name: r.nom.material_type ? `${r.nom.name} (${r.nom.material_type})` : r.nom.name, 
       qty: r.qty 
@@ -412,7 +439,7 @@ const PackagingModule = () => {
                    <div>
                      <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '8px' }}>
                         <h2 style={{ margin: 0, fontSize: '2.8rem', fontWeight: 1000, color: '#fff', letterSpacing: '-1.5px' }}>Наряд № {activeBatchData.orderNum}/{activeBatchData.batchIndex}</h2>
-                        <span style={{ background: '#f43f5e', color: '#fff', padding: '4px 12px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 950 }}>ПАРТІЯ</span>
+                        <span style={{ background: '#f43f5e', color: '#fff', padding: '4px 12px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 950 }}>ПАКУВАННЯ</span>
                      </div>
                      <p style={{ margin: 0, color: '#555', fontSize: '1.1rem', fontWeight: 600 }}>Замовник: <strong style={{ color: '#888' }}>{activeBatchData.customer}</strong></p>
                      <p style={{ margin: '4px 0 0 0', color: '#555', fontSize: '1.1rem', fontWeight: 600 }}>Виріб: <strong style={{ color: '#ff9000' }}>{activeBatchData.productNames}</strong></p>
@@ -440,19 +467,56 @@ const PackagingModule = () => {
                             const reqRequest = orderRequests.find(r => String(r.nomenclature_id) === String(item.nom.id))
                             const isPicked = reqRequest?.status === 'completed' || reqRequest?.status === 'issued'
                             const isPending = reqRequest?.status === 'pending'
+                            const isExcluded = excludedNomIds.has(item.nom.id)
+                            const canToggle = !hasAnyRequests && !activeBatchData.isPackaged
 
                             return (
                               <div key={idx} style={{ 
-                                background: isPicked ? '#10b98108' : (isPending ? '#eab30805' : '#0d0d0d'), 
+                                background: isExcluded ? 'rgba(26,26,26,0.3)' : (isPicked ? '#10b98108' : (isPending ? '#eab30805' : '#0d0d0d')), 
                                 padding: '18px', 
                                 borderRadius: '18px', 
-                                border: `1px solid ${isPicked ? '#10b98144' : (isPending ? '#eab30833' : '#1a1a1a')}`,
+                                border: `1px solid ${isExcluded ? '#222' : (isPicked ? '#10b98144' : (isPending ? '#eab30833' : '#1a1a1a'))}`,
                                 transition: '0.3s',
                                 display: 'flex',
                                 justifyContent: 'space-between',
-                                alignItems: 'center'
+                                alignItems: 'center',
+                                opacity: isExcluded ? 0.35 : 1
                               }}>
                                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                  {/* Custom beautiful Checkbox */}
+                                  <div 
+                                    onClick={() => {
+                                      if (!canToggle) return;
+                                      const newExcluded = new Set(excludedNomIds);
+                                      if (newExcluded.has(item.nom.id)) {
+                                        newExcluded.delete(item.nom.id);
+                                      } else {
+                                        newExcluded.add(item.nom.id);
+                                      }
+                                      setExcludedNomIds(newExcluded);
+                                    }}
+                                    style={{
+                                      width: '20px',
+                                      height: '20px',
+                                      borderRadius: '6px',
+                                      border: `2px solid ${isExcluded ? '#444' : '#f43f5e'}`,
+                                      background: isExcluded ? 'transparent' : '#f43f5e',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      cursor: canToggle ? 'pointer' : 'not-allowed',
+                                      transition: '0.2s',
+                                      marginRight: '4px',
+                                      flexShrink: 0
+                                    }}
+                                  >
+                                    {!isExcluded && (
+                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                                        <polyline points="20 6 9 17 4 12"></polyline>
+                                      </svg>
+                                    )}
+                                  </div>
+
                                   <div style={{ background: '#1a1a1a', padding: '10px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     {getIconForType(item.nom)}
                                   </div>
@@ -465,13 +529,13 @@ const PackagingModule = () => {
                                         </span>
                                       )}
                                     </div>
-                                    <div style={{ fontSize: '0.6rem', color: isPicked ? '#10b981' : (isPending ? '#eab308' : '#444'), fontWeight: 900, textTransform: 'uppercase' }}>
-                                      {isPicked ? 'Підтверджено' : (isPending ? 'В обробці' : 'Очікує')}
+                                    <div style={{ fontSize: '0.6rem', color: isExcluded ? '#555' : (isPicked ? '#10b981' : (isPending ? '#eab308' : '#444')), fontWeight: 900, textTransform: 'uppercase' }}>
+                                      {isExcluded ? 'Виключено' : (isPicked ? 'Підтверджено' : (isPending ? 'В обробці' : 'Очікує'))}
                                     </div>
                                   </div>
                                 </div>
                                 <div style={{ textAlign: 'right', marginLeft: '15px' }}>
-                                  <div style={{ fontSize: '1.3rem', fontWeight: 1000, color: isPicked ? '#10b981' : (isPending ? '#eab308' : '#fff') }}>
+                                  <div style={{ fontSize: '1.3rem', fontWeight: 1000, color: isExcluded ? '#444' : (isPicked ? '#10b981' : (isPending ? '#eab308' : '#fff')) }}>
                                     {item.qty}
                                   </div>
                                   <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 800 }}>{item.nom.unit || 'шт'}</div>

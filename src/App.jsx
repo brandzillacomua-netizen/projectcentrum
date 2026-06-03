@@ -180,6 +180,7 @@ const GlobalUserNav = () => {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeSubPanel, setActiveSubPanel] = useState(null); // 'notifications' or null
+  const prevNotificationsRef = useRef([]);
   const [openCategories, setOpenCategories] = useState({
     shop1: true,
     shop2: true,
@@ -331,26 +332,89 @@ const GlobalUserNav = () => {
     // 2. Material Requests
     const hasWarehouseAccess = hasModule('warehouse') || hasModule('supply') || hasModule('master') || hasModule('foreman') || hasModule('director');
     if (hasWarehouseAccess && requests) {
+      const groups = {};
       requests.forEach(r => {
         if (r.status === 'pending') {
-          let path = '/';
-          if (hasModule('supply')) path = '/supply';
-          else if (hasModule('warehouse')) path = '/warehouse';
-          else if (hasModule('foreman')) path = '/foreman';
-          else if (hasModule('master')) path = '/master';
-          else if (hasModule('director')) path = '/director';
+          const order = orders?.find(o => o.id === r.order_id);
+          const orderNum = order?.order_num || '';
+          
+          let batchIndex = '';
+          if (r.details) {
+            // Extract batch index (e.g. 02062026-01/1)
+            const batchMatch = r.details.match(/\(([^)]+\/\d+)\)/);
+            if (batchMatch) {
+              const parts = batchMatch[1].split('/');
+              batchIndex = parts[parts.length - 1]; // Get '1' from '02062026-01/1'
+            }
+          }
+          if (!batchIndex && r.task_id && tasks) {
+            const task = tasks.find(t => t.id === r.task_id);
+            if (task?.batch_index) batchIndex = task.batch_index;
+          }
 
-          list.push({
-            id: `req-${r.id}`,
-            type: 'request',
-            title: 'Запит матеріалу',
-            description: r.details || `Кількість: ${r.quantity}`,
-            createdAt: r.created_at,
-            path,
-            color: '#10b981',
-            icon: <ClipboardList size={14} />
-          });
+          const groupKey = `${r.order_id}_${r.task_id || 'null'}_${batchIndex || 'no-batch'}`;
+          
+          if (!groups[groupKey]) {
+            groups[groupKey] = {
+              orderId: r.order_id,
+              orderNum: orderNum,
+              batchIndex: batchIndex,
+              taskId: r.task_id,
+              count: 0,
+              items: [],
+              latestCreatedAt: r.created_at
+            };
+          }
+          
+          groups[groupKey].count += 1;
+          if (r.created_at > groups[groupKey].latestCreatedAt) {
+            groups[groupKey].latestCreatedAt = r.created_at;
+          }
+          
+          let itemName = '';
+          if (r.details) {
+            const splitCol = r.details.split(': ');
+            if (splitCol.length > 1) {
+              itemName = splitCol[1].split(' — ')[0];
+            } else {
+              itemName = r.details;
+            }
+          }
+          if (itemName) {
+            groups[groupKey].items.push(itemName);
+          }
         }
+      });
+
+      Object.entries(groups).forEach(([key, g]) => {
+        let path = '/';
+        if (hasModule('supply')) path = '/supply';
+        else if (hasModule('warehouse')) path = '/warehouse';
+        else if (hasModule('foreman')) path = '/foreman';
+        else if (hasModule('master')) path = '/master';
+        else if (hasModule('director')) path = '/director';
+
+        const batchStr = g.batchIndex ? `/${g.batchIndex}` : '';
+        const orderPart = g.orderNum ? ` (№ ${g.orderNum}${batchStr})` : '';
+        
+        let desc = '';
+        if (g.count === 1) {
+          desc = g.items[0] || 'Новий запит матеріалу';
+        } else {
+          desc = `Запит на ${g.count} позицій: ${g.items.slice(0, 3).join(', ')}${g.items.length > 3 ? '...' : ''}`;
+        }
+
+        list.push({
+          id: `req-group-${key}`,
+          type: 'request',
+          title: `Запит матеріалів${orderPart}`,
+          description: desc,
+          createdAt: g.latestCreatedAt,
+          path,
+          color: '#10b981',
+          icon: <ClipboardList size={14} />,
+          state: { highlightTaskId: g.taskId }
+        });
       });
     }
 
@@ -436,9 +500,15 @@ const GlobalUserNav = () => {
       receptionDocs.forEach(rec => {
         if (rec.status === 'ordered' || rec.status === 'shipped') {
           let path = '/';
-          if (hasModule('procurement')) path = '/procurement';
-          else if (hasModule('supply')) path = '/supply';
-          else if (hasModule('warehouse')) path = '/warehouse';
+          if (rec.target_warehouse === 'operational' && hasModule('warehouse')) {
+            path = '/warehouse';
+          } else if (rec.target_warehouse === 'production' && hasModule('supply')) {
+            path = '/supply';
+          } else {
+            if (hasModule('procurement')) path = '/procurement';
+            else if (hasModule('supply')) path = '/supply';
+            else if (hasModule('warehouse')) path = '/warehouse';
+          }
 
           const docId = rec.order_id === null && rec.task_id === null 
             ? `№РП-${String(rec.id).substring(0, 6).toUpperCase()}` 
@@ -618,11 +688,291 @@ const GlobalUserNav = () => {
       });
     }
 
+    // 8. Notifications for Shop 1 Manager / Director of Production about tasks ready to close
+    const isShop1ManagerOrDirector = currentUser && (
+      currentUser.access_rights?.director ||
+      currentUser.access_rights?.master ||
+      currentUser.access_rights?.foreman ||
+      (currentUser.position && (
+        currentUser.position.toLowerCase().includes('директор') ||
+        (currentUser.position.toLowerCase().includes('начальник') && currentUser.position.toLowerCase().includes('цех')) ||
+        currentUser.position.toLowerCase().includes('майстер') ||
+        currentUser.position.toLowerCase().includes('бригадир')
+      ))
+    );
+
+    if (isShop1ManagerOrDirector && tasks && orders) {
+      // Find active tasks that belong to Shop 1 (not Shop 2 / Tumbling / etc steps, or step is specifically Shop 1)
+      const shop1Tasks = tasks.filter(t =>
+        t.status !== 'completed' &&
+        !(t.step?.includes('Пресування') || t.step?.includes('ЦЕХ №2') || t.step?.includes('Доопрацювання'))
+      );
+
+      shop1Tasks.forEach(task => {
+        const orderObj = orders.find(o => o.id === task.order_id);
+        if (!orderObj) return;
+
+        // Check if all display parts are completed
+        const snapshot = task.plan_snapshot || {};
+        const snapshotValues = Object.values(snapshot).filter(v => v && typeof v === 'object' && v.id && v.is_rework);
+        
+        let itemsToCheck = [];
+        if (snapshotValues.length > 0) {
+          itemsToCheck = snapshotValues.map(s => ({
+            nom: (nomenclatures || []).find(n => String(n.id) === String(s.id)) || { id: s.id, name: s.name, type: 'part' }
+          }));
+        } else {
+          itemsToCheck = (orderObj.order_items || []).flatMap(item => {
+            const parentId = item?.nomenclature_id;
+            const parts = bomItems.filter(b => b.parent_id === parentId).map(b => ({
+              ...b,
+              nom: nomenclatures.find(n => n.id === b.child_id)
+            }));
+            if (parts.length > 0) {
+              return parts.map(p => ({ nom: p.nom }));
+            }
+            return [{ nom: (nomenclatures || []).find(n => String(n?.id) === String(item?.nomenclature_id)) }];
+          });
+        }
+
+        const filteredParts = itemsToCheck.filter(item => item.nom?.type === 'part');
+        if (filteredParts.length === 0) return;
+
+        // Check if task is ready to be closed in Shop 1 (all cards generated are completed, and totalQty matched)
+        const taskCards = (workCards || []).filter(c => String(c.task_id) === String(task.id));
+        const allCards = [
+          ...taskCards,
+          ...(completedCards || []).filter(sc => String(sc.task_id) === String(task.id))
+        ];
+
+        // Has to have at least one card created, and all created cards must be completed
+        const hasCards = allCards.length > 0;
+        const allCompleted = hasCards && allCards.every(c => c.status === 'completed' || c.status === 'at-shop2-buffer');
+
+        if (allCompleted) {
+          const orderNum = orderObj.order_num || '???';
+          list.push({
+            id: `ready-close-s1-${task.id}`,
+            type: 'ready_close_s1',
+            title: `✅ Наряд №${orderNum} виконано в Цеху 1!`,
+            description: `Всі карти розкрою завершені. Потрібно закрити наряд у Цеху №1 для передачі в Цех №2.`,
+            createdAt: task.updated_at || task.created_at || new Date().toISOString(),
+            path: '/foreman',
+            state: { highlightTaskId: task.id },
+            color: '#10b981',
+            icon: <ClipboardList size={14} />
+          });
+        }
+      });
+    }
+
+    // 9. Notifications for Shop 2 Manager / Director of Production about tasks ready to close
+    const isShop2ManagerOrDirector = currentUser && (
+      currentUser.access_rights?.director ||
+      (currentUser.position && (
+        currentUser.position.toLowerCase().includes('директор') ||
+        (currentUser.position.toLowerCase().includes('начальник') && currentUser.position.toLowerCase().includes('цех'))
+      )) ||
+      hasModule('shop2')
+    );
+
+    if (isShop2ManagerOrDirector && tasks && orders) {
+      // Find tasks that are in status !== 'completed' and are ready to close in Shop 2
+      // Step contains 'Пресування', 'ЦЕХ №2', or 'Доопрацювання'
+      const shop2Tasks = tasks.filter(t => 
+        t.status !== 'completed' && 
+        (t.step?.includes('Пресування') || t.step?.includes('ЦЕХ №2') || t.step?.includes('Доопрацювання'))
+      );
+
+      shop2Tasks.forEach(task => {
+        const orderObj = orders.find(o => o.id === task.order_id);
+        if (!orderObj) return;
+
+        // Check if all display items for the task are completed
+        // We replicate checkIfTaskIsAllDone logic here using nomenclatures, tasks, workCards, etc.
+        const snapshot = task.plan_snapshot || {};
+        const arrivals = snapshot.arrivals || [];
+
+        // Determine BOM display items
+        let itemsToCheck = [];
+        const snapshotValues = Object.values(snapshot).filter(v => v && typeof v === 'object' && v.id && v.is_rework);
+        if (snapshotValues.length > 0) {
+          itemsToCheck = snapshotValues.map(s => ({
+            nom: (nomenclatures || []).find(n => String(n.id) === String(s.id)) || { id: s.id, name: s.name, type: 'part' },
+            need: Number(s.need) || 0
+          }));
+        } else if (arrivals.length > 0) {
+          itemsToCheck = arrivals.map(a => ({
+            nom: (nomenclatures || []).find(n => String(n?.id) === String(a?.id)),
+            need: Number(snapshot[String(a?.id)]?.plan ?? snapshot[String(a?.id)]?.need ?? a?.semi ?? 0)
+          }));
+        } else {
+          itemsToCheck = (orderObj.order_items || []).flatMap(item => {
+            const parentId = item?.nomenclature_id;
+            const parts = bomItems.filter(b => b.parent_id === parentId).map(b => ({
+              ...b,
+              nom: nomenclatures.find(n => n.id === b.child_id)
+            }));
+            if (parts.length > 0) {
+              return parts.map(p => ({
+                nom: p.nom,
+                need: Number(snapshot[String(p.nom?.id)]?.plan ?? snapshot[String(p.nom?.id)]?.need ?? (Number(item?.quantity) || 0) * (Number(p.quantity_per_parent) || 1))
+              }));
+            }
+            return [{
+              nom: (nomenclatures || []).find(n => String(n?.id) === String(item?.nomenclature_id)),
+              need: Number(snapshot[String(item?.nomenclature_id)]?.plan ?? snapshot[String(item?.nomenclature_id)]?.need ?? item?.quantity ?? 0)
+            }];
+          });
+        }
+
+        const filteredParts = itemsToCheck.filter(item => item.nom?.type === 'part');
+        if (filteredParts.length === 0) return;
+
+        const isAllDone = filteredParts.every(item => {
+          const nomId = item.nom?.id;
+          if (!nomId) return false;
+
+          const s1Task = tasks.find(t =>
+            String(t.order_id) === String(task.order_id) &&
+            t.batch_index === task.batch_index &&
+            !(t.step?.includes('Пресування') || t.step?.includes('ЦЕХ №2') || t.step?.includes('Доопрацювання'))
+          );
+          const s1TaskId = s1Task?.id;
+
+          // 1. Calculate remaining buffer in Shop 2
+          const bufSrcCards = (workCards || []).filter(c =>
+            String(c.task_id) === String(s1TaskId) &&
+            String(c.nomenclature_id) === String(nomId) &&
+            c.status === 'at-shop2-buffer'
+          );
+          const bufTotal = bufSrcCards.reduce((s, c) => s + (Number(c.quantity) || 0), 0);
+          const bufUsed = bufSrcCards.reduce((s, c) => s + (Number(c.used_in_shop2_qty) || 0), 0);
+          const total2 = bufTotal - bufUsed;
+
+          if (total2 > 0) return false;
+
+          // 2. Active work cards in Shop 2
+          const nomCards = (workCards || []).filter(wc =>
+            String(wc.task_id) === String(task.id) &&
+            String(wc.nomenclature_id) === String(nomId)
+          );
+
+          if (nomCards.length === 0 && bufTotal === 0) return false;
+
+          const hasUncompleted = nomCards.some(wc => wc.status !== 'completed');
+          if (hasUncompleted) return false;
+
+          // 3. Must have completed cards
+          const hasCompleted = [
+            ...(workCards || []),
+            ...(completedCards || []).filter(sc => String(sc.task_id) === String(task.id))
+          ].some(wc =>
+            String(wc.task_id) === String(task.id) &&
+            String(wc.nomenclature_id) === String(nomId) &&
+            wc.status === 'completed'
+          );
+
+          return hasCompleted;
+        });
+
+        if (isAllDone) {
+          const orderNum = orderObj.order_num || '???';
+          list.push({
+            id: `ready-close-${task.id}`,
+            type: 'ready_close',
+            title: `✅ Наряд №${orderNum} виконано!`,
+            description: `Всі деталі виготовлено. Потрібно закрити наряд у Цеху №2 для передачі на Пакування.`,
+            createdAt: task.updated_at || task.created_at || new Date().toISOString(),
+            path: '/shop2',
+            state: { highlightTaskId: task.id },
+            color: '#10b981',
+            icon: <ClipboardList size={14} />
+          });
+        }
+      });
+    }
+
+    // 10. Notifications for Packers and Director of Production when a Shop 2 task is closed (completed)
+    const isPackerOrDirector = currentUser && (
+      currentUser.access_rights?.director ||
+      currentUser.access_rights?.packaging ||
+      (currentUser.position && (
+        currentUser.position.toLowerCase().includes('пакув') ||
+        currentUser.position.toLowerCase().includes('директор')
+      ))
+    );
+
+    if (isPackerOrDirector && tasks && orders) {
+      // Completed tasks from Shop 2 that are not yet marked as fully packaged
+      const completedShop2Tasks = tasks.filter(t =>
+        t.status === 'completed' &&
+        (t.step?.includes('Пресування') || t.step?.includes('ЦЕХ №2') || t.step?.includes('Доопрацювання')) &&
+        t.plan_snapshot?._metadata?.is_packaged !== true
+      );
+
+      completedShop2Tasks.forEach(task => {
+        const orderObj = orders.find(o => o.id === task.order_id);
+        if (!orderObj) return;
+
+        const orderNum = orderObj.order_num || '???';
+        const bIdx = task.batch_index || '1';
+
+        list.push({
+          id: `ready-package-${task.id}`,
+          type: 'ready_package',
+          title: `📦 Наряд №${orderNum}/${bIdx} готовий до Пакування!`,
+          description: `Наряд закрито в Цеху №2. Можна починати комплектування та пакування замовлення.`,
+          createdAt: task.updated_at || task.created_at || new Date().toISOString(),
+          path: '/packaging',
+          state: { highlightTaskId: task.id },
+          color: '#f43f5e',
+          icon: <Package size={14} />
+        });
+      });
+    }
+
     return list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }, [currentUser, managementTasks, requests, workCards, purchaseRequests, receptionDocs, machineCalls, machines, isManager, activeTasks, completedCards, completedHistory, tasks, orders, bomItems, workCardHistory]);
 
   const unreadCount = useMemo(() => {
     return notifications.filter(n => !readIds.includes(n.id)).length;
+  }, [notifications, readIds]);
+
+  // Request browser Notification permission on mount
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // Monitor notifications and trigger HTML5 Push when a new unread notification arrives
+  useEffect(() => {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+    // Find new notifications that were not present in previous render and are unread
+    const prevIds = new Set((prevNotificationsRef.current || []).map(n => n.id));
+    const newUnread = notifications.filter(n => !prevIds.has(n.id) && !readIds.includes(n.id));
+
+    newUnread.forEach(n => {
+      try {
+        const notif = new Notification(n.title, {
+          body: n.description,
+          icon: '/kulytsya.png', // Fallback to logo
+          tag: n.id // Prevent duplicates
+        });
+        notif.onclick = () => {
+          window.focus();
+          handleNotificationClick(n);
+          notif.close();
+        };
+      } catch (err) {
+        console.warn('Failed to trigger native notification:', err);
+      }
+    });
+
+    // Update ref for next render comparison
+    prevNotificationsRef.current = notifications;
   }, [notifications, readIds]);
 
   const handleNotificationClick = (n) => {
@@ -761,7 +1111,7 @@ const GlobalUserNav = () => {
           border-color: rgba(255, 144, 0, 0.18);
         }
 
-        /* Technical support banner */
+         /* Technical support banner */
         .support-banner {
           background: linear-gradient(135deg, rgba(20, 20, 20, 0.5) 0%, rgba(10, 10, 10, 0.7) 100%);
           border: 1px solid rgba(255, 255, 255, 0.05);
@@ -789,6 +1139,61 @@ const GlobalUserNav = () => {
         }
         .notif-badge-pulse {
           animation: badgePulse 2s infinite ease-in-out;
+        }
+
+        /* Landscape orientation / small height responsiveness */
+        @media (max-height: 480px) and (orientation: landscape) {
+          .sidebar-drawer {
+            width: 520px !important;
+            max-width: 90vw !important;
+          }
+          .sidebar-drawer > div {
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+          }
+          /* Header: full width */
+          .sidebar-drawer > div > div:nth-child(1) {
+            width: 100% !important;
+            padding: 12px 20px !important;
+          }
+          /* Profile and Notification row: full width or hidden profile, let's stack them nicely */
+          .sidebar-drawer > div > div:nth-child(2) {
+            width: 50% !important;
+            padding: 8px 20px !important;
+            border-bottom: 1px solid rgba(255,255,255,0.04) !important;
+          }
+          .sidebar-drawer > div > div:nth-child(3) {
+            width: 50% !important;
+            border-bottom: 1px solid rgba(255,255,255,0.04) !important;
+          }
+          .sidebar-drawer > div > div:nth-child(3) > div {
+            padding: 8px 20px !important;
+          }
+          /* Scrollable Links container: left column */
+          .sidebar-links-container {
+            width: 55% !important;
+            flex: none !important;
+            height: calc(100vh - 120px) !important;
+            padding: 10px !important;
+            border-right: 1px solid rgba(255,255,255,0.04) !important;
+          }
+          /* Footer with support and logout: right column */
+          .sidebar-drawer > div > div:nth-child(5) {
+            width: 45% !important;
+            height: calc(100vh - 120px) !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: center !important;
+            padding: 15px !important;
+            border-top: none !important;
+          }
+          .sidebar-drawer .support-banner {
+            margin: 0 0 10px 0 !important;
+            padding: 10px !important;
+          }
+          .sidebar-drawer .support-banner a {
+            font-size: 0.9rem !important;
+          }
         }
       `}</style>
 
