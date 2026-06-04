@@ -105,6 +105,7 @@ self.addEventListener('notificationclick', function(event) {
   if (event.action === 'dismiss') return;
 
   const path = event.notification.data?.path || '/';
+  const state = event.notification.data?.state || null;
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
@@ -112,7 +113,7 @@ self.addEventListener('notificationclick', function(event) {
       for (var i = 0; i < clientList.length; i++) {
         var client = clientList[i];
         if ('focus' in client) {
-          client.postMessage({ type: 'NAVIGATE', path: path });
+          client.postMessage({ type: 'NAVIGATE', path: path, state: state });
           return client.focus();
         }
       }

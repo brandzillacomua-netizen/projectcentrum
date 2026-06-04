@@ -1208,7 +1208,7 @@ const GlobalUserNav = () => {
   useEffect(() => {
     const handleMessage = (event) => {
       if (event.data && event.data.type === 'NAVIGATE') {
-        navigate(event.data.path);
+        navigate(event.data.path, event.data.state ? { state: event.data.state } : undefined);
       }
       if (event.data && event.data.type === 'SUBSCRIPTION_CHANGED' && currentUser?.id) {
         // Браузер сам оновив підписку — зберігаємо нову
@@ -1250,6 +1250,8 @@ const GlobalUserNav = () => {
             id: n.id,
             title: n.title,
             description: n.description,
+            path: n.path,
+            state: n.state,
             link: n.link
           }
         };
