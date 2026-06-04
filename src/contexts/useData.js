@@ -408,6 +408,8 @@ export function useData() {
   // Ref для завжди актуального списку користувачів в realtime-клозюрах
   const systemUsersRef = useRef([])
   useEffect(() => { systemUsersRef.current = systemUsers }, [systemUsers])
+  const machinesRef = useRef([])
+  useEffect(() => { machinesRef.current = machines }, [machines])
   useEffect(() => {
     if (cacheTimerRef.current) clearTimeout(cacheTimerRef.current)
     cacheTimerRef.current = setTimeout(() => {
@@ -642,6 +644,57 @@ export function useData() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'machine_calls' }, (payload) => {
         if (payload.eventType === 'INSERT') {
           setMachineCalls(prev => prev.some(c => c.id === payload.new.id) ? prev : [payload.new, ...prev])
+          
+          // Надсилаємо Push-сповіщення при виклику персоналу до верстата
+          const call = payload.new
+          const calledEmployeeId = call.called_employee_id
+          const calledRole = call.called_role
+          const operator = call.operator_name || 'Оператор'
+          
+          const machineObj = (machinesRef.current || []).find(m => m.id === call.machine_id)
+          const machineName = machineObj ? machineObj.name : 'Верстат'
+          
+          let notifyIds = []
+          if (calledEmployeeId) {
+            notifyIds = [calledEmployeeId]
+          } else {
+            notifyIds = (systemUsersRef.current || []).filter(u => {
+              if (!u?.access_rights) return false
+              const settings = u.notification_settings || {}
+              if (settings.machine_call === false) return false
+              
+              if (calledRole === 'master') {
+                return u.access_rights.master || u.access_rights.foreman || (u.position && u.position.toLowerCase().includes('майстер'))
+              }
+              if (calledRole === 'engineer') {
+                return u.access_rights.engineer || (u.position && u.position.toLowerCase().includes('інженер'))
+              }
+              if (calledRole === 'qc') {
+                return u.access_rights.brak || (u.position && (u.position.toLowerCase().includes('вкя') || u.position.toLowerCase().includes('якост')))
+              }
+              return false
+            }).map(u => u.id)
+          }
+
+          if (notifyIds.length > 0) {
+            let roleLabel = 'Майстра'
+            let targetPath = '/master'
+            if (calledRole === 'engineer') {
+              roleLabel = 'Інженера'
+              targetPath = '/engineer'
+            }
+            if (calledRole === 'qc') {
+              roleLabel = 'ВКЯ'
+              targetPath = '/brak'
+            }
+            
+            sendPushToUsers(
+              notifyIds,
+              `🚨 Виклик ${roleLabel}`,
+              `${operator} викликає на ${machineName}`,
+              targetPath
+            ).catch(() => {})
+          }
         } else if (payload.eventType === 'UPDATE') {
           setMachineCalls(prev => prev.map(c => c.id === payload.new.id ? payload.new : c))
         } else if (payload.eventType === 'DELETE') {

@@ -243,6 +243,8 @@ const GlobalUserNav = () => {
     }
   };
   const prevNotificationsRef = useRef([]);
+  const shownNotifsRef = useRef(new Set());
+  const pageLoadTimeRef = useRef(Date.now());
   const [openCategories, setOpenCategories] = useState({
     shop1: true,
     shop2: true,
@@ -1092,10 +1094,21 @@ const GlobalUserNav = () => {
 
     // Find new notifications that were not present in previous render and are unread
     const prevIds = new Set((prevNotificationsRef.current || []).map(n => n.id));
-    const newUnread = notifications.filter(n => !prevIds.has(n.id) && !readIds.includes(n.id));
+    
+    // We only trigger pushes for notifications created after page load (minus a 5s buffer to account for clock skew)
+    // and that have not been shown in the current browser session.
+    const cutoffTime = pageLoadTimeRef.current - 5000;
+    const newUnread = notifications.filter(n => {
+      const created = new Date(n.createdAt).getTime();
+      return created > cutoffTime && 
+             !prevIds.has(n.id) && 
+             !readIds.includes(n.id) && 
+             !shownNotifsRef.current.has(n.id);
+    });
 
     newUnread.forEach(n => {
       try {
+        shownNotifsRef.current.add(n.id);
         const options = {
           body: n.description,
           icon: '/kulytsya.png', // Fallback to logo
