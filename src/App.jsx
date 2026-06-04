@@ -257,7 +257,7 @@ const GlobalUserNav = () => {
       setProfileFirstName(currentUser.first_name || '');
       setProfileLastName(currentUser.last_name || '');
       setProfilePassword(currentUser.password || '');
-      setProfileAvatar(currentUser.notification_settings?.avatar || '');
+      setProfileAvatar(currentUser.avatar || currentUser.notification_settings?.avatar || '');
       setSettingsTab('notif');
     }
   }, [activeSubPanel, currentUser]);
@@ -306,8 +306,10 @@ const GlobalUserNav = () => {
         first_name: profileFirstName.trim(),
         last_name: profileLastName.trim(),
         password: profilePassword,
+        avatar: profileAvatar,
         notification_settings: updatedSettings
       };
+      delete payload.token; // Clear token to prevent schema cache error in Supabase
 
       const { data, error } = await upsertUser(payload);
       if (error) {
@@ -1626,7 +1628,7 @@ const GlobalUserNav = () => {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               {renderAvatar(
-                currentUser?.notification_settings?.avatar, 
+                currentUser?.avatar || currentUser?.notification_settings?.avatar, 
                 (currentUser?.first_name?.[0] || '') + (currentUser?.last_name?.[0] || ''),
                 '38px',
                 '0.85rem'

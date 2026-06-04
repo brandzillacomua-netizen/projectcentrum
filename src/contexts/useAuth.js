@@ -66,6 +66,7 @@ export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers,
     await apiService.submitUserAction(userData, null, currentUser?.token)
     const payload = { ...userData }
     if (!payload.id) delete payload.id
+    delete payload.token // Remove frontend-only token property before saving to DB
     const { data, error } = await supabase.from('system_users').upsert([payload]).select()
     const result = (data && data.length > 0) ? data[0] : null
     if (!error && result) {
