@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react'
-import { Package, ArrowLeft, ClipboardList, CheckCircle2, Box, Send, AlertCircle, Wrench, FileArchive, Layers, Clock, Scan, Loader2, Hash, Save, Eye, X } from 'lucide-react'
+import { Package, ArrowLeft, ClipboardList, CheckCircle2, Box, Send, AlertCircle, Wrench, FileArchive, Layers, Clock, Scan, Loader2, Hash, Save, Eye, X, Menu } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useMES } from '../MESContext'
 
@@ -27,6 +27,7 @@ const PackagingModule = () => {
   const [selectedBatch, setSelectedBatch] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [excludedNomIds, setExcludedNomIds] = useState(new Set())
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
 
   // Номери коробок: { [nomId]: boxNumber }
   const [boxNumbers, setBoxNumbers] = useState({})
@@ -188,6 +189,10 @@ const PackagingModule = () => {
       return b.orderNum.localeCompare(a.orderNum)
     })
   }, [tasks, orders, requests, bomItems, nomenclatures])
+
+  const activeQueueCount = useMemo(() => {
+    return batchList.filter(b => b.packStatus !== 'completed').length
+  }, [batchList])
 
   const activeBatchData = useMemo(() => {
     if (!selectedBatch) return null
@@ -397,31 +402,65 @@ const PackagingModule = () => {
     <div className="packaging-module" style={{ background: '#050505', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
 
       <nav className="module-nav" style={{ flexShrink: 0, padding: '0 25px', height: '80px', background: '#0a0a0a', borderBottom: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '25px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <Link to="/" style={{ color: '#555', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: 800 }}>
             <ArrowLeft size={18} /> <span className="hide-mobile">НА ГОЛОВНУ</span>
           </Link>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            <div style={{ background: '#f43f5e', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Package size={22} color="#fff" />
-            </div>
-            <div>
-              <h1 style={{ fontSize: '1.1rem', fontWeight: 950, margin: 0, letterSpacing: '0.5px' }}>ВІДДІЛ ПАКУВАННЯ</h1>
-              <div style={{ fontSize: '0.65rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', marginTop: '2px' }}>Контроль комплектування партій</div>
-            </div>
+          <button onClick={() => setIsDrawerOpen(true)} className="burger-btn-labeled mobile-only">
+            <Menu size={20} />
+            <span>Черга</span>
+            {activeQueueCount > 0 && (
+              <span className="queue-badge" style={{
+                background: '#ef4444',
+                color: '#fff',
+                borderRadius: '50%',
+                fontSize: '10px',
+                fontWeight: 900,
+                width: '18px',
+                height: '18px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                lineHeight: 1
+              }}>
+                {activeQueueCount}
+              </span>
+            )}
+          </button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ background: '#f43f5e', width: '36px', height: '36px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Package size={18} color="#fff" />
+          </div>
+          <div>
+            <h1 style={{ fontSize: '0.95rem', fontWeight: 950, margin: 0, letterSpacing: '0.5px', lineHeight: 1.1 }}>ВІДДІЛ ПАКУВАННЯ</h1>
+            <div style={{ fontSize: '0.58rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', marginTop: '3px', letterSpacing: '0.3px', lineHeight: 1 }}>Контроль комплектування партій</div>
           </div>
         </div>
       </nav>
 
       <div className="module-content" style={{ padding: '30px', flex: 1, overflowY: 'auto' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '350px 1fr', gap: '30px', maxWidth: '1600px', margin: '0 auto', height: 'calc(100vh - 140px)' }}>
+        <div className="master-grid" style={{ maxWidth: '1600px', margin: '0 auto', height: 'calc(100vh - 140px)' }}>
+
+          {isDrawerOpen && (
+            <div 
+              className="drawer-backdrop" 
+              onClick={() => setIsDrawerOpen(false)} 
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 99999, backdropFilter: 'blur(4px)' }}
+            />
+          )}
 
           {/* SIDEBAR */}
-          <div className="orders-sidebar glass-panel" style={{ background: '#0a0a0a', padding: '25px', borderRadius: '28px', border: '1px solid #1a1a1a', display: 'flex', flexDirection: 'column' }}>
+          <div className={`side-panel glass-panel ${isDrawerOpen ? 'drawer-open' : ''}`} style={{ background: '#0a0a0a', padding: '25px', borderRadius: '28px', border: '1px solid #1a1a1a', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '25px' }}>
               <ClipboardList size={22} color="#f43f5e" />
               <h3 style={{ margin: 0, fontSize: '1rem', color: '#fff', fontWeight: 900, textTransform: 'uppercase' }}>Черга нарядів</h3>
-              <span style={{ marginLeft: 'auto', background: '#f43f5e22', color: '#f43f5e', padding: '4px 10px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 950 }}>{batchList.length}</span>
+              <span style={{ background: '#f43f5e22', color: '#f43f5e', padding: '4px 10px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 950 }}>{batchList.length}</span>
+              {isDrawerOpen && (
+                <button onClick={() => setIsDrawerOpen(false)} style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: '#888', cursor: 'pointer' }}>
+                  <X size={20} />
+                </button>
+              )}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1, overflowY: 'auto', paddingRight: '5px' }}>
               {batchList.map(batch => {
@@ -434,7 +473,7 @@ const PackagingModule = () => {
                 else if (isReady) { statusColor = '#10b981'; statusBg = '#10b98115'; statusLabel = 'ГОТОВО ДО ПАКУВАННЯ' }
                 else if (isProc) { statusColor = '#3b82f6'; statusBg = '#3b82f615'; statusLabel = 'ЗАПИТ В ОБРОБЦІ' }
                 return (
-                  <div key={batch.key} onClick={() => setSelectedBatch(batch)} className={`pack-order-card ${isReady ? 'ready-pulse' : ''}`}
+                  <div key={batch.key} onClick={() => { setSelectedBatch(batch); setIsDrawerOpen(false); }} className={`pack-order-card ${isReady ? 'ready-pulse' : ''}`}
                     style={{ padding: '20px 20px 20px 25px', background: isSelected ? `${statusColor}15` : (isCompleted ? '#080808' : '#111'), border: `1px solid ${isSelected ? statusColor : '#1a1a1a'}`, borderRadius: '24px', cursor: 'pointer', transition: '0.3s cubic-bezier(0.4,0,0.2,1)', position: 'relative', opacity: isCompleted ? 0.4 : 1, filter: isCompleted ? 'grayscale(1)' : 'none', overflow: 'hidden' }}>
                     <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '6px', background: statusColor, boxShadow: isSelected ? `4px 0 15px ${statusColor}44` : 'none' }}></div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
@@ -729,14 +768,14 @@ const PackagingModule = () => {
 
               </div>
             ) : (
-              <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px dashed #111', borderRadius: '32px', background: 'rgba(255,255,255,0.01)' }}>
-                <div style={{ textAlign: 'center', color: '#222' }}>
+              <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px dashed #222', borderRadius: '32px', background: 'rgba(255,255,255,0.01)' }}>
+                <div style={{ textAlign: 'center' }}>
                   <div style={{ position: 'relative', width: '120px', height: '120px', margin: '0 auto 30px' }}>
-                    <Package size={120} style={{ opacity: 0.1 }} />
-                    <div className="anim-pulse" style={{ position: 'absolute', inset: 0, border: '2px solid #f43f5e', borderRadius: '30%', opacity: 0.1 }}></div>
+                    <Package size={120} style={{ color: '#f43f5e', opacity: 0.25 }} />
+                    <div className="anim-pulse" style={{ position: 'absolute', inset: 0, border: '2px solid #f43f5e', borderRadius: '30%', opacity: 0.35 }}></div>
                   </div>
-                  <h3 style={{ margin: 0, fontWeight: 900, color: '#333', fontSize: '1.5rem', letterSpacing: '-0.5px' }}>Оберіть наряд для комплектування</h3>
-                  <p style={{ margin: '15px 0 0 0', fontSize: '0.9rem', color: '#222', fontWeight: 600 }}>Система відображає лише ті партії, виробництво яких повністю завершено</p>
+                  <h3 style={{ margin: 0, fontWeight: 900, color: '#aaa', fontSize: '1.5rem', letterSpacing: '-0.5px' }}>Оберіть наряд для комплектування</h3>
+                  <p style={{ margin: '15px 0 0 0', fontSize: '0.9rem', color: '#555', fontWeight: 600 }}>Система відображає лише ті партії, виробництво яких повністю завершено</p>
                 </div>
               </div>
             )}
@@ -895,6 +934,39 @@ const PackagingModule = () => {
       )}
 
       <style dangerouslySetInnerHTML={{ __html: `
+        .master-grid {
+          display: grid;
+          grid-template-columns: 350px 1fr;
+          gap: 30px;
+        }
+        .side-panel {
+          display: flex;
+          flex-direction: column;
+        }
+        .mobile-only { display: none; }
+
+        @media screen and (max-width: 1024px) {
+          .hide-mobile { display: none !important; }
+          .mobile-only { display: block !important; }
+          .master-grid { display: block !important; }
+          .side-panel { 
+            position: fixed; 
+            left: 0; 
+            top: 0; 
+            bottom: 0; 
+            z-index: 100000; 
+            transform: translateX(-100%); 
+            width: 320px !important; 
+            height: 100% !important;
+            background: #0a0a0a !important;
+            border-right: 1px solid #1a1a1a !important;
+            border-radius: 0 !important;
+            box-shadow: 20px 0 50px rgba(0,0,0,0.5);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          }
+          .side-panel.drawer-open { transform: translateX(0) !important; }
+        }
+
         .pack-order-card:hover { transform: translateY(-2px); border-color: #333 !important; }
         .pack-order-card:active { transform: scale(0.99); }
         .ready-pulse { animation: readyPulse 2s infinite; border-color: #10b981 !important; background: #10b98108 !important; }

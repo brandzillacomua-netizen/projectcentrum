@@ -185,7 +185,12 @@ const GlobalUserNav = () => {
     new_order: true,
     material_request: true,
     packaging_request: true,
-    supply_request: true
+    ready_to_ship: true,
+    supply_request: true,
+    machine_call: true,
+    shortage: true,
+    kanban: true,
+    task_completed: true
   });
 
   // Sync settings when currentUser loads
@@ -207,7 +212,12 @@ const GlobalUserNav = () => {
           new_order: true,
           material_request: true,
           packaging_request: true,
-          supply_request: true
+          ready_to_ship: true,
+          supply_request: true,
+          machine_call: true,
+          shortage: true,
+          kanban: true,
+          task_completed: true
         });
       }
     }
@@ -1016,8 +1026,23 @@ const GlobalUserNav = () => {
       });
     }
 
-    return list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  }, [currentUser, managementTasks, requests, workCards, purchaseRequests, receptionDocs, machineCalls, machines, isManager, activeTasks, completedCards, completedHistory, tasks, orders, bomItems, workCardHistory]);
+    const filteredList = list.filter(n => {
+      if (n.type === 'order_new') return notifSettings.new_order !== false;
+      if (n.type === 'task') return notifSettings.kanban !== false;
+      if (n.type === 'request') {
+        const isPackaging = n.title?.toLowerCase().includes('комплектування') || n.description?.toLowerCase().includes('комплектування');
+        return isPackaging ? notifSettings.packaging_request !== false : notifSettings.material_request !== false;
+      }
+      if (n.type === 'purchase_request') return notifSettings.supply_request !== false;
+      if (n.type === 'machine_call') return notifSettings.machine_call !== false;
+      if (n.type === 'shortage') return notifSettings.shortage !== false;
+      if (n.type === 'ready_close_s1' || n.type === 'ready_close') return notifSettings.task_completed !== false;
+      if (n.type === 'ready_package') return notifSettings.packaging_request !== false;
+      return true;
+    });
+
+    return filteredList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }, [currentUser, managementTasks, requests, workCards, purchaseRequests, receptionDocs, machineCalls, machines, isManager, activeTasks, completedCards, completedHistory, tasks, orders, bomItems, workCardHistory, notifSettings]);
 
   const unreadCount = useMemo(() => {
     return notifications.filter(n => !readIds.includes(n.id)).length;
@@ -1916,177 +1941,62 @@ const GlobalUserNav = () => {
               Керування типами сповіщень
             </div>
 
-            {/* Toggle Item 1: Нові замовлення */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '14px 16px',
-              borderRadius: '12px',
-              background: 'rgba(255, 255, 255, 0.01)',
-              border: '1px solid rgba(255, 255, 255, 0.03)',
-              marginBottom: '12px'
-            }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, paddingRight: '12px' }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#fff' }}>📦 Нові замовлення</span>
-                <span style={{ fontSize: '0.68rem', color: '#555', lineHeight: '1.2' }}>
-                  Надсилати при створенні менеджером нового замовлення (очікує на створення наряду)
-                </span>
-              </div>
-              <div 
-                onClick={() => updateNotifSetting('new_order', !notifSettings.new_order)}
-                style={{
-                  width: '40px',
-                  height: '22px',
-                  borderRadius: '11px',
-                  background: notifSettings.new_order ? '#ff9000' : '#222',
-                  position: 'relative',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s ease',
-                  flexShrink: 0
-                }}
-              >
-                <div style={{
-                  width: '18px',
-                  height: '18px',
-                  borderRadius: '50%',
-                  background: '#fff',
-                  position: 'absolute',
-                  top: '2px',
-                  left: notifSettings.new_order ? '20px' : '2px',
-                  transition: 'left 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
-                }} />
-              </div>
-            </div>
-
-            {/* Toggle Item 2: Запити ТМЦ */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '14px 16px',
-              borderRadius: '12px',
-              background: 'rgba(255, 255, 255, 0.01)',
-              border: '1px solid rgba(255, 255, 255, 0.03)',
-              marginBottom: '12px'
-            }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, paddingRight: '12px' }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#fff' }}>📋 Запити матеріалів (ТМЦ)</span>
-                <span style={{ fontSize: '0.68rem', color: '#555', lineHeight: '1.2' }}>
-                  Надсилати при створенні майстром запиту на сировину чи матеріали зі складу
-                </span>
-              </div>
-              <div 
-                onClick={() => updateNotifSetting('material_request', !notifSettings.material_request)}
-                style={{
-                  width: '40px',
-                  height: '22px',
-                  borderRadius: '11px',
-                  background: notifSettings.material_request ? '#ff9000' : '#222',
-                  position: 'relative',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s ease',
-                  flexShrink: 0
-                }}
-              >
-                <div style={{
-                  width: '18px',
-                  height: '18px',
-                  borderRadius: '50%',
-                  background: '#fff',
-                  position: 'absolute',
-                  top: '2px',
-                  left: notifSettings.material_request ? '20px' : '2px',
-                  transition: 'left 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
-                }} />
-              </div>
-            </div>
-
-            {/* Toggle Item 3: Запити на комплектування */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '14px 16px',
-              borderRadius: '12px',
-              background: 'rgba(255, 255, 255, 0.01)',
-              border: '1px solid rgba(255, 255, 255, 0.03)',
-              marginBottom: '12px'
-            }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, paddingRight: '12px' }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#fff' }}>📦 Комплектування та Пакування</span>
-                <span style={{ fontSize: '0.68rem', color: '#555', lineHeight: '1.2' }}>
-                  Надсилати при появі нових запитів на комплектування деталей для пакування замовлень
-                </span>
-              </div>
-              <div 
-                onClick={() => updateNotifSetting('packaging_request', !notifSettings.packaging_request)}
-                style={{
-                  width: '40px',
-                  height: '22px',
-                  borderRadius: '11px',
-                  background: notifSettings.packaging_request ? '#ff9000' : '#222',
-                  position: 'relative',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s ease',
-                  flexShrink: 0
-                }}
-              >
-                <div style={{
-                  width: '18px',
-                  height: '18px',
-                  borderRadius: '50%',
-                  background: '#fff',
-                  position: 'absolute',
-                  top: '2px',
-                  left: notifSettings.packaging_request ? '20px' : '2px',
-                  transition: 'left 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
-                }} />
-              </div>
-            </div>
-
-            {/* Toggle Item 4: Запити на постачання */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '14px 16px',
-              borderRadius: '12px',
-              background: 'rgba(255, 255, 255, 0.01)',
-              border: '1px solid rgba(255, 255, 255, 0.03)',
-              marginBottom: '12px'
-            }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, paddingRight: '12px' }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#fff' }}>🛒 Запити на закупівлю (Постачання)</span>
-                <span style={{ fontSize: '0.68rem', color: '#555', lineHeight: '1.2' }}>
-                  Надсилати при потребі закупівлі відсутніх матеріалів постачальниками
-                </span>
-              </div>
-              <div 
-                onClick={() => updateNotifSetting('supply_request', !notifSettings.supply_request)}
-                style={{
-                  width: '40px',
-                  height: '22px',
-                  borderRadius: '11px',
-                  background: notifSettings.supply_request ? '#ff9000' : '#222',
-                  position: 'relative',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s ease',
-                  flexShrink: 0
-                }}
-              >
-                <div style={{
-                  width: '18px',
-                  height: '18px',
-                  borderRadius: '50%',
-                  background: '#fff',
-                  position: 'absolute',
-                  top: '2px',
-                  left: notifSettings.supply_request ? '20px' : '2px',
-                  transition: 'left 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
-                }} />
-              </div>
-            </div>
+            {(() => {
+              const notifConfig = [
+                { key: 'new_order', title: '📦 Нові замовлення', desc: 'Надсилати при створенні менеджером нового замовлення (очікує на створення наряду)' },
+                { key: 'material_request', title: '📋 Запити матеріалів (ТМЦ)', desc: 'Надсилати при створенні майстром запиту на сировину чи матеріали зі складу' },
+                { key: 'packaging_request', title: '📦 Комплектування та Пакування', desc: 'Надсилати при появі нових запитів на комплектування деталей для пакування замовлень' },
+                { key: 'ready_to_ship', title: '🚚 Готовність до відвантаження', desc: 'Надсилати, коли партія повністю запакована і очікує логістичного відвантаження' },
+                { key: 'supply_request', title: '🛒 Запити на закупівлю (Постачання)', desc: 'Надсилати при потребі закупівлі відсутніх матеріалів постачальниками' },
+                { key: 'machine_call', title: '⚠️ Виклики персоналу', desc: 'Надсилати при терміновому виклику оператором допомоги (майстра, інженера, ВКЯ) до верстату' },
+                { key: 'shortage', title: '🚨 Нестачі та довипуски', desc: 'Надсилати при виявленні браку та необхідності довипуску деталей для замовлення' },
+                { key: 'kanban', title: '📋 Задачі Kanban', desc: 'Надсилати при призначенні вам нових завдань або оновленні задач на дошці Kanban' },
+                { key: 'task_completed', title: '✅ Виконання нарядів та етапів', desc: 'Надсилати, коли всі карти розкрою завершені та наряд готовий до закриття у цеху' },
+              ];
+              return notifConfig.map(cfg => (
+                <div key={cfg.key} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '14px 16px',
+                  borderRadius: '12px',
+                  background: 'rgba(255, 255, 255, 0.01)',
+                  border: '1px solid rgba(255, 255, 255, 0.03)',
+                  marginBottom: '12px'
+                }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, paddingRight: '12px' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#fff' }}>{cfg.title}</span>
+                    <span style={{ fontSize: '0.68rem', color: '#555', lineHeight: '1.2' }}>
+                      {cfg.desc}
+                    </span>
+                  </div>
+                  <div 
+                    onClick={() => updateNotifSetting(cfg.key, !notifSettings[cfg.key])}
+                    style={{
+                      width: '40px',
+                      height: '22px',
+                      borderRadius: '11px',
+                      background: notifSettings[cfg.key] ? '#ff9000' : '#222',
+                      position: 'relative',
+                      cursor: 'pointer',
+                      transition: 'background 0.2s ease',
+                      flexShrink: 0
+                    }}
+                  >
+                    <div style={{
+                      width: '18px',
+                      height: '18px',
+                      borderRadius: '50%',
+                      background: '#fff',
+                      position: 'absolute',
+                      top: '2px',
+                      left: notifSettings[cfg.key] ? '20px' : '2px',
+                      transition: 'left 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+                    }} />
+                  </div>
+                </div>
+              ));
+            })()}
 
           </div>
         </div>

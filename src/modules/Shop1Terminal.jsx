@@ -2439,7 +2439,27 @@ export default function Shop1Terminal() {
           <Link to="/" style={{ color: '#94a3b8', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '0.85rem' }}>
             <ArrowLeft size={18} /> <span className="hide-mobile">Вихід</span>
           </Link>
-          <button onClick={() => setIsDrawerOpen(true)} className="burger-btn mobile-only"><Menu size={24} /></button>
+          <button onClick={() => setIsDrawerOpen(true)} className="burger-btn-labeled mobile-only">
+            <Menu size={20} />
+            <span>ЧЕРГА</span>
+            {queueCards.length > 0 && (
+              <span className="queue-badge" style={{
+                background: '#ef4444',
+                color: '#fff',
+                borderRadius: '50%',
+                fontSize: '10px',
+                fontWeight: 900,
+                width: '18px',
+                height: '18px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                lineHeight: 1
+              }}>
+                {queueCards.length}
+              </span>
+            )}
+          </button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#eab308', boxShadow: '0 0 8px #eab308' }} />

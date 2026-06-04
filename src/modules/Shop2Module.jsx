@@ -89,6 +89,10 @@ const Shop2Module = () => {
       })
   }, [tasks, workCards])
 
+  const activeQueueCount = useMemo(() => {
+    return relevantTasks.filter(t => t.status !== 'completed').length
+  }, [relevantTasks])
+
   // Завантажуємо завершені карти для всіх активних нарядів Цеху №2 для коректного розрахунку статусу готово в списку черги
   useEffect(() => {
     const activeTaskIds = relevantTasks.filter(t => t.status !== 'completed').map(t => t.id)
@@ -393,6 +397,23 @@ const Shop2Module = () => {
           <button onClick={() => setIsDrawerOpen(true)} className="burger-btn-labeled mobile-only">
             <Menu size={20} />
             <span>Черга</span>
+            {activeQueueCount > 0 && (
+              <span className="queue-badge" style={{
+                background: '#ef4444',
+                color: '#fff',
+                borderRadius: '50%',
+                fontSize: '10px',
+                fontWeight: 900,
+                width: '18px',
+                height: '18px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                lineHeight: 1
+              }}>
+                {activeQueueCount}
+              </span>
+            )}
           </button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
