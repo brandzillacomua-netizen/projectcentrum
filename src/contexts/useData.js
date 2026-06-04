@@ -469,6 +469,27 @@ export function useData() {
         if (payload.eventType === 'UPDATE') {
           setTasks(prev => prev.map(t => t.id === payload.new.id ? { ...t, ...payload.new } : t))
           setTasks(prev => prev.some(t => t.id === payload.new.id) ? prev : [payload.new, ...prev])
+          // Push відвантажувальникам та директору коли партія стає готовою до відвантаження
+          const wasPackaged = payload.old?.plan_snapshot?._metadata?.is_packaged
+          const isNowPackaged = payload.new?.plan_snapshot?._metadata?.is_packaged
+          if (!wasPackaged && isNowPackaged) {
+            const notifyIds = (systemUsersRef.current || []).filter(u => {
+              if (!u?.access_rights) return false
+              const s = u.notification_settings || {}
+              if (s.ready_to_ship === false) return false
+              return u.access_rights.shipping || u.access_rights.director
+            }).map(u => u.id)
+            if (notifyIds.length > 0) {
+              const packedBy = payload.new?.plan_snapshot?._metadata?.packaged_by || ''
+              const batchIdx = payload.new?.batch_index || '1'
+              sendPushToUsers(
+                notifyIds,
+                '\uD83D\uDE9B Готово до відвантаження',
+                `Партія №${batchIdx}${packedBy ? ` (${packedBy})` : ''} запакована і очікує відвантаження`,
+                '/shipping'
+              ).catch(() => {})
+            }
+          }
         } else if (payload.eventType === 'INSERT') {
           setTasks(prev => prev.some(t => t.id === payload.new.id) ? prev : [payload.new, ...prev])
         } else if (payload.eventType === 'DELETE') {

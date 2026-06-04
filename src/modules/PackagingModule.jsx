@@ -35,25 +35,14 @@ const PackagingModule = () => {
   const [isSavingBoxes, setIsSavingBoxes] = useState(false)
   const [showBoxSummary, setShowBoxSummary] = useState(false)
   const [showPackerModal, setShowPackerModal] = useState(false)
-  const [packerSearch, setPackerSearch] = useState('')
+  const [selectedPackerId, setSelectedPackerId] = useState('')
 
   const packersList = useMemo(() => {
-    const list = (systemUsers || []).filter(u => {
+    return (systemUsers || []).filter(u => {
       const pos = (u.position || '').toLowerCase()
-      const rights = u.access_rights || {}
-      return rights.packaging === true || pos.includes('пакув') || pos.includes('склад')
+      return pos.includes('пакув')
     })
-    
-    if (packerSearch.trim()) {
-      const query = packerSearch.toLowerCase().trim()
-      return list.filter(u => 
-        (u.first_name || '').toLowerCase().includes(query) ||
-        (u.last_name || '').toLowerCase().includes(query) ||
-        (u.login || '').toLowerCase().includes(query)
-      )
-    }
-    return list
-  }, [systemUsers, packerSearch])
+  }, [systemUsers])
 
   useEffect(() => { document.title = 'Відділ Пакування | Centrum' }, [])
 
@@ -343,7 +332,7 @@ const PackagingModule = () => {
   const handleCompletePackaging = async (packer) => {
     if (!packer) return
     setShowPackerModal(false)
-    setPackerSearch('')
+    setSelectedPackerId('')
     try {
       setIsProcessing(true)
 
@@ -760,105 +749,147 @@ const PackagingModule = () => {
         <div style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(0,0,0,0.85)',
-          backdropFilter: 'blur(15px)',
+          background: 'rgba(0,0,0,0.75)',
+          backdropFilter: 'blur(20px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 1000,
           padding: '20px'
         }}>
-          <div className="glass-panel" style={{
-            background: '#0a0a0a',
-            border: '1px solid #222',
+          <div style={{
+            background: 'linear-gradient(145deg, #18072a 0%, #0d1a2e 60%, #0a0f1e 100%)',
+            border: '1px solid rgba(168,85,247,0.25)',
             borderRadius: '28px',
             width: '100%',
-            maxWidth: '500px',
-            padding: '30px',
+            maxWidth: '460px',
+            padding: '32px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '20px',
-            boxShadow: '0 20px 50px rgba(0,0,0,0.5)'
+            gap: '24px',
+            boxShadow: '0 30px 80px rgba(0,0,0,0.7), 0 0 60px rgba(168,85,247,0.08), inset 0 1px 0 rgba(255,255,255,0.06)'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 950, color: '#fff', textTransform: 'uppercase' }}>
-                Хто завершує пакування?
-              </h3>
-              <button 
-                onClick={() => { setShowPackerModal(false); setPackerSearch(''); }}
-                style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer' }}
+
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{
+                  width: '48px', height: '48px',
+                  borderRadius: '14px',
+                  background: 'linear-gradient(135deg, #a855f7, #ec4899)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 8px 20px rgba(168,85,247,0.4)'
+                }}>
+                  <Package size={22} color="#fff" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 950, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Хто завершує пакування?
+                  </h3>
+                  <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: '#7c6a9a', lineHeight: '1.4' }}>
+                    Оберіть пакувальника зі списку
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setShowPackerModal(false); setSelectedPackerId('') }}
+                style={{
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: '10px',
+                  color: '#888',
+                  cursor: 'pointer',
+                  padding: '8px',
+                  display: 'flex',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = '#fff' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#888' }}
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
-            <p style={{ margin: 0, fontSize: '0.8rem', color: '#666', lineHeight: '1.4' }}>
-              Оберіть своє ім'я зі списку пакувальних працівників для збереження відповідального у системі логістики.
-            </p>
-
-            <input 
-              type="text"
-              placeholder="Пошук за іменем..."
-              value={packerSearch}
-              onChange={(e) => setPackerSearch(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '12px 16px',
-                background: '#111',
-                border: '1px solid #222',
-                borderRadius: '12px',
-                color: '#fff',
-                fontSize: '0.85rem',
-                outline: 'none'
-              }}
-            />
-
-            <div style={{
-              maxHeight: '220px',
-              overflowY: 'auto',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px',
-              paddingRight: '5px'
-            }}>
-              {packersList.map(u => {
-                const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.login
-                return (
-                  <div 
-                    key={u.id}
-                    onClick={() => handleCompletePackaging(u)}
-                    style={{
-                      padding: '12px 16px',
-                      background: 'rgba(255,255,255,0.01)',
-                      border: '1px solid rgba(255,255,255,0.03)',
-                      borderRadius: '12px',
-                      cursor: 'pointer',
-                      fontSize: '0.85rem',
-                      fontWeight: 800,
-                      color: '#ccc',
-                      transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.background = '#f43f5e10'
-                      e.currentTarget.style.borderColor = '#f43f5e33'
-                      e.currentTarget.style.color = '#fff'
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.background = 'rgba(255,255,255,0.01)'
-                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.03)'
-                      e.currentTarget.style.color = '#ccc'
-                    }}
-                  >
-                    {fullName} <span style={{ fontSize: '0.65rem', color: '#444', fontWeight: 900, marginLeft: '6px', textTransform: 'uppercase' }}>({u.position || 'Пакувальник'})</span>
-                  </div>
-                )
-              })}
-              {packersList.length === 0 && (
-                <div style={{ padding: '20px', textAlign: 'center', color: '#444', fontSize: '0.8rem' }}>
-                  Нікого не знайдено
+            {/* Select dropdown */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#a855f7', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                Пакувальник
+              </label>
+              <div style={{ position: 'relative' }}>
+                <select
+                  value={selectedPackerId}
+                  onChange={e => setSelectedPackerId(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '14px 44px 14px 16px',
+                    background: 'rgba(168,85,247,0.08)',
+                    border: '1.5px solid rgba(168,85,247,0.3)',
+                    borderRadius: '14px',
+                    color: selectedPackerId ? '#fff' : '#6b5a80',
+                    fontSize: '0.9rem',
+                    fontWeight: 700,
+                    outline: 'none',
+                    cursor: 'pointer',
+                    appearance: 'none',
+                    WebkitAppearance: 'none',
+                    transition: 'all 0.2s'
+                  }}
+                  className="packer-select"
+                >
+                  <option value="" disabled style={{ background: '#1a0d2e', color: '#888' }}>— Оберіть пакувальника —</option>
+                  {packersList.map(u => {
+                    const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.login
+                    return (
+                      <option key={u.id} value={u.id} style={{ background: '#1a0d2e', color: '#fff', fontWeight: 700 }}>
+                        {fullName}
+                      </option>
+                    )
+                  })}
+                </select>
+                <div style={{
+                  position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)',
+                  pointerEvents: 'none', color: '#a855f7'
+                }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
                 </div>
+              </div>
+              {packersList.length === 0 && (
+                <p style={{ margin: 0, fontSize: '0.78rem', color: '#f43f5e', fontWeight: 600 }}>
+                  ⚠️ Немає пакувальників у системі
+                </p>
               )}
             </div>
+
+            {/* Confirm button */}
+            <button
+              disabled={!selectedPackerId}
+              onClick={() => {
+                const packer = packersList.find(u => String(u.id) === String(selectedPackerId))
+                if (packer) handleCompletePackaging(packer)
+              }}
+              style={{
+                padding: '15px',
+                background: selectedPackerId
+                  ? 'linear-gradient(135deg, #a855f7 0%, #ec4899 100%)'
+                  : 'rgba(255,255,255,0.05)',
+                border: 'none',
+                borderRadius: '14px',
+                color: selectedPackerId ? '#fff' : '#444',
+                fontSize: '0.9rem',
+                fontWeight: 900,
+                cursor: selectedPackerId ? 'pointer' : 'not-allowed',
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+                transition: 'all 0.3s',
+                boxShadow: selectedPackerId ? '0 8px 24px rgba(168,85,247,0.4)' : 'none'
+              }}
+              onMouseEnter={e => { if (selectedPackerId) e.currentTarget.style.transform = 'translateY(-2px)' }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'none' }}
+            >
+              ✓ Підтвердити та завершити пакування
+            </button>
           </div>
         </div>
       )}
@@ -874,6 +905,7 @@ const PackagingModule = () => {
         @keyframes spin { from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
         .box-number-input:focus { border-color: #f43f5e88 !important; box-shadow: 0 0 0 3px #f43f5e18; background: #f43f5e08 !important; }
         .box-number-input::placeholder { color: #333 !important; font-weight: 500; text-transform: none; }
+        .packer-select:focus { border-color: rgba(168,85,247,0.6) !important; box-shadow: 0 0 0 3px rgba(168,85,247,0.15) !important; }
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #1a1a1a; border-radius: 10px; }
