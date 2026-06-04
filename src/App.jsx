@@ -2473,12 +2473,17 @@ const AppContent = () => {
   // РЕДИРЕКТ НА /login ЯКЩО НЕ АВТОРИЗОВАНИЙ (крім публічної сторінки виклику)
   const isPublicCall = /^\/machines\/[^/]+\/call$/.test(location.pathname)
   if (!currentUser && location.pathname !== '/login' && !isPublicCall) {
+    if (location.pathname && location.pathname !== '/' && location.pathname !== '/login') {
+      sessionStorage.setItem('redirect_to', location.pathname + location.search);
+    }
     return <Navigate to="/login" replace />
   }
 
-  // РЕДИРЕКТ З /login НА ГОЛОВНУ ЯКЩО ВЖЕ АВТОРИЗОВАНИЙ
+  // РЕДИРЕКТ З /login НА ГОЛОВНУ ЯКЩО ВЖЕ АВТОРИЗОВАНИЙ (збереження початкового шляху переходу)
   if (currentUser && location.pathname === '/login') {
-    return <Navigate to="/" replace />
+    const redirectTo = sessionStorage.getItem('redirect_to') || '/';
+    sessionStorage.removeItem('redirect_to');
+    return <Navigate to={redirectTo} replace />
   }
 
   return (
