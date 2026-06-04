@@ -2740,7 +2740,6 @@ const MACHINE_TYPES = [
               })
 
               totalScrap = reportData.historyRows.reduce((sum, row) => sum + (Number(row.scrap_qty) || 0), 0)
-              const totalActualCutters = reportData.historyRows.reduce((sum, row) => sum + (Number(row.cutters_used) || 0), 0)
               
               const cutterRequests = (reportData.materialRequests || []).filter(r => {
                 const nomName = r.nomenclature?.name?.toLowerCase() || ''
@@ -2805,6 +2804,10 @@ const MACHINE_TYPES = [
                   }
                 }
               })
+
+              const totalActualCutters = Object.keys(actualCuttersBreakdown).length > 0
+                ? Object.values(actualCuttersBreakdown).reduce((sum, val) => sum + val, 0)
+                : reportData.historyRows.reduce((sum, row) => sum + (Number(row.cutters_used) || 0), 0)
 
               const totalActualMs = reportData.historyRows.reduce((sum, row) => {
                 if (row.started_at && row.completed_at) {
