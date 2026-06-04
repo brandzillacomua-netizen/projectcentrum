@@ -652,7 +652,7 @@ const GlobalUserNav = () => {
       workCards.forEach(w => {
         if (w.status === 'new') {
           const op = (w.operation || '').toLowerCase();
-          const isShop1 = ['розкрій', 'лазерний розкрій', 'галтовка', 'прийомка'].some(o => op.includes(o));
+          const isShop1 = ['розкрій', 'галтовка', 'прийомка'].some(o => op.includes(o));
           const isShop2 = ['пресування', 'фарбування', 'малярка', 'доопрацювання'].some(o => op.includes(o));
 
           let isRelevant = false;

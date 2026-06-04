@@ -175,7 +175,7 @@ const DirectorModule = () => {
     })
 
     // Step 2: Process Tasks (Planned Batches)
-    tasks.filter(t => t.step === 'Лазерний розкрій' || t.step === 'Лазерна різка').forEach(t => {
+    tasks.filter(t => t.step === 'Розкрій' || t.step === 'Різка').forEach(t => {
       const taskDeadline = toLocalISO(t.planned_deadline || t.created_at)
       if (!taskDeadline) return
       

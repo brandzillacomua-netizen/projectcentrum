@@ -661,7 +661,7 @@ export function createProductionActions({
       plan_snapshot._metadata = { planned_deadline: customDeadline || order.deadline, batch_index: isPartial ? nextBatchIndex : null }
       plan_snapshot.materialSummary = materialSummary
 
-      const { data: taskData, error: taskError } = await supabase.from('tasks').insert([{ order_id: orderId, step: 'Лазерний розкрій', status: 'waiting', machine_name: machineName || 'Не вказано', estimated_time: Math.round(totalMin), engineer_conf: false, warehouse_conf: false, director_conf: false, plan_snapshot: plan_snapshot, planned_sets: thisNaryadTotalSets, batch_index: isPartial ? nextBatchIndex : null, planned_deadline: customDeadline || order.deadline }]).select()
+      const { data: taskData, error: taskError } = await supabase.from('tasks').insert([{ order_id: orderId, step: 'Розкрій', status: 'waiting', machine_name: machineName || 'Не вказано', estimated_time: Math.round(totalMin), engineer_conf: false, warehouse_conf: false, director_conf: false, plan_snapshot: plan_snapshot, planned_sets: thisNaryadTotalSets, batch_index: isPartial ? nextBatchIndex : null, planned_deadline: customDeadline || order.deadline }]).select()
       const tData = (taskData && taskData.length > 0) ? taskData[0] : null
       if (taskError) throw taskError
 

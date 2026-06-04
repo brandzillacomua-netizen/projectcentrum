@@ -528,7 +528,7 @@ export default function Shop1Terminal() {
     }
 
     // 4. Дозволені статуси та операції для Цеху №1
-    const isNewForShop1 = c.status === 'new' && (CHAIN.includes(c.operation) || !c.operation || c.operation === 'Нова' || c.operation === 'Розкрій' || c.operation === 'Лазерний розкрій')
+    const isNewForShop1 = c.status === 'new' && (CHAIN.includes(c.operation) || !c.operation || c.operation === 'Нова' || c.operation === 'Розкрій')
     const isInBufferForShop1 = c.status === 'at-buffer' && CHAIN.includes(c.operation)
     const isScanned = scannedIds.includes(c.id)
 

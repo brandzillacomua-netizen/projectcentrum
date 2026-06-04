@@ -837,7 +837,7 @@ const MasterModule = () => {
         };
       }
       let shopName = task.step;
-      if (task.step?.includes('Лазерн') || task.step?.includes('Різка')) {
+      if (task.step?.includes('Розкрій') || task.step?.includes('Різка')) {
         shopName = 'ЦЕХ №1';
       } else if (task.step?.includes('Пресування') || task.step?.includes('№2') || task.step?.includes('Фарбування')) {
         shopName = 'ЦЕХ №2';

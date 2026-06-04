@@ -184,9 +184,9 @@ const DashboardModule = () => {
            }).reduce((sum, c) => sum + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0)), 0)
         }
 
-        const qCutWait = getQty(['Розкрій', 'Лазерний розкрій'], 'new')
-        const qCut = getQty(['Розкрій', 'Лазерний розкрій'], 'in-progress')
-        const qCutBuf = getQty(['Розкрій', 'Лазерний розкрій'], 'at-buffer')
+        const qCutWait = getQty(['Розкрій'], 'new')
+        const qCut = getQty(['Розкрій'], 'in-progress')
+        const qCutBuf = getQty(['Розкрій'], 'at-buffer')
         const qGalt = getQty('Галтовка', 'in-progress')
         const qGaltBuf = getQty('Галтовка', 'at-buffer')
         const qPriyCards = getQty('Прийомка', ['new', 'in-progress', 'at-buffer'])

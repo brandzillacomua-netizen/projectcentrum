@@ -506,7 +506,7 @@ const MACHINE_TYPES = [
     return tasks
       .filter(t => {
         const stepName = (t.step || '').toLowerCase()
-        const isLaser = stepName.includes('лазер') || stepName.includes('розкрій') || stepName.includes('різка')
+        const isLaser = stepName.includes('розкрій') || stepName.includes('різка')
         
         // Якщо наряд АКТИВНИЙ (не завершений)
         if (t.status !== 'completed') {
@@ -517,7 +517,7 @@ const MACHINE_TYPES = [
         const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
         const isRecent = (t.completed_at && new Date(t.completed_at) > threeDaysAgo) || (t.updated_at && new Date(t.updated_at) > threeDaysAgo)
         
-        // Для архіву Цеху №1 показуємо будь-який нещодавній наряд, який був лазерним
+        // Для архіву Цеху №1 показуємо будь-який нещодавній наряд, який був розкрійним/різкою
         // (Або взагалі будь-який завершений нещодавно, щоб нічого не зникло)
         return isRecent && (isLaser || !t.step)
       })
@@ -677,7 +677,7 @@ const MACHINE_TYPES = [
 
         const prefix = isRepair ? '[REDO] ' : ''
         cardsBatch.push({
-          operation: 'Лазерний розкрій',
+          operation: 'Розкрій',
           machine: selectedMachineName || 'Не вказано',
           estimatedTime: (Number(part.nom?.time_per_unit) || 0) * reqInThisLoading * 60,
           cardInfo: `${prefix}${currentSeq}/${displayTotal}${originalNeed > 0 ? ` [NEED:${originalNeed}]` : ''} [REQ:${reqInThisLoading}] [BZ:${bzInThisLoading}]`,
