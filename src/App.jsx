@@ -1071,19 +1071,23 @@ const GlobalUserNav = () => {
 
     newUnread.forEach(n => {
       try {
-        const title = n.title;
         const options = {
           body: n.description,
           icon: '/kulytsya.png', // Fallback to logo
           tag: n.id, // Prevent duplicates
-          data: n
+          data: {
+            id: n.id,
+            title: n.title,
+            description: n.description,
+            link: n.link
+          }
         };
 
         if ('serviceWorker' in navigator) {
           navigator.serviceWorker.ready.then(registration => {
-            registration.showNotification(title, options);
+            registration.showNotification(n.title, options);
           }).catch(err => {
-            const notif = new Notification(title, options);
+            const notif = new Notification(n.title, options);
             notif.onclick = () => {
               window.focus();
               handleNotificationClick(n);
@@ -1091,7 +1095,7 @@ const GlobalUserNav = () => {
             };
           });
         } else {
-          const notif = new Notification(title, options);
+          const notif = new Notification(n.title, options);
           notif.onclick = () => {
             window.focus();
             handleNotificationClick(n);
