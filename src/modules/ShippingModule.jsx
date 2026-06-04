@@ -8,6 +8,83 @@ import {
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 
+// Форматування назви номенклатури спеціально для пакувального листа
+const formatPackingSlipName = (nomName, materialType, productNames = '') => {
+  const name = (nomName || '').trim().toUpperCase();
+  
+  // Паттерн 1: ІП-72-F5-В-3-45
+  const match1 = name.match(/^(?:ІП|IP)-(\d+)-([A-Z0-9]+)-([ВНХПBHXP])[-_](\d+)-(\d+)$/);
+  
+  // Паттерн 2: F610-ІП24-Н-3-14
+  const match2 = name.match(/^([A-Z0-9]+)-(?:ІП|IP)(\d+)-([ВНХПBHXP])[-_](\d+)-(\d+)$/);
+
+  if (match1 || match2) {
+    let projNum = '';
+    let frame = '';
+    let typeLetter = '';
+    let thickness = '';
+    let qty = '';
+    
+    if (match1) {
+      projNum = match1[1];
+      frame = match1[2];
+      typeLetter = match1[3];
+      thickness = match1[4];
+      qty = match1[5];
+    } else {
+      frame = match2[1];
+      projNum = match2[2];
+      typeLetter = match2[3];
+      thickness = match2[4];
+      qty = match2[5];
+    }
+    
+    const typeMap = {
+      'В': 'Верхня пластина',
+      'B': 'Верхня пластина',
+      'Н': 'Нижня пластина',
+      'H': 'Нижня пластина',
+      'Х': 'Хрестик',
+      'X': 'Хрестик',
+      'П': 'Промені',
+      'P': 'Промені'
+    };
+    const typeName = typeMap[typeLetter] || 'Деталь';
+    
+    let extra = '';
+    if (productNames) {
+      const parts = productNames.split(',').map(p => p.trim());
+      const cityPart = parts.find(p => p.includes('Київ') || p.includes('К'));
+      if (cityPart) {
+        extra = cityPart;
+      } else if (parts.length > 2) {
+        extra = parts[parts.length - 1];
+      }
+    }
+    if (!extra) {
+      extra = 'Київ К';
+    }
+    
+    return `${typeName}, ${frame}, ІП ${projNum}, ${extra}, ${thickness}мм, ${qty}шт`;
+  }
+
+  // Для гвинтів та гайок: якщо є опис в materialType, використовуємо його
+  if (materialType && (name.startsWith('ГВИНТ') || name.startsWith('ГАЙКА'))) {
+    let prefix = '';
+    if (name.startsWith('ГВИНТ')) prefix = 'Гвинт ';
+    if (name.startsWith('ГАЙКА')) prefix = 'Гайка ';
+    
+    let res = materialType;
+    if (prefix && !res.toLowerCase().startsWith(prefix.trim().toLowerCase())) {
+      res = prefix + res;
+    }
+    return res;
+  }
+  
+  return nomName;
+};
+
+
 // ─── Кольори маркування палет ─────────────────────────────────────────────────
 const PALLET_COLORS = [
   { id: 'red',    label: 'Червоний',   hex: '#ef4444' },
@@ -221,6 +298,7 @@ const ShippingModule = () => {
         map[key].items.push({
           nom_id: row.nomenclature_id,
           nom_name: nom?.name || `ID:${row.nomenclature_id}`,
+          material_type: nom?.material_type || '',
           qty: row.quantity,
           unit: nom?.unit || 'шт'
         })
@@ -346,6 +424,7 @@ const ShippingModule = () => {
             aggregatedMap[key] = {
               nom_id: item.nom_id,
               nom_name: item.nom_name,
+              material_type: item.material_type || nom?.material_type || '',
               qty: 0,
               unit: item.unit,
               nom: nom || null,
@@ -373,6 +452,7 @@ const ShippingModule = () => {
         return {
           nom_id: item.nom_id,
           nom_name: item.nom_name,
+          material_type: item.material_type,
           qty: item.qty,
           unit: item.unit,
           boxes: item.boxes.sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
@@ -530,6 +610,7 @@ const ShippingModule = () => {
         map[key].items.push({
           nom_id: row.nomenclature_id,
           nom_name: nom?.name || `ID:${row.nomenclature_id}`,
+          material_type: nom?.material_type || '',
           qty: row.quantity,
           unit: nom?.unit || 'шт'
         })
@@ -563,6 +644,7 @@ const ShippingModule = () => {
             aggregatedMap[key] = {
               nom_id: item.nom_id,
               nom_name: item.nom_name,
+              material_type: item.material_type || nom?.material_type || '',
               qty: 0,
               unit: item.unit,
               nom: nom || null,
@@ -590,6 +672,7 @@ const ShippingModule = () => {
         return {
           nom_id: item.nom_id,
           nom_name: item.nom_name,
+          material_type: item.material_type,
           qty: item.qty,
           unit: item.unit,
           boxes: item.boxes.sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
@@ -1243,7 +1326,7 @@ const ShippingModule = () => {
                               {isFirstItem ? `Коробка ${box.box_number}` : ''}
                             </td>
                             <td style={{ color: '#374151', fontWeight: 500, border: '1px solid #e5e7eb' }}>
-                              {item.nom_name}
+                              {formatPackingSlipName(item.nom_name, item.material_type, packingSlip.productNames)}
                             </td>
                             <td style={{ textAlign: 'center', color: '#6b7280', border: '1px solid #e5e7eb' }}>
                               {item.unit}
@@ -1284,7 +1367,7 @@ const ShippingModule = () => {
                           {catItems.map((item, idx) => (
                             <div key={idx} className="category-item-card" style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '10px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
-                                <span style={{ fontWeight: 600, color: '#374151', fontSize: '11px' }}>{item.nom_name}</span>
+                                <span style={{ fontWeight: 600, color: '#374151', fontSize: '11px' }}>{formatPackingSlipName(item.nom_name, item.material_type, packingSlip.productNames)}</span>
                                 <span style={{ fontWeight: 800, color: '#111827', fontSize: '12px', whiteSpace: 'nowrap' }}>{item.qty} {item.unit}</span>
                               </div>
                               <div style={{ fontSize: '9px', color: '#6b7280', fontWeight: 600, marginTop: '6px' }}>

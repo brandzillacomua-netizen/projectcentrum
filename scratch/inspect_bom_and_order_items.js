@@ -6,20 +6,13 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 async function run() {
-  const { data, error } = await supabase
-    .from('nomenclatures')
-    .select('*')
-    .limit(5)
-  
-  if (error) {
-    console.error(error)
-    return
-  }
+  const { data: bomData } = await supabase.from('bom_items').select('*').limit(1)
+  console.log('BOM items columns:', bomData ? Object.keys(bomData[0] || {}) : 'null')
+  console.log('BOM item row:', bomData)
 
-  console.log('Nomenclature columns:')
-  console.log(Object.keys(data[0]))
-  console.log('Sample rows:')
-  console.log(data)
+  const { data: orderItemData } = await supabase.from('order_items').select('*').limit(1)
+  console.log('Order items columns:', orderItemData ? Object.keys(orderItemData[0] || {}) : 'null')
+  console.log('Order item row:', orderItemData)
 }
 
 run()
