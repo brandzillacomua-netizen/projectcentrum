@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react'
-import { Package, ArrowLeft, ClipboardList, CheckCircle2, Box, Send, AlertCircle, Wrench, FileArchive, Layers, Clock, Scan, Loader2, Hash, Save, Eye } from 'lucide-react'
+import { Package, ArrowLeft, ClipboardList, CheckCircle2, Box, Send, AlertCircle, Wrench, FileArchive, Layers, Clock, Scan, Loader2, Hash, Save, Eye, X } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useMES } from '../MESContext'
 
@@ -21,7 +21,7 @@ const PackagingModule = () => {
   const {
     orders, tasks, nomenclatures, bomItems,
     submitPickingRequest, requests, supabase,
-    fetchData, completePackaging
+    fetchData, completePackaging, systemUsers
   } = useMES()
 
   const [selectedBatch, setSelectedBatch] = useState(null)
@@ -34,6 +34,26 @@ const PackagingModule = () => {
   const [savedBoxes, setSavedBoxes] = useState([])
   const [isSavingBoxes, setIsSavingBoxes] = useState(false)
   const [showBoxSummary, setShowBoxSummary] = useState(false)
+  const [showPackerModal, setShowPackerModal] = useState(false)
+  const [packerSearch, setPackerSearch] = useState('')
+
+  const packersList = useMemo(() => {
+    const list = (systemUsers || []).filter(u => {
+      const pos = (u.position || '').toLowerCase()
+      const rights = u.access_rights || {}
+      return rights.packaging === true || pos.includes('пакув') || pos.includes('склад')
+    })
+    
+    if (packerSearch.trim()) {
+      const query = packerSearch.toLowerCase().trim()
+      return list.filter(u => 
+        (u.first_name || '').toLowerCase().includes(query) ||
+        (u.last_name || '').toLowerCase().includes(query) ||
+        (u.login || '').toLowerCase().includes(query)
+      )
+    }
+    return list
+  }, [systemUsers, packerSearch])
 
   useEffect(() => { document.title = 'Відділ Пакування | Centrum' }, [])
 
@@ -284,25 +304,93 @@ const PackagingModule = () => {
     } catch (e) { console.error(e); alert('Помилка створення запиту') } finally { setIsProcessing(false) }
   }
 
-  const handleCompletePackaging = async () => {
+  const handleCompleteClick = () => {
     if (!activeBatchData) return
-    if (!window.confirm(`Підтвердити завершення пакування наряду №${activeBatchData.orderNum}/${activeBatchData.batchIndex}?`)) return
+    if (!allBoxesFilled) {
+      alert('Будь ласка, вкажіть номери коробок для всіх позицій.')
+      return
+    }
+    setShowPackerModal(true)
+  }
+
+  const saveBoxesToDB = async () => {
+    if (!activeBatchData) return true
+    const taskId = activeBatchData.tasks[0]?.id || null
+    const batchIndex = activeBatchData.batchIndex || '1'
+    const upsertRows = allBOMItems
+      .filter(item => boxNumbers[String(item.nom.id)] && boxNumbers[String(item.nom.id)].trim())
+      .map(item => ({
+        order_id: activeBatchData.orderId,
+        task_id: taskId,
+        batch_index: batchIndex,
+        box_number: boxNumbers[String(item.nom.id)].trim().toUpperCase(),
+        nomenclature_id: item.nom.id,
+        quantity: item.qty,
+        updated_at: new Date().toISOString()
+      }))
+
+    if (upsertRows.length === 0) return true
+    const { error } = await supabase
+      .from('packaging_boxes')
+      .upsert(upsertRows, { onConflict: 'order_id,batch_index,nomenclature_id' })
+    if (error) {
+      console.error('[Packaging] auto-save boxes error:', error)
+      return false
+    }
+    return true
+  }
+
+  const handleCompletePackaging = async (packer) => {
+    if (!packer) return
+    setShowPackerModal(false)
+    setPackerSearch('')
     try {
       setIsProcessing(true)
+
+      // 1. Спочатку автоматично зберігаємо коробки в базу
+      const savedOk = await saveBoxesToDB()
+      if (!savedOk) {
+        alert('Помилка автоматичного збереження коробок в базу. Спробуйте ще раз.')
+        return
+      }
+
+      // 2. Закриваємо наряд і записуємо пакувальника в метадані
+      const packerName = `${packer.first_name || ''} ${packer.last_name || ''}`.trim() || packer.login
+
       for (const task of activeBatchData.tasks) {
-        const newSnapshot = { ...(task.plan_snapshot || {}), _metadata: { ...(task.plan_snapshot?._metadata || {}), is_packaged: true, packaged_at: new Date().toISOString() } }
+        const newSnapshot = { 
+          ...(task.plan_snapshot || {}), 
+          _metadata: { 
+            ...(task.plan_snapshot?._metadata || {}), 
+            is_packaged: true, 
+            packaged_at: new Date().toISOString(),
+            packaged_by: packerName,
+            packaged_by_id: packer.id
+          } 
+        }
         await supabase.from('tasks').update({ plan_snapshot: newSnapshot }).eq('id', task.id)
       }
+
       alert('Наряд успішно запаковано!')
       setSelectedBatch(null)
       await fetchData()
+      
       const { data: freshTasks } = await supabase.from('tasks').select('id, status, plan_snapshot, planned_sets').eq('order_id', activeBatchData.orderId)
       const allTasksPackaged = (freshTasks || []).every(t => t.plan_snapshot?._metadata?.is_packaged === true)
       const totalPlanned = (freshTasks || []).reduce((acc, t) => acc + (Number(t.planned_sets) || 0), 0)
       const totalOrderQty = orders.find(o => o.id === activeBatchData.orderId)?.order_items?.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0) || 0
-      if (allTasksPackaged && totalPlanned >= totalOrderQty) await completePackaging(activeBatchData.orderId)
-      else await supabase.from('orders').update({ status: 'in-progress' }).eq('id', activeBatchData.orderId)
-    } catch (e) { console.error(e); alert('Помилка при закритті пакування') } finally { setIsProcessing(false) }
+      
+      if (allTasksPackaged && totalPlanned >= totalOrderQty) {
+        await completePackaging(activeBatchData.orderId)
+      } else {
+        await supabase.from('orders').update({ status: 'in-progress' }).eq('id', activeBatchData.orderId)
+      }
+    } catch (e) { 
+      console.error(e)
+      alert('Помилка при закритті пакування') 
+    } finally { 
+      setIsProcessing(false) 
+    }
   }
 
   const getIconForType = (nom) => {
@@ -615,7 +703,7 @@ const PackagingModule = () => {
                       </div>
                     )}
                     <button
-                      onClick={handleCompletePackaging}
+                      onClick={handleCompleteClick}
                       disabled={!isReadyToFinalize || !allBoxesFilled || isProcessing || activeBatchData.isPackaged}
                       style={{
                         width: '100%',
@@ -666,6 +754,114 @@ const PackagingModule = () => {
           </div>
         </div>
       </div>
+
+      {/* PACKER SELECTION MODAL */}
+      {showPackerModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.85)',
+          backdropFilter: 'blur(15px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }}>
+          <div className="glass-panel" style={{
+            background: '#0a0a0a',
+            border: '1px solid #222',
+            borderRadius: '28px',
+            width: '100%',
+            maxWidth: '500px',
+            padding: '30px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '20px',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.5)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 950, color: '#fff', textTransform: 'uppercase' }}>
+                Хто завершує пакування?
+              </h3>
+              <button 
+                onClick={() => { setShowPackerModal(false); setPackerSearch(''); }}
+                style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <p style={{ margin: 0, fontSize: '0.8rem', color: '#666', lineHeight: '1.4' }}>
+              Оберіть своє ім'я зі списку пакувальних працівників для збереження відповідального у системі логістики.
+            </p>
+
+            <input 
+              type="text"
+              placeholder="Пошук за іменем..."
+              value={packerSearch}
+              onChange={(e) => setPackerSearch(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                background: '#111',
+                border: '1px solid #222',
+                borderRadius: '12px',
+                color: '#fff',
+                fontSize: '0.85rem',
+                outline: 'none'
+              }}
+            />
+
+            <div style={{
+              maxHeight: '220px',
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              paddingRight: '5px'
+            }}>
+              {packersList.map(u => {
+                const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.login
+                return (
+                  <div 
+                    key={u.id}
+                    onClick={() => handleCompletePackaging(u)}
+                    style={{
+                      padding: '12px 16px',
+                      background: 'rgba(255,255,255,0.01)',
+                      border: '1px solid rgba(255,255,255,0.03)',
+                      borderRadius: '12px',
+                      cursor: 'pointer',
+                      fontSize: '0.85rem',
+                      fontWeight: 800,
+                      color: '#ccc',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = '#f43f5e10'
+                      e.currentTarget.style.borderColor = '#f43f5e33'
+                      e.currentTarget.style.color = '#fff'
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.01)'
+                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.03)'
+                      e.currentTarget.style.color = '#ccc'
+                    }}
+                  >
+                    {fullName} <span style={{ fontSize: '0.65rem', color: '#444', fontWeight: 900, marginLeft: '6px', textTransform: 'uppercase' }}>({u.position || 'Пакувальник'})</span>
+                  </div>
+                )
+              })}
+              {packersList.length === 0 && (
+                <div style={{ padding: '20px', textAlign: 'center', color: '#444', fontSize: '0.8rem' }}>
+                  Нікого не знайдено
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <style dangerouslySetInnerHTML={{ __html: `
         .pack-order-card:hover { transform: translateY(-2px); border-color: #333 !important; }
