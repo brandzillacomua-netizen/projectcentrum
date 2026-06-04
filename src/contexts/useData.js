@@ -501,6 +501,8 @@ export function useData() {
         // Push-сповіщення директору та майстрам при новому замовленні
         const notifyIds = (systemUsersRef.current || []).filter(u => {
           if (!u?.access_rights) return false
+          const settings = u.notification_settings || {}
+          if (settings.new_order === false) return false
           return u.access_rights.director || u.access_rights.master || u.access_rights.manager
         }).map(u => u.id)
         if (notifyIds.length > 0) {
@@ -537,8 +539,14 @@ export function useData() {
         const isPackaging = payload.new?.details?.includes('КОМПЛЕКТУВАННЯ')
         const notifyIds = (systemUsersRef.current || []).filter(u => {
           if (!u?.access_rights) return false
-          if (isPackaging) return u.access_rights.warehouse || u.access_rights.supply
-          return u.access_rights.warehouse
+          const settings = u.notification_settings || {}
+          if (isPackaging) {
+            if (settings.packaging_request === false) return false
+            return u.access_rights.warehouse || u.access_rights.supply
+          } else {
+            if (settings.material_request === false) return false
+            return u.access_rights.warehouse
+          }
         }).map(u => u.id)
         if (notifyIds.length > 0) {
           const details = payload.new?.details || ''
@@ -576,6 +584,8 @@ export function useData() {
         // Пуш постачальникам та директору виробництва
         const notifyIds = (systemUsersRef.current || []).filter(u => {
           if (!u?.access_rights) return false
+          const settings = u.notification_settings || {}
+          if (settings.supply_request === false) return false
           return u.access_rights.supply || u.access_rights.procurement || u.access_rights.director
         }).map(u => u.id)
         if (notifyIds.length > 0) {

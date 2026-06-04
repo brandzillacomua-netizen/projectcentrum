@@ -180,7 +180,58 @@ const GlobalUserNav = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [activeSubPanel, setActiveSubPanel] = useState(null); // 'notifications' or null
+  const [activeSubPanel, setActiveSubPanel] = useState(null); // 'notifications', 'notif_settings' or null
+  const [notifSettings, setNotifSettings] = useState({
+    new_order: true,
+    material_request: true,
+    packaging_request: true,
+    supply_request: true
+  });
+
+  // Sync settings when currentUser loads
+  useEffect(() => {
+    if (currentUser?.id) {
+      const local = localStorage.getItem(`notification_settings_${currentUser.id}`);
+      let parsed = null;
+      if (local) {
+        try { parsed = JSON.parse(local); } catch (e) {}
+      }
+      
+      const dbSettings = currentUser.notification_settings;
+      if (dbSettings) {
+        setNotifSettings(dbSettings);
+      } else if (parsed) {
+        setNotifSettings(parsed);
+      } else {
+        setNotifSettings({
+          new_order: true,
+          material_request: true,
+          packaging_request: true,
+          supply_request: true
+        });
+      }
+    }
+  }, [currentUser]);
+
+  const updateNotifSetting = async (key, val) => {
+    const updated = { ...notifSettings, [key]: val };
+    setNotifSettings(updated);
+    localStorage.setItem(`notification_settings_${currentUser?.id}`, JSON.stringify(updated));
+    
+    if (currentUser?.id) {
+      try {
+        const { error } = await supabase
+          .from('system_users')
+          .update({ notification_settings: updated })
+          .eq('id', currentUser.id);
+        if (error) {
+          console.warn('DB update for notification_settings failed:', error.message);
+        }
+      } catch (e) {
+        console.warn('DB update error:', e);
+      }
+    }
+  };
   const prevNotificationsRef = useRef([]);
   const [openCategories, setOpenCategories] = useState({
     shop1: true,
@@ -1391,29 +1442,59 @@ const GlobalUserNav = () => {
           </div>
 
           {/* User Mini Profile */}
-          <div style={{ padding: '16px 20px', background: 'rgba(255,255,255,0.01)', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ 
-              width: '38px', 
-              height: '38px', 
-              borderRadius: '10px', 
-              background: 'rgba(255,144,0,0.1)', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              color: '#ff9000', 
-              fontWeight: 1000, 
-              fontSize: '0.85rem' 
-            }}>
-              {(currentUser?.first_name?.[0] || '') + (currentUser?.last_name?.[0] || '')}
+          <div style={{ 
+            padding: '16px 20px', 
+            background: 'rgba(255,255,255,0.01)', 
+            borderBottom: '1px solid rgba(255,255,255,0.04)', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            gap: '12px' 
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ 
+                width: '38px', 
+                height: '38px', 
+                borderRadius: '10px', 
+                background: 'rgba(255,144,0,0.1)', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                color: '#ff9000', 
+                fontWeight: 1000, 
+                fontSize: '0.85rem' 
+              }}>
+                {(currentUser?.first_name?.[0] || '') + (currentUser?.last_name?.[0] || '')}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#fff' }}>
+                  {currentUser?.first_name} {currentUser?.last_name}
+                </span>
+                <span style={{ fontSize: '0.62rem', color: '#555', fontWeight: 900, textTransform: 'uppercase', marginTop: '2px' }}>
+                  {currentUser?.position || 'Співробітник'}
+                </span>
+              </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#fff' }}>
-                {currentUser?.first_name} {currentUser?.last_name}
-              </span>
-              <span style={{ fontSize: '0.62rem', color: '#555', fontWeight: 900, textTransform: 'uppercase', marginTop: '2px' }}>
-                {currentUser?.position || 'Співробітник'}
-              </span>
-            </div>
+            <button 
+              onClick={() => setActiveSubPanel('notif_settings')}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#555',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '8px',
+                borderRadius: '8px',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = '#ff9000'}
+              onMouseLeave={e => e.currentTarget.style.color = '#555'}
+              title="Налаштування сповіщень"
+            >
+              <Settings size={18} />
+            </button>
           </div>
 
           {/* Notification Center Trigger Row */}
@@ -1782,6 +1863,227 @@ const GlobalUserNav = () => {
                 );
               })
             )}
+          </div>
+        </div>
+
+        {/* Sliding Notifications Settings Sub-Panel */}
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          bottom: 0,
+          left: 0,
+          right: 0,
+          background: 'rgba(8, 8, 8, 0.98)',
+          backdropFilter: 'blur(25px)',
+          zIndex: 10,
+          display: 'flex',
+          flexDirection: 'column',
+          transition: 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+          transform: activeSubPanel === 'notif_settings' ? 'translateX(0)' : 'translateX(100%)',
+          pointerEvents: activeSubPanel === 'notif_settings' ? 'auto' : 'none'
+        }}>
+          {/* Header section with Back */}
+          <div style={{ padding: '24px 20px 20px 20px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <button 
+              onClick={() => setActiveSubPanel(null)}
+              style={{ 
+                background: 'transparent', 
+                border: 'none', 
+                color: '#ff9000', 
+                cursor: 'pointer', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '6px',
+                fontSize: '0.85rem',
+                fontWeight: 800,
+                padding: '6px 0'
+              }}
+            >
+              <ArrowLeft size={16} /> Назад
+            </button>
+            <span style={{ fontSize: '0.95rem', fontWeight: 900, color: '#fff' }}>
+              Налаштування пушів
+            </span>
+          </div>
+
+          {/* Settings List */}
+          <div className="sidebar-links-container" style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+            <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '15px' }}>
+              Керування типами сповіщень
+            </div>
+
+            {/* Toggle Item 1: Нові замовлення */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '14px 16px',
+              borderRadius: '12px',
+              background: 'rgba(255, 255, 255, 0.01)',
+              border: '1px solid rgba(255, 255, 255, 0.03)',
+              marginBottom: '12px'
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, paddingRight: '12px' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#fff' }}>📦 Нові замовлення</span>
+                <span style={{ fontSize: '0.68rem', color: '#555', lineHeight: '1.2' }}>
+                  Надсилати при створенні менеджером нового замовлення (очікує на створення наряду)
+                </span>
+              </div>
+              <div 
+                onClick={() => updateNotifSetting('new_order', !notifSettings.new_order)}
+                style={{
+                  width: '40px',
+                  height: '22px',
+                  borderRadius: '11px',
+                  background: notifSettings.new_order ? '#ff9000' : '#222',
+                  position: 'relative',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s ease',
+                  flexShrink: 0
+                }}
+              >
+                <div style={{
+                  width: '18px',
+                  height: '18px',
+                  borderRadius: '50%',
+                  background: '#fff',
+                  position: 'absolute',
+                  top: '2px',
+                  left: notifSettings.new_order ? '20px' : '2px',
+                  transition: 'left 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+                }} />
+              </div>
+            </div>
+
+            {/* Toggle Item 2: Запити ТМЦ */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '14px 16px',
+              borderRadius: '12px',
+              background: 'rgba(255, 255, 255, 0.01)',
+              border: '1px solid rgba(255, 255, 255, 0.03)',
+              marginBottom: '12px'
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, paddingRight: '12px' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#fff' }}>📋 Запити матеріалів (ТМЦ)</span>
+                <span style={{ fontSize: '0.68rem', color: '#555', lineHeight: '1.2' }}>
+                  Надсилати при створенні майстром запиту на сировину чи матеріали зі складу
+                </span>
+              </div>
+              <div 
+                onClick={() => updateNotifSetting('material_request', !notifSettings.material_request)}
+                style={{
+                  width: '40px',
+                  height: '22px',
+                  borderRadius: '11px',
+                  background: notifSettings.material_request ? '#ff9000' : '#222',
+                  position: 'relative',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s ease',
+                  flexShrink: 0
+                }}
+              >
+                <div style={{
+                  width: '18px',
+                  height: '18px',
+                  borderRadius: '50%',
+                  background: '#fff',
+                  position: 'absolute',
+                  top: '2px',
+                  left: notifSettings.material_request ? '20px' : '2px',
+                  transition: 'left 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+                }} />
+              </div>
+            </div>
+
+            {/* Toggle Item 3: Запити на комплектування */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '14px 16px',
+              borderRadius: '12px',
+              background: 'rgba(255, 255, 255, 0.01)',
+              border: '1px solid rgba(255, 255, 255, 0.03)',
+              marginBottom: '12px'
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, paddingRight: '12px' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#fff' }}>📦 Комплектування та Пакування</span>
+                <span style={{ fontSize: '0.68rem', color: '#555', lineHeight: '1.2' }}>
+                  Надсилати при появі нових запитів на комплектування деталей для пакування замовлень
+                </span>
+              </div>
+              <div 
+                onClick={() => updateNotifSetting('packaging_request', !notifSettings.packaging_request)}
+                style={{
+                  width: '40px',
+                  height: '22px',
+                  borderRadius: '11px',
+                  background: notifSettings.packaging_request ? '#ff9000' : '#222',
+                  position: 'relative',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s ease',
+                  flexShrink: 0
+                }}
+              >
+                <div style={{
+                  width: '18px',
+                  height: '18px',
+                  borderRadius: '50%',
+                  background: '#fff',
+                  position: 'absolute',
+                  top: '2px',
+                  left: notifSettings.packaging_request ? '20px' : '2px',
+                  transition: 'left 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+                }} />
+              </div>
+            </div>
+
+            {/* Toggle Item 4: Запити на постачання */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '14px 16px',
+              borderRadius: '12px',
+              background: 'rgba(255, 255, 255, 0.01)',
+              border: '1px solid rgba(255, 255, 255, 0.03)',
+              marginBottom: '12px'
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, paddingRight: '12px' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#fff' }}>🛒 Запити на закупівлю (Постачання)</span>
+                <span style={{ fontSize: '0.68rem', color: '#555', lineHeight: '1.2' }}>
+                  Надсилати при потребі закупівлі відсутніх матеріалів постачальниками
+                </span>
+              </div>
+              <div 
+                onClick={() => updateNotifSetting('supply_request', !notifSettings.supply_request)}
+                style={{
+                  width: '40px',
+                  height: '22px',
+                  borderRadius: '11px',
+                  background: notifSettings.supply_request ? '#ff9000' : '#222',
+                  position: 'relative',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s ease',
+                  flexShrink: 0
+                }}
+              >
+                <div style={{
+                  width: '18px',
+                  height: '18px',
+                  borderRadius: '50%',
+                  background: '#fff',
+                  position: 'absolute',
+                  top: '2px',
+                  left: notifSettings.supply_request ? '20px' : '2px',
+                  transition: 'left 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+                }} />
+              </div>
+            </div>
+
           </div>
         </div>
 
