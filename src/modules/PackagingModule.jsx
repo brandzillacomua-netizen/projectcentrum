@@ -5,9 +5,9 @@ import { useMES } from '../MESContext'
 
 // ─── Колір для номера коробки (щоб однакові коробки виділялись однаково) ───────
 const BOX_COLORS = [
-  '#f43f5e','#f97316','#eab308','#22c55e','#06b6d4',
+  '#a855f7','#f97316','#eab308','#22c55e','#06b6d4',
   '#3b82f6','#8b5cf6','#ec4899','#14b8a6','#f59e0b',
-  '#10b981','#6366f1','#ef4444','#84cc16','#0ea5e9'
+  '#10b981','#6366f1','#d946ef','#84cc16','#0ea5e9'
 ]
 function getBoxColor(boxNum) {
   if (!boxNum) return '#333'
@@ -977,7 +977,7 @@ const PackagingModule = () => {
         @keyframes pulse { 0%{transform:scale(1);opacity:0.1;} 50%{transform:scale(1.1);opacity:0.2;} 100%{transform:scale(1);opacity:0.1;} }
         .anim-spin { animation: spin 1s linear infinite; }
         @keyframes spin { from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
-        .box-number-input:focus { border-color: #f43f5e88 !important; box-shadow: 0 0 0 3px #f43f5e18; background: #f43f5e08 !important; }
+        .box-number-input:focus { border-color: #10b98188 !important; box-shadow: 0 0 0 3px #10b98118; background: #10b98108 !important; }
         .box-number-input::placeholder { color: #333 !important; font-weight: 500; text-transform: none; }
         .packer-select:focus { border-color: rgba(168,85,247,0.6) !important; box-shadow: 0 0 0 3px rgba(168,85,247,0.15) !important; }
         ::-webkit-scrollbar { width: 5px; }
