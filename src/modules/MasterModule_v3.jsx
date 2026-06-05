@@ -277,8 +277,23 @@ const MasterModule = () => {
   const [stockInfoModalData, setStockInfoModalData] = useState(null)
 
   const handleShowStockInfo = () => {
+    const neededThicknesses = materialSummary.map(m => {
+      const match = m.name.match(/\((\d+(?:\.\d+)?)мм\)/i);
+      return match ? match[1] : null;
+    }).filter(Boolean);
+
     const items = nomenclatures
-      .filter(n => (n.type === 'raw' || n.type === 'material') && n.name.includes('[Підготовлений]'))
+      .filter(n => {
+        const isPreparedSheet = (n.type === 'raw' || n.type === 'material') && n.name.includes('[Підготовлений]');
+        if (!isPreparedSheet) return false;
+        
+        if (neededThicknesses.length > 0) {
+          const match = n.name.match(/\((\d+(?:\.\d+)?)мм\)/i);
+          const thick = match ? match[1] : null;
+          return thick && neededThicknesses.includes(thick);
+        }
+        return true;
+      })
       .map(n => {
         const inv = inventory.find(i => String(i.nomenclature_id) === String(n.id) && i.warehouse === 'operational')
         return {
