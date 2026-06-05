@@ -626,64 +626,70 @@ export function createProductionActions({
           if (usedFromStock > 0 && invItem) bzStockDeductions.push({ id: invItem.id, next_qty: (Number(invItem.total_qty) || 0) - usedFromStock })
           if (totalToProduce <= 0) return
 
-          const addMaterialToSummary = (typePrefix, qty) => {
-            const matKeyBase = (part.nom.material_type || part.nom.name || 'Інше').trim()
-            const thicknessClean = matKeyBase.toLowerCase().replace(' ', '')
-            let rawNom = nomenclatures.find(n =>
-              (n.type === 'raw' || n.type === 'material') &&
-              n.name.includes('[Підготовлений]') &&
-              (n.name.toLowerCase().includes(typePrefix.toLowerCase()) || (typePrefix === 'Т300' && !n.name.toLowerCase().includes('т700') && !n.name.toLowerCase().includes('t700'))) &&
-              n.name.toLowerCase().replace(' ', '').includes(`(${thicknessClean})`)
-            )
+          const isSheet = (part.nom.type === 'raw' || part.nom.type === 'material') ||
+                          (part.nom.name?.toLowerCase().includes('лист') || part.nom.name?.toLowerCase().includes('карбон') || part.nom.name?.toLowerCase().includes('carbon')) ||
+                          (part.nom.material_type?.toLowerCase().includes('лист') || part.nom.material_type?.toLowerCase().includes('карбон') || part.nom.material_type?.toLowerCase().includes('carbon'));
 
-            if (!rawNom) {
-              rawNom = nomenclatures.find(n =>
+          if (isSheet) {
+            const addMaterialToSummary = (typePrefix, qty) => {
+              const matKeyBase = (part.nom.material_type || part.nom.name || 'Інше').trim()
+              const thicknessClean = matKeyBase.toLowerCase().replace(' ', '')
+              let rawNom = nomenclatures.find(n =>
                 (n.type === 'raw' || n.type === 'material') &&
-                n.name.toLowerCase().includes(typePrefix.toLowerCase()) &&
-                (n.name.toLowerCase().includes(thicknessClean) || n.material_type?.toLowerCase() === thicknessClean)
+                n.name.includes('[Підготовлений]') &&
+                (n.name.toLowerCase().includes(typePrefix.toLowerCase()) || (typePrefix === 'Т300' && !n.name.toLowerCase().includes('т700') && !n.name.toLowerCase().includes('t700'))) &&
+                n.name.toLowerCase().replace(' ', '').includes(`(${thicknessClean})`)
               )
-            }
 
-            const matKey = rawNom ? rawNom.name : `Лист ${typePrefix} (${matKeyBase}) [Підготовлений]`
-            const matId = rawNom?.id || `virtual-${typePrefix}-${matKeyBase}`
-
-            if (!materialSummary[matId]) {
-              const unit = (part.nom.type === 'hardware' || part.nom.type === 'fastener') ? 'шт' : 'ЛИСТІВ'
-              materialSummary[matId] = { 
-                matName: matKey, 
-                sheets: 0, 
-                totalUnits: 0, 
-                components: [], 
-                inventory_id: null, 
-                nomenclature_id: rawNom?.id || null, 
-                unit, 
-                partType: rawNom?.type || 'raw' 
-              }
-
-              if (rawNom?.id) {
-                const inv = inventory.find(i =>
-                  String(i.nomenclature_id) === String(rawNom.id) &&
-                  i.warehouse === 'operational'
-                ) || inventory.find(i =>
-                  String(i.nomenclature_id) === String(rawNom.id)
+              if (!rawNom) {
+                rawNom = nomenclatures.find(n =>
+                  (n.type === 'raw' || n.type === 'material') &&
+                  n.name.toLowerCase().includes(typePrefix.toLowerCase()) &&
+                  (n.name.toLowerCase().includes(thicknessClean) || n.material_type?.toLowerCase() === thicknessClean)
                 )
-                materialSummary[matId].inventory_id = inv?.id || null
               }
+
+              const matKey = rawNom ? rawNom.name : `Лист ${typePrefix} (${matKeyBase}) [Підготовлений]`
+              const matId = rawNom?.id || `virtual-${typePrefix}-${matKeyBase}`
+
+              if (!materialSummary[matId]) {
+                const unit = 'ЛИСТІВ'
+                materialSummary[matId] = { 
+                  matName: matKey, 
+                  sheets: 0, 
+                  totalUnits: 0, 
+                  components: [], 
+                  inventory_id: null, 
+                  nomenclature_id: rawNom?.id || null, 
+                  unit, 
+                  partType: rawNom?.type || 'raw' 
+                }
+
+                if (rawNom?.id) {
+                  const inv = inventory.find(i =>
+                    String(i.nomenclature_id) === String(rawNom.id) &&
+                    i.warehouse === 'operational'
+                  ) || inventory.find(i =>
+                    String(i.nomenclature_id) === String(rawNom.id)
+                  )
+                  materialSummary[matId].inventory_id = inv?.id || null
+                }
+              }
+
+              materialSummary[matId].sheets += qty
+              materialSummary[matId].totalUnits += totalToProduce
+              materialSummary[matId].components.push(`${part.nom.name}: ${totalToProduce}шт`)
             }
 
-            materialSummary[matId].sheets += qty
-            materialSummary[matId].totalUnits += totalToProduce
-            materialSummary[matId].components.push(`${part.nom.name}: ${totalToProduce}шт`)
-          }
-
-          if (sheets_t300 > 0) {
-            addMaterialToSummary('Т300', sheets_t300)
-          }
-          if (sheets_t700 > 0) {
-            addMaterialToSummary('Т700', sheets_t700)
-          }
-          if (sheets_t300 === 0 && sheets_t700 === 0) {
-            addMaterialToSummary('Т300', 0)
+            if (sheets_t300 > 0) {
+              addMaterialToSummary('Т300', sheets_t300)
+            }
+            if (sheets_t700 > 0) {
+              addMaterialToSummary('Т700', sheets_t700)
+            }
+            if (sheets_t300 === 0 && sheets_t700 === 0) {
+              addMaterialToSummary('Т300', 0)
+            }
           }
 
           totalMin += totalToProduce * (Number(part.nom.time_per_unit) || 0)
