@@ -633,7 +633,8 @@ export function createProductionActions({
           if (isSheet) {
             const addMaterialToSummary = (typePrefix, qty) => {
               const matKeyBase = (part.nom.material_type || part.nom.name || 'Інше').trim()
-              const thicknessClean = matKeyBase.toLowerCase().replace(' ', '')
+              const thickMatch = matKeyBase.match(/\((\d+(?:\.\d+)?)мм\)/i)
+              const thicknessClean = thickMatch ? `${thickMatch[1]}мм` : matKeyBase.toLowerCase().replace(' ', '')
               let rawNom = nomenclatures.find(n =>
                 (n.type === 'raw' || n.type === 'material') &&
                 n.name.includes('[Підготовлений]') &&
