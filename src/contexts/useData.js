@@ -516,6 +516,11 @@ export function useData() {
 
   // --- REAL-TIME для решти таблиць (orders, склад, Kanban тощо) ---
   // Точкові підписки замість глобального fetchData() на кожну подію
+
+  // Дебаунс-буфер для push-сповіщень запитів матеріалів
+  // Групує всі рядки одного наряду і надсилає ОДИН пуш
+  const matReqPushBufferRef = useRef({}) // { [orderId]: { timer, items[], isPackaging, notifyIds[] } }
+
   useEffect(() => {
     const channel2 = supabase.channel('mes-secondary-updates')
       // Замовлення — менеджер, директор
@@ -558,8 +563,12 @@ export function useData() {
       // Запити матеріалів — склад, майстер
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'material_requests' }, (payload) => {
         setRequests(prev => prev.some(r => r.id === payload.new.id) ? prev : [payload.new, ...prev])
-        // Пуш пакувальнику (КОМПЛЕКТУВАННЯ) або складу (звичайний запит)
+
+        // ─── ДЕБАУНС: збираємо всі рядки одного наряду і надсилаємо ОДИН пуш ───
         const isPackaging = payload.new?.details?.includes('КОМПЛЕКТУВАННЯ')
+        const orderId = payload.new?.order_id || payload.new?.task_id || 'unknown'
+        const orderNum = payload.new?.order_num || payload.new?.naryad_num || orderId
+
         const notifyIds = (systemUsersRef.current || []).filter(u => {
           if (!u?.access_rights) return false
           const settings = u.notification_settings || {}
@@ -571,14 +580,30 @@ export function useData() {
             return u.access_rights.warehouse
           }
         }).map(u => u.id)
+
         if (notifyIds.length > 0) {
-          const details = payload.new?.details || ''
-          sendPushToUsers(
-            notifyIds,
-            isPackaging ? '📦 Запит на комплектування' : '📋 Новий запит ТМЦ',
-            details.length > 80 ? details.substring(0, 80) + '…' : details,
-            isPackaging ? '/warehouse' : '/warehouse'
-          ).catch(() => {})
+          const buf = matReqPushBufferRef.current
+          if (!buf[orderId]) {
+            buf[orderId] = { items: [], isPackaging, notifyIds, orderNum }
+          }
+          buf[orderId].items.push(payload.new)
+
+          // Скидаємо таймер — чекаємо 1.5с після ОСТАННЬОГО рядка наряду
+          if (buf[orderId].timer) clearTimeout(buf[orderId].timer)
+          buf[orderId].timer = setTimeout(() => {
+            const entry = buf[orderId]
+            if (!entry) return
+            delete buf[orderId]
+
+            const itemCount = entry.items.length
+            const num = entry.orderNum
+            const title = entry.isPackaging ? '📦 Запит на комплектування' : '📋 Новий запит на СО'
+            const body = entry.isPackaging
+              ? `Наряд ${num} — ${itemCount} позицій до комплектування`
+              : `Наряд ${num} — ${itemCount} позицій (листи, фрези)`
+
+            sendPushToUsers(entry.notifyIds, title, body, '/warehouse').catch(() => {})
+          }, 1500)
         }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'material_requests' }, (payload) => {
