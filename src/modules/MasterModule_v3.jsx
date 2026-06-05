@@ -282,7 +282,7 @@ const MasterModule = () => {
       return match ? match[1] : null;
     }).filter(Boolean);
 
-    const items = nomenclatures
+    const rawItems = nomenclatures
       .filter(n => {
         const isPreparedSheet = (n.type === 'raw' || n.type === 'material') && n.name.includes('[Підготовлений]');
         if (!isPreparedSheet) return false;
@@ -301,8 +301,27 @@ const MasterModule = () => {
           name: n.name,
           stock: inv ? Number(inv.total_qty) || 0 : 0
         }
-      })
-      .sort((a, b) => a.name.localeCompare(b.name))
+      });
+
+    const grouped = {};
+    rawItems.forEach(item => {
+      const thickMatch = item.name.match(/\((\d+(?:\.\d+)?)мм\)/i);
+      const thick = thickMatch ? `${thickMatch[1]}мм` : 'Інше';
+      const isT700 = item.name.toLowerCase().includes('т700') || item.name.toLowerCase().includes('t700');
+      
+      if (!grouped[thick]) {
+        grouped[thick] = { thickness: thick, t300: 0, t700: 0 };
+      }
+      if (isT700) {
+        grouped[thick].t700 += item.stock;
+      } else {
+        grouped[thick].t300 += item.stock;
+      }
+    });
+
+    const items = Object.values(grouped).sort((a, b) => {
+      return (parseFloat(a.thickness) || 0) - (parseFloat(b.thickness) || 0);
+    });
 
     setStockInfoModalData({
       title: 'Залишки підготовлених листів на СО',
@@ -2017,14 +2036,52 @@ const MasterModule = () => {
                     </button>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '400px', overflowY: 'auto', paddingRight: '5px' }}>
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: '2fr 1fr 1fr',
+                      padding: '10px 15px',
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      borderRadius: '8px',
+                      borderBottom: '2px solid #222',
+                      fontSize: '0.75rem',
+                      fontWeight: 900,
+                      color: '#666',
+                      textTransform: 'uppercase',
+                      letterSpacing: '1px'
+                    }}>
+                      <div>Товщина</div>
+                      <div style={{ textAlign: 'center', color: '#22c55e' }}>Т300</div>
+                      <div style={{ textAlign: 'center', color: '#0ea5e9' }}>Т700</div>
+                    </div>
                     {stockInfoModalData.items.length === 0 ? (
                       <div style={{ color: '#555', textAlign: 'center', padding: '20px', fontSize: '0.9rem' }}>Немає підготовлених листів на залишку.</div>
                     ) : (
                       stockInfoModalData.items.map((item, idx) => (
-                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 18px', background: '#111', borderRadius: '14px', border: '1px solid #1a1a1a' }}>
-                          <span style={{ fontSize: '0.9rem', color: '#eee', fontWeight: 800 }}>{item.name}</span>
-                          <span style={{ fontSize: '1.2rem', color: item.stock > 0 ? '#22c55e' : '#ef4444', fontWeight: 950 }}>
-                            {item.stock} <small style={{ fontSize: '0.7rem', color: '#555', fontWeight: 400 }}>шт</small>
+                        <div key={idx} style={{
+                          display: 'grid',
+                          gridTemplateColumns: '2fr 1fr 1fr',
+                          alignItems: 'center',
+                          padding: '14px 15px',
+                          background: '#111',
+                          borderRadius: '14px',
+                          border: '1px solid #1a1a1a'
+                        }}>
+                          <span style={{ fontSize: '1rem', color: '#eee', fontWeight: 800 }}>Лист ({item.thickness})</span>
+                          <span style={{
+                            textAlign: 'center',
+                            fontSize: '1.25rem',
+                            color: item.t300 > 0 ? '#22c55e' : '#444',
+                            fontWeight: 950
+                          }}>
+                            {item.t300} <small style={{ fontSize: '0.7rem', fontWeight: 400, color: '#444' }}>шт</small>
+                          </span>
+                          <span style={{
+                            textAlign: 'center',
+                            fontSize: '1.25rem',
+                            color: item.t700 > 0 ? '#0ea5e9' : '#444',
+                            fontWeight: 950
+                          }}>
+                            {item.t700} <small style={{ fontSize: '0.7rem', fontWeight: 400, color: '#444' }}>шт</small>
                           </span>
                         </div>
                       ))
