@@ -626,9 +626,10 @@ export function createProductionActions({
           if (usedFromStock > 0 && invItem) bzStockDeductions.push({ id: invItem.id, next_qty: (Number(invItem.total_qty) || 0) - usedFromStock })
           if (totalToProduce <= 0) return
 
-          const isSheet = (part.nom.type === 'raw' || part.nom.type === 'material') ||
-                          (part.nom.name?.toLowerCase().includes('лист') || part.nom.name?.toLowerCase().includes('карбон') || part.nom.name?.toLowerCase().includes('carbon')) ||
-                          (part.nom.material_type?.toLowerCase().includes('лист') || part.nom.material_type?.toLowerCase().includes('карбон') || part.nom.material_type?.toLowerCase().includes('carbon'));
+          const matKeyBase = (part.nom.material_type || part.nom.name || '').trim();
+          const isSheet = matKeyBase.toLowerCase().startsWith('лист') ||
+                          matKeyBase.toLowerCase().includes('карбон') ||
+                          matKeyBase.toLowerCase().includes('carbon');
 
           if (isSheet) {
             const addMaterialToSummary = (typePrefix, qty) => {
