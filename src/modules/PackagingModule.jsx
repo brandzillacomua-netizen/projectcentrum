@@ -251,7 +251,9 @@ const PackagingModule = () => {
     const confirmedNoms = new Set(relevant.filter(r => r.status === 'completed' || r.status === 'issued').map(r => String(r.nomenclature_id)))
     const activeBOMItems = allBOMItems.filter(item => !excludedNomIds.has(item.nom.id))
     const is100PercentCovered = activeBOMItems.length > 0 && activeBOMItems.every(req => confirmedNoms.has(String(req.nom.id)))
-    return { orderRequests: relevant, completedRequestsCount: relevant.filter(r => r.status === 'completed' || r.status === 'issued').length, isReadyToFinalize: is100PercentCovered, hasAnyRequests: relevant.length > 0 }
+    // hasAnyRequests: тільки активні запити (pending/processing), не завершені
+    const activeRequests = relevant.filter(r => r.status === 'pending' || r.status === 'processing')
+    return { orderRequests: relevant, completedRequestsCount: relevant.filter(r => r.status === 'completed' || r.status === 'issued').length, isReadyToFinalize: is100PercentCovered, hasAnyRequests: activeRequests.length > 0 }
   }, [activeBatchData, requests, allBOMItems, excludedNomIds])
 
   // Чи підтверджено склад (всі позиції issued/completed)

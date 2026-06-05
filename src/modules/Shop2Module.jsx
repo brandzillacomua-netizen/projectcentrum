@@ -210,37 +210,51 @@ const Shop2Module = () => {
       const bufUsed = bufSrcCards.reduce((s, c) => s + (Number(c.used_in_shop2_qty) || 0), 0)
       const total2 = bufTotal - bufUsed
 
-      // If there are still unallocated parts in the buffer, it's not done
-      if (total2 > 0) return false
-
       // 2. Active work cards in Shop 2 for this task and nomenclature
-      const nomCards = (workCards || []).filter(wc =>
+      const allCards = [
+        ...(workCards || []),
+        ...(archiveCards || []).filter(ac => !(workCards || []).some(wc => wc.id === ac.id)),
+        ...(staticCompletedCards || []).filter(sc => String(sc.task_id) === String(taskObj.id) && !(workCards || []).some(wc => wc.id === sc.id))
+      ]
+      const nomCards = allCards.filter(wc =>
+        String(wc.task_id) === String(taskObj.id) &&
+        String(wc.nomenclature_id) === String(nomId)
+      )
+      const activeNomCards = (workCards || []).filter(wc =>
         String(wc.task_id) === String(taskObj.id) &&
         String(wc.nomenclature_id) === String(nomId)
       )
 
       // If there are no work cards in progress/buffer AND no parts have arrived yet, it's waiting for Shop 1
-      if (nomCards.length === 0 && bufTotal === 0) return false
+      if (activeNomCards.length === 0 && bufTotal === 0) return false
 
       // If there are active cards that are not completed, it's not done
-      const hasUncompleted = nomCards.some(wc => wc.status !== 'completed')
+      const hasUncompleted = activeNomCards.some(wc => wc.status !== 'completed')
       if (hasUncompleted) return false
 
-      // 3. Must have at least one completed card for this nomenclature
-      const allCards = [
-        ...(workCards || []), 
-        ...(archiveCards || []).filter(ac => !(workCards || []).some(wc => wc.id === ac.id)),
-        ...(staticCompletedCards || []).filter(sc => String(sc.task_id) === String(taskObj.id) && !(workCards || []).some(wc => wc.id === sc.id))
-      ]
-      const hasCompleted = allCards.some(wc =>
-        String(wc.task_id) === String(taskObj.id) &&
-        String(wc.nomenclature_id) === String(nomId) &&
+      // 3. Check if completed Shop2 cards cover the planned need
+      const plannedNeed = Number(taskObj.plan_snapshot?.[String(nomId)]?.need) || Number(item.need) || 0
+      const completedQty = nomCards
+        .filter(wc => wc.status === 'completed')
+        .reduce((s, wc) => s + (Number(wc.quantity) || 0), 0)
+
+      // If completed cards cover the planned need, surplus buffer is acceptable (it's BZ from dovypusk)
+      if (completedQty >= plannedNeed && plannedNeed > 0) {
+        return true
+      }
+
+      // If there are still unallocated parts in the buffer needed to meet demand, it's not done
+      if (total2 > 0) return false
+
+      // 4. Must have at least one completed card for this nomenclature
+      const hasCompleted = nomCards.some(wc =>
         wc.status === 'completed'
       )
 
       return hasCompleted
     })
   }
+
 
 
 
@@ -767,18 +781,27 @@ const Shop2Module = () => {
                                     return idMatch && opMatch
                                   })
 
-                                  // Залишок буфера з at-shop2-buffer карток
-                                  const bufSrcCards = s2CardsForNom
-                                  const bufTotal = bufSrcCards.reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-                                  const bufUsed = bufSrcCards.reduce((s, c) => s + (Number(c.used_in_shop2_qty) || 0), 0)
-                                  const total2 = bufTotal - bufUsed
+                                  // Перевіряємо чи завершені картки покривають потребу (для довипуску)
+                                  const allS2CardsForRow = [...(workCards || []), ...(archiveCards || []).filter(ac => !(workCards || []).some(wc => wc.id === ac.id))].filter(c =>
+                                    String(c.task_id) === String(task.id) && String(c.nomenclature_id) === String(item.nom?.id)
+                                  )
+                                  const completedS2Qty = allS2CardsForRow.filter(c => c.status === 'completed').reduce((s, c) => s + (Number(c.quantity) || 0), 0)
+                                  const isNeedCovered = plannedNeed > 0 && completedS2Qty >= plannedNeed
 
-                                  if (task.status === 'completed' || (existingCard && existingCard.status === 'completed' && total2 <= 0)) {
+                                  // Залишок буфера з at-shop2-buffer карток
+                                  const bufSrcCards2 = s2CardsForNom
+                                  const bufTotal2 = bufSrcCards2.reduce((s, c) => s + (Number(c.quantity) || 0), 0)
+                                  const bufUsed2 = bufSrcCards2.reduce((s, c) => s + (Number(c.used_in_shop2_qty) || 0), 0)
+                                  const total2 = bufTotal2 - bufUsed2
+
+                                  if (task.status === 'completed' || (existingCard && existingCard.status === 'completed' && (total2 <= 0 || isNeedCovered))) {
                                     return <div style={{ color: '#10b981', fontSize: '0.7rem', fontWeight: 900 }}>ГОТОВО</div>
                                   }
 
-                                  const remNeed2 = Math.min(total2, displayNeed)
-                                  const remBz2 = Math.max(0, total2 - remNeed2)
+                                  // Ефективний залишок: якщо потреба покрита, зайвий буфер ігноруємо
+                                  const effectiveTotal2 = isNeedCovered ? 0 : total2
+                                  const remNeed2 = Math.min(effectiveTotal2, displayNeed)
+                                  const remBz2 = Math.max(0, effectiveTotal2 - remNeed2)
 
                                   const printBtn = existingCard ? (
                                     <button
@@ -811,11 +834,11 @@ const Shop2Module = () => {
                                     </button>
                                   ) : null
 
-                                  const genBtn = total2 > 0 ? (
+                                  const genBtn = effectiveTotal2 > 0 ? (
                                     <button
                                       onClick={async () => {
                                         if (stage === 'Пакування/СГП') {
-                                          if (window.confirm(`Відправити ${total2} шт. (Потреба: ${remNeed2} + БЗ: ${remBz2}) прямо на СГП?`)) {
+                                          if (window.confirm(`Відправити ${effectiveTotal2} шт. (Потреба: ${remNeed2} + БЗ: ${remBz2}) прямо на СГП?`)) {
                                             try {
                                               setIsGenerating(true)
                                               await directHandoverToSGP(task.id, item.nom?.id, remNeed2, remBz2)
@@ -827,7 +850,7 @@ const Shop2Module = () => {
                                             }
                                           }
                                         } else {
-                                          handleGenerateCard(task, item, total2)
+                                          handleGenerateCard(task, item, effectiveTotal2)
                                         }
                                       }}
                                       disabled={task.status === 'completed' || isGenerating || !stage}
@@ -842,7 +865,7 @@ const Shop2Module = () => {
                                         cursor: 'pointer',
                                         opacity: (task.status === 'completed' || isGenerating || !stage) ? 0.3 : 1
                                       }}
-                                      title={`Генерувати ще на ${total2} шт.`}
+                                      title={`Генерувати ще на ${effectiveTotal2} шт.`}
                                     >
                                       {isGenerating ? '...' : (stage === 'Пакування/СГП' ? 'ВІДПРАВИТИ НА СГП' : '+ ГЕНЕРУВАТИ')}
                                     </button>
@@ -857,7 +880,7 @@ const Shop2Module = () => {
                                     )
                                   }
 
-                                  if (bufTotal === 0) return <div style={{ color: '#444', fontSize: '0.65rem', fontWeight: 700 }}>Очікує буфер</div>
+                                  if (bufTotal2 === 0) return <div style={{ color: '#444', fontSize: '0.65rem', fontWeight: 700 }}>Очікує буфер</div>
                                   return <div style={{ color: '#10b981', fontSize: '0.7rem', fontWeight: 900 }}>ГОТОВО</div>
                                 })()}
                               </td>
