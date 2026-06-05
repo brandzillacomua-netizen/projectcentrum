@@ -10,7 +10,8 @@ import {
   X,
   ListChecks,
   Monitor,
-  CheckCircle2
+  CheckCircle2,
+  Info
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
@@ -273,6 +274,26 @@ const MasterModule = () => {
   const [naryadQtys, setNaryadQtys] = useState({}) // { [orderItemId]: qty }
   const [naryadDeadline, setNaryadDeadline] = useState('')
   const [materialSplits, setMaterialSplits] = useState({}) // { [partId]: { t300: number, t700: number } }
+  const [stockInfoModalData, setStockInfoModalData] = useState(null)
+
+  const handleShowStockInfo = () => {
+    const items = nomenclatures
+      .filter(n => (n.type === 'raw' || n.type === 'material') && n.name.includes('[Підготовлений]'))
+      .map(n => {
+        const inv = inventory.find(i => String(i.nomenclature_id) === String(n.id) && i.warehouse === 'operational')
+        return {
+          id: n.id,
+          name: n.name,
+          stock: inv ? Number(inv.total_qty) || 0 : 0
+        }
+      })
+      .sort((a, b) => a.name.localeCompare(b.name))
+
+    setStockInfoModalData({
+      title: 'Залишки підготовлених листів на СО',
+      items
+    })
+  }
 
   const handleSplitChange = (partId, type, val, totalRequired) => {
     setMaterialSplits(prev => {
@@ -1366,7 +1387,49 @@ const MasterModule = () => {
                       <th style={{ padding: '12px 15px', textAlign: 'center', width: '7%', color: '#ff9000' }} className="col-plan">ПЛАН</th>
                       <th style={{ padding: '12px 15px', textAlign: 'center', width: '12%' }} className="col-material">МАТЕРІАЛ</th>
                       <th style={{ padding: '12px 15px', textAlign: 'center', width: '5%' }} className="col-qty-sh">ШТ/Л</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%', color: '#a855f7' }} className="col-sheets-total">ЗАГАЛОМ ЛИСТІВ</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%', color: '#a855f7' }} className="col-sheets-total">
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+                          ЗАГАЛОМ ЛИСТІВ
+                          <button
+                            type="button"
+                            onClick={handleShowStockInfo}
+                            title="Показати залишки на складі СО"
+                            style={{
+                              background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.2) 0%, rgba(124, 58, 237, 0.3) 100%)',
+                              border: '1px solid rgba(168, 85, 247, 0.5)',
+                              borderRadius: '50%',
+                              color: '#d8b4fe',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '24px',
+                              height: '24px',
+                              outline: 'none',
+                              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                              marginLeft: '6px',
+                              boxShadow: '0 0 8px rgba(168, 85, 247, 0.2), inset 0 0 4px rgba(168, 85, 247, 0.1)',
+                              verticalAlign: 'middle'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.color = '#fff';
+                              e.currentTarget.style.background = 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)';
+                              e.currentTarget.style.border = '1px solid #c084fc';
+                              e.currentTarget.style.transform = 'scale(1.2) rotate(10deg)';
+                              e.currentTarget.style.boxShadow = '0 0 15px rgba(168, 85, 247, 0.6), inset 0 0 6px rgba(255, 255, 255, 0.4)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.color = '#d8b4fe';
+                              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(168, 85, 247, 0.2) 0%, rgba(124, 58, 237, 0.3) 100%)';
+                              e.currentTarget.style.border = '1px solid rgba(168, 85, 247, 0.5)';
+                              e.currentTarget.style.transform = 'scale(1) rotate(0deg)';
+                              e.currentTarget.style.boxShadow = '0 0 8px rgba(168, 85, 247, 0.2), inset 0 0 4px rgba(168, 85, 247, 0.1)';
+                            }}
+                          >
+                            <Info size={13} style={{ strokeWidth: 2.5 }} />
+                          </button>
+                        </div>
+                      </th>
                       <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%', color: '#22c55e' }} className="col-sheets">ЛИСТІВ Т300</th>
                       <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%', color: '#0ea5e9' }} className="col-sheets-t700">ЛИСТІВ Т700</th>
                       <th style={{ padding: '12px 15px', textAlign: 'center', width: '4%', color: '#ff9000' }} className="col-bz">БЗ</th>
@@ -1891,6 +1954,70 @@ const MasterModule = () => {
                 {isSubmitting ? 'ЧЕКАЙТЕ...' : (isReprintMode ? 'ПОВТОРНИЙ ДРУК' : 'ДРУКУВАТИ ТА В РОБОТУ')}
               </button>
             </div>
+            {stockInfoModalData && (
+              <div style={{
+                position: 'absolute',
+                inset: 0,
+                background: 'rgba(0, 0, 0, 0.85)',
+                backdropFilter: 'blur(8px)',
+                zIndex: 10005,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '20px'
+              }}
+              onClick={() => setStockInfoModalData(null)}>
+                <div style={{
+                  background: '#0a0a0a',
+                  border: '1px solid #333',
+                  borderRadius: '24px',
+                  padding: '30px',
+                  width: '95%',
+                  maxWidth: '500px',
+                  boxShadow: '0 0 30px rgba(168, 85, 247, 0.25)',
+                  animation: 'fadeIn 0.2s ease-out'
+                }}
+                onClick={e => e.stopPropagation()}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #1a1a1a', paddingBottom: '15px' }}>
+                    <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#a855f7', fontWeight: 950, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Info size={20} />
+                      {stockInfoModalData.title}
+                    </h3>
+                    <button
+                      onClick={() => setStockInfoModalData(null)}
+                      style={{
+                        background: '#1a1a1a',
+                        border: '1px solid #333',
+                        color: '#aaa',
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '400px', overflowY: 'auto', paddingRight: '5px' }}>
+                    {stockInfoModalData.items.length === 0 ? (
+                      <div style={{ color: '#555', textAlign: 'center', padding: '20px', fontSize: '0.9rem' }}>Немає підготовлених листів на залишку.</div>
+                    ) : (
+                      stockInfoModalData.items.map((item, idx) => (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 18px', background: '#111', borderRadius: '14px', border: '1px solid #1a1a1a' }}>
+                          <span style={{ fontSize: '0.9rem', color: '#eee', fontWeight: 800 }}>{item.name}</span>
+                          <span style={{ fontSize: '1.2rem', color: item.stock > 0 ? '#22c55e' : '#ef4444', fontWeight: 950 }}>
+                            {item.stock} <small style={{ fontSize: '0.7rem', color: '#555', fontWeight: 400 }}>шт</small>
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
