@@ -629,7 +629,9 @@ const OperatorTerminal = () => {
                   </thead>
                   <tbody>
                     {workCards.filter(c => c.status === 'in-progress' || c.status === 'at-buffer').map(card => (
-                      <tr key={card.id} style={{ borderBottom: '1px solid #1a1a1a', fontSize: '0.85rem' }}>
+                      <tr key={card.id} 
+                        onClick={() => setSelectedCardId(card.id)}
+                        style={{ borderBottom: '1px solid #1a1a1a', fontSize: '0.85rem', cursor: 'pointer' }}>
                         <td style={{ padding: '12px 15px', fontWeight: 800, whiteSpace: 'nowrap', fontSize: '0.75rem' }}>{getNomFromCard(card)?.name}</td>
                         <td style={{ padding: '12px 15px' }}><span style={{ color: card.status === 'at-buffer' ? '#10b981' : '#8b5cf6', fontWeight: 900, fontSize: '0.7rem' }}>{card.status === 'at-buffer' ? 'БУФЕР' : card.operation?.toUpperCase()}</span></td>
                         <td style={{ padding: '12px 15px', fontWeight: 900 }}>{card.quantity} шт</td>
@@ -640,7 +642,7 @@ const OperatorTerminal = () => {
                         <td style={{ padding: '12px 15px', color: '#3b82f6', fontWeight: 700 }}>{formatPlanned(getPlannedTime(card))}</td>
                         <td style={{ padding: '12px 15px', color: '#10b981' }}>{formatElapsedTime(card.started_at)}</td>
                         <td style={{ padding: '12px 15px', textAlign: 'right' }}>
-                          <button onClick={() => setSelectedCardId(card.id)}
+                          <button onClick={(e) => { e.stopPropagation(); setSelectedCardId(card.id) }}
                             style={{ background: '#eab308', border: 'none', color: '#000', padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                             title="Відкрити">
                             <Eye size={18} />

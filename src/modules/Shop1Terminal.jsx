@@ -2372,7 +2372,9 @@ export default function Shop1Terminal() {
                 return activeCards.map(card => {
                   const inBuf = card.status === 'at-buffer'
                   return (
-                    <tr key={card.id} style={{ borderBottom: '1px solid #1a1a1a', fontSize: '0.85rem' }}>
+                    <tr key={card.id} 
+                      onClick={() => { setSelectedCardId(card.id); setSelectedOperator('') }}
+                      style={{ borderBottom: '1px solid #1a1a1a', fontSize: '0.85rem', cursor: 'pointer' }}>
                       <td style={{ padding: '10px 14px', fontWeight: 800, whiteSpace: 'nowrap', fontSize: '0.75rem' }}>{getNom(card)?.name || '—'}</td>
                       <td style={{ padding: '10px 14px' }}>{card.operation}</td>
                       <td style={{ padding: '10px 14px' }}>
@@ -2412,7 +2414,7 @@ export default function Shop1Terminal() {
                       <td style={{ padding: '10px 14px', color: '#3b82f6', fontWeight: 700 }}>{formatPlanned(getPlannedTime(card))}</td>
                       <td style={{ padding: '10px 14px', color: '#10b981', fontFamily: 'monospace', fontWeight: 700 }}>{formatTime(inBuf ? (card.completed_at || card.started_at) : card.started_at)}</td>
                       <td style={{ padding: '10px 14px', textAlign: 'right' }}>
-                        <button onClick={() => { setSelectedCardId(card.id); setSelectedOperator('') }}
+                        <button onClick={(e) => { e.stopPropagation(); setSelectedCardId(card.id); setSelectedOperator('') }}
                           style={{ background: '#eab308', border: 'none', color: '#000', padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                           title="Відкрити">
                           <Eye size={18} />
