@@ -578,7 +578,7 @@ export function createProductionActions({
     return { total: totalQty, planned, produced, packaged, isFullyPackaged: packaged >= totalQty && totalQty > 0, isFullyPlanned: planned >= totalQty && totalQty > 0, status }
   }
 
-  const createNaryad = async (orderId, machineName, customQuantities = null, customDeadline = null, customRowMachines = null) => {
+  const createNaryad = async (orderId, machineName, customQuantities = null, customDeadline = null, customRowMachines = null, customMaterialSplits = null) => {
     try {
       const order = orders.find(o => o.id === orderId)
       if (!order) return
@@ -602,50 +602,90 @@ export function createProductionActions({
           const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
           let sheets = Math.ceil(totalToProduce / unitsPerSheet)
           const selectedMachine = (customRowMachines && customRowMachines[part.nom.id]) || machineName;
-          plan_snapshot[part.nom.id] = { id: part.nom.id, name: part.nom.name, code: part.nom.nomenclature_code, need: totalNeeded, stock: inStockQty, plan: totalToProduce, units_per_sheet: unitsPerSheet, sheets: sheets, material: part.nom.material_type, order_item_id: item.id, selected_machine: selectedMachine }
+
+          const split = customMaterialSplits && customMaterialSplits[part.nom.id]
+          const sheets_t300 = split && split.t300 !== undefined ? Number(split.t300) : sheets
+          const sheets_t700 = split && split.t700 !== undefined ? Number(split.t700) : 0
+
+          plan_snapshot[part.nom.id] = { 
+            id: part.nom.id, 
+            name: part.nom.name, 
+            code: part.nom.nomenclature_code, 
+            need: totalNeeded, 
+            stock: inStockQty, 
+            plan: totalToProduce, 
+            units_per_sheet: unitsPerSheet, 
+            sheets: sheets_t300 + sheets_t700, 
+            sheets_t300,
+            sheets_t700,
+            material: part.nom.material_type, 
+            order_item_id: item.id, 
+            selected_machine: selectedMachine 
+          }
+
           if (usedFromStock > 0 && invItem) bzStockDeductions.push({ id: invItem.id, next_qty: (Number(invItem.total_qty) || 0) - usedFromStock })
           if (totalToProduce <= 0) return
-          const matKeyBase = (part.nom.material_type || part.nom.name || 'Інше').trim()
-          const matKey = normalize(matKeyBase)
 
-          // Look up prepared nomenclature first
-          const normalizedBase = normalizeName(matKeyBase.toLowerCase().replace(' [непідготовлений]', '').replace('[непідготовлений]', '').trim())
-          let rawNom = nomenclatures.find(n =>
-            (n.type === 'raw' || n.type === 'material') &&
-            n.name.includes('[Підготовлений]') &&
-            (normalize(n.name.replace(' [Підготовлений]', '')) === matKey ||
-              normalize(n.name.replace('[Підготовлений]', '')) === matKey ||
-              normalizeName(n.name.replace(' [Підготовлений]', '')) === normalizedBase ||
-              normalizeName(n.name.replace('[Підготовлений]', '')) === normalizedBase)
-          )
-
-          // Fallback to original lookup (non-prepared sheets) if prep sheet nomenclature not found
-          if (!rawNom) {
-            rawNom = nomenclatures.find(n =>
+          const addMaterialToSummary = (typePrefix, qty) => {
+            const matKeyBase = (part.nom.material_type || part.nom.name || 'Інше').trim()
+            const thicknessClean = matKeyBase.toLowerCase().replace(' ', '')
+            let rawNom = nomenclatures.find(n =>
               (n.type === 'raw' || n.type === 'material') &&
-              (normalize(n.name) === matKey ||
-                normalize(n.material_type) === matKey ||
-                normalizeName(n.name) === normalizeName(matKeyBase))
+              n.name.includes('[Підготовлений]') &&
+              (n.name.toLowerCase().includes(typePrefix.toLowerCase()) || (typePrefix === 'Т300' && !n.name.toLowerCase().includes('т700') && !n.name.toLowerCase().includes('t700'))) &&
+              n.name.toLowerCase().replace(' ', '').includes(`(${thicknessClean})`)
             )
+
+            if (!rawNom) {
+              rawNom = nomenclatures.find(n =>
+                (n.type === 'raw' || n.type === 'material') &&
+                n.name.toLowerCase().includes(typePrefix.toLowerCase()) &&
+                (n.name.toLowerCase().includes(thicknessClean) || n.material_type?.toLowerCase() === thicknessClean)
+              )
+            }
+
+            const matKey = rawNom ? rawNom.name : `Лист ${typePrefix} (${matKeyBase}) [Підготовлений]`
+            const matId = rawNom?.id || `virtual-${typePrefix}-${matKeyBase}`
+
+            if (!materialSummary[matId]) {
+              const unit = (part.nom.type === 'hardware' || part.nom.type === 'fastener') ? 'шт' : 'ЛИСТІВ'
+              materialSummary[matId] = { 
+                matName: matKey, 
+                sheets: 0, 
+                totalUnits: 0, 
+                components: [], 
+                inventory_id: null, 
+                nomenclature_id: rawNom?.id || null, 
+                unit, 
+                partType: rawNom?.type || 'raw' 
+              }
+
+              if (rawNom?.id) {
+                const inv = inventory.find(i =>
+                  String(i.nomenclature_id) === String(rawNom.id) &&
+                  i.warehouse === 'operational'
+                ) || inventory.find(i =>
+                  String(i.nomenclature_id) === String(rawNom.id)
+                )
+                materialSummary[matId].inventory_id = inv?.id || null
+              }
+            }
+
+            materialSummary[matId].sheets += qty
+            materialSummary[matId].totalUnits += totalToProduce
+            materialSummary[matId].components.push(`${part.nom.name}: ${totalToProduce}шт`)
           }
 
-          const matId = rawNom?.id || (part.nom.type === 'raw' ? part.nom.id : 'unknown-' + matKey)
-          if (!materialSummary[matId]) {
-            const unit = (part.nom.type === 'hardware' || part.nom.type === 'fastener') ? 'шт' : 'ЛИСТІВ'
-            materialSummary[matId] = { matName: rawNom?.name || matKeyBase, sheets: 0, totalUnits: 0, components: [], inventory_id: null, nomenclature_id: rawNom?.id || (part.nom.type === 'raw' ? part.nom.id : null), unit, partType: rawNom?.type || (part.nom.type === 'raw' ? 'raw' : 'unknown') }
-            if (materialSummary[matId].nomenclature_id) {
-              const inv = inventory.find(i =>
-                String(i.nomenclature_id) === String(materialSummary[matId].nomenclature_id) &&
-                i.warehouse === 'operational'
-              ) || inventory.find(i =>
-                String(i.nomenclature_id) === String(materialSummary[matId].nomenclature_id)
-              )
-              materialSummary[matId].inventory_id = inv?.id || null
-            }
+          if (sheets_t300 > 0) {
+            addMaterialToSummary('Т300', sheets_t300)
           }
-          materialSummary[matId].sheets += sheets
-          materialSummary[matId].totalUnits += totalToProduce
-          materialSummary[matId].components.push(`${part.nom.name}: ${totalToProduce}шт`)
+          if (sheets_t700 > 0) {
+            addMaterialToSummary('Т700', sheets_t700)
+          }
+          if (sheets_t300 === 0 && sheets_t700 === 0) {
+            addMaterialToSummary('Т300', 0)
+          }
+
           totalMin += totalToProduce * (Number(part.nom.time_per_unit) || 0)
         })
       })

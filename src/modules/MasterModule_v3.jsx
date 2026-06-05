@@ -272,11 +272,28 @@ const MasterModule = () => {
 
   const [naryadQtys, setNaryadQtys] = useState({}) // { [orderItemId]: qty }
   const [naryadDeadline, setNaryadDeadline] = useState('')
+  const [materialSplits, setMaterialSplits] = useState({}) // { [partId]: { t300: number, t700: number } }
+
+  const handleSplitChange = (partId, type, val, totalRequired) => {
+    setMaterialSplits(prev => {
+      const nextVal = Math.max(0, Math.min(totalRequired, parseInt(val) || 0));
+      const otherType = type === 't300' ? 't700' : 't300';
+      const otherVal = Math.max(0, totalRequired - nextVal);
+      return {
+        ...prev,
+        [partId]: {
+          [type]: nextVal,
+          [otherType]: otherVal
+        }
+      };
+    })
+  }
 
   const handleOpenNaryadModal = (order, sets, deadline) => {
     setIsReprintMode(false)
     setSelectedMachine(null)
     setRowMachines({})
+    setMaterialSplits({})
     setActiveNaryadOrder(order)
     setIsDrawerOpen(false)
     setNaryadDeadline(deadline || order.deadline || '')
@@ -489,7 +506,7 @@ const MasterModule = () => {
           await autoCreatePrepOrder(missingPrepQuantities, naryadDeadline || activeNaryadOrder.deadline);
 
           // 2. Create task
-          await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines));
+          await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits));
 
           // 3. Trigger print dialog
           window.print();
@@ -513,7 +530,7 @@ const MasterModule = () => {
         setReprintTask(null)
         setActiveNaryadOrder(null)
       } else {
-        await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines))
+        await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits))
         window.print()
         setActiveNaryadOrder(null)
       }
@@ -630,16 +647,31 @@ const MasterModule = () => {
           !n.name.toLowerCase().includes('непідготовлений') &&
           getCleanNormalized(n.name) === normKey
         )
-        const matKey = prepNom ? prepNom.name : matKeyBase
 
         const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
         const sheets = Math.ceil(totalToProduce / unitsPerSheet)
         const unit = (part.nom.type === 'hardware' || part.nom.type === 'fastener') ? 'шт' : 'ЛИСТІВ'
 
-        if (!summary[matKey]) {
-          summary[matKey] = { name: matKey, sheets: 0, unit, prepNomId: prepNom ? String(prepNom.id) : null }
+        const sheets_t300 = snapshot
+          ? (snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : Number(snapshot.sheets))
+          : (materialSplits[part.nom.id]?.t300 !== undefined ? materialSplits[part.nom.id].t300 : sheets)
+        const sheets_t700 = snapshot
+          ? (Number(snapshot.sheets_t700) || 0)
+          : (materialSplits[part.nom.id]?.t700 || 0)
+
+        const addToSummary = (typePrefix, qty) => {
+          if (qty <= 0) return
+          const matKey = prepNom
+            ? prepNom.name.replace('Т300', typePrefix).replace('T300', typePrefix)
+            : `Лист ${typePrefix} (${matKeyBase}) [Підготовлений]`
+          if (!summary[matKey]) {
+            summary[matKey] = { name: matKey, sheets: 0, unit }
+          }
+          summary[matKey].sheets += qty
         }
-        summary[matKey].sheets += sheets
+
+        addToSummary('Т300', sheets_t300)
+        addToSummary('Т700', sheets_t700)
       })
     })
 
@@ -653,7 +685,7 @@ const MasterModule = () => {
       return getThick(a.name) - getThick(b.name)
     })
     return result
-  }, [activeNaryadOrder, inventory, reprintTask, nomenclatures, bomItems, naryadQtys, isReprintMode])
+  }, [activeNaryadOrder, inventory, reprintTask, nomenclatures, bomItems, naryadQtys, isReprintMode, materialSplits])
 
   const productNames = useMemo(() => {
     if (!activeNaryadOrder) return ''
@@ -856,7 +888,7 @@ const MasterModule = () => {
         {Object.values(groups).sort((a, b) => new Date(b.lastCompletedAt) - new Date(a.lastCompletedAt)).map((group, gIdx) => (
           <div key={gIdx} style={{ background: '#0a0a0a', padding: '15px', borderRadius: '16px', border: '1px solid #1a1a1a', borderLeft: '3px solid #10b981', marginBottom: '8px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', alignItems: 'center' }}>
-              <strong 
+              <strong
                 onClick={() => {
                   if (group.task) {
                     handleReprint(group.task);
@@ -906,7 +938,7 @@ const MasterModule = () => {
             <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: '#ff9000' }}></div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', alignItems: 'flex-start' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <strong 
+                <strong
                   onClick={() => {
                     setQuickPlanOrder(order);
                     const maxRem = Math.max(...(order.order_items?.map(it => Number(it.quantity) - getPlannedQty(it.id)) || [0]));
@@ -1152,11 +1184,11 @@ const MasterModule = () => {
             <div className="v-stack" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {tasks.filter(t => {
                 if (t.status === 'completed' || t.status === 'pending' || !isShop1Task(t)) return false;
-                
+
                 const order = orders.find(o => o.id === t.order_id) || allOrdersMap[t.order_id];
                 const isNP = t.step === 'Підготовка' || order?.order_num?.includes('НП') || t.plan_snapshot?._prep_num?.includes('НП');
                 const isVB = order?.order_num?.includes('ВБ') || t.plan_snapshot?._prep_num?.includes('ВБ');
-                
+
                 if ((isNP || isVB) && !showAuxiliary) {
                   return false;
                 }
@@ -1184,7 +1216,7 @@ const MasterModule = () => {
                   <div key={task.id} style={{ position: 'relative', background: '#111', padding: '20px', borderRadius: '20px', border: '1px solid #222', borderLeft: '4px solid #ff9000' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <strong 
+                        <strong
                           onClick={() => handleReprint(task)}
                           style={{ fontSize: '1.2rem', fontWeight: 900, color: '#fff', letterSpacing: '-0.5px', cursor: 'pointer' }}
                           title="Друк наряду"
@@ -1270,7 +1302,7 @@ const MasterModule = () => {
 
       {activeNaryadOrder && (
         <div className="worksheet-modal-overlay print-target" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '15px' }}>
-          <div className="worksheet-panel glass-panel" style={{ background: '#0a0a0a', width: '100%', maxWidth: '1000px', maxHeight: '100vh', borderRadius: '24px', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid #222' }}>
+          <div className="worksheet-panel glass-panel" style={{ background: '#0a0a0a', width: '100%', maxWidth: '1300px', maxHeight: '100vh', borderRadius: '24px', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid #222' }}>
 
             <div className="worksheet-header-area" style={{ padding: '35px 45px', background: '#0a0a0a', borderBottom: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div style={{ flex: 1 }}>
@@ -1327,15 +1359,17 @@ const MasterModule = () => {
                 <table className="print-table screen-only-table no-print" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                   <thead>
                     <tr style={{ background: '#111', textAlign: 'left', color: '#555' }} className="print-thr">
-                      <th style={{ padding: '12px 15px', width: '22%', borderBottom: '1.5px solid #222' }} className="col-name">ДЕТАЛЬ В РОЗКРІЙ</th>
-                      <th style={{ padding: '12px 15px', width: '18%', textAlign: 'center', borderBottom: '1.5px solid #222' }} className="no-print">ВЕРСТАТ</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%' }} className="no-print">ПОТРЕБА</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%' }} className="no-print">СКЛАД БЗ</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%', color: '#ff9000' }} className="col-plan">ПЛАН</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '15%' }} className="col-material">МАТЕРІАЛ</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '7%' }} className="col-qty-sh">ШТ/Л</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '7%', color: '#22c55e' }} className="col-sheets">ЛИСТІВ</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '7%', color: '#ff9000' }} className="col-bz">БЗ</th>
+                      <th style={{ padding: '12px 15px', width: '20%', borderBottom: '1.5px solid #222' }} className="col-name">ДЕТАЛЬ В РОЗКРІЙ</th>
+                      <th style={{ padding: '12px 15px', width: '14%', textAlign: 'center', borderBottom: '1.5px solid #222' }} className="no-print">ВЕРСТАТ</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '7%' }} className="no-print">ПОТРЕБА</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '7%' }} className="no-print">СКЛАД БЗ</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '7%', color: '#ff9000' }} className="col-plan">ПЛАН</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '12%' }} className="col-material">МАТЕРІАЛ</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '5%' }} className="col-qty-sh">ШТ/Л</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%', color: '#a855f7' }} className="col-sheets-total">ЗАГАЛОМ ЛИСТІВ</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%', color: '#22c55e' }} className="col-sheets">ЛИСТІВ Т300</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%', color: '#0ea5e9' }} className="col-sheets-t700">ЛИСТІВ Т700</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '4%', color: '#ff9000' }} className="col-bz">БЗ</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1402,6 +1436,15 @@ const MasterModule = () => {
                         const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
                         const sheets = Math.ceil(totalToProduce / unitsPerSheet)
 
+                        const sheets_t300 = snapshot
+                          ? (snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : Number(snapshot.sheets))
+                          : (materialSplits[part.nom?.id]?.t300 !== undefined ? materialSplits[part.nom?.id].t300 : (totalToProduce > 0 ? sheets : 0))
+                        const sheets_t700 = snapshot
+                          ? (Number(snapshot.sheets_t700) || 0)
+                          : (materialSplits[part.nom?.id]?.t700 || 0)
+
+                        const totalSplitsSheets = sheets_t300 + sheets_t700
+
                         return (
                           <tr key={`${it.id}-${pIdx}`} style={{ borderBottom: '1px solid #1a1a1a' }} className="print-tr">
                             <td style={{ padding: '18px 15px' }} className="col-name">
@@ -1461,16 +1504,66 @@ const MasterModule = () => {
                               {totalToProduce.toString()}
                             </td>
                             <td style={{ padding: '18px 15px', textAlign: 'center' }} className="col-material">
-                              <div style={{ fontSize: '0.85rem', color: '#aaa', fontWeight: 700 }} className="print-subtxt">{part.nom?.material_type || '—'}</div>
+                              <div style={{ fontSize: '0.85rem', color: '#aaa', fontWeight: 700 }} className="print-subtxt">
+                                {(part.nom?.material_type || '—').replace(/т300/gi, '').replace(/t300/gi, '').replace(/т700/gi, '').replace(/t700/gi, '').replace(/\s+/g, ' ').trim()}
+                              </div>
                             </td>
                             <td style={{ padding: '18px 15px', textAlign: 'center', color: '#555', fontSize: '0.9rem' }} className="col-qty-sh">
                               {unitsPerSheet.toString()}
                             </td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center', fontWeight: 1000, color: '#22c55e', fontSize: '1.4rem' }} className="col-sheets print-accent-g">
+                            <td style={{ padding: '18px 15px', textAlign: 'center', fontWeight: 1000, color: '#a855f7', fontSize: '1.4rem' }} className="col-sheets-total print-accent-p">
                               {totalToProduce > 0 ? (sheets || 0).toString() : '0'}
                             </td>
+                            <td style={{ padding: '10px 15px', textAlign: 'center', fontWeight: 1000, color: '#22c55e', fontSize: '1.4rem' }} className="col-sheets print-accent-g">
+                              {isReprintMode ? (
+                                sheets_t300.toString()
+                              ) : totalToProduce > 0 ? (
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max={sheets}
+                                  value={sheets_t300}
+                                  onChange={(e) => handleSplitChange(part.nom?.id, 't300', e.target.value, sheets)}
+                                  style={{
+                                    width: '60px',
+                                    background: '#111',
+                                    border: '1px solid #333',
+                                    color: '#22c55e',
+                                    padding: '5px',
+                                    borderRadius: '5px',
+                                    textAlign: 'center',
+                                    fontWeight: 'bold',
+                                    fontSize: '1.1rem'
+                                  }}
+                                />
+                              ) : '0'}
+                            </td>
+                            <td style={{ padding: '10px 15px', textAlign: 'center', fontWeight: 1000, color: '#0ea5e9', fontSize: '1.4rem' }} className="col-sheets-t700 print-accent-b">
+                              {isReprintMode ? (
+                                sheets_t700.toString()
+                              ) : totalToProduce > 0 ? (
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max={sheets}
+                                  value={sheets_t700}
+                                  onChange={(e) => handleSplitChange(part.nom?.id, 't700', e.target.value, sheets)}
+                                  style={{
+                                    width: '60px',
+                                    background: '#111',
+                                    border: '1px solid #333',
+                                    color: '#0ea5e9',
+                                    padding: '5px',
+                                    borderRadius: '5px',
+                                    textAlign: 'center',
+                                    fontWeight: 'bold',
+                                    fontSize: '1.1rem'
+                                  }}
+                                />
+                              ) : '0'}
+                            </td>
                             <td style={{ padding: '18px 15px', textAlign: 'center', fontSize: '1rem', color: '#ff9000', fontWeight: 900 }} className="col-bz">
-                              {totalToProduce > 0 ? `+${(sheets * unitsPerSheet) - totalToProduce}` : '0'}
+                              {totalToProduce > 0 ? `+${(totalSplitsSheets * unitsPerSheet) - totalToProduce}` : '0'}
                             </td>
                           </tr>
                         )
@@ -1481,13 +1574,14 @@ const MasterModule = () => {
                     {(() => {
                       let totalNeed = 0;
                       let totalPlan = 0;
-                      let totalSheets = 0;
+                      let totalSheetsT300 = 0;
+                      let totalSheetsT700 = 0;
 
                       if (activeNaryadOrder.isPrepOrder) {
                         activeNaryadOrder.order_items?.forEach(it => {
                           totalNeed += Number(it.quantity);
                           totalPlan += Number(it.quantity);
-                          totalSheets += Number(it.quantity);
+                          totalSheetsT300 += Number(it.quantity);
                         });
                       } else {
                         activeNaryadOrder.order_items?.forEach(it => {
@@ -1507,9 +1601,17 @@ const MasterModule = () => {
                             const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1;
                             const sheets = Math.ceil(plan / unitsPerSheet);
 
+                            const sheets_t300 = snapshot
+                              ? (snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : Number(snapshot.sheets))
+                              : (materialSplits[part.nom?.id]?.t300 !== undefined ? materialSplits[part.nom?.id].t300 : (plan > 0 ? sheets : 0));
+                            const sheets_t700 = snapshot
+                              ? (Number(snapshot.sheets_t700) || 0)
+                              : (materialSplits[part.nom?.id]?.t700 || 0);
+
                             totalNeed += need;
                             totalPlan += plan;
-                            if (plan > 0) totalSheets += sheets;
+                            totalSheetsT300 += sheets_t300;
+                            totalSheetsT700 += sheets_t700;
                           });
                         });
                       }
@@ -1525,8 +1627,14 @@ const MasterModule = () => {
                           </td>
                           <td style={{ border: '1px solid #000' }} className="col-material"></td>
                           <td style={{ border: '1px solid #000' }} className="col-qty-sh"></td>
+                          <td style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.6rem', color: '#a855f7', border: '1px solid #000' }} className="col-sheets-total print-accent-p">
+                            {(totalSheetsT300 + totalSheetsT700).toString()}
+                          </td>
                           <td style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.6rem', color: '#22c55e', border: '1px solid #000' }} className="col-sheets print-accent-g">
-                            {totalSheets.toString()}
+                            {totalSheetsT300.toString()}
+                          </td>
+                          <td style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.6rem', color: '#0ea5e9', border: '1px solid #000' }} className="col-sheets-t700 print-accent-b">
+                            {totalSheetsT700.toString()}
                           </td>
                           <td className="col-bz" style={{ border: '1px solid #000' }}></td>
                         </tr>
@@ -1535,16 +1643,18 @@ const MasterModule = () => {
                   </tfoot>
                 </table>
 
-                {/* PRINT ONLY TABLE (EXACTLY 6 COLUMNS) */}
+                {/* PRINT ONLY TABLE (EXACTLY 8 COLUMNS FOR SPLIT SHEETS) */}
                 <table className="print-table print-only-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                   <thead>
                     <tr style={{ background: '#111', textAlign: 'left', color: '#555' }} className="print-thr">
-                      <th style={{ padding: '12px 15px', width: '40%' }} className="col-name">ДЕТАЛЬ В РОЗКРІЙ</th>
+                      <th style={{ padding: '12px 15px', width: '30%' }} className="col-name">ДЕТАЛЬ В РОЗКРІЙ</th>
                       <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%' }} className="col-plan">ПЛАН</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '18%' }} className="col-material">МАТЕРІАЛ</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '11%' }} className="col-qty-sh">ШТ/Л</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '11%' }} className="col-sheets">ЛИСТІВ</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '12%' }} className="col-bz">БЗ</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '16%' }} className="col-material">МАТЕРІАЛ</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '6%' }} className="col-qty-sh">ШТ/Л</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '10%', color: '#a855f7' }} className="col-sheets-total">ЗАГАЛОМ ЛИСТІВ</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '10%', color: '#22c55e' }} className="col-sheets">ЛИСТІВ Т300</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '10%', color: '#0ea5e9' }} className="col-sheets-t700">ЛИСТІВ Т700</th>
+                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '10%' }} className="col-bz">БЗ</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1563,13 +1673,21 @@ const MasterModule = () => {
                               {thisNaryadQty.toString()}
                             </td>
                             <td style={{ textAlign: 'center' }} className="col-material">
-                              <div style={{ fontSize: '0.7rem', color: '#000', fontWeight: 700 }} className="print-subtxt">{nom?.name || '—'}</div>
+                              <div style={{ fontSize: '0.7rem', color: '#000', fontWeight: 700 }} className="print-subtxt">
+                                {(nom?.name || '—').replace(/т300/gi, '').replace(/t300/gi, '').replace(/т700/gi, '').replace(/t700/gi, '').replace(/\s+/g, ' ').trim()}
+                              </div>
                             </td>
                             <td style={{ textAlign: 'center', fontSize: '0.8rem' }} className="col-qty-sh">
                               1
                             </td>
+                            <td style={{ textAlign: 'center', fontWeight: 1000, fontSize: '0.9rem' }} className="col-sheets-total print-accent-p">
+                              {thisNaryadQty.toString()}
+                            </td>
                             <td style={{ textAlign: 'center', fontWeight: 1000, fontSize: '0.9rem' }} className="col-sheets print-accent-g">
                               {thisNaryadQty.toString()}
+                            </td>
+                            <td style={{ textAlign: 'center', fontWeight: 1000, fontSize: '0.9rem' }} className="col-sheets-t700 print-accent-b">
+                              0
                             </td>
                             <td style={{ textAlign: 'center', fontSize: '0.8rem', fontWeight: 900 }} className="col-bz">
                               0
@@ -1598,6 +1716,15 @@ const MasterModule = () => {
                         const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
                         const sheets = Math.ceil(totalToProduce / unitsPerSheet)
 
+                        const sheets_t300 = snapshot
+                          ? (snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : Number(snapshot.sheets))
+                          : (materialSplits[part.nom?.id]?.t300 !== undefined ? materialSplits[part.nom?.id].t300 : (totalToProduce > 0 ? sheets : 0))
+                        const sheets_t700 = snapshot
+                          ? (Number(snapshot.sheets_t700) || 0)
+                          : (materialSplits[part.nom?.id]?.t700 || 0)
+
+                        const totalSplitsSheets = sheets_t300 + sheets_t700
+
                         return (
                           <tr key={`${it.id}-${pIdx}`} style={{ borderBottom: '1px solid #1a1a1a' }} className="print-tr">
                             <td className="col-name">
@@ -1610,16 +1737,24 @@ const MasterModule = () => {
                               {totalToProduce.toString()}
                             </td>
                             <td style={{ textAlign: 'center' }} className="col-material">
-                              <div style={{ fontSize: '0.7rem', color: '#000', fontWeight: 700 }} className="print-subtxt">{part.nom?.material_type || '—'}</div>
+                              <div style={{ fontSize: '0.7rem', color: '#000', fontWeight: 700 }} className="print-subtxt">
+                                {(part.nom?.material_type || '—').replace(/т300/gi, '').replace(/t300/gi, '').replace(/т700/gi, '').replace(/t700/gi, '').replace(/\s+/g, ' ').trim()}
+                              </div>
                             </td>
                             <td style={{ textAlign: 'center', fontSize: '0.8rem' }} className="col-qty-sh">
                               {unitsPerSheet.toString()}
                             </td>
-                            <td style={{ textAlign: 'center', fontWeight: 1000, fontSize: '0.9rem' }} className="col-sheets print-accent-g">
+                            <td style={{ textAlign: 'center', fontWeight: 1000, fontSize: '0.9rem' }} className="col-sheets-total print-accent-p">
                               {totalToProduce > 0 ? (sheets || 0).toString() : '0'}
                             </td>
+                            <td style={{ textAlign: 'center', fontWeight: 1000, fontSize: '0.9rem' }} className="col-sheets print-accent-g">
+                              {totalToProduce > 0 ? (sheets_t300 || 0).toString() : '0'}
+                            </td>
+                            <td style={{ textAlign: 'center', fontWeight: 1000, fontSize: '0.9rem' }} className="col-sheets-t700 print-accent-b">
+                              {totalToProduce > 0 ? (sheets_t700 || 0).toString() : '0'}
+                            </td>
                             <td style={{ textAlign: 'center', fontSize: '0.8rem', fontWeight: 900 }} className="col-bz">
-                              {totalToProduce > 0 ? `+${(sheets * unitsPerSheet) - totalToProduce}` : '0'}
+                              {totalToProduce > 0 ? `+${(totalSplitsSheets * unitsPerSheet) - totalToProduce}` : '0'}
                             </td>
                           </tr>
                         )
@@ -1630,13 +1765,14 @@ const MasterModule = () => {
                     {(() => {
                       let totalNeed = 0;
                       let totalPlan = 0;
-                      let totalSheets = 0;
+                      let totalSheetsT300 = 0;
+                      let totalSheetsT700 = 0;
 
                       if (activeNaryadOrder.isPrepOrder) {
                         activeNaryadOrder.order_items?.forEach(it => {
                           totalNeed += Number(it.quantity);
                           totalPlan += Number(it.quantity);
-                          totalSheets += Number(it.quantity);
+                          totalSheetsT300 += Number(it.quantity);
                         });
                       } else {
                         activeNaryadOrder.order_items?.forEach(it => {
@@ -1656,9 +1792,17 @@ const MasterModule = () => {
                             const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1;
                             const sheets = Math.ceil(plan / unitsPerSheet);
 
+                            const sheets_t300 = snapshot
+                              ? (snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : Number(snapshot.sheets))
+                              : (materialSplits[part.nom?.id]?.t300 !== undefined ? materialSplits[part.nom?.id].t300 : (plan > 0 ? sheets : 0));
+                            const sheets_t700 = snapshot
+                              ? (Number(snapshot.sheets_t700) || 0)
+                              : (materialSplits[part.nom?.id]?.t700 || 0);
+
                             totalNeed += need;
                             totalPlan += plan;
-                            if (plan > 0) totalSheets += sheets;
+                            totalSheetsT300 += sheets_t300;
+                            totalSheetsT700 += sheets_t700;
                           });
                         });
                       }
@@ -1671,8 +1815,14 @@ const MasterModule = () => {
                           </td>
                           <td style={{ border: '1px solid #000' }} className="col-material"></td>
                           <td style={{ border: '1px solid #000' }} className="col-qty-sh"></td>
+                          <td style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.6rem', color: '#a855f7', border: '1px solid #000' }} className="col-sheets-total print-accent-p">
+                            {(totalSheetsT300 + totalSheetsT700).toString()}
+                          </td>
                           <td style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.6rem', color: '#22c55e', border: '1px solid #000' }} className="col-sheets print-accent-g">
-                            {totalSheets.toString()}
+                            {totalSheetsT300.toString()}
+                          </td>
+                          <td style={{ padding: '12px 15px', textAlign: 'center', fontWeight: 1000, fontSize: '1.6rem', color: '#0ea5e9', border: '1px solid #000' }} className="col-sheets-t700 print-accent-b">
+                            {totalSheetsT700.toString()}
                           </td>
                           <td className="col-bz" style={{ border: '1px solid #000' }}></td>
                         </tr>
@@ -1853,7 +2003,7 @@ const MasterModule = () => {
 
       {/* MOBILE DRAWER */}
       {isDrawerOpen && (
-        <div 
+        <div
           className="no-print"
           style={{
             position: 'fixed',
@@ -1897,7 +2047,7 @@ const MasterModule = () => {
                   </>
                 )}
               </h3>
-              <button 
+              <button
                 onClick={() => setIsDrawerOpen(false)}
                 style={{
                   background: '#1a1a1a',
