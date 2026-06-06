@@ -11,9 +11,7 @@ const ForemanWorkplace = () => {
   const { tasks, orders, workCards, createWorkCard, createWorkCardsBatch, inventory, completeTaskByMaster, nomenclatures, bomItems, machines, machineOperations, workCardHistory, confirmBuffer, fetchData, reserveBZForTask, fetchTaskArchiveCards, fetchModuleData, machineCalls, currentUser, createDovyпускMaterialRequests } = useMES()
 
   const countAsProduced = (card) => {
-    if (card.status === 'completed' && card.operation === 'Прийомка') return true
-    if (card.status === 'completed' && (card.operation || '').startsWith('Склад')) return true
-    if (card.status === 'completed' && !card.operation) return true
+    if (card.status === 'completed') return true
     if (card.status === 'at-shop2-buffer') return true
     return false
   }
@@ -451,8 +449,7 @@ const MACHINE_TYPES = [
           if (need === 0) return true
           
           const produced = taskCache[nomId] || 0
-          const scrap = scrapCache[task.id]?.[nomId] || 0
-          return (produced - scrap) >= need
+          return produced >= need
         })
       })
       const taskCards = allCardsCache.filter(c => c.task_id === task.id)
@@ -1097,11 +1094,10 @@ const MACHINE_TYPES = [
                 return shop1Parts.every(part => {
                   const snapshot = task.plan_snapshot?.[String(part.nom?.id)]
                   const need = snapshot ? snapshot.need : (Number(item.quantity) * (Number(part.quantity_per_parent) || 1))
-                  const produced = taskCards
+                   const produced = taskCards
                     .filter(c => String(c.nomenclature_id) === String(part.nom?.id))
                     .reduce((sum, c) => sum + (countAsProduced(c) ? Number(c.quantity) : 0), 0)
-                  const scrap = scrapCache[task.id]?.[String(part.nom?.id)] || 0
-                  return (produced - scrap) >= need
+                  return produced >= need
                 })
               })
 

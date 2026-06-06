@@ -816,9 +816,7 @@ const GlobalUserNav = () => {
       const allCards = [...activeCards, ...completedCards];
 
       const countAsProduced = (card) => {
-        if (card.status === 'completed' && card.operation === 'Прийомка') return true;
-        if (card.status === 'completed' && (card.operation || '').startsWith('Склад')) return true;
-        if (card.status === 'completed' && !card.operation) return true;
+        if (card.status === 'completed') return true;
         if (card.status === 'at-shop2-buffer') return true;
         return false;
       };
