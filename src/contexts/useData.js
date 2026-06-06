@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { supabase } from '../supabase'
+import { supabase, isLocalWrite } from '../supabase'
 import { sendPushToUsers } from '../services/pushService'
 
 const CACHE_KEY = 'MES_APP_CACHE_V1'
@@ -410,6 +410,10 @@ export function useData() {
   useEffect(() => { systemUsersRef.current = systemUsers }, [systemUsers])
   const machinesRef = useRef([])
   useEffect(() => { machinesRef.current = machines }, [machines])
+  const tasksRef = useRef([])
+  useEffect(() => { tasksRef.current = tasks }, [tasks])
+  const ordersRef = useRef([])
+  useEffect(() => { ordersRef.current = orders }, [orders])
   useEffect(() => {
     if (cacheTimerRef.current) clearTimeout(cacheTimerRef.current)
     cacheTimerRef.current = setTimeout(() => {
@@ -475,21 +479,23 @@ export function useData() {
           const wasPackaged = payload.old?.plan_snapshot?._metadata?.is_packaged
           const isNowPackaged = payload.new?.plan_snapshot?._metadata?.is_packaged
           if (!wasPackaged && isNowPackaged) {
-            const notifyIds = (systemUsersRef.current || []).filter(u => {
-              if (!u?.access_rights) return false
-              const s = u.notification_settings || {}
-              if (s.ready_to_ship === false) return false
-              return u.access_rights.shipping || u.access_rights.director
-            }).map(u => u.id)
-            if (notifyIds.length > 0) {
-              const packedBy = payload.new?.plan_snapshot?._metadata?.packaged_by || ''
-              const batchIdx = payload.new?.batch_index || '1'
-              sendPushToUsers(
-                notifyIds,
-                '\uD83D\uDE9B Готово до відвантаження',
-                `Партія №${batchIdx}${packedBy ? ` (${packedBy})` : ''} запакована і очікує відвантаження`,
-                '/shipping'
-              ).catch(() => {})
+            if (isLocalWrite('tasks', payload.new)) {
+              const notifyIds = (systemUsersRef.current || []).filter(u => {
+                if (!u?.access_rights) return false
+                const s = u.notification_settings || {}
+                if (s.ready_to_ship === false) return false
+                return u.access_rights.shipping || u.access_rights.director
+              }).map(u => u.id)
+              if (notifyIds.length > 0) {
+                const packedBy = payload.new?.plan_snapshot?._metadata?.packaged_by || ''
+                const batchIdx = payload.new?.batch_index || '1'
+                sendPushToUsers(
+                  notifyIds,
+                  '\uD83D\uDE9B Готово до відвантаження',
+                  `Партія №${batchIdx}${packedBy ? ` (${packedBy})` : ''} запакована і очікує відвантаження`,
+                  '/shipping'
+                ).catch(() => {})
+              }
             }
           }
         } else if (payload.eventType === 'INSERT') {
@@ -527,21 +533,23 @@ export function useData() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
         refreshTable('orders')
         // Push-сповіщення директору та майстрам при новому замовленні
-        const notifyIds = (systemUsersRef.current || []).filter(u => {
-          if (!u?.access_rights) return false
-          const settings = u.notification_settings || {}
-          if (settings.new_order === false) return false
-          return u.access_rights.director || u.access_rights.master || u.access_rights.manager
-        }).map(u => u.id)
-        if (notifyIds.length > 0) {
-          const orderNum = payload.new?.order_num || ''
-          const customer = payload.new?.customer || ''
-          sendPushToUsers(
-            notifyIds,
-            '📦 Нове замовлення',
-            `№ ${orderNum}${customer ? ` — ${customer}` : ''} очікує на створення наряду`,
-            '/manager'
-          ).catch(() => {})
+        if (isLocalWrite('orders', payload.new)) {
+          const notifyIds = (systemUsersRef.current || []).filter(u => {
+            if (!u?.access_rights) return false
+            const settings = u.notification_settings || {}
+            if (settings.new_order === false) return false
+            return u.access_rights.director || u.access_rights.master || u.access_rights.manager
+          }).map(u => u.id)
+          if (notifyIds.length > 0) {
+            const orderNum = payload.new?.order_num || ''
+            const customer = payload.new?.customer || ''
+            sendPushToUsers(
+              notifyIds,
+              '📦 Нове замовлення',
+              `№ ${orderNum}${customer ? ` — ${customer}` : ''} очікує на створення наряду`,
+              '/manager'
+            ).catch(() => {})
+          }
         }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, () => {
@@ -565,45 +573,67 @@ export function useData() {
         setRequests(prev => prev.some(r => r.id === payload.new.id) ? prev : [payload.new, ...prev])
 
         // ─── ДЕБАУНС: збираємо всі рядки одного наряду і надсилаємо ОДИН пуш ───
-        const isPackaging = payload.new?.details?.includes('КОМПЛЕКТУВАННЯ')
-        const orderId = payload.new?.order_id || payload.new?.task_id || 'unknown'
-        const orderNum = payload.new?.order_num || payload.new?.naryad_num || orderId
-
-        const notifyIds = (systemUsersRef.current || []).filter(u => {
-          if (!u?.access_rights) return false
-          const settings = u.notification_settings || {}
-          if (isPackaging) {
-            if (settings.packaging_request === false) return false
-            return u.access_rights.warehouse || u.access_rights.supply
-          } else {
-            if (settings.material_request === false) return false
-            return u.access_rights.warehouse
+        if (isLocalWrite('material_requests', payload.new)) {
+          const isPackaging = payload.new?.details?.includes('КОМПЛЕКТУВАННЯ')
+          const orderId = payload.new?.order_id || payload.new?.task_id || 'unknown'
+          
+          let orderNum = 'новий'
+          if (payload.new?.task_id) {
+            const t = tasksRef.current.find(item => item.id === payload.new.task_id)
+            if (t) {
+              if (t.step === 'Підготовка' && t.plan_snapshot?._prep_num) {
+                orderNum = t.plan_snapshot._prep_num
+              } else {
+                const suffix = t.batch_index ? `/${t.batch_index}` : ''
+                if (t.order_id) {
+                  const o = ordersRef.current.find(item => item.id === t.order_id)
+                  if (o?.order_num) orderNum = `${o.order_num}${suffix}`
+                } else if (t.plan_snapshot?._prep_num) {
+                  orderNum = t.plan_snapshot._prep_num
+                }
+              }
+            }
+          } else if (payload.new?.order_id) {
+            const o = ordersRef.current.find(item => item.id === payload.new.order_id)
+            if (o?.order_num) orderNum = o.order_num
           }
-        }).map(u => u.id)
 
-        if (notifyIds.length > 0) {
-          const buf = matReqPushBufferRef.current
-          if (!buf[orderId]) {
-            buf[orderId] = { items: [], isPackaging, notifyIds, orderNum }
+          const notifyIds = (systemUsersRef.current || []).filter(u => {
+            if (!u?.access_rights) return false
+            const settings = u.notification_settings || {}
+            if (isPackaging) {
+              if (settings.packaging_request === false) return false
+              return u.access_rights.warehouse || u.access_rights.supply
+            } else {
+              if (settings.material_request === false) return false
+              return u.access_rights.warehouse
+            }
+          }).map(u => u.id)
+
+          if (notifyIds.length > 0) {
+            const buf = matReqPushBufferRef.current
+            if (!buf[orderId]) {
+              buf[orderId] = { items: [], isPackaging, notifyIds, orderNum }
+            }
+            buf[orderId].items.push(payload.new)
+
+            // Скидаємо таймер — чекаємо 1.5с після ОСТАННЬОГО рядка наряду
+            if (buf[orderId].timer) clearTimeout(buf[orderId].timer)
+            buf[orderId].timer = setTimeout(() => {
+              const entry = buf[orderId]
+              if (!entry) return
+              delete buf[orderId]
+
+              const itemCount = entry.items.length
+              const num = entry.orderNum
+              const title = entry.isPackaging ? '📦 Запит на комплектування' : '📋 Новий запит на СО'
+              const body = entry.isPackaging
+                ? `Наряд №${num} — ${itemCount} позицій до комплектування`
+                : `Наряд №${num} — ${itemCount} позицій (листи, фрези)`
+
+              sendPushToUsers(entry.notifyIds, title, body, '/warehouse').catch(() => {})
+            }, 1500)
           }
-          buf[orderId].items.push(payload.new)
-
-          // Скидаємо таймер — чекаємо 1.5с після ОСТАННЬОГО рядка наряду
-          if (buf[orderId].timer) clearTimeout(buf[orderId].timer)
-          buf[orderId].timer = setTimeout(() => {
-            const entry = buf[orderId]
-            if (!entry) return
-            delete buf[orderId]
-
-            const itemCount = entry.items.length
-            const num = entry.orderNum
-            const title = entry.isPackaging ? '📦 Запит на комплектування' : '📋 Новий запит на СО'
-            const body = entry.isPackaging
-              ? `Наряд ${num} — ${itemCount} позицій до комплектування`
-              : `Наряд ${num} — ${itemCount} позицій (листи, фрези)`
-
-            sendPushToUsers(entry.notifyIds, title, body, '/warehouse').catch(() => {})
-          }, 1500)
         }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'material_requests' }, (payload) => {
@@ -630,21 +660,23 @@ export function useData() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'purchase_requests' }, (payload) => {
         setPurchaseRequests(prev => prev.some(p => p.id === payload.new.id) ? prev : [payload.new, ...prev])
         // Пуш постачальникам та директору виробництва
-        const notifyIds = (systemUsersRef.current || []).filter(u => {
-          if (!u?.access_rights) return false
-          const settings = u.notification_settings || {}
-          if (settings.supply_request === false) return false
-          return u.access_rights.supply || u.access_rights.procurement || u.access_rights.director
-        }).map(u => u.id)
-        if (notifyIds.length > 0) {
-          const orderNum = payload.new?.order_num || ''
-          const dest = payload.new?.destination_warehouse === 'production' ? 'СВ' : 'СО'
-          sendPushToUsers(
-            notifyIds,
-            '🛒 Новий запит постачання',
-            `Замовлення №${orderNum} → ${dest} потребує закупівлі матеріалів`,
-            '/supply'
-          ).catch(() => {})
+        if (isLocalWrite('purchase_requests', payload.new)) {
+          const notifyIds = (systemUsersRef.current || []).filter(u => {
+            if (!u?.access_rights) return false
+            const settings = u.notification_settings || {}
+            if (settings.supply_request === false) return false
+            return u.access_rights.supply || u.access_rights.procurement || u.access_rights.director
+          }).map(u => u.id)
+          if (notifyIds.length > 0) {
+            const orderNum = payload.new?.order_num || ''
+            const dest = payload.new?.destination_warehouse === 'production' ? 'СВ' : 'СО'
+            sendPushToUsers(
+              notifyIds,
+              '🛒 Новий запит постачання',
+              `Замовлення №${orderNum} → ${dest} потребує закупівлі матеріалів`,
+              '/supply'
+            ).catch(() => {})
+          }
         }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'purchase_requests' }, (payload) => {
@@ -671,54 +703,56 @@ export function useData() {
           setMachineCalls(prev => prev.some(c => c.id === payload.new.id) ? prev : [payload.new, ...prev])
           
           // Надсилаємо Push-сповіщення при виклику персоналу до верстата
-          const call = payload.new
-          const calledEmployeeId = call.called_employee_id
-          const calledRole = call.called_role
-          const operator = call.operator_name || 'Оператор'
-          
-          const machineObj = (machinesRef.current || []).find(m => m.id === call.machine_id)
-          const machineName = machineObj ? machineObj.name : 'Верстат'
-          
-          let notifyIds = []
-          if (calledEmployeeId) {
-            notifyIds = [calledEmployeeId]
-          } else {
-            notifyIds = (systemUsersRef.current || []).filter(u => {
-              if (!u?.access_rights) return false
-              const settings = u.notification_settings || {}
-              if (settings.machine_call === false) return false
-              
-              if (calledRole === 'master') {
-                return u.access_rights.master || u.access_rights.foreman || (u.position && u.position.toLowerCase().includes('майстер'))
-              }
+          if (isLocalWrite('machine_calls', payload.new)) {
+            const call = payload.new
+            const calledEmployeeId = call.called_employee_id
+            const calledRole = call.called_role
+            const operator = call.operator_name || 'Оператор'
+            
+            const machineObj = (machinesRef.current || []).find(m => m.id === call.machine_id)
+            const machineName = machineObj ? machineObj.name : 'Верстат'
+            
+            let notifyIds = []
+            if (calledEmployeeId) {
+              notifyIds = [calledEmployeeId]
+            } else {
+              notifyIds = (systemUsersRef.current || []).filter(u => {
+                if (!u?.access_rights) return false
+                const settings = u.notification_settings || {}
+                if (settings.machine_call === false) return false
+                
+                if (calledRole === 'master') {
+                  return u.access_rights.master || u.access_rights.foreman || (u.position && u.position.toLowerCase().includes('майстер'))
+                }
+                if (calledRole === 'engineer') {
+                  return u.access_rights.engineer || (u.position && u.position.toLowerCase().includes('інженер'))
+                }
+                if (calledRole === 'qc') {
+                  return u.access_rights.brak || (u.position && (u.position.toLowerCase().includes('вкя') || u.position.toLowerCase().includes('якост')))
+                }
+                return false
+              }).map(u => u.id)
+            }
+
+            if (notifyIds.length > 0) {
+              let roleLabel = 'Майстра'
+              let targetPath = '/master'
               if (calledRole === 'engineer') {
-                return u.access_rights.engineer || (u.position && u.position.toLowerCase().includes('інженер'))
+                roleLabel = 'Інженера'
+                targetPath = '/engineer'
               }
               if (calledRole === 'qc') {
-                return u.access_rights.brak || (u.position && (u.position.toLowerCase().includes('вкя') || u.position.toLowerCase().includes('якост')))
+                roleLabel = 'ВКЯ'
+                targetPath = '/brak'
               }
-              return false
-            }).map(u => u.id)
-          }
-
-          if (notifyIds.length > 0) {
-            let roleLabel = 'Майстра'
-            let targetPath = '/master'
-            if (calledRole === 'engineer') {
-              roleLabel = 'Інженера'
-              targetPath = '/engineer'
+              
+              sendPushToUsers(
+                notifyIds,
+                `🚨 Виклик ${roleLabel}`,
+                `${operator} викликає на ${machineName}`,
+                targetPath
+              ).catch(() => {})
             }
-            if (calledRole === 'qc') {
-              roleLabel = 'ВКЯ'
-              targetPath = '/brak'
-            }
-            
-            sendPushToUsers(
-              notifyIds,
-              `🚨 Виклик ${roleLabel}`,
-              `${operator} викликає на ${machineName}`,
-              targetPath
-            ).catch(() => {})
           }
         } else if (payload.eventType === 'UPDATE') {
           setMachineCalls(prev => prev.map(c => c.id === payload.new.id ? payload.new : c))

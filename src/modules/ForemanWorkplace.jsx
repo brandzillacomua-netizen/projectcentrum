@@ -1699,16 +1699,16 @@ const MACHINE_TYPES = [
                                         isRepair: true
                                       })
                                     }}
-                                    disabled={activeCards.some(c => c.status === 'new' && (c.card_info || '').includes('[REDO]'))}
+                                    disabled={activeCards.some(c => ['new', 'waiting-materials'].includes(c.status) && (c.card_info || '').includes('[REDO]'))}
                                     style={{
-                                      background: activeCards.some(c => c.status === 'new' && (c.card_info || '').includes('[REDO]')) ? '#444' : '#ef4444',
+                                      background: activeCards.some(c => ['new', 'waiting-materials'].includes(c.status) && (c.card_info || '').includes('[REDO]')) ? '#444' : '#ef4444',
                                       color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '0.6rem', fontWeight: 900,
-                                      cursor: activeCards.some(c => c.status === 'new' && (c.card_info || '').includes('[REDO]')) ? 'not-allowed' : 'pointer',
+                                      cursor: activeCards.some(c => ['new', 'waiting-materials'].includes(c.status) && (c.card_info || '').includes('[REDO]')) ? 'not-allowed' : 'pointer',
                                       textTransform: 'uppercase',
-                                      opacity: activeCards.some(c => c.status === 'new' && (c.card_info || '').includes('[REDO]')) ? 0.6 : 1
+                                      opacity: activeCards.some(c => ['new', 'waiting-materials'].includes(c.status) && (c.card_info || '').includes('[REDO]')) ? 0.6 : 1
                                     }}
                                   >
-                                    {activeCards.some(c => c.status === 'new' && (c.card_info || '').includes('[REDO]')) ? 'ВЖЕ ДОВИПУЩЕНО' : 'ДОВИПУСК'}
+                                    {activeCards.some(c => ['new', 'waiting-materials'].includes(c.status) && (c.card_info || '').includes('[REDO]')) ? 'ВЖЕ ДОВИПУЩЕНО' : 'ДОВИПУСК'}
                                   </button>
                                 </div>
                               )}
