@@ -37,8 +37,8 @@ function updateSubscriptionInDB(oldEndpoint, newSubscription) {
   
   const subJson = newSubscription.toJSON();
   const endpoint = subJson.endpoint;
-  const p256dh = subJson.keys?.p256dh;
-  const auth = subJson.keys?.auth;
+  const p256dh = subJson.keys && subJson.keys.p256dh;
+  const auth = subJson.keys && subJson.keys.auth;
 
   if (!endpoint || !p256dh || !auth) return Promise.resolve();
 
@@ -104,8 +104,8 @@ self.addEventListener('notificationclick', function(event) {
 
   if (event.action === 'dismiss') return;
 
-  const path = event.notification.data?.path || '/';
-  const state = event.notification.data?.state || null;
+  const path = (event.notification.data && event.notification.data.path) || '/';
+  const state = (event.notification.data && event.notification.data.state) || null;
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {

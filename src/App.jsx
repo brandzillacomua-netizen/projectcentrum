@@ -1190,7 +1190,10 @@ const GlobalUserNav = () => {
     if (!('serviceWorker' in navigator)) return;
     // Реєструємо SW (завжди, незалежно від логіну)
     navigator.serviceWorker.register('/sw.js')
-      .then(reg => console.log('[SW] Registered:', reg.scope))
+      .then(reg => {
+        console.log('[SW] Registered:', reg.scope);
+        reg.update();
+      })
       .catch(err => console.error('[SW] Registration failed:', err));
   }, []);
 
