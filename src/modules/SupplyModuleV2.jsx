@@ -24,6 +24,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
   } = useMES()
 
   const [activeTab, setActiveTab] = useState('requests') // 'requests', 'registry', 'stock'
+  const [requestSubTab, setRequestSubTab] = useState('all') // 'all', 'prep', 'deficit'
   const [activeMobileSection, setActiveMobileSection] = useState('requests')
   const [showCreate, setShowCreate] = useState(false)
   const [draftItems, setDraftItems] = useState([])
@@ -880,15 +881,71 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
           {/* REQUESTS COLUMN */}
           {!showCreate && (activeTab === 'requests') && (
             <section className="requests-col" style={{ gridColumn: '1 / -1', width: '100%' }}>
+              {/* SUB TABS FOR MOBILE / TABLET OR QUICK FILTERING */}
+              {!isProcurementOnly && (
+                <div style={{
+                  display: 'flex',
+                  background: '#161616',
+                  padding: '4px',
+                  borderRadius: '12px',
+                  marginBottom: '25px',
+                  maxWidth: '500px',
+                  gap: '4px',
+                  border: '1px solid #222'
+                }}>
+                  {[
+                    { id: 'all', label: 'Всі запити', count: groupedPrepRequests.length + pendingRequests.length },
+                    { id: 'prep', label: 'Підготовка', count: groupedPrepRequests.length, color: '#10b981' },
+                    { id: 'deficit', label: 'Наряди', count: pendingRequests.length, color: '#ef4444' }
+                  ].map(t => {
+                    const active = requestSubTab === t.id
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => setRequestSubTab(t.id)}
+                        style={{
+                          flex: 1,
+                          background: active ? '#222' : 'transparent',
+                          border: 'none',
+                          color: active ? (t.color || '#fff') : '#888',
+                          padding: '10px 14px',
+                          borderRadius: '10px',
+                          fontSize: '0.8rem',
+                          fontWeight: active ? 900 : 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        <span>{t.label}</span>
+                        <span style={{
+                          background: active ? (t.color ? `${t.color}20` : '#333') : '#1e1e1e',
+                          color: active ? (t.color || '#fff') : '#555',
+                          padding: '2px 6px',
+                          borderRadius: '6px',
+                          fontSize: '0.7rem',
+                          fontWeight: 900
+                        }}>
+                          {t.count}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: isProcurementOnly ? '1fr' : 'repeat(auto-fit, minmax(420px, 1fr))',
+                gridTemplateColumns: (isProcurementOnly || requestSubTab !== 'all') ? '1fr' : 'repeat(auto-fit, minmax(420px, 1fr))',
                 gap: '30px',
                 width: '100%',
                 alignItems: 'start'
               }}>
                 {/* COLUMN 1: PREPARATION REQUESTS */}
-                {!isProcurementOnly && (
+                {!isProcurementOnly && (requestSubTab === 'all' || requestSubTab === 'prep') && (
                   <div style={{
                     background: 'rgba(16, 185, 129, 0.02)',
                     border: '1px solid rgba(16, 185, 129, 0.15)',
@@ -1026,7 +1083,8 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                 )}
 
                 {/* COLUMN 2: DEFICIT AND WORK ORDER REQUESTS */}
-                <div style={{
+                {(requestSubTab === 'all' || requestSubTab === 'deficit') && (
+                  <div style={{
                   background: 'rgba(239, 68, 68, 0.01)',
                   border: '1px solid rgba(239, 68, 68, 0.1)',
                   borderRadius: '24px',
@@ -1271,9 +1329,10 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                     )}
                   </div>
                 </div>
-              </div>
-            </section>
-          )}
+              )}
+            </div>
+          </section>
+        )}
 
           {/* REGISTRY COLUMN */}
           {!showCreate && (activeTab === 'registry') && (
