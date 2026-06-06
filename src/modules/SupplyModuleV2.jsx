@@ -879,367 +879,398 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
 
           {/* REQUESTS COLUMN */}
           {!showCreate && (activeTab === 'requests') && (
-            <section className="requests-col">
-              {!isProcurementOnly && groupedPrepRequests.length > 0 && (
-                <div style={{ marginBottom: '30px' }}>
-                  <h3 style={{ fontSize: '0.85rem', color: '#10b981', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <Package size={18} /> ЗАПИТИ ВІДДІЛУ ПІДГОТОВКИ ({groupedPrepRequests.length})
+            <section className="requests-col" style={{ gridColumn: '1 / -1', width: '100%' }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: isProcurementOnly ? '1fr' : 'repeat(auto-fit, minmax(420px, 1fr))',
+                gap: '30px',
+                width: '100%',
+                alignItems: 'start'
+              }}>
+                {/* COLUMN 1: PREPARATION REQUESTS */}
+                {!isProcurementOnly && (
+                  <div style={{
+                    background: 'rgba(16, 185, 129, 0.02)',
+                    border: '1px solid rgba(16, 185, 129, 0.15)',
+                    borderRadius: '24px',
+                    padding: '20px',
+                    minHeight: '400px'
+                  }}>
+                    <h3 style={{ fontSize: '0.95rem', color: '#10b981', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      <Package size={18} /> ЗАПИТИ НА ПІДГОТОВКУ ({groupedPrepRequests.length})
+                    </h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                      {groupedPrepRequests.map(group => {
+                        const task = (tasks || []).find(t => t.id === group.taskId)
+                        const prepNum = task?.plan_snapshot?._prep_num || `НП-${String(group.taskId).slice(0, 8)}`
+
+                        const isEnough = group.requests.every(req => {
+                          const reqNom = nomenclatures?.find(n => n.id === req.nomenclature_id)
+                          const reqName = reqNom?.name || req.details
+                          const qty = Number(req.quantity) || 0
+                          const matchingItems = (inventory || []).filter(i =>
+                            i.warehouse === 'production' &&
+                            (String(i.nomenclature_id) === String(req.nomenclature_id) || normalize(i.name) === normalize(reqName))
+                          )
+                          const totalStock = matchingItems.reduce((acc, i) => acc + (Number(i.total_qty) || 0), 0)
+                          const dbReserved = matchingItems.reduce((acc, i) => acc + (Number(i.reserved_qty) || 0), 0)
+                          const available = Math.max(0, totalStock - dbReserved)
+                          return available >= qty
+                        })
+
+                        const hasActivePRForProcurement = (purchaseRequests || []).some(
+                          r => String(r.task_id) === String(group.taskId) && 
+                          r.destination_warehouse === 'procurement' && 
+                          (r.status === 'pending' || r.status === 'accepted' || r.status === 'ordered')
+                        )
+
+                        return (
+                          <div key={group.taskId} style={{ background: '#0a0a0a', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '20px', borderRadius: '18px', display: 'flex', flexDirection: 'column', gap: '15px', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1c1c1c', paddingBottom: '12px' }}>
+                              <strong style={{ fontSize: '1rem', color: '#10b981' }}>НАРЯД № {prepNum}</strong>
+                              <span style={{ fontSize: '0.7rem', color: '#888', background: 'rgba(16, 185, 129, 0.1)', padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>
+                                ПІДГОТОВКА СИРОВИНИ
+                              </span>
+                            </div>
+                            
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              {group.requests.map(req => {
+                                const reqNom = nomenclatures?.find(n => n.id === req.nomenclature_id)
+                                const reqName = reqNom?.name || req.details
+                                const qty = Number(req.quantity) || 0
+                                
+                                const matchingItems = (inventory || []).filter(i =>
+                                  i.warehouse === 'production' &&
+                                  (String(i.nomenclature_id) === String(req.nomenclature_id) || normalize(i.name) === normalize(reqName))
+                                )
+                                const totalStock = matchingItems.reduce((acc, i) => acc + (Number(i.total_qty) || 0), 0)
+                                const dbReserved = matchingItems.reduce((acc, i) => acc + (Number(i.reserved_qty) || 0), 0)
+                                const available = Math.max(0, totalStock - dbReserved)
+                                
+                                const itemEnough = available >= qty
+
+                                return (
+                                  <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#111', padding: '10px 12px', borderRadius: '10px', border: '1px solid #222' }}>
+                                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#eee' }}>{reqName}</span>
+                                    <div style={{ textTransform: 'uppercase', fontSize: '0.7rem', color: itemEnough ? '#10b981' : '#ef4444', fontWeight: 800, textAlign: 'right' }}>
+                                      Потрібно: {qty} шт | Наявні: {available} шт
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+
+                            {isEnough ? (
+                              <button 
+                                disabled={processingDocs.has(group.taskId)}
+                                onClick={async () => {
+                                  setProcessingDocs(prev => new Set(prev).add(group.taskId))
+                                  try {
+                                    const reqIds = group.requests.map(r => r.id)
+                                    await issueMaterialsBatch(reqIds, group.taskId)
+                                    alert('Матеріали успішно видано на Підготовку!')
+                                  } catch(e) {
+                                    alert('Помилка: ' + e.message)
+                                  } finally {
+                                    setProcessingDocs(prev => { const next = new Set(prev); next.delete(group.taskId); return next; })
+                                  }
+                                }}
+                                style={{
+                                  background: '#10b981',
+                                  color: '#000',
+                                  border: 'none',
+                                  padding: '10px 18px',
+                                  borderRadius: '10px',
+                                  fontWeight: 900,
+                                  cursor: processingDocs.has(group.taskId) ? 'not-allowed' : 'pointer',
+                                  fontSize: '0.8rem',
+                                  textTransform: 'uppercase',
+                                  alignSelf: 'flex-end',
+                                  marginTop: '5px'
+                                }}
+                              >
+                                {processingDocs.has(group.taskId) ? 'ОБРОБКА...' : 'ВИДАТИ НА ПІДГОТОВКУ'}
+                              </button>
+                            ) : (
+                              <button 
+                                disabled={hasActivePRForProcurement || processingDocs.has(group.taskId)}
+                                onClick={() => handleRequestPrepMaterialsFromProcurement(group)}
+                                style={{
+                                  background: hasActivePRForProcurement ? '#1a1a1a' : '#ef4444',
+                                  color: hasActivePRForProcurement ? '#444' : '#fff',
+                                  border: hasActivePRForProcurement ? '1px solid #222' : 'none',
+                                  padding: '10px 18px',
+                                  borderRadius: '10px',
+                                  fontWeight: 950,
+                                  cursor: (hasActivePRForProcurement || processingDocs.has(group.taskId)) ? 'not-allowed' : 'pointer',
+                                  fontSize: '0.8rem',
+                                  textTransform: 'uppercase',
+                                  alignSelf: 'flex-end',
+                                  marginTop: '5px',
+                                  opacity: (hasActivePRForProcurement || processingDocs.has(group.taskId)) ? 0.5 : 1
+                                }}
+                              >
+                                {processingDocs.has(group.taskId) ? 'ОБРОБКА...' : (hasActivePRForProcurement ? 'ОЧІКУЄ ЗАКУПІВЛІ' : 'ЗАПРОСИТИ У ПОСТАЧАННЯ')}
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })}
+                      {groupedPrepRequests.length === 0 && (
+                        <div style={{ textAlign: 'center', padding: '60px 20px', color: '#444', fontSize: '0.85rem', background: '#0a0a0a', border: '1px dashed #222', borderRadius: '18px' }}>
+                          Немає активних запитів від відділу підготовки
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* COLUMN 2: DEFICIT AND WORK ORDER REQUESTS */}
+                <div style={{
+                  background: 'rgba(239, 68, 68, 0.01)',
+                  border: '1px solid rgba(239, 68, 68, 0.1)',
+                  borderRadius: '24px',
+                  padding: '20px',
+                  minHeight: '400px'
+                }}>
+                  <h3 style={{ fontSize: '0.95rem', color: '#888', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    <AlertTriangle size={18} className="text-secondary" /> ДЕФІЦИТ ТА ЗАПИТИ НА НАРИДИ ({pendingRequests.length})
                   </h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    {groupedPrepRequests.map(group => {
-                      const task = (tasks || []).find(t => t.id === group.taskId)
-                      const prepNum = task?.plan_snapshot?._prep_num || `НП-${String(group.taskId).slice(0, 8)}`
-
-                      const isEnough = group.requests.every(req => {
-                        const reqNom = nomenclatures?.find(n => n.id === req.nomenclature_id)
-                        const reqName = reqNom?.name || req.details
-                        const qty = Number(req.quantity) || 0
+                    {pendingRequests.map(pr => {
+                      const hasDeficit = (pr.items || []).some(it => {
+                        const name = resolveItemName(it, 0)
+                        const parsedName = parseMaterialName(name)
                         const matchingItems = (inventory || []).filter(i =>
                           i.warehouse === 'production' &&
-                          (String(i.nomenclature_id) === String(req.nomenclature_id) || normalize(i.name) === normalize(reqName))
+                          (
+                            (it.nomenclature_id && String(i.nomenclature_id) === String(it.nomenclature_id)) ||
+                            (it.inventory_id && String(i.id) === String(it.inventory_id)) ||
+                            (normalize(i.name) === normalize(parsedName))
+                          )
                         )
-                        const totalStock = matchingItems.reduce((acc, i) => acc + (Number(i.total_qty) || 0), 0)
-                        const dbReserved = matchingItems.reduce((acc, i) => acc + (Number(i.reserved_qty) || 0), 0)
-                        const available = Math.max(0, totalStock - dbReserved)
-                        return available >= qty
+                        const globalAvailable = matchingItems.reduce((acc, i) => acc + (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0), 0)
+                        const alreadyReserved = Number(it.reserved_from_stock) || 0
+                        const effectiveAvailable = globalAvailable + alreadyReserved
+                        return effectiveAvailable < Number(resolveItemQty(it))
                       })
 
+                      const currentTaskId = pr.task_id || `order-${pr.order_id}`
                       const hasActivePRForProcurement = (purchaseRequests || []).some(
-                        r => String(r.task_id) === String(group.taskId) && 
+                        r => (r.task_id ? String(r.task_id) === String(currentTaskId) : String(r.order_id) === String(pr.order_id)) && 
                         r.destination_warehouse === 'procurement' && 
                         (r.status === 'pending' || r.status === 'accepted' || r.status === 'ordered')
                       )
 
+                      const relatedReception = (receptionDocs || []).find(rd => 
+                        (rd.task_id ? String(rd.task_id) === String(currentTaskId) : String(rd.order_id) === String(pr.order_id)) && 
+                        (rd.status === 'ordered' || rd.status === 'shipped')
+                      )
+
+                      const isExpanded = expandedPRs.has(pr.id) || (!expandedPRs.has(`collapsed-${pr.id}`) && pr.status !== 'ordered' && !relatedReception)
+
                       return (
-                        <div key={group.taskId} style={{ background: '#111', border: '1px solid #10b981', padding: '20px', borderRadius: '18px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #222', paddingBottom: '10px' }}>
-                            <strong style={{ fontSize: '1rem', color: '#10b981' }}>НАРЯД № {prepNum}</strong>
-                            <span style={{ fontSize: '0.75rem', color: '#555' }}>
-                              ПІДГОТОВКА СИРОВИНИ
-                            </span>
+                        <div key={pr.id} className="request-card" style={{ background: '#0a0a0a', padding: '20px', borderRadius: '18px', border: '1px solid #222', borderLeft: pr.status === 'accepted' ? '4px solid #3b82f6' : '4px solid #ef4444', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                              <strong style={pr.status === 'accepted' ? { color: '#3b82f6', fontSize: '0.95rem' } : { color: '#ef4444', fontSize: '0.95rem' }}>
+                                НАРЯД #{pr.order_num}
+                              </strong>
+                              {relatedReception && (
+                                <span style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '3px 8px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase' }}>
+                                  Відправлено на {relatedReception.target_warehouse === 'operational' ? 'СО' : 'СВ'}
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              {pr.status === 'pending' && isProcurementOnly && (
+                                <button 
+                                  disabled={processingDocs.has(pr.id)}
+                                  onClick={async () => {
+                                    setProcessingDocs(prev => new Set(prev).add(pr.id))
+                                    try {
+                                      await updatePurchaseRequestStatus(pr.id, 'accepted', 'procurement')
+                                    } finally {
+                                      setProcessingDocs(prev => { const next = new Set(prev); next.delete(pr.id); return next; })
+                                    }
+                                  }} 
+                                  style={{ 
+                                    background: processingDocs.has(pr.id) ? '#1a1a1a' : '#3b82f6', 
+                                    color: processingDocs.has(pr.id) ? '#444' : '#fff', 
+                                    border: 'none', 
+                                    padding: '6px 12px', 
+                                    borderRadius: '8px', 
+                                    fontSize: '0.7rem', 
+                                    fontWeight: 900,
+                                    cursor: processingDocs.has(pr.id) ? 'not-allowed' : 'pointer'
+                                  }}
+                                >
+                                  {processingDocs.has(pr.id) ? 'ОБРОБКА...' : 'ПРИЙНЯТИ'}
+                                </button>
+                              )}
+                              {(pr.status === 'accepted' || (pr.status === 'pending' && !isProcurementOnly)) && (
+                                <button
+                                  onClick={async () => {
+                                    setProcessingDocs(prev => new Set(prev).add(pr.id))
+                                    try {
+                                      await apiService.submitConvertRequestToOrder(pr.id, convertRequestToOrder)
+                                    } finally {
+                                      setProcessingDocs(prev => {
+                                        const next = new Set(prev)
+                                        next.delete(pr.id)
+                                        return next
+                                      })
+                                    }
+                                  }}
+                                  disabled={(!isProcurementOnly && hasDeficit) || pr.status === 'ordered' || processingDocs.has(pr.id)}
+                                  style={{ 
+                                    background: ((!isProcurementOnly && hasDeficit) || pr.status === 'ordered' || processingDocs.has(pr.id)) ? '#1a1a1a' : '#3b82f622', 
+                                    color: ((!isProcurementOnly && hasDeficit) || pr.status === 'ordered' || processingDocs.has(pr.id)) ? '#444' : '#3b82f6', 
+                                    border: '1px solid #3b82f644', 
+                                    padding: '6px 12px', 
+                                    borderRadius: '8px', 
+                                    fontSize: '0.7rem', 
+                                    fontWeight: 900,
+                                    cursor: ((!isProcurementOnly && hasDeficit) || pr.status === 'ordered' || processingDocs.has(pr.id)) ? 'not-allowed' : 'pointer',
+                                    opacity: ((!isProcurementOnly && hasDeficit) || pr.status === 'ordered' || processingDocs.has(pr.id)) ? 0.5 : 1
+                                  }}
+                                >
+                                  {processingDocs.has(pr.id) ? 'ОБРОБКА...' : (pr.status === 'ordered' ? 'ЗАМОВЛЕНО' : (isProcurementOnly ? 'СФОРМУВАТИ ПОСТАВКУ НА СВ' : 'СФОРМУВАТИ ПОСТАВКУ'))}
+                                </button>
+                              )}
+                              {!isProcurementOnly && (pr.status === 'pending' || pr.status === 'accepted') && (
+                                 <button 
+                                   disabled={hasActivePRForProcurement || processingDocs.has(pr.id)}
+                                   onClick={async (e) => {
+                                     e.stopPropagation()
+                                     if (hasDeficit && !hasActivePRForProcurement) {
+                                       handleForwardToProcurement(pr)
+                                     } else {
+                                       setProcessingDocs(prev => new Set(prev).add(pr.id))
+                                       try {
+                                         await apiService.submitUpdatePurchaseRequestStatus(pr.id, 'accepted', updatePurchaseRequestStatus)
+                                       } finally {
+                                         setProcessingDocs(prev => { const next = new Set(prev); next.delete(pr.id); return next; })
+                                       }
+                                     }
+                                   }}
+                                   style={{ 
+                                     background: (hasDeficit && !hasActivePRForProcurement) ? '#ef4444' : '#1a1a1a', 
+                                     color: (hasDeficit && !hasActivePRForProcurement) ? '#fff' : '#444', 
+                                     border: '1px solid #ef444444', 
+                                     padding: '6px 12px', 
+                                     borderRadius: '8px', 
+                                     fontSize: '0.7rem',
+                                     fontWeight: 950,
+                                     cursor: (hasActivePRForProcurement || processingDocs.has(pr.id)) ? 'not-allowed' : 'pointer',
+                                     opacity: (hasActivePRForProcurement || processingDocs.has(pr.id)) ? 0.5 : 1
+                                   }}
+                                 >
+                                    {processingDocs.has(pr.id) ? 'ОБРОБКА...' : (hasActivePRForProcurement ? 'ОЧІКУЄ ЗАКУПІВЛІ' : 'ЗАКУПИТИ')}
+                                 </button>
+                              )}
+                            </div>
                           </div>
-                          
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            {group.requests.map(req => {
-                              const reqNom = nomenclatures?.find(n => n.id === req.nomenclature_id)
-                              const reqName = reqNom?.name || req.details
-                              const qty = Number(req.quantity) || 0
-                              
-                              const matchingItems = (inventory || []).filter(i =>
-                                i.warehouse === 'production' &&
-                                (String(i.nomenclature_id) === String(req.nomenclature_id) || normalize(i.name) === normalize(reqName))
-                              )
-                              const totalStock = matchingItems.reduce((acc, i) => acc + (Number(i.total_qty) || 0), 0)
-                              const dbReserved = matchingItems.reduce((acc, i) => acc + (Number(i.reserved_qty) || 0), 0)
-                              const available = Math.max(0, totalStock - dbReserved)
-                              
-                              const itemEnough = available >= qty
-
-                              return (
-                                <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#0a0a0a', padding: '12px 15px', borderRadius: '12px', border: '1px solid #222' }}>
-                                  <span style={{ fontSize: '0.9rem', fontWeight: 800 }}>{reqName}</span>
-                                  <div style={{ textTransform: 'uppercase', fontSize: '0.75rem', color: itemEnough ? '#10b981' : '#ef4444', fontWeight: 800, textAlign: 'right' }}>
-                                    Потрібно: {qty} шт | Наявні: {available} шт
-                                  </div>
-                                </div>
-                              )
-                            })}
+                          <div 
+                            onClick={() => {
+                              const next = new Set(expandedPRs)
+                              if (isExpanded) {
+                                next.delete(pr.id)
+                                next.add(`collapsed-${pr.id}`)
+                              } else {
+                                next.add(pr.id)
+                                next.delete(`collapsed-${pr.id}`)
+                              }
+                              setExpandedPRs(next)
+                            }}
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: '15px 0 10px', fontSize: '0.75rem', color: '#555', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}
+                          >
+                            <span>Специфікація ({(pr.items || []).length} позицій)</span>
+                            <span style={{ fontSize: '0.65rem', color: '#ff9000' }}>{isExpanded ? '▲ Приховати' : '▼ Показати список'}</span>
                           </div>
 
-                          {isEnough ? (
-                            <button 
-                              disabled={processingDocs.has(group.taskId)}
-                              onClick={async () => {
-                                setProcessingDocs(prev => new Set(prev).add(group.taskId))
-                                try {
-                                  const reqIds = group.requests.map(r => r.id)
-                                  await issueMaterialsBatch(reqIds, group.taskId)
-                                  alert('Матеріали успішно видано на Підготовку!')
-                                } catch(e) {
-                                  alert('Помилка: ' + e.message)
-                                } finally {
-                                  setProcessingDocs(prev => { const next = new Set(prev); next.delete(group.taskId); return next; })
-                                }
-                              }}
-                              style={{
-                                background: '#10b981',
-                                color: '#000',
-                                border: 'none',
-                                padding: '12px 20px',
-                                borderRadius: '12px',
-                                fontWeight: 900,
-                                cursor: processingDocs.has(group.taskId) ? 'not-allowed' : 'pointer',
-                                fontSize: '0.85rem',
-                                textTransform: 'uppercase',
-                                alignSelf: 'flex-end',
-                                marginTop: '5px'
-                              }}
-                            >
-                              {processingDocs.has(group.taskId) ? 'ОБРОБКА...' : 'ВИДАТИ НА ПІДГОТОВКУ'}
-                            </button>
-                          ) : (
-                            <button 
-                              disabled={hasActivePRForProcurement || processingDocs.has(group.taskId)}
-                              onClick={() => handleRequestPrepMaterialsFromProcurement(group)}
-                              style={{
-                                background: hasActivePRForProcurement ? '#1a1a1a' : '#ef4444',
-                                color: hasActivePRForProcurement ? '#444' : '#fff',
-                                border: hasActivePRForProcurement ? '1px solid #222' : 'none',
-                                padding: '12px 20px',
-                                borderRadius: '12px',
-                                fontWeight: 950,
-                                cursor: (hasActivePRForProcurement || processingDocs.has(group.taskId)) ? 'not-allowed' : 'pointer',
-                                fontSize: '0.85rem',
-                                textTransform: 'uppercase',
-                                alignSelf: 'flex-end',
-                                marginTop: '5px',
-                                opacity: (hasActivePRForProcurement || processingDocs.has(group.taskId)) ? 0.5 : 1
-                              }}
-                            >
-                              {processingDocs.has(group.taskId) ? 'ОБРОБКА...' : (hasActivePRForProcurement ? 'ОЧІКУЄ ЗАКУПІВЛІ' : 'ЗАПРОСИТИ У ПОСТАЧАННЯ')}
-                            </button>
+                          {isExpanded && (
+                            <div style={{ fontSize: '0.85rem', color: '#888' }}>
+                              {(() => {
+                                const items = pr.items || []
+                                const aggregated = []
+                                
+                                // Розраховуємо "віртуальну броню" для відображення
+                                const otherManualDocs = (receptionDocs || []).filter(d => d.status === 'ordered' && d.source_warehouse === 'production')
+                                const virtualReservedMap = {}
+                                otherManualDocs.forEach(d => {
+                                  (d.items || []).forEach(item => {
+                                    const k = item.nomenclature_id ? String(item.nomenclature_id) : normalize(item.name || item.reqDetails || item.details)
+                                    virtualReservedMap[k] = (virtualReservedMap[k] || 0) + (Number(item.qty || item.needed || item.quantity) || 0)
+                                  })
+                                })
+
+                                items.forEach((it, idx) => {
+                                  const name = resolveItemName(it, idx)
+                                  const parsedName = parseMaterialName(name)
+                                  const nomId = it.nomenclature_id
+                                  
+                                  const existing = aggregated.find(a => (a.nomenclature_id && a.nomenclature_id === nomId) || normalize(a.parsedName) === normalize(parsedName))
+                                  if (existing) {
+                                    existing.needed += Number(resolveItemQty(it)) || 0
+                                  } else {
+                                    const matchingItems = (inventory || []).filter(i =>
+                                      (i.warehouse === 'production' || !i.warehouse) &&
+                                      (
+                                        (nomId && String(i.nomenclature_id) === String(nomId)) ||
+                                        (normalize(i.name) === normalize(parsedName)) ||
+                                        (i.name && parsedName && normalize(i.name).includes(normalize(parsedName))) ||
+                                        (i.name && parsedName && normalize(parsedName).includes(normalize(i.name))) ||
+                                        (it.inventory_id && String(i.id) === String(it.inventory_id))
+                                      )
+                                    )
+                                    const totalStock = matchingItems.reduce((acc, i) => acc + (Number(i.total_qty) || 0), 0)
+                                    const dbReserved = matchingItems.reduce((acc, i) => acc + (Number(i.reserved_qty) || 0), 0)
+                                    const vKey = it.nomenclature_id ? String(it.nomenclature_id) : normalize(parsedName)
+                                    const vReserved = virtualReservedMap[vKey] || 0
+                                    
+                                    const freeStock = Math.max(0, totalStock - dbReserved - vReserved)
+                                    const alreadyReserved = Number(it.reserved_from_stock) || 0
+                                    const available = freeStock + alreadyReserved
+                                    aggregated.push({
+                                      ...it,
+                                      name,
+                                      parsedName,
+                                      available,
+                                      needed: isProcurementOnly ? (Number(it.missingAmount || it.qty || it.needed) || 0) : (Number(resolveItemQty(it)) || 0)
+                                    })
+                                  }
+                                })
+
+                                return aggregated.map((it, idx) => {
+                                  const isDeficit = !isProcurementOnly && (it.available < it.needed)
+                                  return (
+                                    <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                      <span style={{ color: isDeficit ? '#ef4444' : '#aaa' }}>{it.name}</span>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        {!isProcurementOnly && (
+                                          <span style={{ fontSize: '0.65rem', color: isDeficit ? '#ef4444' : '#10b981', fontWeight: 800 }}>
+                                            ({it.available} в наявності)
+                                          </span>
+                                        )}
+                                        <strong style={{ color: isDeficit ? '#ef4444' : '#fff' }}>{it.needed}</strong>
+                                      </div>
+                                    </div>
+                                  )
+                                })
+                              })()}
+                            </div>
                           )}
                         </div>
                       )
                     })}
+                    {pendingRequests.length === 0 && (
+                      <div style={{ textAlign: 'center', padding: '60px 20px', color: '#444', fontSize: '0.85rem', background: '#0a0a0a', border: '1px dashed #222', borderRadius: '18px' }}>
+                        Активних дефіцитів не зафіксовано
+                      </div>
+                    )}
                   </div>
                 </div>
-              )}
-
-              <h3 style={{ fontSize: '0.85rem', color: '#555', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <AlertTriangle size={18} className="text-secondary" /> ДЕФІЦИТ ТА ЗАПИТИ
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                {pendingRequests.map(pr => {
-                  const hasDeficit = (pr.items || []).some(it => {
-                    const name = resolveItemName(it, 0)
-                    const parsedName = parseMaterialName(name)
-                    const matchingItems = (inventory || []).filter(i =>
-                      i.warehouse === 'production' &&
-                      (
-                        (it.nomenclature_id && String(i.nomenclature_id) === String(it.nomenclature_id)) ||
-                        (it.inventory_id && String(i.id) === String(it.inventory_id)) ||
-                        (normalize(i.name) === normalize(parsedName))
-                      )
-                    )
-                    const globalAvailable = matchingItems.reduce((acc, i) => acc + (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0), 0)
-                    const alreadyReserved = Number(it.reserved_from_stock) || 0
-                    const effectiveAvailable = globalAvailable + alreadyReserved
-                    return effectiveAvailable < Number(resolveItemQty(it))
-                  })
-
-                  const currentTaskId = pr.task_id || `order-${pr.order_id}`
-                  const hasActivePRForProcurement = (purchaseRequests || []).some(
-                    r => (r.task_id ? String(r.task_id) === String(currentTaskId) : String(r.order_id) === String(pr.order_id)) && 
-                    r.destination_warehouse === 'procurement' && 
-                    (r.status === 'pending' || r.status === 'accepted' || r.status === 'ordered')
-                  )
-
-                  const relatedReception = (receptionDocs || []).find(rd => 
-                    (rd.task_id ? String(rd.task_id) === String(currentTaskId) : String(rd.order_id) === String(pr.order_id)) && 
-                    (rd.status === 'ordered' || rd.status === 'shipped')
-                  )
-
-                  const isExpanded = expandedPRs.has(pr.id) || (!expandedPRs.has(`collapsed-${pr.id}`) && pr.status !== 'ordered' && !relatedReception)
-
-                  return (
-                    <div key={pr.id} className="request-card" style={{ background: '#111', padding: '25px', borderRadius: '24px', border: '1px solid #222', borderLeft: pr.status === 'accepted' ? '4px solid #3b82f6' : '4px solid #ef4444' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
-                          <strong style={pr.status === 'accepted' ? { color: '#3b82f6', fontSize: '1rem' } : { color: '#ef4444', fontSize: '1rem' }}>
-                            НАРЯД #{pr.order_num}
-                          </strong>
-                          {relatedReception && (
-                            <span style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '4px 10px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase' }}>
-                              Відправлено на {relatedReception.target_warehouse === 'operational' ? 'СО' : 'СВ'} (Прийомка #{relatedReception.id.slice(0, 6).toUpperCase()})
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          {pr.status === 'pending' && isProcurementOnly && (
-                            <button 
-                              disabled={processingDocs.has(pr.id)}
-                              onClick={async () => {
-                                setProcessingDocs(prev => new Set(prev).add(pr.id))
-                                try {
-                                  await updatePurchaseRequestStatus(pr.id, 'accepted', 'procurement')
-                                } finally {
-                                  setProcessingDocs(prev => { const next = new Set(prev); next.delete(pr.id); return next; })
-                                }
-                              }} 
-                              style={{ 
-                                background: processingDocs.has(pr.id) ? '#1a1a1a' : '#3b82f6', 
-                                color: processingDocs.has(pr.id) ? '#444' : '#fff', 
-                                border: 'none', 
-                                padding: '8px 15px', 
-                                borderRadius: '10px', 
-                                fontSize: '0.7rem', 
-                                fontWeight: 900,
-                                cursor: processingDocs.has(pr.id) ? 'not-allowed' : 'pointer'
-                              }}
-                            >
-                              {processingDocs.has(pr.id) ? 'ОБРОБКА...' : 'ПРИЙНЯТИ'}
-                            </button>
-                          )}
-                          {(pr.status === 'accepted' || (pr.status === 'pending' && !isProcurementOnly)) && (
-                            <button
-                              onClick={async () => {
-                                setProcessingDocs(prev => new Set(prev).add(pr.id))
-                                try {
-                                  await apiService.submitConvertRequestToOrder(pr.id, convertRequestToOrder)
-                                } finally {
-                                  setProcessingDocs(prev => {
-                                    const next = new Set(prev)
-                                    next.delete(pr.id)
-                                    return next
-                                  })
-                                }
-                              }}
-                              disabled={(!isProcurementOnly && hasDeficit) || pr.status === 'ordered' || processingDocs.has(pr.id)}
-                              style={{ 
-                                background: ((!isProcurementOnly && hasDeficit) || pr.status === 'ordered' || processingDocs.has(pr.id)) ? '#1a1a1a' : '#3b82f622', 
-                                color: ((!isProcurementOnly && hasDeficit) || pr.status === 'ordered' || processingDocs.has(pr.id)) ? '#444' : '#3b82f6', 
-                                border: '1px solid #3b82f644', 
-                                padding: '8px 15px', 
-                                borderRadius: '10px', 
-                                fontSize: '0.7rem', 
-                                fontWeight: 900,
-                                cursor: ((!isProcurementOnly && hasDeficit) || pr.status === 'ordered' || processingDocs.has(pr.id)) ? 'not-allowed' : 'pointer',
-                                opacity: ((!isProcurementOnly && hasDeficit) || pr.status === 'ordered' || processingDocs.has(pr.id)) ? 0.5 : 1
-                              }}
-                            >
-                              {processingDocs.has(pr.id) ? 'ОБРОБКА...' : (pr.status === 'ordered' ? 'ЗАМОВЛЕНО' : (isProcurementOnly ? 'СФОРМУВАТИ ПОСТАВКУ НА СВ' : 'СФОРМУВАТИ ПОСТАВКУ'))}
-                            </button>
-                          )}
-                          {!isProcurementOnly && (pr.status === 'pending' || pr.status === 'accepted') && (
-                             <button 
-                               disabled={hasActivePRForProcurement || processingDocs.has(pr.id)}
-                               onClick={async (e) => {
-                                 e.stopPropagation()
-                                 if (hasDeficit && !hasActivePRForProcurement) {
-                                   handleForwardToProcurement(pr)
-                                 } else {
-                                   setProcessingDocs(prev => new Set(prev).add(pr.id))
-                                   try {
-                                     await apiService.submitUpdatePurchaseRequestStatus(pr.id, 'accepted', updatePurchaseRequestStatus)
-                                   } finally {
-                                     setProcessingDocs(prev => { const next = new Set(prev); next.delete(pr.id); return next; })
-                                   }
-                                 }
-                               }}
-                               style={{ 
-                                 background: (hasDeficit && !hasActivePRForProcurement) ? '#ef4444' : '#1a1a1a', 
-                                 color: (hasDeficit && !hasActivePRForProcurement) ? '#fff' : '#444', 
-                                 border: '1px solid #ef444444', 
-                                 padding: '8px 15px', 
-                                 borderRadius: '10px', 
-                                 fontSize: '0.7rem',
-                                 fontWeight: 950,
-                                 cursor: (hasActivePRForProcurement || processingDocs.has(pr.id)) ? 'not-allowed' : 'pointer',
-                                 opacity: (hasActivePRForProcurement || processingDocs.has(pr.id)) ? 0.5 : 1
-                               }}
-                             >
-                                {processingDocs.has(pr.id) ? 'ОБРОБКА...' : (hasActivePRForProcurement ? 'ОЧІКУЄ ЗАКУПІВЛІ' : 'ЗАКУПИТИ')}
-                             </button>
-                          )}
-                        </div>
-                      </div>
-                      <div 
-                        onClick={() => {
-                          const next = new Set(expandedPRs)
-                          if (isExpanded) {
-                            next.delete(pr.id)
-                            next.add(`collapsed-${pr.id}`)
-                          } else {
-                            next.add(pr.id)
-                            next.delete(`collapsed-${pr.id}`)
-                          }
-                          setExpandedPRs(next)
-                        }}
-                        style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: '15px 0 10px', fontSize: '0.8rem', color: '#555', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}
-                      >
-                        <span>Специфікація ({(pr.items || []).length} позицій)</span>
-                        <span style={{ fontSize: '0.7rem', color: '#ff9000' }}>{isExpanded ? '▲ Приховати' : '▼ Показати список'}</span>
-                      </div>
-
-                      {isExpanded && (
-                        <div style={{ fontSize: '0.9rem', color: '#888' }}>
-                          {(() => {
-                            const items = pr.items || []
-                            const aggregated = []
-                            
-                            // Розраховуємо "віртуальну броню" для відображення
-                            const otherManualDocs = (receptionDocs || []).filter(d => d.status === 'ordered' && d.source_warehouse === 'production')
-                            const virtualReservedMap = {}
-                            otherManualDocs.forEach(d => {
-                              (d.items || []).forEach(item => {
-                                const k = item.nomenclature_id ? String(item.nomenclature_id) : normalize(item.name || item.reqDetails || item.details)
-                                virtualReservedMap[k] = (virtualReservedMap[k] || 0) + (Number(item.qty || item.needed || item.quantity) || 0)
-                              })
-                            })
-
-                            items.forEach((it, idx) => {
-                              const name = resolveItemName(it, idx)
-                              const parsedName = parseMaterialName(name)
-                              const nomId = it.nomenclature_id
-                              
-                              const existing = aggregated.find(a => (a.nomenclature_id && a.nomenclature_id === nomId) || normalize(a.parsedName) === normalize(parsedName))
-                              if (existing) {
-                                existing.needed += Number(resolveItemQty(it)) || 0
-                              } else {
-                                const matchingItems = (inventory || []).filter(i =>
-                                  (i.warehouse === 'production' || !i.warehouse) &&
-                                  (
-                                    (nomId && String(i.nomenclature_id) === String(nomId)) ||
-                                    (normalize(i.name) === normalize(parsedName)) ||
-                                    (i.name && parsedName && normalize(i.name).includes(normalize(parsedName))) ||
-                                    (i.name && parsedName && normalize(parsedName).includes(normalize(i.name))) ||
-                                    (it.inventory_id && String(i.id) === String(it.inventory_id))
-                                  )
-                                )
-                                const totalStock = matchingItems.reduce((acc, i) => acc + (Number(i.total_qty) || 0), 0)
-                                const dbReserved = matchingItems.reduce((acc, i) => acc + (Number(i.reserved_qty) || 0), 0)
-                                const vKey = it.nomenclature_id ? String(it.nomenclature_id) : normalize(parsedName)
-                                const vReserved = virtualReservedMap[vKey] || 0
-                                
-                                const freeStock = Math.max(0, totalStock - dbReserved - vReserved)
-                                const alreadyReserved = Number(it.reserved_from_stock) || 0
-                                const available = freeStock + alreadyReserved
-                                aggregated.push({
-                                  ...it,
-                                  name,
-                                  parsedName,
-                                  available,
-                                  needed: isProcurementOnly ? (Number(it.missingAmount || it.qty || it.needed) || 0) : (Number(resolveItemQty(it)) || 0)
-                                })
-                              }
-                            })
-
-                            return aggregated.map((it, idx) => {
-                              const isDeficit = !isProcurementOnly && (it.available < it.needed)
-                              return (
-                                <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <span style={{ color: isDeficit ? '#ef4444' : '#888' }}>{it.name}</span>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    {!isProcurementOnly && (
-                                      <span style={{ fontSize: '0.65rem', color: isDeficit ? '#ef4444' : '#10b981', fontWeight: 800 }}>
-                                        ({it.available} в наявності)
-                                      </span>
-                                    )}
-                                    <strong style={{ color: isDeficit ? '#ef4444' : '#fff' }}>{it.needed}</strong>
-                                  </div>
-                                </div>
-                              )
-                            })
-                          })()}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-                {pendingRequests.length === 0 && (
-                  <div style={{ textAlign: 'center', padding: '60px', color: '#333', fontSize: '0.85rem' }}>Активних дефіцитів не зафіксовано</div>
-                )}
               </div>
             </section>
           )}
