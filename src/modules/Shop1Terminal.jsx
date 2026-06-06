@@ -585,12 +585,12 @@ export default function Shop1Terminal() {
         })
 
         if (!machineExists) {
+          setIsProcessing(false)
           alert(
             `❌ ПОМИЛКА: ВЕРСТАТ НЕ ЗНАЙДЕНО В СИСТЕМІ!\n\n` +
             `Вказаного верстата "${targetMachine}" немає в списку обладнання (/machines).\n\n` +
             `Будь ласка, введіть коректну назву або інвентарний номер верстата з наявних у системі.`
           )
-          setIsProcessing(false)
           return
         }
 
@@ -617,6 +617,7 @@ export default function Shop1Terminal() {
 
         if (runningCard) {
           const nom = nomenclatures.find(n => n.id === runningCard.nomenclature_id)
+          setIsProcessing(false)
           alert(
             `⚠️ ПОМИЛКА: ВЕРСТАТ "${targetMachine}" ВЖЕ ЗАЙНЯТИЙ!\n\n` +
             `На ньому зараз виконується робота:\n` +
@@ -624,7 +625,6 @@ export default function Shop1Terminal() {
             `• Оператор: ${runningCard.operator_name || 'Не вказано'}\n\n` +
             `Будь ласка, оберіть інший вільний верстат або завершіть поточну картку на цьому верстаті.`
           )
-          setIsProcessing(false)
           return
         }
       }
@@ -641,7 +641,10 @@ export default function Shop1Terminal() {
       }).eq('id', currentCard.id)
       fetchData(['work_cards', 'tasks']).catch(() => {})
       if (!scannedIds.includes(currentCard.id)) setScannedIds(prev => [...prev, currentCard.id])
-    } catch (e) { alert('Помилка: ' + e.message) }
+    } catch (e) {
+      setIsProcessing(false)
+      alert('Помилка: ' + e.message)
+    }
     finally { setIsProcessing(false) }
   }
 
@@ -681,6 +684,7 @@ export default function Shop1Terminal() {
       setShiftChangeShift('')
       fetchData(['work_cards', 'work_card_history']).catch(() => {})
     } catch (e) {
+      setIsProcessing(false)
       alert('Помилка перезмінки: ' + e.message)
     } finally { setIsProcessing(false) }
   }
@@ -702,40 +706,51 @@ export default function Shop1Terminal() {
       }
       const historyCardInfo = ((currentCard.card_info || '') + breakdownStr).trim()
 
+      const promises = []
+
       // 1. Записуємо в history (galt_priority не існує в work_card_history!)
-      await supabase.from('work_card_history').insert([{
-        card_id: currentCard.id,
-        nomenclature_id: currentCard.nomenclature_id,
-        stage_name: currentCard.operation,
-        operator_name: op,
-        qty_at_start: currentCard.quantity,
-        qty_completed: qtyDone,
-        scrap_qty: scrapCount,
-        started_at: currentCard.started_at,
-        completed_at: new Date().toISOString(),
-        is_archived_scrap: scrapCount > 0,
-        shift_name: activeShift,
-        manager_name: currentCard.manager_name,
-        machine_name: currentCard.machine,
-        cutters_used: cuttersQty,
-        card_info: historyCardInfo
-      }])
+      promises.push(
+        supabase.from('work_card_history').insert([{
+          card_id: currentCard.id,
+          nomenclature_id: currentCard.nomenclature_id,
+          stage_name: currentCard.operation,
+          operator_name: op,
+          qty_at_start: currentCard.quantity,
+          qty_completed: qtyDone,
+          scrap_qty: scrapCount,
+          started_at: currentCard.started_at,
+          completed_at: new Date().toISOString(),
+          is_archived_scrap: scrapCount > 0,
+          shift_name: activeShift,
+          manager_name: currentCard.manager_name,
+          machine_name: currentCard.machine,
+          cutters_used: cuttersQty,
+          card_info: historyCardInfo
+        }])
+      )
 
       // 2. Оновлюємо картку (тільки перехід у буфер, фінальна прийомка далі)
-      await supabase.from('work_cards').update({
-        status: 'at-buffer',
-        quantity: qtyDone,
-        operator_name: op,
-        shift_name: activeShift,
-        cutters_used: cuttersQty,
-        card_info: historyCardInfo,
-        galt_priority: priorityVal,
-        completed_at: new Date().toISOString()
-      }).eq('id', currentCard.id)
+      promises.push(
+        supabase.from('work_cards').update({
+          status: 'at-buffer',
+          quantity: qtyDone,
+          operator_name: op,
+          shift_name: activeShift,
+          cutters_used: cuttersQty,
+          card_info: historyCardInfo,
+          galt_priority: priorityVal,
+          completed_at: new Date().toISOString()
+        }).eq('id', currentCard.id)
+      )
 
       // 3. Якщо є брак — записуємо його в інвентар окремим типом
       if (scrapCount > 0) {
-        await updateInventoryStock(currentCard.nomenclature_id, scrapCount, 'scrap')
+        promises.push(updateInventoryStock(currentCard.nomenclature_id, scrapCount, 'scrap'))
+      }
+
+      const results = await Promise.all(promises)
+      for (const res of results) {
+        if (res && res.error) throw res.error
       }
 
       setShowCompleteModal(false)
@@ -744,6 +759,7 @@ export default function Shop1Terminal() {
       fetchData(['work_cards', 'work_card_history', 'inventory']).catch(() => {})
     } catch (e) {
       console.error('Buffer error:', e)
+      setIsProcessing(false)
       alert('Помилка буфера: ' + e.message)
     } finally { setIsProcessing(false) }
   }
@@ -788,35 +804,50 @@ export default function Shop1Terminal() {
     setIsProcessing(true)
     try {
       const op = next === 'Галтовка' ? 'Команда' : selectedOperator
+      const writes = []
+
       if (currentCard.status === 'at-buffer') {
         const bufferStart = currentCard.completed_at || currentCard.started_at || new Date().toISOString()
-        await supabase.from('work_card_history').insert([{
-          card_id: currentCard.id,
-          nomenclature_id: currentCard.nomenclature_id,
-          stage_name: `Буфер ${currentCard.operation}`,
-          operator_name: op || currentCard.operator_name || 'Не вказано',
-          qty_at_start: currentCard.quantity || 0,
-          qty_completed: currentCard.quantity || 0,
-          scrap_qty: 0,
-          started_at: bufferStart,
-          completed_at: new Date().toISOString(),
-          shift_name: selectedShift || currentCard.shift_name || 'Без зміни',
-          manager_name: currentCard.manager_name,
-          machine_name: currentCard.machine
-        }])
+        writes.push(
+          supabase.from('work_card_history').insert([{
+            card_id: currentCard.id,
+            nomenclature_id: currentCard.nomenclature_id,
+            stage_name: `Буфер ${currentCard.operation}`,
+            operator_name: op || currentCard.operator_name || 'Не вказано',
+            qty_at_start: currentCard.quantity || 0,
+            qty_completed: currentCard.quantity || 0,
+            scrap_qty: 0,
+            started_at: bufferStart,
+            completed_at: new Date().toISOString(),
+            shift_name: selectedShift || currentCard.shift_name || 'Без зміни',
+            manager_name: currentCard.manager_name,
+            machine_name: currentCard.machine
+          }])
+        )
       }
 
-      await supabase.from('work_cards').update({
-        status: 'in-progress',
-        operation: next,
-        started_at: new Date().toISOString(),
-        operator_name: op,
-        shift_name: selectedShift,
-        machine: currentCard.machine || 'Не вказано'
-      }).eq('id', currentCard.id)
+      writes.push(
+        supabase.from('work_cards').update({
+          status: 'in-progress',
+          operation: next,
+          started_at: new Date().toISOString(),
+          operator_name: op,
+          shift_name: selectedShift,
+          machine: currentCard.machine || 'Не вказано'
+        }).eq('id', currentCard.id)
+      )
+
+      const results = await Promise.all(writes)
+      for (const res of results) {
+        if (res.error) throw res.error
+      }
+
       fetchData(['work_cards', 'work_card_history']).catch(() => {})
       if (!scannedIds.includes(currentCard.id)) setScannedIds(prev => [...prev, currentCard.id])
-    } catch (e) { alert('Помилка: ' + e.message) }
+    } catch (e) {
+      setIsProcessing(false)
+      alert('Помилка: ' + e.message)
+    }
     finally { setIsProcessing(false) }
   }
 
@@ -835,59 +866,73 @@ export default function Shop1Terminal() {
       }
       const historyCardInfo = ((currentCard.card_info || '') + breakdownStr).trim()
 
+      const promises = []
+
       // 1. Записуємо в history
-      await supabase.from('work_card_history').insert([{
-        card_id: currentCard.id,
-        nomenclature_id: currentCard.nomenclature_id,
-        stage_name: currentCard.operation,
-        operator_name: op,
-        qty_at_start: currentCard.quantity,
-        qty_completed: 0,
-        scrap_qty: currentCard.quantity,
-        started_at: currentCard.started_at,
-        completed_at: new Date().toISOString(),
-        is_archived_scrap: true,
-        shift_name: activeShift,
-        manager_name: currentCard.manager_name,
-        machine_name: currentCard.machine,
-        card_info: historyCardInfo,
-        cutters_used: cuttersQty
-      }])
+      promises.push(
+        supabase.from('work_card_history').insert([{
+          card_id: currentCard.id,
+          nomenclature_id: currentCard.nomenclature_id,
+          stage_name: currentCard.operation,
+          operator_name: op,
+          qty_at_start: currentCard.quantity,
+          qty_completed: 0,
+          scrap_qty: currentCard.quantity,
+          started_at: currentCard.started_at,
+          completed_at: new Date().toISOString(),
+          is_archived_scrap: true,
+          shift_name: activeShift,
+          manager_name: currentCard.manager_name,
+          machine_name: currentCard.machine,
+          card_info: historyCardInfo,
+          cutters_used: cuttersQty
+        }])
+      )
 
       // 2. Оновлюємо поточну картку → completed (з 0 qty)
-      await supabase.from('work_cards').update({
-        status: 'completed',
-        quantity: 0,
-        operator_name: op,
-        shift_name: activeShift,
-        card_info: historyCardInfo,
-        cutters_used: cuttersQty
-      }).eq('id', currentCard.id)
+      promises.push(
+        supabase.from('work_cards').update({
+          status: 'completed',
+          quantity: 0,
+          operator_name: op,
+          shift_name: activeShift,
+          card_info: historyCardInfo,
+          cutters_used: cuttersQty
+        }).eq('id', currentCard.id)
+      )
 
       // 3. Записуємо брак на склад
-      await updateInventoryStock(currentCard.nomenclature_id, currentCard.quantity, 'scrap')
+      promises.push(updateInventoryStock(currentCard.nomenclature_id, currentCard.quantity, 'scrap'))
 
       // 4. Створюємо НОВУ картку (Розкрій) для перевипуску
-      const nom = getNom(currentCard)
-      await createWorkCard(
-        currentCard.task_id,
-        currentCard.order_id,
-        currentCard.nomenclature_id,
-        CHAIN[0], // Розкрій
-        null,     // Машину обере заново
-        0,        // Естімейт
-        `[REDO] після ${currentCard.operation}`,
-        currentCard.quantity,
-        0,
-        true      // isRework = true
+      promises.push(
+        createWorkCard(
+          currentCard.task_id,
+          currentCard.order_id,
+          currentCard.nomenclature_id,
+          CHAIN[0], // Розкрій
+          null,     // Машину обере заново
+          0,        // Естімейт
+          `[REDO] після ${currentCard.operation}`,
+          currentCard.quantity,
+          0,
+          true      // isRework = true
+        )
       )
+
+      const results = await Promise.all(promises)
+      for (const res of results) {
+        if (res && res.error) throw res.error
+      }
 
       fetchData(['work_cards', 'work_card_history', 'inventory', 'tasks']).catch(() => {})
       setShowCompleteModal(false)
       setSelectedCardId(null)
+      setIsProcessing(false)
       alert('Запит на перевипуск створено успішно!')
     } catch (e) {
       console.error('Rework error:', e)
+      setIsProcessing(false)
       alert('Помилка перевипуску: ' + e.message)
     } finally { setIsProcessing(false) }
   }
@@ -904,6 +949,7 @@ export default function Shop1Terminal() {
       fetchData(['work_cards', 'tasks']).catch(() => {})
     } catch (e) {
       console.error('Error completing sorting to buffer:', e)
+      setIsProcessing(false)
       alert('Помилка завершення сортування: ' + e.message)
     } finally {
       setIsProcessing(false)
@@ -1189,9 +1235,11 @@ export default function Shop1Terminal() {
       setSelectedCardId(null)
       setScannedIds(prev => prev.filter(id => id !== currentCard.id))
       fetchData(['work_cards', 'work_card_history', 'inventory']).catch(() => {})
+      setIsProcessing(false)
       alert(`✅ ${goodQty} шт відправлено в буфер Цеху №2!`)
     } catch (e) {
       console.error('Sort to shop2 error:', e)
+      setIsProcessing(false)
       alert('Помилка сортування: ' + e.message)
     } finally { setIsProcessing(false) }
   }
@@ -1205,51 +1253,62 @@ export default function Shop1Terminal() {
       const op = selectedOperator || currentCard.operator_name || 'Прийомка'
       const nom = nomenclatures.find(n => n.id === currentCard.nomenclature_id)
 
+      const promises = []
+
       // 1. Записуємо history запис для Буфера Галтовки (якщо картка в буфері)
       if (currentCard.status === 'at-buffer') {
         const bufferStart = currentCard.completed_at || currentCard.started_at || new Date().toISOString()
-        await supabase.from('work_card_history').insert([{
+        promises.push(
+          supabase.from('work_card_history').insert([{
+            card_id: currentCard.id,
+            nomenclature_id: currentCard.nomenclature_id,
+            stage_name: 'Буфер Галтовки',
+            operator_name: op,
+            qty_at_start: qtyDone,
+            qty_completed: qtyDone,
+            scrap_qty: 0,
+            started_at: bufferStart,
+            completed_at: new Date().toISOString(),
+            shift_name: currentCard.shift_name,
+            manager_name: currentCard.manager_name,
+            machine_name: currentCard.machine
+          }])
+        )
+      }
+
+      // 2. Записуємо history запис прийомки
+      promises.push(
+        supabase.from('work_card_history').insert([{
           card_id: currentCard.id,
           nomenclature_id: currentCard.nomenclature_id,
-          stage_name: 'Буфер Галтовки',
+          stage_name: 'Прийомка',
           operator_name: op,
           qty_at_start: qtyDone,
           qty_completed: qtyDone,
           scrap_qty: 0,
-          started_at: bufferStart,
+          started_at: new Date().toISOString(),
           completed_at: new Date().toISOString(),
+          is_archived_scrap: true,
           shift_name: currentCard.shift_name,
           manager_name: currentCard.manager_name,
           machine_name: currentCard.machine
         }])
-      }
-
-      // 2. Записуємо history запис прийомки
-      await supabase.from('work_card_history').insert([{
-        card_id: currentCard.id,
-        nomenclature_id: currentCard.nomenclature_id,
-        stage_name: 'Прийомка',
-        operator_name: op,
-        qty_at_start: qtyDone,
-        qty_completed: qtyDone,
-        scrap_qty: 0,
-        started_at: new Date().toISOString(),
-        completed_at: new Date().toISOString(),
-        is_archived_scrap: true,
-        shift_name: currentCard.shift_name,
-        manager_name: currentCard.manager_name,
-        machine_name: currentCard.machine
-      }])
+      )
 
       // 3. Картка → at-buffer(Прийомка) — чекає фінального сортування
-      const { error: cardErr } = await supabase.from('work_cards').update({
-        status: 'at-buffer',
-        operation: 'Прийомка',
-        operator_name: op,
-        completed_at: new Date().toISOString()
-      }).eq('id', currentCard.id)
+      promises.push(
+        supabase.from('work_cards').update({
+          status: 'at-buffer',
+          operation: 'Прийомка',
+          operator_name: op,
+          completed_at: new Date().toISOString()
+        }).eq('id', currentCard.id)
+      )
 
-      if (cardErr) throw cardErr
+      const results = await Promise.all(promises)
+      for (const res of results) {
+        if (res.error) throw res.error
+      }
 
       // Картка тепер у буфері Прийомки — закриваємо її та повертаємось на головний екран
       setSelectedCardId(null)
@@ -1257,6 +1316,7 @@ export default function Shop1Terminal() {
       fetchData(['work_cards', 'work_card_history']).catch(() => {})
     } catch (e) {
       console.error('Acceptance error:', e)
+      setIsProcessing(false)
       alert('Помилка прийомки: ' + (e.message || 'Невідома помилка'))
     } finally { setIsProcessing(false) }
   }
@@ -1276,34 +1336,47 @@ export default function Shop1Terminal() {
       const op = `ВКЯ (${qcInspector || 'відповідальний'}) — Причина: ${reasonText}`
       const newQty = Math.max(0, currentCard.quantity - qcScrapCount)
 
+      const promises = []
+
       // 1. Запис у work_card_history
-      await supabase.from('work_card_history').insert([{
-        card_id: currentCard.id,
-        nomenclature_id: currentCard.nomenclature_id,
-        stage_name: 'Контроль ВКЯ',
-        operator_name: op,
-        qty_at_start: currentCard.quantity,
-        qty_completed: newQty,
-        scrap_qty: qcScrapCount,
-        started_at: new Date().toISOString(),
-        completed_at: new Date().toISOString(),
-        is_archived_scrap: true, // Одразу переводимо в архівний стан на склад браку
-        shift_name: currentCard.shift_name,
-        manager_name: currentCard.manager_name,
-        machine_name: currentCard.machine,
-        qc_scrap_reason: qcReason,
-        qc_scrap_comment: qcReason === 'Інше (коментар)' ? qcCustomReason : null
-      }])
+      promises.push(
+        supabase.from('work_card_history').insert([{
+          card_id: currentCard.id,
+          nomenclature_id: currentCard.nomenclature_id,
+          stage_name: 'Контроль ВКЯ',
+          operator_name: op,
+          qty_at_start: currentCard.quantity,
+          qty_completed: newQty,
+          scrap_qty: qcScrapCount,
+          started_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+          is_archived_scrap: true, // Одразу переводимо в архівний стан на склад браку
+          shift_name: currentCard.shift_name,
+          manager_name: currentCard.manager_name,
+          machine_name: currentCard.machine,
+          qc_scrap_reason: qcReason,
+          qc_scrap_comment: qcReason === 'Інше (коментар)' ? qcCustomReason : null
+        }])
+      )
 
       // 2. Оновлюємо кількість картки (якщо залишилося 0, закриваємо її)
       const updatePayload = { quantity: newQty }
       if (newQty === 0) {
         updatePayload.status = 'completed'
       }
-      await supabase.from('work_cards').update(updatePayload).eq('id', currentCard.id)
+      promises.push(
+        supabase.from('work_cards').update(updatePayload).eq('id', currentCard.id)
+      )
 
       // 3. Записуємо виявлений брак на склад для класифікації
-      await updateInventoryStock(currentCard.nomenclature_id, qcScrapCount, 'scrap')
+      promises.push(
+        updateInventoryStock(currentCard.nomenclature_id, qcScrapCount, 'scrap')
+      )
+
+      const results = await Promise.all(promises)
+      for (const res of results) {
+        if (res.error) throw res.error
+      }
 
       setShowQCModal(false)
       setQcScrapCount(0)
@@ -1315,9 +1388,11 @@ export default function Shop1Terminal() {
         setSelectedCardId(null)
         setScannedIds(prev => prev.filter(id => id !== currentCard.id))
       }
+      setIsProcessing(false)
       alert(`✅ Успішно списано ${qcScrapCount} шт у брак за рішенням ВКЯ!`)
     } catch (e) {
       console.error('QC error:', e)
+      setIsProcessing(false)
       alert('Помилка фіксації браку ВКЯ: ' + e.message)
     } finally { setIsProcessing(false) }
   }
