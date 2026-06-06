@@ -784,16 +784,17 @@ export default function Shop1Terminal() {
       return
     }
 
-    if (!selectedOperator) return
+    if (next !== 'Галтовка' && !selectedOperator) return
     setIsProcessing(true)
     try {
+      const op = next === 'Галтовка' ? 'Команда' : selectedOperator
       if (currentCard.status === 'at-buffer') {
         const bufferStart = currentCard.completed_at || currentCard.started_at || new Date().toISOString()
         await supabase.from('work_card_history').insert([{
           card_id: currentCard.id,
           nomenclature_id: currentCard.nomenclature_id,
           stage_name: `Буфер ${currentCard.operation}`,
-          operator_name: selectedOperator || currentCard.operator_name || 'Не вказано',
+          operator_name: op || currentCard.operator_name || 'Не вказано',
           qty_at_start: currentCard.quantity || 0,
           qty_completed: currentCard.quantity || 0,
           scrap_qty: 0,
@@ -809,7 +810,7 @@ export default function Shop1Terminal() {
         status: 'in-progress',
         operation: next,
         started_at: new Date().toISOString(),
-        operator_name: selectedOperator,
+        operator_name: op,
         shift_name: selectedShift,
         machine: currentCard.machine || 'Не вказано'
       }).eq('id', currentCard.id)
@@ -1905,18 +1906,20 @@ export default function Shop1Terminal() {
                       </select>
                     </div>
 
-                    <div style={{ marginBottom: '20px' }}>
-                      <label style={labelStyle}>Відповідальний за {nextOp}</label>
-                      <select value={selectedOperator} onChange={e => setSelectedOperator(e.target.value)} disabled={!selectedShift} style={{ ...selectStyle, opacity: selectedShift ? 1 : 0.5, cursor: selectedShift ? 'pointer' : 'not-allowed' }}>
-                        <option value="">{selectedShift ? '— Оберіть оператора —' : '— Спочатку оберіть зміну —'}</option>
-                        {getFilteredOperators('Цех №1', selectedShift, nextOp).map(o => <option key={o} value={o}>{o}</option>)}
-                      </select>
-                    </div>
+                    {nextOp !== 'Галтовка' && (
+                      <div style={{ marginBottom: '20px' }}>
+                        <label style={labelStyle}>Відповідальний за {nextOp}</label>
+                        <select value={selectedOperator} onChange={e => setSelectedOperator(e.target.value)} disabled={!selectedShift} style={{ ...selectStyle, opacity: selectedShift ? 1 : 0.5, cursor: selectedShift ? 'pointer' : 'not-allowed' }}>
+                          <option value="">{selectedShift ? '— Оберіть оператора —' : '— Спочатку оберіть зміну —'}</option>
+                          {getFilteredOperators('Цех №1', selectedShift, nextOp).map(o => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      </div>
+                    )}
 
-                    <button onClick={handleStartNext} disabled={!selectedOperator || isProcessing}
+                    <button onClick={handleStartNext} disabled={((nextOp === 'Галтовка' ? !selectedShift : !selectedOperator) || isProcessing)}
                       style={{
                         ...btnGreen, width: '100%', height: '64px', fontSize: '1.2rem',
-                        opacity: (!selectedOperator || isProcessing) ? 0.5 : 1
+                        opacity: ((nextOp === 'Галтовка' ? !selectedShift : !selectedOperator) || isProcessing) ? 0.5 : 1
                       }}>
                       ▶ ВЗЯТИ В {nextOp?.toUpperCase()}
                     </button>
@@ -2057,7 +2060,7 @@ export default function Shop1Terminal() {
                       await supabase.from('inventory').update({ type: 'scrap_ready', updated_at: new Date().toISOString() }).eq('id', item.id)
                     }
                   }))
-                  await fetchData()
+                  fetchData().catch(() => {})
                 } catch (e) { alert('Помилка: ' + e.message) }
                 finally { setIsBulkMoving(false) }
               }}
@@ -2114,7 +2117,7 @@ export default function Shop1Terminal() {
                           } else {
                             await supabase.from('inventory').update({ type: 'scrap_ready', updated_at: new Date().toISOString() }).eq('id', item.id)
                           }
-                          await fetchData()
+                          fetchData().catch(() => {})
                         } catch (e) { alert('Помилка: ' + e.message) }
                         finally { setMovingScrapIds(prev => { const next = new Set(prev); next.delete(item.id); return next }) }
                       }}
@@ -2579,8 +2582,8 @@ export default function Shop1Terminal() {
 
       {/* ── Модалка завершення етапу ──────────────────────────────────────── */}
       {showCompleteModal && currentCard && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10020, padding: '20px' }}>
-          <div style={{ background: '#111', width: '100%', maxWidth: '460px', borderRadius: '26px', border: '1px solid #252525', display: 'flex', flexDirection: 'column', maxHeight: '90vh', overflow: 'hidden' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 10020, padding: '40px 20px', overflowY: 'auto' }}>
+          <div style={{ background: '#111', width: '100%', maxWidth: '460px', borderRadius: '26px', border: '1px solid #252525', display: 'flex', flexDirection: 'column', margin: 'auto 0' }}>
             <div style={{ padding: '20px 22px', background: '#161616', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 900 }}>
@@ -2740,8 +2743,8 @@ export default function Shop1Terminal() {
 
       {/* ── Модалка ПЕРЕЗМІНКА (тільки Розкрій) ─────────────────────────────── */}
       {showShiftChangeModal && currentCard && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10030, padding: '20px' }}>
-          <div style={{ background: '#111', width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid #f59e0b40', overflow: 'hidden', boxShadow: '0 20px 60px rgba(245,158,11,0.15)' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 10030, padding: '40px 20px', overflowY: 'auto' }}>
+          <div style={{ background: '#111', width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid #f59e0b40', overflow: 'hidden', boxShadow: '0 20px 60px rgba(245,158,11,0.15)', margin: 'auto 0' }}>
             {/* Header */}
             <div style={{ padding: '20px 22px', background: '#161616', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f59e0b20' }}>
               <div>
@@ -2821,9 +2824,8 @@ export default function Shop1Terminal() {
 
       {/* ── Модалка корекції браку від ВКЯ ─────────────────────────────────── */}
       {showQCModal && currentCard && (
-
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10025, padding: '20px' }}>
-          <div style={{ background: '#111', width: '100%', maxWidth: '460px', borderRadius: '26px', border: '1px solid #ef444440', overflow: 'hidden', boxShadow: '0 20px 60px rgba(239,68,68,0.15)' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 10025, padding: '40px 20px', overflowY: 'auto' }}>
+          <div style={{ background: '#111', width: '100%', maxWidth: '460px', borderRadius: '26px', border: '1px solid #ef444440', overflow: 'hidden', boxShadow: '0 20px 60px rgba(239,68,68,0.15)', margin: 'auto 0' }}>
             <div style={{ padding: '20px 22px', background: '#161616', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ef444420' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 950, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -2925,8 +2927,8 @@ export default function Shop1Terminal() {
 
       {/* ── Модалка деталей по кліку на картку етапу ─────────────────────── */}
       {detailStage && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 10030, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ width: '100%', maxWidth: '620px', background: '#111', borderRadius: '24px', border: '1px solid #1e1e1e', overflow: 'hidden' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 10030, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '40px 20px', overflowY: 'auto' }}>
+          <div style={{ width: '100%', maxWidth: '620px', background: '#111', borderRadius: '24px', border: '1px solid #1e1e1e', overflow: 'hidden', margin: 'auto 0' }}>
             <div style={{ padding: '20px 22px', background: '#161616', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ margin: 0, color: '#eab308', fontWeight: 950 }}>{detailStage.toUpperCase()}</h2>
               <button onClick={() => setDetailStage(null)} style={{ background: '#1e1e1e', border: 'none', color: '#fff', padding: '8px', borderRadius: '8px', cursor: 'pointer' }}><X size={17} /></button>

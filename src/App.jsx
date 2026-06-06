@@ -846,7 +846,11 @@ const GlobalUserNav = () => {
       const activeHistory = (workCardHistory || []).filter(h => h.card_id && activeCardIds.has(h.card_id));
       const allHistory = [...completedHistory, ...activeHistory];
 
+      const cardScrapCache = {};
       allHistory.forEach(h => {
+        if (h.card_id) {
+          cardScrapCache[h.card_id] = (cardScrapCache[h.card_id] || 0) + (Number(h.scrap_qty) || 0);
+        }
         const card = allCards.find(c => c.id === h.card_id);
         if (card) {
           const tid = card.task_id;
@@ -882,16 +886,16 @@ const GlobalUserNav = () => {
           
           const totalSheets = activeCardsForNom.reduce((sum, c) => {
             if (c.operation === 'Склад БЗ') return sum;
-            return sum + (c.actualSheets ? Number(c.actualSheets) : Math.ceil((Number(c.quantity) || 0) / unitsPerSheet));
+            const cardScrap = cardScrapCache[c.id] || 0;
+            const originalQty = (Number(c.quantity) || 0) + cardScrap;
+            return sum + (c.actualSheets ? Number(c.actualSheets) : Math.ceil(originalQty / unitsPerSheet));
           }, 0);
           
           const totalBZ = (totalSheets * unitsPerSheet) + stockBZ - need;
           const groupScrap = taskScrap[nomIdStr] || 0;
           const shortage = (totalBZ - groupScrap) < 0 ? Math.abs(totalBZ - groupScrap) : 0;
           
-          const hasActiveRedoCard = taskRedo[nomIdStr] || false;
-          
-          if (shortage > 0 && !hasActiveRedoCard) {
+          if (shortage > 0) {
             hasShortage = true;
             shortageDetails = `${nom.name || 'деталь'} (нестача: ${shortage} шт.)`;
           }

@@ -459,7 +459,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
 
       // 2. Бронюємо наявні частини на Складі Виробництва
       const updatedItems = [...(pr.items || [])]
-      const inventoryUpdates = []
+      const inventoryUpserts = []
       
       for (let i = 0; i < updatedItems.length; i++) {
         const it = updatedItems[i]
@@ -486,11 +486,10 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
           
           if (canReserve > 0) {
             const firstInv = matchingItems[0]
-            inventoryUpdates.push(
-              supabase.from('inventory').update({
-                reserved_qty: (Number(firstInv.reserved_qty) || 0) + canReserve
-              }).eq('id', firstInv.id)
-            )
+            inventoryUpserts.push({
+              ...firstInv,
+              reserved_qty: (Number(firstInv.reserved_qty) || 0) + canReserve
+            })
             
             // Оновлюємо кількість заброньованого в самому запиті
             updatedItems[i] = { 
@@ -501,12 +500,10 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
         }
       }
 
-      // Run inventory updates in parallel
-      if (inventoryUpdates.length > 0) {
-        const results = await Promise.all(inventoryUpdates)
-        for (const res of results) {
-          if (res.error) throw res.error
-        }
+      // Run inventory updates via a single upsert
+      if (inventoryUpserts.length > 0) {
+        const { error: upsertErr } = await supabase.from('inventory').upsert(inventoryUpserts)
+        if (upsertErr) throw upsertErr
       }
 
       // Оновлюємо оригінальний запит, щоб він пам'ятав про бронювання

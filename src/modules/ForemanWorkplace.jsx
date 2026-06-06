@@ -250,10 +250,11 @@ const ForemanWorkplace = () => {
   }, [tasks]);
 
   // ── Compute production, scrap, and redo caches in memory ──────────────
-  const { productionCache, scrapCache, redoCache, allCardsCache } = useMemo(() => {
+  const { productionCache, scrapCache, redoCache, allCardsCache, cardScrapCache } = useMemo(() => {
     const prodCache = {};
     const sCache = {};
     const rCache = {};
+    const csCache = {};
 
     const activeTaskIds = new Set(tasks.filter(t => t.status !== 'completed').map(t => t.id));
     const activeCards = workCards.filter(c => activeTaskIds.has(c.task_id));
@@ -283,6 +284,9 @@ const ForemanWorkplace = () => {
     const allHistory = [...staticHistory, ...activeHistory];
 
     allHistory.forEach(h => {
+      if (h.card_id) {
+        csCache[h.card_id] = (csCache[h.card_id] || 0) + (Number(h.scrap_qty) || 0);
+      }
       const card = allCards.find(c => c.id === h.card_id);
       if (card) {
         const tid = card.task_id;
@@ -296,7 +300,8 @@ const ForemanWorkplace = () => {
       productionCache: prodCache,
       scrapCache: sCache,
       redoCache: rCache,
-      allCardsCache: allCards
+      allCardsCache: allCards,
+      cardScrapCache: csCache
     };
   }, [tasks, workCards, workCardHistory, staticCompletedCards, staticHistory]);
 
@@ -484,23 +489,23 @@ const MACHINE_TYPES = [
         
         const totalSheets = activeCards.reduce((sum, c) => {
           if (c.operation === 'Склад БЗ') return sum
-          return sum + (c.actualSheets ? Number(c.actualSheets) : Math.ceil((Number(c.quantity) || 0) / unitsPerSheet))
+          const cardScrap = cardScrapCache[c.id] || 0
+          const originalQty = (Number(c.quantity) || 0) + cardScrap
+          return sum + (c.actualSheets ? Number(c.actualSheets) : Math.ceil(originalQty / unitsPerSheet))
         }, 0)
         
         const totalBZ = (totalSheets * unitsPerSheet) + stockBZ - need
         const groupScrap = taskScrap[nomIdStr] || 0
         const shortage = (totalBZ - groupScrap) < 0 ? Math.abs(totalBZ - groupScrap) : 0
         
-        const hasActiveRedoCard = taskRedo[nomIdStr] || false
-        
-        if (shortage > 0 && !hasActiveRedoCard) {
+        if (shortage > 0) {
           hasShortage = true
         }
       })
       map[task.id] = hasShortage
     })
     return map
-  }, [tasks, scrapCache, redoCache, nomenclatures, allCardsCache])
+  }, [tasks, scrapCache, redoCache, nomenclatures, allCardsCache, cardScrapCache])
 
   const relevantTasks = useMemo(() => {
     return tasks
@@ -650,7 +655,9 @@ const MACHINE_TYPES = [
       // PRECISE PROGRESS TRACKING: Check how many sheets of THIS NOMENCLATURE are already accounted for
       const globalSheetsMadeTotal = existingNomenclatureCards.reduce((sum, wc) => {
         if (wc.actualSheets) return sum + Number(wc.actualSheets)
-        return sum + Math.ceil((Number(wc.quantity) || 0) / unitsPerSheet)
+        const cardScrap = cardScrapCache[wc.id] || 0
+        const originalQty = (Number(wc.quantity) || 0) + cardScrap
+        return sum + Math.ceil(originalQty / unitsPerSheet)
       }, 0)
 
       // Start calculating for THIS SPLIT
@@ -1620,7 +1627,9 @@ const MACHINE_TYPES = [
                       const stockBZ = snapshot ? (snapshot.stock || 0) : 0
                       const totalSheets = activeCards.reduce((sum, c) => {
                         if (c.operation === 'Склад БЗ') return sum
-                        return sum + (c.actualSheets ? Number(c.actualSheets) : Math.ceil((Number(c.quantity) || 0) / unitsPerSheet))
+                        const cardScrap = cardScrapCache[c.id] || 0
+                        const originalQty = (Number(c.quantity) || 0) + cardScrap
+                        return sum + (c.actualSheets ? Number(c.actualSheets) : Math.ceil(originalQty / unitsPerSheet))
                       }, 0)
                       const totalBZ = (totalSheets * unitsPerSheet) + stockBZ - need
                       const bzResult = totalBZ - groupScrap

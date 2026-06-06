@@ -140,8 +140,8 @@ export default function TumblingTerminal() {
 
   // Action: Take card to work
   const startTumblingCard = async (card) => {
-    if (!selectedOperator || !selectedShift) {
-      alert('⚠️ Будь ласка, спочатку оберіть виконавця та зміну вгорі екрану!')
+    if (!selectedShift) {
+      alert('⚠️ Будь ласка, спочатку оберіть зміну вгорі екрану!')
       return
     }
 
@@ -153,7 +153,7 @@ export default function TumblingTerminal() {
       card_id: card.id,
       nomenclature_id: card.nomenclature_id,
       stage_name: 'Буфер Розкрій',
-      operator_name: selectedOperator,
+      operator_name: 'Команда',
       qty_at_start: card.quantity || 0,
       qty_completed: card.quantity || 0,
       scrap_qty: 0,
@@ -169,13 +169,13 @@ export default function TumblingTerminal() {
       status: 'in-progress',
       operation: 'Галтовка',
       started_at: now,
-      operator_name: selectedOperator,
+      operator_name: 'Команда',
       shift_name: selectedShift
     }).eq('id', card.id)
 
     setScanError(null)
     setManualId('')
-    await fetchData().catch(() => {})
+    fetchData().catch(() => {})
   }
 
   // Complete Stage modal triggers
@@ -201,7 +201,7 @@ export default function TumblingTerminal() {
         card_id: activeCompletingCard.id,
         nomenclature_id: activeCompletingCard.nomenclature_id,
         stage_name: 'Галтовка',
-        operator_name: activeCompletingCard.operator_name || selectedOperator || 'Не вказано',
+        operator_name: activeCompletingCard.operator_name || 'Команда',
         qty_at_start: totalQty,
         qty_completed: actualFinished,
         scrap_qty: actualScrap,
@@ -229,7 +229,7 @@ export default function TumblingTerminal() {
       setActiveCompletingCard(null)
       setManualId('')
       setScanError(null)
-      await fetchData().catch(() => {})
+      fetchData().catch(() => {})
     } catch (e) {
       alert('Помилка завершення галтовки: ' + e.message)
     } finally {
@@ -347,7 +347,7 @@ export default function TumblingTerminal() {
             <span style={{ fontSize: '0.55rem', color: '#555', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Зміна</span>
             <select
               value={selectedShift}
-              onChange={e => { setSelectedShift(e.target.value); setSelectedOperator('') }}
+              onChange={e => setSelectedShift(e.target.value)}
               style={{ background: '#121216', border: '1px solid rgba(255,255,255,0.05)', color: '#fff', padding: '8px 12px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer', outline: 'none', width: '120px' }}
             >
               <option value="">— Оберіть —</option>
@@ -356,20 +356,6 @@ export default function TumblingTerminal() {
               <option value="Зміна 3">Зміна 3</option>
               <option value="Зміна 4">Зміна 4</option>
               <option value="Без зміни">Без зміни</option>
-            </select>
-          </div>
-
-          {/* Operator Selection */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <span style={{ fontSize: '0.55rem', color: '#555', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Галтовщик</span>
-            <select
-              value={selectedOperator}
-              onChange={e => setSelectedOperator(e.target.value)}
-              disabled={!selectedShift}
-              style={{ background: '#121216', border: '1px solid rgba(255,255,255,0.05)', color: '#fff', padding: '8px 12px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800, cursor: selectedShift ? 'pointer' : 'not-allowed', opacity: selectedShift ? 1 : 0.5, outline: 'none', width: '220px' }}
-            >
-              <option value="">{selectedShift ? '— Оберіть виконавця —' : '— Спочатку оберіть зміну —'}</option>
-              {activeOperatorsList.map(o => <option key={o} value={o}>{o}</option>)}
             </select>
           </div>
 

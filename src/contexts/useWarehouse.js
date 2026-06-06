@@ -553,23 +553,28 @@ export function createWarehouseActions({
 
       // Auto-transition work cards for any task whose material requests are fully issued
       const uniqueTaskIds = [...new Set(relevantRequests.map(r => r.task_id).filter(Boolean))]
-      for (const tId of uniqueTaskIds) {
+      if (uniqueTaskIds.length > 0) {
         try {
-          const { data: pendingReqs } = await supabase
+          const { data: allPending } = await supabase
             .from('material_requests')
-            .select('id')
-            .eq('task_id', tId)
+            .select('id, task_id')
+            .in('task_id', uniqueTaskIds)
             .eq('status', 'pending')
-          
-          if (!pendingReqs || pendingReqs.length === 0) {
-            await supabase
-              .from('work_cards')
-              .update({ status: 'new' })
-              .eq('task_id', tId)
-              .eq('status', 'waiting-materials')
+
+          const pendingTaskIds = new Set((allPending || []).map(r => r.task_id))
+          const tasksToUpdate = uniqueTaskIds.filter(tId => !pendingTaskIds.has(tId))
+
+          if (tasksToUpdate.length > 0) {
+            await Promise.all(tasksToUpdate.map(tId =>
+              supabase
+                .from('work_cards')
+                .update({ status: 'new' })
+                .eq('task_id', tId)
+                .eq('status', 'waiting-materials')
+            ))
           }
         } catch (err) {
-          console.error(`Error updating work cards for task ${tId}:`, err)
+          console.error('Error updating work cards for tasks in batch:', err)
         }
       }
 
