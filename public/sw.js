@@ -82,7 +82,7 @@ self.addEventListener('push', function(event) {
     body: data.body || '',
     icon: iconUrl,
     badge: iconUrl,
-    tag: data.tag || String(Date.now()),
+    tag: data.notifData?.tag || data.tag || String(Date.now()),
     data: { path: data.path || '/', notifData: data.notifData },
     vibrate: [200, 100, 200, 100, 200],
     requireInteraction: false,

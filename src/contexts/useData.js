@@ -497,9 +497,10 @@ export function useData() {
                 const batchIdx = payload.new?.batch_index || '1'
                 sendPushToUsers(
                   notifyIds,
-                  '\uD83D\uDE9B Готово до відвантаження',
+                  '🚚 Готово до відвантаження',
                   `Партія №${batchIdx}${packedBy ? ` (${packedBy})` : ''} запакована і очікує відвантаження`,
-                  '/shipping'
+                  '/shipping',
+                  { tag: `task-ready-to-ship-${payload.new.id}` }
                 ).catch(() => {})
               }
             }
@@ -553,7 +554,8 @@ export function useData() {
               notifyIds,
               '📦 Нове замовлення',
               `№ ${orderNum}${customer ? ` — ${customer}` : ''} очікує на створення наряду`,
-              '/manager'
+              '/manager',
+              { tag: `order-new-${payload.new.id}` }
             ).catch(() => {})
           }
         }
@@ -637,7 +639,7 @@ export function useData() {
                 ? `Наряд №${num} — ${itemCount} позицій до комплектування`
                 : `Наряд №${num} — ${itemCount} позицій (листи, фрези)`
 
-              sendPushToUsers(entry.notifyIds, title, body, '/warehouse').catch(() => {})
+              sendPushToUsers(entry.notifyIds, title, body, '/warehouse', { tag: `req-group-${orderId}` }).catch(() => {})
             }, 1500)
           }
         }
@@ -680,7 +682,8 @@ export function useData() {
               notifyIds,
               '🛒 Новий запит постачання',
               `Замовлення №${orderNum} → ${dest} потребує закупівлі матеріалів`,
-              '/supply'
+              '/supply',
+              { tag: `pr-${payload.new.id}` }
             ).catch(() => {})
           }
         }
@@ -756,7 +759,8 @@ export function useData() {
                 notifyIds,
                 `🚨 Виклик ${roleLabel}`,
                 `${operator} викликає на ${machineName}`,
-                targetPath
+                targetPath,
+                { tag: `call-${payload.new.id}` }
               ).catch(() => {})
             }
           }
