@@ -296,7 +296,7 @@ const PackagingModule = () => {
       setIsProcessing(true)
       await submitPickingRequest(activeBatchData.orderId, itemsToRequest, activeBatchData.tasks[0]?.id)
       alert('Запит успішно відправлено!')
-      await fetchData()
+      await fetchData('material_requests')
     } catch (e) { console.error(e); alert('Помилка створення запиту') } finally { setIsProcessing(false) }
   }
 
@@ -369,7 +369,7 @@ const PackagingModule = () => {
 
       alert('Наряд успішно запаковано!')
       setSelectedBatch(null)
-      await fetchData()
+      await fetchData(['tasks', 'orders'])
       
       const { data: freshTasks } = await supabase.from('tasks').select('id, status, plan_snapshot, planned_sets').eq('order_id', activeBatchData.orderId)
       const allTasksPackaged = (freshTasks || []).every(t => t.plan_snapshot?._metadata?.is_packaged === true)

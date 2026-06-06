@@ -392,7 +392,7 @@ const MACHINE_TYPES = [
     try {
       await completeTaskByMaster(taskId)
       setActiveTaskId(null)
-      fetchData()
+      fetchData(['tasks', 'orders', 'work_cards'])
     } catch (err) {
       alert("Помилка: " + err.message)
     }
@@ -751,7 +751,7 @@ const MACHINE_TYPES = [
     try {
       await confirmBuffer(bufferScrapModal.cardId, scrap)
       setBufferScrapModal(null)
-      fetchData()
+      fetchData(['work_cards', 'work_card_history', 'inventory', 'tasks'])
     } catch (err) {
       alert("Помилка: " + err.message)
     }
@@ -785,7 +785,7 @@ const MACHINE_TYPES = [
       const { error } = await supabase.from('tasks').update({ plan_snapshot: updatedSnapshot }).eq('id', task.id)
       if (error) throw error
       // Only fetchData if we are NOT in the middle of a local edit update to avoid flicker
-      if (!saveTimeoutRef.current) fetchData()
+      if (!saveTimeoutRef.current) fetchData('tasks')
     } catch (err) { console.error("Snapshot error:", err) }
   }
 

@@ -277,7 +277,7 @@ const Shop2Module = () => {
       const { error } = await supabase.from('tasks').update({ plan_snapshot: updatedSnapshot }).eq('id', task.id)
       if (error) throw error
       // Викликаємо fetchData у фоні без очікування, щоб не блокувати UI
-      fetchData()
+      fetchData('tasks')
     } catch (err) {
       console.error("Error updating stage:", err)
       alert("Помилка збереження етапу")
@@ -377,7 +377,7 @@ const Shop2Module = () => {
       alert(`Помилка генерації картки: ${err.message || 'невідома помилка'}`)
     } finally {
       setIsGenerating(false)
-      fetchData()
+      fetchData(['work_cards', 'tasks'])
     }
   }
 

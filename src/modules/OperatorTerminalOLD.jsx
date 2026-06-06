@@ -79,7 +79,7 @@ const OperatorTerminal = () => {
             if (!foundCard) {
               setIsSyncing(true)
               try {
-                if (typeof fetchData === 'function') await fetchData()
+                if (typeof fetchData === 'function') await fetchData('work_cards')
               } catch (e) { }
               setIsSyncing(false)
               setScanError(`Картку №${cardIdStr} не знайдено. Спробуйте відсканувати ще раз.`)

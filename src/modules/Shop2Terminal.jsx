@@ -169,7 +169,7 @@ const Shop2Terminal = () => {
             let foundCard = workCards.find(c => String(c.id).trim() === String(cardIdStr).trim())
             if (!foundCard) {
               setIsSyncing(true)
-              try { if (typeof fetchData === 'function') await fetchData() } catch (e) { }
+              try { if (typeof fetchData === 'function') await fetchData('work_cards') } catch (e) { }
               setIsSyncing(false)
               setScanError(`Картку №${cardIdStr} не знайдено в базі.`)
             } else {
@@ -223,7 +223,7 @@ const Shop2Terminal = () => {
               let foundCard = workCards.find(c => String(c.id).trim() === String(cardIdStr).trim())
               if (!foundCard) {
                 setIsSyncing(true)
-                try { if (typeof fetchData === 'function') await fetchData() } catch (e) { }
+                try { if (typeof fetchData === 'function') await fetchData('work_cards') } catch (e) { }
                 setIsSyncing(false)
               }
               foundCard = workCards.find(c => String(c.id).trim() === String(cardIdStr).trim())
@@ -352,7 +352,7 @@ const Shop2Terminal = () => {
       setSelectedCardId(null)
       setShowScrapModal(false)
       setScannedCardIds(prev => prev.filter(id => id !== currentCard.id))
-      fetchData() // Refresh history for local stats
+      fetchData(['work_cards', 'work_card_history', 'inventory']) // Refresh history for local stats
     } catch (e) { alert('Помилка при завершенні: ' + e.message) }
     finally { setIsProcessing(false) }
   }

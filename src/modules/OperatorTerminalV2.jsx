@@ -145,7 +145,7 @@ const OperatorTerminal = () => {
           let foundCard = workCards.find(c => String(c.id).trim() === cardIdStr)
           if (!foundCard) {
             setIsSyncing(true)
-            try { if (typeof fetchData === 'function') await fetchData() } catch (e) { }
+            try { if (typeof fetchData === 'function') await fetchData('work_cards') } catch (e) { }
             setIsSyncing(false)
             setScanError(`Картку №${cardIdStr} не знайдено. Спробуйте відсканувати ще раз.`)
           } else {
@@ -197,7 +197,7 @@ const OperatorTerminal = () => {
             let foundCard = workCards.find(c => String(c.id).trim() === cardIdStr)
             if (!foundCard) {
               setIsSyncing(true)
-              try { if (typeof fetchData === 'function') await fetchData() } catch (e) { }
+              try { if (typeof fetchData === 'function') await fetchData('work_cards') } catch (e) { }
               setIsSyncing(false)
             }
             foundCard = workCards.find(c => String(c.id).trim() === cardIdStr)

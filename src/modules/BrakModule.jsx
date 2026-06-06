@@ -157,7 +157,7 @@ export default function BrakModule() {
       setQcInspector('')
       setQcReason('Биття цанги')
       setQcCustomReason('')
-      await fetchData()
+      await fetchData(['work_cards', 'work_card_history', 'inventory', 'tasks'])
       alert(`✅ Успішно списано ${recordedScrap} шт у брак за рішенням відділу ВКЯ!`)
     } catch (e) {
       console.error('QC error:', e)
@@ -239,7 +239,7 @@ export default function BrakModule() {
         setSelectedItem(null)
       }
       
-      await fetchData()
+      await fetchData('inventory')
     } catch (e) {
       alert('Помилка при класифікації: ' + e.message)
     } finally {

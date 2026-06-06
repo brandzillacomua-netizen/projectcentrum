@@ -407,7 +407,7 @@ const ShippingModule = () => {
         await supabase.from('orders').update({ status: 'shipped' }).eq('id', batch.orderId)
       }
 
-      await fetchData()
+      await fetchData(['tasks', 'orders'])
 
       // 4. Генеруємо пакувальний лист
       const order = (orders || []).find(o => String(o.id) === String(batch.orderId))

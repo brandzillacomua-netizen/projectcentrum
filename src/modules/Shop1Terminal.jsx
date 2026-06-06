@@ -339,7 +339,7 @@ export default function Shop1Terminal() {
 
     let card = workCards.find(c => String(c.id).trim() === cleanInput)
     if (!card) {
-      await fetchData().catch(() => { })
+      await fetchData('work_cards').catch(() => { })
       card = workCards.find(c => String(c.id).trim() === cleanInput)
     }
 
@@ -639,7 +639,7 @@ export default function Shop1Terminal() {
         machine: targetMachine,
         card_info: ((currentCard.card_info || '').replace('[SHOP:1]', '').trim() + ' [SHOP:1]').trim()
       }).eq('id', currentCard.id)
-      fetchData().catch(() => {})
+      fetchData(['work_cards', 'tasks']).catch(() => {})
       if (!scannedIds.includes(currentCard.id)) setScannedIds(prev => [...prev, currentCard.id])
     } catch (e) { alert('Помилка: ' + e.message) }
     finally { setIsProcessing(false) }
@@ -679,7 +679,7 @@ export default function Shop1Terminal() {
       setShowShiftChangeModal(false)
       setShiftChangeOperator('')
       setShiftChangeShift('')
-      fetchData().catch(() => {})
+      fetchData(['work_cards', 'work_card_history']).catch(() => {})
     } catch (e) {
       alert('Помилка перезмінки: ' + e.message)
     } finally { setIsProcessing(false) }
@@ -741,7 +741,7 @@ export default function Shop1Terminal() {
       setShowCompleteModal(false)
       setScrapCount(0)
       setSelectedCardId(null)
-      fetchData().catch(() => {})
+      fetchData(['work_cards', 'work_card_history', 'inventory']).catch(() => {})
     } catch (e) {
       console.error('Buffer error:', e)
       alert('Помилка буфера: ' + e.message)
@@ -814,7 +814,7 @@ export default function Shop1Terminal() {
         shift_name: selectedShift,
         machine: currentCard.machine || 'Не вказано'
       }).eq('id', currentCard.id)
-      fetchData().catch(() => {})
+      fetchData(['work_cards', 'work_card_history']).catch(() => {})
       if (!scannedIds.includes(currentCard.id)) setScannedIds(prev => [...prev, currentCard.id])
     } catch (e) { alert('Помилка: ' + e.message) }
     finally { setIsProcessing(false) }
@@ -882,7 +882,7 @@ export default function Shop1Terminal() {
         true      // isRework = true
       )
 
-      fetchData().catch(() => {})
+      fetchData(['work_cards', 'work_card_history', 'inventory', 'tasks']).catch(() => {})
       setShowCompleteModal(false)
       setSelectedCardId(null)
       alert('Запит на перевипуск створено успішно!')
@@ -901,7 +901,7 @@ export default function Shop1Terminal() {
         completed_at: new Date().toISOString()
       }).eq('id', currentCard.id)
 
-      fetchData().catch(() => {})
+      fetchData(['work_cards', 'tasks']).catch(() => {})
     } catch (e) {
       console.error('Error completing sorting to buffer:', e)
       alert('Помилка завершення сортування: ' + e.message)
@@ -1188,7 +1188,7 @@ export default function Shop1Terminal() {
       setReworkCount(0)
       setSelectedCardId(null)
       setScannedIds(prev => prev.filter(id => id !== currentCard.id))
-      fetchData().catch(() => {})
+      fetchData(['work_cards', 'work_card_history', 'inventory']).catch(() => {})
       alert(`✅ ${goodQty} шт відправлено в буфер Цеху №2!`)
     } catch (e) {
       console.error('Sort to shop2 error:', e)
@@ -1254,7 +1254,7 @@ export default function Shop1Terminal() {
       // Картка тепер у буфері Прийомки — закриваємо її та повертаємось на головний екран
       setSelectedCardId(null)
       setScannedIds(prev => prev.filter(id => id !== currentCard.id))
-      fetchData().catch(() => {})
+      fetchData(['work_cards', 'work_card_history']).catch(() => {})
     } catch (e) {
       console.error('Acceptance error:', e)
       alert('Помилка прийомки: ' + (e.message || 'Невідома помилка'))
@@ -1310,7 +1310,7 @@ export default function Shop1Terminal() {
       setQcInspector('')
       setQcReason('Биття цанги')
       setQcCustomReason('')
-      fetchData().catch(() => {})
+      fetchData(['work_cards', 'work_card_history', 'inventory', 'tasks']).catch(() => {})
       if (newQty === 0) {
         setSelectedCardId(null)
         setScannedIds(prev => prev.filter(id => id !== currentCard.id))
@@ -1358,7 +1358,7 @@ export default function Shop1Terminal() {
       const { error } = await supabase.from('work_card_history').update({ is_archived_scrap: true }).in('id', idsToMark)
       if (error) throw error
 
-      fetchData().catch(() => {})
+      fetchData(['inventory', 'work_card_history']).catch(() => {})
     } catch (err) {
       console.error('Archive scrap error:', err)
       alert('Помилка архівації браку: ' + err.message)
@@ -2060,7 +2060,7 @@ export default function Shop1Terminal() {
                       await supabase.from('inventory').update({ type: 'scrap_ready', updated_at: new Date().toISOString() }).eq('id', item.id)
                     }
                   }))
-                  fetchData().catch(() => {})
+                  fetchData('inventory').catch(() => {})
                 } catch (e) { alert('Помилка: ' + e.message) }
                 finally { setIsBulkMoving(false) }
               }}
@@ -2117,7 +2117,7 @@ export default function Shop1Terminal() {
                           } else {
                             await supabase.from('inventory').update({ type: 'scrap_ready', updated_at: new Date().toISOString() }).eq('id', item.id)
                           }
-                          fetchData().catch(() => {})
+                          fetchData('inventory').catch(() => {})
                         } catch (e) { alert('Помилка: ' + e.message) }
                         finally { setMovingScrapIds(prev => { const next = new Set(prev); next.delete(item.id); return next }) }
                       }}

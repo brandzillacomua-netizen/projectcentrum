@@ -299,7 +299,7 @@ const NomenclatureModule = () => {
           setImportLogs(prev => [...prev, `✅ ІМПОРТ ЗАВЕРШЕНО УСПІШНО!`, `🎉 Виріб готовий до використання.`])
         }
         
-        if (fetchData) fetchData()
+        if (fetchData) fetchData(['nomenclatures', 'bom_items'])
         setIsProcessing(false)
       } catch (err) {
         setImportLogs(prev => [...prev, `❌ Помилка: ${err.message}`]); setIsProcessing(false)

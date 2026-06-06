@@ -228,7 +228,13 @@ export function useData() {
 
   // ── LEVEL 2: Full data — called lazily by modules that need it ────────────
   // ── LEVEL 2: Full data — called lazily by modules that need it ────────────
-  const fetchData = async (force = false) => {
+  const fetchData = async (forceOrTargets = false) => {
+    if (typeof forceOrTargets === 'string' || Array.isArray(forceOrTargets)) {
+      const targets = Array.isArray(forceOrTargets) ? forceOrTargets : [forceOrTargets]
+      await Promise.all(targets.map(t => refreshTable(t).catch(() => {})))
+      return
+    }
+    const force = forceOrTargets === true
     if (!force && Date.now() - lastFetchTime < 1000) return
     try {
       setLastFetchTime(Date.now())

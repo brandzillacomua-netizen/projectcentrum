@@ -62,7 +62,7 @@ const DashboardModule = () => {
   const handleRefresh = async () => {
     setIsRefreshing(true)
     try {
-      await fetchData()
+      await fetchData(['orders', 'tasks', 'inventory', 'work_cards', 'work_card_history'])
     } catch (e) {
       console.error(e)
     } finally {

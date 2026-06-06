@@ -110,7 +110,7 @@ export default function TumblingTerminal() {
     try {
       let card = workCards.find(c => String(c.id).trim() === id)
       if (!card) {
-        await fetchData().catch(() => {})
+        await fetchData('work_cards').catch(() => {})
         card = workCards.find(c => String(c.id).trim() === id)
       }
 
@@ -175,7 +175,7 @@ export default function TumblingTerminal() {
 
     setScanError(null)
     setManualId('')
-    fetchData().catch(() => {})
+    fetchData(['work_cards', 'work_card_history']).catch(() => {})
   }
 
   // Complete Stage modal triggers
@@ -229,7 +229,7 @@ export default function TumblingTerminal() {
       setActiveCompletingCard(null)
       setManualId('')
       setScanError(null)
-      fetchData().catch(() => {})
+      fetchData(['work_cards', 'work_card_history', 'inventory']).catch(() => {})
     } catch (e) {
       alert('Помилка завершення галтовки: ' + e.message)
     } finally {
