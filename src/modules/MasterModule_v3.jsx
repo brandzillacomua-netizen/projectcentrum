@@ -299,7 +299,7 @@ const MasterModule = () => {
         return {
           id: n.id,
           name: n.name,
-          stock: inv ? Number(inv.total_qty) || 0 : 0
+          stock: inv ? Math.max(0, (Number(inv.total_qty) || 0) - (Number(inv.reserved_qty) || 0)) : 0
         }
       });
 
