@@ -20,7 +20,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
   const {
     inventory, nomenclatures, receptionDocs, createReceptionDoc, sendDocToWarehouse,
     purchaseRequests, updatePurchaseRequestStatus, convertRequestToOrder, currentUser,
-    confirmReception, fetchData, normalize, requests, issueMaterialsBatch, tasks
+    confirmReception, fetchData, refreshTable, normalize, requests, issueMaterialsBatch, tasks
   } = useMES()
 
   const [activeTab, setActiveTab] = useState('requests') // 'requests', 'registry', 'stock'
@@ -365,13 +365,22 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
         }])
         
         if (error) throw error
-        alert('Запит на дефіцитні матеріали успішно надіслано в Постачання!')
-        fetchData(true)
+        setIsProcessing(false)
+        if (refreshTable) refreshTable('purchase_requests')
+        setTimeout(() => {
+          alert('Запит на дефіцитні матеріали успішно надіслано в Постачання!')
+        }, 50)
       } else {
-        alert('Усі матеріали є в наявності!')
+        setIsProcessing(false)
+        setTimeout(() => {
+          alert('Усі матеріали є в наявності!')
+        }, 50)
       }
     } catch (err) {
-      alert('Помилка: ' + err.message)
+      setIsProcessing(false)
+      setTimeout(() => {
+        alert('Помилка: ' + err.message)
+      }, 50)
     } finally {
       setIsProcessing(false)
     }
@@ -431,9 +440,19 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
       setDraftItems([])
       setShowCreate(false)
       setShortageModal(null)
-      alert(`Створено наряд ${orderNum}! Дефіцит (якщо є) надіслано в Постачання. Те що було в наявності — зарезервовано.`)
+      setIsProcessing(false)
+      if (refreshTable) {
+        refreshTable('purchase_requests')
+        refreshTable('reception_docs')
+      }
+      setTimeout(() => {
+        alert(`Створено наряд ${orderNum}! Дефіцит (якщо є) надіслано в Постачання. Те що було в наявності — зарезервовано.`)
+      }, 50)
     } catch (err) {
-      alert('Помилка: ' + err.message)
+      setIsProcessing(false)
+      setTimeout(() => {
+        alert('Помилка: ' + err.message)
+      }, 50)
     } finally {
       setIsProcessing(false)
     }
@@ -509,11 +528,20 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
       // Оновлюємо оригінальний запит, щоб він пам'ятав про бронювання
       await supabase.from('purchase_requests').update({ items: updatedItems }).eq('id', pr.id)
 
-      alert('Запит на дефіцит надіслано до Постачання! Наявне заброньовано на СВ.')
       setShortageModal(null)
-      if (fetchData) fetchData()
+      setIsProcessing(false)
+      if (refreshTable) {
+        refreshTable('purchase_requests')
+        refreshTable('inventory')
+      }
+      setTimeout(() => {
+        alert('Запит на дефіцит надіслано до Постачання! Наявне заброньовано на СВ.')
+      }, 50)
     } catch (err) {
-      alert('Помилка відправки: ' + err.message)
+      setIsProcessing(false)
+      setTimeout(() => {
+        alert('Помилка відправки: ' + err.message)
+      }, 50)
     } finally {
       setIsProcessing(false)
     }

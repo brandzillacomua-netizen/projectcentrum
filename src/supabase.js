@@ -6,40 +6,16 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 export const rawSupabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Global set to keep track of record IDs created/updated by this client session
-window.myRecentWrites = window.myRecentWrites || []
 window.myConfirmedWrites = window.myConfirmedWrites || new Set()
 
-function recordWrite(tableName, type, data) {
-  const timestamp = Date.now()
-  const records = Array.isArray(data) ? data : [data]
-  
-  const items = records.map(r => {
-    if (!r) return {}
-    return {
-      id: r.id,
-      task_id: r.task_id,
-      order_id: r.order_id,
-      nomenclature_id: r.nomenclature_id,
-      quantity: r.quantity,
-      details: r.details,
-      order_num: r.order_num,
-      machine_id: r.machine_id,
-      called_role: r.called_role,
-      operator_name: r.operator_name
-    }
-  })
-
-  window.myRecentWrites.push({
-    table: tableName,
-    type,
-    items,
-    timestamp
-  })
-
-  // Clean up after 1.5 minutes to avoid memory leaks
-  setTimeout(() => {
-    window.myRecentWrites = window.myRecentWrites.filter(w => w.timestamp !== timestamp)
-  }, 90000)
+function generateUUID() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
 }
 
 /**
@@ -47,73 +23,50 @@ function recordWrite(tableName, type, data) {
  * performed by this browser tab.
  */
 export function isLocalWrite(tableName, newRecord) {
-  if (!newRecord) return false
+  if (!newRecord || !newRecord.id) return false
+  return window.myConfirmedWrites.has(newRecord.id)
+}
+
+// Wrap PostgrestFilterBuilder to capture IDs used in filters like .eq('id', ...)
+function wrapFilterBuilder(builder, tableName) {
+  if (!builder) return builder
   
-  if (window.myConfirmedWrites.has(newRecord.id)) {
-    return true
-  }
-
-  const recent = window.myRecentWrites || []
-  for (let i = 0; i < recent.length; i++) {
-    const write = recent[i]
-    if (write.table !== tableName) continue
-    
-    const match = write.items.some(item => {
-      // 1. Match by exact ID if available
-      if (item.id && newRecord.id && String(item.id) === String(newRecord.id)) {
-        return true
-      }
+  return new Proxy(builder, {
+    get(target, prop, receiver) {
+      const originalValue = Reflect.get(target, prop, receiver)
       
-      // 2. Fallbacks for key fields depending on table
-      if (tableName === 'material_requests') {
-        return (
-          (!item.task_id || String(item.task_id) === String(newRecord.task_id)) &&
-          (!item.nomenclature_id || String(item.nomenclature_id) === String(newRecord.nomenclature_id)) &&
-          (!item.quantity || Number(item.quantity) === Number(newRecord.quantity))
-        )
+      if (typeof originalValue === 'function') {
+        return function (...args) {
+          // 1. Intercept .eq('id', rowId)
+          if (prop === 'eq' && args[0] === 'id' && args[1]) {
+            window.myConfirmedWrites.add(args[1])
+            const idToClean = args[1]
+            setTimeout(() => { window.myConfirmedWrites.delete(idToClean) }, 5 * 60 * 1000)
+          }
+          // 2. Intercept .in('id', [rowId1, rowId2, ...])
+          if (prop === 'in' && args[0] === 'id' && Array.isArray(args[1])) {
+            args[1].forEach(id => {
+              if (id) {
+                window.myConfirmedWrites.add(id)
+                setTimeout(() => { window.myConfirmedWrites.delete(id) }, 5 * 60 * 1000)
+              }
+            })
+          }
+          // 3. Intercept .match({ id: rowId })
+          if (prop === 'match' && args[0] && typeof args[0] === 'object' && args[0].id) {
+            const rowId = args[0].id
+            window.myConfirmedWrites.add(rowId)
+            const idToClean = rowId
+            setTimeout(() => { window.myConfirmedWrites.delete(idToClean) }, 5 * 60 * 1000)
+          }
+          
+          const result = originalValue.apply(target, args)
+          return wrapFilterBuilder(result, tableName)
+        }
       }
-      
-      if (tableName === 'orders') {
-        return (
-          (!item.order_num || item.order_num === newRecord.order_num) &&
-          (!item.customer || item.customer === newRecord.customer)
-        )
-      }
-      
-      if (tableName === 'purchase_requests') {
-        return (
-          (!item.order_num || item.order_num === newRecord.order_num) &&
-          (!item.task_id || String(item.task_id) === String(newRecord.task_id))
-        )
-      }
-      
-      if (tableName === 'machine_calls') {
-        return (
-          (!item.machine_id || String(item.machine_id) === String(newRecord.machine_id)) &&
-          (!item.called_role || item.called_role === newRecord.called_role)
-        )
-      }
-      
-      if (tableName === 'tasks') {
-        return (
-          (!item.id || String(item.id) === String(newRecord.id)) &&
-          (!item.order_id || String(item.order_id) === String(newRecord.order_id))
-        )
-      }
-      
-      return false
-    })
-
-    if (match) {
-      window.myConfirmedWrites.add(newRecord.id)
-      setTimeout(() => {
-        window.myConfirmedWrites.delete(newRecord.id)
-      }, 5 * 60 * 1000)
-      return true
+      return originalValue
     }
-  }
-
-  return false
+  })
 }
 
 // Wrap PostgrestQueryBuilder methods
@@ -123,18 +76,48 @@ function wrapQueryBuilder(builder, tableName) {
   const originalUpsert = builder.upsert
 
   builder.insert = function (values, options) {
-    recordWrite(tableName, 'insert', values)
-    return originalInsert.call(this, values, options)
+    const isArray = Array.isArray(values)
+    const cloned = isArray ? values.map(v => ({ ...v })) : (values ? { ...values } : {})
+    const records = isArray ? cloned : [cloned]
+    
+    for (const r of records) {
+      if (r && typeof r === 'object') {
+        if (!r.id) {
+          r.id = generateUUID()
+        }
+        window.myConfirmedWrites.add(r.id)
+        const idToClean = r.id
+        setTimeout(() => {
+          window.myConfirmedWrites.delete(idToClean)
+        }, 5 * 60 * 1000)
+      }
+    }
+    
+    const filterBuilder = originalInsert.call(this, cloned, options)
+    return wrapFilterBuilder(filterBuilder, tableName)
   }
 
   builder.update = function (values, options) {
-    recordWrite(tableName, 'update', values)
-    return originalUpdate.call(this, values, options)
+    const filterBuilder = originalUpdate.call(this, values, options)
+    return wrapFilterBuilder(filterBuilder, tableName)
   }
 
   builder.upsert = function (values, options) {
-    recordWrite(tableName, 'upsert', values)
-    return originalUpsert.call(this, values, options)
+    const isArray = Array.isArray(values)
+    const records = isArray ? values : [values]
+    
+    for (const r of records) {
+      if (r && typeof r === 'object' && r.id) {
+        window.myConfirmedWrites.add(r.id)
+        const idToClean = r.id
+        setTimeout(() => {
+          window.myConfirmedWrites.delete(idToClean)
+        }, 5 * 60 * 1000)
+      }
+    }
+    
+    const filterBuilder = originalUpsert.call(this, values, options)
+    return wrapFilterBuilder(filterBuilder, tableName)
   }
 
   return builder
