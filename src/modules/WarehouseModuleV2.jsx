@@ -447,6 +447,117 @@ const WarehouseModuleV2 = () => {
 
       <div className="module-content" style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
 
+        {/* RECEPTION ALERT BANNER */}
+        {pendingDocs.length > 0 && (
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(2, 132, 199, 0.05))',
+            border: '1px solid rgba(14, 165, 233, 0.3)',
+            borderRadius: '20px',
+            padding: '15px 25px',
+            marginBottom: '25px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            boxShadow: '0 4px 20px rgba(14, 165, 233, 0.15)',
+            animation: 'pulse-blue 2s infinite',
+            flexWrap: 'wrap',
+            gap: '15px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+              <div style={{ background: '#0ea5e9', padding: '12px', borderRadius: '14px', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Truck size={22} />
+              </div>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#fff' }}>
+                  У ВАС Є НОВІ ПОСТАВКИ ДЛЯ ПРИЙОМКИ!
+                </h4>
+                <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#888' }}>
+                  Очікує підтвердження: <strong style={{ color: '#0ea5e9' }}>{pendingDocs.length}</strong> документ(ів)
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowReception(true)}
+              style={{
+                background: '#0ea5e9',
+                color: '#000',
+                border: 'none',
+                padding: '12px 24px',
+                borderRadius: '12px',
+                fontWeight: 900,
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+                textTransform: 'uppercase',
+                boxShadow: '0 4px 12px rgba(14, 165, 233, 0.3)',
+                transition: '0.2s',
+                letterSpacing: '0.05em'
+              }}
+              onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+              onMouseLeave={e => e.currentTarget.style.transform = 'none'}
+            >
+              Відкрити прийомку
+            </button>
+          </div>
+        )}
+
+        {/* RECEPTION PANEL */}
+        {showReception && (
+          <div className="content-card glass-panel" style={{ background: '#111', border: '1px solid #333', borderRadius: '24px', padding: '25px', marginBottom: '30px' }}>
+            <h3 style={{ fontSize: '0.85rem', color: '#0ea5e9', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Truck size={18} /> ОЧІКУЮТЬ ПРИЙОМКИ НА СО
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              {pendingDocs.map(doc => (
+                <div key={doc.id} style={{ padding: '15px 20px', background: '#000', borderRadius: '18px', border: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '0.65rem', color: '#0ea5e9', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px', letterSpacing: '0.05em' }}>
+                      ДОКУМЕНТ #{String(doc.id).substring(0, 8)}
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      {(Array.isArray(doc.items) ? doc.items : []).map((it, idx) => {
+                        const nom = (nomenclatures || []).find(n => n.id === it.nomenclature_id)
+                        const itemName = nom
+                          ? (nom.name + (nom.material_type ? ` (${nom.material_type})` : ''))
+                          : (it.reqDetails || it.details || it.name || `Позиція ${idx + 1}`)
+                        const itemQty = it.qty ?? it.missingAmount ?? it.needed ?? it.quantity ?? '?'
+                        return (
+                          <div key={idx} style={{ background: '#0a0a0a', padding: '5px 10px', borderRadius: '8px', border: '1px solid #222', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.72rem', color: '#888', fontWeight: 700 }}>
+                              {itemName}
+                            </span>
+                            <strong style={{ fontSize: '0.85rem', color: '#fff' }}>{itemQty}</strong>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  <button
+                    disabled={processingDocs.has(doc.id)}
+                    onClick={async () => {
+                      setProcessingDocs(prev => new Set(prev).add(doc.id))
+                      try {
+                        await confirmReception(doc.id)
+                      } finally {
+                        setProcessingDocs(prev => {
+                          const next = new Set(prev)
+                          next.delete(doc.id)
+                          return next
+                        })
+                      }
+                    }}
+                    style={{ marginLeft: '15px', background: '#10b981', color: '#000', border: 'none', padding: '10px 20px', borderRadius: '10px', fontWeight: 1000, cursor: processingDocs.has(doc.id) ? 'not-allowed' : 'pointer', fontSize: '0.8rem', opacity: processingDocs.has(doc.id) ? 0.5 : 1 }}
+                  >
+                    {processingDocs.has(doc.id) ? 'ОБРОБКА...' : 'ПРИЙНЯТИ'}
+                  </button>
+                </div>
+              ))}
+              {pendingDocs.length === 0 && (
+                <p style={{ color: '#333', fontSize: '0.8rem', textAlign: 'center' }}>Немає активних документів на прийомку</p>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* ЗАЯВКИ НА КОМПЛЕКТАЦІЮ (Тільки для відповідного складу) */}
         {pendingRequests.length > 0 && (
           <div className="content-card glass-panel" style={{ borderLeft: '4px solid #ff9000', marginBottom: '30px', padding: '20px' }}>
@@ -668,116 +779,7 @@ const WarehouseModuleV2 = () => {
           </div>
         )}
 
-        {/* RECEPTION ALERT BANNER */}
-        {pendingDocs.length > 0 && (
-          <div style={{
-            background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(2, 132, 199, 0.05))',
-            border: '1px solid rgba(14, 165, 233, 0.3)',
-            borderRadius: '20px',
-            padding: '15px 25px',
-            marginBottom: '25px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            boxShadow: '0 4px 20px rgba(14, 165, 233, 0.15)',
-            animation: 'pulse-blue 2s infinite',
-            flexWrap: 'wrap',
-            gap: '15px'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-              <div style={{ background: '#0ea5e9', padding: '12px', borderRadius: '14px', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Truck size={22} />
-              </div>
-              <div>
-                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#fff' }}>
-                  У ВАС Є НОВІ ПОСТАВКИ ДЛЯ ПРИЙОМКИ!
-                </h4>
-                <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#888' }}>
-                  Очікує підтвердження: <strong style={{ color: '#0ea5e9' }}>{pendingDocs.length}</strong> документ(ів)
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowReception(true)}
-              style={{
-                background: '#0ea5e9',
-                color: '#000',
-                border: 'none',
-                padding: '12px 24px',
-                borderRadius: '12px',
-                fontWeight: 900,
-                fontSize: '0.8rem',
-                cursor: 'pointer',
-                textTransform: 'uppercase',
-                boxShadow: '0 4px 12px rgba(14, 165, 233, 0.3)',
-                transition: '0.2s',
-                letterSpacing: '0.05em'
-              }}
-              onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
-              onMouseLeave={e => e.currentTarget.style.transform = 'none'}
-            >
-              Відкрити прийомку
-            </button>
-          </div>
-        )}
 
-        {/* RECEPTION PANEL */}
-        {showReception && (
-          <div className="content-card glass-panel" style={{ background: '#111', border: '1px solid #333', borderRadius: '24px', padding: '25px', marginBottom: '30px' }}>
-            <h3 style={{ fontSize: '0.85rem', color: '#0ea5e9', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Truck size={18} /> ОЧІКУЮТЬ ПРИЙОМКИ НА СО
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              {pendingDocs.map(doc => (
-                <div key={doc.id} style={{ padding: '15px 20px', background: '#000', borderRadius: '18px', border: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '0.65rem', color: '#0ea5e9', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px', letterSpacing: '0.05em' }}>
-                      ДОКУМЕНТ #{String(doc.id).substring(0, 8)}
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                      {(Array.isArray(doc.items) ? doc.items : []).map((it, idx) => {
-                        const nom = (nomenclatures || []).find(n => n.id === it.nomenclature_id)
-                        const itemName = nom
-                          ? (nom.name + (nom.material_type ? ` (${nom.material_type})` : ''))
-                          : (it.reqDetails || it.details || it.name || `Позиція ${idx + 1}`)
-                        const itemQty = it.qty ?? it.missingAmount ?? it.needed ?? it.quantity ?? '?'
-                        return (
-                          <div key={idx} style={{ background: '#0a0a0a', padding: '5px 10px', borderRadius: '8px', border: '1px solid #222', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.72rem', color: '#888', fontWeight: 700 }}>
-                              {itemName}
-                            </span>
-                            <strong style={{ fontSize: '0.85rem', color: '#fff' }}>{itemQty}</strong>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                  <button
-                    disabled={processingDocs.has(doc.id)}
-                    onClick={async () => {
-                      setProcessingDocs(prev => new Set(prev).add(doc.id))
-                      try {
-                        await confirmReception(doc.id)
-                      } finally {
-                        setProcessingDocs(prev => {
-                          const next = new Set(prev)
-                          next.delete(doc.id)
-                          return next
-                        })
-                      }
-                    }}
-                    style={{ marginLeft: '15px', background: '#10b981', color: '#000', border: 'none', padding: '10px 20px', borderRadius: '10px', fontWeight: 1000, cursor: processingDocs.has(doc.id) ? 'not-allowed' : 'pointer', fontSize: '0.8rem', opacity: processingDocs.has(doc.id) ? 0.5 : 1 }}
-                  >
-                    {processingDocs.has(doc.id) ? 'ОБРОБКА...' : 'ПРИЙНЯТИ'}
-                  </button>
-                </div>
-              ))}
-              {pendingDocs.length === 0 && (
-                <p style={{ color: '#333', fontSize: '0.8rem', textAlign: 'center' }}>Немає активних документів на прийомку</p>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* TABS */}
         <div style={{ display: 'flex', gap: '10px', marginBottom: '25px', overflowX: 'auto', paddingBottom: '5px' }}>
