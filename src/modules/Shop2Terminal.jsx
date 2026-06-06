@@ -57,6 +57,13 @@ const Shop2Terminal = () => {
   const [showStorageExplorer, setShowStorageExplorer] = useState(false)
   const [activeExplorerTab, setActiveExplorerTab] = useState('semi')
 
+  // Корекція браку ВКЯ
+  const [showQCModal, setShowQCModal] = useState(false)
+  const [qcScrapCount, setQcScrapCount] = useState(0)
+  const [qcInspector, setQcInspector] = useState('')
+  const [qcReason, setQcReason] = useState('Биття цанги')
+  const [qcCustomReason, setQcCustomReason] = useState('')
+
   // Етапи лише для Цеху №2
   const shop2Stages = ['Пресування', 'Фарбування', 'Доопрацювання']
 
@@ -136,7 +143,20 @@ const Shop2Terminal = () => {
       const displayName = fullName || currentUser?.login || ''
       const managerName = currentUser?.position ? `${displayName} (${currentUser.position})` : displayName
       if (managerName) setSelectedManager(managerName)
+      
+      setSelectedShift('')
+      setSelectedOperator('')
+    } else {
+      setSelectedShift('')
+      setSelectedOperator('')
     }
+
+    // Скидаємо поля БРАК ВКЯ при кожній зміні картки
+    setShowQCModal(false)
+    setQcScrapCount(0)
+    setQcInspector('')
+    setQcReason('Биття цанги')
+    setQcCustomReason('')
   }, [selectedCardId, currentUser])
 
   // ── РЕАЛЬНИЙ ЧАС (ЦЕНТРАЛІЗОВАНО В MESContext) ────────────────
@@ -355,6 +375,108 @@ const Shop2Terminal = () => {
       fetchData(['work_cards', 'work_card_history', 'inventory']) // Refresh history for local stats
     } catch (e) { alert('Помилка при завершенні: ' + e.message) }
     finally { setIsProcessing(false) }
+  }
+
+  const updateInventoryStock = async (nomId, qty, type = 'semi') => {
+    if (!nomId || qty <= 0) return
+    try {
+      const { data: existing } = await supabase.from('inventory')
+        .select('*')
+        .eq('nomenclature_id', nomId)
+        .eq('type', type)
+        .limit(1).maybeSingle()
+
+      if (existing) {
+        await supabase.from('inventory').update({
+          total_qty: (Number(existing.total_qty) || 0) + Number(qty),
+          updated_at: new Date().toISOString()
+        }).eq('id', existing.id)
+      } else {
+        const nom = nomenclatures.find(n => n.id === nomId)
+        await supabase.from('inventory').insert([{
+          name: nom?.name || 'Деталь',
+          unit: nom?.unit || 'шт',
+          total_qty: Number(qty),
+          type: type,
+          nomenclature_id: nomId
+        }])
+      }
+    } catch (e) { console.warn(`Stock update failed for type ${type}:`, e) }
+  }
+
+  const handleQCScrapOverride = async () => {
+    if (!currentCard || qcScrapCount <= 0) return
+    if (qcScrapCount > currentCard.quantity) {
+      alert('Кількість браку не може перевищувати поточну кількість деталей у картці!')
+      return
+    }
+    setIsProcessing(true)
+    try {
+      const reasonText = qcReason === 'Інше (коментар)'
+        ? `Інше (${qcCustomReason || 'без коментаря'})`
+        : qcReason
+      const op = `ВКЯ (${qcInspector || 'відповідальний'}) — Причина: ${reasonText}`
+      const newQty = Math.max(0, currentCard.quantity - qcScrapCount)
+
+      const promises = []
+
+      // 1. Запис у work_card_history
+      promises.push(
+        supabase.from('work_card_history').insert([{
+          card_id: currentCard.id,
+          nomenclature_id: currentCard.nomenclature_id,
+          stage_name: 'Контроль ВКЯ',
+          operator_name: op,
+          qty_at_start: currentCard.quantity,
+          qty_completed: newQty,
+          scrap_qty: qcScrapCount,
+          started_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+          is_archived_scrap: true,
+          shift_name: currentCard.shift_name,
+          manager_name: currentCard.manager_name,
+          machine_name: currentCard.machine,
+          qc_scrap_reason: qcReason,
+          qc_scrap_comment: qcReason === 'Інше (коментар)' ? qcCustomReason : null
+        }])
+      )
+
+      // 2. Оновлюємо кількість картки (якщо залишилося 0, закриваємо її)
+      const updatePayload = { quantity: newQty }
+      if (newQty === 0) {
+        updatePayload.status = 'completed'
+      }
+      promises.push(
+        supabase.from('work_cards').update(updatePayload).eq('id', currentCard.id)
+      )
+
+      // 3. Записуємо виявлений брак на склад для класифікації
+      promises.push(
+        updateInventoryStock(currentCard.nomenclature_id, qcScrapCount, 'scrap')
+      )
+
+      const results = await Promise.all(promises)
+      for (const res of results) {
+        if (res.error) throw res.error
+      }
+
+      setShowQCModal(false)
+      setQcScrapCount(0)
+      setQcInspector('')
+      setQcReason('Биття цанги')
+      setQcCustomReason('')
+      fetchData(['work_cards', 'work_card_history', 'inventory', 'tasks']).catch(() => {})
+      if (newQty === 0) {
+        setSelectedCardId(null)
+        setScannedCardIds(prev => prev.filter(id => id !== currentCard.id))
+      }
+      setIsProcessing(false)
+      alert(`✅ Успішно списано ${qcScrapCount} шт у брак за рішенням ВКЯ!`)
+    } catch (e) {
+      console.error('QC error:', e)
+      setIsProcessing(false)
+      alert('Помилка фіксації браку ВКЯ: ' + e.message)
+    } finally { setIsProcessing(false) }
   }
 
   const SpecCard = ({ icon: Icon, label, value, color = "#8b5cf6" }) => (
@@ -603,6 +725,11 @@ const Shop2Terminal = () => {
                       📋 <span className="hide-mobile">НАРЯД</span>
                     </Link>
                   )}
+                  <button onClick={() => setShowQCModal(true)}
+                    style={{ background: '#ef444415', border: '1px solid #ef444440', color: '#ef4444', padding: '10px 14px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    title="Внести додатковий брак ВКЯ">
+                    🛡️ <span className="hide-mobile">БРАК ВКЯ</span>
+                  </button>
                   <button onClick={() => setSelectedCardId(null)} style={{ background: '#111', border: 'none', color: '#555', padding: '10px', borderRadius: '12px', cursor: 'pointer' }}>
                     <X size={24} />
                   </button>
@@ -660,6 +787,11 @@ const Shop2Terminal = () => {
                   </div>
                 ) : (currentCard.status === 'new' || currentCard.status === 'at-buffer') ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', maxWidth: '500px', margin: '0 auto' }}>
+                    {currentCard.status === 'at-buffer' && currentCard.operator_name && (
+                      <div style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '15px', padding: '15px', color: '#10b981', fontWeight: 800, fontSize: '0.85rem', textAlign: 'center' }}>
+                        👤 ВИКОНАВЕЦЬ: {currentCard.operator_name} {currentCard.shift_name ? `(${currentCard.shift_name})` : ''}
+                      </div>
+                    )}
                     <div>
                       <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Поточний етап (ЦЕХ №2)</label>
                       <select value={selectedStage || currentCard.operation} onChange={(e) => setSelectedStage(e.target.value)} style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
@@ -1171,6 +1303,110 @@ const Shop2Terminal = () => {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Модалка корекції браку від ВКЯ ─────────────────────────────────── */}
+      {showQCModal && currentCard && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 10025, padding: '40px 20px', overflowY: 'auto' }}>
+          <div style={{ background: '#111', width: '100%', maxWidth: '460px', borderRadius: '26px', border: '1px solid #ef444440', overflow: 'hidden', boxShadow: '0 20px 60px rgba(239,68,68,0.15)', margin: 'auto 0' }}>
+            <div style={{ padding: '20px 22px', background: '#161616', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ef444420' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 950, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  🛡️ ВІДДІЛ ВКЯ · ФІКСАЦІЯ БРАКУ
+                </h3>
+                <div style={{ fontSize: '0.6rem', color: '#888', marginTop: '2px' }}>
+                  Виявлено додатковий дефект на етапі
+                </div>
+              </div>
+              <button onClick={() => setShowQCModal(false)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}><X size={22} /></button>
+            </div>
+            <div style={{ padding: '24px 22px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900 }}>{getNomFromCard(currentCard)?.name}</h3>
+
+              {/* Інспектор ВКЯ */}
+              <div>
+                <label style={{ fontSize: '0.6rem', fontWeight: 900, color: '#555', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>ПІБ Інспектора ВКЯ (або відповідального)</label>
+                <input
+                  type="text"
+                  placeholder="Введіть ваше прізвище..."
+                  value={qcInspector}
+                  onChange={e => setQcInspector(e.target.value)}
+                  style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '0.9rem', fontWeight: 700 }}
+                />
+              </div>
+
+              {/* Причина браку */}
+              <div>
+                <label style={{ fontSize: '0.6rem', fontWeight: 900, color: '#555', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>Причина браку</label>
+                <select
+                  value={qcReason}
+                  onChange={e => {
+                    setQcReason(e.target.value)
+                    if (e.target.value !== 'Інше (коментар)') {
+                      setQcCustomReason('')
+                    }
+                  }}
+                  style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '0.9rem', fontWeight: 700 }}
+                >
+                  <option value="Биття цанги">Биття цанги</option>
+                  <option value="Помилка програми">Помилка програми</option>
+                  <option value="Збій станка">Збій станка</option>
+                  <option value="Кривизна листа">Кривизна листа</option>
+                  <option value="Поломка флешки">Поломка флешки</option>
+                  <option value="Прив'язка">Прив'язка</option>
+                  <option value="Помилка оператора">Помилка оператора</option>
+                  <option value="Інше (коментар)">Інше (коментар)</option>
+                </select>
+              </div>
+
+              {/* Коментар до причини браку */}
+              {qcReason === 'Інше (коментар)' && (
+                <div>
+                  <label style={{ fontSize: '0.6rem', fontWeight: 900, color: '#555', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>Опишіть іншу причину браку</label>
+                  <input
+                    type="text"
+                    placeholder="Введіть коментар..."
+                    value={qcCustomReason}
+                    onChange={e => setQcCustomReason(e.target.value)}
+                    style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '0.9rem', fontWeight: 700 }}
+                  />
+                </div>
+              )}
+
+              {/* Лічильник додаткового браку */}
+              <div style={{ background: '#0d0d0d', borderRadius: '14px', padding: '18px', textAlign: 'center', border: '1px solid #ef444422' }}>
+                <label style={{ color: '#ef4444', fontWeight: 900, fontSize: '0.7rem', textTransform: 'uppercase', display: 'block', marginBottom: '12px' }}>
+                  КІЛЬКІСТЬ ВИЯВЛЕНОГО БРАКУ
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
+                  <button onClick={() => setQcScrapCount(v => Math.max(0, v - 1))}
+                    style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>−</button>
+                  <input type="number" min={0} max={currentCard.quantity} value={qcScrapCount === 0 ? '' : qcScrapCount} placeholder="0"
+                    onChange={e => {
+                      const val = e.target.value;
+                      setQcScrapCount(val === '' ? 0 : Math.max(0, Math.min(currentCard.quantity, parseInt(val) || 0)))
+                    }}
+                    style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '3.2rem', width: '90px', textAlign: 'center', fontWeight: 900 }} />
+                  <button onClick={() => setQcScrapCount(v => Math.min(currentCard.quantity, v + 1))}
+                    style={{ width: '46px', height: '46px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '1.4rem', cursor: 'pointer' }}>+</button>
+                </div>
+                <div style={{ marginTop: '10px', fontSize: '0.72rem', color: '#555' }}>
+                  Залишиться в картці: <strong style={{ color: '#10b981' }}>{Math.max(0, (currentCard.quantity || 0) - qcScrapCount)} шт</strong>
+                </div>
+              </div>
+
+              <button onClick={handleQCScrapOverride} disabled={isProcessing || qcScrapCount <= 0}
+                style={{
+                  background: '#ef4444', color: '#fff', border: 'none', padding: '16px', borderRadius: '14px',
+                  fontSize: '1.05rem', fontWeight: 1000, cursor: 'pointer',
+                  boxShadow: '0 10px 30px rgba(239,68,68,0.3)',
+                  opacity: (isProcessing || qcScrapCount <= 0) ? 0.5 : 1
+                }}>
+                {isProcessing ? 'ЗБЕРЕЖЕННЯ...' : '⚠️ СПИСАТИ У БРАК ВКЯ'}
+              </button>
+            </div>
           </div>
         </div>
       )}

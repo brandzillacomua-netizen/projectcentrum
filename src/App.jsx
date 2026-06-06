@@ -1235,6 +1235,18 @@ const GlobalUserNav = () => {
     const cutoffTime = pageLoadTimeRef.current - 5000;
     const newUnread = notifications.filter(n => {
       const created = new Date(n.createdAt).getTime();
+
+      // Skip local browser notifications for types already sent via Web Push to avoid duplicates
+      const webPushTypes = ['order_new', 'request', 'reception_doc', 'purchase_request', 'machine_call'];
+      if (webPushTypes.includes(n.type)) return false;
+
+      // Coordinate between multiple open tabs using localStorage
+      const storageKey = `centrum_shown_notif_${n.id}`;
+      const lastShown = localStorage.getItem(storageKey);
+      if (lastShown && Date.now() - Number(lastShown) < 30000) {
+        return false;
+      }
+
       return created > cutoffTime && 
              !prevIds.has(n.id) && 
              !readIds.includes(n.id) && 
@@ -1244,6 +1256,7 @@ const GlobalUserNav = () => {
     newUnread.forEach(n => {
       try {
         shownNotifsRef.current.add(n.id);
+        localStorage.setItem(`centrum_shown_notif_${n.id}`, String(Date.now()));
         const options = {
           body: n.description,
           icon: '/kulytsya.png', // Fallback to logo
