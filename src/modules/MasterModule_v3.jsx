@@ -2136,69 +2136,294 @@ const MasterModule = () => {
         </div>
       )}
 
-      {showPrepModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="glass-panel" style={{ background: '#0a0a0a', padding: '30px', borderRadius: '24px', border: '1px solid #222', width: '95%', maxWidth: '500px' }}>
-            <h3 style={{ margin: '0 0 20px', fontSize: '1.4rem', color: '#10b981', fontWeight: 900 }}>НАРЯД НА ПІДГОТОВКУ</h3>
+      {showPrepModal && (() => {
+        const prepNoms = nomenclatures.filter(n => n.name.toLowerCase().includes('непідготовлений'))
 
-            <div style={{ marginBottom: '20px', paddingRight: '5px' }}>
-              <label style={{ display: 'block', fontSize: '0.75rem', color: '#444', fontWeight: 800, textTransform: 'uppercase', marginBottom: '12px' }}>СИРОВИНА (НЕПІДГОТОВЛЕНА)</label>
-              {nomenclatures
-                .filter(n => n.name.toLowerCase().includes('непідготовлений'))
-                .sort((a, b) => {
-                  const matchA = a.name.match(/\((\d+(?:\.\d+)?)\s*мм\)/i);
-                  const matchB = b.name.match(/\((\d+(?:\.\d+)?)\s*мм\)/i);
-                  const thickA = matchA ? parseFloat(matchA[1]) : 0;
-                  const thickB = matchB ? parseFloat(matchB[1]) : 0;
-                  return thickA - thickB;
-                })
-                .map(n => {
-                  const qty = prepQuantities[n.id] || '';
-                  return (
-                    <div key={n.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', gap: '15px' }}>
-                      <span style={{ fontSize: '0.95rem', color: '#fff', fontWeight: 800 }}>{n.name}</span>
-                      <input
-                        type="number"
-                        min="0"
-                        placeholder="0"
-                        value={qty}
-                        onChange={e => {
-                          const val = e.target.value;
-                          setPrepQuantities(prev => ({
-                            ...prev,
-                            [n.id]: val === '' ? '' : Math.max(0, parseInt(val) || 0)
-                          }));
-                        }}
-                        style={{ background: '#111', border: '1px solid #333', color: '#fff', padding: '8px 12px', borderRadius: '10px', fontSize: '1.05rem', fontWeight: 900, textAlign: 'center', width: '80px' }}
-                      />
-                    </div>
-                  );
-                })}
-            </div>
+        const thicknessMap = {}
+        prepNoms.forEach(n => {
+          const match = n.name.match(/\((\d+(?:\.\d+)?)\s*мм\)/i)
+          const thickness = match ? `${match[1]} мм` : 'Інше'
+          const isT700 = n.name.toLowerCase().includes('т700') || n.name.toLowerCase().includes('t700')
+          const isT300 = n.name.toLowerCase().includes('т300') || n.name.toLowerCase().includes('t300')
+          
+          if (!thicknessMap[thickness]) {
+            thicknessMap[thickness] = {}
+          }
+          if (isT700) {
+            thicknessMap[thickness].t700 = n
+          } else if (isT300) {
+            thicknessMap[thickness].t300 = n
+          } else {
+            thicknessMap[thickness].other = n
+          }
+        })
 
-            <div style={{ marginBottom: '30px' }}>
-              <label style={{ display: 'block', fontSize: '0.75rem', color: '#444', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>ДЕДЛАЙН</label>
-              <input
-                type="date"
-                value={prepDeadline ? prepDeadline.split('T')[0] : ''}
-                onChange={e => setPrepDeadline(e.target.value)}
-                style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '1rem', fontWeight: 800 }}
-              />
-            </div>
+        const sortedThicknesses = Object.keys(thicknessMap).sort((a, b) => {
+          if (a === 'Інше') return 1
+          if (b === 'Інше') return -1
+          const thickA = parseFloat(a) || 0
+          const thickB = parseFloat(b) || 0
+          return thickA - thickB
+        })
 
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setShowPrepModal(false)} style={{ flex: 1, padding: '12px', background: '#222', color: '#555', border: 'none', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>СКАСУВАТИ</button>
-              <button
-                onClick={handleCreatePrepOrder}
-                disabled={isSubmitting}
-                style={{ flex: 2, padding: '12px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}
-              >
-                {isSubmitting ? 'ЧЕКАЙТЕ...' : 'СТВОРИТИ'}
-              </button>
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="glass-panel" style={{ 
+              background: '#0a0a0a', 
+              padding: '30px', 
+              borderRadius: '24px', 
+              border: '1px solid #222', 
+              width: '95%', 
+              maxWidth: '720px', 
+              display: 'flex', 
+              flexDirection: 'column', 
+              maxHeight: '95vh',
+              boxShadow: '0 10px 40px rgba(16,185,129,0.15)',
+              overflowY: 'auto'
+            }}>
+              <h3 style={{ margin: '0 0 20px', fontSize: '1.4rem', color: '#10b981', fontWeight: 900 }}>НАРЯД НА ПІДГОТОВКУ</h3>
+
+              <div style={{ display: 'block', fontSize: '0.75rem', color: '#444', fontWeight: 800, textTransform: 'uppercase', marginBottom: '12px' }}>
+                СИРОВИНА (НЕПІДГОТОВЛЕНА)
+              </div>
+
+              {/* Two side-by-side grids */}
+              <div style={{ display: 'flex', gap: '25px', flexWrap: 'wrap', marginBottom: '25px' }}>
+                
+                {/* Left Column */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '280px' }}>
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: '1.2fr 1fr 1fr', 
+                    gap: '10px', 
+                    paddingBottom: '5px',
+                    borderBottom: '1px solid #222',
+                    fontSize: '0.7rem',
+                    fontWeight: 900,
+                    color: '#666',
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px'
+                  }}>
+                    <div>Товщина</div>
+                    <div style={{ textAlign: 'center', color: '#22c55e' }}>Т300</div>
+                    <div style={{ textAlign: 'center', color: '#0ea5e9' }}>Т700</div>
+                  </div>
+                  
+                  {sortedThicknesses.slice(0, Math.ceil(sortedThicknesses.length / 2)).map(thick => {
+                    const entry = thicknessMap[thick]
+                    return (
+                      <div key={thick} style={{ 
+                        display: 'grid', 
+                        gridTemplateColumns: '1.2fr 1fr 1fr', 
+                        alignItems: 'center', 
+                        gap: '10px', 
+                        background: '#111',
+                        padding: '6px 12px',
+                        borderRadius: '10px',
+                        border: '1px solid #1a1a1a'
+                      }}>
+                        <span style={{ fontSize: '0.85rem', color: '#eee', fontWeight: 800 }}>Лист ({thick})</span>
+                        
+                        {/* T300 Input */}
+                        <div>
+                          {entry.t300 ? (
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder="0"
+                              value={prepQuantities[entry.t300.id] || ''}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setPrepQuantities(prev => ({
+                                  ...prev,
+                                  [entry.t300.id]: val === '' ? '' : Math.max(0, parseInt(val) || 0)
+                                }));
+                              }}
+                              style={{ 
+                                width: '100%', 
+                                background: '#000', 
+                                border: '1px solid #333', 
+                                color: '#22c55e', 
+                                padding: '6px', 
+                                borderRadius: '8px', 
+                                fontSize: '1rem', 
+                                fontWeight: 950, 
+                                textAlign: 'center',
+                                outline: 'none' 
+                              }}
+                            />
+                          ) : (
+                            <div style={{ color: '#333', textAlign: 'center', fontSize: '0.85rem' }}>—</div>
+                          )}
+                        </div>
+                        
+                        {/* T700 Input */}
+                        <div>
+                          {entry.t700 ? (
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder="0"
+                              value={prepQuantities[entry.t700.id] || ''}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setPrepQuantities(prev => ({
+                                  ...prev,
+                                  [entry.t700.id]: val === '' ? '' : Math.max(0, parseInt(val) || 0)
+                                }));
+                              }}
+                              style={{ 
+                                width: '100%', 
+                                background: '#000', 
+                                border: '1px solid #333', 
+                                color: '#0ea5e9', 
+                                padding: '6px', 
+                                borderRadius: '8px', 
+                                fontSize: '1rem', 
+                                fontWeight: 950, 
+                                textAlign: 'center',
+                                outline: 'none' 
+                              }}
+                            />
+                          ) : (
+                            <div style={{ color: '#333', textAlign: 'center', fontSize: '0.85rem' }}>—</div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Right Column */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '280px' }}>
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: '1.2fr 1fr 1fr', 
+                    gap: '10px', 
+                    paddingBottom: '5px',
+                    borderBottom: '1px solid #222',
+                    fontSize: '0.7rem',
+                    fontWeight: 900,
+                    color: '#666',
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px'
+                  }}>
+                    <div>Товщина</div>
+                    <div style={{ textAlign: 'center', color: '#22c55e' }}>Т300</div>
+                    <div style={{ textAlign: 'center', color: '#0ea5e9' }}>Т700</div>
+                  </div>
+                  
+                  {sortedThicknesses.slice(Math.ceil(sortedThicknesses.length / 2)).map(thick => {
+                    const entry = thicknessMap[thick]
+                    return (
+                      <div key={thick} style={{ 
+                        display: 'grid', 
+                        gridTemplateColumns: '1.2fr 1fr 1fr', 
+                        alignItems: 'center', 
+                        gap: '10px', 
+                        background: '#111',
+                        padding: '6px 12px',
+                        borderRadius: '10px',
+                        border: '1px solid #1a1a1a'
+                      }}>
+                        <span style={{ fontSize: '0.85rem', color: '#eee', fontWeight: 800 }}>Лист ({thick})</span>
+                        
+                        {/* T300 Input */}
+                        <div>
+                          {entry.t300 ? (
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder="0"
+                              value={prepQuantities[entry.t300.id] || ''}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setPrepQuantities(prev => ({
+                                  ...prev,
+                                  [entry.t300.id]: val === '' ? '' : Math.max(0, parseInt(val) || 0)
+                                }));
+                              }}
+                              style={{ 
+                                width: '100%', 
+                                background: '#000', 
+                                border: '1px solid #333', 
+                                color: '#22c55e', 
+                                padding: '6px', 
+                                borderRadius: '8px', 
+                                fontSize: '1rem', 
+                                fontWeight: 950, 
+                                textAlign: 'center',
+                                outline: 'none' 
+                              }}
+                            />
+                          ) : (
+                            <div style={{ color: '#333', textAlign: 'center', fontSize: '0.85rem' }}>—</div>
+                          )}
+                        </div>
+                        
+                        {/* T700 Input */}
+                        <div>
+                          {entry.t700 ? (
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder="0"
+                              value={prepQuantities[entry.t700.id] || ''}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setPrepQuantities(prev => ({
+                                  ...prev,
+                                  [entry.t700.id]: val === '' ? '' : Math.max(0, parseInt(val) || 0)
+                                }));
+                              }}
+                              style={{ 
+                                width: '100%', 
+                                background: '#000', 
+                                border: '1px solid #333', 
+                                color: '#0ea5e9', 
+                                padding: '6px', 
+                                borderRadius: '8px', 
+                                fontSize: '1rem', 
+                                fontWeight: 950, 
+                                textAlign: 'center',
+                                outline: 'none' 
+                              }}
+                            />
+                          ) : (
+                            <div style={{ color: '#333', textAlign: 'center', fontSize: '0.85rem' }}>—</div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+              </div>
+
+              <div style={{ marginBottom: '30px' }}>
+                <label style={{ display: 'block', fontSize: '0.75rem', color: '#444', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>ДЕДЛАЙН</label>
+                <input
+                  type="date"
+                  value={prepDeadline ? prepDeadline.split('T')[0] : ''}
+                  onChange={e => setPrepDeadline(e.target.value)}
+                  style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '1rem', fontWeight: 800 }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button onClick={() => setShowPrepModal(false)} style={{ flex: 1, padding: '12px', background: '#222', color: '#555', border: 'none', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>СКАСУВАТИ</button>
+                <button
+                  onClick={handleCreatePrepOrder}
+                  disabled={isSubmitting}
+                  style={{ flex: 2, padding: '12px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}
+                >
+                  {isSubmitting ? 'ЧЕКАЙТЕ...' : 'СТВОРИТИ'}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* MOBILE DRAWER */}
       {isDrawerOpen && (
