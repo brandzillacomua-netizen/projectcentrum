@@ -11,13 +11,11 @@ export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers,
 
   const login = async (loginName, password) => {
     // ── Step 1: Authenticate via Supabase (primary, fast) ──────────────────
-    const { data } = await supabase
-      .from('system_users')
-      .select('id,login,password,first_name,last_name,position,access_rights,department,shift')
-      .eq('login', loginName)
+    const { data, error: rpcError } = await supabase
+      .rpc('verify_user_password', { login_name: loginName, plain_password: password })
       .maybeSingle()
 
-    if (!data || data.password !== password) {
+    if (rpcError || !data) {
       return { success: false, error: 'Невірний логін або пароль' }
     }
 
@@ -67,7 +65,17 @@ export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers,
     const payload = { ...userData }
     if (!payload.id) delete payload.id
     delete payload.token // Remove frontend-only token property before saving to DB
-    const { data, error } = await supabase.from('system_users').upsert([payload]).select()
+    
+    // Avoid overwriting password if it is unchanged
+    if (!payload.password || payload.password === '••••••••') {
+      delete payload.password
+    }
+
+    const { data, error } = await supabase
+      .from('system_users')
+      .upsert([payload])
+      .select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar')
+    
     const result = (data && data.length > 0) ? data[0] : null
     if (!error && result) {
       setSystemUsers(prev => {

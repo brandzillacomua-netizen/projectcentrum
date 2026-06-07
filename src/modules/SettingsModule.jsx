@@ -423,7 +423,7 @@ const SettingsModule = () => {
 
   const handleSaveUser = async (e) => {
     e.preventDefault()
-    if (!userForm.login || !userForm.password) return
+    if (!userForm.login || (!userForm.id && !userForm.password)) return
 
     const cleanLogin = userForm.login.trim()
     const cleanPassword = userForm.password.trim()
@@ -466,6 +466,7 @@ const SettingsModule = () => {
   const editUser = (user) => {
     setUserForm({ 
       ...user, 
+      password: '••••••••',
       access_rights: {
         dashboard: false, manager: false, master: false, warehouse: false, engineer: false, 
         director: false, foreman: false, operator: false, prep_terminal: false, shipping: false, 
@@ -783,7 +784,7 @@ const SettingsModule = () => {
                   </div>
                   <div>
                     <label className="form-label">ПАРОЛЬ</label>
-                    <input type="text" style={inputStyle} value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} placeholder="пароль..." required />
+                    <input type="text" style={inputStyle} value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} placeholder={userForm.id ? "новий пароль (опціонально)..." : "пароль..."} required={!userForm.id} />
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
@@ -2023,7 +2024,7 @@ const SettingsModule = () => {
                               <tr key={row.key} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', color: row.status === 'error' ? '#888' : '#fff' }}>
                                 <td style={{ padding: '8px 12px', color: '#555' }}>{idx + 1}</td>
                                 <td style={{ padding: '8px 12px', fontWeight: 700 }}>{row.login || '---'}</td>
-                                <td style={{ padding: '8px 12px', color: '#666' }}>{row.password}</td>
+                                <td style={{ padding: '8px 12px', color: '#666' }}>••••••••</td>
                                 <td style={{ padding: '8px 12px' }}>{row.first_name} {row.last_name}</td>
                                 <td style={{ padding: '8px 12px' }}>{row.department} / <span style={{ color: '#aaa' }}>{row.position}</span></td>
                                 <td style={{ padding: '8px 12px', color: '#888' }}>{row.shift}</td>
