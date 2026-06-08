@@ -520,7 +520,24 @@ const MasterModule = () => {
       Object.values(rowMachines).filter(Boolean)
     ))
 
-    if (!isReprintMode && uniqueMachines.length === 0) {
+    // Calculate if we actually need to produce anything
+    let totalPlanQuantity = 0;
+    activeNaryadOrder.order_items?.forEach(it => {
+      const parts = getBOMParts(it.nomenclature_id)
+      const allParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
+      const displayParts = allParts.filter(p => p.nom?.type === 'part' || p.nom?.type === 'raw' || !p.nom?.type)
+      
+      displayParts.forEach(part => {
+        const thisNaryadQty = naryadQtys[it.id] || 0
+        const totalNeeded = thisNaryadQty * (Number(part.quantity_per_parent) || 1)
+        const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz')
+        const inStock = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
+        const totalToProduce = Math.max(0, totalNeeded - inStock)
+        totalPlanQuantity += totalToProduce
+      })
+    })
+
+    if (!isReprintMode && totalPlanQuantity > 0 && uniqueMachines.length === 0) {
       alert("Будь ласка, оберіть верстат для деталей.")
       return
     }

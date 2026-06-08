@@ -583,6 +583,7 @@ export function createProductionActions({
       const order = orders.find(o => o.id === orderId)
       if (!order) return
       let totalMin = 0
+      let totalPlanQty = 0
       const materialSummary = {}
       const bzStockDeductions = []
       const plan_snapshot = {}
@@ -599,6 +600,7 @@ export function createProductionActions({
           const inStockQty = invItem ? Math.max(0, (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0)) : 0
           const usedFromStock = Math.min(totalNeeded, inStockQty)
           const totalToProduce = Math.max(0, totalNeeded - inStockQty)
+          totalPlanQty += totalToProduce
           const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
           let sheets = Math.ceil(totalToProduce / unitsPerSheet)
           const selectedMachine = (customRowMachines && customRowMachines[part.nom.id]) || machineName;
@@ -709,7 +711,23 @@ export function createProductionActions({
       plan_snapshot._metadata = { planned_deadline: customDeadline || order.deadline, batch_index: isPartial ? nextBatchIndex : null }
       plan_snapshot.materialSummary = materialSummary
 
-      const { data: taskData, error: taskError } = await supabase.from('tasks').insert([{ order_id: orderId, step: 'Розкрій', status: 'waiting', machine_name: machineName || 'Не вказано', estimated_time: Math.round(totalMin), engineer_conf: false, warehouse_conf: false, director_conf: false, plan_snapshot: plan_snapshot, planned_sets: thisNaryadTotalSets, batch_index: isPartial ? nextBatchIndex : null, planned_deadline: customDeadline || order.deadline }]).select()
+      const isAllFromBZ = totalPlanQty === 0;
+
+      const { data: taskData, error: taskError } = await supabase.from('tasks').insert([{
+        order_id: orderId,
+        step: isAllFromBZ ? 'Паквання' : 'Розкрій',
+        status: isAllFromBZ ? 'completed' : 'waiting',
+        completed_at: isAllFromBZ ? new Date().toISOString() : null,
+        machine_name: machineName || 'Не вказано',
+        estimated_time: Math.round(totalMin),
+        engineer_conf: isAllFromBZ ? true : false,
+        warehouse_conf: isAllFromBZ ? true : false,
+        director_conf: isAllFromBZ ? true : false,
+        plan_snapshot: plan_snapshot,
+        planned_sets: thisNaryadTotalSets,
+        batch_index: isPartial ? nextBatchIndex : null,
+        planned_deadline: customDeadline || order.deadline
+      }]).select()
       const tData = (taskData && taskData.length > 0) ? taskData[0] : null
       if (taskError) throw taskError
 

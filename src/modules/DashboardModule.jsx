@@ -467,57 +467,116 @@ const DashboardModule = () => {
             </label>
           </div>
 
-          {/* Finished Product Trends Summary Panel */}
+          {/* ── BOTTLENECKS & PRODUCT TRENDS PANEL ── */}
           {Object.keys(productTrends).length > 0 && (
-            <div style={{ marginBottom: '25px' }}>
-              <h3 style={{ fontSize: '0.8rem', fontWeight: 900, textTransform: 'uppercase', color: '#ff9000', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px', letterSpacing: '1px' }}>
-                📈 Тренди готових виробів з замовлень
-              </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '15px' }}>
+            <div style={{ marginBottom: '28px' }}>
+              {/* Panel Header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem' }}>⚡</div>
+                  <div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 900, color: '#fff', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Вузькі Місця & Тренди</div>
+                    <div style={{ fontSize: '0.65rem', color: '#71717a', fontWeight: 600, marginTop: '1px' }}>Аналіз потенціалу виробів та обмежувальних деталей</div>
+                  </div>
+                </div>
+                <div style={{ fontSize: '0.7rem', color: '#52525b', fontWeight: 700, background: '#18181b', border: '1px solid #27272a', padding: '5px 12px', borderRadius: '8px' }}>
+                  {Object.keys(productTrends).length} виріб(ів)
+                </div>
+              </div>
+
+              {/* Trend Cards Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '16px' }}>
                 {Object.entries(productTrends).map(([id, trend]) => {
                   const hasGroup = groupedDashboardData.some(g => String(g.id) === String(id))
                   if (!hasGroup) return null
 
                   const pct = trend.demand > 0 ? Math.min(100, Math.round((trend.potential / trend.demand) * 100)) : 0
+                  const isCritical = pct < 30
+                  const isWarning = pct >= 30 && pct < 70
+                  const accentColor = isCritical ? '#ef4444' : isWarning ? '#f59e0b' : '#10b981'
+                  const accentBg = isCritical ? 'rgba(239,68,68,0.07)' : isWarning ? 'rgba(245,158,11,0.07)' : 'rgba(16,185,129,0.07)'
+                  const accentBorder = isCritical ? 'rgba(239,68,68,0.22)' : isWarning ? 'rgba(245,158,11,0.22)' : 'rgba(16,185,129,0.22)'
+                  const statusLabel = isCritical ? '🔴 КРИТИЧНИЙ ДЕФІЦИТ' : isWarning ? '🟡 УВАГА' : '🟢 В НОРМІ'
 
                   return (
-                    <div key={id} style={{ background: 'rgba(24, 24, 27, 0.7)', border: '1px solid #27272a', padding: '18px 22px', borderRadius: '20px', display: 'flex', flexDirection: 'column', gap: '12px', boxShadow: '0 8px 24px rgba(0,0,0,0.3)', backdropFilter: 'blur(10px)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div>
-                          <span style={{ fontSize: '0.6rem', background: 'rgba(255, 144, 0, 0.1)', color: '#ff9000', padding: '3px 8px', borderRadius: '6px', fontWeight: 900, textTransform: 'uppercase', marginRight: '6px', letterSpacing: '0.5px' }}>Готовий виріб</span>
-                          <h4 style={{ margin: '5px 0 0 0', fontSize: '1rem', fontWeight: 900, color: '#ffffff' }}>{trend.name}</h4>
-                          {trend.code && <span style={{ fontSize: '0.7rem', color: '#71717a', fontWeight: 800 }}>КОД: {trend.code}</span>}
-                        </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: '0.55rem', color: '#71717a', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Комплектів зібрано</div>
-                          <div style={{ fontSize: '1.25rem', fontWeight: 950, color: '#ff9000', marginTop: '2px' }}>
-                            {trend.potential} <span style={{ fontSize: '0.78rem', color: '#71717a', fontWeight: 500 }}>/ {trend.demand || 0} шт.</span>
+                    <div key={id} style={{
+                      background: 'linear-gradient(145deg, #141417, #0f0f12)',
+                      border: `1px solid ${accentBorder}`,
+                      borderRadius: '20px',
+                      overflow: 'hidden',
+                      boxShadow: `0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.03)`,
+                      transition: 'transform 0.2s, box-shadow 0.2s',
+                    }}
+                      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 10px 32px rgba(0,0,0,0.5), 0 0 0 1px ${accentBorder}` }}
+                      onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = `0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.03)` }}
+                    >
+                      {/* Card Top Stripe */}
+                      <div style={{ height: '3px', background: `linear-gradient(90deg, ${accentColor}, transparent)` }} />
+
+                      <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+
+                        {/* Header: Name + Status Badge */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                          <div style={{ flex: 1 }}>
+                            <span style={{ fontSize: '0.58rem', background: accentBg, color: accentColor, padding: '3px 8px', borderRadius: '6px', fontWeight: 900, letterSpacing: '0.06em', border: `1px solid ${accentBorder}` }}>
+                              {statusLabel}
+                            </span>
+                            <div style={{ fontSize: '0.95rem', fontWeight: 900, color: '#f4f4f5', marginTop: '7px', lineHeight: 1.2 }}>{trend.name}</div>
+                            {trend.code && <div style={{ fontSize: '0.62rem', color: '#52525b', fontWeight: 700, marginTop: '3px' }}>КОД: {trend.code}</div>}
+                          </div>
+
+                          {/* Ratio */}
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <div style={{ fontSize: '0.55rem', color: '#52525b', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Потенціал / Потреба</div>
+                            <div style={{ fontSize: '1.4rem', fontWeight: 950, color: accentColor, lineHeight: 1.1, marginTop: '3px' }}>
+                              {trend.potential}
+                              <span style={{ fontSize: '0.8rem', color: '#71717a', fontWeight: 500 }}> / {trend.demand || 0}</span>
+                            </div>
+                            <div style={{ fontSize: '0.62rem', color: '#52525b', fontWeight: 700 }}>шт.</div>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Progress bar to target */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#a1a1aa', fontWeight: 800 }}>
-                          <span>Виконання потреби замовлень</span>
-                          <span style={{ color: '#ff9000', fontWeight: 900 }}>{pct}%</span>
+                        {/* Progress Bar */}
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', fontWeight: 800, marginBottom: '5px' }}>
+                            <span style={{ color: '#71717a' }}>Виконання потреби замовлень</span>
+                            <span style={{ color: accentColor }}>{pct}%</span>
+                          </div>
+                          <div style={{ height: '7px', background: '#09090b', borderRadius: '10px', overflow: 'hidden', border: '1px solid #27272a', position: 'relative' }}>
+                            <div style={{ width: `${pct}%`, height: '100%', background: `linear-gradient(90deg, ${accentColor}, ${accentColor}cc)`, borderRadius: '10px', transition: 'width 0.5s ease', boxShadow: `0 0 8px ${accentColor}66` }} />
+                          </div>
                         </div>
-                        <div style={{ height: '8px', background: '#09090b', borderRadius: '4px', overflow: 'hidden', border: '1px solid #27272a' }}>
-                          <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg, #ff9000, #ffb700)', borderRadius: '4px', transition: '0.3s' }} />
-                        </div>
-                      </div>
 
-                      {/* Bottleneck and SGP stats */}
-                      <div style={{ borderTop: '1px solid #27272a', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', gap: '10px' }}>
-                        <div style={{ color: '#a1a1aa', fontWeight: 600 }}>
-                          На СГП зараз: <strong style={{ color: '#10b981', fontWeight: 900 }}>{trend.actual} шт.</strong>
+                        {/* Stats Row */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                          <div style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: '12px', padding: '10px 12px' }}>
+                            <div style={{ fontSize: '0.58rem', color: '#6b7280', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>На СГП зараз</div>
+                            <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#10b981' }}>{trend.actual} <span style={{ fontSize: '0.65rem', color: '#6b7280', fontWeight: 600 }}>шт.</span></div>
+                          </div>
+                          <div style={{ background: 'rgba(255,144,0,0.06)', border: '1px solid rgba(255,144,0,0.15)', borderRadius: '12px', padding: '10px 12px' }}>
+                            <div style={{ fontSize: '0.58rem', color: '#6b7280', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Залишок потреби</div>
+                            <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#ff9000' }}>{Math.max(0, (trend.demand || 0) - trend.actual)} <span style={{ fontSize: '0.65rem', color: '#6b7280', fontWeight: 600 }}>шт.</span></div>
+                          </div>
                         </div>
-                        {trend.bottleneck && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#ef4444', fontWeight: 700 }}>
-                            <span title="Вузьке місце (деталь з найменшою кількістю)">⚠️ Вузьке:</span>
-                            <span style={{ textDecoration: 'underline', color: '#f87171' }} title={trend.bottleneck}>
-                              {trend.bottleneck.length > 20 ? trend.bottleneck.substring(0, 17) + '...' : trend.bottleneck} ({trend.bottleneckQty} од.)
-                            </span>
+
+                        {/* Bottleneck Detail */}
+                        {trend.bottleneck ? (
+                          <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.18)', borderRadius: '12px', padding: '11px 14px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                            <div style={{ fontSize: '1.1rem', flexShrink: 0, marginTop: '1px' }}>⚠️</div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: '0.6rem', color: '#f87171', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '3px' }}>Вузьке місце</div>
+                              <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#fff', wordBreak: 'break-word', lineHeight: 1.3 }} title={trend.bottleneck}>
+                                {trend.bottleneck.length > 35 ? trend.bottleneck.substring(0, 32) + '…' : trend.bottleneck}
+                              </div>
+                              <div style={{ fontSize: '0.65rem', color: '#9ca3af', marginTop: '3px', fontWeight: 600 }}>
+                                В наявності: <span style={{ color: '#fca5a5', fontWeight: 800 }}>{trend.bottleneckQty} шт.</span>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.12)', borderRadius: '12px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '1rem' }}>✅</span>
+                            <span style={{ fontSize: '0.72rem', color: '#6ee7b7', fontWeight: 700 }}>Вузьких місць не виявлено</span>
                           </div>
                         )}
                       </div>
