@@ -27,6 +27,8 @@ const PackagingModule = () => {
   const [selectedBatch, setSelectedBatch] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [excludedNomIds, setExcludedNomIds] = useState(new Set())
+  // Кастомні кількості пакувальника: { [nomId]: number }
+  const [customQty, setCustomQty] = useState({})
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
 
   // Номери коробок: { [nomId]: boxNumber }
@@ -53,6 +55,7 @@ const PackagingModule = () => {
     setBoxNumbers({})
     setSavedBoxes([])
     setShowBoxSummary(false)
+    setCustomQty({})
     if (selectedBatch) loadSavedBoxes(selectedBatch)
   }, [selectedBatch?.key])
 
@@ -291,7 +294,11 @@ const PackagingModule = () => {
   const handleCreateRequest = async () => {
     const activeBOMItems = allBOMItems.filter(item => !excludedNomIds.has(item.nom.id))
     if (activeBOMItems.length === 0) { alert('Немає активних елементів для комплектування'); return }
-    const itemsToRequest = activeBOMItems.map(r => ({ nomId: r.nom.id, name: r.nom.material_type ? `${r.nom.name} (${r.nom.material_type})` : r.nom.name, qty: r.qty }))
+    const itemsToRequest = activeBOMItems.map(r => {
+      // Використовуємо кастомну кількість пакувальника якщо вказана, інакше планову
+      const effectiveQty = customQty[String(r.nom.id)] !== undefined ? Number(customQty[String(r.nom.id)]) : r.qty
+      return { nomId: r.nom.id, name: r.nom.material_type ? `${r.nom.name} (${r.nom.material_type})` : r.nom.name, qty: effectiveQty }
+    })
     try {
       setIsProcessing(true)
       await submitPickingRequest(activeBatchData.orderId, itemsToRequest, activeBatchData.tasks[0]?.id)
@@ -637,8 +644,46 @@ const PackagingModule = () => {
                                       </div>
 
                                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                        <div style={{ fontSize: '1.2rem', fontWeight: 1000, color: isExcluded ? '#444' : (isPicked ? '#10b981' : (isPending ? '#eab308' : '#fff')) }}>{item.qty}</div>
-                                        <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 800 }}>{item.nom.unit || 'шт'}</div>
+                                        {/* Редаговане поле кількості — тільки до відправки запиту */}
+                                        {!hasAnyRequests && !isPicked && !activeBatchData.isPackaged && !isExcluded ? (
+                                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              value={customQty[String(item.nom.id)] !== undefined ? customQty[String(item.nom.id)] : item.qty}
+                                              onChange={e => {
+                                                const val = e.target.value === '' ? '' : Number(e.target.value)
+                                                setCustomQty(prev => ({ ...prev, [String(item.nom.id)]: val }))
+                                              }}
+                                              onClick={e => e.stopPropagation()}
+                                              style={{
+                                                width: '80px',
+                                                background: customQty[String(item.nom.id)] !== undefined && customQty[String(item.nom.id)] !== item.qty ? '#eab30818' : '#111',
+                                                border: `1.5px solid ${customQty[String(item.nom.id)] !== undefined && customQty[String(item.nom.id)] !== item.qty ? '#eab30866' : '#2a2a2a'}`,
+                                                borderRadius: '8px',
+                                                color: customQty[String(item.nom.id)] !== undefined && customQty[String(item.nom.id)] !== item.qty ? '#eab308' : '#fff',
+                                                fontSize: '1.1rem',
+                                                fontWeight: 1000,
+                                                padding: '4px 8px',
+                                                textAlign: 'right',
+                                                outline: 'none',
+                                              }}
+                                            />
+                                            <div style={{ fontSize: '0.55rem', color: '#444', fontWeight: 800 }}>{item.nom.unit || 'шт'}</div>
+                                            {customQty[String(item.nom.id)] !== undefined && customQty[String(item.nom.id)] !== item.qty && (
+                                              <div style={{ fontSize: '0.55rem', color: '#eab308', fontWeight: 900 }}>план: {item.qty}</div>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <div>
+                                            <div style={{ fontSize: '1.2rem', fontWeight: 1000, color: isExcluded ? '#444' : (isPicked ? '#10b981' : (isPending ? '#eab308' : '#fff')) }}>
+                                              {isPicked && orderRequests.find(r => String(r.nomenclature_id) === String(item.nom.id))?.quantity
+                                                ? orderRequests.find(r => String(r.nomenclature_id) === String(item.nom.id)).quantity
+                                                : (customQty[String(item.nom.id)] !== undefined ? customQty[String(item.nom.id)] : item.qty)}
+                                            </div>
+                                            <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 800 }}>{item.nom.unit || 'шт'}</div>
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
 

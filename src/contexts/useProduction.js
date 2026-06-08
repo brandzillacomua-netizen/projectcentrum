@@ -600,7 +600,10 @@ export function createProductionActions({
           const inStockQty = invItem ? Math.max(0, (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0)) : 0
           const usedFromStock = Math.min(totalNeeded, inStockQty)
           const totalToProduce = Math.max(0, totalNeeded - inStockQty)
-          totalPlanQty += totalToProduce
+          const isManufactured = part.nom.type === 'part' || part.nom.type === 'raw' || !part.nom.type;
+          if (isManufactured) {
+            totalPlanQty += totalToProduce
+          }
           const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
           let sheets = Math.ceil(totalToProduce / unitsPerSheet)
           const selectedMachine = (customRowMachines && customRowMachines[part.nom.id]) || machineName;
@@ -713,11 +716,12 @@ export function createProductionActions({
 
       const isAllFromBZ = totalPlanQty === 0;
 
+      const nowISO = new Date().toISOString()
       const { data: taskData, error: taskError } = await supabase.from('tasks').insert([{
         order_id: orderId,
-        step: isAllFromBZ ? 'Паквання' : 'Розкрій',
+        step: 'Розкрій',
         status: isAllFromBZ ? 'completed' : 'waiting',
-        completed_at: isAllFromBZ ? new Date().toISOString() : null,
+        completed_at: isAllFromBZ ? nowISO : null,
         machine_name: machineName || 'Не вказано',
         estimated_time: Math.round(totalMin),
         engineer_conf: isAllFromBZ ? true : false,
@@ -730,6 +734,25 @@ export function createProductionActions({
       }]).select()
       const tData = (taskData && taskData.length > 0) ? taskData[0] : null
       if (taskError) throw taskError
+
+      // Для BZ-нарядів також створюємо завершений наряд для Цеху №2
+      if (isAllFromBZ && tData) {
+        await supabase.from('tasks').insert([{
+          order_id: orderId,
+          step: 'Пресування [ЦЕХ №2]',
+          status: 'completed',
+          completed_at: nowISO,
+          machine_name: machineName || 'Не вказано',
+          estimated_time: 0,
+          engineer_conf: true,
+          warehouse_conf: true,
+          director_conf: true,
+          plan_snapshot: { ...(plan_snapshot || {}), arrivals: [] },
+          planned_sets: thisNaryadTotalSets,
+          batch_index: isPartial ? nextBatchIndex : null,
+          planned_deadline: customDeadline || order.deadline
+        }])
+      }
 
       if (bzStockDeductions.length > 0) {
         const s2InventoryUpdates = []

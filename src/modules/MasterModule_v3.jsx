@@ -537,7 +537,7 @@ const MasterModule = () => {
       })
     })
 
-    if (!isReprintMode && totalPlanQuantity > 0 && uniqueMachines.length === 0) {
+    if (!isReprintMode && hasUnassignedMachines) {
       alert("Будь ласка, оберіть верстат для деталей.")
       return
     }
