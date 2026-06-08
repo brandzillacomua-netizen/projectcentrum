@@ -1,20 +1,60 @@
 import { createClient } from '@supabase/supabase-js'
+import fs from 'fs'
 
-const supabaseUrl = 'https://hurzutjytlcvtbvihnry.supabase.co'
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1cnp1dGp5dGxjdnRidmlobnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMjc4NzksImV4cCI6MjA4OTYwMzg3OX0.0GETYIfUpEDVcpcMoZcAe3dLXtiafNNE1eegbbK1XUI'
-const supabase = createClient(supabaseUrl, supabaseAnonKey)
+const supabaseFile = fs.readFileSync('a:/centrum/src/supabase.js', 'utf8')
+const urlMatch = supabaseFile.match(/const supabaseUrl = ['"](.+?)['"]/)
+const keyMatch = supabaseFile.match(/const supabaseAnonKey = ['"](.+?)['"]/)
 
-async function checkBOM() {
-  const parentId = 'cabab75e-92b0-4ab2-a636-563d32526d4e'
-  const { data: boms } = await supabase.from('bom_items').select('*').eq('parent_id', parentId)
-  console.log(`\nBOM items for F5 parent (${parentId}) - count: ${boms ? boms.length : 0}`)
-  if (boms) {
-    for (const b of boms) {
-      const { data: child } = await supabase.from('nomenclatures').select('id, name, type, material_type').eq('id', b.child_id).single()
-      console.log(`- Child ID: ${child?.id} | Name: "${child?.name}" | Type: "${child?.type}" | MatType: "${child?.material_type}", Qty: ${b.quantity_per_parent}`)
+if (urlMatch && keyMatch) {
+  const supabase = createClient(urlMatch[1], keyMatch[1], {
+    global: {
+      headers: {
+        'x-mes-secret': 'CentrumMES2026SecretKey_a9f8'
+      }
     }
+  })
+  
+  const check = async () => {
+    const { data: boms, error: errBoms } = await supabase
+      .from('bom_items')
+      .select('*')
+    const { data: noms, error: errNoms } = await supabase
+      .from('nomenclatures')
+      .select('id, name, type')
+    
+    console.log("Total BOM items:", boms?.length)
+    const nomMap = {}
+    noms.forEach(n => { nomMap[n.id] = n })
+
+    // Group by parent_id
+    const parentBOMs = {}
+    boms.forEach(b => {
+      if (!parentBOMs[b.parent_id]) parentBOMs[b.parent_id] = []
+      parentBOMs[b.parent_id].push(b)
+    })
+
+    console.log("Checking for duplicate child names in parent BOMs:")
+    Object.entries(parentBOMs).forEach(([parentId, items]) => {
+      const parentNom = nomMap[parentId]
+      const nameCounts = {}
+      items.forEach(b => {
+        const childNom = nomMap[b.child_id]
+        if (childNom) {
+          if (!nameCounts[childNom.name]) nameCounts[childNom.name] = []
+          nameCounts[childNom.name].push(b)
+        }
+      })
+
+      Object.entries(nameCounts).forEach(([childName, list]) => {
+        if (list.length > 1) {
+          console.log(`Parent "${parentNom ? parentNom.name : parentId}" has duplicate child name "${childName}":`)
+          list.forEach(b => console.log(`  - bom_id: ${b.id}, child_id: ${b.child_id}, qty: ${b.quantity_per_parent}, created: ${b.created_at}`))
+        }
+      })
+    })
   }
+  
+  check()
+} else {
+  console.error('Could not find Supabase credentials')
 }
-
-checkBOM()
-

@@ -15,12 +15,13 @@ import {
   Pencil,
   Check
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
 import { supabase as supabaseClient } from '../supabase'
 
 const WarehouseModuleV2 = () => {
+  const [searchParams, setSearchParams] = useSearchParams()
   const {
     inventory, requests, issueMaterials, issueMaterialsBatch,
     nomenclatures, receptionDocs, confirmReception,
@@ -63,7 +64,17 @@ const WarehouseModuleV2 = () => {
     return false
   }
 
-  const [activeTab, setActiveTab] = useState('raw')
+  const [activeTab, setActiveTab] = useState(() => {
+    return searchParams.get('tab') || 'raw'
+  })
+
+  // Sync tab back from search params if it changes externally or on load
+  useEffect(() => {
+    const tabParam = searchParams.get('tab')
+    if (tabParam && tabParam !== activeTab) {
+      setActiveTab(tabParam)
+    }
+  }, [searchParams])
   const [showAdd, setShowAdd] = useState(false)
   const [showReception, setShowReception] = useState(false)
   const [shortages, setShortages] = useState(null)
@@ -407,6 +418,29 @@ const WarehouseModuleV2 = () => {
             <WarehouseIcon className="text-secondary" size={24} style={{ color: '#ff9000' }} />
             <h1 className="hide-mobile" style={{ margin: 0, fontSize: '1.2rem', fontWeight: 950, letterSpacing: '-0.02em' }}>СКЛАД ОПЕРАТИВНИЙ</h1>
             <h1 className="mobile-only" style={{ margin: 0, fontSize: '1rem', fontWeight: 950 }}>СКЛАД ОПЕРАТИВНИЙ</h1>
+            <button
+              type="button"
+              onClick={() => {
+                const url = new URL(window.location.href)
+                url.searchParams.delete('tab')
+                url.searchParams.set('tab', activeTab)
+                navigator.clipboard.writeText(url.toString())
+                alert('Посилання скопійовано!')
+              }}
+              style={{
+                background: 'rgba(255, 144, 0, 0.1)',
+                border: '1px solid rgba(255, 144, 0, 0.3)',
+                color: '#ff9000',
+                padding: '6px 12px',
+                borderRadius: '8px',
+                fontSize: '0.75rem',
+                fontWeight: 900,
+                cursor: 'pointer',
+                marginLeft: '10px'
+              }}
+            >
+              Копіювати посилання
+            </button>
           </div>
           <button
             onClick={() => setShowReception(!showReception)}
@@ -786,7 +820,11 @@ const WarehouseModuleV2 = () => {
           {tabs.map(tab => (
             <button
               key={tab.id}
-              onClick={() => { setActiveTab(tab.id); setNewItem({ ...newItem, type: tab.id }) }}
+              onClick={() => {
+                setActiveTab(tab.id)
+                setNewItem({ ...newItem, type: tab.id })
+                setSearchParams({ tab: tab.id })
+              }}
               style={{
                 position: 'relative',
                 display: 'flex',

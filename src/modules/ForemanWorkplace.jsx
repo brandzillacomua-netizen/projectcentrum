@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Factory, ListTodo, Loader2, X, Printer, LayoutDashboard, Layers, User, Clock, Package, Scan, CheckCircle2, AlertTriangle, Camera, Tablet, Menu, Shuffle } from 'lucide-react'
 import { useMES } from '../MESContext'
 import { QRCodeSVG } from 'qrcode.react'
@@ -8,6 +8,7 @@ import { supabase } from '../supabase'
 
 const ForemanWorkplace = () => {
   const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { tasks, orders, workCards, createWorkCard, createWorkCardsBatch, inventory, completeTaskByMaster, nomenclatures, bomItems, machines, machineOperations, workCardHistory, confirmBuffer, fetchData, reserveBZForTask, fetchTaskArchiveCards, fetchModuleData, machineCalls, currentUser, createDovyпускMaterialRequests } = useMES()
 
   const countAsProduced = (card) => {
@@ -310,8 +311,14 @@ const ForemanWorkplace = () => {
     } else if (location.state?.highlightTaskId) {
       setActiveTaskId(location.state.highlightTaskId)
       setActiveView('worksheet')
+    } else {
+      const tParam = searchParams.get('task')
+      if (tParam) {
+        setActiveTaskId(tParam)
+        setActiveView('worksheet')
+      }
     }
-  }, [location.state])
+  }, [location.state, searchParams])
 
 
   // Підвантажуємо архівні картки та історію при зміні активного наряду
@@ -914,8 +921,11 @@ const MACHINE_TYPES = [
 
               return (
                 <div
-                  key={task.id}
-                  onClick={() => { setActiveTaskId(task.id); setIsDrawerOpen(false); }}
+                  onClick={() => {
+                    setActiveTaskId(task.id);
+                    setIsDrawerOpen(false);
+                    setSearchParams({ task: task.id });
+                  }}
                   style={{ 
                     padding: '18px 15px', 
                     borderLeft: `${borderSize} solid ${borderColor}`, 
@@ -1139,6 +1149,31 @@ const MACHINE_TYPES = [
                               <Layers size={14} /> В РОБОТІ
                             </div>
                           )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const url = new URL(window.location.href)
+                              url.searchParams.delete('task')
+                              url.searchParams.set('task', task.id)
+                              navigator.clipboard.writeText(url.toString())
+                              alert('Посилання скопійовано!')
+                            }}
+                            style={{
+                              background: 'rgba(239, 68, 68, 0.1)',
+                              border: '1px solid rgba(239, 68, 68, 0.3)',
+                              color: '#ef4444',
+                              padding: '6px 15px',
+                              borderRadius: '12px',
+                              fontSize: '0.8rem',
+                              fontWeight: 950,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px'
+                            }}
+                          >
+                            Копіювати посилання
+                          </button>
                         </h2>
                         
                         <button

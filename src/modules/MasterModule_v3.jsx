@@ -13,7 +13,7 @@ import {
   CheckCircle2,
   Info
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
 import { supabase } from '../supabase'
@@ -53,12 +53,14 @@ const MACHINE_TYPES = [
 ]
 
 const MasterModule = () => {
+  const [searchParams, setSearchParams] = useSearchParams()
   const {
-    orders, tasks, machines, nomenclatures, bomItems, inventory,
+    orders, tasks, nomenclatures, bomItems, inventory,
     totalProduced, totalScrapCount,
     createNaryad, issueMaterials, approveWarehouse,
     fetchModuleData,
-    machineCalls, currentUser, supabase, machineOperations
+    machines,
+    machineCalls, currentUser, machineOperations
   } = useMES()
 
   // Load module-specific data on mount (inventory, work_cards, requests)
@@ -215,6 +217,28 @@ const MasterModule = () => {
         }
       });
   }, [tasks, orders]);
+
+  // Deep Link loading of specific naryad (task) or new order creation modal
+  useEffect(() => {
+    if (tasks.length === 0) return
+
+    const taskId = searchParams.get('task')
+    if (taskId) {
+      const task = tasks.find(t => String(t.id) === String(taskId))
+      if (task) {
+        // Clear param to prevent loop/sticky modal if closed
+        handleReprint(task)
+      }
+    } else {
+      const orderId = searchParams.get('order')
+      if (orderId) {
+        const order = orders.find(o => String(o.id) === String(orderId)) || allOrdersMap[orderId]
+        if (order) {
+          handleOpenNaryadModal(order)
+        }
+      }
+    }
+  }, [tasks, orders, allOrdersMap, searchParams])
 
   const getPlannedQty = (orderItemId) => {
     const item = orders.flatMap(o => o.order_items || []).find(it => it.id === orderItemId)
@@ -1363,12 +1387,44 @@ const MasterModule = () => {
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                   <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-                    <h2 className="doc-ti" style={{ margin: 0, fontSize: '1.8rem', color: '#ff9000', fontWeight: 950, letterSpacing: '-0.02em' }}>
+                    <h2 className="doc-ti" style={{ margin: 0, fontSize: '1.8rem', color: '#ff9000', fontWeight: 950, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '15px' }}>
                       НАРЯД № {activeNaryadOrder.order_num}
                       {getBatchSuffix()}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = new URL(window.location.href)
+                          url.searchParams.delete('order')
+                          url.searchParams.delete('task')
+                          if (reprintTask?.id) {
+                            url.searchParams.set('task', reprintTask.id)
+                          } else {
+                            url.searchParams.set('order', activeNaryadOrder.id)
+                          }
+                          navigator.clipboard.writeText(url.toString())
+                          alert('Посилання скопійовано!')
+                        }}
+                        style={{
+                          background: 'rgba(255, 144, 0, 0.1)',
+                          border: '1px solid rgba(255, 144, 0, 0.3)',
+                          color: '#ff9000',
+                          padding: '6px 12px',
+                          borderRadius: '8px',
+                          fontSize: '0.75rem',
+                          fontWeight: 900,
+                          cursor: 'pointer',
+                          marginLeft: '10px'
+                        }}
+                        className="no-print"
+                      >
+                        Копіювати посилання
+                      </button>
                     </h2>
                   </div>
-                  <button onClick={() => setActiveNaryadOrder(null)} className="no-print" style={{ background: '#111', border: '1px solid #222', color: '#555', cursor: 'pointer', width: '45px', height: '45px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={24} /></button>
+                  <button onClick={() => {
+                    setActiveNaryadOrder(null);
+                    setSearchParams({});
+                  }} className="no-print" style={{ background: '#111', border: '1px solid #222', color: '#555', cursor: 'pointer', width: '45px', height: '45px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={24} /></button>
                 </div>
 
                 <div style={{ background: '#111', padding: '20px 25px', borderRadius: '20px', border: '1px solid #1a1a1a' }} className="print-info-box">
