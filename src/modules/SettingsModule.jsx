@@ -52,6 +52,15 @@ const SettingsModule = () => {
   const [bzLeftovers, setBzLeftovers] = useState([])
   const [bzUnrecognized, setBzUnrecognized] = useState([])
 
+  // Prepared sheets upload states
+  const [sheetsFile, setSheetsFile] = useState(null)
+  const [sheetsDelimiter, setSheetsDelimiter] = useState(';')
+  const [sheetsRecordMode, setSheetsRecordMode] = useState('add') // 'add' or 'overwrite'
+  const [sheetsUploadStatus, setSheetsUploadStatus] = useState('idle') // 'idle', 'preview', 'uploading', 'success', 'error'
+  const [sheetsUploadLog, setSheetsUploadLog] = useState('')
+  const [sheetsActivePreviewTab, setSheetsActivePreviewTab] = useState('all') // 'all', 'new'
+  const [sheetsPreviewList, setSheetsPreviewList] = useState([])
+
   // Tabs: users, structure, system
   const [activeTab, setActiveTab] = useState('users') 
   const [structureSubTab, setStructureSubTab] = useState('departments')
@@ -395,6 +404,238 @@ const SettingsModule = () => {
       setBzUploadStatus('error')
     }
   }
+
+  // Prepared Sheets Remnants Processing Helpers
+  const handleSheetsFileChange = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    
+    setSheetsFile(file)
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const text = event.target.result
+      const delim = detectDelimiter(text)
+      setSheetsDelimiter(delim)
+      
+      const parsed = parseCSV(text, delim)
+      if (parsed.length > 0) {
+        processSheetsRemnants(parsed)
+      } else {
+        alert('Помилка: файл порожній або має невірний формат.')
+      }
+    }
+    reader.readAsText(file, 'UTF-8')
+  }
+
+  const processSheetsRemnants = (parsedCsv) => {
+    const headers = parsedCsv[0]
+    
+    const nameColIdx = headers.findIndex(h => {
+      const norm = h.toLowerCase().trim()
+      return norm.includes('номенклатура') || norm.includes('назва') || norm === 'name'
+    })
+    
+    const qtyColIdx = headers.findIndex(h => {
+      const norm = h.toLowerCase().trim()
+      return norm.includes('склад') || norm.includes('кількість') || norm === 'qty' || norm === 'quantity'
+    })
+
+    if (nameColIdx === -1 || qtyColIdx === -1) {
+      alert('Помилка: не знайдено обов\'язкові колонки ("Номенклатура" та "Склад") у CSV файлі.')
+      return
+    }
+
+    const parsedRows = parsedCsv.slice(1)
+    const previewList = []
+
+    const dbNomMap = {}
+    nomenclatures.forEach(n => {
+      dbNomMap[normalizeHomoglyphs(n.name)] = n
+    })
+
+    parsedRows.forEach((row, idx) => {
+      const nameVal = row[nameColIdx] ? row[nameColIdx].trim() : ''
+      const qtyVal = parseInt(row[qtyColIdx]) || 0
+
+      if (!nameVal || qtyVal <= 0) return
+
+      const normName = normalizeHomoglyphs(nameVal)
+      const matchedNom = dbNomMap[normName]
+
+      if (matchedNom) {
+        previewList.push({
+          name: nameVal,
+          qty: qtyVal,
+          nomenclature_id: matchedNom.id,
+          isNew: false,
+          rowNum: idx + 2
+        })
+      } else {
+        previewList.push({
+          name: nameVal,
+          qty: qtyVal,
+          nomenclature_id: null,
+          isNew: true,
+          rowNum: idx + 2
+        })
+      }
+    })
+
+    setSheetsPreviewList(previewList)
+    setSheetsUploadStatus('preview')
+  }
+
+  const executeSheetsUpload = async () => {
+    setSheetsUploadStatus('uploading')
+    setSheetsUploadLog('Початок обробки залишків СО (підготовлені листи)...\n')
+    
+    const existingInventory = inventory || []
+    const updates = []
+    const inserts = []
+
+    try {
+      // Step 1: Auto-create nomenclatures for isNew items
+      const newItems = sheetsPreviewList.filter(item => item.isNew)
+      const nomCache = {} // name -> ID mapping
+      
+      if (newItems.length > 0) {
+        setSheetsUploadLog(prev => prev + `Створення нових позицій в номенклатурі (${newItems.length} шт)...\n`)
+        for (const item of newItems) {
+          if (nomCache[item.name]) {
+            item.nomenclature_id = nomCache[item.name]
+            item.isNew = false
+            continue
+          }
+          
+          const normName = normalizeHomoglyphs(item.name)
+          const dbNom = nomenclatures.find(n => normalizeHomoglyphs(n.name) === normName)
+          if (dbNom) {
+            item.nomenclature_id = dbNom.id
+            item.isNew = false
+            nomCache[item.name] = dbNom.id
+            setSheetsUploadLog(prev => prev + `  ℹ️ [ІСНУЄ В БД] ${item.name}\n`)
+            continue
+          }
+
+          const { data: newNom, error: nomErr } = await supabase
+            .from('nomenclatures')
+            .insert([{ name: item.name, type: 'raw' }])
+            .select()
+            .single()
+
+          if (nomErr) {
+            setSheetsUploadLog(prev => prev + `  ⚠️ [НОМ ПОМИЛКА] ${item.name}: ${nomErr.message}\n`)
+            throw new Error(`Не вдалося створити номенклатуру ${item.name}: ${nomErr.message}`)
+          }
+
+          setSheetsUploadLog(prev => prev + `  ✅ [НОМ СТВОРЕНО] ${newNom.name} (ID: ${newNom.id})\n`)
+          item.nomenclature_id = newNom.id
+          nomCache[item.name] = newNom.id
+
+          // Also create unprepared sheet if it is a prepared one
+          if (item.name.toLowerCase().includes('підготовлений') && !item.name.toLowerCase().includes('непідготовлений')) {
+            const unpreparedName = item.name
+              .replace(/\[\s*підготовлений\s*\]/gi, '[Непідготовлений]')
+              .replace(/\(\s*підготовлений\s*\)/gi, '(Непідготовлений)')
+              .replace(/\bпідготовлений\b/gi, 'Непідготовлений')
+
+            if (unpreparedName && unpreparedName !== item.name) {
+              const normUnprepared = normalizeHomoglyphs(unpreparedName)
+              const existingUnprepared = nomenclatures.find(n => normalizeHomoglyphs(n.name) === normUnprepared)
+
+              if (!existingUnprepared && !nomCache[unpreparedName]) {
+                const { data: newUnprepared, error: unpErr } = await supabase
+                  .from('nomenclatures')
+                  .insert([{ name: unpreparedName, type: 'raw' }])
+                  .select()
+                  .single()
+
+                if (unpErr) {
+                  setSheetsUploadLog(prev => prev + `  ⚠️ [НОМ НЕПІДГОТОВЛЕНИЙ ПОМИЛКА] ${unpreparedName}: ${unpErr.message}\n`)
+                } else {
+                  setSheetsUploadLog(prev => prev + `  ✅ [НОМ НЕПІДГОТОВЛЕНИЙ СТВОРЕНО] ${newUnprepared.name} (ID: ${newUnprepared.id})\n`)
+                  nomCache[unpreparedName] = newUnprepared.id
+                }
+              }
+            }
+          }
+        }
+      }
+
+      setSheetsUploadLog(prev => prev + `Обробка залишків СО (всього позицій: ${sheetsPreviewList.length})...\n`)
+      
+      const groupedItems = {}
+      sheetsPreviewList.forEach(item => {
+        const id = item.nomenclature_id
+        if (!id) return
+        groupedItems[id] = (groupedItems[id] || 0) + item.qty
+      })
+
+      for (const [nomId, qtyVal] of Object.entries(groupedItems)) {
+        const nomObj = nomenclatures.find(n => n.id === nomId) || (sheetsPreviewList.find(i => i.nomenclature_id === nomId))
+        const nameText = nomObj ? nomObj.name : 'Unknown'
+        const unitText = nomObj?.unit || 'шт'
+        
+        const existing = existingInventory.find(i => 
+          i.warehouse === 'operational' && 
+          i.nomenclature_id === nomId && 
+          i.type === 'raw'
+        )
+
+        if (existing) {
+          const newTotal = sheetsRecordMode === 'add' ? (Number(existing.total_qty) || 0) + qtyVal : qtyVal
+          updates.push({
+            id: existing.id,
+            nomenclature_id: nomId,
+            name: nameText,
+            type: 'raw',
+            warehouse: 'operational',
+            unit: unitText,
+            total_qty: newTotal,
+            reserved_qty: existing.reserved_qty || 0,
+            updated_at: new Date().toISOString()
+          })
+          setSheetsUploadLog(prev => prev + `[ОНОВИТИ СО] ${nameText}: ${newTotal} шт (було ${existing.total_qty})\n`)
+        } else {
+          inserts.push({
+            nomenclature_id: nomId,
+            name: nameText,
+            type: 'raw',
+            warehouse: 'operational',
+            unit: unitText,
+            total_qty: qtyVal,
+            reserved_qty: 0,
+            updated_at: new Date().toISOString()
+          })
+          setSheetsUploadLog(prev => prev + `[НОВИЙ СО] ${nameText}: ${qtyVal} шт\n`)
+        }
+      }
+
+      setSheetsUploadLog(prev => prev + `\nНадсилання змін до Supabase...\n`)
+      
+      const batchOps = []
+      if (updates.length > 0) {
+        batchOps.push(supabase.from('inventory').upsert(updates))
+      }
+      if (inserts.length > 0) {
+        batchOps.push(supabase.from('inventory').insert(inserts))
+      }
+
+      const results = await Promise.all(batchOps)
+      for (const res of results) {
+        if (res.error) throw res.error
+      }
+
+      setSheetsUploadLog(prev => prev + `✅ Успішно оновлено базу даних!\n`)
+      setSheetsUploadStatus('success')
+      refreshTable('inventory')
+      refreshTable('nomenclatures')
+    } catch (err) {
+      setSheetsUploadLog(prev => prev + `❌ Помилка запису в БД: ${err.message || err}\n`)
+      setSheetsUploadStatus('error')
+    }
+  }
+
   const parseCSV = (text, delimiter = ';') => {
     const lines = []
     let row = [""]
@@ -2220,6 +2461,206 @@ const SettingsModule = () => {
                 </div>
               )}
 
+            </section>
+
+            {/* Prepared Sheets Remnants Upload — full-width row */}
+            <section className="settings-panel glass-panel" style={{ background: '#0e0e11', padding: '30px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.04)', gridColumn: '1 / -1' }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 900, marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '10px', color: '#ff9000' }}>
+                <Layers size={20} /> ЗАВАНТАЖЕННЯ ЗАЛИШКІВ СО (ПІДГОТОВЛЕНІ ЛИСТИ)
+              </h3>
+              <p style={{ fontSize: '0.72rem', color: '#555', marginTop: 0, marginBottom: '24px', lineHeight: '1.5' }}>
+                Завантажте CSV-файл із залишками підготовлених листів на складі СО. Нові номенклатури будуть створені автоматично як сировина (тип <code>raw</code>), а кількості будуть записані на <strong style={{ color: '#ff9000' }}>СО склад</strong>.
+              </p>
+
+              {/* ── IDLE: Upload zone ── */}
+              {sheetsUploadStatus === 'idle' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {/* Drop zone */}
+                  <div style={{
+                    border: '2px dashed rgba(255,144,0,0.3)',
+                    borderRadius: '18px',
+                    padding: '36px 20px',
+                    textAlign: 'center',
+                    background: 'rgba(255,144,0,0.01)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    position: 'relative',
+                    maxWidth: '520px'
+                  }}
+                    onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = '#ff9000'; e.currentTarget.style.background = 'rgba(255,144,0,0.04)' }}
+                    onDragLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,144,0,0.3)'; e.currentTarget.style.background = 'rgba(255,144,0,0.01)' }}
+                    onDrop={e => {
+                      e.preventDefault()
+                      const file = e.dataTransfer.files[0]
+                      if (file) handleSheetsFileChange({ target: { files: [file] } })
+                    }}
+                  >
+                    <input
+                      id="sheets-file-input"
+                      type="file"
+                      accept=".csv"
+                      onChange={handleSheetsFileChange}
+                      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
+                    />
+                    <Upload size={38} color="#ff9000" style={{ marginBottom: '14px', opacity: 0.8 }} />
+                    <h4 style={{ margin: '0 0 6px 0', fontSize: '0.9rem', fontWeight: 800 }}>Оберіть або перетягніть CSV файл</h4>
+                    <p style={{ margin: 0, fontSize: '0.7rem', color: '#666', fontWeight: 600 }}>Очікуваний формат: колонка «Номенклатура» та колонка «Склад» (кількість)</p>
+                  </div>
+
+                  {/* Record mode */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '0.72rem', color: '#888', fontWeight: 700 }}>Режим запису:</span>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      {[{ v: 'add', label: '+ Додати до наявного' }, { v: 'overwrite', label: '✎ Перезаписати' }].map(opt => (
+                        <button key={opt.v} onClick={() => setSheetsRecordMode(opt.v)} type="button" style={{
+                          background: sheetsRecordMode === opt.v ? 'rgba(255,144,0,0.12)' : 'transparent',
+                          border: sheetsRecordMode === opt.v ? '1px solid #ff9000' : '1px solid rgba(255,255,255,0.07)',
+                          color: sheetsRecordMode === opt.v ? '#ff9000' : '#888',
+                          padding: '6px 14px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 800, cursor: 'pointer', transition: '0.2s'
+                        }}>{opt.label}</button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── PREVIEW: Results tabs ── */}
+              {sheetsUploadStatus === 'preview' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+                  {/* Stats summary */}
+                  <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
+                    {[
+                      { label: 'Усього позицій', val: sheetsPreviewList.length, color: '#60a5fa' },
+                      { label: 'Буде створено номенклатур', val: sheetsPreviewList.filter(s => s.isNew).length, color: '#ff9000' },
+                    ].map(s => (
+                      <div key={s.label} style={{ background: 'rgba(0,0,0,0.25)', border: `1px solid ${s.color}22`, borderRadius: '14px', padding: '12px 20px', minWidth: '160px' }}>
+                        <div style={{ fontSize: '1.4rem', fontWeight: 900, color: s.color }}>{s.val}</div>
+                        <div style={{ fontSize: '0.68rem', color: '#888', fontWeight: 700, marginTop: '2px' }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Preview tabs */}
+                  <div style={{ display: 'inline-flex', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', padding: '5px', borderRadius: '14px', gap: '4px' }}>
+                    {[
+                      { id: 'all', label: `📋 Всі позиції (${sheetsPreviewList.length})` },
+                      { id: 'new', label: `✨ Будуть створені (${sheetsPreviewList.filter(s => s.isNew).length})` },
+                    ].map(t => (
+                      <button key={t.id} onClick={() => setSheetsActivePreviewTab(t.id)} type="button" className={`tab-btn-v2 ${sheetsActivePreviewTab === t.id ? 'active' : ''}`}>
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Preview list table */}
+                  <div style={{ maxHeight: '320px', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '14px', background: 'rgba(0,0,0,0.12)' }} className="custom-scroll">
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+                      <thead>
+                        <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.05)', color: '#666' }}>
+                          <th style={{ padding: '10px 16px' }}>Номенклатура у файлі</th>
+                          <th style={{ padding: '10px 16px', textAlign: 'center' }}>Рядок</th>
+                          <th style={{ padding: '10px 16px', textAlign: 'center' }}>Кількість (шт)</th>
+                          <th style={{ padding: '10px 16px', textAlign: 'center' }}>Статус</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sheetsPreviewList
+                          .filter(item => sheetsActivePreviewTab === 'all' || (sheetsActivePreviewTab === 'new' && item.isNew))
+                          .map((l, i) => (
+                            <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                              <td style={{ padding: '10px 16px', fontWeight: 700, color: l.isNew ? '#ff9000' : '#60a5fa' }}>{l.name}</td>
+                              <td style={{ padding: '10px 16px', textAlign: 'center', color: '#666' }}>{l.rowNum}</td>
+                              <td style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 800 }}>{l.qty}</td>
+                              <td style={{ padding: '10px 16px', textAlign: 'center' }}>
+                                {l.isNew ? (
+                                  <span style={{ fontSize: '0.62rem', fontWeight: 850, padding: '3px 8px', borderRadius: '6px', background: 'rgba(255,144,0,0.15)', color: '#ff9000', border: '1px solid rgba(255,144,0,0.2)' }}>[БУДЕ СТВОРЕНО]</span>
+                                ) : (
+                                  <span style={{ fontSize: '0.62rem', fontWeight: 850, padding: '3px 8px', borderRadius: '6px', background: 'rgba(96,165,250,0.1)', color: '#60a5fa' }}>Розпізнано</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        {sheetsPreviewList.filter(item => sheetsActivePreviewTab === 'all' || (sheetsActivePreviewTab === 'new' && item.isNew)).length === 0 && (
+                          <tr><td colSpan={4} style={{ padding: '24px', textAlign: 'center', color: '#555', fontSize: '0.75rem' }}>Немає позицій для відображення</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Record mode + action buttons */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '18px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '0.72rem', color: '#888', fontWeight: 700 }}>Режим запису:</span>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        {[{ v: 'add', label: '+ Додати' }, { v: 'overwrite', label: '✎ Перезаписати' }].map(opt => (
+                          <button key={opt.v} onClick={() => setSheetsRecordMode(opt.v)} type="button" style={{
+                            background: sheetsRecordMode === opt.v ? 'rgba(255,144,0,0.12)' : 'transparent',
+                            border: sheetsRecordMode === opt.v ? '1px solid #ff9000' : '1px solid rgba(255,255,255,0.07)',
+                            color: sheetsRecordMode === opt.v ? '#ff9000' : '#888',
+                            padding: '6px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 800, cursor: 'pointer', transition: '0.2s'
+                          }}>{opt.label}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button
+                        type="button"
+                        onClick={() => { setSheetsUploadStatus('idle'); setSheetsFile(null); setSheetsPreviewList([]) }}
+                        style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', color: '#aaa', padding: '12px 22px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}
+                      >← НАЗАД</button>
+                      <button
+                        type="button"
+                        onClick={executeSheetsUpload}
+                        disabled={sheetsPreviewList.length === 0}
+                        style={{
+                          background: sheetsPreviewList.length === 0 ? '#222' : 'linear-gradient(135deg, #ff9000, #ff6a00)',
+                          border: 'none', color: sheetsPreviewList.length === 0 ? '#555' : '#000',
+                          padding: '12px 28px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 900,
+                          cursor: sheetsPreviewList.length === 0 ? 'not-allowed' : 'pointer',
+                          display: 'flex', alignItems: 'center', gap: '8px'
+                        }}
+                      >
+                        <Upload size={16} /> ЗАПИСАТИ В СИСТЕМУ ({sheetsPreviewList.length} позицій)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── UPLOADING ── */}
+              {sheetsUploadStatus === 'uploading' && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '18px', padding: '30px 0' }}>
+                  <div className="spinner-mes" style={{ width: '44px', height: '44px', borderRadius: '50%', border: '3px solid rgba(255,144,0,0.15)', borderTopColor: '#ff9000', animation: 'spin 1s linear infinite' }} />
+                  <div style={{ fontSize: '0.85rem', color: '#aaa', fontWeight: 700 }}>Запис залишків СО у базу...</div>
+                  <pre style={{ background: '#000', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', padding: '14px', color: '#00ff66', fontFamily: 'monospace', fontSize: '0.7rem', width: '100%', maxWidth: '640px', maxHeight: '180px', overflowY: 'auto', whiteSpace: 'pre-wrap', margin: 0 }} className="custom-scroll">{sheetsUploadLog}</pre>
+                </div>
+              )}
+
+              {/* ── SUCCESS ── */}
+              {sheetsUploadStatus === 'success' && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '24px 0' }}>
+                  <CheckCircle2 size={52} color="#10b981" />
+                  <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900, color: '#fff' }}>ЗАВАНТАЖЕННЯ ЗАВЕРШЕНО УСПІШНО!</h4>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: '#aaa', textAlign: 'center' }}>Склад СО оновлено: підготовлені листи успішно оприбутковано.</p>
+                  <pre style={{ background: '#000', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', padding: '14px', color: '#00ff66', fontFamily: 'monospace', fontSize: '0.7rem', width: '100%', maxWidth: '640px', maxHeight: '180px', overflowY: 'auto', whiteSpace: 'pre-wrap', margin: 0 }} className="custom-scroll">{sheetsUploadLog}</pre>
+                  <button type="button" onClick={() => { setSheetsUploadStatus('idle'); setSheetsFile(null); setSheetsPreviewList([]); setSheetsUploadLog('') }} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', padding: '12px 28px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 800, cursor: 'pointer', marginTop: '6px' }}>
+                    ЗАВАНТАЖИТИ НАСТУПНИЙ ФАЙЛ
+                  </button>
+                </div>
+              )}
+
+              {/* ── ERROR ── */}
+              {sheetsUploadStatus === 'error' && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '24px 0' }}>
+                  <AlertCircle size={52} color="#ef4444" />
+                  <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900, color: '#fff' }}>ПОМИЛКА ПРИ ЗАПИСІ</h4>
+                  <pre style={{ background: '#000', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '12px', padding: '14px', color: '#ef4444', fontFamily: 'monospace', fontSize: '0.7rem', width: '100%', maxWidth: '640px', maxHeight: '180px', overflowY: 'auto', whiteSpace: 'pre-wrap', margin: 0 }} className="custom-scroll">{sheetsUploadLog}</pre>
+                  <button type="button" onClick={() => { setSheetsUploadStatus('preview') }} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', padding: '12px 28px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 800, cursor: 'pointer' }}>
+                    ← ПОВЕРНУТИСЬ ДО ПЕРЕГЛЯДУ
+                  </button>
+                </div>
+              )}
             </section>
 
           </div>
