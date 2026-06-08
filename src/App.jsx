@@ -2475,6 +2475,42 @@ const Portal = () => {
 }
 
 
+// ── Permission Guard for Routes ────────────────────────────────────────────────
+const PermissionGuard = ({ id, children }) => {
+  const { currentUser, managementTasks } = useMES()
+  const location = useLocation()
+  
+  if (!currentUser) return children
+
+  const isAdmin = currentUser?.position === 'Адмін' || currentUser?.role === 'admin'
+  if (isAdmin) return children
+
+  // Allow public call route
+  if (id === 'public_call') return children
+
+  const availableModules = getAvailableModules(currentUser, 0)
+  const hasAccess = availableModules.some(m => m.id === id)
+
+  if (!hasAccess) {
+    return (
+      <div style={{ background: '#050505', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '20px', padding: '20px', color: '#fff', textAlign: 'center' }}>
+        <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', color: '#ef4444', padding: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '10px' }}>
+          <AlertTriangle size={40} />
+        </div>
+        <h1 style={{ fontSize: '1.8rem', fontWeight: 950, margin: 0 }}>У вас немає прав доступу</h1>
+        <p style={{ color: '#888', fontSize: '0.9rem', maxWidth: '400px', margin: '0 0 20px' }}>
+          Доступ до цього модуля обмежено налаштуваннями вашого облікового запису. Зверніться до адміністратора для отримання дозволу.
+        </p>
+        <Link to="/" style={{ background: '#ff9000', color: '#000', textDecoration: 'none', padding: '12px 24px', borderRadius: '12px', fontWeight: 900, fontSize: '0.85rem', textTransform: 'uppercase', transition: '0.2s' }}>
+          Повернутися на головну
+        </Link>
+      </div>
+    )
+  }
+
+  return children
+}
+
 const AppContent = () => {
   const { currentUser, sessionLoading } = useMES()
   const location = useLocation()
@@ -2518,33 +2554,33 @@ const AppContent = () => {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/" element={<Portal />} />
-        <Route path="/dashboard" element={<DashboardModule />} />
-        <Route path="/manager" element={<ManagerModule />} />
-        <Route path="/warehouse" element={<WarehouseModule />} />
-        <Route path="/master" element={<MasterModule />} />
-        <Route path="/foreman" element={<ForemanWorkplace />} />
-        <Route path="/operator" element={<OperatorTerminal />} />
-        <Route path="/prep-terminal" element={<PreparationTerminal />} />
-        <Route path="/shop1" element={<Shop1Terminal />} />
-        <Route path="/tumbling-terminal" element={<TumblingTerminal />} />
-        <Route path="/shop2" element={<Shop2Module />} />
-        <Route path="/shop2-terminal" element={<Shop2Terminal />} />
-        <Route path="/packaging" element={<PackagingModule />} />
-        <Route path="/engineer" element={<EngineerModule />} />
-        <Route path="/director" element={<DirectorModule />} />
-        <Route path="/shipping" element={<ShippingModule />} />
-        <Route path="/supply" element={<SupplyModule />} />
-        <Route path="/nomenclature" element={<NomenclatureModule />} />
-        <Route path="/nomenclature-v2" element={<NomenclatureV2 />} />
-        <Route path="/machines" element={<MachinesModule />} />
-        <Route path="/machines/:id/call" element={<MachineCallModule />} />
-        <Route path="/analytics" element={<AnalyticsModule />} />
-        <Route path="/brak" element={<BrakModule />} />
-        <Route path="/tasks" element={<KanbanModule />} />
-        <Route path="/access" element={<AccessModule />} />
-        <Route path="/procurement" element={<SupplyModule isProcurementOnly={true} />} />
-        <Route path="/reports" element={<ReportsModule />} />
-        <Route path="/settings" element={<SettingsModule />} />
+        <Route path="/dashboard" element={<PermissionGuard id="dashboard"><DashboardModule /></PermissionGuard>} />
+        <Route path="/manager" element={<PermissionGuard id="manager"><ManagerModule /></PermissionGuard>} />
+        <Route path="/warehouse" element={<PermissionGuard id="warehouse"><WarehouseModule /></PermissionGuard>} />
+        <Route path="/master" element={<PermissionGuard id="master"><MasterModule /></PermissionGuard>} />
+        <Route path="/foreman" element={<PermissionGuard id="foreman"><ForemanWorkplace /></PermissionGuard>} />
+        <Route path="/operator" element={<PermissionGuard id="operator"><OperatorTerminal /></PermissionGuard>} />
+        <Route path="/prep-terminal" element={<PermissionGuard id="prep_terminal"><PreparationTerminal /></PermissionGuard>} />
+        <Route path="/shop1" element={<PermissionGuard id="shop1"><Shop1Terminal /></PermissionGuard>} />
+        <Route path="/tumbling-terminal" element={<PermissionGuard id="tumbling_terminal"><TumblingTerminal /></PermissionGuard>} />
+        <Route path="/shop2" element={<PermissionGuard id="shop2"><Shop2Module /></PermissionGuard>} />
+        <Route path="/shop2-terminal" element={<PermissionGuard id="shop2_terminal"><Shop2Terminal /></PermissionGuard>} />
+        <Route path="/packaging" element={<PermissionGuard id="packaging"><PackagingModule /></PermissionGuard>} />
+        <Route path="/engineer" element={<PermissionGuard id="engineer"><EngineerModule /></PermissionGuard>} />
+        <Route path="/director" element={<PermissionGuard id="director"><DirectorModule /></PermissionGuard>} />
+        <Route path="/shipping" element={<PermissionGuard id="shipping"><ShippingModule /></PermissionGuard>} />
+        <Route path="/supply" element={<PermissionGuard id="supply"><SupplyModule /></PermissionGuard>} />
+        <Route path="/nomenclature" element={<PermissionGuard id="nomenclature"><NomenclatureModule /></PermissionGuard>} />
+        <Route path="/nomenclature-v2" element={<PermissionGuard id="nomenclature_v2"><NomenclatureV2 /></PermissionGuard>} />
+        <Route path="/machines" element={<PermissionGuard id="machines"><MachinesModule /></PermissionGuard>} />
+        <Route path="/machines/:id/call" element={<PermissionGuard id="public_call"><MachineCallModule /></PermissionGuard>} />
+        <Route path="/analytics" element={<PermissionGuard id="analytics"><AnalyticsModule /></PermissionGuard>} />
+        <Route path="/brak" element={<PermissionGuard id="brak"><BrakModule /></PermissionGuard>} />
+        <Route path="/tasks" element={<PermissionGuard id="kanban"><KanbanModule /></PermissionGuard>} />
+        <Route path="/access" element={<PermissionGuard id="access"><AccessModule /></PermissionGuard>} />
+        <Route path="/procurement" element={<PermissionGuard id="procurement"><SupplyModule isProcurementOnly={true} /></PermissionGuard>} />
+        <Route path="/reports" element={<PermissionGuard id="reports"><ReportsModule /></PermissionGuard>} />
+        <Route path="/settings" element={<PermissionGuard id="settings"><SettingsModule /></PermissionGuard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
