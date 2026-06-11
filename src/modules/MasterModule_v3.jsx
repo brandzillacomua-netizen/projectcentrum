@@ -103,7 +103,7 @@ const MasterModule = () => {
 
   // Quick Plan state
   const [quickPlanOrder, setQuickPlanOrder] = useState(null)
-  const [tempSets, setTempSets] = useState(0)
+  const [tempSets, setTempSets] = useState('')
   const [tempDeadline, setTempDeadline] = useState('')
 
   // Preparation Terminal state
@@ -298,6 +298,9 @@ const MasterModule = () => {
 
   const [naryadQtys, setNaryadQtys] = useState({}) // { [orderItemId]: qty }
   const [naryadDeadline, setNaryadDeadline] = useState('')
+  const [naryadParts, setNaryadParts] = useState({}) // { [orderItemId]: [ { nom, quantity_per_parent } ] }
+  const [partSearchQueries, setPartSearchQueries] = useState({}) // { [rowKey]: string }
+  const [openDropdownRowKey, setOpenDropdownRowKey] = useState(null) // string (rowKey)
   const [materialSplits, setMaterialSplits] = useState({}) // { [partId]: { t300: number, t700: number } }
   const [stockInfoModalData, setStockInfoModalData] = useState(null)
 
@@ -356,6 +359,16 @@ const MasterModule = () => {
 
   const handleSplitChange = (partId, type, val, totalRequired) => {
     setMaterialSplits(prev => {
+      if (val === '') {
+        const otherType = type === 't300' ? 't700' : 't300';
+        return {
+          ...prev,
+          [partId]: {
+            [type]: '',
+            [otherType]: totalRequired
+          }
+        };
+      }
       const nextVal = Math.max(0, Math.min(totalRequired, parseInt(val) || 0));
       const otherType = type === 't300' ? 't700' : 't300';
       const otherVal = Math.max(0, totalRequired - nextVal);
@@ -378,14 +391,27 @@ const MasterModule = () => {
     setActiveNaryadOrder(order)
     setIsDrawerOpen(false)
     setNaryadDeadline(deadline || order.deadline || '')
+    // Initialize custom BOM parts state for editing
+    const initialParts = {}
+    order.order_items?.forEach(it => {
+      const parts = bomItems.filter(b => b.parent_id === it.nomenclature_id)
+      const allParts = parts.length > 0 ? parts.map(b => ({ nom: nomenclatures.find(n => n.id === b.child_id), quantity_per_parent: b.quantity_per_parent })) : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
+      const displayParts = allParts.filter(p => p.nom?.type === 'part' || p.nom?.type === 'raw' || !p.nom?.type)
+      initialParts[it.id] = displayParts.map(p => ({
+        nom: p.nom,
+        quantity_per_parent: Number(p.quantity_per_parent) || 1
+      }))
+    })
+    setNaryadParts(initialParts)
 
     // Default quantities to remaining balance or proportional to sets
     const initialQtys = {}
 
-    if (sets !== undefined) {
+    if (sets !== undefined && sets !== '') {
       // PROPORTIONAL LOGIC
+      const setsNum = Number(sets) || 0
       const totalRef = Math.max(...(order.order_items?.map(it => Number(it.quantity)) || [1]))
-      const isFullPackage = sets >= (totalRef - Math.max(...(order.order_items?.map(it => getPlannedQty(it.id)) || [0])))
+      const isFullPackage = setsNum >= (totalRef - Math.max(...(order.order_items?.map(it => getPlannedQty(it.id)) || [0])))
 
       order.order_items?.forEach(it => {
         const planned = getPlannedQty(it.id)
@@ -395,7 +421,7 @@ const MasterModule = () => {
         if (isFullPackage) {
           initialQtys[it.id] = remaining
         } else {
-          const ratio = sets / totalRef
+          const ratio = setsNum / totalRef
           const calc = Math.min(remaining, Math.round(total * ratio))
           initialQtys[it.id] = calc
         }
@@ -416,6 +442,26 @@ const MasterModule = () => {
         nom: nomenclatures.find(n => n.id === b.child_id),
         quantity_per_parent: b.quantity_per_parent
       }))
+  }
+
+  const getDisplayPartsForOrderItem = (it) => {
+    if (isReprintMode && reprintTask?.plan_snapshot) {
+      const partsFromSnapshot = Object.values(reprintTask.plan_snapshot)
+        .filter(p => p && String(p.order_item_id) === String(it.id))
+        .map(p => {
+          const nom = nomenclatures.find(n => String(n.id) === String(p.id))
+          return {
+            nom: nom || { id: p.id, name: p.name, nomenclature_code: p.code, material_type: p.material },
+            quantity_per_parent: p.need / (Number(it.quantity) || 1)
+          }
+        });
+      if (partsFromSnapshot.length > 0) return partsFromSnapshot;
+    }
+    return naryadParts[it.id] || (() => {
+      const parts = getBOMParts(it.nomenclature_id)
+      const allParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
+      return allParts.filter(p => p.nom?.type === 'part' || p.nom?.type === 'raw' || !p.nom?.type)
+    })()
   }
 
   // Robust machine lookup to ensure we have capacity even in reprint mode
@@ -604,7 +650,7 @@ const MasterModule = () => {
           await autoCreatePrepOrder(missingPrepQuantities, naryadDeadline || activeNaryadOrder.deadline);
 
           // 2. Create task
-          await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters));
+          await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters, naryadParts));
 
           // 3. Trigger print dialog
           window.print();
@@ -628,7 +674,7 @@ const MasterModule = () => {
         setReprintTask(null)
         setActiveNaryadOrder(null)
       } else {
-        await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters))
+        await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters, naryadParts))
         window.print()
         setActiveNaryadOrder(null)
       }
@@ -703,6 +749,52 @@ const MasterModule = () => {
       setSelectedMachine({ name: task.machine_name })
       setActiveNaryadOrder(order)
     }
+
+    setSelectedCutters({})
+    if (task.plan_snapshot?.selectedCutters) {
+      setSelectedCutters(task.plan_snapshot.selectedCutters)
+    } else {
+      supabase
+        .from('material_requests')
+        .select('inventory_id, nomenclature_id')
+        .eq('task_id', task.id)
+        .then(({ data, error }) => {
+          if (!error && data) {
+            const mapped = {}
+            data.forEach(req => {
+              if (req.inventory_id) {
+                const inv = (inventory || []).find(i => String(i.id) === String(req.inventory_id))
+                if (inv) {
+                  const nom = nomenclatures.find(n => n.id === inv.nomenclature_id)
+                  if (nom && nom.name.toLowerCase().startsWith('фреза')) {
+                    const nameLower = nom.name.toLowerCase()
+                    const fMatch = nameLower.match(/ф\s*([0-9,.]+)/)
+                    const parsedDiam = fMatch ? parseFloat(fMatch[1].replace(',', '.')) : null
+                    if (parsedDiam) {
+                      const genericNom = nomenclatures.find(n => {
+                        if (n.type !== 'consumable') return false
+                        if (!n.name.toLowerCase().startsWith('фреза')) return false
+                        const gMatch = n.name.toLowerCase().match(/ф\s*([0-9,.]+)/)
+                        if (gMatch) {
+                          const gDiam = parseFloat(gMatch[1].replace(',', '.'))
+                          return Math.abs(gDiam - parsedDiam) < 0.01
+                        }
+                        return false
+                      })
+                      if (genericNom) {
+                        mapped[genericNom.name] = req.inventory_id
+                      }
+                    }
+                  }
+                }
+              }
+            })
+            if (Object.keys(mapped).length > 0) {
+              setSelectedCutters(mapped)
+            }
+          }
+        })
+    }
   }
 
   const materialSummary = useMemo(() => {
@@ -720,8 +812,7 @@ const MasterModule = () => {
     }
 
     activeNaryadOrder.order_items?.forEach(item => {
-      const parts = getBOMParts(item.nomenclature_id)
-      const displayParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }]
+      const displayParts = getDisplayPartsForOrderItem(item)
 
       const currentQty = isReprintMode ? Number(item.quantity) : (naryadQtys[item.id] || 0)
       if (currentQty <= 0) return
@@ -739,11 +830,12 @@ const MasterModule = () => {
         const matKeyBase = (part.nom.material_type || part.nom.name || 'Інше').trim()
 
         // Match the prepared sheet nomenclature directly by name using robust normalization
-        const normKey = getCleanNormalized(matKeyBase)
+        const thickMatch = matKeyBase.match(/\((\d+(?:\.\d+)?)мм\)/i)
+        const thicknessClean = thickMatch ? `${thickMatch[1]}мм` : matKeyBase.toLowerCase().replace(/\s+/g, '')
         const prepNom = nomenclatures.find(n =>
           n.name.toLowerCase().includes('підготовлений') &&
           !n.name.toLowerCase().includes('непідготовлений') &&
-          getCleanNormalized(n.name) === normKey
+          n.name.toLowerCase().replace(/\s+/g, '').includes(`(${thicknessClean})`)
         )
 
         const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
@@ -803,8 +895,7 @@ const MasterModule = () => {
     let hasMachineSpecificCutters = false
 
     activeNaryadOrder.order_items?.forEach(item => {
-      const parts = getBOMParts(item.nomenclature_id)
-      const displayParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }]
+      const displayParts = getDisplayPartsForOrderItem(item)
 
       const currentQty = isReprintMode ? Number(item.quantity) : (naryadQtys[item.id] || 0)
       if (currentQty <= 0) return
@@ -821,7 +912,7 @@ const MasterModule = () => {
           const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'bz')
           return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
         })()
-        const totalToProduce = Math.max(0, totalNeeded - inStock)
+        const totalToProduce = snapshot ? snapshot.plan : (isReprintMode ? 0 : Math.max(0, totalNeeded - inStock))
         const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
         const sheets = Math.ceil(totalToProduce / unitsPerSheet)
 
@@ -884,7 +975,7 @@ const MasterModule = () => {
       })
 
     return Object.values(fallbackConsumables)
-  }, [activeNaryadOrder, materialSummary, nomenclatures, rowMachines, machineOperations, naryadQtys, isReprintMode, reprintTask, inventory])
+  }, [activeNaryadOrder, materialSummary, nomenclatures, rowMachines, machineOperations, naryadQtys, isReprintMode, reprintTask, inventory, naryadParts])
 
   const hasUnassignedMachines = useMemo(() => {
     if (!activeNaryadOrder) return false
@@ -895,8 +986,7 @@ const MasterModule = () => {
       const currentQty = isReprintMode ? Number(item.quantity) : (naryadQtys[item.id] || 0)
       if (currentQty <= 0) return
 
-      const parts = getBOMParts(item.nomenclature_id)
-      const displayParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }]
+      const displayParts = getDisplayPartsForOrderItem(item)
 
       displayParts.forEach(part => {
         if (!part.nom || part.nom.type === 'hardware' || part.nom.type === 'fastener') return
@@ -907,7 +997,7 @@ const MasterModule = () => {
           const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'bz')
           return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
         })()
-        const totalToProduce = Math.max(0, totalNeeded - inStock)
+        const totalToProduce = snapshot ? snapshot.plan : (isReprintMode ? 0 : Math.max(0, totalNeeded - inStock))
         if (totalToProduce > 0 && !rowMachines[part.nom.id]) {
           hasUnassigned = true
         }
@@ -915,7 +1005,7 @@ const MasterModule = () => {
     })
 
     return hasUnassigned
-  }, [activeNaryadOrder, isReprintMode, naryadQtys, nomenclatures, bomItems, inventory, reprintTask, rowMachines])
+  }, [activeNaryadOrder, isReprintMode, naryadQtys, nomenclatures, bomItems, inventory, reprintTask, rowMachines, naryadParts])
 
   const isPrintDisabled = useMemo(() => {
     if (isSubmitting) return true
@@ -1589,12 +1679,9 @@ const MasterModule = () => {
 
                       const planned = getPlannedQty(it.id)
                       const remainingBalance = Math.max(0, Number(it.quantity) - planned)
+const displayParts = getDisplayPartsForOrderItem(it)
 
-                      const parts = getBOMParts(it.nomenclature_id)
-                      const allParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
-                      const displayParts = allParts.filter(p => p.nom?.type === 'part' || p.nom?.type === 'raw' || !p.nom?.type)
-
-                      return displayParts.map((part, pIdx) => {
+                      const rows = displayParts.map((part, pIdx) => {
                         const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)]
 
                         // If reprint, use snapshot. Otherwise use thisNaryadQty
@@ -1620,9 +1707,197 @@ const MasterModule = () => {
                         return (
                           <tr key={`${it.id}-${pIdx}`} style={{ borderBottom: '1px solid #1a1a1a' }} className="print-tr">
                             <td style={{ padding: '18px 15px' }} className="col-name">
-                              <div style={{ fontWeight: 1000, color: '#fff', fontSize: '1rem', letterSpacing: '-0.01em' }} className="print-txt">{part.nom?.name || '—'}</div>
-                              {part.nom?.nomenclature_code && (
-                                <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 900, marginTop: '3px', textTransform: 'uppercase' }} className="print-subtxt">{part.nom.nomenclature_code}</div>
+                              {!isReprintMode ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    {(() => {
+                                      const rowKey = `${it.id}-${pIdx}`
+                                      const query = partSearchQueries[rowKey] !== undefined ? partSearchQueries[rowKey] : ''
+                                      const filteredParts = nomenclatures.filter(n =>
+                                        n.type === 'part' &&
+                                        (query === '' ||
+                                         n.name.toLowerCase().includes(query.toLowerCase()) ||
+                                         (n.nomenclature_code && n.nomenclature_code.toLowerCase().includes(query.toLowerCase())))
+                                      )
+                                      return (
+                                        <div style={{ position: 'relative', flex: 1 }}>
+                                          <input
+                                            type="text"
+                                            value={partSearchQueries[rowKey] !== undefined ? partSearchQueries[rowKey] : (part.nom?.name || '')}
+                                            onChange={(e) => {
+                                              const val = e.target.value
+                                              setPartSearchQueries(prev => ({ ...prev, [rowKey]: val }))
+                                            }}
+                                            onFocus={() => {
+                                              setOpenDropdownRowKey(rowKey)
+                                              setPartSearchQueries(prev => ({ ...prev, [rowKey]: part.nom?.name || '' }))
+                                            }}
+                                            onBlur={() => setTimeout(() => {
+                                              setOpenDropdownRowKey(null)
+                                              setPartSearchQueries(prev => {
+                                                const next = { ...prev }
+                                                delete next[rowKey]
+                                                return next
+                                              })
+                                            }, 250)}
+                                            placeholder="Пошук деталі..."
+                                            style={{
+                                              background: '#111',
+                                              border: '1px solid #333',
+                                              color: '#fff',
+                                              padding: '6px 12px',
+                                              borderRadius: '10px',
+                                              fontSize: '0.9rem',
+                                              fontWeight: 'bold',
+                                              width: '100%',
+                                              outline: 'none'
+                                            }}
+                                          />
+                                          {openDropdownRowKey === rowKey && (
+                                            <div style={{
+                                              position: 'absolute',
+                                              top: '100%',
+                                              left: 0,
+                                              right: 0,
+                                              background: '#0d0d0d',
+                                              border: '1px solid #333',
+                                              borderRadius: '10px',
+                                              maxHeight: '220px',
+                                              overflowY: 'auto',
+                                              zIndex: 9999,
+                                              marginTop: '5px',
+                                              boxShadow: '0 10px 30px rgba(0,0,0,0.8)'
+                                            }}>
+                                              {filteredParts.length === 0 ? (
+                                                <div style={{ padding: '10px', color: '#555', fontSize: '0.8rem', textAlign: 'center' }}>Немає таких деталей</div>
+                                              ) : (
+                                                filteredParts.map(n => (
+                                                  <div
+                                                    key={n.id}
+                                                    onMouseDown={() => {
+                                                      const oldNomId = part.nom?.id;
+                                                      setNaryadParts(prev => {
+                                                        const itemParts = [...(prev[it.id] || [])]
+                                                        itemParts[pIdx] = { ...itemParts[pIdx], nom: n }
+                                                        return { ...prev, [it.id]: itemParts }
+                                                      })
+                                                      if (oldNomId && oldNomId !== n.id) {
+                                                        setRowMachines(prev => {
+                                                          if (prev[oldNomId]) {
+                                                            return { ...prev, [n.id]: prev[oldNomId] }
+                                                          }
+                                                          return prev
+                                                        })
+                                                        setMaterialSplits(prev => {
+                                                          if (prev[oldNomId]) {
+                                                            return { ...prev, [n.id]: prev[oldNomId] }
+                                                          }
+                                                          return prev
+                                                        })
+                                                      }
+                                                      setOpenDropdownRowKey(null)
+                                                      setPartSearchQueries(prev => {
+                                                        const next = { ...prev }
+                                                        delete next[rowKey]
+                                                        return next
+                                                      })
+                                                    }}
+                                                    style={{
+                                                      padding: '10px 14px',
+                                                      fontSize: '0.85rem',
+                                                      cursor: 'pointer',
+                                                      color: '#eee',
+                                                      borderBottom: '1px solid #1c1c1c',
+                                                      transition: 'all 0.2s',
+                                                      textAlign: 'left'
+                                                    }}
+                                                    onMouseEnter={(e) => {
+                                                      e.currentTarget.style.background = 'rgba(255,144,0,0.1)'
+                                                      e.currentTarget.style.color = '#ff9000'
+                                                    }}
+                                                    onMouseLeave={(e) => {
+                                                      e.currentTarget.style.background = 'transparent'
+                                                      e.currentTarget.style.color = '#eee'
+                                                    }}
+                                                  >
+                                                    {n.name} {n.nomenclature_code ? `(${n.nomenclature_code})` : ''}
+                                                  </div>
+                                                ))
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )
+                                    })()}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setNaryadParts(prev => {
+                                          const itemParts = (prev[it.id] || []).filter((_, idx) => idx !== pIdx)
+                                          return { ...prev, [it.id]: itemParts }
+                                        })
+                                      }}
+                                      style={{
+                                        background: 'rgba(239, 68, 68, 0.1)',
+                                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                                        color: '#ef4444',
+                                        borderRadius: '8px',
+                                        width: '28px',
+                                        height: '28px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        cursor: 'pointer'
+                                      }}
+                                      title="Видалити деталь"
+                                    >
+                                      <X size={14} />
+                                    </button>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: '#888' }}>
+                                    <span>К-ть на виріб:</span>
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      min="0.001"
+                                      value={part.quantity_per_parent}
+                                      onChange={(e) => {
+                                        const val = e.target.value
+                                        setNaryadParts(prev => {
+                                          const itemParts = [...(prev[it.id] || [])]
+                                          itemParts[pIdx] = {
+                                            ...itemParts[pIdx],
+                                            quantity_per_parent: val
+                                          }
+                                          return { ...prev, [it.id]: itemParts }
+                                        })
+                                      }}
+                                      style={{
+                                        width: '60px',
+                                        background: '#000',
+                                        border: '1px solid #222',
+                                        color: '#ff9000',
+                                        padding: '4px 6px',
+                                        borderRadius: '6px',
+                                        fontSize: '0.8rem',
+                                        fontWeight: 'bold',
+                                        textAlign: 'center'
+                                      }}
+                                    />
+                                    {part.nom?.nomenclature_code && (
+                                      <span style={{ fontSize: '0.6rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', marginLeft: 'auto' }}>
+                                        {part.nom.nomenclature_code}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <div style={{ fontWeight: 1000, color: '#fff', fontSize: '1rem', letterSpacing: '-0.01em' }} className="print-txt">{part.nom?.name || '—'}</div>
+                                  {part.nom?.nomenclature_code && (
+                                    <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 900, marginTop: '3px', textTransform: 'uppercase' }} className="print-subtxt">{part.nom.nomenclature_code}</div>
+                                  )}
+                                </>
                               )}
                             </td>
                             <td style={{ padding: '18px 15px', textAlign: 'center' }} className="no-print">
@@ -1740,6 +2015,46 @@ const MasterModule = () => {
                           </tr>
                         )
                       })
+
+                      if (!isReprintMode) {
+                        rows.push(
+                          <tr key={`add-part-${it.id}`} style={{ borderBottom: '1px solid #1a1a1a', background: 'rgba(255,144,0,0.015)' }} className="no-print">
+                            <td colSpan={11} style={{ padding: '12px 15px' }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const firstPart = nomenclatures.find(n => n.type === 'part' || n.type === 'raw' || !n.type)
+                                  setNaryadParts(prev => {
+                                    const itemParts = [...(prev[it.id] || [])]
+                                    itemParts.push({
+                                      nom: firstPart,
+                                      quantity_per_parent: 1
+                                    })
+                                    return { ...prev, [it.id]: itemParts }
+                                  })
+                                }}
+                                style={{
+                                  background: 'rgba(16, 185, 129, 0.1)',
+                                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                                  color: '#10b981',
+                                  padding: '8px 16px',
+                                  borderRadius: '10px',
+                                  fontSize: '0.8rem',
+                                  fontWeight: 900,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  transition: 'all 0.2s'
+                                }}
+                              >
+                                ➕ Додати деталь в розкрій
+                              </button>
+                            </td>
+                          </tr>
+                        )
+                      }
+                      return rows
                     })}
                   </tbody>
                   <tfoot style={{ background: 'rgba(255,144,0,0.05)', borderTop: '2px solid #ff9000' }} className="print-tf">
@@ -1758,9 +2073,7 @@ const MasterModule = () => {
                       } else {
                         activeNaryadOrder.order_items?.forEach(it => {
                           const thisNaryadQty = isReprintMode ? Number(it.quantity) : (naryadQtys[it.id] || 0);
-                          const parts = getBOMParts(it.nomenclature_id);
-                          const allParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }];
-                          const displayParts = allParts.filter(p => p.nom?.type === 'part' || p.nom?.type === 'raw' || !p.nom?.type);
+                          const displayParts = getDisplayPartsForOrderItem(it);
 
                           displayParts.forEach(part => {
                             const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)];
@@ -1868,12 +2181,7 @@ const MasterModule = () => {
                         )
                       }
 
-                      const planned = getPlannedQty(it.id)
-                      const remainingBalance = Math.max(0, Number(it.quantity) - planned)
-
-                      const parts = getBOMParts(it.nomenclature_id)
-                      const allParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
-                      const displayParts = allParts.filter(p => p.nom?.type === 'part' || p.nom?.type === 'raw' || !p.nom?.type)
+                      const displayParts = getDisplayPartsForOrderItem(it)
 
                       return displayParts.map((part, pIdx) => {
                         const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)]
@@ -1949,9 +2257,7 @@ const MasterModule = () => {
                       } else {
                         activeNaryadOrder.order_items?.forEach(it => {
                           const thisNaryadQty = isReprintMode ? Number(it.quantity) : (naryadQtys[it.id] || 0);
-                          const parts = getBOMParts(it.nomenclature_id);
-                          const allParts = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }];
-                          const displayParts = allParts.filter(p => p.nom?.type === 'part' || p.nom?.type === 'raw' || !p.nom?.type);
+                          const displayParts = getDisplayPartsForOrderItem(it);
 
                           displayParts.forEach(part => {
                             const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)];
@@ -2030,12 +2336,18 @@ const MasterModule = () => {
                   <div className="consumable-summary-section" style={{ marginTop: '15px', padding: '20px 30px', borderRadius: '18px', border: '1px solid #222', background: 'rgba(59,130,246,0.05)' }}>
                     <h4 style={{ margin: '0 0 15px', fontSize: '0.75rem', fontWeight: 950, color: '#3b82f6', textTransform: 'uppercase' }}>ВИТРАТНІ МАТЕРІАЛИ:</h4>
                     <div className="mat-flex-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '25px' }}>
-                      {consumableSummary.map((c, idx) => (
-                        <div key={idx} className="mat-card-p" style={{ padding: '0 0 5px 15px', borderLeft: '4px solid #3b82f6', minWidth: '150px' }}>
-                          <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800, marginBottom: '3px' }} className="print-subtxt">{c.name}</div>
-                          <div style={{ fontSize: '1.1rem', fontWeight: 950, color: '#fff' }} className="print-txt">{(Number(c.total) || 0).toString()} <small style={{ fontSize: '0.65rem', fontWeight: 400, color: '#444' }} className="print-subtxt">ОД.</small></div>
-                        </div>
-                      ))}
+                      {consumableSummary.map((c, idx) => {
+                        const selectedInvId = selectedCutters[c.name];
+                        const selectedInv = selectedInvId ? (inventory || []).find(i => String(i.id) === String(selectedInvId)) : null;
+                        const nom = selectedInv ? nomenclatures.find(n => String(n.id) === String(selectedInv.nomenclature_id)) : null;
+                        const displayName = nom ? nom.name : c.name;
+                        return (
+                          <div key={idx} className="mat-card-p" style={{ padding: '0 0 5px 15px', borderLeft: '4px solid #3b82f6', minWidth: '150px' }}>
+                            <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800, marginBottom: '3px' }} className="print-subtxt">{displayName}</div>
+                            <div style={{ fontSize: '1.1rem', fontWeight: 950, color: '#fff' }} className="print-txt">{(Number(c.total) || 0).toString()} <small style={{ fontSize: '0.65rem', fontWeight: 400, color: '#444' }} className="print-subtxt">ОД.</small></div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )
@@ -2283,7 +2595,7 @@ const MasterModule = () => {
               <input
                 type="number"
                 value={tempSets}
-                onChange={e => setTempSets(Number(e.target.value))}
+                onChange={e => setTempSets(e.target.value)}
                 style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '1.1rem', fontWeight: 900 }}
               />
             </div>

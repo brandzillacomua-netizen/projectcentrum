@@ -432,9 +432,20 @@ const NomenclatureModule = () => {
                     >
                       <option value="">Оберіть сировину...</option>
                       {(() => {
-                        const rawOptions = nomenclatures.filter(n => n.type === 'raw').map(n => {
-                          const label = n.material_type ? `${n.name} (${n.material_type})` : n.name
-                          return { id: n.id, value: label, label }
+                        // Extract unique thicknesses from raw materials
+                        const thicknesses = Array.from(new Set(
+                          nomenclatures
+                            .filter(n => n.type === 'raw' && n.material_type)
+                            .map(n => n.material_type.trim())
+                        )).sort((a, b) => {
+                          const numA = parseFloat(a) || 0;
+                          const numB = parseFloat(b) || 0;
+                          return numA - numB;
+                        });
+
+                        const rawOptions = thicknesses.map(thick => {
+                          const label = `Лист (${thick})`
+                          return { id: thick, value: label, label }
                         })
                         
                         // Якщо поточний матеріал не в списку сировини, додаємо його як опцію, щоб він не зникав

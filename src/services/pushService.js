@@ -8,7 +8,7 @@
  *   - Для відправки -> викликаємо Supabase Edge Function "send-push"
  */
 
-import { supabase } from '../supabase';
+import { supabase, supabaseAnonKey } from '../supabase';
 
 // ─── VAPID PUBLIC KEY ─────────────────────────────────────────────────────────
 // Публічний ключ (приватний зберігається в Supabase Secrets як VAPID_PRIVATE_KEY)
@@ -153,10 +153,18 @@ export async function isPushSubscribed() {
  */
 export async function sendPushToUser(userId, title, body, path = '/', notifData = {}) {
   try {
-    const { data, error } = await supabase.functions.invoke('send-push', {
-      body: { user_id: userId, title, body, path, notifData }
+    const response = await fetch('https://hurzutjytlcvtbvihnry.supabase.co/functions/v1/send-push', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`
+      },
+      body: JSON.stringify({ user_id: userId, title, body, path, notifData })
     });
-    if (error) throw error;
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
     return data;
   } catch (err) {
     // Не критична помилка — логуємо і продовжуємо

@@ -75,6 +75,72 @@ export function createProductionActions({
     refreshTable('bom_items')
   }
 
+  const updateOrder = async (orderId, header, items) => {
+    if (header.customer) {
+      const trimmedName = header.customer.trim()
+      const { data: existing } = await supabase.from('customers').select('id').ilike('name', trimmedName).maybeSingle()
+      if (!existing) await supabase.from('customers').insert([{ name: trimmedName, official_name: header.official_customer?.trim() || '' }])
+    }
+
+    let supaNomenclatureId = null;
+    if (header.productName) {
+      const { data: nomRow } = await supabase.from('nomenclatures').select('id').ilike('name', header.productName.trim()).maybeSingle();
+      if (nomRow) {
+        supaNomenclatureId = nomRow.id;
+      } else {
+        const normInput = normalizeName(header.productName);
+        const match = (nomenclatures || []).find(n => normalizeName(n.name) === normInput);
+        if (match) supaNomenclatureId = match.id;
+      }
+    }
+
+    const orderedQty = items?.[0]?.quantity || header.quantity || 0;
+    
+    // Update order header
+    const { error } = await supabase.from('orders').update({
+      customer: header.customer,
+      official_customer: header.official_customer,
+      deadline: header.deadline,
+      nomenclature_id: supaNomenclatureId,
+      quantity: Number(orderedQty),
+      accessories: header.productName || '',
+    }).eq('id', orderId)
+    
+    if (error) throw error
+
+    // Re-sync order_items
+    if (supaNomenclatureId) {
+      await supabase.from('order_items').delete().eq('order_id', orderId)
+      await supabase.from('order_items').insert([{
+        order_id: orderId,
+        nomenclature_id: supaNomenclatureId,
+        quantity: Number(orderedQty)
+      }])
+    }
+
+    refreshTable('orders')
+  }
+
+  const deleteOrder = async (orderId) => {
+    // Delete linked order items first
+    await supabase.from('order_items').delete().eq('order_id', orderId)
+    
+    // Delete linked tasks and tasks' material requests
+    const { data: tasks } = await supabase.from('tasks').select('id').eq('order_id', orderId)
+    if (tasks && tasks.length > 0) {
+      const taskIds = tasks.map(t => t.id)
+      await supabase.from('material_requests').delete().in('task_id', taskIds)
+      await supabase.from('work_cards').delete().in('task_id', taskIds)
+      await supabase.from('tasks').delete().in('id', taskIds)
+    }
+    
+    // Delete the order itself
+    const { error } = await supabase.from('orders').delete().eq('id', orderId)
+    if (error) throw error
+    
+    refreshTable('orders')
+  }
+
   const addOrder = async (header, items) => {
     if (header.customer) {
       const trimmedName = header.customer.trim()
@@ -578,7 +644,7 @@ export function createProductionActions({
     return { total: totalQty, planned, produced, packaged, isFullyPackaged: packaged >= totalQty && totalQty > 0, isFullyPlanned: planned >= totalQty && totalQty > 0, status }
   }
 
-  const createNaryad = async (orderId, machineName, customQuantities = null, customDeadline = null, customRowMachines = null, customMaterialSplits = null, customCutters = null) => {
+  const createNaryad = async (orderId, machineName, customQuantities = null, customDeadline = null, customRowMachines = null, customMaterialSplits = null, customCutters = null, customBOMParts = null) => {
     try {
       const order = orders.find(o => o.id === orderId)
       if (!order) return
@@ -591,8 +657,13 @@ export function createProductionActions({
       order.order_items?.forEach(item => {
         const requestedQty = customQuantities && customQuantities[item.id] !== undefined ? Number(customQuantities[item.id]) : Number(item.quantity)
         if (requestedQty <= 0) return
-        const parts = bomItems.filter(b => String(b.parent_id) === String(item.nomenclature_id))
-        const displayParts = parts.length > 0 ? parts.map(b => ({ nom: nomenclatures.find(n => String(n.id) === String(b.child_id)), qtyPer: b.quantity_per_parent })) : [{ nom: nomenclatures.find(n => String(n.id) === String(item.nomenclature_id)), qtyPer: 1 }]
+        
+        const displayParts = customBOMParts && customBOMParts[item.id]
+          ? customBOMParts[item.id].map(p => ({ nom: p.nom, qtyPer: p.quantity_per_parent }))
+          : (() => {
+              const parts = bomItems.filter(b => String(b.parent_id) === String(item.nomenclature_id))
+              return parts.length > 0 ? parts.map(b => ({ nom: nomenclatures.find(n => String(n.id) === String(b.child_id)), qtyPer: b.quantity_per_parent })) : [{ nom: nomenclatures.find(n => String(n.id) === String(item.nomenclature_id)), qtyPer: 1 }]
+            })()
         displayParts.forEach(part => {
           if (!part.nom) return
           const totalNeeded = requestedQty * (Number(part.qtyPer) || 1)
@@ -840,44 +911,14 @@ export function createProductionActions({
 
       await supabase.from('orders').update({ status: 'in-progress' }).eq('id', orderId)
       const allMaterials = Object.values(materialSummary).map(info => ({ ...info, sheets: Number(info.sheets) || 0 }))
+      let totalActualSheets = allMaterials.filter(m => m.unit === 'ЛИСТІВ').reduce((acc, m) => acc + (m.sheets || 0), 0)
       const requestsToInsert = allMaterials.filter(info => info.matName && (info.matName.toLowerCase().startsWith('лист') || info.matName.toLowerCase().includes('фреза'))).map(info => {
         const qtyToRequest = info.unit === 'ЛИСТІВ' ? info.sheets : info.totalUnits;
         const unitLabel = info.unit === 'ЛИСТІВ' ? 'л.' : 'од.';
         return { order_id: orderId, task_id: tData.id, quantity: qtyToRequest, status: 'pending', inventory_id: info.inventory_id, nomenclature_id: info.nomenclature_id, details: `СКЛАД ОПЕРАТИВНИЙ: ${info.matName} — ${qtyToRequest} ${unitLabel} (Разом: ${info.totalUnits} шт | Для: ${info.components.join(', ')})` }
       })
 
-      // Update specific cutters using customCutters selected by foreman
-      if (customCutters && Object.keys(customCutters).length > 0) {
-        Object.entries(customCutters).forEach(([cutterName, inventoryItemId]) => {
-          if (!inventoryItemId) return
-          const selectedInv = inventory.find(i => String(i.id) === String(inventoryItemId))
-          if (!selectedInv) return
 
-          // Find if we already generated a material request for this nomenclature in the upcoming list
-          // and bind the custom selected inventory item ID
-          const existingReq = requestsToInsert.find(r => String(r.nomenclature_id) === String(selectedInv.nomenclature_id))
-          if (existingReq) {
-            existingReq.inventory_id = selectedInv.id
-            existingReq.details = `СКЛАД ОПЕРАТИВНИЙ (ОБРАНО ВРУЧНУ): ${selectedInv.name} — ${existingReq.quantity} шт.`
-          } else {
-            // If it's not a machine-specific cutter and not pre-generated, search consumablesSnapshot and add it
-            const matchedCons = nomenclatures.find(n => String(n.id) === String(selectedInv.nomenclature_id))
-            if (matchedCons) {
-              const matchedSnapshotVal = (customQuantities ? 1 : totalActualSheets) * (Number(matchedCons.consumption_per_sheet) || 1)
-              const neededQty = Math.ceil(matchedSnapshotVal)
-              requestsToInsert.push({
-                order_id: orderId,
-                task_id: tData.id,
-                quantity: neededQty,
-                status: 'pending',
-                inventory_id: selectedInv.id,
-                nomenclature_id: selectedInv.nomenclature_id,
-                details: `СКЛАД ОПЕРАТИВНИЙ (ОБРАНО ВРУЧНУ): ${selectedInv.name} — ${neededQty} шт.`
-              })
-            }
-          }
-        })
-      }
 
       // Add machine-specific cutters
       const machineSpecificCutters = {}
@@ -938,7 +979,7 @@ export function createProductionActions({
         })
       })
 
-      const totalActualSheets = allMaterials.filter(m => m.unit === 'ЛИСТІВ').reduce((acc, m) => acc + (m.sheets || 0), 0)
+      totalActualSheets = allMaterials.filter(m => m.unit === 'ЛИСТІВ').reduce((acc, m) => acc + (m.sheets || 0), 0)
       if (totalActualSheets > 0) {
         nomenclatures.filter(n => n.type === 'consumable' && (Number(n.consumption_per_sheet) || 0) > 0 && n.name.trim().toLowerCase() !== 'фреза' && (n.name.toLowerCase().startsWith('лист') || n.name.toLowerCase().includes('фреза'))).forEach(cons => {
           if (hasMachineSpecificCutters && cons.name.toLowerCase().includes('фреза')) {
@@ -947,6 +988,26 @@ export function createProductionActions({
           const neededQty = Math.ceil(totalActualSheets * Number(cons.consumption_per_sheet))
           const invItem = inventory.find(i => i.nomenclature_id === cons.id)
           requestsToInsert.push({ order_id: orderId, task_id: tData.id, quantity: neededQty, status: 'pending', inventory_id: invItem?.id || null, nomenclature_id: cons.id, details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ${order.order_num}: ${cons.name} — ${neededQty} од.` })
+        })
+      }
+      // Update specific cutters using customCutters selected by foreman (after consumables have been added)
+      if (customCutters && Object.keys(customCutters).length > 0) {
+        Object.entries(customCutters).forEach(([cutterName, inventoryItemId]) => {
+          if (!inventoryItemId) return
+          const selectedInv = inventory.find(i => String(i.id) === String(inventoryItemId))
+          if (!selectedInv) return
+
+          // Find if we already generated a material request for this nomenclature in the upcoming list
+          // and bind the custom selected inventory item ID
+          const existingReq = requestsToInsert.find(r => {
+            const nom = nomenclatures.find(n => String(n.id) === String(r.nomenclature_id));
+            return nom && nom.name === cutterName;
+          })
+          if (existingReq) {
+            existingReq.nomenclature_id = selectedInv.nomenclature_id
+            existingReq.inventory_id = selectedInv.id
+            existingReq.details = `СКЛАД ОПЕРАТИВНИЙ (ОБРАНО ВРУЧНУ): ${selectedInv.name} — ${existingReq.quantity} шт.`
+          }
         })
       }
       if (requestsToInsert.length > 0) await supabase.from('material_requests').insert(requestsToInsert)
@@ -961,9 +1022,16 @@ export function createProductionActions({
             return
           }
           const neededQty = Math.ceil(totalActualSheets * Number(cons.consumption_per_sheet))
-          consumablesSnapshot.push({ name: cons.name.trim(), total: neededQty })
+          
+          // Check if foreman selected a specific cutter for this generic consumable name
+          const customInvId = customCutters?.[cons.name.trim()] || customCutters?.[cons.name]
+          const selectedInv = customInvId ? inventory.find(i => String(i.id) === String(customInvId)) : null
+          const displayName = selectedInv ? selectedInv.name : cons.name.trim()
+
+          consumablesSnapshot.push({ name: displayName, total: neededQty })
         })
       }
+      plan_snapshot.selectedCutters = customCutters || {}
       plan_snapshot.consumables = consumablesSnapshot
       if (tData) {
         await supabase.from('tasks').update({ plan_snapshot }).eq('id', tData.id)
@@ -1581,7 +1649,7 @@ export function createProductionActions({
     createNaryad, handoverTaskToShop2, cancelHandoverToShop2, completeTaskShop2, directHandoverToSGP, handoverToSGP, reserveBZForTask, completePackaging, disposeScrapItem, createReworkNaryad,
     approveWarehouse, approveEngineer, approveDirector,
     upsertNomenclature, deleteNomenclature, saveBOM, removeBOM, syncBOM,
-    addOrder, createWorkCard, createWorkCardsBatch, startWorkCard, completeWorkCard, confirmBuffer,
+    addOrder, updateOrder, deleteOrder, createWorkCard, createWorkCardsBatch, startWorkCard, completeWorkCard, confirmBuffer,
     completeTaskByMaster,
     addManagementTask, updateManagementTask, deleteManagementTask,
     addMachine, updateMachine, deleteMachine,

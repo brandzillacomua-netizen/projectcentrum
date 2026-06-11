@@ -2511,6 +2511,14 @@ const PermissionGuard = ({ id, children }) => {
   return children
 }
 
+const ScrollToTop = () => {
+  const { pathname } = useLocation()
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [pathname])
+  return null
+}
+
 const AppContent = () => {
   const { currentUser, sessionLoading } = useMES()
   const location = useLocation()
@@ -2543,7 +2551,9 @@ const AppContent = () => {
   }
 
   return (
-    <Suspense fallback={<ModuleLoader />}>
+    <>
+      <ScrollToTop />
+      <Suspense fallback={<ModuleLoader />}>
       {currentUser && 
        currentUser.position !== 'Адмін' && 
        currentUser.role !== 'admin' && 
@@ -2584,6 +2594,7 @@ const AppContent = () => {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
+  </>
   )
 }
 

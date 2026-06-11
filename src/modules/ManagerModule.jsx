@@ -12,7 +12,8 @@ import {
   Search,
   User,
   Package,
-  Clock
+  Clock,
+  Pencil
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
@@ -21,7 +22,7 @@ import { nomenclatureService } from '../services/nomenclatureService'
 import { supabase } from '../supabase'
 
 const ManagerModule = () => {
-  const { nomenclatures, addOrder, orders, fetchOrders, hasMoreOrders, searchCustomers, currentUser, loading, getOrderProductionProgress, refreshTable } = useMES()
+  const { nomenclatures, addOrder, updateOrder, deleteOrder, orders, fetchOrders, hasMoreOrders, searchCustomers, currentUser, loading, getOrderProductionProgress, refreshTable } = useMES()
   const [localCustomers, setLocalCustomers] = useState([])
   const searchTimeout = useRef(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -99,6 +100,77 @@ const ManagerModule = () => {
   const [custMap, setCustMap] = useState(new Map())
   const [activeTab, setActiveTab] = useState('supabase') // 'supabase' or 'rust'
   const [isRustLoading, setIsRustLoading] = useState(false)
+
+  // Edit / Edit Mode state
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [editingOrderHeader, setEditingOrderHeader] = useState({
+    customer: '',
+    official_customer: '',
+    nomenclature_id: '',
+    quantity: 1,
+    deadline: ''
+  })
+  
+  const handleEditInit = (order) => {
+    setSelectedOrder(order)
+    setIsEditMode(true)
+    const nom = nomenclatures.find(n => n.id === order.nomenclature_id || n.accessories === order.accessories)
+    setEditingOrderHeader({
+      customer: order.customer || '',
+      official_customer: order.official_customer || '',
+      nomenclature_id: order.nomenclature_id || '',
+      quantity: order.quantity || 1,
+      deadline: order.deadline ? order.deadline.split('T')[0] : ''
+    })
+  }
+
+  const handleUpdateSubmit = async (e) => {
+    e.preventDefault()
+    if (!editingOrderHeader.customer || !editingOrderHeader.nomenclature_id || !editingOrderHeader.deadline) {
+      alert('Будь ласка, заповніть Замовника, оберіть Продукт та вкажіть Термін (Дедлайн)')
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const selectedProduct = nomenclatures.find(p => String(p.id) === String(editingOrderHeader.nomenclature_id))
+      const headerWithInfo = {
+        customer: editingOrderHeader.customer,
+        official_customer: editingOrderHeader.official_customer,
+        deadline: editingOrderHeader.deadline,
+        quantity: editingOrderHeader.quantity,
+        productName: selectedProduct?.name || ''
+      }
+      const items = [{ nomenclature_id: editingOrderHeader.nomenclature_id, quantity: editingOrderHeader.quantity }]
+      
+      await updateOrder(selectedOrder.id, headerWithInfo, items)
+      alert('Замовлення успішно оновлено!')
+      setIsEditMode(false)
+      setSelectedOrder(null)
+      fetchOrders(0, false, { searchQuery, dateRange: dateFilter })
+    } catch (err) {
+      alert('Помилка при оновленні замовлення: ' + err.message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleDeleteClick = async (orderId) => {
+    if (!window.confirm('Ви впевнені, що хочете видалити це замовлення? Усі пов’язані наряди, матеріальні запити та робочі картки також будуть видалені!')) {
+      return
+    }
+    setIsSubmitting(true)
+    try {
+      await deleteOrder(orderId)
+      alert('Замовлення успішно видалено!')
+      setSelectedOrder(null)
+      fetchOrders(0, false, { searchQuery, dateRange: dateFilter })
+    } catch (err) {
+      alert('Помилка при видаленні замовлення: ' + err.message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   // Fetch orders when filters change
   useEffect(() => {
@@ -331,7 +403,8 @@ const ManagerModule = () => {
                         <th>ВИРІБ</th>
                         <th>КІЛЬКІСТЬ</th>
                         <th>ТЕРМІН</th>
-                        <th style={{ textAlign: 'right' }}>СТАТУС</th>
+                        <th>СТАТУС</th>
+                        <th style={{ textAlign: 'right', width: '60px' }}>ДІЇ</th>
                      </tr>
                    </thead>
                    <tbody>
@@ -347,7 +420,29 @@ const ManagerModule = () => {
                                <td className="product-cell">{prodName}</td>
                                <td className="qty-cell"><strong>{prog.packaged} / {ordQty}</strong> шт</td>
                                <td className="date-cell">{order.deadline ? new Date(order.deadline).toLocaleDateString() : '—'}</td>
-                               <td style={{ textAlign: 'right' }}><span className={`status-pill ${prog.status}`}>{getStatusLabel(prog.status)}</span></td>
+                               <td><span className={`status-pill ${prog.status}`}>{getStatusLabel(prog.status)}</span></td>
+                               <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                                  <button 
+                                    onClick={() => handleEditInit(order)}
+                                    style={{
+                                      background: 'rgba(255,144,0,0.1)',
+                                      border: '1px solid rgba(255,144,0,0.25)',
+                                      borderRadius: '10px',
+                                      width: '36px',
+                                      height: '36px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      color: '#ff9000',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.2s'
+                                    }}
+                                    title="Швидке редагування"
+                                    className="quick-edit-btn"
+                                  >
+                                    <Pencil size={15} />
+                                  </button>
+                                </td>
                              </tr>
                            )
                          })}
@@ -367,7 +462,30 @@ const ManagerModule = () => {
                      <div className="card-product">{nomenclatures.find(n => n.id === order.order_items?.[0]?.nomenclature_id)?.name || '—'}</div>
                      <div className="card-footer">
                         <span>{order.order_items?.[0]?.quantity} {order.unit || 'шт'}</span>
-                        <span className="card-deadline"><Calendar size={12} /> {order.deadline ? new Date(order.deadline).toLocaleDateString() : '—'}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span className="card-deadline"><Calendar size={12} /> {order.deadline ? new Date(order.deadline).toLocaleDateString() : '—'}</span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditInit(order);
+                            }}
+                            style={{
+                              background: 'rgba(255,144,0,0.1)',
+                              border: '1px solid rgba(255,144,0,0.25)',
+                              borderRadius: '8px',
+                              width: '30px',
+                              height: '30px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#ff9000',
+                              cursor: 'pointer'
+                            }}
+                            title="Швидке редагування"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                        </div>
                      </div>
                   </div>
                 ))}
@@ -386,46 +504,121 @@ const ManagerModule = () => {
         </section>
       </div>
 
-      {/* DETAIL MODAL */}
+      {/* DETAIL & EDIT MODAL */}
       {selectedOrder && (
         <div className="modal-backdrop-modern">
            <div className="glass-card modal-content-modern anim-slide-up">
               <div className="modal-header-modern">
-                 <h2>ДЕТАЛІ <span className="text-orange">#{selectedOrder.order_num}</span></h2>
-                 <button onClick={() => setSelectedOrder(null)} className="btn-close-modal"><X size={24} /></button>
+                 <h2>{isEditMode ? 'РЕДАГУВАННЯ ЗАМОВЛЕННЯ' : 'ДЕТАЛІ'} <span className="text-orange">#{selectedOrder.order_num}</span></h2>
+                 <button onClick={() => { setSelectedOrder(null); setIsEditMode(false); }} className="btn-close-modal"><X size={24} /></button>
               </div>
-              <div className="modal-body-modern">
-                 <div className="details-grid-modern">
-                    <div className="detail-item">
-                       <label>ЗАМОВНИК</label>
-                       <div>{selectedOrder.customer}</div>
+              
+              {isEditMode ? (
+                <form onSubmit={handleUpdateSubmit} className="modal-body-modern" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <div className="form-group-modern">
+                    <label>ЗАМОВНИК</label>
+                    <div className="input-wrapper">
+                      <User size={16} />
+                      <input value={editingOrderHeader.customer} onChange={e => setEditingOrderHeader({ ...editingOrderHeader, customer: e.target.value })} required />
                     </div>
-                    <div className="detail-item">
-                       <label>ТЕРМІН</label>
-                       <div className="text-orange">{selectedOrder.deadline || '—'}</div>
+                  </div>
+                  
+                  <div className="form-group-modern">
+                    <label>ОФІЦІЙНА НАЗВА ЗАМОВНИКА</label>
+                    <div className="input-wrapper">
+                      <User size={16} />
+                      <input value={editingOrderHeader.official_customer} onChange={e => setEditingOrderHeader({ ...editingOrderHeader, official_customer: e.target.value })} />
                     </div>
-                    <div className="detail-item">
-                       <label>СТАТУС</label>
-                       <div className={`status-text ${selectedOrder.status}`}>{getStatusLabel(selectedOrder.status)}</div>
+                  </div>
+
+                  <div className="form-group-modern">
+                    <label>ГОТОВИЙ ВИРІБ</label>
+                    <div className="input-wrapper">
+                      <Layers size={16} />
+                      <select value={editingOrderHeader.nomenclature_id} onChange={e => setEditingOrderHeader({ ...editingOrderHeader, nomenclature_id: e.target.value })} required>
+                        <option value="">Оберіть готовий виріб...</option>
+                        {nomenclatures
+                          .filter(n => n.type === 'product')
+                          .map(n => <option key={n.id} value={n.id}>{n.name} {n.code ? `(${n.code})` : ''}</option>)}
+                      </select>
                     </div>
-                    <div className="detail-item">
-                       <label>ОФІЦІЙНА НАЗВА</label>
-                       <div style={{ fontSize: '0.9rem', color: '#888' }}>{selectedOrder.official_customer || '—'}</div>
+                  </div>
+
+                  <div className="form-group-modern quantity-deadline-group" style={{ display: 'flex', gap: '20px' }}>
+                    <div className="qty-subgroup" style={{ flex: 1 }}>
+                      <label>КІЛЬКІСТЬ</label>
+                      <div className="input-wrapper">
+                        <input type="number" value={editingOrderHeader.quantity} onChange={e => setEditingOrderHeader({ ...editingOrderHeader, quantity: Number(e.target.value) })} required />
+                      </div>
                     </div>
-                 </div>
-                 
-                 <h4 className="section-subtitle-modern">СКЛАД ЗАМОВЛЕННЯ</h4>
-                 <div className="order-items-list">
-                    {selectedOrder.order_items?.map((item, idx) => (
-                       <div key={idx} className="item-row-modern">
-                          <Package size={16} className="text-dim" />
-                          <span className="item-name">{nomenclatures.find(n => n.id === item.nomenclature_id)?.name}</span>
-                          <span className="spacer"></span>
-                          <strong className="item-qty">{item.quantity} шт</strong>
-                       </div>
-                    ))}
-                 </div>
-              </div>
+                    <div className="deadline-subgroup" style={{ flex: 1 }}>
+                      <label>ДЕДЛАЙН</label>
+                      <div className="input-wrapper">
+                        <Calendar size={16} />
+                        <input type="date" value={editingOrderHeader.deadline} onChange={e => setEditingOrderHeader({ ...editingOrderHeader, deadline: e.target.value })} required />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end', marginTop: '20px' }}>
+                    <button type="button" onClick={() => setIsEditMode(false)} className="btn-load-more" style={{ padding: '12px 24px' }}>СКАСУВАТИ</button>
+                    <button type="submit" disabled={isSubmitting} className="btn-primary-modern" style={{ padding: '12px 24px', boxShadow: 'none', marginTop: 0 }}>
+                      {isSubmitting ? 'ЗБЕРЕЖЕННЯ...' : 'ЗБЕРЕГТИ ЗМІНИ'}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="modal-body-modern">
+                   <div className="details-grid-modern">
+                      <div className="detail-item">
+                         <label>ЗАМОВНИК</label>
+                         <div>{selectedOrder.customer}</div>
+                      </div>
+                      <div className="detail-item">
+                         <label>ТЕРМІН</label>
+                         <div className="text-orange">{selectedOrder.deadline ? new Date(selectedOrder.deadline).toLocaleDateString() : '—'}</div>
+                      </div>
+                      <div className="detail-item">
+                         <label>СТАТУС</label>
+                         <div className={`status-text ${selectedOrder.status}`}>{getStatusLabel(selectedOrder.status)}</div>
+                      </div>
+                      <div className="detail-item">
+                         <label>ОФІЦІЙНА НАЗВА</label>
+                         <div style={{ fontSize: '0.9rem', color: '#888' }}>{selectedOrder.official_customer || '—'}</div>
+                      </div>
+                   </div>
+                   
+                   <h4 className="section-subtitle-modern">СКЛАД ЗАМОВЛЕННЯ</h4>
+                   <div className="order-items-list" style={{ marginBottom: '30px' }}>
+                      {selectedOrder.order_items?.map((item, idx) => (
+                         <div key={idx} className="item-row-modern">
+                            <Package size={16} className="text-dim" />
+                            <span className="item-name">{nomenclatures.find(n => n.id === item.nomenclature_id)?.name}</span>
+                            <span className="spacer"></span>
+                            <strong className="item-qty">{item.quantity} шт</strong>
+                         </div>
+                      ))}
+                      {(!selectedOrder.order_items || selectedOrder.order_items.length === 0) && (
+                         <div className="item-row-modern">
+                            <Package size={16} className="text-dim" />
+                            <span className="item-name">{selectedOrder.accessories || 'Не вказано'}</span>
+                            <span className="spacer"></span>
+                            <strong className="item-qty">{selectedOrder.quantity} шт</strong>
+                         </div>
+                      )}
+                   </div>
+
+                   {/* Action Buttons: Edit and Delete */}
+                   <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '20px' }}>
+                      <button onClick={() => handleDeleteClick(selectedOrder.id)} disabled={isSubmitting} className="btn-load-more" style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.2)', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Trash2 size={16} /> ВИДАЛИТИ
+                      </button>
+                      <button onClick={() => handleEditInit(selectedOrder)} className="btn-primary-modern" style={{ background: '#3b82f6', color: '#fff', boxShadow: 'none', padding: '12px 24px', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        🔧 РЕДАГУВАТИ
+                      </button>
+                   </div>
+                </div>
+              )}
            </div>
         </div>
       )}
@@ -569,25 +762,121 @@ const ManagerModule = () => {
         .btn-load-more:hover { border-color: #ff9000; color: #ff9000; background: rgba(255,144,0,0.05); }
 
         .modal-backdrop-modern {
-          position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 1000;
-          display: flex; align-items: center; justifyContent: center; padding: 20px;
-          backdrop-filter: blur(8px);
+          position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000;
+          display: flex; align-items: center; justify-content: center; padding: 20px;
+          backdrop-filter: blur(20px);
+          animation: fadeIn 0.3s ease-out;
         }
-        .modal-content-modern { width: 100%; maxWidth: 650px; }
-        .modal-header-modern { display: flex; justify-content: space-between; align-items: center; padding: 30px; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .modal-header-modern h2 { margin: 0; font-size: 1.5rem; font-weight: 900; }
-        .btn-close-modal { background: transparent; border: none; color: #555; cursor: pointer; transition: color 0.3s; }
-        .btn-close-modal:hover { color: #fff; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         
-        .modal-body-modern { padding: 30px; }
-        .details-grid-modern { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 40px; }
-        .detail-item label { display: block; font-size: 0.6rem; color: #444; font-weight: 900; letter-spacing: 1px; margin-bottom: 8px; }
-        .detail-item div { font-size: 1.1rem; font-weight: 600; }
+        .modal-content-modern { 
+          width: 100%; 
+          maxWidth: 600px; 
+          background: rgba(15, 15, 18, 0.75); 
+          border: 1px solid rgba(255, 144, 0, 0.15); 
+          border-radius: 28px; 
+          box-shadow: 0 30px 70px rgba(0, 0, 0, 0.8), inset 0 1px 1px rgba(255, 255, 255, 0.05); 
+          overflow: hidden;
+        }
         
-        .section-subtitle-modern { font-size: 0.75rem; color: #333; font-weight: 900; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 10px; }
-        .item-row-modern { display: flex; align-items: center; gap: 15px; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 14px; margin-bottom: 10px; }
-        .item-name { flex: 1; font-weight: 500; }
-        .item-qty { color: #ff9000; font-size: 1.1rem; }
+        .modal-header-modern { 
+          display: flex; 
+          justify-content: space-between; 
+          align-items: center; 
+          padding: 24px 32px; 
+          border-bottom: 1px solid rgba(255,255,255,0.04); 
+          background: rgba(255, 255, 255, 0.01);
+        }
+        
+        .modal-header-modern h2 { 
+          margin: 0; 
+          font-size: 1.25rem; 
+          font-weight: 900; 
+          letter-spacing: -0.5px; 
+          text-transform: uppercase;
+        }
+        
+        .btn-close-modal { 
+          background: rgba(255,255,255,0.03); 
+          border: 1px solid rgba(255,255,255,0.05); 
+          color: #888; 
+          cursor: pointer; 
+          width: 38px; 
+          height: 38px; 
+          border-radius: 50%; 
+          display: flex; 
+          align-items: center; 
+          justify-content: center; 
+          transition: all 0.2s; 
+        }
+        .btn-close-modal:hover { color: #fff; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); }
+        
+        .modal-body-modern { padding: 32px; }
+        
+        .details-grid-modern { 
+          display: grid; 
+          grid-template-columns: 1fr 1fr; 
+          gap: 20px 32px; 
+          margin-bottom: 32px; 
+          background: rgba(0,0,0,0.2); 
+          padding: 20px 24px; 
+          border-radius: 20px; 
+          border: 1px solid rgba(255,255,255,0.02);
+        }
+        
+        .detail-item label { 
+          display: block; 
+          font-size: 0.62rem; 
+          color: #555; 
+          font-weight: 950; 
+          letter-spacing: 1.5px; 
+          margin-bottom: 6px; 
+          text-transform: uppercase;
+        }
+        
+        .detail-item div { 
+          font-size: 1.05rem; 
+          font-weight: 800; 
+          color: #eee;
+        }
+        
+        .section-subtitle-modern { 
+          font-size: 0.72rem; 
+          color: #444; 
+          font-weight: 950; 
+          margin-bottom: 16px; 
+          letter-spacing: 1px;
+          text-transform: uppercase;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        
+        .item-row-modern { 
+          display: flex; 
+          align-items: center; 
+          gap: 15px; 
+          padding: 16px 20px; 
+          background: rgba(255,255,255,0.01); 
+          border: 1px solid rgba(255,255,255,0.03); 
+          border-radius: 16px; 
+          margin-bottom: 12px; 
+          transition: border-color 0.2s;
+        }
+        .item-row-modern:hover { border-color: rgba(255, 144, 0, 0.15); }
+        
+        .item-name { 
+          flex: 1; 
+          font-weight: 700; 
+          font-size: 0.92rem; 
+          color: #ddd; 
+        }
+        
+        .item-qty { 
+          color: #ff9000; 
+          font-size: 1.15rem; 
+          font-weight: 900;
+        }
 
         .anim-slide-up { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
         @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
