@@ -578,7 +578,7 @@ export function createProductionActions({
     return { total: totalQty, planned, produced, packaged, isFullyPackaged: packaged >= totalQty && totalQty > 0, isFullyPlanned: planned >= totalQty && totalQty > 0, status }
   }
 
-  const createNaryad = async (orderId, machineName, customQuantities = null, customDeadline = null, customRowMachines = null, customMaterialSplits = null) => {
+  const createNaryad = async (orderId, machineName, customQuantities = null, customDeadline = null, customRowMachines = null, customMaterialSplits = null, customCutters = null) => {
     try {
       const order = orders.find(o => o.id === orderId)
       if (!order) return
@@ -845,6 +845,39 @@ export function createProductionActions({
         const unitLabel = info.unit === 'ЛИСТІВ' ? 'л.' : 'од.';
         return { order_id: orderId, task_id: tData.id, quantity: qtyToRequest, status: 'pending', inventory_id: info.inventory_id, nomenclature_id: info.nomenclature_id, details: `СКЛАД ОПЕРАТИВНИЙ: ${info.matName} — ${qtyToRequest} ${unitLabel} (Разом: ${info.totalUnits} шт | Для: ${info.components.join(', ')})` }
       })
+
+      // Update specific cutters using customCutters selected by foreman
+      if (customCutters && Object.keys(customCutters).length > 0) {
+        Object.entries(customCutters).forEach(([cutterName, inventoryItemId]) => {
+          if (!inventoryItemId) return
+          const selectedInv = inventory.find(i => String(i.id) === String(inventoryItemId))
+          if (!selectedInv) return
+
+          // Find if we already generated a material request for this nomenclature in the upcoming list
+          // and bind the custom selected inventory item ID
+          const existingReq = requestsToInsert.find(r => String(r.nomenclature_id) === String(selectedInv.nomenclature_id))
+          if (existingReq) {
+            existingReq.inventory_id = selectedInv.id
+            existingReq.details = `СКЛАД ОПЕРАТИВНИЙ (ОБРАНО ВРУЧНУ): ${selectedInv.name} — ${existingReq.quantity} шт.`
+          } else {
+            // If it's not a machine-specific cutter and not pre-generated, search consumablesSnapshot and add it
+            const matchedCons = nomenclatures.find(n => String(n.id) === String(selectedInv.nomenclature_id))
+            if (matchedCons) {
+              const matchedSnapshotVal = (customQuantities ? 1 : totalActualSheets) * (Number(matchedCons.consumption_per_sheet) || 1)
+              const neededQty = Math.ceil(matchedSnapshotVal)
+              requestsToInsert.push({
+                order_id: orderId,
+                task_id: tData.id,
+                quantity: neededQty,
+                status: 'pending',
+                inventory_id: selectedInv.id,
+                nomenclature_id: selectedInv.nomenclature_id,
+                details: `СКЛАД ОПЕРАТИВНИЙ (ОБРАНО ВРУЧНУ): ${selectedInv.name} — ${neededQty} шт.`
+              })
+            }
+          }
+        })
+      }
 
       // Add machine-specific cutters
       const machineSpecificCutters = {}
