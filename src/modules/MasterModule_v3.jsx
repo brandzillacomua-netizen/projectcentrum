@@ -360,12 +360,11 @@ const MasterModule = () => {
   const handleSplitChange = (partId, type, val, totalRequired) => {
     setMaterialSplits(prev => {
       if (val === '') {
-        const otherType = type === 't300' ? 't700' : 't300';
         return {
           ...prev,
           [partId]: {
-            [type]: '',
-            [otherType]: totalRequired
+            ...prev[partId],
+            [type]: ''
           }
         };
       }

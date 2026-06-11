@@ -47,7 +47,7 @@ const SettingsModule = () => {
   const [bzRecordMode, setBzRecordMode] = useState('add') // 'add' or 'overwrite'
   const [bzUploadStatus, setBzUploadStatus] = useState('idle') // 'idle', 'preview', 'uploading', 'success', 'error'
   const [bzUploadLog, setBzUploadLog] = useState('')
-  const [bzActivePreviewTab, setBzActivePreviewTab] = useState('kits') // 'kits', 'leftovers', 'unrecognized'
+  const [bzActivePreviewTab, setBzActivePreviewTab] = useState('leftovers') // 'kits', 'leftovers', 'unrecognized'
   const [bzAssembledKits, setBzAssembledKits] = useState([])
   const [bzLeftovers, setBzLeftovers] = useState([])
   const [bzUnrecognized, setBzUnrecognized] = useState([])
@@ -105,24 +105,36 @@ const SettingsModule = () => {
 
   // BZ Remnants Processing Helpers
   const handleBzFileChange = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    
-    setBzFile(file)
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const text = event.target.result
-      const delim = detectDelimiter(text)
-      setBzDelimiter(delim)
+    try {
+      const file = e.target.files[0]
+      if (!file) return
       
-      const parsed = parseCSV(text, delim)
-      if (parsed.length > 0) {
-        processBzRemnants(parsed)
-      } else {
-        alert('Помилка: файл порожній або має невірний формат.')
+      setBzFile(file)
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        try {
+          const text = event.target.result
+          const delim = detectDelimiter(text)
+          setBzDelimiter(delim)
+          
+          const parsed = parseCSV(text, delim)
+          if (parsed.length > 0) {
+            processBzRemnants(parsed)
+          } else {
+            alert('Помилка: файл порожній або має невірний формат.')
+          }
+        } catch (innerErr) {
+          console.error(innerErr)
+          alert('Помилка обробки вмісту файлу залишків БЗ: ' + innerErr.message)
+        }
+        e.target.value = ''
       }
+      reader.readAsText(file, 'UTF-8')
+    } catch (err) {
+      console.error(err)
+      alert('Помилка завантаження файлу залишків БЗ: ' + err.message)
+      if (e?.target) e.target.value = ''
     }
-    reader.readAsText(file, 'UTF-8')
   }
 
   const normalizeHomoglyphs = (str) => {
@@ -157,7 +169,7 @@ const SettingsModule = () => {
     const unrecognized = []
 
     const dbNomMap = {}
-    nomenclatures.forEach(n => {
+    ;(nomenclatures || []).forEach(n => {
       dbNomMap[normalizeHomoglyphs(n.name)] = n
     })
 
@@ -191,43 +203,13 @@ const SettingsModule = () => {
       initialStock[item.nomenclature_id] = (initialStock[item.nomenclature_id] || 0) + item.qty
     })
 
-    const products = nomenclatures.filter(n => n.type === 'product')
     const assembledKits = []
     const componentsLeft = { ...initialStock }
-
-    products.forEach(p => {
-      const pBom = bomItems.filter(b => b.parent_id === p.id)
-      if (pBom.length === 0) return
-
-      let possible = Infinity
-      pBom.forEach(b => {
-        const avail = componentsLeft[b.child_id] || 0
-        const needed = b.quantity_per_parent || 1
-        possible = Math.min(possible, Math.floor(avail / needed))
-      })
-
-      if (possible > 0 && possible !== Infinity) {
-        const consumed = []
-        pBom.forEach(b => {
-          componentsLeft[b.child_id] -= possible * b.quantity_per_parent
-          const childNom = nomenclatures.find(n => n.id === b.child_id)
-          consumed.push({
-            name: childNom ? childNom.name : 'Unknown Part',
-            qty: possible * b.quantity_per_parent
-          })
-        })
-        assembledKits.push({
-          product: p,
-          qty: possible,
-          consumed
-        })
-      }
-    })
 
     const leftovers = []
     Object.entries(componentsLeft).forEach(([nomId, qty]) => {
       if (qty <= 0) return
-      const nomObj = nomenclatures.find(n => n.id === nomId)
+      const nomObj = (nomenclatures || []).find(n => n.id === nomId)
       if (nomObj) {
         leftovers.push({
           nomenclature_id: nomId,
@@ -414,24 +396,36 @@ const SettingsModule = () => {
 
   // Prepared Sheets Remnants Processing Helpers
   const handleSheetsFileChange = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    
-    setSheetsFile(file)
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const text = event.target.result
-      const delim = detectDelimiter(text)
-      setSheetsDelimiter(delim)
+    try {
+      const file = e.target.files[0]
+      if (!file) return
       
-      const parsed = parseCSV(text, delim)
-      if (parsed.length > 0) {
-        processSheetsRemnants(parsed)
-      } else {
-        alert('Помилка: файл порожній або має невірний формат.')
+      setSheetsFile(file)
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        try {
+          const text = event.target.result
+          const delim = detectDelimiter(text)
+          setSheetsDelimiter(delim)
+          
+          const parsed = parseCSV(text, delim)
+          if (parsed.length > 0) {
+            processSheetsRemnants(parsed)
+          } else {
+            alert('Помилка: файл порожній або має невірний формат.')
+          }
+        } catch (innerErr) {
+          console.error(innerErr)
+          alert('Помилка обробки вмісту файлу залишків СО: ' + innerErr.message)
+        }
+        e.target.value = ''
       }
+      reader.readAsText(file, 'UTF-8')
+    } catch (err) {
+      console.error(err)
+      alert('Помилка завантаження файлу залишків СО: ' + err.message)
+      if (e?.target) e.target.value = ''
     }
-    reader.readAsText(file, 'UTF-8')
   }
 
   const processSheetsRemnants = (parsedCsv) => {
@@ -456,7 +450,7 @@ const SettingsModule = () => {
     const previewList = []
 
     const dbNomMap = {}
-    nomenclatures.forEach(n => {
+    ;(nomenclatures || []).forEach(n => {
       dbNomMap[normalizeHomoglyphs(n.name)] = n
     })
 
@@ -515,7 +509,7 @@ const SettingsModule = () => {
           }
           
           const normName = normalizeHomoglyphs(item.name)
-          const dbNom = nomenclatures.find(n => normalizeHomoglyphs(n.name) === normName)
+          const dbNom = (nomenclatures || []).find(n => normalizeHomoglyphs(n.name) === normName)
           if (dbNom) {
             item.nomenclature_id = dbNom.id
             item.isNew = false
@@ -548,7 +542,7 @@ const SettingsModule = () => {
 
             if (unpreparedName && unpreparedName !== item.name) {
               const normUnprepared = normalizeHomoglyphs(unpreparedName)
-              const existingUnprepared = nomenclatures.find(n => normalizeHomoglyphs(n.name) === normUnprepared)
+              const existingUnprepared = (nomenclatures || []).find(n => normalizeHomoglyphs(n.name) === normUnprepared)
 
               if (!existingUnprepared && !nomCache[unpreparedName]) {
                 const { data: newUnprepared, error: unpErr } = await supabase
@@ -579,7 +573,7 @@ const SettingsModule = () => {
       })
 
       for (const [nomId, qtyVal] of Object.entries(groupedItems)) {
-        const nomObj = nomenclatures.find(n => n.id === nomId) || (sheetsPreviewList.find(i => i.nomenclature_id === nomId))
+        const nomObj = (nomenclatures || []).find(n => n.id === nomId) || (sheetsPreviewList.find(i => i.nomenclature_id === nomId))
         const nameText = nomObj ? nomObj.name : 'Unknown'
         const unitText = nomObj?.unit || 'шт'
         
@@ -646,21 +640,33 @@ const SettingsModule = () => {
   // ── CUTTER (ФРЕЗИ) UPLOAD HELPERS ──
 
   const handleCuttersFileChange = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    setCuttersFile(file)
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const text = event.target.result
-      const delim = detectDelimiter(text)
-      const parsed = parseCSV(text, delim)
-      if (parsed.length > 0) {
-        processCuttersCSV(parsed)
-      } else {
-        alert('Помилка: файл порожній або має невірний формат.')
+    try {
+      const file = e.target.files[0]
+      if (!file) return
+      setCuttersFile(file)
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        try {
+          const text = event.target.result
+          const delim = detectDelimiter(text)
+          const parsed = parseCSV(text, delim)
+          if (parsed.length > 0) {
+            processCuttersCSV(parsed)
+          } else {
+            alert('Помилка: файл порожній або має невірний формат.')
+          }
+        } catch (innerErr) {
+          console.error(innerErr)
+          alert('Помилка обробки вмісту файлу фрез: ' + innerErr.message)
+        }
+        e.target.value = ''
       }
+      reader.readAsText(file, 'UTF-8')
+    } catch (err) {
+      console.error(err)
+      alert('Помилка завантаження файлу фрез: ' + err.message)
+      if (e?.target) e.target.value = ''
     }
-    reader.readAsText(file, 'UTF-8')
   }
 
   const processCuttersCSV = (parsedCsv) => {
@@ -723,7 +729,7 @@ const SettingsModule = () => {
 
     try {
       const dbNomMap = {}
-      nomenclatures.forEach(n => { dbNomMap[normalizeHomoglyphs(n.name)] = n })
+      ;(nomenclatures || []).forEach(n => { dbNomMap[normalizeHomoglyphs(n.name)] = n })
       setCuttersUploadLog(prev => prev + `Обробка ${groupedList.length} унікальних позицій фрез...\n`)
       
       for (const item of groupedList) {
@@ -2397,13 +2403,6 @@ const SettingsModule = () => {
                     position: 'relative',
                     maxWidth: '520px'
                   }}
-                    onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = '#ff9000'; e.currentTarget.style.background = 'rgba(255,144,0,0.04)' }}
-                    onDragLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,144,0,0.3)'; e.currentTarget.style.background = 'rgba(255,144,0,0.01)' }}
-                    onDrop={e => {
-                      e.preventDefault()
-                      const file = e.dataTransfer.files[0]
-                      if (file) handleBzFileChange({ target: { files: [file] } })
-                    }}
                   >
                     <input
                       id="bz-file-input"
@@ -2412,7 +2411,7 @@ const SettingsModule = () => {
                       onChange={handleBzFileChange}
                       style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
                     />
-                    <Upload size={38} color="#ff9000" style={{ marginBottom: '14px', opacity: 0.8 }} />
+                    <Upload size={38} color="#ff9000" style={{ marginBottom: '14px', opacity: 0.8, marginLeft: 'auto', marginRight: 'auto' }} />
                     <h4 style={{ margin: '0 0 6px 0', fontSize: '0.9rem', fontWeight: 800 }}>Оберіть або перетягніть CSV файл</h4>
                     <p style={{ margin: 0, fontSize: '0.7rem', color: '#666', fontWeight: 600 }}>Очікуваний формат: колонка «Номенклатура» та колонка «Склад» (кількість)</p>
                   </div>
@@ -2648,13 +2647,6 @@ const SettingsModule = () => {
                     position: 'relative',
                     maxWidth: '520px'
                   }}
-                    onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = '#ff9000'; e.currentTarget.style.background = 'rgba(255,144,0,0.04)' }}
-                    onDragLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,144,0,0.3)'; e.currentTarget.style.background = 'rgba(255,144,0,0.01)' }}
-                    onDrop={e => {
-                      e.preventDefault()
-                      const file = e.dataTransfer.files[0]
-                      if (file) handleSheetsFileChange({ target: { files: [file] } })
-                    }}
                   >
                     <input
                       id="sheets-file-input"
@@ -2663,7 +2655,7 @@ const SettingsModule = () => {
                       onChange={handleSheetsFileChange}
                       style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
                     />
-                    <Upload size={38} color="#ff9000" style={{ marginBottom: '14px', opacity: 0.8 }} />
+                    <Upload size={38} color="#ff9000" style={{ marginBottom: '14px', opacity: 0.8, marginLeft: 'auto', marginRight: 'auto' }} />
                     <h4 style={{ margin: '0 0 6px 0', fontSize: '0.9rem', fontWeight: 800 }}>Оберіть або перетягніть CSV файл</h4>
                     <p style={{ margin: 0, fontSize: '0.7rem', color: '#666', fontWeight: 600 }}>Очікуваний формат: колонка «Номенклатура» та колонка «Склад» (кількість)</p>
                   </div>
@@ -2836,12 +2828,15 @@ const SettingsModule = () => {
               {cuttersUploadStatus === 'idle' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                   <div style={{ border: '2px dashed rgba(255,144,0,0.3)', borderRadius: '18px', padding: '36px 20px', textAlign: 'center', background: 'rgba(255,144,0,0.01)', cursor: 'pointer', transition: 'all 0.2s ease', position: 'relative', maxWidth: '520px' }}
-                    onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = '#ff9000'; e.currentTarget.style.background = 'rgba(255,144,0,0.04)' }}
-                    onDragLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,144,0,0.3)'; e.currentTarget.style.background = 'rgba(255,144,0,0.01)' }}
-                    onDrop={e => { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file) handleCuttersFileChange({ target: { files: [file] } }) }}
                   >
-                    <input id="cutters-file-input" type="file" accept=".csv" onChange={handleCuttersFileChange} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
-                    <Upload size={38} color="#ff9000" style={{ marginBottom: '14px', opacity: 0.8 }} />
+                    <input 
+                      id="cutters-file-input" 
+                      type="file" 
+                      accept=".csv" 
+                      onChange={handleCuttersFileChange} 
+                      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} 
+                    />
+                    <Upload size={38} color="#ff9000" style={{ marginBottom: '14px', opacity: 0.8, marginLeft: 'auto', marginRight: 'auto' }} />
                     <h4 style={{ margin: '0 0 6px 0', fontSize: '0.9rem', fontWeight: 800 }}>Оберіть або перетягніть CSV файл</h4>
                     <p style={{ margin: 0, fontSize: '0.7rem', color: '#666', fontWeight: 600 }}>«Номенклатура» | «Діаметр ріжучої частини» | «Залишок на складі»</p>
                   </div>
