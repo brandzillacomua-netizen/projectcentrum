@@ -1422,6 +1422,54 @@ const SettingsModule = () => {
     return f || l ? `${f}${l}` : (user.login || '??').substring(0, 2).toUpperCase()
   }
 
+  const renderUserAvatar = (user) => {
+    const initials = getInitials(user)
+    if (user.avatar && user.avatar.startsWith('data:image/')) {
+      return (
+        <img 
+          src={user.avatar} 
+          alt={initials} 
+          style={{ 
+            width: '46px', 
+            height: '46px', 
+            borderRadius: '14px', 
+            objectFit: 'cover', 
+            border: user.position === 'Адмін' ? '1px solid rgba(255,144,0,0.3)' : '1px solid rgba(255,255,255,0.08)' 
+          }} 
+        />
+      )
+    }
+    const getGradient = (name) => {
+      switch (name) {
+        case 'purple': return 'linear-gradient(135deg, #a855f7, #6366f1)';
+        case 'blue': return 'linear-gradient(135deg, #3b82f6, #06b6d4)';
+        case 'emerald': return 'linear-gradient(135deg, #10b981, #059669)';
+        case 'ruby': return 'linear-gradient(135deg, #f43f5e, #be123c)';
+        case 'orange': return 'linear-gradient(135deg, #ff9000, #ff5500)';
+        default: return null;
+      }
+    }
+    const grad = getGradient(user.avatar) || (user.position === 'Адмін' ? 'linear-gradient(135deg, #442a00, #221400)' : 'linear-gradient(135deg, #1c1c24, #0a0a0f)')
+    return (
+      <div style={{ 
+        width: '46px', 
+        height: '46px', 
+        borderRadius: '14px', 
+        background: grad, 
+        border: user.position === 'Адмін' ? '1px solid rgba(255,144,0,0.3)' : '1px solid rgba(255,255,255,0.08)',
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        fontWeight: 900,
+        fontSize: '0.9rem',
+        color: '#fff',
+        boxShadow: 'inset 0 2px 4px rgba(255,255,255,0.05)'
+      }}>
+        {initials}
+      </div>
+    )
+  }
+
   // Role pill background and text color
   const getRoleStyle = (position) => {
     switch (position) {
@@ -1768,22 +1816,7 @@ const SettingsModule = () => {
                         <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-start' }}>
                           <div style={{ position: 'relative' }}>
                             {/* Avatar Icon */}
-                            <div style={{ 
-                              width: '46px', 
-                              height: '46px', 
-                              borderRadius: '14px', 
-                              background: user.position === 'Адмін' ? 'linear-gradient(135deg, #442a00, #221400)' : 'linear-gradient(135deg, #1c1c24, #0a0a0f)', 
-                              border: user.position === 'Адмін' ? '1px solid rgba(255,144,0,0.3)' : '1px solid rgba(255,255,255,0.08)',
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              justifyContent: 'center',
-                              fontWeight: 900,
-                              fontSize: '0.9rem',
-                              color: user.position === 'Адмін' ? '#ff9000' : '#ddd',
-                              boxShadow: 'inset 0 2px 4px rgba(255,255,255,0.05)'
-                            }}>
-                              {getInitials(user)}
-                            </div>
+                            {renderUserAvatar(user)}
                             {/* Online / Active indicator */}
                             <div style={{ 
                               position: 'absolute', 
