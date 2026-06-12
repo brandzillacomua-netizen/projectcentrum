@@ -59,6 +59,7 @@ const ReportsModule        = lazy(() => import('./modules/ReportsModule'))
 const DashboardModule      = lazy(() => import('./modules/DashboardModule'))
 const MachineCallModule    = lazy(() => import('./modules/MachineCallModule'))
 const TumblingTerminal     = lazy(() => import('./modules/TumblingTerminal'))
+const SimulatorModule      = lazy(() => import('./modules/SimulatorModule'))
 
 import { MESProvider, useMES } from './MESContext'
 import { subscribeToPush } from './services/pushService'
@@ -104,6 +105,7 @@ const getAllModules = (badgeCount = 0) => [
   { id: 'director', title: 'Директор Виробництва', icon: <ShieldCheck size={24} />, path: '/director', desc: 'Фінальне підтвердження', color: '#10b981' },
   { id: 'analytics', title: 'Аналітика', icon: <TrendingUp />, path: '/analytics', desc: 'Статистика та KPI', color: '#8b5cf6' },
   { id: 'reports', title: 'Звіти (1С)', icon: <BarChart2 />, path: '/reports', desc: 'Зведена аналітика та звіти', color: '#10b981' },
+  { id: 'simulator', title: 'Симулятор', icon: <Sliders />, path: '/simulator', desc: 'Тестування живих замовлень', color: '#ef4444' },
 
   // 5. Технічні дані та Конфігурація
   { id: 'engineer', title: 'Інженер', icon: <FileCodeIcon />, path: '/engineer', desc: 'CNC та специфікації', color: '#8b5cf6' },
@@ -125,6 +127,7 @@ const getAvailableModules = (currentUser, badgeCount) => {
     if (m.id === 'reports') return currentUser?.access_rights?.director || currentUser?.access_rights?.reports || currentUser?.position === 'Адмін';
     if (m.id === 'prep_terminal') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.position?.toLowerCase().includes('вп') || currentUser?.position?.toLowerCase().includes('підготов');
     if (m.id === 'tumbling_terminal') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.tumbling_terminal;
+    if (m.id === 'simulator') return currentUser?.position === 'Адмін' || currentUser?.role === 'admin';
     return currentUser?.access_rights?.[m.id] === true;
   });
 }
@@ -156,6 +159,7 @@ const CATEGORY_MAP = {
   director: 'management_analytics',
   analytics: 'management_analytics',
   reports: 'management_analytics',
+  simulator: 'management_analytics',
 
   // Технічні дані та Конфігурація
   engineer: 'tech_settings',
@@ -2591,6 +2595,7 @@ const AppContent = () => {
         <Route path="/procurement" element={<PermissionGuard id="procurement"><SupplyModule isProcurementOnly={true} /></PermissionGuard>} />
         <Route path="/reports" element={<PermissionGuard id="reports"><ReportsModule /></PermissionGuard>} />
         <Route path="/settings" element={<PermissionGuard id="settings"><SettingsModule /></PermissionGuard>} />
+        <Route path="/simulator" element={<PermissionGuard id="simulator"><SimulatorModule /></PermissionGuard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
