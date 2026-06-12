@@ -454,21 +454,27 @@ export function createProductionActions({
     return data
   }
 
-  const startWorkCard = async (taskId, cardId, operatorName, metadata = {}) => {
+  const startWorkCard = (taskId, cardId, operatorName, metadata = {}) => {
     const updateData = { status: 'in-progress', started_at: new Date().toISOString(), operator_name: operatorName }
     if (metadata.stage_name) updateData.operation = metadata.stage_name
     if (metadata.machine_id) updateData.machine_id = metadata.machine_id
     if (metadata.machine_name) updateData.machine = metadata.machine_name
+    // Optimistic update — instant, no await
     setWorkCards(prev => prev.map(c => c.id === cardId ? { ...c, ...updateData } : c))
-    const { error } = await supabase.from('work_cards').update(updateData).eq('id', cardId)
-    if (error) { console.error('Error starting card:', error); refreshTable('work_cards') }
+    // Fire DB write in background — does NOT block UI
+    supabase.from('work_cards').update(updateData).eq('id', cardId).then(({ error }) => {
+      if (error) { console.error('Error starting card:', error); refreshTable('work_cards') }
+    })
   }
 
-  const completeWorkCard = async (taskId, cardId, operatorName) => {
+  const completeWorkCard = (taskId, cardId, operatorName) => {
     const updateData = { status: 'waiting-buffer', operator_name: operatorName, completed_at: new Date().toISOString() }
+    // Optimistic update — instant
     setWorkCards(prev => prev.map(c => c.id === cardId ? { ...c, ...updateData } : c))
-    const { error } = await supabase.from('work_cards').update(updateData).eq('id', cardId)
-    if (error) { console.error('Error completing card:', error); refreshTable('work_cards') }
+    // Fire DB write in background
+    supabase.from('work_cards').update(updateData).eq('id', cardId).then(({ error }) => {
+      if (error) { console.error('Error completing card:', error); refreshTable('work_cards') }
+    })
   }
 
   const CHAIN_SHOP1 = ['Розкрій', 'Галтовка', 'Прийомка']
@@ -785,6 +791,66 @@ export function createProductionActions({
       plan_snapshot._metadata = { planned_deadline: customDeadline || order.deadline, batch_index: isPartial ? nextBatchIndex : null }
       plan_snapshot.materialSummary = materialSummary
 
+      // ── Pre-compute consumables & selectedCutters BEFORE first insert ────
+      // This allows us to include a fully complete plan_snapshot in the INSERT,
+      // avoiding the redundant second UPDATE round-trip.
+      const _allMaterialsPreCompute = Object.values(materialSummary).map(info => ({ ...info, sheets: Number(info.sheets) || 0 }))
+      const _totalSheetsPreCompute = _allMaterialsPreCompute.filter(m => m.unit === 'ЛИСТІВ').reduce((acc, m) => acc + (m.sheets || 0), 0)
+
+      const _machineSpecificCutters = {}
+      let _hasMachineSpecificCutters = false
+      const _partIds = Object.keys(plan_snapshot).filter(k => !k.startsWith('_') && k !== 'materialSummary')
+      _partIds.forEach(partId => {
+        const partInfo = plan_snapshot[partId]
+        const sheetsNeeded = Number(partInfo.sheets) || 0
+        if (sheetsNeeded <= 0) return
+        const targetMach = partInfo.selected_machine || machineName
+        const opData = machineOperations?.find(o =>
+          String(o.nomenclature_id) === String(partId) &&
+          (o.machine_type === targetMach || o.machine_id === targetMach)
+        )
+        if (opData && opData.side2_cut_ops) {
+          const cutterOps = opData.side2_cut_ops.filter(op => op.startsWith('__CUTTER__Reference:') || op.startsWith('__CUTTER__:'))
+          cutterOps.forEach(op => {
+            const parts = op.split(':')
+            const cutterNomId = parts[1]
+            const qtyPerSheet = parseFloat(parts[2]) || 0
+            if (cutterNomId && qtyPerSheet > 0) {
+              _hasMachineSpecificCutters = true
+              const totalQty = Math.ceil(sheetsNeeded * qtyPerSheet)
+              const cutterNom = nomenclatures.find(n => String(n.id) === String(cutterNomId))
+              if (cutterNom) {
+                const cleanName = cutterNom.name.trim()
+                const key = cleanName.toLowerCase()
+                if (!_machineSpecificCutters[key]) {
+                  _machineSpecificCutters[key] = { name: cleanName, qty: 0, components: [], nomenclature_id: cutterNom.id }
+                }
+                _machineSpecificCutters[key].qty += totalQty
+                _machineSpecificCutters[key].components.push(`${partInfo.name}: ${totalQty} шт (${sheetsNeeded} л.)`)
+              }
+            }
+          })
+        }
+      })
+
+      const _consumablesSnapshot = []
+      Object.values(_machineSpecificCutters).forEach(item => {
+        _consumablesSnapshot.push({ name: item.name, total: item.qty })
+      })
+      if (_totalSheetsPreCompute > 0) {
+        nomenclatures.filter(n => n.type === 'consumable' && (Number(n.consumption_per_sheet) || 0) > 0 && n.name.trim().toLowerCase() !== 'фреза' && (n.name.toLowerCase().startsWith('лист') || n.name.toLowerCase().includes('фреза'))).forEach(cons => {
+          if (_hasMachineSpecificCutters && cons.name.toLowerCase().includes('фреза')) return
+          const neededQty = Math.ceil(_totalSheetsPreCompute * Number(cons.consumption_per_sheet))
+          const customInvId = customCutters?.[cons.name.trim()] || customCutters?.[cons.name]
+          const selectedInv = customInvId ? inventory.find(i => String(i.id) === String(customInvId)) : null
+          const displayName = selectedInv ? selectedInv.name : cons.name.trim()
+          _consumablesSnapshot.push({ name: displayName, total: neededQty })
+        })
+      }
+      plan_snapshot.selectedCutters = customCutters || {}
+      plan_snapshot.consumables = _consumablesSnapshot
+      // ────────────────────────────────────────────────────────────────────
+
       const isAllFromBZ = totalPlanQty === 0;
 
       const nowISO = new Date().toISOString()
@@ -909,63 +975,17 @@ export function createProductionActions({
         }
       }
 
-      await supabase.from('orders').update({ status: 'in-progress' }).eq('id', orderId)
+      // ── Fire all remaining writes in parallel ────────────────────────────
       const allMaterials = Object.values(materialSummary).map(info => ({ ...info, sheets: Number(info.sheets) || 0 }))
-      let totalActualSheets = allMaterials.filter(m => m.unit === 'ЛИСТІВ').reduce((acc, m) => acc + (m.sheets || 0), 0)
+      const totalActualSheets = _totalSheetsPreCompute
       const requestsToInsert = allMaterials.filter(info => info.matName && (info.matName.toLowerCase().startsWith('лист') || info.matName.toLowerCase().includes('фреза'))).map(info => {
         const qtyToRequest = info.unit === 'ЛИСТІВ' ? info.sheets : info.totalUnits;
         const unitLabel = info.unit === 'ЛИСТІВ' ? 'л.' : 'од.';
         return { order_id: orderId, task_id: tData.id, quantity: qtyToRequest, status: 'pending', inventory_id: info.inventory_id, nomenclature_id: info.nomenclature_id, details: `СКЛАД ОПЕРАТИВНИЙ: ${info.matName} — ${qtyToRequest} ${unitLabel} (Разом: ${info.totalUnits} шт | Для: ${info.components.join(', ')})` }
       })
 
-
-
-      // Add machine-specific cutters
-      const machineSpecificCutters = {}
-      let hasMachineSpecificCutters = false
-      const partIds = Object.keys(plan_snapshot).filter(k => !k.startsWith('_') && k !== 'materialSummary')
-      
-      partIds.forEach(partId => {
-        const partInfo = plan_snapshot[partId]
-        const sheetsNeeded = Number(partInfo.sheets) || 0
-        if (sheetsNeeded <= 0) return
-
-        // Find matching machine operation
-        const targetMach = partInfo.selected_machine || machineName
-        const opData = machineOperations?.find(o => 
-          String(o.nomenclature_id) === String(partId) &&
-          (o.machine_type === targetMach || o.machine_id === targetMach)
-        )
-        if (opData && opData.side2_cut_ops) {
-          const cutterOps = opData.side2_cut_ops.filter(op => op.startsWith('__CUTTER__Reference:') || op.startsWith('__CUTTER__:'))
-          cutterOps.forEach(op => {
-            const parts = op.split(':')
-            const cutterNomId = parts[1]
-            const qtyPerSheet = parseFloat(parts[2]) || 0
-            if (cutterNomId && qtyPerSheet > 0) {
-              hasMachineSpecificCutters = true
-              const totalQty = Math.ceil(sheetsNeeded * qtyPerSheet)
-              const cutterNom = nomenclatures.find(n => String(n.id) === String(cutterNomId))
-              if (cutterNom) {
-                const cleanName = cutterNom.name.trim()
-                const key = cleanName.toLowerCase()
-                if (!machineSpecificCutters[key]) {
-                  machineSpecificCutters[key] = {
-                    name: cleanName,
-                    qty: 0,
-                    components: [],
-                    nomenclature_id: cutterNom.id
-                  }
-                }
-                machineSpecificCutters[key].qty += totalQty
-                machineSpecificCutters[key].components.push(`${partInfo.name}: ${totalQty} шт (${sheetsNeeded} л.)`)
-              }
-            }
-          })
-        }
-      })
-
-      Object.values(machineSpecificCutters).forEach(item => {
+      // Add machine-specific cutters from pre-computed _machineSpecificCutters
+      Object.values(_machineSpecificCutters).forEach(item => {
         const invItem = inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id) && i.warehouse === 'operational')
           || inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id))
         requestsToInsert.push({
@@ -979,26 +999,20 @@ export function createProductionActions({
         })
       })
 
-      totalActualSheets = allMaterials.filter(m => m.unit === 'ЛИСТІВ').reduce((acc, m) => acc + (m.sheets || 0), 0)
       if (totalActualSheets > 0) {
         nomenclatures.filter(n => n.type === 'consumable' && (Number(n.consumption_per_sheet) || 0) > 0 && n.name.trim().toLowerCase() !== 'фреза' && (n.name.toLowerCase().startsWith('лист') || n.name.toLowerCase().includes('фреза'))).forEach(cons => {
-          if (hasMachineSpecificCutters && cons.name.toLowerCase().includes('фреза')) {
-            return
-          }
+          if (_hasMachineSpecificCutters && cons.name.toLowerCase().includes('фреза')) return
           const neededQty = Math.ceil(totalActualSheets * Number(cons.consumption_per_sheet))
           const invItem = inventory.find(i => i.nomenclature_id === cons.id)
           requestsToInsert.push({ order_id: orderId, task_id: tData.id, quantity: neededQty, status: 'pending', inventory_id: invItem?.id || null, nomenclature_id: cons.id, details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ${order.order_num}: ${cons.name} — ${neededQty} од.` })
         })
       }
-      // Update specific cutters using customCutters selected by foreman (after consumables have been added)
+      // Update specific cutters inventory binding
       if (customCutters && Object.keys(customCutters).length > 0) {
         Object.entries(customCutters).forEach(([cutterName, inventoryItemId]) => {
           if (!inventoryItemId) return
           const selectedInv = inventory.find(i => String(i.id) === String(inventoryItemId))
           if (!selectedInv) return
-
-          // Find if we already generated a material request for this nomenclature in the upcoming list
-          // and bind the custom selected inventory item ID
           const existingReq = requestsToInsert.find(r => {
             const nom = nomenclatures.find(n => String(n.id) === String(r.nomenclature_id));
             return nom && nom.name === cutterName;
@@ -1010,35 +1024,20 @@ export function createProductionActions({
           }
         })
       }
-      if (requestsToInsert.length > 0) await supabase.from('material_requests').insert(requestsToInsert)
-      
-      const consumablesSnapshot = []
-      Object.values(machineSpecificCutters).forEach(item => {
-        consumablesSnapshot.push({ name: item.name, total: item.qty })
-      })
-      if (totalActualSheets > 0) {
-        nomenclatures.filter(n => n.type === 'consumable' && (Number(n.consumption_per_sheet) || 0) > 0 && n.name.trim().toLowerCase() !== 'фреза' && (n.name.toLowerCase().startsWith('лист') || n.name.toLowerCase().includes('фреза'))).forEach(cons => {
-          if (hasMachineSpecificCutters && cons.name.toLowerCase().includes('фреза')) {
-            return
-          }
-          const neededQty = Math.ceil(totalActualSheets * Number(cons.consumption_per_sheet))
-          
-          // Check if foreman selected a specific cutter for this generic consumable name
-          const customInvId = customCutters?.[cons.name.trim()] || customCutters?.[cons.name]
-          const selectedInv = customInvId ? inventory.find(i => String(i.id) === String(customInvId)) : null
-          const displayName = selectedInv ? selectedInv.name : cons.name.trim()
 
-          consumablesSnapshot.push({ name: displayName, total: neededQty })
-        })
-      }
-      plan_snapshot.selectedCutters = customCutters || {}
-      plan_snapshot.consumables = consumablesSnapshot
+      // ── Run remaining DB writes in parallel (no sequential waits) ─────────
+      const parallelWrites = [
+        supabase.from('orders').update({ status: 'in-progress' }).eq('id', orderId)
+      ]
+      if (requestsToInsert.length > 0) parallelWrites.push(supabase.from('material_requests').insert(requestsToInsert))
+      await Promise.all(parallelWrites)
+
+      // ── Optimistic state update — no DB refetch needed ────────────────────
+      // Real-time subscription already handles INSERT events for tasks & material_requests.
+      // We only need a local optimistic patch in case real-time is slow.
       if (tData) {
-        await supabase.from('tasks').update({ plan_snapshot }).eq('id', tData.id)
+        setTasks(prev => prev.some(t => t.id === tData.id) ? prev : [tData, ...prev])
       }
-
-      // Refresh only what was changed: tasks + material_requests
-      await Promise.all([refreshTable('tasks'), refreshTable('material_requests')])
     } catch (err) { console.error('Error creating naryad:', err.message) }
   }
 

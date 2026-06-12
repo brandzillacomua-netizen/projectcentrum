@@ -122,6 +122,23 @@ const Shop2Module = () => {
       }))
   }
 
+  const getDisplayPartsForOrderItem = (task, it) => {
+    if (task?.plan_snapshot) {
+      const partsFromSnapshot = Object.values(task.plan_snapshot)
+        .filter(p => p && String(p.order_item_id) === String(it.id))
+        .map(p => {
+          const nom = (nomenclatures || []).find(n => String(n.id) === String(p.id))
+          return {
+            nom: nom || { id: p.id, name: p.name, nomenclature_code: p.code, material_type: p.material, type: 'part' },
+            quantity_per_parent: p.need / (Number(it.quantity) || 1)
+          }
+        });
+      if (partsFromSnapshot.length > 0) return partsFromSnapshot;
+    }
+    const parts = getBOMParts(it.nomenclature_id)
+    return parts.length > 0 ? parts : [{ nom: (nomenclatures || []).find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
+  }
+
   const getTaskDisplayItems = (task, orderObj) => {
     if (!task) return []
     const snapshot = task.plan_snapshot || {}
@@ -152,8 +169,8 @@ const Shop2Module = () => {
         code: (nomenclatures || []).find(n => String(n?.id) === String(a?.id))?.nomenclature_code
       }
     }) : (orderObj?.order_items || []).flatMap(item => {
-      const parts = getBOMParts(item?.nomenclature_id)
-      return parts.length > 0 ? parts.map(p => {
+      const parts = getDisplayPartsForOrderItem(task, item)
+      return parts.map(p => {
         const snapEntry = snapshot[String(p.nom?.id)]
         let needQty = (Number(item?.quantity) || 0) * (Number(p.quantity_per_parent) || 1)
         if (snapEntry !== undefined) {
@@ -165,18 +182,7 @@ const Shop2Module = () => {
           bz: 0,
           code: p.nom?.nomenclature_code
         }
-      }) : [{
-        nom: (nomenclatures || []).find(n => String(n?.id) === String(item?.nomenclature_id)),
-        need: (() => {
-          const snapEntry = snapshot[String(item?.nomenclature_id)]
-          if (snapEntry !== undefined) {
-            return snapEntry.plan !== undefined ? Number(snapEntry.plan) : Number(snapEntry.need || 0)
-          }
-          return Number(item?.quantity) || 0
-        })(),
-        bz: 0,
-        code: (nomenclatures || []).find(n => String(n?.id) === String(item?.nomenclature_id))?.nomenclature_code
-      }]
+      })
     })
 
     return (items || []).filter(item => item.nom?.type === 'part')

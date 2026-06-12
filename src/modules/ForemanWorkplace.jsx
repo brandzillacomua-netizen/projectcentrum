@@ -83,9 +83,24 @@ const ForemanWorkplace = () => {
   const handleOpenReport = async (task, order, taskCards) => {
     setReportTaskId(task.id)
     setShowReportModal(true)
-    setReportLoading(true)
-    setReportData(null)
     setReportStageFilter('All')
+
+    // Check if we have a cached report snapshot in the plan_snapshot
+    const cached = task?.plan_snapshot?._report_snapshot
+    if (cached) {
+      setReportData(cached)
+      // If the task is completed, we don't need to refresh it at all! It's final.
+      if (task.status === 'completed') {
+        setReportLoading(false)
+        return
+      }
+    }
+
+    setReportLoading(true)
+    if (!cached) {
+      setReportData(null)
+    }
+
     try {
       // 1. Fetch material requests for this task to determine planned cutters/consumables
       const { data: materialRequests, error: reqError } = await supabase
@@ -96,7 +111,6 @@ const ForemanWorkplace = () => {
       if (reqError) console.warn('Error fetching material requests:', reqError.message)
 
       // 2. Fetch ALL card IDs for this task directly from DB
-      //    (taskCards from state may be missing completed/archived cards if archiveCards hasn't loaded yet)
       const { data: allTaskCardsDB } = await supabase
         .from('work_cards')
         .select('id')
@@ -109,7 +123,8 @@ const ForemanWorkplace = () => {
       console.log('[Report] task:', task.id, '| stateCards:', stateCardIds.length, '| dbCards:', dbCardIds.length, '| total:', allCardIds.length)
 
       if (allCardIds.length === 0) {
-        setReportData({ historyRows: [], taskCards, materialRequests: materialRequests || [] })
+        const finalData = { historyRows: [], taskCards, materialRequests: materialRequests || [] }
+        setReportData(finalData)
         setReportLoading(false)
         return
       }
@@ -123,14 +138,21 @@ const ForemanWorkplace = () => {
 
       if (error) throw error
 
-      const cutterRows = (historyRows || []).filter(r => r.cutters_used > 0 || (r.card_info || '').includes('CUTTERS_BREAKDOWN'))
-      console.log('[Report] historyRows:', historyRows?.length, '| cutterRows:', cutterRows.length)
-      cutterRows.forEach(r => console.log('[Report] cutterRow:', { id: r.id, stage: r.stage_name, cutters_used: r.cutters_used, card_info: r.card_info }))
+      const finalData = { historyRows: historyRows || [], taskCards, materialRequests: materialRequests || [] }
+      setReportData(finalData)
 
-      setReportData({ historyRows: historyRows || [], taskCards, materialRequests: materialRequests || [] })
+      // Save to cache in the database
+      const updatedSnapshot = {
+        ...(task.plan_snapshot || {}),
+        _report_snapshot: finalData
+      }
+      
+      await supabase.from('tasks').update({ plan_snapshot: updatedSnapshot }).eq('id', task.id)
     } catch (e) {
       console.error(e)
-      alert('Помилка завантаження звіту: ' + e.message)
+      if (!cached) {
+        alert('Помилка завантаження звіту: ' + e.message)
+      }
     } finally {
       setReportLoading(false)
     }
@@ -355,6 +377,23 @@ const ForemanWorkplace = () => {
       }))
   }
 
+  const getDisplayPartsForOrderItem = (task, it) => {
+    if (task?.plan_snapshot) {
+      const partsFromSnapshot = Object.values(task.plan_snapshot)
+        .filter(p => p && String(p.order_item_id) === String(it.id))
+        .map(p => {
+          const nom = nomenclatures.find(n => String(n.id) === String(p.id))
+          return {
+            nom: nom || { id: p.id, name: p.name, nomenclature_code: p.code, material_type: p.material, type: 'part' },
+            quantity_per_parent: p.need / (Number(it.quantity) || 1)
+          }
+        });
+      if (partsFromSnapshot.length > 0) return partsFromSnapshot;
+    }
+    const parts = getBOMParts(it.nomenclature_id)
+    return parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
+  }
+
 const MACHINE_TYPES = [
   'CNC 1200x800 - 4 листи (Малий)',
   'CNC 3050(16)х16 - 3-12 листів (швидкісний)',
@@ -441,10 +480,7 @@ const MACHINE_TYPES = [
       const taskCache = productionCache[task.id] || {}
       
       const isReady = order?.order_items?.every(item => {
-        const parts = getBOMParts(item.nomenclature_id)
-        const rows = parts.length > 0
-          ? parts
-          : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }]
+        const rows = getDisplayPartsForOrderItem(task, item)
         const shop1Parts = rows.filter(r => r.nom?.type === 'part')
         if (shop1Parts.length === 0) return true
         return shop1Parts.every(part => {
@@ -1098,8 +1134,7 @@ const MACHINE_TYPES = [
               // ПЕРЕВІРКА НА ПОВНЕ ВИКОНАННЯ
               // Картки вважаються «виробленими», якщо вони completed, at-buffer або на стадії прийомки
               const isTaskComplete = order?.order_items?.every(item => {
-                const parts = getBOMParts(item.nomenclature_id)
-                const rows = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }]
+                const rows = getDisplayPartsForOrderItem(task, item)
                 const shop1Parts = rows.filter(r => r.nom?.type === 'part')
                 return shop1Parts.every(part => {
                   const snapshot = task.plan_snapshot?.[String(part.nom?.id)]
@@ -1293,11 +1328,7 @@ const MACHINE_TYPES = [
                         </thead>
                         <tbody>
                           {order?.order_items?.flatMap(item => {
-                            const parts = getBOMParts(item.nomenclature_id)
-                            const initialRows = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }]
-                            
-                            // Filter: Only show parts in Shop 1 (exclude hardware/fasteners)
-                            const rows = initialRows.filter(r => r.nom?.type === 'part')
+                            const rows = getDisplayPartsForOrderItem(task, item).filter(r => r.nom?.type === 'part')
                             
                             return rows.map((part, idx) => {
                               const rowId = `${item.id}-${part.nom?.id || idx}`
@@ -2425,13 +2456,26 @@ const MACHINE_TYPES = [
           })
         }
 
-        // Materials summary
+        // Materials summary — prefer plan_snapshot.materialSummary for correct Т700/Т300 names
         const materialsSummary = {}
-        tableRows.forEach(row => {
-          if (row.material && row.material !== '—' && row.sheets > 0) {
-            materialsSummary[row.material] = (materialsSummary[row.material] || 0) + row.sheets
-          }
-        })
+        const snapshotMaterials = task?.plan_snapshot?.materialSummary
+        if (snapshotMaterials && Object.keys(snapshotMaterials).length > 0) {
+          // Use the saved materialSummary which has exact sheet type names (Лист Т700, Лист Т300 etc.)
+          Object.values(snapshotMaterials).forEach(mat => {
+            const name = mat.matName || mat.name || ''
+            const qty = Number(mat.sheets) || 0
+            if (name && qty > 0) {
+              materialsSummary[name] = (materialsSummary[name] || 0) + qty
+            }
+          })
+        } else {
+          // Fallback: build from tableRows.material (less precise, no Т700/Т300 distinction)
+          tableRows.forEach(row => {
+            if (row.material && row.material !== '—' && row.sheets > 0) {
+              materialsSummary[row.material] = (materialsSummary[row.material] || 0) + row.sheets
+            }
+          })
+        }
 
         // Consumables summary
         const cuttersSummary = {}
@@ -2753,6 +2797,16 @@ const MACHINE_TYPES = [
                 })
               }
 
+              const getMaterialName = (typePrefix, thickness) => {
+                const rawNom = nomenclatures?.find(n =>
+                  (n.type === 'raw' || n.type === 'material') &&
+                  n.name.includes('[Підготовлений]') &&
+                  (n.name.toLowerCase().includes(typePrefix.toLowerCase()) || (typePrefix === 'Т300' && !n.name.toLowerCase().includes('т700') && !n.name.toLowerCase().includes('t700'))) &&
+                  n.name.toLowerCase().replace(/\s+/g, '').includes(`(${thickness.toLowerCase()})`)
+                )
+                return rawNom ? rawNom.name : `Лист ${typePrefix} (${thickness}) [Підготовлений]`
+              }
+
               partsList.forEach(p => {
                 const partHistory = reportData.historyRows.filter(h => String(h.nomenclature_id) === String(p.nomId))
                 const cuttingHistory = partHistory.filter(h => h.stage_name === 'Розкрій')
@@ -2768,15 +2822,45 @@ const MACHINE_TYPES = [
                 totalPlannedParts += (p.plan || 0)
                 totalActualParts += acceptedQty
 
-                const matKey = p.material || '—'
-                if (!materialStats[matKey]) {
-                  materialStats[matKey] = {
-                    plannedSheets: 0,
-                    actualSheets: 0
+                // Get planned splits from snapshot
+                const snapEntry = snapshot?.[p.nomId]
+                let plannedT300 = snapEntry ? Number(snapEntry.sheets_t300) : p.sheets
+                let plannedT700 = snapEntry ? Number(snapEntry.sheets_t700) : 0
+                if (isNaN(plannedT300)) plannedT300 = p.sheets
+                if (isNaN(plannedT700)) plannedT700 = 0
+
+                const totalPlanned = plannedT300 + plannedT700
+                const ratioT300 = totalPlanned > 0 ? (plannedT300 / totalPlanned) : 1
+                const ratioT700 = totalPlanned > 0 ? (plannedT700 / totalPlanned) : 0
+
+                const actualT300 = Math.round(sheetsDone * ratioT300)
+                const actualT700 = Math.round(sheetsDone * ratioT700)
+
+                const rawMat = p.material || '—'
+                const thickMatch = rawMat.match(/(\d+(?:\.\d+)?)мм/i)
+                const thickness = thickMatch ? `${thickMatch[1]}мм` : null
+
+                const addToStats = (name, planned, actual) => {
+                  if (planned === 0 && actual === 0) return
+                  if (!materialStats[name]) {
+                    materialStats[name] = {
+                      plannedSheets: 0,
+                      actualSheets: 0
+                    }
                   }
+                  materialStats[name].plannedSheets += planned
+                  materialStats[name].actualSheets += actual
                 }
-                materialStats[matKey].plannedSheets += (p.sheets || 0)
-                materialStats[matKey].actualSheets += sheetsDone
+
+                if (thickness) {
+                  const t300Name = getMaterialName('Т300', thickness)
+                  const t700Name = getMaterialName('Т700', thickness)
+                  
+                  addToStats(t300Name, plannedT300, actualT300)
+                  addToStats(t700Name, plannedT700, actualT700)
+                } else {
+                  addToStats(rawMat, p.sheets, sheetsDone)
+                }
               })
 
               totalScrap = reportData.historyRows.reduce((sum, row) => sum + (Number(row.scrap_qty) || 0), 0)
