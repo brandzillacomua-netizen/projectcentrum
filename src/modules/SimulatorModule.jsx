@@ -144,7 +144,10 @@ const SimulatorModule = () => {
           order_num: orderNum,
           customer: 'REALISTIC SIMULATION CORP',
           status: 'pending',
-          deadline: new Date(Date.now() + 86400000 * 3).toISOString()
+          deadline: new Date(Date.now() + 86400000 * 3).toISOString(),
+          nomenclature_id: selectedProduct.id,
+          quantity: qty,
+          accessories: selectedProduct.name
         }]).select().single()
 
         if (orderErr) {
