@@ -43,7 +43,7 @@ const SimulatorModule = () => {
   const parentProductsList = useMemo(() => {
     if (!nomenclatures || !bomItems) return []
     const parentIds = new Set(bomItems.map(b => String(b.parent_id)))
-    return nomenclatures.filter(n => parentIds.has(String(n.id)))
+    return nomenclatures.filter(n => n.type === 'product' && parentIds.has(String(n.id)))
   }, [nomenclatures, bomItems])
 
   // --- CLEANUP TEST DATA ---
