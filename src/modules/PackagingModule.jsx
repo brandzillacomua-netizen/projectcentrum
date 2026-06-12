@@ -157,15 +157,38 @@ const PackagingModule = () => {
 
     return Object.values(batchGroups).map(batch => {
       const batchBOM = []
-      const order = orders.find(o => o.id === batch.orderId)
-      order?.order_items?.forEach(item => {
-        const children = bomItems.filter(b => String(b.parent_id) === String(item.nomenclature_id))
-        children.forEach(b => {
-          const nom = nomenclatures.find(n => String(n.id) === String(b.child_id))
-          const nameLower = nom?.name?.toLowerCase() || ''
-          if (nom && !(nameLower.includes('прес') && (nameLower.includes('гайка') || nameLower.includes('втулка')))) batchBOM.push(nom.id)
+      const hasSnapshot = batch.tasks.some(t => t.plan_snapshot)
+      if (hasSnapshot) {
+        batch.tasks.forEach(t => {
+          if (t.plan_snapshot) {
+            Object.keys(t.plan_snapshot).forEach(key => {
+              if (!key.startsWith('_') && key !== 'materialSummary' && key !== 'selectedCutters') {
+                const nom = nomenclatures.find(n => String(n.id) === String(key))
+                const nameLower = nom?.name?.toLowerCase() || ''
+                if (nom && !(nameLower.includes('прес') && (nameLower.includes('гайка') || nameLower.includes('втулка')))) {
+                  if (!batchBOM.includes(nom.id)) {
+                    batchBOM.push(nom.id)
+                  }
+                }
+              }
+            })
+          }
         })
-      })
+      } else {
+        const order = orders.find(o => o.id === batch.orderId)
+        order?.order_items?.forEach(item => {
+          const children = bomItems.filter(b => String(b.parent_id) === String(item.nomenclature_id))
+          children.forEach(b => {
+            const nom = nomenclatures.find(n => String(n.id) === String(b.child_id))
+            const nameLower = nom?.name?.toLowerCase() || ''
+            if (nom && !(nameLower.includes('прес') && (nameLower.includes('гайка') || nameLower.includes('втулка')))) {
+              if (!batchBOM.includes(nom.id)) {
+                batchBOM.push(nom.id)
+              }
+            }
+          })
+        })
+      }
 
       const batchReqs = (requests || []).filter(r => {
         if (String(r.order_id) !== String(batch.orderId)) return false
@@ -205,24 +228,57 @@ const PackagingModule = () => {
   // ─── BOM ──────────────────────────────────────────────────────────────────
   const { categorizedBOM } = useMemo(() => {
     if (!activeBatchData) return { categorizedBOM: {}, hasBOM: false }
-    const order = orders.find(o => o.id === activeBatchData.orderId)
-    if (!order || !order.order_items) return { categorizedBOM: {}, hasBOM: false }
     const map = {}
     let foundAnyBom = false
-    order.order_items.forEach(item => {
-      const parentBOM = bomItems.filter(b => String(b.parent_id) === String(item.nomenclature_id))
-      if (parentBOM.length > 0) foundAnyBom = true
-      parentBOM.forEach(b => {
-        const nom = nomenclatures.find(n => String(n.id) === String(b.child_id))
-        if (nom) {
-          const nameLower = nom.name?.toLowerCase() || ''
-          if (nameLower.includes('прес') && (nameLower.includes('гайка') || nameLower.includes('втулка'))) return
-          const totalQty = Number(b.quantity_per_parent) * Number(activeBatchData.plannedSets)
-          if (!map[nom.id]) map[nom.id] = { nom, qty: 0 }
-          map[nom.id].qty += totalQty
-        }
-      })
+    let hasSnapshot = false
+
+    activeBatchData.tasks.forEach(t => {
+      if (t.plan_snapshot) {
+        hasSnapshot = true
+        Object.keys(t.plan_snapshot).forEach(key => {
+          if (!key.startsWith('_') && key !== 'materialSummary' && key !== 'selectedCutters') {
+            const snapItem = t.plan_snapshot[key]
+            const nom = nomenclatures.find(n => String(n.id) === String(key)) || {
+              id: snapItem.id,
+              name: snapItem.name,
+              nomenclature_code: snapItem.code,
+              material_type: snapItem.material,
+              type: 'part'
+            }
+            const nameLower = nom.name?.toLowerCase() || ''
+            if (nameLower.includes('прес') && (nameLower.includes('гайка') || nameLower.includes('втулка'))) return
+            foundAnyBom = true
+            const qty = Number(snapItem.need) || 0
+            if (!map[nom.id]) {
+              map[nom.id] = { nom, qty: 0 }
+            }
+            if (qty > map[nom.id].qty) {
+              map[nom.id].qty = qty
+            }
+          }
+        })
+      }
     })
+
+    if (!hasSnapshot) {
+      const order = orders.find(o => o.id === activeBatchData.orderId)
+      if (order && order.order_items) {
+        order.order_items.forEach(item => {
+          const parentBOM = bomItems.filter(b => String(b.parent_id) === String(item.nomenclature_id))
+          if (parentBOM.length > 0) foundAnyBom = true
+          parentBOM.forEach(b => {
+            const nom = nomenclatures.find(n => String(n.id) === String(b.child_id))
+            if (nom) {
+              const nameLower = nom.name?.toLowerCase() || ''
+              if (nameLower.includes('прес') && (nameLower.includes('гайка') || nameLower.includes('втулка'))) return
+              const totalQty = Number(b.quantity_per_parent) * Number(activeBatchData.plannedSets)
+              if (!map[nom.id]) map[nom.id] = { nom, qty: 0 }
+              map[nom.id].qty += totalQty
+            }
+          })
+        })
+      }
+    }
     const categories = {
       sgp: { title: '1. ДЕТАЛІ / ГОТОВІ ВИРОБИ (СГП)', items: [], color: '#f43f5e', icon: <Package size={18} /> },
       mounts: { title: '2. КРІПЛЕННЯ / 3Д ДРУК', items: [], color: '#eab308', icon: <Layers size={18} /> },
