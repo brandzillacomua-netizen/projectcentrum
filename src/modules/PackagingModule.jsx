@@ -238,6 +238,7 @@ const PackagingModule = () => {
         Object.keys(t.plan_snapshot).forEach(key => {
           if (!key.startsWith('_') && key !== 'materialSummary' && key !== 'selectedCutters') {
             const snapItem = t.plan_snapshot[key]
+            if (!snapItem || typeof snapItem !== 'object') return
             const nom = nomenclatures.find(n => String(n.id) === String(key)) || {
               id: snapItem.id,
               name: snapItem.name,

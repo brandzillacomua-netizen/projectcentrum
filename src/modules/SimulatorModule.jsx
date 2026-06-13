@@ -14,7 +14,8 @@ const SimulatorModule = () => {
   const [minQty, setMinQty] = useState(10)
   const [maxQty, setMaxQty] = useState(200)
   const [scrapRate, setScrapRate] = useState(15)
-  const [delay, setDelay] = useState(400) // ms between steps
+  const [delay, setDelay] = useState(1500) // ms between steps, default to 1.5s for realistic pace
+  const [orderCount, setOrderCount] = useState(3) // configurable number of orders
   const [isRunning, setIsRunning] = useState(false)
   const [statusText, setStatusText] = useState('Очікування запуску...')
   const [progress, setProgress] = useState(0)
@@ -39,7 +40,7 @@ const SimulatorModule = () => {
     setLogs(prev => [...prev, { time, message, type }])
   }
 
-  // Filter products that have BOM recipes (parent items)
+  // Filter products that have BOM recipes (parent items) and are finished products
   const parentProductsList = useMemo(() => {
     if (!nomenclatures || !bomItems) return []
     const parentIds = new Set(bomItems.map(b => String(b.parent_id)))
@@ -97,7 +98,6 @@ const SimulatorModule = () => {
 
     addLog('🚀 Початок реалістичного E2E тестування...', 'success')
 
-    // Find products with BOM
     if (parentProductsList.length === 0) {
       addLog('Помилка: У базі даних немає номенклатур з рецептами (BOM).', 'error')
       setIsRunning(false)
@@ -116,11 +116,10 @@ const SimulatorModule = () => {
       // Step 1: Create simulated orders
       addLog('Крок 1: Створення тестових замовлень...', 'info')
       
-      const orderCountToRun = 3 // Run 3 complex orders from A to Z to avoid DB timeout while keeping it completely real
+      const orderCountToRun = Number(orderCount) || 3
       for (let i = 1; i <= orderCountToRun; i++) {
         if (!isRunningRef.current) break
         
-        // Choose product based on selection
         let selectedProduct = null
         if (selectedProductOption === 'random') {
           selectedProduct = parentProductsList[Math.floor(Math.random() * parentProductsList.length)]
@@ -133,13 +132,12 @@ const SimulatorModule = () => {
           continue
         }
 
-        // Generate random quantity within bounds
         const qty = Math.floor(Number(minQty) + Math.random() * (Number(maxQty) - Number(minQty) + 1))
         const orderNum = `SIM-${String(Math.floor(100000 + Math.random() * 900000))}`
         
         setStatusText(`Створення замовлення ${orderNum}...`)
         
-        // Insert order
+        // Insert order header
         const { data: orderData, error: orderErr } = await supabase.from('orders').insert([{
           order_num: orderNum,
           customer: 'REALISTIC SIMULATION CORP',
@@ -159,8 +157,7 @@ const SimulatorModule = () => {
         const { error: itemErr } = await supabase.from('order_items').insert([{
           order_id: orderData.id,
           nomenclature_id: selectedProduct.id,
-          quantity: qty,
-          price: 150
+          quantity: qty
         }])
 
         if (itemErr) {
@@ -186,8 +183,15 @@ const SimulatorModule = () => {
         await wait(delay)
       }
 
+      await wait(1000)
+
+      // Fetch fresh DB schema details to bypass any local React state closures
+      const { data: dbNomenclatures } = await supabase.from('nomenclatures').select('*')
+      const { data: dbBomItems } = await supabase.from('bom_items').select('*')
+      const { data: dbInventory } = await supabase.from('inventory').select('*')
+
       // Step 2: Planning (Master workflow)
-      addLog('Крок 2: Планування нарядів (Майстер зміни)...', 'info')
+      addLog('Крок 2: Планування нарядів та генерація робочих карт...', 'info')
       
       for (const sim of activeTestOrders) {
         if (!isRunningRef.current) break
@@ -197,13 +201,185 @@ const SimulatorModule = () => {
         setSimulatedOrders([...activeTestOrders])
 
         try {
-          await createNaryad(
-            sim.id, 
-            'CNC 1200x800 - 4 листи (Малий)', 
-            null, 
-            null
-          )
-          addLog(`Наряд для ${sim.orderNum} сплановано на верстат. Створено завдання та розраховано сировину.`, 'success')
+          // Find the BOM parts
+          const parts = dbBomItems.filter(b => String(b.parent_id) === String(sim.nomenclatureId))
+          const displayParts = parts.length > 0 ? parts.map(b => ({
+            nom: dbNomenclatures.find(n => String(n.id) === String(b.child_id)),
+            qtyPer: Number(b.quantity_per_parent) || 1
+          })).filter(p => p.nom !== undefined) : [{ nom: dbNomenclatures.find(n => String(n.id) === String(sim.nomenclatureId)), qtyPer: 1 }]
+
+          const plan_snapshot = {}
+          const materialSummary = {}
+          let totalMin = 0
+          let totalPlanQty = 0
+
+          displayParts.forEach(part => {
+            const totalNeeded = sim.quantity * part.qtyPer
+            // Query actual BZ stock from the database snapshot
+            const invItem = dbInventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'bz')
+            const inStockQty = invItem ? Math.max(0, (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0)) : 0
+            const usedFromStock = Math.min(totalNeeded, inStockQty)
+            const totalToProduce = Math.max(0, totalNeeded - inStockQty)
+            totalPlanQty += totalToProduce
+
+            const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
+            const sheets = Math.ceil(totalToProduce / unitsPerSheet)
+
+            plan_snapshot[part.nom.id] = {
+              id: part.nom.id,
+              name: part.nom.name,
+              code: part.nom.nomenclature_code,
+              need: totalNeeded,
+              stock: usedFromStock, // using BZ stock
+              plan: totalToProduce,
+              units_per_sheet: unitsPerSheet,
+              sheets: sheets,
+              sheets_t300: sheets,
+              sheets_t700: 0,
+              material: part.nom.material_type,
+              selected_machine: 'CNC 1200x800 - 4 листи (Малий)'
+            }
+
+            // Deduct BZ stock from database
+            if (usedFromStock > 0 && invItem) {
+              supabase.from('inventory').update({ total_qty: (Number(invItem.total_qty) || 0) - usedFromStock }).eq('id', invItem.id).then(() => {
+                addLog(`📦 Зарезервовано та списано зі складу БЗ: ${usedFromStock} шт. деталі ${part.nom.name}`, 'warning')
+              })
+            }
+
+            totalMin += totalToProduce * (Number(part.nom.time_per_unit) || 0)
+
+            const matKeyBase = (part.nom.material_type || part.nom.name || '').trim();
+            const isSheet = matKeyBase.toLowerCase().startsWith('лист') ||
+                            matKeyBase.toLowerCase().includes('карбон') ||
+                            matKeyBase.toLowerCase().includes('carbon');
+
+            if (isSheet) {
+              const thickMatch = matKeyBase.match(/\((\d+(?:\.\d+)?)мм\)/i)
+              const thicknessClean = thickMatch ? `${thickMatch[1]}мм` : matKeyBase.toLowerCase().replace(' ', '')
+              let rawNom = dbNomenclatures.find(n =>
+                (n.type === 'raw' || n.type === 'material') &&
+                n.name.includes('[Підготовлений]') &&
+                (n.name.toLowerCase().includes('т300') || n.name.toLowerCase().includes('t300')) &&
+                n.name.toLowerCase().replace(' ', '').includes(`(${thicknessClean})`)
+              )
+              if (!rawNom) {
+                rawNom = dbNomenclatures.find(n =>
+                  (n.type === 'raw' || n.type === 'material') &&
+                  n.name.toLowerCase().includes('т300')
+                )
+              }
+
+              const matId = rawNom ? rawNom.id : `virtual-t300-${part.nom.id}`
+              const matKey = rawNom ? rawNom.name : `Лист Т300 (${matKeyBase}) [Підготовлений]`
+
+              if (!materialSummary[matId]) {
+                materialSummary[matId] = {
+                  matName: matKey,
+                  sheets: 0,
+                  totalUnits: 0,
+                  components: [],
+                  inventory_id: null,
+                  nomenclature_id: rawNom?.id || null,
+                  unit: 'ЛИСТІВ',
+                  partType: rawNom?.type || 'raw'
+                }
+
+                if (rawNom) {
+                  const inv = dbInventory.find(i => String(i.nomenclature_id) === String(rawNom.id) && i.warehouse === 'operational')
+                  materialSummary[matId].inventory_id = inv?.id || null
+                }
+              }
+
+              materialSummary[matId].sheets += sheets
+              materialSummary[matId].totalUnits += totalToProduce
+              materialSummary[matId].components.push(`${part.nom.name}: ${totalToProduce}шт`)
+            }
+          })
+
+          plan_snapshot.materialSummary = materialSummary
+          plan_snapshot._metadata = { planned_deadline: new Date(Date.now() + 86400000 * 3).toISOString() }
+
+          // Insert the task (naryad) in the DB
+          const { data: taskData, error: taskErr } = await supabase.from('tasks').insert([{
+            order_id: sim.id,
+            step: 'Розкрій',
+            status: 'waiting',
+            machine_name: 'CNC 1200x800 - 4 листи (Малий)',
+            estimated_time: Math.round(totalMin) || 120,
+            engineer_conf: false,
+            warehouse_conf: false,
+            director_conf: false,
+            plan_snapshot: plan_snapshot,
+            planned_sets: sim.quantity,
+            planned_deadline: new Date(Date.now() + 86400000 * 3).toISOString()
+          }]).select().single()
+
+          if (taskErr) throw taskErr
+
+          addLog(`Наряд для ${sim.orderNum} сплановано на верстат.`, 'success')
+
+          // Insert material requests
+          const requestsToInsert = Object.values(materialSummary).map(info => {
+            const qtyToRequest = info.sheets
+            return {
+              order_id: sim.id,
+              task_id: taskData.id,
+              quantity: qtyToRequest,
+              status: 'pending',
+              inventory_id: info.inventory_id,
+              nomenclature_id: info.nomenclature_id,
+              details: `СКЛАД ОПЕРАТИВНИЙ: ${info.matName} — ${qtyToRequest} л. (Разом: ${info.totalUnits} шт | Для: ${info.components.join(', ')})`
+            }
+          })
+
+          if (requestsToInsert.length > 0) {
+            await supabase.from('material_requests').insert(requestsToInsert)
+          }
+
+          // Update order status in orders
+          await supabase.from('orders').update({ status: 'in-progress' }).eq('id', sim.id)
+
+          // Generate work cards
+          const cardsToInsert = []
+          Object.keys(plan_snapshot).forEach(partId => {
+            if (partId.startsWith('_') || partId === 'materialSummary' || partId === 'selectedCutters' || partId === 'consumables') return
+            const partInfo = plan_snapshot[partId]
+            const usedBZ = Number(partInfo.stock) || 0
+            const needToProduce = Number(partInfo.plan) || 0
+
+            if (usedBZ > 0) {
+              cardsToInsert.push({
+                task_id: taskData.id,
+                order_id: sim.id,
+                nomenclature_id: partInfo.id,
+                operation: 'Склад БЗ',
+                machine: 'Склад',
+                quantity: usedBZ,
+                status: 'completed',
+                card_info: `[ЗІ СКЛАДУ БЗ] ${partInfo.name}`
+              })
+            }
+
+            if (needToProduce > 0) {
+              cardsToInsert.push({
+                task_id: taskData.id,
+                order_id: sim.id,
+                nomenclature_id: partInfo.id,
+                operation: 'Розкрій',
+                machine: 'CNC 1200x800 - 4 листи (Малий)',
+                quantity: needToProduce,
+                status: 'waiting-materials',
+                card_info: `${partInfo.name}\nНаряд №${sim.orderNum}`
+              })
+            }
+          })
+
+          if (cardsToInsert.length > 0) {
+            await supabase.from('work_cards').insert(cardsToInsert)
+            await supabase.from('tasks').update({ status: 'in-progress' }).eq('id', taskData.id)
+            addLog(`Генерація ${cardsToInsert.length} робочих карт завершена для наряду ${sim.orderNum}.`, 'success')
+          }
         } catch (planErr) {
           addLog(`Помилка планування ${sim.orderNum}: ${planErr.message}`, 'error')
           sim.status = 'stuck'
@@ -211,9 +387,6 @@ const SimulatorModule = () => {
         }
         await wait(delay)
       }
-
-      // Refresh data
-      await fetchData(['tasks', 'orders', 'inventory', 'work_cards', 'material_requests'])
 
       // Step 3: Material Seeding and Issuance (Supply/Warehouse workflow)
       addLog('Крок 3: Забезпечення складу сировиною та видача на виробництво...', 'info')
@@ -232,17 +405,16 @@ const SimulatorModule = () => {
         if (reqs && reqs.length > 0) {
           addLog(`Знайдено ${reqs.length} запитів матеріалів на склад для ${sim.orderNum}.`, 'info')
           
-          // Seed inventory dynamically to support huge batches (up to 1000 units)
+          // Seed inventory dynamically
           const inventorySeeds = []
           for (const req of reqs) {
-            const nom = nomenclatures.find(n => n.id === req.nomenclature_id)
+            const nom = dbNomenclatures.find(n => n.id === req.nomenclature_id)
             const requiredQty = Number(req.quantity)
             
-            // Seed both raw materials (operational warehouse) and prepared sheets (production warehouse)
             inventorySeeds.push({
               nomenclature_id: req.nomenclature_id,
               name: nom?.name || 'Матеріал',
-              total_qty: requiredQty * 2, // Double to cover scrap/doviпуск
+              total_qty: requiredQty * 2,
               type: nom?.type || 'raw',
               warehouse: 'operational',
               unit: nom?.unit || 'шт'
@@ -250,15 +422,10 @@ const SimulatorModule = () => {
           }
 
           if (inventorySeeds.length > 0) {
-            const { error: seedErr } = await supabase.from('inventory').upsert(inventorySeeds, { onConflict: 'nomenclature_id,warehouse,type' })
-            if (seedErr) {
-              addLog(`Помилка поповнення складу: ${seedErr.message}`, 'error')
-            } else {
-              addLog(`Склад поповнено на ${inventorySeeds.length} позицій сировини.`, 'success')
-            }
+            await supabase.from('inventory').upsert(inventorySeeds, { onConflict: 'nomenclature_id,warehouse,type' })
           }
 
-          // Approve all requests to simulate supply confirmation
+          // Approve requests in DB
           const { error: issueErr } = await supabase.from('material_requests')
             .update({ status: 'issued' })
             .eq('order_id', sim.id)
@@ -300,7 +467,7 @@ const SimulatorModule = () => {
           for (const card of cards) {
             if (card.status === 'completed') continue
             
-            // Simulating CNC Cutting start
+            // Start card in DB
             await supabase.from('work_cards').update({
               status: 'in-progress',
               started_at: new Date().toISOString(),
@@ -315,7 +482,7 @@ const SimulatorModule = () => {
             let scrapQty = 0
 
             if (isScraped) {
-              scrapQty = Math.max(1, Math.floor(card.quantity * 0.15)) // 15% scrap
+              scrapQty = Math.max(1, Math.floor(card.quantity * 0.15))
               finalQty = card.quantity - scrapQty
               sim.scrapOccurred = true
               totalScrap += scrapQty
@@ -334,7 +501,7 @@ const SimulatorModule = () => {
               }])
             }
 
-            // Move card to Sort buffer
+            // Move card to Sort buffer in DB
             await supabase.from('work_cards').update({
               status: 'at-buffer',
               quantity: finalQty,
@@ -345,7 +512,7 @@ const SimulatorModule = () => {
             // Write to operational semi-finished stock
             await supabase.from('inventory').upsert([{
               nomenclature_id: card.nomenclature_id,
-              name: nomenclatures.find(n => n.id === card.nomenclature_id)?.name || 'Деталь',
+              name: dbNomenclatures.find(n => n.id === card.nomenclature_id)?.name || 'Деталь',
               total_qty: finalQty,
               type: 'semi',
               warehouse: 'operational',
@@ -369,14 +536,21 @@ const SimulatorModule = () => {
         sim.step = 'Цех 2'
         setSimulatedOrders([...activeTestOrders])
 
+        // Complete the first task in DB
+        await supabase.from('tasks').update({
+          status: 'completed',
+          completed_at: new Date().toISOString()
+        }).eq('order_id', sim.id).eq('step', 'Розкрій')
+
         const { data: s1Cards } = await supabase.from('work_cards').select('*').eq('order_id', sim.id).eq('status', 'at-buffer')
         
         if (s1Cards && s1Cards.length > 0) {
+          const arrivals = []
           for (const card of s1Cards) {
             // Allocate to Shop 2 buffer
             await supabase.from('inventory').upsert([{
               nomenclature_id: card.nomenclature_id,
-              name: nomenclatures.find(n => n.id === card.nomenclature_id)?.name || 'Деталь',
+              name: dbNomenclatures.find(n => n.id === card.nomenclature_id)?.name || 'Деталь',
               total_qty: card.quantity,
               type: 'semi_shop2',
               warehouse: 'production',
@@ -388,8 +562,38 @@ const SimulatorModule = () => {
               card_info: `[ЦЕХ №2] Наряд №${sim.orderNum}`
             }).eq('id', card.id)
 
-            addLog(`Деталі для ${sim.orderNum} переміщено в буфер Цеху №2.`, 'success')
+            arrivals.push({
+              id: card.nomenclature_id,
+              name: dbNomenclatures.find(n => n.id === card.nomenclature_id)?.name || 'Деталь',
+              semi: card.quantity,
+              bz: 0
+            })
           }
+
+          // Create transfer reception doc
+          const docNum = `T-S1-S2-${Date.now().toString().slice(-6)}`
+          const { data: moveDoc } = await supabase.from('reception_docs').insert([{
+            doc_num: docNum,
+            type: 'internal_transfer',
+            status: 'completed',
+            order_id: sim.id,
+            details: JSON.stringify(arrivals)
+          }]).select().single()
+
+          // Create the Shop 2 task in progress
+          await supabase.from('tasks').insert([{
+            order_id: sim.id,
+            step: 'Пресування [ЦЕХ №2]',
+            status: 'in-progress',
+            planned_sets: sim.quantity,
+            estimated_time: sim.quantity * 1,
+            engineer_conf: true,
+            warehouse_conf: true,
+            director_conf: true,
+            plan_snapshot: { arrival_doc_id: moveDoc?.id || null, arrivals }
+          }])
+
+          addLog(`Деталі для ${sim.orderNum} переміщено в буфер Цеху №2. Створено завдання пресування.`, 'success')
         }
         await wait(delay)
       }
@@ -403,7 +607,7 @@ const SimulatorModule = () => {
 
         setStatusText(`Цех 2 & ВКЯ для ${sim.orderNum}...`)
         
-        const { data: shop2Tasks } = await supabase.from('tasks').select('*').eq('order_id', sim.id)
+        const { data: shop2Tasks } = await supabase.from('tasks').select('*').eq('order_id', sim.id).eq('step', 'Пресування [ЦЕХ №2]')
         
         if (shop2Tasks && shop2Tasks.length > 0) {
           for (const task of shop2Tasks) {
@@ -412,18 +616,63 @@ const SimulatorModule = () => {
             let qcScrapQty = 0
 
             if (isQcScrap) {
-              qcScrapQty = Math.max(1, Math.floor(sim.quantity * 0.12)) // 12% reject
+              qcScrapQty = Math.max(1, Math.floor(sim.quantity * 0.12))
               finalQty = sim.quantity - qcScrapQty
               sim.hasRework = true
               totalRework += qcScrapQty
               addLog(`🛡️ Контроль ВКЯ виявив ${qcScrapQty} шт. дефектів на пресуванні для ${sim.orderNum}!`, 'warning')
               
-              // Simulate automatic rework release trigger (довипуск)
-              // In real MES, this spawns a new task or increases required parts
-              addLog(`🔄 Автоматично ініційовано довипуск ${qcScrapQty} шт. для компенсації браку.`, 'success')
+              // Generate a doviпуск (re-release) task
+              const parts = dbBomItems.filter(b => String(b.parent_id) === String(sim.nomenclatureId))
+              const displayParts = parts.length > 0 ? parts.map(b => ({
+                nom: dbNomenclatures.find(n => String(n.id) === String(b.child_id)),
+                qtyPer: Number(b.quantity_per_parent) || 1
+              })).filter(p => p.nom !== undefined) : [{ nom: dbNomenclatures.find(n => String(n.id) === String(sim.nomenclatureId)), qtyPer: 1 }]
+              
+              const plan_snapshot = {}
+              displayParts.forEach(part => {
+                const totalNeeded = qcScrapQty * part.qtyPer
+                const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
+                const sheets = Math.ceil(totalNeeded / unitsPerSheet)
+                plan_snapshot[part.nom.id] = {
+                  id: part.nom.id,
+                  name: part.nom.name,
+                  code: part.nom.nomenclature_code,
+                  need: totalNeeded,
+                  stock: 0,
+                  plan: totalNeeded,
+                  units_per_sheet: unitsPerSheet,
+                  sheets: sheets,
+                  sheets_t300: sheets,
+                  sheets_t700: 0,
+                  material: part.nom.material_type,
+                  selected_machine: 'CNC 1200x800 - 4 листи (Малий)'
+                }
+              })
+              plan_snapshot._metadata = { planned_deadline: new Date(Date.now() + 86400000 * 3).toISOString(), batch_index: 2 }
+
+              await supabase.from('tasks').insert([{
+                order_id: sim.id,
+                step: 'Розкрій',
+                status: 'waiting',
+                machine_name: 'CNC 1200x800 - 4 листи (Малий)',
+                estimated_time: qcScrapQty * 2,
+                engineer_conf: false,
+                warehouse_conf: false,
+                director_conf: false,
+                plan_snapshot: plan_snapshot,
+                planned_sets: qcScrapQty,
+                batch_index: 2,
+                planned_deadline: new Date(Date.now() + 86400000 * 3).toISOString()
+              }])
+
+              addLog(`🔄 Автоматично ініційовано довипуск ${qcScrapQty} шт. (Створено наряд Розкрій/Колода №2 у черзі) для компенсації браку.`, 'success')
             }
 
-            // Transfer completed components to SGP inventory
+            // Update task status to completed
+            await supabase.from('tasks').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', task.id)
+
+            // Transfer completed components to SGP inventory (type: finished)
             await supabase.from('inventory').upsert([{
               nomenclature_id: sim.nomenclatureId,
               name: sim.nomenclatureName,
@@ -433,13 +682,16 @@ const SimulatorModule = () => {
               unit: 'шт'
             }], { onConflict: 'nomenclature_id,warehouse,type' })
 
-            addLog(`Компоненти успішно пофарбовані та переміщені на СГП: ${finalQty} шт.`, 'success')
+            // Complete the work cards to reflect completed status
+            await supabase.from('work_cards').update({ status: 'completed' }).eq('order_id', sim.id)
+
+            addLog(`Компоненти успішно пофарбовані та переміщені на СГП: ${finalQty} шт. Наряд закрито.`, 'success')
           }
         }
         await wait(delay)
       }
 
-      // Step 7: Packaging (using updated snapshot alignment!)
+      // Step 7: Packaging
       addLog('Крок 7: Комплектування та пакування партій...', 'info')
       
       for (const sim of activeTestOrders) {
@@ -450,7 +702,7 @@ const SimulatorModule = () => {
         sim.step = 'Пакування'
         setSimulatedOrders([...activeTestOrders])
 
-        // Insert packaging box details
+        // Insert packaging box details in DB
         await supabase.from('packaging_boxes').insert([{
           order_id: sim.id,
           batch_index: '1',
@@ -476,11 +728,14 @@ const SimulatorModule = () => {
           }
         }
 
+        // Update order status to packaged
+        await supabase.from('orders').update({ status: 'packaged' }).eq('id', sim.id)
+
         addLog(`Замовлення ${sim.orderNum} повністю упаковано у коробку BOX-SIM-REAL.`, 'success')
         await wait(delay)
       }
 
-      // Step 8: Shipping
+      // Step 8: Shipping (Keep items in SGP for manual check instead of instant deletion, just flag them)
       addLog('Крок 8: Фінальна логістика та відвантаження...', 'info')
       
       for (const sim of activeTestOrders) {
@@ -492,15 +747,7 @@ const SimulatorModule = () => {
         sim.status = 'completed'
         setSimulatedOrders([...activeTestOrders])
 
-        // Deduct from SGP finished stock
-        const { data: invItem } = await supabase.from('inventory').select('*').eq('nomenclature_id', sim.nomenclatureId).eq('type', 'finished').maybeSingle()
-        if (invItem) {
-          await supabase.from('inventory').update({
-            total_qty: Math.max(0, (Number(invItem.total_qty) || 0) - sim.quantity)
-          }).eq('id', invItem.id)
-        }
-
-        // Complete the order
+        // Update order to completed/shipped
         await supabase.from('orders').update({
           status: 'completed',
           updated_at: new Date().toISOString()
@@ -524,7 +771,7 @@ const SimulatorModule = () => {
         }
 
         totalShipped++
-        addLog(`🚚 Замовлення ${sim.orderNum} офіційно відвантажено замовнику!`, 'success')
+        addLog(`🚚 Замовлення ${sim.orderNum} офіційно відвантажено замовнику! (Вироби залишилися на СГП для тестування).`, 'success')
         
         setProgress(Math.round((totalShipped / orderCountToRun) * 100))
         await wait(delay)
@@ -612,6 +859,47 @@ const SimulatorModule = () => {
                 ))}
               </select>
             </div>
+ 
+            {/* Order Count Input */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 800 }}>
+                <span style={{ color: '#aaa' }}>КІЛЬКІСТЬ ЗАМОВЛЕНЬ</span>
+                <span style={{ color: '#ff9000' }}>{orderCount} шт.</span>
+              </div>
+              <input 
+                type="number" 
+                min="1" 
+                max="50" 
+                value={orderCount} 
+                disabled={isRunning}
+                onChange={e => setOrderCount(e.target.value === '' ? '' : Number(e.target.value))}
+                onBlur={() => {
+                  let val = Number(orderCount)
+                  if (isNaN(val) || val < 1) val = 1
+                  if (val > 50) val = 50
+                  setOrderCount(val)
+                }}
+                style={{ width: '100%', background: '#111', border: '1px solid #222', borderRadius: '12px', padding: '12px', color: '#fff', fontWeight: 700 }}
+              />
+            </div>
+
+            {/* Delay slider */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 800 }}>
+                <span style={{ color: '#aaa' }}>ЗАТРИМКА МІЖ КРОКАМИ</span>
+                <span style={{ color: '#06b6d4' }}>{delay} мс</span>
+              </div>
+              <input 
+                type="range" 
+                min="100" 
+                max="5000" 
+                step="100"
+                value={delay} 
+                disabled={isRunning}
+                onChange={e => setDelay(Number(e.target.value))}
+                style={{ width: '100%', accentColor: '#06b6d4' }}
+              />
+            </div>
 
             {/* Min Quantity input */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -622,10 +910,19 @@ const SimulatorModule = () => {
               <input 
                 type="number" 
                 min="5" 
-                max="1000" 
+                max="10000" 
                 value={minQty} 
                 disabled={isRunning}
-                onChange={e => setMinQty(Math.max(5, Number(e.target.value)))}
+                onChange={e => setMinQty(e.target.value === '' ? '' : Number(e.target.value))}
+                onBlur={() => {
+                  let val = Number(minQty)
+                  if (isNaN(val) || val < 5) val = 5
+                  if (val > 10000) val = 10000
+                  setMinQty(val)
+                  if (Number(maxQty) < val) {
+                    setMaxQty(val)
+                  }
+                }}
                 style={{ width: '100%', background: '#111', border: '1px solid #222', borderRadius: '12px', padding: '12px', color: '#fff', fontWeight: 700 }}
               />
             </div>
@@ -639,10 +936,17 @@ const SimulatorModule = () => {
               <input 
                 type="number" 
                 min="5" 
-                max="1000" 
+                max="10000" 
                 value={maxQty} 
                 disabled={isRunning}
-                onChange={e => setMaxQty(Math.max(minQty, Number(e.target.value)))}
+                onChange={e => setMaxQty(e.target.value === '' ? '' : Number(e.target.value))}
+                onBlur={() => {
+                  let val = Number(maxQty)
+                  const currentMin = Number(minQty) || 5
+                  if (isNaN(val) || val < currentMin) val = currentMin
+                  if (val > 10000) val = 10000
+                  setMaxQty(val)
+                }}
                 style={{ width: '100%', background: '#111', border: '1px solid #222', borderRadius: '12px', padding: '12px', color: '#fff', fontWeight: 700 }}
               />
             </div>
