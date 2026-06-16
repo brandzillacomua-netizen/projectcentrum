@@ -650,10 +650,9 @@ export function createProductionActions({
     return { total: totalQty, planned, produced, packaged, isFullyPackaged: packaged >= totalQty && totalQty > 0, isFullyPlanned: planned >= totalQty && totalQty > 0, status }
   }
 
-  const createNaryad = async (orderId, machineName, customQuantities = null, customDeadline = null, customRowMachines = null, customMaterialSplits = null, customCutters = null, customBOMParts = null) => {
+  const createNaryad = async (orderId, machineName, customQuantities = null, customDeadline = null, customRowMachines = null, customMaterialSplits = null, customCutters = null, customBOMParts = null, customCutterOverrides = null) => {
     try {
       const order = orders.find(o => o.id === orderId)
-      if (!order) return
       let totalMin = 0
       let totalPlanQty = 0
       const materialSummary = {}
@@ -667,9 +666,9 @@ export function createProductionActions({
         const displayParts = customBOMParts && customBOMParts[item.id]
           ? customBOMParts[item.id].map(p => ({ nom: p.nom, qtyPer: p.quantity_per_parent }))
           : (() => {
-              const parts = bomItems.filter(b => String(b.parent_id) === String(item.nomenclature_id))
-              return parts.length > 0 ? parts.map(b => ({ nom: nomenclatures.find(n => String(n.id) === String(b.child_id)), qtyPer: b.quantity_per_parent })) : [{ nom: nomenclatures.find(n => String(n.id) === String(item.nomenclature_id)), qtyPer: 1 }]
-            })()
+               const parts = bomItems.filter(b => String(b.parent_id) === String(item.nomenclature_id))
+               return parts.length > 0 ? parts.map(b => ({ nom: nomenclatures.find(n => String(n.id) === String(b.child_id)), qtyPer: b.quantity_per_parent })) : [{ nom: nomenclatures.find(n => String(n.id) === String(item.nomenclature_id)), qtyPer: 1 }]
+             })()
         displayParts.forEach(part => {
           if (!part.nom) return
           const totalNeeded = requestedQty * (Number(part.qtyPer) || 1)
@@ -689,6 +688,7 @@ export function createProductionActions({
           const sheets_t300 = split && split.t300 !== undefined ? Number(split.t300) : sheets
           const sheets_t700 = split && split.t700 !== undefined ? Number(split.t700) : 0
 
+          const cutterOverride = customCutterOverrides?.[part.nom.id] || '2';
           plan_snapshot[part.nom.id] = { 
             id: part.nom.id, 
             name: part.nom.name, 
@@ -702,7 +702,8 @@ export function createProductionActions({
             sheets_t700,
             material: part.nom.material_type, 
             order_item_id: item.id, 
-            selected_machine: selectedMachine 
+            selected_machine: selectedMachine,
+            cutter_override: cutterOverride
           }
 
           if (usedFromStock > 0 && invItem) bzStockDeductions.push({ id: invItem.id, next_qty: (Number(invItem.total_qty) || 0) - usedFromStock })
@@ -818,7 +819,31 @@ export function createProductionActions({
             if (cutterNomId && qtyPerSheet > 0) {
               _hasMachineSpecificCutters = true
               const totalQty = Math.ceil(sheetsNeeded * qtyPerSheet)
-              const cutterNom = nomenclatures.find(n => String(n.id) === String(cutterNomId))
+              let cutterNom = nomenclatures.find(n => String(n.id) === String(cutterNomId))
+              
+              if (cutterNom && partInfo.cutter_override === '1.5') {
+                const nameLower = cutterNom.name.toLowerCase()
+                const fMatch = nameLower.match(/ф\s*([0-9,.]+)/)
+                const parsedDiam = fMatch ? parseFloat(fMatch[1].replace(',', '.')) : null
+                if (parsedDiam === 2 || parsedDiam === 2.0) {
+                  // Robust: search by diameter 1.5, not by mangled name string
+                  const altNom = nomenclatures.find(n => {
+                    const nl = n.name.toLowerCase()
+                    if (!nl.startsWith('фреза')) return false
+                    const m = nl.match(/ф\s*([0-9][0-9,.]*)/)
+                    if (!m) return false
+                    const d = parseFloat(m[1].replace(',', '.'))
+                    return Math.abs(d - 1.5) < 0.01
+                  })
+                  if (altNom) {
+                    cutterNom = altNom
+                  } else {
+                    // Fallback: synthetic entry so СО request still shows Ф1.5
+                    cutterNom = { ...cutterNom, name: 'Фреза ф1.5', id: '__synthetic_f1.5__' }
+                  }
+                }
+              }
+
               if (cutterNom) {
                 const cleanName = cutterNom.name.trim()
                 const key = cleanName.toLowerCase()
@@ -986,15 +1011,19 @@ export function createProductionActions({
 
       // Add machine-specific cutters from pre-computed _machineSpecificCutters
       Object.values(_machineSpecificCutters).forEach(item => {
-        const invItem = inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id) && i.warehouse === 'operational')
+        // '__synthetic_f1.5__' means Ф1.5 is not in nomenclatures yet — use null IDs
+        const isSynthetic = String(item.nomenclature_id).startsWith('__synthetic')
+        const invItem = isSynthetic ? null : (
+          inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id) && i.warehouse === 'operational')
           || inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id))
+        )
         requestsToInsert.push({
           order_id: orderId,
           task_id: tData.id,
           quantity: item.qty,
           status: 'pending',
           inventory_id: invItem?.id || null,
-          nomenclature_id: item.nomenclature_id,
+          nomenclature_id: isSynthetic ? null : item.nomenclature_id,
           details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ${order.order_num}: ${item.name} — ${item.qty} од. (Для: ${item.components.join(', ')})`
         })
       })

@@ -97,6 +97,7 @@ const MasterModule = () => {
   const [drawerType, setDrawerType] = useState('queue') // 'queue' | 'archive'
   const [reprintTask, setReprintTask] = useState(null)
   const [selectedCutters, setSelectedCutters] = useState({}) // { [consumableName]: inventoryItemId }
+  const [partCutterOverrides, setPartCutterOverrides] = useState({}) // { [partNomId]: '1.5' | '2' }
   // Local cache of ALL orders needed for active tasks (bypasses pagination)
   const [allOrdersMap, setAllOrdersMap] = useState({})
   const [showAuxiliary, setShowAuxiliary] = useState(false)
@@ -384,6 +385,7 @@ const MasterModule = () => {
   const handleOpenNaryadModal = (order, sets, deadline) => {
     setIsReprintMode(false)
     setSelectedCutters({})
+    setPartCutterOverrides({})
     setSelectedMachine(null)
     setRowMachines({})
     setMaterialSplits({})
@@ -649,7 +651,7 @@ const MasterModule = () => {
           await autoCreatePrepOrder(missingPrepQuantities, naryadDeadline || activeNaryadOrder.deadline);
 
           // 2. Create task
-          await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters, naryadParts));
+          await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters, naryadParts, partCutterOverrides));
 
           // 3. Trigger print dialog
           window.print();
@@ -673,7 +675,7 @@ const MasterModule = () => {
         setReprintTask(null)
         setActiveNaryadOrder(null)
       } else {
-        await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters, naryadParts))
+        await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters, naryadParts, partCutterOverrides))
         window.print()
         setActiveNaryadOrder(null)
       }
@@ -750,6 +752,7 @@ const MasterModule = () => {
     }
 
     setSelectedCutters({})
+    setPartCutterOverrides({})
     if (task.plan_snapshot?.selectedCutters) {
       setSelectedCutters(task.plan_snapshot.selectedCutters)
     } else {
@@ -794,6 +797,19 @@ const MasterModule = () => {
           }
         })
     }
+
+    const loadedOverrides = {}
+    if (task.plan_snapshot) {
+      Object.keys(task.plan_snapshot).forEach(k => {
+        if (!k.startsWith('_') && k !== 'materialSummary' && k !== 'selectedCutters' && k !== 'consumables') {
+          const snapshotPart = task.plan_snapshot[k]
+          if (snapshotPart?.cutter_override) {
+            loadedOverrides[k] = snapshotPart.cutter_override
+          }
+        }
+      })
+    }
+    setPartCutterOverrides(loadedOverrides)
   }
 
   const materialSummary = useMemo(() => {
@@ -906,6 +922,7 @@ const MasterModule = () => {
         if (!machineName) return
 
         const snapshot = reprintTask?.plan_snapshot?.[String(part.nom.id)]
+        const override = snapshot?.cutter_override || partCutterOverrides[part.nom.id] || '2'
         const totalNeeded = snapshot ? snapshot.need : (currentQty * (Number(part.quantity_per_parent) || 1))
         const inStock = snapshot ? snapshot.stock : (() => {
           const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'bz')
@@ -931,7 +948,32 @@ const MasterModule = () => {
             if (cutterNomId && qtyPerSheet > 0) {
               hasMachineSpecificCutters = true
               const totalQty = Math.ceil(sheets * qtyPerSheet)
-              const cutterNom = nomenclatures.find(n => String(n.id) === String(cutterNomId))
+              let cutterNom = nomenclatures.find(n => String(n.id) === String(cutterNomId))
+              
+              if (cutterNom && override === '1.5') {
+                const nameLower = cutterNom.name.toLowerCase()
+                const fMatch = nameLower.match(/ф\s*([0-9,.]+)/)
+                const parsedDiam = fMatch ? parseFloat(fMatch[1].replace(',', '.')) : null
+                if (parsedDiam === 2 || parsedDiam === 2.0) {
+                  // Robust search: find any nomenclature named "фреза" with diameter 1.5
+                  const altNom = nomenclatures.find(n => {
+                    const nl = n.name.toLowerCase()
+                    if (!nl.startsWith('фреза')) return false
+                    const m = nl.match(/ф\s*([0-9][0-9,.]*)/)
+                    if (!m) return false
+                    const d = parseFloat(m[1].replace(',', '.'))
+                    return Math.abs(d - 1.5) < 0.01
+                  })
+                  if (altNom) {
+                    cutterNom = altNom
+                  } else {
+                    // Fallback: if Ф1.5 not in nomenclatures yet, build a synthetic entry
+                    // so the summary label still shows the correct cutter name
+                    cutterNom = { ...cutterNom, name: 'Фреза ф1.5', id: '__synthetic_f1.5__' }
+                  }
+                }
+              }
+
               if (cutterNom && cutterNom.name.trim().toLowerCase() !== 'фреза') {
                 const cleanName = cutterNom.name.trim()
                 const key = cleanName.toLowerCase()
@@ -974,7 +1016,7 @@ const MasterModule = () => {
       })
 
     return Object.values(fallbackConsumables)
-  }, [activeNaryadOrder, materialSummary, nomenclatures, rowMachines, machineOperations, naryadQtys, isReprintMode, reprintTask, inventory, naryadParts])
+  }, [activeNaryadOrder, materialSummary, nomenclatures, rowMachines, machineOperations, naryadQtys, isReprintMode, reprintTask, inventory, naryadParts, partCutterOverrides])
 
   const hasUnassignedMachines = useMemo(() => {
     if (!activeNaryadOrder) return false
@@ -1896,6 +1938,70 @@ const displayParts = getDisplayPartsForOrderItem(it)
                                   {part.nom?.nomenclature_code && (
                                     <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 900, marginTop: '3px', textTransform: 'uppercase' }} className="print-subtxt">{part.nom.nomenclature_code}</div>
                                   )}
+                                  {(() => {
+                                    const selectedMach = rowMachines[part.nom?.id] || selectedMachine?.name || ''
+                                    if (!selectedMach) return null
+                                    const opData = machineOperations?.find(o =>
+                                      String(o.nomenclature_id) === String(part.nom?.id) &&
+                                      (o.machine_type === selectedMach || o.machine_id === selectedMach)
+                                    )
+                                    if (!opData?.side2_cut_ops) return null
+                                    const usesF2 = opData.side2_cut_ops.some(op => {
+                                      if (!op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:')) return false
+                                      const parts = op.split(':')
+                                      const cutterNomId = parts[1]
+                                      const cutterNom = nomenclatures?.find(n => String(n.id) === String(cutterNomId))
+                                      if (!cutterNom) return false
+                                      const nameLower = cutterNom.name.toLowerCase()
+                                      const fMatch = nameLower.match(/ф\s*([0-9,.]+)/)
+                                      const parsedDiam = fMatch ? parseFloat(fMatch[1].replace(',', '.')) : null
+                                      return parsedDiam === 2 || parsedDiam === 2.0
+                                    })
+                                    if (!usesF2) return null
+
+                                    return (
+                                      <div className="no-print" style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <span style={{ fontSize: '0.62rem', color: '#555', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.03em' }}>Фреза:</span>
+                                        {isReprintMode ? (
+                                          <span style={{
+                                            fontSize: '0.72rem', fontWeight: 900,
+                                            color: (partCutterOverrides[part.nom?.id] || '2') === '1.5' ? '#f59e0b' : '#ff9000',
+                                            background: (partCutterOverrides[part.nom?.id] || '2') === '1.5' ? 'rgba(245,158,11,0.12)' : 'rgba(255,144,0,0.1)',
+                                            padding: '2px 8px', borderRadius: '5px'
+                                          }}>
+                                            Ф{(partCutterOverrides[part.nom?.id] || '2')} мм
+                                          </span>
+                                        ) : (
+                                          <div style={{ display: 'flex', gap: '3px', background: '#111', borderRadius: '7px', padding: '2px' }}>
+                                            {['2', '1.5'].map(val => {
+                                              const isActive = (partCutterOverrides[part.nom?.id] || '2') === val
+                                              return (
+                                                <button
+                                                  key={val}
+                                                  onClick={() => setPartCutterOverrides(prev => ({ ...prev, [part.nom?.id]: val }))}
+                                                  style={{
+                                                    background: isActive ? (val === '1.5' ? '#f59e0b' : '#ff9000') : 'transparent',
+                                                    color: isActive ? '#000' : '#555',
+                                                    border: 'none',
+                                                    padding: '3px 9px',
+                                                    borderRadius: '5px',
+                                                    fontSize: '0.68rem',
+                                                    fontWeight: 900,
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.15s',
+                                                    letterSpacing: '-0.01em',
+                                                    whiteSpace: 'nowrap'
+                                                  }}
+                                                >
+                                                  Ф{val}
+                                                </button>
+                                              )
+                                            })}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )
+                                  })()}
                                 </>
                               )}
                             </td>
@@ -2340,59 +2446,147 @@ const displayParts = getDisplayPartsForOrderItem(it)
                         const selectedInv = selectedInvId ? (inventory || []).find(i => String(i.id) === String(selectedInvId)) : null;
                         const nom = selectedInv ? nomenclatures.find(n => String(n.id) === String(selectedInv.nomenclature_id)) : null;
                         const displayName = nom ? nom.name : c.name;
+
+                        // Show toggle for Ф2 AND Ф1.5 cards (Ф1.5 is just an overridden Ф2)
+                        const cNameLower = c.name.toLowerCase()
+                        const cFMatch = cNameLower.match(/ф\s*([0-9,.]+)/)
+                        const cDiam = cFMatch ? parseFloat(cFMatch[1].replace(',', '.')) : null
+                        const isSwitchableCard = cDiam === 2 || Math.abs((cDiam || 0) - 1.5) < 0.01
+
+                        // Find all part nomIds in this order that use Ф2 in their operations
+                        const f2PartIds = isSwitchableCard ? (() => {
+                          const ids = []
+                          activeNaryadOrder.order_items?.forEach(item => {
+                            getDisplayPartsForOrderItem(item).forEach(part => {
+                              if (!part.nom || part.nom.type === 'hardware' || part.nom.type === 'fastener') return
+                              const machineName = rowMachines[part.nom.id]
+                              if (!machineName) return
+                              const opData = machineOperations?.find(o =>
+                                String(o.nomenclature_id) === String(part.nom.id) &&
+                                (o.machine_type === machineName || o.machine_id === machineName)
+                              )
+                              if (!opData?.side2_cut_ops) return
+                              const hasF2 = opData.side2_cut_ops.some(op => {
+                                if (!op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:')) return false
+                                const opSplit = op.split(':')
+                                const cnId = opSplit[1]
+                                const cnNom = nomenclatures?.find(n => String(n.id) === String(cnId))
+                                if (!cnNom) return false
+                                const nl = cnNom.name.toLowerCase()
+                                const m = nl.match(/ф\s*([0-9,.]+)/)
+                                const d = m ? parseFloat(m[1].replace(',', '.')) : null
+                                return d === 2
+                              })
+                              if (hasF2 && !ids.includes(part.nom.id)) ids.push(part.nom.id)
+                            })
+                          })
+                          return ids
+                        })() : []
+
+                        // Current override state for these parts
+                        const currentF2Override = f2PartIds.length > 0 &&
+                          f2PartIds.every(id => (partCutterOverrides[id] || '2') === '1.5') ? '1.5' : '2'
+
                         return (
-                          <div key={idx} className="mat-card-p" style={{ padding: '0 0 5px 15px', borderLeft: '4px solid #3b82f6', minWidth: '150px' }}>
-                            <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800, marginBottom: '3px' }} className="print-subtxt">{displayName}</div>
-                            <div style={{ fontSize: '1.1rem', fontWeight: 950, color: '#fff' }} className="print-txt">{(Number(c.total) || 0).toString()} <small style={{ fontSize: '0.65rem', fontWeight: 400, color: '#444' }} className="print-subtxt">ОД.</small></div>
+                          <div key={idx} className="mat-card-p" style={{
+                            padding: '10px 15px',
+                            borderLeft: `4px solid ${isSwitchableCard && currentF2Override === '1.5' ? '#f59e0b' : '#3b82f6'}`,
+                            minWidth: '150px',
+                            borderRadius: '0 8px 8px 0',
+                            background: isSwitchableCard && currentF2Override === '1.5' ? 'rgba(245,158,11,0.05)' : 'transparent',
+                            transition: 'all 0.2s'
+                          }}>
+                            <div style={{ fontSize: '0.65rem', color: isSwitchableCard && currentF2Override === '1.5' ? '#f59e0b' : '#555', fontWeight: 800, marginBottom: '3px', transition: 'color 0.2s' }} className="print-subtxt">
+                              {displayName}
+                            </div>
+                            <div style={{ fontSize: '1.1rem', fontWeight: 950, color: '#fff' }} className="print-txt">
+                              {(Number(c.total) || 0).toString()} <small style={{ fontSize: '0.65rem', fontWeight: 400, color: '#444' }} className="print-subtxt">ОД.</small>
+                            </div>
+                            {isSwitchableCard && f2PartIds.length > 0 && !isReprintMode && (
+                              <div style={{ marginTop: '8px', display: 'flex', gap: '3px', background: '#0d0d0d', borderRadius: '7px', padding: '2px', width: 'fit-content' }}>
+                                {[['2', 'Ф2'], ['1.5', 'Ф1.5']].map(([val, label]) => {
+                                  const isActive = currentF2Override === val
+                                  return (
+                                    <button
+                                      key={val}
+                                      onClick={() => {
+                                        setPartCutterOverrides(prev => {
+                                          const next = { ...prev }
+                                          f2PartIds.forEach(id => {
+                                            next[id] = val
+                                          })
+                                          return next
+                                        })
+                                      }}
+                                      style={{
+                                        background: isActive ? (val === '1.5' ? '#f59e0b' : '#3b82f6') : 'transparent',
+                                        color: isActive ? '#fff' : '#888',
+                                        border: 'none',
+                                        padding: '4px 8px',
+                                        borderRadius: '5px',
+                                        fontSize: '0.65rem',
+                                        fontWeight: 900,
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s'
+                                      }}
+                                    >
+                                      {label}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            )}
                           </div>
-                        );
+                        )
                       })}
                     </div>
                   </div>
                 )
               )}
 
-              {/* ── ВИБІР ФРЕЗ ЗІ СКЛАДУ ── */}
-              {consumableSummary.length > 0 && (() => {
-                // Find cutters in consumableSummary (names starting with "фреза")
-                const cutterItems = consumableSummary.filter(c => c.name.toLowerCase().startsWith('фреза'))
-                if (cutterItems.length === 0) return null
+              {consumableSummary.length > 0 && (
+                <div className="stock-cutters-section no-print" style={{ marginTop: '15px', padding: '20px 30px', borderRadius: '18px', border: '1px solid rgba(255,144,0,0.18)', background: 'rgba(255,144,0,0.03)' }}>
+                  <h4 style={{ margin: '0 0 14px', fontSize: '0.75rem', fontWeight: 950, color: '#ff9000', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    🔧 ВИБІР ФРЕЗ ЗІ СКЛАДУ
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {consumableSummary.map((c, idx) => {
+                      // Extract diameter from the consumable name e.g. "Фреза ф3" → 3, "Фреза ф1.5" → 1.5
+                      const nameLower = c.name.toLowerCase()
+                      const fMatch = nameLower.match(/ф\s*([0-9][0-9,.]*)/)
+                      const parsedDiam = fMatch ? parseFloat(fMatch[1].replace(',', '.')) : null
 
-                return (
-                  <div className="no-print" style={{ marginTop: '14px', padding: '20px 30px', borderRadius: '18px', border: '1px solid rgba(255,144,0,0.18)', background: 'rgba(255,144,0,0.03)' }}>
-                    <h4 style={{ margin: '0 0 14px', fontSize: '0.75rem', fontWeight: 950, color: '#ff9000', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      🔧 ВИБІР ФРЕЗ ЗІ СКЛАДУ
-                    </h4>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                      {cutterItems.map((c, idx) => {
-                        // Extract diameter from the consumable name (e.g. "Фреза ф3" → 3, "Фреза кукурудза 2×3,175×..." → look in brackets or explicit number)
-                        const nameLower = c.name.toLowerCase()
-                        // Try to extract diameter: look for pattern ф<number> or just a number after space
-                        const fMatch = nameLower.match(/фs*([d,.]+)/)
-                        const parsedDiam = fMatch ? parseFloat(fMatch[1].replace(',', '.')) : null
+                      // Helper: extract cutting diameter from an inventory cutter nom name
+                      // Handles: "Фреза ф2", "Фреза кукурудза 2×3,175×6×50", "Фреза двопера 3×4×6×50"
+                      const extractNomDiam = (nomName) => {
+                        const nl = nomName.toLowerCase()
+                        // 1) Explicit ф<number> pattern
+                        const m1 = nl.match(/ф\s*([0-9][0-9,.]*)/)
+                        if (m1) return parseFloat(m1[1].replace(',', '.'))
+                        // 2) First dimension before × (e.g. "кукурудза 2×3,175×..." or "двопера 3×4×...")
+                        const m2 = nl.match(/(?:кукурудза|двопера|однопера|спіральна|торцева|шарова|радіусна)?\s*([0-9][0-9,]*)(?:\s*[×xх×])/)
+                        if (m2) return parseFloat(m2[1].replace(',', '.'))
+                        // 3) Last resort: first standalone number in name
+                        const m3 = nl.match(/\b([0-9][0-9,.]*)\b/)
+                        if (m3) return parseFloat(m3[1].replace(',', '.'))
+                        return null
+                      }
 
-                        // Filter inventory for consumable cutters with matching diameter
-                        const stockCutters = (inventory || []).filter(inv => {
-                          const nom = nomenclatures.find(n => String(n.id) === String(inv.nomenclature_id))
-                          if (!nom) return false
-                          if (!nom.name.toLowerCase().startsWith('фреза')) return false
-                          if (inv.type !== 'consumable') return false
-                          const availQty = Math.max(0, (Number(inv.total_qty) || 0) - (Number(inv.reserved_qty) || 0))
-                          if (availQty <= 0) return false
-                          // If we have a parsed diameter, filter by it (from nom name)
-                          if (parsedDiam) {
-                            const nomNameLower = nom.name.toLowerCase()
-                            const nomFMatch = nomNameLower.match(/фs*([d,.]+)|diameter[:s]*([d,.]+)|([d,.]+)s*(?:мм|mm)/)
-                            // Also check the name contains the diameter number
-                            if (nomFMatch) {
-                              const nomDiam = parseFloat((nomFMatch[1] || nomFMatch[2] || nomFMatch[3] || '0').replace(',', '.'))
-                              return Math.abs(nomDiam - parsedDiam) < 0.01
-                            }
-                            // fallback: check if diameter number appears in name
-                            return nomNameLower.includes(String(parsedDiam))
-                          }
-                          return true
-                        })
+                      // Filter inventory for consumable cutters with matching diameter
+                      const stockCutters = (inventory || []).filter(inv => {
+                        const nom = nomenclatures.find(n => String(n.id) === String(inv.nomenclature_id))
+                        if (!nom) return false
+                        if (!nom.name.toLowerCase().startsWith('фреза')) return false
+                        if (inv.type !== 'consumable') return false
+                        const availQty = Math.max(0, (Number(inv.total_qty) || 0) - (Number(inv.reserved_qty) || 0))
+                        if (availQty <= 0) return false
+                        if (parsedDiam) {
+                          const nomDiam = extractNomDiam(nom.name)
+                          if (nomDiam === null) return false
+                          return Math.abs(nomDiam - parsedDiam) < 0.01
+                        }
+                        return true
+                      })
 
                         const selectedInvId = selectedCutters[c.name] || ''
                         const selectedInv = stockCutters.find(inv => String(inv.id) === String(selectedInvId))
@@ -2457,7 +2651,7 @@ const displayParts = getDisplayPartsForOrderItem(it)
             </div>
 
             <div className="no-print" style={{ padding: '30px 40px', background: '#111', borderTop: '1px solid #222', display: 'flex', justifyContent: 'flex-end', gap: '15px' }}>
-              <button onClick={() => { setActiveNaryadOrder(null); setReprintTask(null); setSelectedCutters({}); }} style={{ background: '#222', color: '#fff', border: 'none', padding: '12px 30px', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>СКАСУВАТИ</button>
+              <button onClick={() => { setActiveNaryadOrder(null); setReprintTask(null); setSelectedCutters({}); setPartCutterOverrides({}); }} style={{ background: '#222', color: '#fff', border: 'none', padding: '12px 30px', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>СКАСУВАТИ</button>
               <button
                 onClick={handlePrint}
                 disabled={isPrintDisabled}

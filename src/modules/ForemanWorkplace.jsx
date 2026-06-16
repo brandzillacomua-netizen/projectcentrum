@@ -2148,9 +2148,18 @@ const MACHINE_TYPES = [
               o.nomenclature_id === nomenclature?.id && 
               (o.machine_type === m.machine || (mac && o.machine_id === mac.id))
             )
-            const s1Ops = (opData?.side1_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:'))
-            const s2Ops = (opData?.side2_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:'))
-            const s2CutOps = (opData?.side2_cut_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:'))
+            let s1Ops = (opData?.side1_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:'))
+            let s2Ops = (opData?.side2_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:'))
+            let s2CutOps = (opData?.side2_cut_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:'))
+            
+            const snapshotPart = printQueue.task.plan_snapshot?.[String(nomenclature?.id)]
+            const isCutter1_5 = snapshotPart?.cutter_override === '1.5'
+            if (isCutter1_5) {
+              const replacer = (op) => op.replace(/[фФ]2(?![0-9.])/g, match => match[0] === 'ф' ? 'ф1.5' : 'Ф1.5')
+              s1Ops = s1Ops.map(replacer)
+              s2Ops = s2Ops.map(replacer)
+              s2CutOps = s2CutOps.map(replacer)
+            }
             
             const maxOps = Math.max(10, s1Ops.length, s2Ops.length, s2CutOps.length)
             const opRows = Array.from({ length: maxOps }).map((_, i) => ({
