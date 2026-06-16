@@ -71,9 +71,14 @@ export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers,
       delete payload.password
     }
 
-    const { data, error } = await supabase
-      .from('system_users')
-      .upsert([payload])
+    let query = supabase.from('system_users')
+    if (payload.id) {
+      query = query.update(payload).eq('id', payload.id)
+    } else {
+      query = query.insert([payload])
+    }
+
+    const { data, error } = await query
       .select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar')
     
     const result = (data && data.length > 0) ? data[0] : null
