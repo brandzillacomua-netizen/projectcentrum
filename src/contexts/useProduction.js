@@ -141,6 +141,213 @@ export function createProductionActions({
     refreshTable('orders')
   }
 
+  const superDeleteOrder = async (orderId) => {
+    try {
+      // 1. Fetch related objects
+      const { data: orderTasks } = await supabase.from('tasks').select('id, step, status, planned_sets, plan_snapshot').eq('order_id', orderId)
+      const taskIds = orderTasks ? orderTasks.map(t => t.id) : []
+
+      // Fetch material requests related to order or tasks
+      let requestsQuery = supabase.from('material_requests').select('*')
+      if (taskIds.length > 0) {
+        requestsQuery = requestsQuery.or(`order_id.eq.${orderId},task_id.in.(${taskIds.join(',')})`)
+      } else {
+        requestsQuery = requestsQuery.eq('order_id', orderId)
+      }
+      const { data: matRequests } = await requestsQuery
+
+      // Fetch work cards related to order or tasks
+      let cardsQuery = supabase.from('work_cards').select('*')
+      if (taskIds.length > 0) {
+        cardsQuery = cardsQuery.or(`order_id.eq.${orderId},task_id.in.(${taskIds.join(',')})`)
+      } else {
+        cardsQuery = cardsQuery.eq('order_id', orderId)
+      }
+      const { data: workCardsData } = await cardsQuery
+
+      // Fetch reception docs related to order or tasks
+      let recDocsQuery = supabase.from('reception_docs').select('*')
+      if (taskIds.length > 0) {
+        recDocsQuery = recDocsQuery.or(`order_id.eq.${orderId},task_id.in.(${taskIds.join(',')})`)
+      } else {
+        recDocsQuery = recDocsQuery.eq('order_id', orderId)
+      }
+      const { data: recDocs } = await recDocsQuery
+
+      // 2. Fetch inventory items to optimize updates
+      const allInventoryIds = new Set()
+      const allNomenclatureIds = new Set()
+      
+      if (matRequests) {
+        matRequests.forEach(r => {
+          if (r.inventory_id) allInventoryIds.add(r.inventory_id)
+          if (r.nomenclature_id) allNomenclatureIds.add(r.nomenclature_id)
+        })
+      }
+      if (workCardsData) {
+        workCardsData.forEach(c => {
+          if (c.nomenclature_id) allNomenclatureIds.add(c.nomenclature_id)
+        })
+      }
+      if (recDocs) {
+        recDocs.forEach(d => {
+          if (Array.isArray(d.items)) {
+            d.items.forEach(it => {
+              if (it.inventory_id) allInventoryIds.add(it.inventory_id)
+              if (it.nomenclature_id) allNomenclatureIds.add(it.nomenclature_id)
+            })
+          }
+        })
+      }
+
+      const invIdsArr = Array.from(allInventoryIds)
+      const nomIdsArr = Array.from(allNomenclatureIds)
+
+      let invItems = []
+      if (invIdsArr.length > 0 || nomIdsArr.length > 0) {
+        let invQuery = supabase.from('inventory').select('*')
+        const filters = []
+        if (invIdsArr.length > 0) filters.push(`id.in.(${invIdsArr.join(',')})`)
+        if (nomIdsArr.length > 0) filters.push(`nomenclature_id.in.(${nomIdsArr.join(',')})`)
+        const { data: invData } = await invQuery.or(filters.join(','))
+        invItems = invData || []
+      }
+
+      const inventoryUpdatesMap = new Map()
+      const getOrCreateUpdatedItem = (item) => {
+        if (!inventoryUpdatesMap.has(item.id)) {
+          inventoryUpdatesMap.set(item.id, { ...item })
+        }
+        return inventoryUpdatesMap.get(item.id)
+      }
+
+      // A. Revert Material Request Reserves and Used Stocks
+      if (matRequests) {
+        for (const req of matRequests) {
+          const qty = Number(req.quantity) || 0
+          if (qty <= 0) continue
+
+          if (req.status === 'issued') {
+            const item = invItems.find(i => i.id === req.inventory_id)
+            if (item) {
+              const upd = getOrCreateUpdatedItem(item)
+              upd.reserved_qty = Math.max(0, (Number(upd.reserved_qty) || 0) - qty)
+            }
+          } else if (req.status === 'completed') {
+            const item = invItems.find(i => i.id === req.inventory_id)
+            if (item) {
+              const upd = getOrCreateUpdatedItem(item)
+              upd.total_qty = (Number(upd.total_qty) || 0) + qty
+            }
+          }
+        }
+      }
+
+      // B. Revert BZ Stock reservations / SGP finished transfers
+      if (workCardsData) {
+        for (const card of workCardsData) {
+          const qty = Number(card.quantity) || 0
+          if (qty <= 0) continue
+
+          const isBZ = (card.card_info || '').includes('[ЗІ СКЛАДУ БЗ]')
+          const isRework = (card.card_info || '').includes('[REWORK]') || card.is_rework
+
+          if (isBZ) {
+            const bzItem = invItems.find(i => String(i.nomenclature_id) === String(card.nomenclature_id) && i.type === 'bz')
+            const sgpItem = invItems.find(i => String(i.nomenclature_id) === String(card.nomenclature_id) && i.type === 'finished')
+
+            if (bzItem) {
+              const upd = getOrCreateUpdatedItem(bzItem)
+              upd.total_qty = (Number(upd.total_qty) || 0) + qty
+            }
+            if (sgpItem) {
+              const upd = getOrCreateUpdatedItem(sgpItem)
+              upd.total_qty = Math.max(0, (Number(upd.total_qty) || 0) - qty)
+            }
+          } else if (!isRework && (card.status === 'completed' || card.status === 'at-buffer')) {
+            const isShop2 = (card.card_info || '').includes('[ЦЕХ №2]')
+            const targetType = isShop2 ? 'wip_bz' : 'semi'
+            
+            const prodItem = invItems.find(i => String(i.nomenclature_id) === String(card.nomenclature_id) && i.type === targetType)
+            if (prodItem) {
+              const upd = getOrCreateUpdatedItem(prodItem)
+              upd.total_qty = Math.max(0, (Number(upd.total_qty) || 0) - qty)
+            }
+          }
+        }
+      }
+
+      // C. Cancel transfer reservations in reception_docs
+      if (recDocs) {
+        for (const doc of recDocs) {
+          if ((doc.status === 'ordered' || doc.status === 'shipped') && doc.source_warehouse) {
+            const items = Array.isArray(doc.items) ? doc.items : []
+            for (const it of items) {
+              const qty = Number(it.qty ?? it.quantity ?? it.needed ?? 0)
+              if (qty <= 0) continue
+
+              const nomId = it.nomenclature_id
+              const item = invItems.find(i => 
+                i.warehouse === doc.source_warehouse && 
+                (
+                  (nomId && String(i.nomenclature_id) === String(nomId)) || 
+                  (it.inventory_id && String(i.id) === String(it.inventory_id))
+                )
+              )
+              if (item) {
+                const upd = getOrCreateUpdatedItem(item)
+                upd.reserved_qty = Math.max(0, (Number(upd.reserved_qty) || 0) - qty)
+              }
+            }
+          }
+        }
+      }
+
+      // Save inventory updates
+      const updates = Array.from(inventoryUpdatesMap.values())
+      if (updates.length > 0) {
+        const { error: invErr } = await supabase.from('inventory').upsert(updates)
+        if (invErr) throw invErr
+      }
+
+      // Delete work card history
+      const cardIds = workCardsData ? workCardsData.map(c => c.id) : []
+      if (cardIds.length > 0) {
+        await supabase.from('work_card_history').delete().in('card_id', cardIds)
+        await supabase.from('work_cards').delete().in('id', cardIds)
+      }
+
+      if (taskIds.length > 0) {
+        await supabase.from('material_requests').delete().in('task_id', taskIds)
+        await supabase.from('purchase_requests').delete().in('task_id', taskIds)
+        await supabase.from('reception_docs').delete().in('task_id', taskIds)
+        await supabase.from('tasks').delete().in('id', taskIds)
+      }
+
+      // Delete by order_id
+      await supabase.from('material_requests').delete().eq('order_id', orderId)
+      await supabase.from('purchase_requests').delete().eq('order_id', orderId)
+      await supabase.from('reception_docs').delete().eq('order_id', orderId)
+      await supabase.from('order_items').delete().eq('order_id', orderId)
+
+      // Delete order
+      const { error: orderDelErr } = await supabase.from('orders').delete().eq('id', orderId)
+      if (orderDelErr) throw orderDelErr
+
+      refreshTable('orders')
+      refreshTable('inventory')
+      refreshTable('work_cards')
+      refreshTable('tasks')
+      refreshTable('material_requests')
+      refreshTable('purchase_requests')
+      refreshTable('reception_docs')
+    } catch (err) {
+      console.error('Super Delete Order Error:', err)
+      throw err
+    }
+  }
+
+
   const addOrder = async (header, items) => {
     if (header.customer) {
       const trimmedName = header.customer.trim()
@@ -1677,7 +1884,7 @@ export function createProductionActions({
     createNaryad, handoverTaskToShop2, cancelHandoverToShop2, completeTaskShop2, directHandoverToSGP, handoverToSGP, reserveBZForTask, completePackaging, disposeScrapItem, createReworkNaryad,
     approveWarehouse, approveEngineer, approveDirector,
     upsertNomenclature, deleteNomenclature, saveBOM, removeBOM, syncBOM,
-    addOrder, updateOrder, deleteOrder, createWorkCard, createWorkCardsBatch, startWorkCard, completeWorkCard, confirmBuffer,
+    addOrder, updateOrder, deleteOrder, superDeleteOrder, createWorkCard, createWorkCardsBatch, startWorkCard, completeWorkCard, confirmBuffer,
     completeTaskByMaster,
     addManagementTask, updateManagementTask, deleteManagementTask,
     addMachine, updateMachine, deleteMachine,

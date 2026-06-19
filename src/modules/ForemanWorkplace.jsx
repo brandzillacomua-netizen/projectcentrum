@@ -2154,18 +2154,22 @@ const MACHINE_TYPES = [
             
             const snapshotPart = printQueue.task.plan_snapshot?.[String(nomenclature?.id)]
             const isCutter1_5 = snapshotPart?.cutter_override === '1.5'
+            
             if (isCutter1_5) {
               const replacer = (op) => op.replace(/[фФ]2(?![0-9.])/g, match => match[0] === 'ф' ? 'ф1.5' : 'Ф1.5')
               s1Ops = s1Ops.map(replacer)
               s2Ops = s2Ops.map(replacer)
-              s2CutOps = s2CutOps.map(replacer)
             }
+
+            const s2CutOpsF2 = s2CutOps.map(op => op.replace(/[фФ]1\.5(?![0-9.])/g, match => match[0] === 'ф' ? 'ф2' : 'Ф2'))
+            const s2CutOpsF15 = s2CutOps.map(op => op.replace(/[фФ]2(?![0-9.])/g, match => match[0] === 'ф' ? 'ф1.5' : 'Ф1.5'))
             
-            const maxOps = Math.max(10, s1Ops.length, s2Ops.length, s2CutOps.length)
+            const maxOps = Math.max(10, s1Ops.length, s2Ops.length, s2CutOpsF2.length, s2CutOpsF15.length)
             const opRows = Array.from({ length: maxOps }).map((_, i) => ({
               s1: s1Ops[i] || '',
               s2: s2Ops[i] || '',
-              s2c: s2CutOps[i] || ''
+              s2cF2: s2CutOpsF2[i] || '',
+              s2cF15: s2CutOpsF15[i] || ''
             }))
 
             return (
@@ -2266,20 +2270,21 @@ const MACHINE_TYPES = [
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '6.5pt' }}>
                       <thead>
                         <tr style={{ background: '#fff', textAlign: 'center', fontWeight: 'bold' }}>
-                          <td style={{ border: '1.5px solid #000', width: '25%', height: '36px' }}>Операція (1 сторона)</td>
-                          <td style={{ border: '1.5px solid #000', width: '13%', fontSize: '5.5pt', lineHeight: 1.2 }}>
+                          <td style={{ border: '1.5px solid #000', width: '22%', height: '36px' }}>Операція (1 сторона)</td>
+                          <td style={{ border: '1.5px solid #000', width: '11%', fontSize: '5.5pt', lineHeight: 1.2 }}>
                             Статус<br />виконання ☑<br/>
                             <div style={{ borderTop: '1px solid #000', borderBottom: '1px solid #000', margin: '2px 0', padding: '2px 0' }}>Лист | Лист</div>
                             1, 2 | 3, 4
                           </td>
-                          <td style={{ border: '1.5px solid #000', width: '25%' }}>Операція (2 сторона)</td>
-                          <td style={{ border: '1.5px solid #000', width: '13%', fontSize: '5.5pt', lineHeight: 1.2 }}>
+                          <td style={{ border: '1.5px solid #000', width: '22%' }}>Операція (2 сторона)</td>
+                          <td style={{ border: '1.5px solid #000', width: '11%', fontSize: '5.5pt', lineHeight: 1.2 }}>
                             Статус<br />виконання ☑<br/>
                             <div style={{ borderTop: '1px solid #000', borderBottom: '1px solid #000', margin: '2px 0', padding: '2px 0' }}>Лист | Лист</div>
                             1, 2 | 3, 4
                           </td>
-                          <td style={{ border: '1.5px solid #000', width: '15%' }}>Операція (2 сторона вирізка)</td>
-                          <td style={{ border: '1.5px solid #000', width: '9%', fontSize: '5.5pt', lineHeight: 1 }}>Статус<br />виконання<br />☑</td>
+                          <td style={{ border: '1.5px solid #000', width: '13%', fontSize: '6.5pt', fontWeight: 'bold' }}>Операція (2 сторона вирізка)<br/>Ф2мм</td>
+                          <td style={{ border: '1.5px solid #000', width: '13%', fontSize: '6.5pt', fontWeight: 'bold' }}>Операція (2 сторона вирізка)<br/>Ф1.5мм</td>
+                          <td style={{ border: '1.5px solid #000', width: '8%', fontSize: '5.5pt', lineHeight: 1 }}>Статус<br />виконання<br />☑</td>
                         </tr>
                       </thead>
                       <tbody>
@@ -2289,7 +2294,8 @@ const MACHINE_TYPES = [
                             <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt', letterSpacing: '2px' }}>☐ | ☐</td>
                             <td style={{ border: '1.5px solid #000', paddingLeft: '4px' }}>{row.s2}</td>
                             <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt', letterSpacing: '2px' }}>☐ | ☐</td>
-                            <td style={{ border: '1.5px solid #000', paddingLeft: '4px' }}>{row.s2c}</td>
+                            <td style={{ border: '1.5px solid #000', paddingLeft: '4px', background: !isCutter1_5 ? '#fff' : '#f9f9f9', color: !isCutter1_5 ? '#000' : '#888' }}>{row.s2cF2}</td>
+                            <td style={{ border: '1.5px solid #000', paddingLeft: '4px', background: isCutter1_5 ? '#fff' : '#f9f9f9', color: isCutter1_5 ? '#000' : '#888' }}>{row.s2cF15}</td>
                             <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt' }}>☐</td>
                           </tr>
                         ))}

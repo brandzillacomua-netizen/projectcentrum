@@ -22,7 +22,7 @@ import { nomenclatureService } from '../services/nomenclatureService'
 import { supabase } from '../supabase'
 
 const ManagerModule = () => {
-  const { nomenclatures, addOrder, updateOrder, deleteOrder, orders, fetchOrders, hasMoreOrders, searchCustomers, currentUser, loading, getOrderProductionProgress, refreshTable } = useMES()
+  const { nomenclatures, addOrder, updateOrder, deleteOrder, superDeleteOrder, orders, fetchOrders, hasMoreOrders, searchCustomers, currentUser, loading, getOrderProductionProgress, refreshTable } = useMES()
   const [localCustomers, setLocalCustomers] = useState([])
   const searchTimeout = useRef(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -167,6 +167,26 @@ const ManagerModule = () => {
       fetchOrders(0, false, { searchQuery, dateRange: dateFilter })
     } catch (err) {
       alert('Помилка при видаленні замовлення: ' + err.message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleSuperDeleteClick = async (orderId) => {
+    if (!window.confirm('УВАГА! Це повне СУПЕР-ВИДАЛЕННЯ.\n\nВсі запити, резерви та робочі картки будуть видалені, а використані матеріали ПОВЕРНУТЬСЯ НА СКЛАДИ.\n\nВи впевнені, що хочете це зробити?')) {
+      return
+    }
+    if (!window.confirm('ПІДТВЕРДІТЬ ЩЕ РАЗ: відновити склади та видалити замовлення повністю?')) {
+      return
+    }
+    setIsSubmitting(true)
+    try {
+      await superDeleteOrder(orderId)
+      alert('Замовлення та всі пов’язані дані повністю видалено з автоматичним поверненням матеріалів!')
+      setSelectedOrder(null)
+      fetchOrders(0, false, { searchQuery, dateRange: dateFilter })
+    } catch (err) {
+      alert('Помилка при супер-видаленні: ' + err.message)
     } finally {
       setIsSubmitting(false)
     }
@@ -609,7 +629,12 @@ const ManagerModule = () => {
                    </div>
 
                    {/* Action Buttons: Edit and Delete */}
-                   <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '20px' }}>
+                   <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '20px', flexWrap: 'wrap' }}>
+                      {currentUser?.login === 'admin@workshop.local' && (
+                        <button onClick={() => handleSuperDeleteClick(selectedOrder.id)} disabled={isSubmitting} className="btn-primary-modern" style={{ background: 'linear-gradient(135deg, #ef4444, #b91c1c)', color: '#fff', border: 'none', padding: '12px 24px', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 14px rgba(239,68,68,0.4)' }}>
+                          <Trash2 size={16} /> СУПЕР-ВИДАЛЕННЯ
+                        </button>
+                      )}
                       <button onClick={() => handleDeleteClick(selectedOrder.id)} disabled={isSubmitting} className="btn-load-more" style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.2)', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <Trash2 size={16} /> ВИДАЛИТИ
                       </button>

@@ -2544,13 +2544,16 @@ const displayParts = getDisplayPartsForOrderItem(it)
                 )
               )}
 
-              {consumableSummary.length > 0 && (
-                <div className="stock-cutters-section no-print" style={{ marginTop: '15px', padding: '20px 30px', borderRadius: '18px', border: '1px solid rgba(255,144,0,0.18)', background: 'rgba(255,144,0,0.03)' }}>
-                  <h4 style={{ margin: '0 0 14px', fontSize: '0.75rem', fontWeight: 950, color: '#ff9000', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    🔧 ВИБІР ФРЕЗ ЗІ СКЛАДУ
-                  </h4>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {consumableSummary.map((c, idx) => {
+              {consumableSummary.length > 0 && (() => {
+                const cutterItems = consumableSummary.filter(c => c.name.toLowerCase().startsWith('фреза'))
+                if (cutterItems.length === 0) return null
+                return (
+                  <div className="stock-cutters-section no-print" style={{ marginTop: '15px', padding: '20px 30px', borderRadius: '18px', border: '1px solid rgba(255,144,0,0.18)', background: 'rgba(255,144,0,0.03)' }}>
+                    <h4 style={{ margin: '0 0 14px', fontSize: '0.75rem', fontWeight: 950, color: '#ff9000', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      🔧 ВИБІР ФРЕЗ ЗІ СКЛАДУ
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {cutterItems.map((c, idx) => {
                       // Extract diameter from the consumable name e.g. "Фреза ф3" → 3, "Фреза ф1.5" → 1.5
                       const nameLower = c.name.toLowerCase()
                       const fMatch = nameLower.match(/ф\s*([0-9][0-9,.]*)/)

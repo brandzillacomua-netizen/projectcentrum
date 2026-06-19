@@ -13,7 +13,8 @@ import {
   Search,
   History,
   Pencil,
-  Check
+  Check,
+  X
 } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useMES } from '../MESContext'
@@ -87,6 +88,12 @@ const WarehouseModuleV2 = () => {
   // editingQty: { [requestId]: inputValue }
   const [editingQty, setEditingQty] = useState({})
   const [savingQty, setSavingQty] = useState(new Set())
+
+  // Super admin inventory editing state
+  const [editingInvId, setEditingInvId] = useState(null)
+  const [editingInvTotal, setEditingInvTotal] = useState('')
+  const [editingInvReserved, setEditingInvReserved] = useState('')
+  const [savingInv, setSavingInv] = useState(false)
 
   const getMaterialType = (r) => {
     if (r.details && (r.details.includes('ЗАПИТ НА КОМПЛЕКТУВАННЯ') || r.details.includes('ПАКУВАННЯ'))) {
@@ -348,6 +355,29 @@ const WarehouseModuleV2 = () => {
     } finally {
       setSavingQty(prev => { const n = new Set(prev); n.delete(reqId); return n })
       setEditingQty(prev => { const n = { ...prev }; delete n[reqId]; return n })
+    }
+  }
+
+  const handleSaveInventoryQty = async (itemId) => {
+    const totalVal = parseFloat(editingInvTotal)
+    const reservedVal = parseFloat(editingInvReserved)
+    if (isNaN(totalVal) || totalVal < 0 || isNaN(reservedVal) || reservedVal < 0) {
+      alert('Будь ласка, введіть коректні числа (>= 0)')
+      return
+    }
+    setSavingInv(true)
+    try {
+      await supabaseClient.from('inventory').update({
+        total_qty: totalVal,
+        reserved_qty: reservedVal,
+        updated_at: new Date().toISOString()
+      }).eq('id', itemId)
+      if (typeof fetchModuleData === 'function') fetchModuleData('warehouse')
+      setEditingInvId(null)
+    } catch (err) {
+      alert('Помилка збереження: ' + err.message)
+    } finally {
+      setSavingInv(false)
     }
   }
 
@@ -992,34 +1022,87 @@ const WarehouseModuleV2 = () => {
                     {filteredInventory.map(item => (
                       <tr key={item.id} style={{ borderBottom: '1px solid #151515' }}>
                         <td className="sticky-col" style={{ padding: '15px', fontWeight: 800 }}>
-                          {item.name}
-                          {item.type?.startsWith('scrap') && (() => {
-                            const types = {
-                              'scrap': { label: 'Прийомка', color: '#555' },
-                              'scrap_ready': { label: 'До обробки', color: '#ef4444' },
-                              'scrap_cat_1': { label: 'Кат. 1', color: '#10b981' },
-                              'scrap_cat_2': { label: 'Кат. 2', color: '#eab308' },
-                              'scrap_cat_3': { label: 'Кат. 3', color: '#f97316' },
-                              'scrap_cat_4': { label: 'Кат. 4', color: '#ef4444' },
-                            }
-                            const t = types[item.type] || { label: item.type, color: '#333' }
-                            return (
-                              <span style={{ 
-                                marginLeft: '10px', fontSize: '0.6rem', color: t.color, 
-                                border: `1px solid ${t.color}40`, padding: '2px 6px', 
-                                borderRadius: '4px', textTransform: 'uppercase', fontWeight: 900
-                              }}>
-                                {t.label}
-                              </span>
-                            )
-                          })()}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span>{item.name}</span>
+                            {item.type?.startsWith('scrap') && (() => {
+                              const types = {
+                                'scrap': { label: 'Прийомка', color: '#555' },
+                                'scrap_ready': { label: 'До обробки', color: '#ef4444' },
+                                'scrap_cat_1': { label: 'Кат. 1', color: '#10b981' },
+                                'scrap_cat_2': { label: 'Кат. 2', color: '#eab308' },
+                                'scrap_cat_3': { label: 'Кат. 3', color: '#f97316' },
+                                'scrap_cat_4': { label: 'Кат. 4', color: '#ef4444' },
+                              }
+                              const t = types[item.type] || { label: item.type, color: '#333' }
+                              return (
+                                <span style={{ 
+                                  fontSize: '0.6rem', color: t.color, 
+                                  border: `1px solid ${t.color}40`, padding: '2px 6px', 
+                                  borderRadius: '4px', textTransform: 'uppercase', fontWeight: 900
+                                }}>
+                                  {t.label}
+                                </span>
+                              )
+                            })()}
+                            {currentUser?.login === 'admin@workshop.local' && editingInvId !== item.id && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingInvId(item.id)
+                                  setEditingInvTotal(String(item.total_qty || 0))
+                                  setEditingInvReserved(String(item.reserved_qty || 0))
+                                }}
+                                style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer', display: 'inline-flex', padding: '4px' }}
+                                title="Редагувати запаси"
+                              >
+                                <Pencil size={12} />
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td style={{ padding: '15px', textAlign: 'center', color: activeTab === 'scrap' ? '#ef4444' : '#ff9000', fontWeight: 900 }}>
-                          {item.total_qty || 0}{' '}
-                          <small style={{ color: '#444', fontWeight: 400 }}>{item.unit}</small>
+                          {editingInvId === item.id ? (
+                            <input
+                              type="number"
+                              value={editingInvTotal}
+                              onChange={e => setEditingInvTotal(e.target.value)}
+                              style={{ width: '80px', background: '#000', border: '1px solid #ff9000', color: '#fff', textAlign: 'center', borderRadius: '6px', padding: '4px' }}
+                            />
+                          ) : (
+                            <>
+                              {item.total_qty || 0}{' '}
+                              <small style={{ color: '#444', fontWeight: 400 }}>{item.unit}</small>
+                            </>
+                          )}
                         </td>
                         <td style={{ padding: '15px', textAlign: 'center', color: Number(item.reserved_qty) > 0 ? '#3b82f6' : '#222', fontWeight: 800 }}>
-                          {item.reserved_qty || 0}
+                          {editingInvId === item.id ? (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                              <input
+                                type="number"
+                                value={editingInvReserved}
+                                onChange={e => setEditingInvReserved(e.target.value)}
+                                style={{ width: '80px', background: '#000', border: '1px solid #3b82f6', color: '#fff', textAlign: 'center', borderRadius: '6px', padding: '4px' }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleSaveInventoryQty(item.id)}
+                                disabled={savingInv}
+                                style={{ background: '#10b981', border: 'none', borderRadius: '6px', padding: '5px 10px', color: '#000', fontWeight: 900, cursor: 'pointer' }}
+                              >
+                                {savingInv ? '...' : <Check size={14} />}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingInvId(null)}
+                                style={{ background: '#222', border: 'none', borderRadius: '6px', padding: '5px 10px', color: '#fff', cursor: 'pointer' }}
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          ) : (
+                            item.reserved_qty || 0
+                          )}
                         </td>
                         <td style={{ padding: '15px', textAlign: 'right', color: '#333', fontSize: '0.7rem' }}>
                           {item.updated_at
@@ -1036,22 +1119,79 @@ const WarehouseModuleV2 = () => {
               <div className="mobile-only">
                 {filteredInventory.map(item => (
                   <div key={item.id} style={{ background: '#111', padding: '15px', borderRadius: '16px', border: '1px solid #222', marginBottom: '10px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', alignItems: 'center' }}>
                       <strong>{item.name}</strong>
-                      <span style={{ fontSize: '0.7rem', color: '#444' }}>{item.unit}</span>
-                    </div>
-                    <div style={{ display: 'flex', gap: '20px' }}>
-                      <div>
-                        <div style={{ fontSize: '0.6rem', color: '#555' }}>НАЯВНІСТЬ</div>
-                        <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#ff9000' }}>
-                          {item.total_qty || 0}
-                        </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '0.7rem', color: '#444' }}>{item.unit}</span>
+                        {currentUser?.login === 'admin@workshop.local' && editingInvId !== item.id && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingInvId(item.id)
+                              setEditingInvTotal(String(item.total_qty || 0))
+                              setEditingInvReserved(String(item.reserved_qty || 0))
+                            }}
+                            style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer', padding: '4px' }}
+                          >
+                            <Pencil size={12} />
+                          </button>
+                        )}
                       </div>
-                      {activeTab !== 'bz' && (
-                        <div>
-                          <div style={{ fontSize: '0.6rem', color: '#555' }}>РЕЗЕРВ</div>
-                          <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#3b82f6' }}>{item.reserved_qty || 0}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '20px', flexDirection: editingInvId === item.id ? 'column' : 'row' }}>
+                      {editingInvId === item.id ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+                          <div>
+                            <label style={{ fontSize: '0.65rem', color: '#555', display: 'block', marginBottom: '4px' }}>НАЯВНІСТЬ</label>
+                            <input
+                              type="number"
+                              value={editingInvTotal}
+                              onChange={e => setEditingInvTotal(e.target.value)}
+                              style={{ width: '100%', background: '#000', border: '1px solid #ff9000', color: '#fff', borderRadius: '6px', padding: '8px', boxSizing: 'border-box' }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '0.65rem', color: '#555', display: 'block', marginBottom: '4px' }}>РЕЗЕРВ</label>
+                            <input
+                              type="number"
+                              value={editingInvReserved}
+                              onChange={e => setEditingInvReserved(e.target.value)}
+                              style={{ width: '100%', background: '#000', border: '1px solid #3b82f6', color: '#fff', borderRadius: '6px', padding: '8px', boxSizing: 'border-box' }}
+                            />
+                          </div>
+                          <div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleSaveInventoryQty(item.id)}
+                              disabled={savingInv}
+                              style={{ flex: 1, background: '#10b981', color: '#000', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 900, cursor: 'pointer' }}
+                            >
+                              {savingInv ? '...' : 'ЗБЕРЕГТИ'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingInvId(null)}
+                              style={{ flex: 1, background: '#222', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', cursor: 'pointer' }}
+                            >
+                              СКАСУВАТИ
+                            </button>
+                          </div>
                         </div>
+                      ) : (
+                        <>
+                          <div>
+                            <div style={{ fontSize: '0.6rem', color: '#555' }}>НАЯВНІСТЬ</div>
+                            <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#ff9000' }}>
+                              {item.total_qty || 0}
+                            </div>
+                          </div>
+                          {activeTab !== 'bz' && (
+                            <div>
+                              <div style={{ fontSize: '0.6rem', color: '#555' }}>РЕЗЕРВ</div>
+                              <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#3b82f6' }}>{item.reserved_qty || 0}</div>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { 
   Settings, 
   ArrowLeft, 
@@ -11,7 +11,17 @@ import {
   Database,
   Upload,
   Plus,
-  Trash2
+  Trash2,
+  BookOpen,
+  Search,
+  Save,
+  X,
+  ChevronRight,
+  ChevronDown,
+  Package,
+  Layers,
+  Edit2,
+  Copy
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
@@ -25,6 +35,59 @@ const MACHINE_TYPES = [
   'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
 ]
 
+const renderCutterListEditorShared = (cutters, setCutters, nomenclatures) => {
+  const cutterNoms = nomenclatures.filter(n => n.name.toLowerCase().includes('фреза') || n.type === 'consumable')
+  return (
+    <div style={{ flex: 1, minWidth: '280px', background: '#111', padding: '15px', borderRadius: '12px', border: '1px solid #222' }}>
+      <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <span>⚙️ Витрата фрез на лист</span>
+      </h4>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        {cutters.map((c, idx) => (
+          <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '8px' }}>
+            <select 
+              value={c.nomId} 
+              onChange={e => {
+                const copy = [...cutters]
+                copy[idx].nomId = e.target.value
+                setCutters(copy)
+              }}
+              style={{ flex: 2, padding: '8px', background: '#000', border: '1px solid #333', color: '#fff', borderRadius: '6px', fontSize: '0.8rem' }}
+            >
+              <option value="">-- Оберіть фрезу --</option>
+              {cutterNoms.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+            </select>
+            <input 
+              type="number"
+              min="1"
+              placeholder="к-сть"
+              value={c.qty || ''}
+              onChange={e => {
+                const copy = [...cutters]
+                copy[idx].qty = parseInt(e.target.value, 10) || 0
+                setCutters(copy)
+              }}
+              style={{ width: '70px', padding: '8px', background: '#000', border: '1px solid #333', color: '#f59e0b', borderRadius: '6px', fontSize: '0.8rem', textAlign: 'center', fontWeight: 800 }}
+            />
+            <button 
+              onClick={() => setCutters(cutters.filter((_, i) => i !== idx))}
+              style={{ background: '#ef4444', border: 'none', color: '#fff', borderRadius: '6px', padding: '0 10px', cursor: 'pointer' }}
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        ))}
+        <button 
+          onClick={() => setCutters([...cutters, { nomId: '', qty: 1 }])}
+          style={{ width: '100%', padding: '8px', background: 'transparent', border: '1px dashed #333', color: '#10b981', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700, marginTop: '4px' }}
+        >
+          + Додати фрезу до витрат
+        </button>
+      </div>
+    </div>
+  )
+}
+
 const MachineOperationsTab = () => {
   const { nomenclatures, machines, machineOperations, supabase, bomItems, refreshTable } = useMES()
   const [selectedNom, setSelectedNom] = useState('')
@@ -32,6 +95,7 @@ const MachineOperationsTab = () => {
   const [side1Ops, setSide1Ops] = useState([])
   const [side2Ops, setSide2Ops] = useState([])
   const [side2CutOps, setSide2CutOps] = useState([])
+  const [cuttersList, setCuttersList] = useState([])
   const [uploading, setUploading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -45,10 +109,18 @@ const MachineOperationsTab = () => {
         setSide1Ops((existing.side1_ops || []).filter(op => !op.startsWith('__CUTTER__:')))
         setSide2Ops((existing.side2_ops || []).filter(op => !op.startsWith('__CUTTER__:')))
         setSide2CutOps((existing.side2_cut_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:')))
+        
+        const cutterOps = (existing.side2_cut_ops || []).filter(op => op.startsWith('__CUTTER__:'))
+        const parsed = cutterOps.map(c => {
+          const parts = c.split(':')
+          return { nomId: parts[1], qty: parseInt(parts[2], 10) || 0 }
+        })
+        setCuttersList(parsed)
       } else {
         setSide1Ops([])
         setSide2Ops([])
         setSide2CutOps([])
+        setCuttersList([])
       }
     }
   }, [selectedNom, selectedMachine, machineOperations])
@@ -61,7 +133,10 @@ const MachineOperationsTab = () => {
       o.nomenclature_id === selectedNom && 
       (o.machine_type === selectedMachine || o.machine_id === selectedMachine)
     )
-    const existingCutters = existing ? (existing.side2_cut_ops || []).filter(op => op.startsWith('__CUTTER__:')) : []
+    
+    const cutterStrings = cuttersList
+      .filter(c => c.nomId && c.qty > 0)
+      .map(c => `__CUTTER__:${c.nomId}:${c.qty}`)
 
     const payload = {
       nomenclature_id: selectedNom,
@@ -69,7 +144,7 @@ const MachineOperationsTab = () => {
       machine_type: isType ? selectedMachine : null,
       side1_ops: side1Ops.filter(Boolean),
       side2_ops: side2Ops.filter(Boolean),
-      side2_cut_ops: [...side2CutOps.filter(Boolean), ...existingCutters]
+      side2_cut_ops: [...side2CutOps.filter(Boolean), ...cutterStrings]
     }
     
     if (existing) {
@@ -511,10 +586,12 @@ const MachineOperationsTab = () => {
               .eq('child_id', childId)
             
             if (!existingBom || existingBom.length === 0) {
+              const grpLabel = autoClassify(block.nomenclature)
               await supabase.from('bom_items').insert({
                 parent_id: parentId,
                 child_id: childId,
-                quantity_per_parent: 1
+                quantity_per_parent: 1,
+                group_label: grpLabel
               })
             }
           }
@@ -616,6 +693,8 @@ const MachineOperationsTab = () => {
       </button>
     </div>
   )
+
+  const renderCutterListEditor = (cutters, setCutters) => renderCutterListEditorShared(cutters, setCutters, nomenclatures)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -827,6 +906,7 @@ const MachineOperationsTab = () => {
               {renderOpList(side1Ops, setSide1Ops, 'Операція (1 сторона)')}
               {renderOpList(side2Ops, setSide2Ops, 'Операція (2 сторона)')}
               {renderOpList(side2CutOps, setSide2CutOps, 'Операція (2 сторона вирізка)')}
+              {renderCutterListEditor(cuttersList, setCuttersList)}
             </div>
             <button onClick={handleSave} style={{ padding: '15px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '1rem' }}>
               ЗБЕРЕГТИ ОПЕРАЦІЇ
@@ -834,6 +914,1318 @@ const MachineOperationsTab = () => {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+// ─── NOM QUICK-CREATE MODAL ───────────────────────────────────────────────────
+const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, prefilledName = '' }) => {
+  const [name, setName] = useState(prefilledName)
+  const [type, setType] = useState('part')
+  const [materialType, setMaterialType] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    if (!name.trim()) return alert('Введіть назву')
+    setSaving(true)
+    try {
+      const payload = { name: name.trim(), type, material_type: materialType.trim() || null }
+      const { data, error } = await supabase.from('nomenclatures').insert(payload).select().single()
+      if (error) throw error
+      await refreshTable('nomenclatures')
+      onCreated(data)
+      onClose()
+    } catch (e) { alert('Помилка: ' + e.message) }
+    finally { setSaving(false) }
+  }
+
+  const inputStyle = { width: '100%', padding: '10px 14px', background: '#111', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box' }
+  const labelStyle = { fontSize: '0.7rem', color: '#666', fontWeight: 800, textTransform: 'uppercase', display: 'block', marginBottom: '6px' }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      <div style={{ background: '#0d0d0d', border: '1px solid #2a2a2a', borderRadius: '20px', width: '100%', maxWidth: '480px', padding: '30px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+          <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900, color: '#a78bfa' }}>Нова номенклатура</h3>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer' }}><X size={20}/></button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div>
+            <label style={labelStyle}>Назва</label>
+            <input value={name} onChange={e => setName(e.target.value)} style={inputStyle} placeholder="напр. Накладка права" autoFocus />
+          </div>
+          <div>
+            <label style={labelStyle}>Тип</label>
+            <select value={type} onChange={e => setType(e.target.value)} style={inputStyle}>
+              <option value="part">Деталь (part)</option>
+              <option value="raw">Сировина (raw)</option>
+              <option value="consumable">Метиз / Витратний (consumable)</option>
+              <option value="product">Готовий виріб (product)</option>
+              <option value="assembly">Вузол збірки (assembly)</option>
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>Матеріал / характеристика</label>
+            <input value={materialType} onChange={e => setMaterialType(e.target.value)} style={inputStyle} placeholder="напр. сталь, ПВХ 3мм" />
+          </div>
+          <button onClick={handleSave} disabled={saving} style={{ width: '100%', padding: '13px', background: 'linear-gradient(135deg, #7c3aed, #a78bfa)', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', fontSize: '0.9rem', marginTop: '6px' }}>
+            {saving ? 'Збереження...' : '+ Створити та додати'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const ParentCreateModal = ({ onClose, onCreated, supabase, refreshTable, initialType = 'product', prefilledName = '' }) => {
+  const [name, setName] = useState(prefilledName)
+  const [type, setType] = useState(initialType)
+  const [materialType, setMaterialType] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    if (!name.trim()) return alert('Введіть назву')
+    setSaving(true)
+    try {
+      const payload = { name: name.trim(), type, material_type: materialType.trim() || null }
+      const { data, error } = await supabase.from('nomenclatures').insert(payload).select().single()
+      if (error) throw error
+      await refreshTable('nomenclatures')
+      onCreated(data)
+      onClose()
+    } catch (e) { alert('Помилка: ' + e.message) }
+    finally { setSaving(false) }
+  }
+
+  const inputStyle = { width: '100%', padding: '12px 14px', background: '#111', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '0.9rem', boxSizing: 'border-box', outline: 'none' }
+  const labelStyle = { fontSize: '0.75rem', color: '#888', fontWeight: 800, textTransform: 'uppercase', display: 'block', marginBottom: '6px' }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      <div style={{ background: '#0d0d0d', border: '1px solid #2a2a5a', borderRadius: '24px', width: '100%', maxWidth: '580px', padding: '30px', boxShadow: '0 20px 50px rgba(0,0,0,0.8)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #1a1a2e', paddingBottom: '15px' }}>
+          <div>
+            <span style={{ fontSize: '0.7rem', color: '#818cf8', fontWeight: 900, textTransform: 'uppercase' }}>Конструктор специфікацій</span>
+            <h3 style={{ margin: '4px 0 0 0', fontSize: '1.25rem', fontWeight: 900, color: '#fff' }}>Створення виробу або вузла</h3>
+          </div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer' }}><X size={20}/></button>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div>
+            <label style={labelStyle}>Назва готового виробу / вузла збірки</label>
+            <input value={name} onChange={e => setName(e.target.value)} style={inputStyle} placeholder="напр. Рама (інд.проект 24), F610 або Вузол кріплення променів" autoFocus />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Тип об'єкта</label>
+            <div style={{ display: 'flex', gap: '12px', marginTop: '6px' }}>
+              <div 
+                onClick={() => setType('product')}
+                style={{ 
+                  flex: 1, 
+                  padding: '16px', 
+                  background: type === 'product' ? 'rgba(245,158,11,0.08)' : '#070707', 
+                  border: `2px solid ${type === 'product' ? '#f59e0b' : '#1e1e1e'}`, 
+                  borderRadius: '12px', 
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#f59e0b' }}></div>
+                  <span style={{ fontWeight: 800, fontSize: '0.85rem', color: type === 'product' ? '#f59e0b' : '#aaa' }}>Готовий Виріб (Рама)</span>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.75rem', color: '#666', lineHeight: '1.3' }}>
+                  Кінцевий виріб або збірка рами. Специфікація містить перелік деталей, метизів, накладок і пакування.
+                </p>
+              </div>
+
+              <div 
+                onClick={() => setType('assembly')}
+                style={{ 
+                  flex: 1, 
+                  padding: '16px', 
+                  background: type === 'assembly' ? 'rgba(167,139,250,0.08)' : '#070707', 
+                  border: `2px solid ${type === 'assembly' ? '#a78bfa' : '#1e1e1e'}`, 
+                  borderRadius: '12px', 
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#a78bfa' }}></div>
+                  <span style={{ fontWeight: 800, fontSize: '0.85rem', color: type === 'assembly' ? '#a78bfa' : '#aaa' }}>Вузол збірки</span>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.75rem', color: '#666', lineHeight: '1.3' }}>
+                  Проміжний складальний елемент (підвузол), який входить до специфікації Готового виробу.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Матеріал / характеристика (необов'язково)</label>
+            <input value={materialType} onChange={e => setMaterialType(e.target.value)} style={inputStyle} placeholder="напр. карбон, алюміній" />
+          </div>
+
+          <button 
+            onClick={handleSave} 
+            disabled={saving} 
+            style={{ 
+              width: '100%', 
+              padding: '14px', 
+              background: type === 'product' ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)', 
+              color: '#fff', 
+              border: 'none', 
+              borderRadius: '12px', 
+              fontWeight: 900, 
+              cursor: 'pointer', 
+              fontSize: '0.9rem', 
+              marginTop: '10px'
+            }}
+          >
+            {saving ? 'Створення...' : `+ Створити та почати редагування`}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── BOM ROW COMPONENT ────────────────────────────────────────────────────────
+const BomRow = ({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, supabase, refreshTable, onExpandAssembly }) => {
+  const [query, setQuery] = useState(row.nomName || '')
+  const [showDrop, setShowDrop] = useState(false)
+  const [showCreate, setShowCreate] = useState(false)
+  const inputRef = useRef(null)
+
+  const filtered = useMemo(() => {
+    if (!query || query.length < 2) return []
+    const q = query.toLowerCase()
+    return nomenclatures.filter(n => n.name.toLowerCase().includes(q)).slice(0, 12)
+  }, [query, nomenclatures])
+
+  const subItems = useMemo(() => {
+    if (!row.nomId || !bomItems) return []
+    return bomItems.filter(b => String(b.parent_id) === String(row.nomId))
+  }, [row.nomId, bomItems])
+
+  const TYPE_COLORS = { product: '#f59e0b', part: '#60a5fa', raw: '#34d399', consumable: '#f87171', assembly: '#a78bfa' }
+  const TYPE_LABELS = { product: 'Виріб', part: 'Деталь', raw: 'Сировина', consumable: 'Метиз', assembly: 'Вузол' }
+
+  return (
+    <>
+      {showCreate && (
+        <NomCreateModal
+          prefilledName={query}
+          supabase={supabase}
+          refreshTable={refreshTable}
+          onClose={() => setShowCreate(false)}
+          onCreated={nom => {
+            setQuery(nom.name)
+            setShowDrop(false)
+            onUpdate(idx, { nomId: nom.id, nomName: nom.name, nomType: nom.type, nomUnit: nom.unit })
+          }}
+        />
+      )}
+      <div style={{ background: idx % 2 === 0 ? '#0e0e0e' : 'transparent', borderRadius: '8px', padding: '6px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 120px 90px 28px', gap: '8px', alignItems: 'center', padding: '4px 10px', position: 'relative' }}>
+          <span style={{ color: '#333', fontSize: '0.8rem', fontWeight: 700, textAlign: 'center' }}>{idx + 1}</span>
+          <div style={{ position: 'relative' }}>
+            <input
+              ref={inputRef}
+              value={query}
+              placeholder="Пошук або назва компонента..."
+              onChange={e => { setQuery(e.target.value); setShowDrop(true); onUpdate(idx, { nomId: null, nomName: e.target.value }) }}
+              onFocus={() => setShowDrop(true)}
+              style={{ width: '100%', padding: '8px 12px', background: row.nomId ? '#0f1f14' : '#111', border: `1px solid ${row.nomId ? '#16a34a40' : '#2a2a2a'}`, color: '#fff', borderRadius: '8px', fontSize: '0.85rem', boxSizing: 'border-box' }}
+            />
+            {showDrop && query.length >= 2 && (
+              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#111', border: '1px solid #3b82f6', borderRadius: '10px', zIndex: 9999, maxHeight: '240px', overflowY: 'auto', boxShadow: '0 10px 40px rgba(0,0,0,0.8)', marginTop: '4px' }}>
+                {filtered.map(n => (
+                  <div
+                    key={n.id}
+                    onMouseDown={() => {
+                      setQuery(n.name)
+                      setShowDrop(false)
+                      onUpdate(idx, { nomId: n.id, nomName: n.name, nomType: n.type, nomUnit: n.unit })
+                    }}
+                    style={{ padding: '10px 14px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1a1a1a', transition: 'background 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#1a1a1a'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#fff' }}>{n.name}</div>
+                      {n.material_type && <div style={{ fontSize: '0.7rem', color: '#555' }}>{n.material_type}</div>}
+                    </div>
+                    <span style={{ fontSize: '0.65rem', fontWeight: 900, background: (TYPE_COLORS[n.type] || '#555') + '22', color: TYPE_COLORS[n.type] || '#888', padding: '2px 8px', borderRadius: '20px', whiteSpace: 'nowrap' }}>{TYPE_LABELS[n.type] || n.type}</span>
+                  </div>
+                ))}
+                {filtered.length === 0 && (
+                  <div style={{ padding: '12px 14px' }}>
+                    <div style={{ color: '#555', fontSize: '0.8rem', marginBottom: '10px' }}>Нічого не знайдено</div>
+                    <button onMouseDown={() => { setShowDrop(false); setShowCreate(true) }} style={{ background: 'rgba(124,58,237,0.15)', border: '1px solid #7c3aed40', color: '#a78bfa', borderRadius: '8px', padding: '7px 14px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Plus size={14}/> Створити «{query}»
+                    </button>
+                  </div>
+                )}
+                {filtered.length > 0 && (
+                  <div style={{ padding: '8px 14px', borderTop: '1px solid #1a1a1a' }}>
+                    <button onMouseDown={() => { setShowDrop(false); setShowCreate(true) }} style={{ background: 'transparent', border: 'none', color: '#7c3aed', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <Plus size={12}/> Не знайшли? Створити нову
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <select
+            value={row.group || 'Деталі'}
+            onChange={e => onUpdate(idx, { group: e.target.value })}
+            style={{ padding: '8px 8px', background: '#111', border: '1px solid #2a2a2a', color: '#888', borderRadius: '8px', fontSize: '0.75rem' }}
+          >
+            <option>Деталі</option>
+            <option>Накладки</option>
+            <option>Метизи</option>
+            <option>Гума/Пластик</option>
+            <option>3D-друк</option>
+            <option>Фурнітура</option>
+            <option>Комплектуючі</option>
+            <option>Інше</option>
+          </select>
+          <input
+            type="number"
+            min="0.001"
+            step="0.001"
+            value={row.qty}
+            onChange={e => onUpdate(idx, { qty: e.target.value })}
+            style={{ padding: '8px 10px', background: '#111', border: '1px solid #2a2a2a', color: '#f59e0b', borderRadius: '8px', fontSize: '0.9rem', fontWeight: 700, textAlign: 'right' }}
+          />
+          <button onClick={() => onRemove(idx)} style={{ background: 'transparent', border: 'none', color: '#3a1a1a', cursor: 'pointer', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#ef4444'} onMouseLeave={e => e.currentTarget.style.color = '#3a1a1a'}><Trash2 size={15}/></button>
+        </div>
+
+        {row.nomId && row.nomType === 'assembly' && subItems.length > 0 && (
+          <div style={{ marginLeft: '36px', marginRight: '10px', marginTop: '6px', marginBottom: '4px', padding: '10px 14px', background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.2)', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.75rem', color: '#a78bfa', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '5px' }}>📦 Вузол містить {subItems.length} компонент(ів):</span>
+              <button 
+                onClick={() => onExpandAssembly(row.nomId, Number(row.qty) || 1)}
+                style={{ padding: '3px 8px', background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.3)', color: '#c084fc', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700, transition: 'all 0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(167,139,250,0.25)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(167,139,250,0.15)'}
+              >
+                💥 Розгорнути в окремі рядки
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              {subItems.map(s => {
+                const subNom = nomenclatures.find(n => n.id === s.child_id)
+                return (
+                  <span key={s.id} style={{ fontSize: '0.7rem', background: '#0a0a0a', border: '1px solid #1a1a1a', padding: '2px 8px', borderRadius: '6px', color: '#aaa' }}>
+                    {subNom ? subNom.name : 'компонент'} <strong style={{ color: '#fff' }}>x{s.quantity_per_parent}</strong>
+                  </span>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+// ─── AUTO-CLASSIFY helper (mirrors PackagingModule logic) ─────────────────────
+function autoClassify(nom) {
+  if (!nom) return 'Інше'
+  const name = (nom.name || '').toLowerCase()
+  const type = (nom.type || '').toLowerCase()
+  const code = (nom.nomenclature_code || '').toLowerCase()
+
+  // Метизи: гвинт, гайка, болт, шайба, прес-гайка
+  if (
+    name.includes('гвинт') ||
+    name.includes('гайка') ||
+    name.includes('болт') ||
+    name.includes('шайба') ||
+    name.includes('прес гайк') ||
+    name.includes('прес-гайк') ||
+    name.includes('втулка') ||
+    type === 'consumable'
+  ) return 'Метизи'
+
+  // Кріплення / 3D-друк
+  if (
+    name.includes('кріплення') ||
+    name.includes('друк') ||
+    name.includes('3д') ||
+    name.includes('3d')
+  ) return '3D-друк'
+
+  // Стійки
+  if (name.includes('стійка') || name.includes('стийка')) return 'Стійки'
+
+  // Накладки
+  if (
+    name.includes('накладка') ||
+    name.includes('накладки') ||
+    name.includes('наклад')
+  ) return 'Накладки'
+
+  // Гума / Пластик
+  if (
+    name.includes('гума') ||
+    name.includes('пластик') ||
+    name.includes('пвх') ||
+    name.includes('каучук') ||
+    name.includes('уплітнювач') ||
+    name.includes('прокладка') ||
+    name.includes('проклад')
+  ) return 'Гума/Пластик'
+
+  // Деталі: ІП- префікс, код ІП, type=part
+  if (
+    name.startsWith('іп') ||
+    name.startsWith('іп-') ||
+    name.includes(' іп') ||
+    code.startsWith('іп') ||
+    type === 'part'
+  ) return 'Деталі'
+
+  // Вузоли / субасемблі
+  if (type === 'assembly') return 'Комплектуючі'
+
+  return 'Інше'
+}
+
+// ─── BOM SPEC BUILDER TAB ─────────────────────────────────────────────────────
+const SpecBuilderTab = () => {
+  const { nomenclatures, bomItems, supabase, refreshTable } = useMES()
+
+  // Editor state
+  const [parentId, setParentId] = useState('')
+  const [parentSearch, setParentSearch] = useState('')
+  const [showParentDrop, setShowParentDrop] = useState(false)
+  const [rows, setRows] = useState([])
+  const [saving, setSaving] = useState(false)
+  const [viewMode, setViewMode] = useState('editor') // 'editor' | 'catalog' | 'dossier'
+  const [catalogSearch, setCatalogSearch] = useState('')
+  const [expandedParents, setExpandedParents] = useState({})
+  const [showNomCreate, setShowNomCreate] = useState(false)
+  const [showParentCreate, setShowParentCreate] = useState(false)
+  const [parentCreateType, setParentCreateType] = useState('product')
+  const [dossierParentId, setDossierParentId] = useState(null)
+  
+  // State for inline operations manager
+  const [activeInlinePart, setActiveInlinePart] = useState(null) // { id, name }
+  const [selectedMachine, setSelectedMachine] = useState('')
+  const [side1Ops, setSide1Ops] = useState([])
+  const [side2Ops, setSide2Ops] = useState([])
+  const [side2CutOps, setSide2CutOps] = useState([])
+  const [inlineCuttersList, setInlineCuttersList] = useState([])
+  const [savingOps, setSavingOps] = useState(false)
+
+  const { machineOperations, machines } = useMES()
+
+  const renderCutterListEditor = (cutters, setCutters) => renderCutterListEditorShared(cutters, setCutters, nomenclatures)
+
+  // Load existing machine operations when active part and machine are chosen
+  useEffect(() => {
+    if (activeInlinePart && selectedMachine) {
+      const existing = machineOperations?.find(o => 
+        o.nomenclature_id === activeInlinePart.id && 
+        (o.machine_type === selectedMachine || o.machine_id === selectedMachine)
+      )
+      if (existing) {
+        setSide1Ops((existing.side1_ops || []).filter(op => !op.startsWith('__CUTTER__:')))
+        setSide2Ops((existing.side2_ops || []).filter(op => !op.startsWith('__CUTTER__:')))
+        setSide2CutOps((existing.side2_cut_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:')))
+        
+        const cutterOps = (existing.side2_cut_ops || []).filter(op => op.startsWith('__CUTTER__:'))
+        const parsed = cutterOps.map(c => {
+          const parts = c.split(':')
+          return { nomId: parts[1], qty: parseInt(parts[2], 10) || 0 }
+        })
+        setInlineCuttersList(parsed)
+      } else {
+        setSide1Ops([])
+        setSide2Ops([])
+        setSide2CutOps([])
+        setInlineCuttersList([])
+      }
+    }
+  }, [activeInlinePart, selectedMachine, machineOperations])
+
+  const handleSaveInlineOps = async () => {
+    if (!activeInlinePart || !selectedMachine) return
+    setSavingOps(true)
+    try {
+      const isType = MACHINE_TYPES.includes(selectedMachine)
+      
+      const existing = machineOperations?.find(o => 
+        o.nomenclature_id === activeInlinePart.id && 
+        (o.machine_type === selectedMachine || o.machine_id === selectedMachine)
+      )
+      
+      const cutterStrings = inlineCuttersList
+        .filter(c => c.nomId && c.qty > 0)
+        .map(c => `__CUTTER__:${c.nomId}:${c.qty}`)
+
+      const payload = {
+        nomenclature_id: activeInlinePart.id,
+        machine_id: isType ? null : selectedMachine,
+        machine_type: isType ? selectedMachine : null,
+        side1_ops: side1Ops.filter(Boolean),
+        side2_ops: side2Ops.filter(Boolean),
+        side2_cut_ops: [...side2CutOps.filter(Boolean), ...cutterStrings]
+      }
+      
+      if (existing) {
+        await supabase.from('machine_operations').update(payload).eq('id', existing.id)
+      } else {
+        await supabase.from('machine_operations').insert(payload)
+      }
+      await refreshTable('machine_operations')
+      alert('Операції збережено успішно!')
+      setActiveInlinePart(null)
+      setSelectedMachine('')
+    } catch (err) {
+      alert('Помилка збереження: ' + err.message)
+    } finally {
+      setSavingOps(false)
+    }
+  }
+
+  // Derive the selected parent nomenclature object
+  const selectedParent = useMemo(() => nomenclatures.find(n => n.id === parentId), [parentId, nomenclatures])
+
+  // Product list for parent selection
+  const productNoms = useMemo(() => {
+    const q = parentSearch.toLowerCase()
+    return nomenclatures
+      .filter(n => (n.type === 'product' || n.type === 'assembly') && (!q || n.name.toLowerCase().includes(q)))
+      .slice(0, 15)
+  }, [nomenclatures, parentSearch])
+
+  // When parent changes, load its existing BOM rows
+  useEffect(() => {
+    if (!parentId) { setRows([]); return }
+    const existing = bomItems.filter(b => String(b.parent_id) === String(parentId))
+    if (existing.length > 0) {
+      setRows(existing.map(b => {
+        const nom = nomenclatures.find(n => String(n.id) === String(b.child_id))
+        return {
+          nomId: b.child_id,
+          nomName: nom?.name || '(невідомо)',
+          nomType: nom?.type || 'part',
+          nomUnit: nom?.unit || 'шт',
+          group: b.group_label || autoClassify(nom),
+          qty: b.quantity_per_parent ?? 1
+        }
+      }))
+    } else {
+      setRows([])
+    }
+  }, [parentId, bomItems, nomenclatures])
+
+  const addRow = () => setRows(prev => [...prev, { nomId: null, nomName: '', nomType: 'part', nomUnit: 'шт', group: 'Деталі', qty: 1 }])
+
+  const updateRow = (idx, patch) => setRows(prev => prev.map((r, i) => i === idx ? { ...r, ...patch } : r))
+  const removeRow = (idx) => setRows(prev => prev.filter((_, i) => i !== idx))
+
+  const handleSave = async () => {
+    if (!parentId) return alert('Оберіть виріб-батько')
+    const invalidRows = rows.filter(r => !r.nomId)
+    if (invalidRows.length > 0) return alert(`${invalidRows.length} рядків без прив'язки до номенклатури. Оберіть позиції або видаліть порожні рядки.`)
+    if (rows.length === 0) return alert('Додайте хоча б одну позицію до специфікації')
+
+    setSaving(true)
+    try {
+      // Aggregate duplicate child_ids
+      const agg = {}
+      rows.forEach(r => {
+        if (!agg[r.nomId]) agg[r.nomId] = { ...r, qty: Number(r.qty) || 1 }
+        else agg[r.nomId].qty += Number(r.qty) || 1
+      })
+      const payloadWithGroup = Object.values(agg).map(r => ({
+        parent_id: parentId,
+        child_id: r.nomId,
+        quantity_per_parent: r.qty,
+        group_label: r.group
+      }))
+      const payloadNoGroup = Object.values(agg).map(r => ({
+        parent_id: parentId,
+        child_id: r.nomId,
+        quantity_per_parent: r.qty
+      }))
+
+      await supabase.from('bom_items').delete().eq('parent_id', parentId)
+      if (payloadWithGroup.length > 0) {
+        // Try with group_label first; fall back without it if column doesn't exist
+        const { error: err1 } = await supabase.from('bom_items').insert(payloadWithGroup)
+        if (err1) {
+          if (err1.message && err1.message.includes('group_label')) {
+            // Column doesn't exist yet — save without it
+            const { error: err2 } = await supabase.from('bom_items').insert(payloadNoGroup)
+            if (err2) throw err2
+          } else {
+            throw err1
+          }
+        }
+      }
+      await refreshTable('bom_items')
+      alert(`✅ Специфікацію збережено! (${payloadWithGroup.length} позицій)`)
+    } catch (e) { alert('Помилка: ' + e.message) }
+    finally { setSaving(false) }
+  }
+
+  // Catalog: group bom_items by parent — only show finished products & assemblies
+  const catalogParents = useMemo(() => {
+    const q = catalogSearch.toLowerCase()
+    const parentIds = [...new Set(bomItems.map(b => b.parent_id))]
+    return parentIds
+      .map(pid => ({
+        nom: nomenclatures.find(n => String(n.id) === String(pid)),
+        children: bomItems.filter(b => String(b.parent_id) === String(pid))
+      }))
+      .filter(p => {
+        if (!p.nom) return false
+        // Only show product or assembly parents — skip raw/part/consumable
+        const t = p.nom.type
+        if (t && t !== 'product' && t !== 'assembly') return false
+        if (q && !p.nom.name.toLowerCase().includes(q)) return false
+        return true
+      })
+      .sort((a, b) => a.nom.name.localeCompare(b.nom.name))
+  }, [bomItems, nomenclatures, catalogSearch])
+
+  const TYPE_COLORS = { product: '#f59e0b', part: '#60a5fa', raw: '#34d399', consumable: '#f87171', assembly: '#a78bfa' }
+  const TYPE_LABELS = { product: 'Виріб', part: 'Деталь', raw: 'Сировина', consumable: 'Метиз', assembly: 'Вузол' }
+
+  // Group rows for preview
+  const groupedRows = useMemo(() => {
+    const groups = {}
+    rows.forEach((r, idx) => {
+      const g = r.group || 'Деталі'
+      if (!groups[g]) groups[g] = []
+      groups[g].push({ ...r, _idx: idx })
+    })
+    return groups
+  }, [rows])
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {showNomCreate && (
+        <NomCreateModal supabase={supabase} refreshTable={refreshTable} onClose={() => setShowNomCreate(false)} onCreated={() => {}} />
+      )}
+
+      {showParentCreate && (
+        <ParentCreateModal 
+          supabase={supabase} 
+          refreshTable={refreshTable} 
+          initialType={parentCreateType} 
+          prefilledName={parentSearch}
+          onClose={() => setShowParentCreate(false)} 
+          onCreated={(data) => {
+            setParentId(data.id);
+            setParentSearch('');
+          }} 
+        />
+      )}
+
+      {/* Header */}
+      <div style={{ background: 'linear-gradient(135deg, #0d0d1a, #12122a)', border: '1px solid #2a2a5a', borderRadius: '20px', padding: '25px 30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
+            <BookOpen size={24} color="#818cf8" />
+            <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 900, color: '#c7d2fe' }}>Конструктор специфікацій BOM</h2>
+          </div>
+          <p style={{ margin: 0, fontSize: '0.8rem', color: '#4a4a7a' }}>Створюйте та редагуйте специфікації (Bill of Materials) безпосередньо в системі</p>
+        </div>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          {viewMode === 'dossier' && (
+            <button
+              onClick={() => { setViewMode('catalog'); setDossierParentId(null) }}
+              style={{ padding: '10px 20px', background: '#111', color: '#818cf8', border: '1px solid #2a2a5a', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              <ArrowLeft size={15}/> До списку
+            </button>
+          )}
+          <button
+            onClick={() => { setViewMode('editor'); setDossierParentId(null) }}
+            style={{ padding: '10px 20px', background: viewMode === 'editor' ? 'linear-gradient(135deg,#4f46e5,#7c3aed)' : '#111', color: '#fff', border: '1px solid #2a2a4a', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}
+          >
+            <Edit2 size={15}/> Конструктор
+          </button>
+          <button
+            onClick={() => { setViewMode('catalog'); setDossierParentId(null) }}
+            style={{ padding: '10px 20px', background: viewMode === 'catalog' ? 'linear-gradient(135deg,#4f46e5,#7c3aed)' : '#111', color: '#fff', border: '1px solid #2a2a4a', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}
+          >
+            <Layers size={15}/> Каталог ({catalogParents.length})
+          </button>
+          <button
+            onClick={() => setShowNomCreate(true)}
+            style={{ padding: '10px 20px', background: '#1a0f2e', color: '#a78bfa', border: '1px solid #4c1d9533', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}
+          >
+            <Plus size={15}/> Нова номенклатура
+          </button>
+        </div>
+      </div>
+
+      {/* Inline Operations modal widget */}
+      {activeInlinePart && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ background: '#0d0d0d', border: '1px solid #2a2a5a', borderRadius: '24px', width: '100%', maxWidth: '680px', padding: '30px', boxShadow: '0 20px 50px rgba(0,0,0,0.8)', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #1a1a2e', paddingBottom: '15px' }}>
+              <div>
+                <span style={{ fontSize: '0.7rem', color: '#6366f1', fontWeight: 900, textTransform: 'uppercase' }}>Операції для деталі</span>
+                <h3 style={{ margin: '4px 0 0 0', fontSize: '1.2rem', fontWeight: 900, color: '#fff' }}>{activeInlinePart.name}</h3>
+              </div>
+              <button onClick={() => { setActiveInlinePart(null); setSelectedMachine('') }} style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer' }}><X size={22}/></button>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <div>
+                <label style={{ fontSize: '0.7rem', color: '#666', fontWeight: 800, textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Оберіть верстат</label>
+                <select value={selectedMachine} onChange={e => setSelectedMachine(e.target.value)} style={{ width: '100%', padding: '12px', background: '#111', border: '1px solid #222', color: '#fff', borderRadius: '10px', fontSize: '0.9rem' }}>
+                  <option value="">-- Оберіть тип верстата --</option>
+                  {MACHINE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+
+              {selectedMachine && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                    {/* Render inputs side1 */}
+                    <div style={{ flex: 1, minWidth: '180px', background: '#0a0a0a', padding: '12px', borderRadius: '12px', border: '1px solid #111' }}>
+                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: '#888' }}>1 сторона</h5>
+                      {side1Ops.map((op, idx) => (
+                        <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
+                          <input value={op} onChange={e => { const copy = [...side1Ops]; copy[idx] = e.target.value; setSide1Ops(copy) }} style={{ flex: 1, padding: '6px', background: '#000', border: '1px solid #222', color: '#fff', borderRadius: '6px', fontSize: '0.75rem' }} />
+                          <button onClick={() => setSide1Ops(side1Ops.filter((_, i) => i !== idx))} style={{ background: '#7f1d1d', border: 'none', color: '#fff', borderRadius: '6px', padding: '0 8px', cursor: 'pointer' }}><Trash2 size={12}/></button>
+                        </div>
+                      ))}
+                      <button onClick={() => setSide1Ops([...side1Ops, ''])} style={{ width: '100%', padding: '5px', background: 'transparent', border: '1px dashed #222', color: '#3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem' }}>+ Додати</button>
+                    </div>
+
+                    {/* Render inputs side2 */}
+                    <div style={{ flex: 1, minWidth: '180px', background: '#0a0a0a', padding: '12px', borderRadius: '12px', border: '1px solid #111' }}>
+                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: '#888' }}>2 сторона</h5>
+                      {side2Ops.map((op, idx) => (
+                        <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
+                          <input value={op} onChange={e => { const copy = [...side2Ops]; copy[idx] = e.target.value; setSide2Ops(copy) }} style={{ flex: 1, padding: '6px', background: '#000', border: '1px solid #222', color: '#fff', borderRadius: '6px', fontSize: '0.75rem' }} />
+                          <button onClick={() => setSide2Ops(side2Ops.filter((_, i) => i !== idx))} style={{ background: '#7f1d1d', border: 'none', color: '#fff', borderRadius: '6px', padding: '0 8px', cursor: 'pointer' }}><Trash2 size={12}/></button>
+                        </div>
+                      ))}
+                      <button onClick={() => setSide2Ops([...side2Ops, ''])} style={{ width: '100%', padding: '5px', background: 'transparent', border: '1px dashed #222', color: '#3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem' }}>+ Додати</button>
+                    </div>
+
+                    {/* Render inputs side2cut */}
+                    <div style={{ flex: 1, minWidth: '180px', background: '#0a0a0a', padding: '12px', borderRadius: '12px', border: '1px solid #111' }}>
+                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: '#888' }}>Вирізка</h5>
+                      {side2CutOps.map((op, idx) => (
+                        <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
+                          <input value={op} onChange={e => { const copy = [...side2CutOps]; copy[idx] = e.target.value; setSide2CutOps(copy) }} style={{ flex: 1, padding: '6px', background: '#000', border: '1px solid #222', color: '#fff', borderRadius: '6px', fontSize: '0.75rem' }} />
+                          <button onClick={() => setSide2CutOps(side2CutOps.filter((_, i) => i !== idx))} style={{ background: '#7f1d1d', border: 'none', color: '#fff', borderRadius: '6px', padding: '0 8px', cursor: 'pointer' }}><Trash2 size={12}/></button>
+                        </div>
+                      ))}
+                      <button onClick={() => setSide2CutOps([...side2CutOps, ''])} style={{ width: '100%', padding: '5px', background: 'transparent', border: '1px dashed #222', color: '#3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem' }}>+ Додати</button>
+                    </div>
+
+                    {/* Render cutters */}
+                    {renderCutterListEditor(inlineCuttersList, setInlineCuttersList)}
+                  </div>
+
+                  <button onClick={handleSaveInlineOps} disabled={savingOps} style={{ width: '100%', padding: '12px', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '0.85rem', marginTop: '10px' }}>
+                    {savingOps ? 'Збереження...' : 'Зберегти операції'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewMode === 'editor' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Parent product selector */}
+          <div style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: '16px', padding: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
+              <label style={{ fontSize: '0.75rem', color: '#888', fontWeight: 900, textTransform: 'uppercase', display: 'block' }}>Крок 1: Оберіть або Створіть виріб-батько</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={() => {
+                    setParentCreateType('product');
+                    setShowParentCreate(true);
+                  }}
+                  style={{ padding: '6px 12px', background: 'rgba(245,158,11,0.15)', border: '1px solid #f59e0b40', color: '#f59e0b', borderRadius: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
+                >
+                  + Створити Готовий Виріб (Раму)
+                </button>
+                <button
+                  onClick={() => {
+                    setParentCreateType('assembly');
+                    setShowParentCreate(true);
+                  }}
+                  style={{ padding: '6px 12px', background: 'rgba(167,139,250,0.15)', border: '1px solid #a78bfa40', color: '#a78bfa', borderRadius: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
+                >
+                  + Створити Вузол
+                </button>
+              </div>
+            </div>
+            <div style={{ position: 'relative', maxWidth: '600px' }}>
+              <input
+                value={selectedParent ? selectedParent.name : parentSearch}
+                placeholder="Введіть назву або почніть пошук..."
+                onChange={e => { setParentSearch(e.target.value); setParentId(''); setShowParentDrop(true) }}
+                onFocus={() => setShowParentDrop(true)}
+                onBlur={() => setTimeout(() => setShowParentDrop(false), 180)}
+                style={{ width: '100%', padding: '12px 16px', background: parentId ? '#0f1a2e' : '#111', border: `1px solid ${parentId ? '#1d4ed840' : '#2a2a2a'}`, color: '#fff', borderRadius: '10px', fontSize: '0.95rem', fontWeight: 600, boxSizing: 'border-box' }}
+              />
+              {selectedParent && (
+                <button onClick={() => { setParentId(''); setParentSearch(''); setRows([]) }} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#555', cursor: 'pointer' }}><X size={16}/></button>
+              )}
+              {showParentDrop && !selectedParent && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#111', border: '1px solid #3b82f6', borderRadius: '12px', zIndex: 9999, maxHeight: '300px', overflowY: 'auto', boxShadow: '0 12px 40px rgba(0,0,0,0.8)', marginTop: '5px' }}>
+                  {productNoms.length === 0 ? (
+                    <div style={{ padding: '16px', color: '#888', fontSize: '0.85rem', textAlign: 'center' }}>
+                      <p style={{ margin: '0 0 10px 0' }}>Не знайдено виробів з назвою «{parentSearch}»</p>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                        <button
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setParentCreateType('product');
+                            setShowParentCreate(true);
+                            setShowParentDrop(false);
+                          }}
+                          style={{ padding: '6px 12px', background: 'rgba(245,158,11,0.15)', border: '1px solid #f59e0b40', color: '#f59e0b', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
+                        >
+                          + Створити Готовий Виріб
+                        </button>
+                        <button
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setParentCreateType('assembly');
+                            setShowParentCreate(true);
+                            setShowParentDrop(false);
+                          }}
+                          style={{ padding: '6px 12px', background: 'rgba(167,139,250,0.15)', border: '1px solid #a78bfa40', color: '#a78bfa', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
+                        >
+                          + Створити Вузол
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {productNoms.map(n => (
+                        <div
+                          key={n.id}
+                          onMouseDown={() => { setParentId(n.id); setParentSearch(''); setShowParentDrop(false) }}
+                          style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1a1a1a', transition: 'background 0.15s' }}
+                          onMouseEnter={e => e.currentTarget.style.background = '#1a1a2e'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{n.name}</span>
+                          <span style={{ fontSize: '0.65rem', color: TYPE_COLORS[n.type] || '#888', fontWeight: 900, background: (TYPE_COLORS[n.type] || '#555') + '22', padding: '2px 8px', borderRadius: '20px' }}>{TYPE_LABELS[n.type] || n.type}</span>
+                        </div>
+                      ))}
+                      <div style={{ padding: '10px 16px', borderTop: '1px solid #1a1a1a', background: '#0a0a0a', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.75rem', color: '#555', marginRight: '8px' }}>Не знайшли виріб?</span>
+                        <button
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setParentCreateType('product');
+                            setShowParentCreate(true);
+                            setShowParentDrop(false);
+                          }}
+                          style={{ padding: '4px 10px', background: 'transparent', border: 'none', color: '#f59e0b', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
+                        >
+                          + Створити «{parentSearch}»
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+            {selectedParent && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
+                <Package size={14} color="#818cf8"/>
+                <span style={{ fontSize: '0.8rem', color: '#818cf8', fontWeight: 700 }}>{selectedParent.name}</span>
+                <span style={{ fontSize: '0.65rem', color: '#555' }}>ID: {selectedParent.id}</span>
+                {bomItems.filter(b => String(b.parent_id) === String(parentId)).length > 0 && (
+                  <span style={{ fontSize: '0.7rem', background: '#1a2a1a', color: '#34d399', padding: '2px 10px', borderRadius: '20px', fontWeight: 700 }}>
+                    ✓ Вже має {bomItems.filter(b => String(b.parent_id) === String(parentId)).length} позицій (редагування)
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* BOM Rows */}
+          <div style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: '16px' }}>
+            {/* Table header */}
+            <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 120px 90px 28px', gap: '8px', padding: '10px 10px', background: '#111', borderBottom: '1px solid #1a1a1a' }}>
+              <span style={{ fontSize: '0.65rem', color: '#444', fontWeight: 900, textAlign: 'center' }}>№</span>
+              <span style={{ fontSize: '0.65rem', color: '#444', fontWeight: 900 }}>ПОЗИЦІЯ / НОМЕНКЛАТУРА</span>
+              <span style={{ fontSize: '0.65rem', color: '#444', fontWeight: 900 }}>ГРУПА</span>
+              <span style={{ fontSize: '0.65rem', color: '#444', fontWeight: 900, textAlign: 'right' }}>К-СТЬ</span>
+              <span/>
+            </div>
+
+            {/* Rows grouped */}
+            {rows.length === 0 ? (
+              <div style={{ padding: '50px', textAlign: 'center', color: '#2a2a2a' }}>
+                <Layers size={48} style={{ marginBottom: '15px', opacity: 0.3 }}/>
+                <p style={{ fontSize: '0.9rem', fontWeight: 700 }}>Специфікація порожня</p>
+                <p style={{ fontSize: '0.8rem', color: '#2a2a2a' }}>Натисніть «+ Додати позицію» щоб почати</p>
+              </div>
+            ) : (
+              <div style={{ padding: '8px' }}>
+                {Object.entries(groupedRows).map(([groupName, groupRows]) => (
+                  <div key={groupName} style={{ marginBottom: '12px' }}>
+                    <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 900, textTransform: 'uppercase', padding: '6px 10px', letterSpacing: '0.08em' }}>— {groupName} ({groupRows.length}) —</div>
+                    {groupRows.map(r => (
+                      <BomRow
+                        key={r._idx}
+                        row={r}
+                        idx={r._idx}
+                        nomenclatures={nomenclatures}
+                        bomItems={bomItems}
+                        onUpdate={updateRow}
+                        onRemove={removeRow}
+                        supabase={supabase}
+                        refreshTable={refreshTable}
+                        onExpandAssembly={(assemblyId, parentQty) => {
+                          const subs = bomItems.filter(b => String(b.parent_id) === String(assemblyId))
+                          if (subs.length === 0) return alert('Цей вузол не містить деталей у специфікації')
+                          const newRows = subs.map(s => {
+                            const subNom = nomenclatures.find(n => n.id === s.child_id)
+                            return {
+                              nomId: s.child_id,
+                              nomName: subNom ? subNom.name : 'Деталь',
+                              nomType: subNom ? subNom.type : 'part',
+                              qty: (s.quantity_per_parent || 1) * parentQty,
+                              group: s.group_label || (subNom ? autoClassify(subNom) : 'Деталі')
+                            }
+                          })
+                          setRows(prev => {
+                            const copy = [...prev]
+                            copy.splice(r._idx, 1, ...newRows)
+                            return copy
+                          })
+                        }}
+                      />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Footer actions */}
+            <div style={{ display: 'flex', gap: '10px', padding: '12px', borderTop: '1px solid #1a1a1a', background: '#0a0a0a' }}>
+              <button
+                onClick={addRow}
+                style={{ flex: 1, padding: '10px', background: 'transparent', border: '1px dashed #2a2a2a', color: '#4a4a6a', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#7c3aed'; e.currentTarget.style.color = '#a78bfa' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2a2a'; e.currentTarget.style.color = '#4a4a6a' }}
+              >
+                <Plus size={16}/> Додати позицію
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving || !parentId || rows.length === 0}
+                style={{ padding: '10px 28px', background: saving ? '#1a1a1a' : 'linear-gradient(135deg,#4f46e5,#7c3aed)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 900, cursor: 'pointer', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px', opacity: (!parentId || rows.length === 0) ? 0.4 : 1, transition: 'opacity 0.2s' }}
+              >
+                <Save size={16}/> {saving ? 'Збереження...' : 'Зберегти специфікацію'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : viewMode === 'dossier' && dossierParentId ? (
+        /* ── DOSSIER VIEW ── */
+        (() => {
+          const dossierParent = nomenclatures.find(n => n.id === dossierParentId)
+          const dossierChildren = bomItems.filter(b => String(b.parent_id) === String(dossierParentId))
+          const GROUP_ORDER = ['Деталі', 'Накладки', 'Метизи', 'Гума/Пластик', '3D-друк', 'Фурнітура', 'Комплектуючі', 'Інше']
+          const GROUP_COLORS = {
+            'Деталі': '#60a5fa', 'Накладки': '#a78bfa', 'Метизи': '#f59e0b',
+            'Гума/Пластик': '#34d399', '3D-друк': '#f87171', 'Фурнітура': '#fb923c',
+            'Комплектуючі': '#38bdf8', 'Інше': '#888'
+          }
+          const grouped = {}
+          dossierChildren.forEach(b => {
+            const childNom = nomenclatures.find(n => String(n.id) === String(b.child_id))
+            const g = b.group_label || autoClassify(childNom)
+            if (!grouped[g]) grouped[g] = []
+            grouped[g].push(b)
+          })
+          const sortedGroups = Object.keys(grouped).sort((a, b) => {
+            const ai = GROUP_ORDER.indexOf(a), bi = GROUP_ORDER.indexOf(b)
+            if (ai === -1 && bi === -1) return a.localeCompare(b)
+            if (ai === -1) return 1
+            if (bi === -1) return -1
+            return ai - bi
+          })
+          let globalIdx = 0
+
+          return (
+            <div className="dossier-print-container" style={{ display: 'flex', flexDirection: 'column', gap: '20px', alignItems: 'center', width: '100%' }}>
+              <div className="no-print" style={{ width: '100%', maxWidth: '800px', background: '#0d0d14', border: '1px solid #1a1a2e', borderRadius: '18px', padding: '20px 25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <span style={{ fontSize: '0.7rem', color: '#6366f1', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Досьє на виріб</span>
+                  <h3 style={{ margin: '4px 0 0 0', fontSize: '1.4rem', fontWeight: 900, color: '#e0e7ff' }}>{dossierParent?.name}</h3>
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    onClick={() => window.print()}
+                    style={{ padding: '8px 16px', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#fff', borderRadius: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
+                  >
+                    Друк специфікації
+                  </button>
+                  <button
+                    onClick={() => { setParentId(dossierParentId); setViewMode('editor') }}
+                    style={{ padding: '8px 16px', background: 'rgba(99,102,241,0.1)', border: '1px solid #6366f133', color: '#818cf8', borderRadius: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <Edit2 size={13}/> Редагувати
+                  </button>
+                  <button
+                    onClick={() => { setViewMode('catalog'); setDossierParentId(null) }}
+                    style={{ padding: '8px 16px', background: '#111', border: '1px solid #222', color: '#fff', borderRadius: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
+                  >
+                    Назад
+                  </button>
+                </div>
+              </div>
+
+              {/* Dossier Card (Designed as A4 sheet mockup) */}
+              <div className="dossier-a4-sheet" style={{ width: '100%', maxWidth: '800px', background: '#0e0e11', border: '1px solid #222', borderRadius: '8px', padding: '40px', boxSizing: 'border-box', boxShadow: '0 15px 35px rgba(0,0,0,0.5)', position: 'relative', color: '#fff' }}>
+                
+                {/* Dossier Header Info */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #333', paddingBottom: '20px', marginBottom: '25px' }}>
+                  <div>
+                    <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 900, color: '#fff', letterSpacing: '-0.02em' }}>{dossierParent?.name}</h1>
+                    <p style={{ margin: '5px 0 0 0', fontSize: '0.8rem', color: '#666', fontWeight: 600 }}>СПЕЦИФІКАЦІЯ ВИРОБУ / BILL OF MATERIALS</p>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800 }}>СИСТЕМА CENTRUM MES</div>
+                    <div style={{ fontSize: '0.8rem', color: '#888', marginTop: '4px', fontFamily: 'monospace' }}>ID: {dossierParent?.id?.substring(0, 8)}</div>
+                    <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '2px' }}>{new Date().toLocaleDateString('uk-UA')}</div>
+                  </div>
+                </div>
+
+                {/* Main BOM groups list */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {sortedGroups.map(grp => {
+                    const items = grouped[grp]
+                    const grpColor = GROUP_COLORS[grp] || '#888'
+                    return (
+                      <div key={grp} style={{ pageBreakInside: 'avoid' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: `1px solid ${grpColor}40`, paddingBottom: '6px', marginBottom: '10px' }}>
+                          <span style={{ width: '3px', height: '12px', background: grpColor, borderRadius: '1px' }} />
+                          <h4 style={{ margin: 0, fontSize: '0.75rem', fontWeight: 900, color: grpColor, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{grp}</h4>
+                          <span style={{ fontSize: '0.65rem', color: '#555', fontWeight: 700 }}>({items.length} поз.)</span>
+                        </div>
+
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid #222', textAlign: 'left' }}>
+                              <th style={{ padding: '6px 8px', color: '#444', fontWeight: 800, width: '30px' }}>№</th>
+                              <th style={{ padding: '6px 8px', color: '#444', fontWeight: 800 }}>Найменування</th>
+                              <th style={{ padding: '6px 8px', color: '#444', fontWeight: 800, width: '140px' }}>Характеристика</th>
+                              <th style={{ padding: '6px 8px', color: '#444', fontWeight: 800, textAlign: 'center', width: '60px' }}>К-сть</th>
+                              <th style={{ padding: '6px 8px', color: '#444', fontWeight: 800, textAlign: 'center', width: '40px' }}>Од.</th>
+                              <th className="no-print" style={{ padding: '6px 8px', color: '#444', fontWeight: 800, textAlign: 'center', width: '150px' }}>Операції ЧПК</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {items.map(b => {
+                              globalIdx++
+                              const rowNum = globalIdx
+                              const child = nomenclatures.find(n => String(n.id) === String(b.child_id))
+                              const existingOps = machineOperations?.filter(o => o.nomenclature_id === b.child_id) || []
+
+                              const subItems = bomItems.filter(sb => String(sb.parent_id) === String(b.child_id))
+
+                              return (
+                                <tr key={b.child_id} style={{ borderBottom: '1px solid #141416' }}>
+                                  <td style={{ padding: '8px 8px', color: '#444', fontWeight: 700 }}>{rowNum}</td>
+                                  <td style={{ padding: '8px 8px', fontWeight: 700, color: '#e2e8f0' }}>
+                                    <div>{child?.name || `(ID: ${b.child_id})`}</div>
+                                    {child?.type === 'assembly' && subItems.length > 0 && (
+                                      <div style={{ marginTop: '5px', paddingLeft: '15px', borderLeft: '2px solid #a78bfa33', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        {subItems.map((sb) => {
+                                          const sbNom = nomenclatures.find(n => String(n.id) === String(sb.child_id))
+                                          const sbOps = machineOperations?.filter(o => o.nomenclature_id === sb.child_id) || []
+                                          return (
+                                            <div key={sb.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.7rem', color: '#a0aec0', flexWrap: 'wrap' }}>
+                                              <span style={{ color: '#a78bfa' }}>↳</span>
+                                              <span>{sbNom ? sbNom.name : 'Деталь'}</span>
+                                              <span style={{ fontWeight: 800, color: '#e2e8f0' }}>x{sb.quantity_per_parent * b.quantity_per_parent}</span>
+                                              {sbOps.map(op => {
+                                                const mac = machines?.find(m => m.id === op.machine_id)
+                                                const rawLbl = op.machine_type || mac?.name || 'CNC'
+                                                let lbl = rawLbl
+                                                const norm = rawLbl.toLowerCase()
+                                                if (norm.includes('1200') || norm.includes('1200x800') || norm.includes('малий')) lbl = 'Малий (1200)'
+                                                else if (norm.includes('3050')) lbl = 'Швидкісний (3050)'
+                                                else if (norm.includes('3060') || norm.includes('триголовий') || norm.includes('три головий')) lbl = '3-Головий (3060)'
+                                                else if (norm.includes('6000') || norm.includes('дракон')) lbl = 'Дракон (6000)'
+                                                else if (norm.includes('feya') || norm.includes('ke xin') || norm.includes('фея')) lbl = 'Фея'
+                                                else lbl = rawLbl.replace('CNC ', '').substring(0, 12)
+                                                return (
+                                                  <span key={op.id} style={{ fontSize: '0.55rem', background: '#0f172a', color: '#38bdf8', padding: '0px 4px', borderRadius: '4px', border: '1px solid #0284c744' }}>
+                                                    {lbl}
+                                                  </span>
+                                                )
+                                              })}
+                                              <button
+                                                className="no-print"
+                                                onClick={() => setActiveInlinePart({ id: sb.child_id, name: sbNom?.name })}
+                                                style={{ padding: '0px 4px', background: 'transparent', border: 'none', color: '#818cf8', cursor: 'pointer', fontSize: '0.65rem', textDecoration: 'underline', fontWeight: 800 }}
+                                              >
+                                                Налаштувати ЧПК
+                                              </button>
+                                            </div>
+                                          )
+                                        })}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: '8px 8px', color: '#718096', fontSize: '0.75rem' }}>{child?.material_type || '—'}</td>
+                                  <td style={{ padding: '8px 8px', textAlign: 'center', color: '#f59e0b', fontWeight: 800, fontSize: '0.85rem' }}>{b.quantity_per_parent}</td>
+                                  <td style={{ padding: '8px 8px', textAlign: 'center', color: '#4a5568', fontSize: '0.75rem' }}>{child?.unit || 'шт'}</td>
+                                  <td className="no-print" style={{ padding: '4px 8px', textAlign: 'center' }}>
+                                    {(child?.type === 'part' || child?.type === 'assembly') ? (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'center' }}>
+                                        {existingOps.length > 0 ? (
+                                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px', justifyContent: 'center' }}>
+                                            {existingOps.map(op => {
+                                              const mac = machines?.find(m => m.id === op.machine_id)
+                                              const rawLbl = op.machine_type || mac?.name || 'CNC'
+                                              let lbl = rawLbl
+                                              const norm = rawLbl.toLowerCase()
+                                              if (norm.includes('1200') || norm.includes('1200x800') || norm.includes('малий')) lbl = 'Малий (1200)'
+                                              else if (norm.includes('3050')) lbl = 'Швидкісний (3050)'
+                                              else if (norm.includes('3060') || norm.includes('триголовий') || norm.includes('три головий')) lbl = '3-Головий (3060)'
+                                              else if (norm.includes('6000') || norm.includes('дракон')) lbl = 'Дракон (6000)'
+                                              else if (norm.includes('feya') || norm.includes('ke xin') || norm.includes('фея')) lbl = 'Фея'
+                                              else lbl = rawLbl.replace('CNC ', '').substring(0, 12)
+                                              
+                                              return (
+                                                <span key={op.id} style={{ fontSize: '0.55rem', background: '#1e3a8a', color: '#93c5fd', padding: '1px 5px', borderRadius: '4px', border: '1px solid #2563eb' }}>
+                                                  {lbl}
+                                                </span>
+                                              )
+                                            })}
+                                          </div>
+                                        ) : (
+                                          <span style={{ fontSize: '0.6rem', color: '#444', fontStyle: 'italic' }}>немає</span>
+                                        )}
+                                        <button
+                                          onClick={() => setActiveInlinePart({ id: b.child_id, name: child?.name })}
+                                          style={{ padding: '2px 6px', background: '#1e1b4b', border: '1px solid #312e81', color: '#a5b4fc', borderRadius: '4px', cursor: 'pointer', fontSize: '0.6rem', fontWeight: 800, marginTop: '2px' }}
+                                        >
+                                          ЧПК
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <span style={{ fontSize: '0.65rem', color: '#222' }}>—</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Dossier Footer Totals */}
+                <div style={{ borderTop: '2px solid #333', marginTop: '30px', paddingTop: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#555', fontWeight: 800 }}>СПЕЦИФІКАЦІЯ CENTRUM MES</div>
+                  <div style={{ fontSize: '0.8rem', color: '#c7d2fe', fontWeight: 800 }}>РАЗОМ: {dossierChildren.length} ПОЗИЦІЙ В {sortedGroups.length} ГРУПАХ</div>
+                </div>
+              </div>
+
+              {/* CSS style block specifically for print formatting */}
+              <style dangerouslySetInnerHTML={{ __html: `
+                @media print {
+                  body { background: #fff !important; color: #000 !important; }
+                  .no-print { display: none !important; }
+                  .dossier-print-container { width: 100% !important; align-items: start !important; }
+                  .dossier-a4-sheet { border: none !important; box-shadow: none !important; padding: 0 !important; width: 100% !important; background: #fff !important; color: #000 !important; }
+                  .dossier-a4-sheet h1, .dossier-a4-sheet h4, .dossier-a4-sheet table, .dossier-a4-sheet td, .dossier-a4-sheet th { color: #000 !important; }
+                  .dossier-a4-sheet tr { border-bottom: 1px solid #ddd !important; }
+                  .dossier-a4-sheet th { border-bottom: 2px solid #000 !important; }
+                  .dossier-a4-sheet table { page-break-inside: auto; }
+                  .dossier-a4-sheet tr { page-break-inside: avoid; page-break-after: auto; }
+                }
+              `}} />
+            </div>
+          )
+        })()
+      ) : (
+        /* ── CATALOG VIEW ── */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ position: 'relative' }}>
+            <Search style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: '#333' }} size={16}/>
+            <input
+              value={catalogSearch}
+              onChange={e => setCatalogSearch(e.target.value)}
+              placeholder="Пошук специфікації за назвою виробу..."
+              style={{ width: '100%', padding: '12px 15px 12px 42px', background: '#111', border: '1px solid #1e1e1e', color: '#fff', borderRadius: '12px', fontSize: '0.9rem', boxSizing: 'border-box' }}
+            />
+          </div>
+
+          {catalogParents.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '60px 20px', color: '#2a2a2a' }}>
+              <BookOpen size={56} style={{ marginBottom: '15px', opacity: 0.15 }}/>
+              <p style={{ fontSize: '1rem', fontWeight: 700 }}>Специфікацій не знайдено</p>
+            </div>
+          ) : catalogParents.map(({ nom, children }) => {
+            const isExpanded = expandedParents[nom.id]
+            return (
+              <div key={nom.id} style={{ background: '#0d0d0d', border: '1px solid #1a1a1a', borderRadius: '14px', overflow: 'hidden' }}>
+                <div
+                  onClick={() => { setDossierParentId(nom.id); setViewMode('dossier') }}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 20px', cursor: 'pointer', transition: 'background 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#111'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <Package size={16} color="#6366f1"/>
+                    <span style={{ fontWeight: 800, fontSize: '0.95rem', color: '#c7d2fe' }}>{nom.name}</span>
+                    <span style={{ fontSize: '0.65rem', color: TYPE_COLORS[nom.type] || '#888', fontWeight: 900, background: (TYPE_COLORS[nom.type] || '#555') + '22', padding: '2px 8px', borderRadius: '20px' }}>{TYPE_LABELS[nom.type] || nom.type}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#555', fontWeight: 700 }}>{children.length} позицій</span>
+                    <button
+                      onClick={e => { e.stopPropagation(); setDossierParentId(nom.id); setViewMode('dossier') }}
+                      style={{ padding: '5px 12px', background: 'rgba(99,102,241,0.1)', border: '1px solid #6366f133', color: '#818cf8', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px' }}
+                    >
+                      <Layers size={11}/> Досьє виробу
+                    </button>
+                    <button
+                      onClick={e => { e.stopPropagation(); setParentId(nom.id); setViewMode('editor') }}
+                      style={{ padding: '5px 12px', background: 'rgba(99,102,241,0.05)', border: '1px solid #6366f120', color: '#818cf8', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px' }}
+                    >
+                      <Edit2 size={11}/> Конструктор
+                    </button>
+                    <button
+                      onClick={async e => {
+                        e.stopPropagation()
+                        if (!confirm(`Видалити специфікацію «${nom.name}»?`)) return
+                        await supabase.from('bom_items').delete().eq('parent_id', nom.id)
+                        await refreshTable('bom_items')
+                      }}
+                      style={{ padding: '5px 8px', background: 'rgba(239,68,68,0.06)', border: '1px solid #ef444420', color: '#ef4444', borderRadius: '6px', cursor: 'pointer' }}
+                    >
+                      <Trash2 size={12}/>
+                    </button>
+                  </div>
+                </div>
+
+                {isExpanded && (
+                  <div style={{ borderTop: '1px solid #1a1a1a' }}>
+                    {/* Grouped table view */}
+                    {(() => {
+                      // Define canonical group order
+                      const GROUP_ORDER = ['Деталі', 'Накладки', 'Метизи', 'Гума/Пластик', '3D-друк', 'Фурнітура', 'Комплектуючі', 'Інше']
+                      const GROUP_COLORS = {
+                        'Деталі': '#60a5fa', 'Накладки': '#a78bfa', 'Метизи': '#f59e0b',
+                        'Гума/Пластик': '#34d399', '3D-друк': '#f87171', 'Фурнітура': '#fb923c',
+                        'Комплектуючі': '#38bdf8', 'Інше': '#888'
+                      }
+                      const grouped = {}
+                      children.forEach(b => {
+                        const childNom = nomenclatures.find(n => String(n.id) === String(b.child_id))
+                        // Use group_label from DB if exists, otherwise auto-classify by nomenclature name/type
+                        const g = b.group_label || autoClassify(childNom)
+                        if (!grouped[g]) grouped[g] = []
+                        grouped[g].push(b)
+                      })
+                      // Sort groups by canonical order, unknowns at end
+                      const sortedGroups = Object.keys(grouped).sort((a, b) => {
+                        const ai = GROUP_ORDER.indexOf(a), bi = GROUP_ORDER.indexOf(b)
+                        if (ai === -1 && bi === -1) return a.localeCompare(b)
+                        if (ai === -1) return 1
+                        if (bi === -1) return -1
+                        return ai - bi
+                      })
+                      let globalIdx = 0
+                      return (
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                          <thead>
+                            <tr style={{ background: '#0a0a0a', borderBottom: '1px solid #1a1a1a' }}>
+                              <th style={{ padding: '8px 12px', textAlign: 'left', color: '#333', fontWeight: 900, fontSize: '0.65rem', textTransform: 'uppercase', width: '36px' }}>№</th>
+                              <th style={{ padding: '8px 12px', textAlign: 'left', color: '#333', fontWeight: 900, fontSize: '0.65rem', textTransform: 'uppercase' }}>Найменування</th>
+                              <th style={{ padding: '8px 12px', textAlign: 'left', color: '#333', fontWeight: 900, fontSize: '0.65rem', textTransform: 'uppercase', width: '160px' }}>Характеристика</th>
+                              <th style={{ padding: '8px 12px', textAlign: 'center', color: '#333', fontWeight: 900, fontSize: '0.65rem', textTransform: 'uppercase', width: '60px' }}>К-сть</th>
+                              <th style={{ padding: '8px 12px', textAlign: 'center', color: '#333', fontWeight: 900, fontSize: '0.65rem', textTransform: 'uppercase', width: '40px' }}>Од.</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {sortedGroups.map(grp => {
+                              const items = grouped[grp]
+                              const grpColor = GROUP_COLORS[grp] || '#888'
+                              return [
+                                // Group header row
+                                <tr key={`hdr-${grp}`} style={{ background: grpColor + '0d', borderTop: '1px solid ' + grpColor + '30' }}>
+                                  <td colSpan={5} style={{ padding: '7px 12px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      <span style={{ width: '3px', height: '14px', background: grpColor, borderRadius: '2px', display: 'inline-block', flexShrink: 0 }} />
+                                      <span style={{ fontSize: '0.7rem', fontWeight: 900, color: grpColor, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{grp}</span>
+                                      <span style={{ fontSize: '0.65rem', color: '#555', fontWeight: 700 }}>({items.length} поз.)</span>
+                                    </div>
+                                  </td>
+                                </tr>,
+                                // Data rows
+                                ...items.map((b) => {
+                                  globalIdx++
+                                  const rowNum = globalIdx
+                                  const child = nomenclatures.find(n => String(n.id) === String(b.child_id))
+                                  return (
+                                    <tr key={b.child_id} style={{ borderBottom: '1px solid #0f0f0f', transition: 'background 0.15s' }}
+                                      onMouseEnter={e => e.currentTarget.style.background = '#111'}
+                                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                    >
+                                      <td style={{ padding: '9px 12px', color: '#333', fontWeight: 800, textAlign: 'center', fontSize: '0.75rem' }}>{rowNum}</td>
+                                      <td style={{ padding: '9px 12px' }}>
+                                        <span style={{ fontWeight: 700, color: child ? '#e0e7ff' : '#3a3a3a' }}>{child?.name || `(ID: ${b.child_id})`}</span>
+                                      </td>
+                                      <td style={{ padding: '9px 12px', color: '#555', fontSize: '0.75rem' }}>{child?.material_type || '—'}</td>
+                                      <td style={{ padding: '9px 12px', textAlign: 'center', color: '#f59e0b', fontWeight: 900, fontSize: '0.9rem' }}>{b.quantity_per_parent}</td>
+                                      <td style={{ padding: '9px 12px', textAlign: 'center', color: '#444', fontSize: '0.75rem' }}>{child?.unit || 'шт'}</td>
+                                    </tr>
+                                  )
+                                })
+                              ]
+                            })}
+                            {/* Footer totals */}
+                            <tr style={{ borderTop: '1px solid #1a1a1a', background: '#0a0a0a' }}>
+                              <td colSpan={3} style={{ padding: '8px 12px', fontSize: '0.7rem', color: '#444', fontWeight: 800 }}>РАЗОМ: {children.length} позицій у {sortedGroups.length} групах</td>
+                              <td colSpan={2} />
+                            </tr>
+                          </tbody>
+                        </table>
+                      )
+                    })()}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -916,7 +2308,7 @@ const EngineerModule = () => {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
           <button 
             onClick={() => setActiveTab('tasks')}
             style={{ padding: '10px 20px', background: activeTab === 'tasks' ? '#3b82f6' : '#111', color: '#fff', border: '1px solid #222', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}
@@ -929,6 +2321,13 @@ const EngineerModule = () => {
           >
             <Database size={16} style={{ display: 'inline', verticalAlign: 'text-bottom', marginRight: '5px' }} />
             Операції станків
+          </button>
+          <button 
+            onClick={() => setActiveTab('spec')}
+            style={{ padding: '10px 20px', background: activeTab === 'spec' ? 'linear-gradient(135deg,#4f46e5,#7c3aed)' : '#111', color: '#fff', border: `1px solid ${activeTab === 'spec' ? '#6366f1' : '#222'}`, borderRadius: '8px', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '7px' }}
+          >
+            <BookOpen size={15} style={{ display: 'inline' }} />
+            Специфікації BOM
           </button>
         </div>
 
@@ -997,8 +2396,10 @@ const EngineerModule = () => {
            )}
           </div>
           </>
-        ) : (
+        ) : activeTab === 'operations' ? (
           <MachineOperationsTab />
+        ) : (
+          <SpecBuilderTab />
         )}
       </div>
 
