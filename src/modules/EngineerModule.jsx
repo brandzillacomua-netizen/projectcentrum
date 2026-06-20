@@ -1335,6 +1335,19 @@ const SpecBuilderTab = () => {
 
   const renderCutterListEditor = (cutters, setCutters) => renderCutterListEditorShared(cutters, setCutters, nomenclatures)
 
+  // Prevent background scroll when modal is active
+  useEffect(() => {
+    const isModalOpen = !!activeInlinePart || !!showNomCreate || !!showParentCreate
+    if (isModalOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [activeInlinePart, showNomCreate, showParentCreate])
+
   // Load existing machine operations when active part and machine are chosen
   useEffect(() => {
     if (activeInlinePart && selectedMachine) {
