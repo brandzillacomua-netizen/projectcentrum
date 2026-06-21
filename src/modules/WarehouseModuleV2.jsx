@@ -30,11 +30,15 @@ const WarehouseModuleV2 = () => {
     nomenclatures, receptionDocs, confirmReception,
     orders, tasks, approveWarehouse, createPurchaseRequest,
     purchaseRequests, receiveInventory, currentUser, fetchModuleData,
-    managers
+    fetchData, managers
   } = useMES()
 
   // Load warehouse-specific data on mount
-  useEffect(() => { fetchModuleData('warehouse') }, [])
+  useEffect(() => { 
+    if (typeof fetchData === 'function') {
+      fetchData(['inventory', 'material_requests', 'reception_docs', 'purchase_requests', 'tasks', 'work_cards', 'orders'])
+    }
+  }, [])
 
   const normalize = (s) => (s || '').toLowerCase().trim()
     .replace(/[тt]/g, 't').replace(/[аa]/g, 'a').replace(/[еe]/g, 'e')
@@ -241,7 +245,7 @@ const WarehouseModuleV2 = () => {
       setScannedCard(null)
       setScannedRequests([])
       setIsScanning(false)
-      if (typeof fetchModuleData === 'function') fetchModuleData('warehouse')
+      if (typeof fetchData === 'function') fetchData(['inventory', 'material_requests'])
     } catch (err) {
       alert('Помилка видачі: ' + err.message)
     } finally {
@@ -524,7 +528,7 @@ const WarehouseModuleV2 = () => {
     setSavingQty(prev => new Set(prev).add(reqId))
     try {
       await supabaseClient.from('material_requests').update({ quantity: newVal }).eq('id', reqId)
-      if (typeof fetchModuleData === 'function') fetchModuleData('warehouse')
+      if (typeof fetchData === 'function') fetchData(['material_requests'])
     } catch (err) {
       alert('Помилка збереження: ' + err.message)
     } finally {
@@ -547,7 +551,7 @@ const WarehouseModuleV2 = () => {
         reserved_qty: reservedVal,
         updated_at: new Date().toISOString()
       }).eq('id', itemId)
-      if (typeof fetchModuleData === 'function') fetchModuleData('warehouse')
+      if (typeof fetchData === 'function') fetchData(['inventory'])
       setEditingInvId(null)
     } catch (err) {
       alert('Помилка збереження: ' + err.message)
@@ -613,7 +617,7 @@ const WarehouseModuleV2 = () => {
       })
       setShowAdd(false)
       setNewItem({ name: '', unit: 'шт', total_qty: '', type: activeTab, pocket_owner: '' })
-      if (typeof fetchModuleData === 'function') fetchModuleData('warehouse')
+      if (typeof fetchData === 'function') fetchData(['inventory'])
     } catch (err) {
       alert('Помилка: ' + err.message)
     } finally {
