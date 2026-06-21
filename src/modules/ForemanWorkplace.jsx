@@ -1582,17 +1582,11 @@ const MACHINE_TYPES = [
                                                 if (isSplitMode) {
                                                   setGenModal({ 
                                                     task, part, 
-                                                    total: totalTargetLoads, 
-                                                    requirement: plan, 
-                                                    created: productionCards.length, 
-                                                    rowId, 
-                                                    machineName: rowMachineName || splits[0]?.machine, 
-                                                    sheets,
-                                                    splits: splits 
+                                                    total: Math.max(1, totalTargetLoads - productionCards.length), targetTotal: totalTargetLoads, requirement: plan, created: productionCards.length, rowId, machineName: rowMachineName || splits[0]?.machine, sheets, splits: splits 
                                                   })
                                                 } else {
                                                   if (!rowMachineName) return;
-                                                  setGenModal({ task, part, total: totalTargetLoads, requirement: plan, created: productionCards.length, rowId, machineName: rowMachineName, sheets })
+                                                  setGenModal({ task, part, total: Math.max(1, totalTargetLoads - productionCards.length), targetTotal: totalTargetLoads, requirement: plan, created: productionCards.length, rowId, machineName: rowMachineName, sheets })
                                                 }
                                               }}
                                               style={{ 
@@ -1754,16 +1748,7 @@ const MACHINE_TYPES = [
                                       const machineName = MACHINE_TYPES.find(t => t === resolvedMachine?.type || t === resolvedMachine?.name) || resolvedMachine?.name || MACHINE_TYPES[0];
                                       const capacity = Number(resolvedMachine?.sheet_capacity) || 1;
                                       const cardsNeeded = Math.ceil(sheetsNeeded / capacity);
-                                      setGenModal({
-                                        task,
-                                        part: { nom },
-                                        total: cardsNeeded,
-                                        requirement: shortage,
-                                        created: 0,
-                                        machineName,
-                                        sheets: sheetsNeeded,
-                                        isRepair: true
-                                      })
+                                      setGenModal({ task, part: { nom }, total: cardsNeeded, targetTotal: cardsNeeded, requirement: shortage, created: 0, machineName, sheets: sheetsNeeded, isRepair: true })
                                     }}
                                     disabled={activeCards.some(c => ['new', 'waiting-materials'].includes(c.status) && (c.card_info || '').includes('[REDO]'))}
                                     style={{
@@ -2038,11 +2023,7 @@ const MACHINE_TYPES = [
                           const resolvedMachine = findMachine(newMachineName)
                           const newCapacity = Number(resolvedMachine?.sheet_capacity) || 1
                           const newCardsNeeded = Math.ceil(genModal.sheets / newCapacity)
-                          setGenModal(prev => ({
-                            ...prev,
-                            machineName: newMachineName,
-                            total: newCardsNeeded
-                          }))
+                          setGenModal(prev => ({ ...prev, machineName: newMachineName, total: Math.max(1, newCardsNeeded - (prev.created || 0)), targetTotal: newCardsNeeded }))
                         }}
                         style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '0.95rem', outline: 'none', fontWeight: 800 }}
                       >
@@ -2071,10 +2052,10 @@ const MACHINE_TYPES = [
                   <div style={{ background: '#080808', padding: '20px', borderRadius: '20px', border: '1px solid #1a1a1a', marginBottom: '30px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
                       <span style={{ color: '#555', fontSize: '0.75rem', fontWeight: 800 }}>СТАТУС:</span>
-                      <span style={{ color: '#3b82f6', fontSize: '0.75rem', fontWeight: 900 }}>Згенеровано {genModal.created} з {genModal.total}</span>
+                      <span style={{ color: '#3b82f6', fontSize: '0.75rem', fontWeight: 900 }}>Згенеровано {genModal.created} з {genModal.targetTotal || genModal.total}</span>
                     </div>
                     <div style={{ height: '6px', background: '#1a1a1a', borderRadius: '3px', overflow: 'hidden' }}>
-                      <div style={{ width: `${(genModal.created / genModal.total) * 100}%`, height: '100%', background: '#3b82f6', transition: '0.3s' }} />
+                      <div style={{ width: `${(genModal.created / (genModal.targetTotal || genModal.total)) * 100}%`, height: '100%', background: '#3b82f6', transition: '0.3s' }} />
                     </div>
                   </div>
                 )}
