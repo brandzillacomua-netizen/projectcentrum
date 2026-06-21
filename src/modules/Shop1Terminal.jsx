@@ -49,6 +49,7 @@ export default function Shop1Terminal() {
 
   const [currentTime, setCurrentTime] = useState(new Date())
   const [selectedCardId, setSelectedCardId] = useState(null)
+  const prevCardIdRef = React.useRef(null)
 
   // Сканування та ручний ввід
   const [isScanning, setIsScanning] = useState(false)
@@ -394,6 +395,15 @@ export default function Shop1Terminal() {
 
   // Автоматичне скидання полів при зміні обраної картки
   useEffect(() => {
+    if (!selectedCardId) {
+      prevCardIdRef.current = null
+      return
+    }
+    if (selectedCardId === prevCardIdRef.current) {
+      return
+    }
+    prevCardIdRef.current = selectedCardId
+
     setSelectedOperator('')
     const fullName = [currentUser?.first_name, currentUser?.last_name].filter(Boolean).join(' ')
     const displayName = fullName || currentUser?.login || ''
@@ -832,6 +842,107 @@ export default function Shop1Terminal() {
     } finally { setIsProcessing(false) }
   }
 
+  const handleCuttersInventoryDeduction = async (card, breakdown) => {
+    if (card.operation !== 'Розкрій' || !breakdown || Object.keys(breakdown).length === 0) return
+
+    const task = tasks?.find(t => String(t.id) === String(card.task_id))
+    const totalTaskQty = Number(task?.planned_sets) || 
+      workCards.filter(wc => String(wc.task_id) === String(card.task_id)).reduce((sum, wc) => sum + (wc.quantity || 0), 0) || 1
+    const ratio = (card.quantity || 0) / totalTaskQty
+
+    for (const [cutterName, actualQtyVal] of Object.entries(breakdown)) {
+      const actualQty = Number(actualQtyVal) || 0
+      if (actualQty < 0) continue
+
+      const nom = nomenclatures?.find(n => n.name?.trim().toLowerCase() === cutterName.trim().toLowerCase() && n.type === 'consumable')
+      if (!nom) continue
+
+      let plannedQty = 0
+      if (task && task.plan_snapshot && Array.isArray(task.plan_snapshot.consumables)) {
+        const plannedCons = task.plan_snapshot.consumables.find(c => c.name?.trim().toLowerCase() === cutterName.trim().toLowerCase())
+        if (plannedCons) {
+          plannedQty = Math.round(Number(plannedCons.total) * ratio)
+        }
+      }
+
+      let coChange = 0
+      let pocketChange = 0
+
+      if (actualQty < plannedQty) {
+        coChange = plannedQty - actualQty
+      } else if (actualQty > plannedQty) {
+        pocketChange = -(actualQty - plannedQty)
+      }
+
+      if (coChange > 0) {
+        try {
+          const { data: coItem } = await supabase.from('inventory')
+            .select('*')
+            .eq('nomenclature_id', nom.id)
+            .eq('warehouse', 'operational')
+            .limit(1).maybeSingle()
+
+          if (coItem) {
+            await supabase.from('inventory').update({
+              total_qty: (Number(coItem.total_qty) || 0) + coChange,
+              updated_at: new Date().toISOString()
+            }).eq('id', coItem.id)
+          } else {
+            await supabase.from('inventory').insert([{
+              nomenclature_id: nom.id,
+              name: nom.name,
+              unit: nom.unit || 'шт',
+              total_qty: coChange,
+              warehouse: 'operational',
+              type: 'consumable',
+              updated_at: new Date().toISOString()
+            }])
+          }
+        } catch (e) {
+          console.warn('Failed to update CO inventory for cutter:', e)
+        }
+      }
+
+      if (pocketChange < 0) {
+        const pocketDeduct = Math.abs(pocketChange)
+        try {
+          const query = supabase.from('inventory')
+            .select('*')
+            .eq('nomenclature_id', nom.id)
+            .eq('warehouse', 'pocket')
+
+          if (card.manager_name && card.manager_name !== 'Не вказано') {
+            query.eq('pocket_owner', card.manager_name)
+          } else {
+            query.is('pocket_owner', null)
+          }
+
+          const { data: pocketItem } = await query.limit(1).maybeSingle()
+
+          if (pocketItem) {
+            await supabase.from('inventory').update({
+              total_qty: Math.max(0, (Number(pocketItem.total_qty) || 0) - pocketDeduct),
+              updated_at: new Date().toISOString()
+            }).eq('id', pocketItem.id)
+          } else {
+            await supabase.from('inventory').insert([{
+              nomenclature_id: nom.id,
+              name: nom.name,
+              unit: nom.unit || 'шт',
+              total_qty: 0,
+              warehouse: 'pocket',
+              type: 'consumable',
+              pocket_owner: card.manager_name && card.manager_name !== 'Не вказано' ? card.manager_name : null,
+              updated_at: new Date().toISOString()
+            }])
+          }
+        } catch (e) {
+          console.warn('Failed to update Pocket inventory for cutter:', e)
+        }
+      }
+    }
+  }
+
   // ── ДІЯ 2: Завершити етап → БУФЕР (in-progress → at-buffer) ──────────
   const handleCompleteToBuffer = async () => {
     if (!currentCard) return
@@ -888,7 +999,11 @@ export default function Shop1Terminal() {
 
       // 3. Якщо є брак — записуємо його в інвентар окремим типом
       if (scrapCount > 0) {
-        promises.push(updateInventoryStock(currentCard.nomenclature_id, scrapCount, 'scrap'))
+        promises.push(updateInventoryStock(currentCard.nomenclature_id, scrapCount, 'scrap_ready'))
+      }
+
+      if (currentCard.operation === 'Розкрій') {
+        promises.push(handleCuttersInventoryDeduction(currentCard, cuttersBreakdown))
       }
 
       const results = await Promise.all(promises)
@@ -1045,7 +1160,11 @@ export default function Shop1Terminal() {
       )
 
       // 3. Записуємо брак на склад
-      promises.push(updateInventoryStock(currentCard.nomenclature_id, currentCard.quantity, 'scrap'))
+      promises.push(updateInventoryStock(currentCard.nomenclature_id, currentCard.quantity, 'scrap_ready'))
+
+      if (currentCard.operation === 'Розкрій') {
+        promises.push(handleCuttersInventoryDeduction(currentCard, cuttersBreakdown))
+      }
 
       // 4. Створюємо НОВУ картку (Розкрій) для перевипуску
       promises.push(
@@ -1124,7 +1243,7 @@ export default function Shop1Terminal() {
         supabase.from('inventory')
           .select('*')
           .eq('nomenclature_id', currentCard.nomenclature_id)
-          .in('type', ['semi', 'wip_bz', 'bz', 'semi_shop2', 'bz_shop2', 'scrap']),
+          .in('type', ['semi', 'wip_bz', 'bz', 'semi_shop2', 'bz_shop2', 'scrap_ready']),
         supabase.from('tasks')
           .select('*')
           .eq('order_id', currentCard.order_id)
@@ -1219,7 +1338,7 @@ export default function Shop1Terminal() {
 
       // 3. Якщо є брак при сортуванні — записуємо його в інвентар
       if (scrapCount > 0) {
-        const scrapItem = findItem('scrap')
+        const scrapItem = findItem('scrap_ready')
         if (scrapItem) {
           invUpdates.push({ ...scrapItem, total_qty: (Number(scrapItem.total_qty) || 0) + scrapCount, updated_at: new Date().toISOString() })
         } else {
@@ -1228,7 +1347,7 @@ export default function Shop1Terminal() {
             name: nom?.name || 'Деталь',
             unit: nom?.unit || 'шт',
             total_qty: scrapCount,
-            type: 'scrap',
+            type: 'scrap_ready',
             nomenclature_id: currentCard.nomenclature_id
           })
         }
@@ -1513,7 +1632,7 @@ export default function Shop1Terminal() {
 
       // 3. Записуємо виявлений брак на склад для класифікації
       promises.push(
-        updateInventoryStock(currentCard.nomenclature_id, qcScrapCount, 'scrap')
+        updateInventoryStock(currentCard.nomenclature_id, qcScrapCount, 'scrap_ready')
       )
 
       const results = await Promise.all(promises)
@@ -1568,8 +1687,8 @@ export default function Shop1Terminal() {
     setIsProcessing(true)
 
     try {
-      // 1. Оновлюємо інвентар типу 'scrap'
-      await updateInventoryStock(nomId, totalQty, 'scrap')
+      // 1. Оновлюємо інвентар типу 'scrap_ready'
+      await updateInventoryStock(nomId, totalQty, 'scrap_ready')
 
       // 2. Помічаємо history як архівоване
       const idsToMark = unarchivedScrap.map(h => h.id)
@@ -1800,7 +1919,7 @@ export default function Shop1Terminal() {
                             }}
                             onKeyDown={e => {
                               // Якщо натиснуто Enter — це як клік на кнопку START
-                              if (e.key === 'Enter' && selectedOperator && selectedShift && !isProcessing) {
+                              if (e.key === 'Enter' && selectedOperator && selectedShift && !isProcessing && selectedMachine?.trim() && machineNumber?.trim()) {
                                 handleStart()
                               }
                             }}
@@ -1809,10 +1928,16 @@ export default function Shop1Terminal() {
                       </div>
                     </div>
                   )}
-                  <button onClick={handleStart} disabled={!selectedOperator || !selectedShift || isProcessing}
-                    style={{ ...btnPrimary, marginTop: '10px', height: '64px', fontSize: '1.2rem', opacity: (!selectedOperator || !selectedShift || isProcessing) ? 0.45 : 1 }}>
-                    ▶ ВЗЯТИ В РОБОТУ · {displayOp?.toUpperCase()}
-                  </button>
+                  {(() => {
+                    const isStartDisabled = !selectedOperator || !selectedShift || isProcessing || 
+                      (displayOp === 'Розкрій' && (!selectedMachine?.trim() || !machineNumber?.trim()))
+                    return (
+                      <button onClick={handleStart} disabled={isStartDisabled}
+                        style={{ ...btnPrimary, marginTop: '10px', height: '64px', fontSize: '1.2rem', opacity: isStartDisabled ? 0.45 : 1 }}>
+                        ▶ ВЗЯТИ В РОБОТУ · {displayOp?.toUpperCase()}
+                      </button>
+                    )
+                  })()}
                 </div>
               </div>
             )

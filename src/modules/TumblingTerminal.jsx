@@ -222,7 +222,7 @@ export default function TumblingTerminal() {
 
       // 3. Register scrap in inventory if any
       if (actualScrap > 0) {
-        await updateInventoryStock(activeCompletingCard.nomenclature_id, actualScrap, 'scrap')
+        await updateInventoryStock(activeCompletingCard.nomenclature_id, actualScrap, 'scrap_ready')
       }
 
       setShowCompleteModal(false)
@@ -238,7 +238,7 @@ export default function TumblingTerminal() {
   }
 
   // Register Scrap to DB helper
-  const updateInventoryStock = async (nomId, qty, type = 'scrap') => {
+  const updateInventoryStock = async (nomId, qty, type = 'scrap_ready') => {
     if (!nomId || qty <= 0) return
     try {
       const { data: existing } = await supabase.from('inventory')

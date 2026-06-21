@@ -22,7 +22,8 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
   const {
     inventory, nomenclatures, receptionDocs, createReceptionDoc, sendDocToWarehouse,
     purchaseRequests, updatePurchaseRequestStatus, convertRequestToOrder, currentUser,
-    confirmReception, fetchData, refreshTable, normalize, requests, issueMaterialsBatch, tasks
+    confirmReception, fetchData, refreshTable, normalize, requests, issueMaterialsBatch, tasks,
+    managers
   } = useMES()
 
   const [activeTab, setActiveTab] = useState('requests') // 'requests', 'registry', 'stock'
@@ -39,6 +40,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
   const [processingDocs, setProcessingDocs] = useState(new Set())
   const [targetWarehouse, setTargetWarehouse] = useState('operational') // 'operational'=СО, 'production'=СВ
   const [expandedPRs, setExpandedPRs] = useState(new Set())
+  const [pocketOwner, setPocketOwner] = useState('')
 
   // Super admin inventory editing state
   const [editingInvId, setEditingInvId] = useState(null)
@@ -256,14 +258,15 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
         }
       }
 
-      const targetWh = isProcurementOnly ? targetWarehouse : 'operational'
+      const targetWh = targetWarehouse
       const sourceWh = isProcurementOnly ? null : 'production'
-      const whLabel = targetWh === 'operational' ? 'СО (Склад Операційний)' : 'СВ (Склад Виробництва)'
-      await apiService.submitCreateReceptionDoc(items, null, (its) => createReceptionDoc(its, 'shipped', null, null, targetWh, sourceWh), targetWh, sourceWh)
+      const whLabel = targetWh === 'operational' ? 'СО (Склад Операційний)' : (targetWh === 'pocket' ? 'Кишеню Майстра' : 'СВ (Склад Виробництва)')
+      await apiService.submitCreateReceptionDoc(items, null, (its) => createReceptionDoc(its, 'shipped', null, null, targetWh, sourceWh, targetWh === 'pocket' ? pocketOwner : null), targetWh, sourceWh)
       setDraftItems([])
       setShowCreate(false)
+      setPocketOwner('')
       setActiveMobileSection('registry')
-      alert('Готово! Поставку успішно відправлено на СО.')
+      alert(`Готово! Поставку успішно відправлено на ${whLabel}.`)
     } finally {
       setIsProcessing(false)
     }
@@ -807,42 +810,60 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 
-                {/* Destination selector (procurement only) */}
-                {isProcurementOnly && (
+                {/* Destination selector */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 900, color: '#555', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Пункт призначення</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
+                    {[
+                      { id: 'operational', label: 'СО', desc: 'Склад Операційний', color: '#10b981', icon: '🏭' },
+                      isProcurementOnly && { id: 'production', label: 'СВ', desc: 'Склад Виробництва', color: '#3b82f6', icon: '⚙️' },
+                      { id: 'pocket', label: 'Кишеня Майстра', desc: 'Кишеня Майстра', color: '#f59e0b', icon: '💼' }
+                    ].filter(Boolean).map(wh => {
+                      const active = targetWarehouse === wh.id
+                      return (
+                        <button
+                          key={wh.id}
+                          type="button"
+                          onClick={() => setTargetWarehouse(wh.id)}
+                          style={{
+                            background: active ? `${wh.color}15` : '#0d0d0d',
+                            border: `1px solid ${active ? wh.color : '#222'}`,
+                            borderRadius: '12px',
+                            padding: '12px 15px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: '0.2s'
+                          }}
+                        >
+                          <span style={{ fontSize: '1.2rem' }}>{wh.icon}</span>
+                          <div>
+                            <div style={{ fontWeight: 800, fontSize: '0.85rem', color: active ? wh.color : '#fff' }}>{wh.label}</div>
+                            <div style={{ fontSize: '0.65rem', color: '#555' }}>{wh.desc}</div>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Pocket Master Owner Selector */}
+                {targetWarehouse === 'pocket' && (
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 900, color: '#555', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Пункт призначення</label>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                      {[
-                        { id: 'operational', label: 'СО', desc: 'Склад Операційний', color: '#10b981', icon: '🏭' },
-                        { id: 'production', label: 'СВ', desc: 'Склад Виробництва', color: '#3b82f6', icon: '⚙️' }
-                      ].map(wh => {
-                        const active = targetWarehouse === wh.id
-                        return (
-                          <button
-                            key={wh.id}
-                            onClick={() => setTargetWarehouse(wh.id)}
-                            style={{
-                              background: active ? `${wh.color}15` : '#0d0d0d',
-                              border: `1px solid ${active ? wh.color : '#222'}`,
-                              borderRadius: '12px',
-                              padding: '12px 15px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '10px',
-                              cursor: 'pointer',
-                              textAlign: 'left',
-                              transition: '0.2s'
-                            }}
-                          >
-                            <span style={{ fontSize: '1.2rem' }}>{wh.icon}</span>
-                            <div>
-                              <div style={{ fontWeight: 800, fontSize: '0.85rem', color: active ? wh.color : '#fff' }}>{wh.label}</div>
-                              <div style={{ fontSize: '0.65rem', color: '#555' }}>{wh.desc}</div>
-                            </div>
-                          </button>
-                        )
-                      })}
-                    </div>
+                    <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 900, color: '#555', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Оберіть майстра</label>
+                    <select
+                      value={pocketOwner}
+                      onChange={e => setPocketOwner(e.target.value)}
+                      style={{ width: '100%', background: '#0a0a0a', border: '1px solid #222', color: '#fff', padding: '12px 15px', borderRadius: '10px', fontSize: '0.9rem', outline: 'none' }}
+                      required
+                    >
+                      <option value="">-- Оберіть майстра --</option>
+                      {(managers || []).filter(m => m.toLowerCase().includes('майстер')).map((m, idx) => (
+                        <option key={idx} value={m}>{m}</option>
+                      ))}
+                    </select>
                   </div>
                 )}
 

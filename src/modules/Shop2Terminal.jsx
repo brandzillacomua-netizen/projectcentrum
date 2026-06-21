@@ -452,7 +452,7 @@ const Shop2Terminal = () => {
 
       // 3. Записуємо виявлений брак на склад для класифікації
       promises.push(
-        updateInventoryStock(currentCard.nomenclature_id, qcScrapCount, 'scrap')
+        updateInventoryStock(currentCard.nomenclature_id, qcScrapCount, 'scrap_ready')
       )
 
       const results = await Promise.all(promises)

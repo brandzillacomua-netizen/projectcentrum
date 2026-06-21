@@ -1108,6 +1108,15 @@ const BomRow = ({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, supabas
   const [showCreate, setShowCreate] = useState(false)
   const inputRef = useRef(null)
 
+  // Sync query when row.nomName/nomId changes from parent (e.g. after expand assembly)
+  const prevNomId = useRef(row.nomId)
+  useEffect(() => {
+    if (prevNomId.current !== row.nomId) {
+      prevNomId.current = row.nomId
+      setQuery(row.nomName || '')
+    }
+  }, [row.nomId, row.nomName])
+
   const filtered = useMemo(() => {
     if (!query || query.length < 2) return []
     const q = query.toLowerCase()
@@ -1228,7 +1237,7 @@ const BomRow = ({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, supabas
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
               {subItems.map(s => {
-                const subNom = nomenclatures.find(n => n.id === s.child_id)
+                const subNom = nomenclatures.find(n => String(n.id) === String(s.child_id))
                 return (
                   <span key={s.id} style={{ fontSize: '0.7rem', background: '#0a0a0a', border: '1px solid #1a1a1a', padding: '2px 8px', borderRadius: '6px', color: '#aaa' }}>
                     {subNom ? subNom.name : 'компонент'} <strong style={{ color: '#fff' }}>x{s.quantity_per_parent}</strong>
@@ -1315,6 +1324,7 @@ const SpecBuilderTab = () => {
   const [parentSearch, setParentSearch] = useState('')
   const [showParentDrop, setShowParentDrop] = useState(false)
   const [rows, setRows] = useState([])
+  const lastLoadedParentId = useRef(null)
   const [saving, setSaving] = useState(false)
   const [viewMode, setViewMode] = useState('editor') // 'editor' | 'catalog' | 'dossier'
   const [catalogSearch, setCatalogSearch] = useState('')
@@ -1430,22 +1440,29 @@ const SpecBuilderTab = () => {
 
   // When parent changes, load its existing BOM rows
   useEffect(() => {
-    if (!parentId) { setRows([]); return }
-    const existing = bomItems.filter(b => String(b.parent_id) === String(parentId))
-    if (existing.length > 0) {
-      setRows(existing.map(b => {
-        const nom = nomenclatures.find(n => String(n.id) === String(b.child_id))
-        return {
-          nomId: b.child_id,
-          nomName: nom?.name || '(невідомо)',
-          nomType: nom?.type || 'part',
-          nomUnit: nom?.unit || 'шт',
-          group: b.group_label || autoClassify(nom),
-          qty: b.quantity_per_parent ?? 1
-        }
-      }))
-    } else {
+    if (!parentId) {
       setRows([])
+      lastLoadedParentId.current = null
+      return
+    }
+    if (lastLoadedParentId.current !== parentId) {
+      const existing = bomItems.filter(b => String(b.parent_id) === String(parentId))
+      if (existing.length > 0) {
+        setRows(existing.map(b => {
+          const nom = nomenclatures.find(n => String(n.id) === String(b.child_id))
+          return {
+            nomId: b.child_id,
+            nomName: nom?.name || '(невідомо)',
+            nomType: nom?.type || 'part',
+            nomUnit: nom?.unit || 'шт',
+            group: b.group_label || autoClassify(nom),
+            qty: b.quantity_per_parent ?? 1
+          }
+        }))
+      } else {
+        setRows([])
+      }
+      lastLoadedParentId.current = parentId
     }
   }, [parentId, bomItems, nomenclatures])
 
@@ -1495,6 +1512,7 @@ const SpecBuilderTab = () => {
         }
       }
       await refreshTable('bom_items')
+      lastLoadedParentId.current = null
       alert(`✅ Специфікацію збережено! (${payloadWithGroup.length} позицій)`)
     } catch (e) { alert('Помилка: ' + e.message) }
     finally { setSaving(false) }
@@ -1698,8 +1716,9 @@ const SpecBuilderTab = () => {
               <input
                 value={selectedParent ? selectedParent.name : parentSearch}
                 placeholder="Введіть назву або почніть пошук..."
-                onChange={e => { setParentSearch(e.target.value); setParentId(''); setShowParentDrop(true) }}
-                onFocus={() => setShowParentDrop(true)}
+                readOnly={!!selectedParent}
+                onChange={e => { if (!selectedParent) { setParentSearch(e.target.value); setShowParentDrop(true) } }}
+                onFocus={() => { if (!selectedParent) setShowParentDrop(true) }}
                 onBlur={() => setTimeout(() => setShowParentDrop(false), 180)}
                 style={{ width: '100%', padding: '12px 16px', background: parentId ? '#0f1a2e' : '#111', border: `1px solid ${parentId ? '#1d4ed840' : '#2a2a2a'}`, color: '#fff', borderRadius: '10px', fontSize: '0.95rem', fontWeight: 600, boxSizing: 'border-box' }}
               />
@@ -1818,10 +1837,14 @@ const SpecBuilderTab = () => {
                         supabase={supabase}
                         refreshTable={refreshTable}
                         onExpandAssembly={(assemblyId, parentQty) => {
-                          const subs = bomItems.filter(b => String(b.parent_id) === String(assemblyId))
+                          const capturedIdx = r._idx
+                          const subs = bomItems.filter(b =>
+                            String(b.parent_id) === String(assemblyId) &&
+                            String(b.child_id) !== String(assemblyId)
+                          )
                           if (subs.length === 0) return alert('Цей вузол не містить деталей у специфікації')
                           const newRows = subs.map(s => {
-                            const subNom = nomenclatures.find(n => n.id === s.child_id)
+                            const subNom = nomenclatures.find(n => String(n.id) === String(s.child_id))
                             return {
                               nomId: s.child_id,
                               nomName: subNom ? subNom.name : 'Деталь',
@@ -1832,7 +1855,7 @@ const SpecBuilderTab = () => {
                           })
                           setRows(prev => {
                             const copy = [...prev]
-                            copy.splice(r._idx, 1, ...newRows)
+                            copy.splice(capturedIdx, 1, ...newRows)
                             return copy
                           })
                         }}

@@ -80,7 +80,7 @@ export default function BrakModule() {
   }, [isScanning, workCards])
 
   // Уніфікована функція запису в інвентар
-  const updateInventoryStock = async (nomId, qty, type = 'scrap') => {
+  const updateInventoryStock = async (nomId, qty, type = 'scrap_ready') => {
     if (!nomId || qty <= 0) return
     try {
       const { data: existing } = await supabase.from('inventory')
@@ -149,7 +149,7 @@ export default function BrakModule() {
       await supabase.from('work_cards').update(updatePayload).eq('id', scannedCard.id)
 
       // 3. Записуємо виявлений брак на склад
-      await updateInventoryStock(scannedCard.nomenclature_id, qcScrapCount, 'scrap')
+      await updateInventoryStock(scannedCard.nomenclature_id, qcScrapCount, 'scrap_ready')
 
       const recordedScrap = qcScrapCount
       setScannedCard(null)

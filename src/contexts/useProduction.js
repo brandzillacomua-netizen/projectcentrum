@@ -643,17 +643,155 @@ export function createProductionActions({
 
   const createWorkCardsBatch = async (taskId, orderId, nomenclatureId, cardsArray) => {
     const payloads = cardsArray.map(c => ({
-      task_id: taskId, order_id: orderId, nomenclature_id: nomenclatureId,
-      operation: c.operation || 'Нова', machine: c.machine, quantity: Number(c.quantity) || 0,
-      estimated_time: Number(c.estimatedTime) || 0, status: c.status || 'new', is_rework: c.is_rework || false,
+      task_id: taskId,
+      order_id: orderId,
+      nomenclature_id: nomenclatureId,
+      operation: c.operation || 'Нова',
+      machine: c.machine,
+      quantity: Number(c.quantity) || 0,
+      estimated_time: Number(c.estimatedTime) || 0,
+      status: c.status || 'new',
+      is_rework: c.is_rework || false,
       card_info: `${c.cardInfo || ''}${Number(c.bufferQty) > 0 ? ` [BZ:${c.bufferQty}]` : ''}`
     }))
 
     const { data } = await supabase.from('work_cards').insert(payloads).select()
-    // Optimistic update: append new cards to local state immediately (no full fetchData)
+    
+    // Proportional splitting of material_requests for this task
     if (data && data.length > 0) {
       setWorkCards(prev => [...prev, ...data])
+      
+      try {
+        // Fetch general material requests for this task that are not yet assigned to any card
+        const { data: generalRequests } = await supabase
+          .from('material_requests')
+          .select('*')
+          .eq('task_id', taskId)
+          .is('card_id', null)
+
+        if (generalRequests && generalRequests.length > 0) {
+          const task = (tasks || []).find(t => t.id === taskId)
+          const snapshot = task?.plan_snapshot || {}
+          const partSnapshot = snapshot[nomenclatureId] || {}
+          const partNom = nomenclatures.find(n => n.id === nomenclatureId)
+          const unitsPerSheet = Number(partSnapshot.units_per_sheet) || Number(partNom?.units_per_sheet) || 1
+          const materialName = partSnapshot.material
+
+          // Calculate total planned sheets for the whole task
+          let totalTaskSheets = 0
+          Object.entries(snapshot).forEach(([key, val]) => {
+            if (val && typeof val === 'object' && val.sheets) {
+              totalTaskSheets += Number(val.sheets) || 0
+            }
+          })
+          if (totalTaskSheets <= 0) totalTaskSheets = 1
+
+          const normalize = (s) => (s || '').toLowerCase().trim()
+            .replace(/[тt]/g, 't').replace(/[аa]/g, 'a').replace(/[еe]/g, 'e')
+            .replace(/[оo]/g, 'o').replace(/[рp]/g, 'p').replace(/[сc]/g, 'c')
+            .replace(/[хx]/g, 'x')
+            .replace(/[іi]/g, 'i')
+            .replace(/[уy]/g, 'y')
+            .replace(/[кk]/g, 'k')
+            .replace(/[мm]/g, 'm')
+            .replace(/[нn]/g, 'n')
+            .replace(/[вv]/g, 'v')
+            .replace(/[и]/g, 'y')
+            .replace(/[зz]/g, 'z')
+            .replace(/\s/g, '')
+
+          const newRequests = []
+          const updates = []
+          const deletes = []
+
+          for (const req of generalRequests) {
+            const normDetails = normalize(req.details || '')
+            const normMat = materialName ? normalize(materialName) : ''
+
+            let isSheetForThisCard = false
+            let isSheetForOtherParts = false
+            let isGeneralConsumable = false
+
+            if (normMat && normDetails.includes(normMat)) {
+              isSheetForThisCard = true
+            } else if (normDetails.includes('лyct')) {
+              isSheetForOtherParts = true
+            } else {
+              isGeneralConsumable = true
+            }
+
+            if (isSheetForOtherParts) {
+              continue
+            }
+
+            let totalDeduction = 0
+
+            data.forEach((card, idx) => {
+              const cardSheets = Math.ceil((Number(card.quantity) || 0) / unitsPerSheet)
+              let cardQty = 0
+
+              if (isSheetForThisCard) {
+                cardQty = cardSheets
+              } else if (isGeneralConsumable) {
+                let originalCutterQty = Number(req.quantity)
+                const consumablesList = snapshot.consumables || []
+                const foundCons = consumablesList.find(c => {
+                  const nameLower = (c.name || '').toLowerCase()
+                  return normDetails.includes(normalize(nameLower))
+                })
+                if (foundCons) {
+                  originalCutterQty = Number(foundCons.total) || Number(req.quantity)
+                }
+                cardQty = Math.round(originalCutterQty * (cardSheets / totalTaskSheets))
+              }
+
+              if (cardQty > 0) {
+                totalDeduction += cardQty
+                const cardLabel = (card.card_info || '').split(' ')[0] || `№${idx + 1}`
+                const updatedDetails = req.details 
+                  ? req.details.replace('СКЛАД ОПЕРАТИВНИЙ:', `СКЛАД ОПЕРАТИВНИЙ (Картка ${cardLabel}):`)
+                               .replace('ВИТРАТНІ МАТЕРІАЛИ ДЛЯ', `ВИТРАТНІ МАТЕРІАЛИ (Картка ${cardLabel}) ДЛЯ`)
+                               .replace('СКЛАД ОПЕРАТИВНИЙ (ОБРАНО ВРУЧНУ):', `СКЛАД ОПЕРАТИВНИЙ (Картка ${cardLabel}) (ОБРАНО ВРУЧНУ):`)
+                  : `Матеріали для картки ${cardLabel}`
+
+                newRequests.push({
+                  order_id: req.order_id,
+                  task_id: req.task_id,
+                  nomenclature_id: req.nomenclature_id,
+                  quantity: cardQty,
+                  status: req.status,
+                  inventory_id: req.inventory_id,
+                  details: updatedDetails,
+                  card_id: card.id
+                })
+              }
+            })
+
+            const nextReqQty = Math.max(0, (Number(req.quantity) || 0) - totalDeduction)
+            if (nextReqQty <= 0) {
+              deletes.push(req.id)
+            } else {
+              updates.push({ id: req.id, quantity: nextReqQty })
+            }
+          }
+
+          if (newRequests.length > 0) {
+            await supabase.from('material_requests').insert(newRequests)
+          }
+          if (updates.length > 0) {
+            for (const upd of updates) {
+              await supabase.from('material_requests').update({ quantity: upd.quantity }).eq('id', upd.id)
+            }
+          }
+          if (deletes.length > 0) {
+            await supabase.from('material_requests').delete().in('id', deletes)
+          }
+        }
+      } catch (err) {
+        console.error('Error splitting material requests for cards:', err)
+      }
     }
+
     // Update task status in background (non-blocking)
     supabase.from('tasks').update({ status: 'in-progress' }).eq('id', taskId).then(() => {
       setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'in-progress' } : t))
@@ -713,7 +851,7 @@ export function createProductionActions({
     }
     const historyCardInfo = (machineTag + ' ' + (card.card_info || '') + breakdownStr).trim()
 
-    await Promise.all([
+    const writePromises = [
       supabase.from('work_card_history').insert([{
         card_id: cardId, nomenclature_id: card.nomenclature_id, stage_name: card.operation || 'Розкрій',
         operator_name: card.operator_name || 'Не вказано', card_info: historyCardInfo,
@@ -721,7 +859,37 @@ export function createProductionActions({
         cutters_used: Number(cuttersUsed) || 0, started_at: card.started_at, completed_at: new Date().toISOString()
       }]),
       supabase.from('work_cards').update({ ...cardUpdate, cutters_used: Number(cuttersUsed) || 0, card_info: historyCardInfo }).eq('id', cardId)
-    ])
+    ]
+
+    if (totalScrap > 0) {
+      // Автоматично відправляємо в 'scrap_ready' на склад для ВКЯ
+      const nom = nomenclatures.find(n => n.id === card.nomenclature_id)
+      writePromises.push(
+        supabase.from('inventory').select('*')
+          .eq('nomenclature_id', card.nomenclature_id)
+          .eq('type', 'scrap_ready')
+          .limit(1).maybeSingle()
+          .then(async ({ data: existing }) => {
+            if (existing) {
+              return supabase.from('inventory').update({
+                total_qty: (Number(existing.total_qty) || 0) + totalScrap,
+                updated_at: new Date().toISOString()
+              }).eq('id', existing.id)
+            } else {
+              return supabase.from('inventory').insert([{
+                nomenclature_id: card.nomenclature_id,
+                name: nom?.name || 'Деталь',
+                unit: nom?.unit || 'шт',
+                total_qty: totalScrap,
+                type: 'scrap_ready',
+                updated_at: new Date().toISOString()
+              }])
+            }
+          })
+      )
+    }
+
+    await Promise.all(writePromises)
 
     if (isRework) {
       const nom = nomenclatures.find(n => n.id === card.nomenclature_id)

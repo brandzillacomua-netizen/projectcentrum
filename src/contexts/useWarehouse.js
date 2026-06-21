@@ -132,10 +132,11 @@ export function createWarehouseActions({
 
   // ── RECEPTION DOCS ─────────────────────────────────────────────────────────
 
-  const createReceptionDoc = async (items, status = 'pending', orderId = null, taskId = null, targetWH = null, sourceWH = null) => {
+  const createReceptionDoc = async (items, status = 'pending', orderId = null, taskId = null, targetWH = null, sourceWH = null, pocketOwner = null) => {
     const { data, error } = await supabase.from('reception_docs').insert([{
       items, status, order_id: orderId, task_id: taskId,
       target_warehouse: targetWH, source_warehouse: sourceWH,
+      pocket_owner: pocketOwner,
       created_at: new Date().toISOString()
     }]).select()
     if (!error) refreshTable('reception_docs')
@@ -192,8 +193,11 @@ export function createWarehouseActions({
       }
 
       let targetQuery = supabase.from('inventory')
-        .select('id,nomenclature_id,name,type,total_qty,reserved_qty,unit,warehouse')
+        .select('id,nomenclature_id,name,type,total_qty,reserved_qty,unit,warehouse,pocket_owner')
         .eq('warehouse', targetWarehouse)
+      if (targetWarehouse === 'pocket' && doc.pocket_owner) {
+        targetQuery = targetQuery.eq('pocket_owner', doc.pocket_owner)
+      }
       
       let sourceQuery = Promise.resolve({ data: [] })
 
@@ -201,15 +205,21 @@ export function createWarehouseActions({
         targetQuery = targetQuery.or(orFilters.join(','))
         if (sourceWarehouse) {
           sourceQuery = supabase.from('inventory')
-            .select('id,nomenclature_id,name,type,total_qty,reserved_qty,unit,warehouse')
+            .select('id,nomenclature_id,name,type,total_qty,reserved_qty,unit,warehouse,pocket_owner')
             .eq('warehouse', sourceWarehouse)
-            .or(orFilters.join(','))
+          if (sourceWarehouse === 'pocket' && doc.pocket_owner) {
+            sourceQuery = sourceQuery.eq('pocket_owner', doc.pocket_owner)
+          }
+          sourceQuery = sourceQuery.or(orFilters.join(','))
         }
       } else {
         if (sourceWarehouse) {
           sourceQuery = supabase.from('inventory')
-            .select('id,nomenclature_id,name,type,total_qty,reserved_qty,unit,warehouse')
+            .select('id,nomenclature_id,name,type,total_qty,reserved_qty,unit,warehouse,pocket_owner')
             .eq('warehouse', sourceWarehouse)
+          if (sourceWarehouse === 'pocket' && doc.pocket_owner) {
+            sourceQuery = sourceQuery.eq('pocket_owner', doc.pocket_owner)
+          }
         }
       }
 
@@ -262,7 +272,8 @@ export function createWarehouseActions({
           const insertKey = `${nomId || ''}_${normalize(fullItemName)}`
           const currentInsert = insertsMap.get(insertKey) || {
             nomenclature_id: nomId, name: fullItemName, total_qty: 0, reserved_qty: 0,
-            type: nom?.type || 'raw', warehouse: targetWarehouse, unit: nom?.unit || 'шт'
+            type: nom?.type || 'raw', warehouse: targetWarehouse, unit: nom?.unit || 'шт',
+            pocket_owner: targetWarehouse === 'pocket' ? doc.pocket_owner : null
           }
           currentInsert.total_qty += qtyToAdd
           insertsMap.set(insertKey, currentInsert)
