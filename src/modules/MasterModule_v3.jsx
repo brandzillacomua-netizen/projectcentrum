@@ -651,11 +651,16 @@ const MasterModule = () => {
           await autoCreatePrepOrder(missingPrepQuantities, naryadDeadline || activeNaryadOrder.deadline);
 
           // 2. Create task
-          await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters, naryadParts, partCutterOverrides));
+          const createdTask = await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters, naryadParts, partCutterOverrides));
+
+          if (createdTask) {
+            setReprintTask(createdTask);
+          }
 
           // 3. Trigger print dialog
           window.print();
 
+          setReprintTask(null);
           setActiveNaryadOrder(null);
         } catch (err) {
           console.error("Naryad creation error:", err);
@@ -675,8 +680,14 @@ const MasterModule = () => {
         setReprintTask(null)
         setActiveNaryadOrder(null)
       } else {
-        await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters, naryadParts, partCutterOverrides))
+        const createdTask = await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters, naryadParts, partCutterOverrides))
+        
+        if (createdTask) {
+          setReprintTask(createdTask);
+        }
+        
         window.print()
+        setReprintTask(null)
         setActiveNaryadOrder(null)
       }
     } catch (err) {

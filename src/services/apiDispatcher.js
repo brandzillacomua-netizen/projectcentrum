@@ -186,7 +186,10 @@ export const apiService = {
     const payload = requestBuilder.buildCreateTaskPayload(orderId, machine);
     console.log("%c--- 📦 BACKEND ACTION: CREATE PRODUCTION NARYAD ---", "color: #f59e0b; font-weight: bold; font-size: 14px; text-decoration: underline;");
     console.log("JSON Payload:", payload);
-    if (typeof fallback === 'function') await fallback(orderId, machine);
+    if (typeof fallback === 'function') {
+      const res = await fallback(orderId, machine);
+      return res;
+    }
     return true;
   },
 

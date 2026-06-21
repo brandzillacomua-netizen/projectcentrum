@@ -213,9 +213,12 @@ const ManagerModule = () => {
     const map = {
       'pending': 'ОЧІКУЄ',
       'in-progress': 'В РОБОТІ',
-      'completed': 'ВИКОНАНО',
+      'completed': 'ВІДВАНТАЖЕНО',
       'shipped': 'ВІДВАНТАЖЕНО',
-      'packaged': 'УПАКОВАНО'
+      'packaged': 'ОЧІКУЄ ВІДВАНТАЖЕННЯ',
+      'shop1': 'ЦЕХ №1',
+      'shop2': 'ЦЕХ №2',
+      'packaging': 'НА ПАКУВАННІ'
     }
     return map[s] || s?.toUpperCase()
   }

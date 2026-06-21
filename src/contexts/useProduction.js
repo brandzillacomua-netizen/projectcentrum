@@ -845,15 +845,52 @@ export function createProductionActions({
       const qty = Number(t.planned_sets) || 0
       const isPackaged = t.plan_snapshot?._metadata?.is_packaged === true
       const isProduced = t.status === 'completed' || t.step.includes('ЦЕХ №2') || t.step.includes('Паквання')
-      if (!batches[key]) batches[key] = { qty, isPackaged, isProduced }
-      else { if (qty > batches[key].qty) batches[key].qty = qty; if (isPackaged) batches[key].isPackaged = true; if (isProduced) batches[key].isProduced = true }
+      const step = t.step || ''
+      if (!batches[key]) batches[key] = { qty, isPackaged, isProduced, step, status: t.status }
+      else {
+        if (qty > batches[key].qty) batches[key].qty = qty
+        if (isPackaged) batches[key].isPackaged = true
+        if (isProduced) batches[key].isProduced = true
+        if (t.status !== 'completed') batches[key].step = t.step
+        if (t.status !== 'completed') batches[key].status = t.status
+      }
     })
     const planned = Object.values(batches).reduce((acc, b) => acc + b.qty, 0)
     const packaged = Object.values(batches).filter(b => b.isPackaged).reduce((acc, b) => acc + b.qty, 0)
     const produced = Object.values(batches).filter(b => b.isProduced).reduce((acc, b) => acc + b.qty, 0)
+    
     let status = order.status
-    if (packaged >= totalQty && totalQty > 0) status = 'packaged'
-    else if (produced > 0 || planned > 0) { if (status !== 'shipped' && status !== 'completed') status = 'in-progress' }
+    if (order.status === 'shipped' || order.status === 'completed') {
+      status = 'shipped'
+    } else if (packaged >= totalQty && totalQty > 0) {
+      status = 'packaged' // Очікує відвантаження
+    } else if (orderTasks.length > 0) {
+      // Визначаємо за кроками активних нарядів
+      const activeBatches = Object.values(batches)
+      const hasUnpackaged = activeBatches.some(b => !b.isPackaged)
+      
+      if (hasUnpackaged) {
+        // Якщо є наряди, які ще не запаковані
+        const steps = activeBatches.map(b => b.step)
+        
+        // Перевіряємо чи вони на пакуванні
+        const allProduced = activeBatches.every(b => b.isProduced)
+        if (allProduced) {
+          status = 'packaging' // На пакуванні
+        } else {
+          // Дивимося де саме в цехах
+          const hasShop2 = steps.some(s => s.includes('ЦЕХ №2') || s.includes('Пресування') || s.includes('Фарбув'))
+          if (hasShop2) {
+            status = 'shop2' // Цех 2
+          } else {
+            status = 'shop1' // Цех 1
+          }
+        }
+      } else {
+        status = 'packaging'
+      }
+    }
+    
     return { total: totalQty, planned, produced, packaged, isFullyPackaged: packaged >= totalQty && totalQty > 0, isFullyPlanned: planned >= totalQty && totalQty > 0, status }
   }
 
@@ -1274,6 +1311,7 @@ export function createProductionActions({
       if (tData) {
         setTasks(prev => prev.some(t => t.id === tData.id) ? prev : [tData, ...prev])
       }
+      return tData
     } catch (err) { console.error('Error creating naryad:', err.message) }
   }
 
@@ -1588,7 +1626,7 @@ export function createProductionActions({
       const card = freshCard
       const nomId = card.nomenclature_id
       const totalQty = Number(card.quantity) || 0
-      const isRework = card.card_info?.includes('[REWORK]') || card.operation === 'Доопрацювання' || card.card_info?.includes('Автоматично з Сортування')
+      const isRework = card.card_info?.includes('[REWORK]') || card.card_info?.includes('[RESTORATION]') || card.operation === 'Доопрацювання' || card.card_info?.includes('Автоматично з Сортування')
 
       // Calculate plannedNeed from task plan_snapshot
       let plannedNeed = 0
@@ -1622,7 +1660,7 @@ export function createProductionActions({
         const sibTotal = Number(sib.quantity) || 0
         const sibBzTotal = Number(sib.card_info?.match(/\[BZ:(\d+)\]/)?.[1]) || 0
         const sibNeedQty = Number(sib.card_info?.match(/\[NEED:(\d+)\]/)?.[1]) || (Math.max(0, sibTotal - sibBzTotal))
-        const sibIsRework = sib.card_info?.includes('[REWORK]') || sib.operation === 'Доопрацювання' || sib.card_info?.includes('Автоматично з Сортування')
+        const sibIsRework = sib.card_info?.includes('[REWORK]') || sib.card_info?.includes('[RESTORATION]') || sib.operation === 'Доопрацювання' || sib.card_info?.includes('Автоматично з Сортування')
         const sibFinished = sibIsRework ? 0 : Math.min(sibTotal, sibNeedQty)
         siblingFinishedSum += sibFinished
       }
@@ -1854,6 +1892,11 @@ export function createProductionActions({
 
     const newTask = taskData?.[0]
     let cardPromise = Promise.resolve()
+    const isRestoration = stage.includes('Пресування') || stage.includes('Фарбування')
+    const cardInfoText = isRestoration 
+      ? `[RESTORATION] [ЦЕХ №2] ${nom?.name || scrapItem.name} — ВНУТРІШНЄ ВІДНОВЛЕННЯ ВКЯ`
+      : `[REWORK] [ЦЕХ №2] ${nom?.name || scrapItem.name} — ДООПРАЦЮВАННЯ БРАКУ`
+
     if (newTask) {
       cardPromise = supabase
         .from('work_cards')
@@ -1864,7 +1907,7 @@ export function createProductionActions({
           quantity: qty,
           status: 'new',
           operation: stage,
-          card_info: `[REWORK] [ЦЕХ №2] ${nom?.name || scrapItem.name} — ДООПРАЦЮВАННЯ БРАКУ`
+          card_info: cardInfoText
         }])
     }
 

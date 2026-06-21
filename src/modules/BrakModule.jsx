@@ -182,10 +182,13 @@ export default function BrakModule() {
     cat2: (inventory || []).filter(i => i.type === 'scrap_cat_2').reduce((a, b) => a + (Number(b.total_qty) || 0), 0),
     cat3: (inventory || []).filter(i => i.type === 'scrap_cat_3').reduce((a, b) => a + (Number(b.total_qty) || 0), 0),
     cat4: (inventory || []).filter(i => i.type === 'scrap_cat_4').reduce((a, b) => a + (Number(b.total_qty) || 0), 0),
+    restoration: (inventory || []).filter(i => i.type === 'scrap_restoration').reduce((a, b) => a + (Number(b.total_qty) || 0), 0),
   }
 
   const itemsInCat = viewingCategory 
-    ? (inventory || []).filter(i => i.type === `scrap_cat_${viewingCategory}` && (Number(i.total_qty) > 0))
+    ? (viewingCategory === 'restoration'
+        ? (inventory || []).filter(i => i.type === 'scrap_restoration' && (Number(i.total_qty) > 0))
+        : (inventory || []).filter(i => i.type === `scrap_cat_${viewingCategory}` && (Number(i.total_qty) > 0)))
     : []
 
   const handleBulkClassify = async () => {
@@ -259,6 +262,43 @@ export default function BrakModule() {
     await createReworkNaryad(item.id, item.total_qty, stage)
     setIsProcessing(false)
     alert(`Створено незалежний наряд на ${stage} для ${item.total_qty} шт.`)
+  }
+
+  const handleSendToRestoration = async (item) => {
+    setIsProcessing(true)
+    try {
+      // Переносимо зі scrap_cat_X у scrap_restoration
+      const { data: existing } = await supabase.from('inventory')
+        .select('*')
+        .eq('nomenclature_id', item.nomenclature_id)
+        .eq('type', 'scrap_restoration')
+        .limit(1).maybeSingle()
+
+      if (existing) {
+        await supabase.from('inventory').update({
+          total_qty: (Number(existing.total_qty) || 0) + Number(item.total_qty),
+          updated_at: new Date().toISOString()
+        }).eq('id', existing.id)
+      } else {
+        const nom = (nomenclatures || []).find(n => n.id === item.nomenclature_id)
+        await supabase.from('inventory').insert([{
+          nomenclature_id: item.nomenclature_id,
+          name: nom?.name || item.name,
+          unit: item.unit || 'шт',
+          total_qty: Number(item.total_qty),
+          type: 'scrap_restoration',
+          updated_at: new Date().toISOString()
+        }])
+      }
+
+      await supabase.from('inventory').delete().eq('id', item.id)
+      await fetchData('inventory')
+      alert(`Деталі (${item.total_qty} шт.) перенесено до внутрішнього відділу відновлення ВКЯ!`)
+    } catch (e) {
+      alert('Помилка відправки на відновлення: ' + e.message)
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
   return (
@@ -353,12 +393,13 @@ export default function BrakModule() {
         </div>
 
         {/* Stats Dashboard */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '40px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '20px', marginBottom: '40px' }}>
           {[
             { cat: 1, label: 'Категорія 1', val: categorizedStats.cat1, color: '#10b981', desc: 'Мінімальний брак' },
             { cat: 2, label: 'Категорія 2', val: categorizedStats.cat2, color: '#eab308', desc: 'Середній брак' },
             { cat: 3, label: 'Категорія 3', val: categorizedStats.cat3, color: '#f97316', desc: 'Серйозний брак' },
             { cat: 4, label: 'Категорія 4', val: categorizedStats.cat4, color: '#ef4444', desc: 'Критичний брак' },
+            { cat: 'restoration', label: 'Відновлення', val: categorizedStats.restoration, color: '#06b6d4', desc: 'Внутрішнє відновлення' },
           ].map(s => (
             <div key={s.label} 
               onClick={() => {
@@ -425,22 +466,39 @@ export default function BrakModule() {
                   }}>
                     <div>
                       <div style={{ fontWeight: 900, fontSize: '1.05rem', marginBottom: '2px' }}>{item.name}</div>
-                      <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800 }}>Обліковується як: {item.type}</div>
+                      <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800 }}>Обліковується як: {item.type === 'scrap_restoration' ? 'Відновлення (ВКЯ)' : item.type}</div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                        <div style={{ textAlign: 'right', marginRight: '10px' }}>
                           <div style={{ fontSize: '1.4rem', fontWeight: 1000 }}>{item.total_qty} <small style={{ fontSize: '0.7rem', opacity: 0.3 }}>шт</small></div>
                        </div>
-                       {viewingCategory === 4 ? (
+                       {viewingCategory === 'restoration' ? (
+                         <>
+                           <button 
+                             onClick={() => handleRework(item, 'Пресування [ЦЕХ №2]')}
+                             style={{ background: '#8b5cf6', border: 'none', color: '#fff', padding: '10px 15px', borderRadius: '12px', fontWeight: 900, fontSize: '0.75rem', cursor: 'pointer' }}
+                           >ПРЕСУВАННЯ</button>
+                           <button 
+                             onClick={() => handleRework(item, 'Фарбування')}
+                             style={{ background: '#3b82f6', border: 'none', color: '#fff', padding: '10px 15px', borderRadius: '12px', fontWeight: 900, fontSize: '0.75rem', cursor: 'pointer' }}
+                           >ФАРБУВАННЯ</button>
+                         </>
+                       ) : viewingCategory === 4 ? (
                          <button 
                            onClick={() => handleDispose(item)}
                            style={{ background: '#ef4444', border: 'none', color: '#fff', padding: '10px 15px', borderRadius: '12px', fontWeight: 900, fontSize: '0.75rem', cursor: 'pointer' }}
                          >СПИСАТИ</button>
                         ) : (
-                          <button 
-                            onClick={() => handleRework(item, 'Доопрацювання')}
-                            style={{ background: '#10b981', border: 'none', color: '#fff', padding: '10px 15px', borderRadius: '12px', fontWeight: 900, fontSize: '0.75rem', cursor: 'pointer' }}
-                          >НА ДООПРАЦЮВАННЯ</button>
+                          <>
+                           <button 
+                             onClick={() => handleRework(item, 'Доопрацювання')}
+                             style={{ background: '#10b981', border: 'none', color: '#fff', padding: '10px 15px', borderRadius: '12px', fontWeight: 900, fontSize: '0.75rem', cursor: 'pointer' }}
+                           >НА ДООПРАЦЮВАННЯ</button>
+                           <button 
+                             onClick={() => handleSendToRestoration(item)}
+                             style={{ background: '#06b6d4', border: 'none', color: '#fff', padding: '10px 15px', borderRadius: '12px', fontWeight: 900, fontSize: '0.75rem', cursor: 'pointer' }}
+                           >НА ВІДНОВЛЕННЯ</button>
+                         </>
                         )}
                     </div>
                   </div>
@@ -497,14 +555,18 @@ export default function BrakModule() {
               }}>
                 {viewingCategory && !selectedItem && (
                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ width: '80px', height: '80px', background: '#111', borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 25px', color: '#666' }}>
+                      <div style={{ width: '80px', height: '80px', background: '#111', borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 25px', color: '#06b6d4' }}>
                         <Layers size={40} />
                       </div>
-                      <div style={{ color: '#fff', fontWeight: 900, fontSize: '1.2rem', marginBottom: '10px' }}>Аналіз Категорії {viewingCategory}</div>
+                      <div style={{ color: '#fff', fontWeight: 900, fontSize: '1.2rem', marginBottom: '10px' }}>
+                        {viewingCategory === 'restoration' ? 'Внутрішнє Відновлення ВКЯ' : `Аналіз Категорії ${viewingCategory}`}
+                      </div>
                       <p style={{ color: '#555', fontSize: '0.8rem', lineHeight: 1.5 }}>
-                        {viewingCategory === 4 
-                          ? 'У цій категорії знаходиться безнадійний брак. Ви можете списати ці деталі, і вони будуть назавжди враховані як збитки у відповідному документі.' 
-                          : 'Деталі у цій категорії підлягають доопрацюванню. Ви можете створити наряд, який запустить ці деталі знову в роботу, а по завершенню вони потраплять на склад БЗ.'}
+                        {viewingCategory === 'restoration'
+                          ? 'У цій вкладці знаходяться деталі, які потребують складного відновлення фахівцями ВКЯ. Звідси ви можете запустити їх у Цех №2 на операції Пресування чи Фарбування.'
+                          : viewingCategory === 4 
+                            ? 'У цій категорії знаходиться безнадійний брак. Ви можете списати ці деталі, і вони будуть назавжди враховані як збитки у відповідному документі.' 
+                            : 'Деталі у цій категорії підлягають легкому доопрацюванню. Ви можете створити наряд, який запустить ці деталі знову в роботу у цех 2.'}
                       </p>
                       <button 
                         onClick={() => setViewingCategory(null)}

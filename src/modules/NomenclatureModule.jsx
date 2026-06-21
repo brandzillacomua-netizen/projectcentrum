@@ -35,7 +35,19 @@ const NomenclatureModule = () => {
   const [selectedParent, setSelectedParent] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const [newNom, setNewNom] = useState({ 
-    name: '', type: 'part', material_type: '', cnc_program: '', units_per_sheet: '', time_per_unit: '', consumption_per_sheet: '' 
+    name: '', 
+    type: 'part', 
+    material_type: '', 
+    cnc_program: '', 
+    units_per_sheet: '', 
+    time_per_unit: '', 
+    consumption_per_sheet: '',
+    characteristic: '',
+    description: '',
+    qty_per_unit: '',
+    option_label: '',
+    color: '',
+    additional_info: ''
   })
 
   const [draftBOM, setDraftBOM] = useState([])
@@ -69,7 +81,8 @@ const NomenclatureModule = () => {
       ...newNom,
       units_per_sheet: Number(newNom.units_per_sheet) || 0,
       time_per_unit: Number(newNom.time_per_unit) || 0,
-      consumption_per_sheet: Number(newNom.consumption_per_sheet) || 0
+      consumption_per_sheet: Number(newNom.consumption_per_sheet) || 0,
+      qty_per_unit: Number(newNom.qty_per_unit) || 0
     }
     apiService.submitNomenclature(payloadNom, upsertNomenclature)
     cancelEdit()
@@ -83,7 +96,21 @@ const NomenclatureModule = () => {
 
   const cancelEdit = () => {
     setIsEditing(false)
-    setNewNom({ name: '', type: 'part', material_type: '', cnc_program: '', units_per_sheet: '', time_per_unit: '', consumption_per_sheet: '' })
+    setNewNom({ 
+      name: '', 
+      type: 'part', 
+      material_type: '', 
+      cnc_program: '', 
+      units_per_sheet: '', 
+      time_per_unit: '', 
+      consumption_per_sheet: '',
+      characteristic: '',
+      description: '',
+      qty_per_unit: '',
+      option_label: '',
+      color: '',
+      additional_info: ''
+    })
   }
 
   const addToDraft = (type, data) => {
@@ -199,7 +226,7 @@ const NomenclatureModule = () => {
           
           setImportLogs(prev => [...prev, `🔍 Обробка: ${fullName}...`])
           
-          let materialType = comp.category === 'structural' && comp.thickness ? `Лист Т300 (${comp.thickness}мм)` : comp.description || comp.characteristics || ''
+          let materialType = comp.category === 'structural' && comp.thickness ? `Лист Т300 (${comp.thickness}мм)` : ''
           
           if (comp.category === 'structural' && comp.thickness) {
             const thickStr = `${comp.thickness}мм`;
@@ -249,7 +276,10 @@ const NomenclatureModule = () => {
             name: fullName,
             type: comp.category === 'structural' ? 'part' : 'hardware',
             material_type: materialType,
-            units_per_sheet: comp.unitsPerSheet || 0
+            units_per_sheet: comp.category === 'structural' ? (comp.unitsPerSheet || 0) : 0,
+            characteristic: comp.characteristics || '',
+            description: comp.description || comp.characteristics || '',
+            qty_per_unit: Number(comp.qtyPerOne) || 0
           }
           
           // Шукаємо за повною назвою з урахуванням однакових на вигляд літер (латиниця/кирилиця)
@@ -310,7 +340,11 @@ const NomenclatureModule = () => {
 
   const filteredNomenclatures = nomenclatures.filter(n => {
     const matchesFilter = filterType === 'all' || n.type === filterType
-    const matchesSearch = n.name.toLowerCase().includes(searchQuery.toLowerCase())
+    const query = searchQuery.toLowerCase()
+    const matchesSearch = 
+      (n.name || '').toLowerCase().includes(query) ||
+      (n.description || '').toLowerCase().includes(query) ||
+      (n.characteristic || '').toLowerCase().includes(query)
     return matchesFilter && matchesSearch
   })
 
@@ -416,70 +450,115 @@ const NomenclatureModule = () => {
 
             <form onSubmit={handleSaveNom} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div className="form-group">
-                <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>НАЗВА МОДЕЛІ / АРТИКУЛ</label>
-                <input style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px', fontSize: '1.2rem', fontWeight: 700 }} value={newNom.name} onChange={e => setNewNom({...newNom, name: e.target.value})} placeholder="напр. KHARAK 10.0" required />
-              </div>
- 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                <div className="form-group">
-                  <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>МАТЕРІАЛ / ТОВЩИНА</label>
-                  {newNom.type === 'part' ? (
-                    <select 
-                      style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px', appearance: 'none' }} 
-                      value={newNom.material_type} 
-                      onChange={e => setNewNom({...newNom, material_type: e.target.value})} 
-                      required
-                    >
-                      <option value="">Оберіть сировину...</option>
-                      {(() => {
-                        // Extract unique thicknesses from raw materials
-                        const thicknesses = Array.from(new Set(
-                          nomenclatures
-                            .filter(n => n.type === 'raw' && n.material_type)
-                            .map(n => n.material_type.trim())
-                        )).sort((a, b) => {
-                          const numA = parseFloat(a) || 0;
-                          const numB = parseFloat(b) || 0;
-                          return numA - numB;
-                        });
-
-                        const rawOptions = thicknesses.map(thick => {
-                          const label = `Лист (${thick})`
-                          return { id: thick, value: label, label }
-                        })
-                        
-                        // Якщо поточний матеріал не в списку сировини, додаємо його як опцію, щоб він не зникав
-                        if (newNom.material_type && !rawOptions.some(opt => opt.value === newNom.material_type)) {
-                          rawOptions.unshift({ id: 'current', value: newNom.material_type, label: newNom.material_type })
-                        }
-                        
-                        return rawOptions.map(opt => (
-                          <option key={opt.id} value={opt.value}>{opt.label}</option>
-                        ))
-                      })()}
-                    </select>
-                  ) : <input style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.material_type} onChange={e => setNewNom({...newNom, material_type: e.target.value})} placeholder="..." />}
-                </div>
-                <div className="form-group">
-                  <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>ЧПК (.DXF)</label>
-                  <input style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.cnc_program} onChange={e => setNewNom({...newNom, cnc_program: e.target.value})} placeholder="..." />
-                </div>
+                <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Номенклатура (Внутрішня назва)</label>
+                <input style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px', fontSize: '1.2rem', fontWeight: 700 }} value={newNom.name || ''} onChange={e => setNewNom({...newNom, name: e.target.value})} placeholder="напр. KHARAK 10.0" required />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                 <div className="form-group">
-                  <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>
-                    {newNom.type === 'consumable' ? 'ВИТРАТА НА 1 ЛИСТ (ШТ)' : 'ШТ/ЛИСТ'}
-                  </label>
-                  <input type="number" step="0.01" style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.type === 'consumable' ? newNom.consumption_per_sheet : newNom.units_per_sheet} onChange={e => setNewNom({...newNom, [newNom.type === 'consumable' ? 'consumption_per_sheet' : 'units_per_sheet']: e.target.value})} />
+                  <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Характеристика</label>
+                  <input style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.characteristic || ''} onChange={e => setNewNom({...newNom, characteristic: e.target.value})} placeholder="напр. M4x16, вуглецева сталь" />
                 </div>
                 <div className="form-group">
-                  <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>
-                    {newNom.type === 'consumable' ? 'РЕСУРС (ПРИБЛИЗНО)' : 'ЧАС РОЗКРОЮ/ШТ (ХВ)'}
-                  </label>
-                  <input type="number" step="0.01" style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.time_per_unit} onChange={e => setNewNom({...newNom, time_per_unit: e.target.value})} />
+                  <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Опис (Офіційна назва)</label>
+                  <input style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.description || ''} onChange={e => setNewNom({...newNom, description: e.target.value})} placeholder="напр. ISO 7380-1 10.9" />
                 </div>
               </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px' }}>
+                <div className="form-group">
+                  <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Кі-ть на од.</label>
+                  <input type="number" step="0.01" style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.qty_per_unit || ''} onChange={e => setNewNom({...newNom, qty_per_unit: e.target.value})} placeholder="0" />
+                </div>
+                <div className="form-group">
+                  <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Опціон</label>
+                  <input style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.option_label || ''} onChange={e => setNewNom({...newNom, option_label: e.target.value})} placeholder="напр. Додаткові деталі" />
+                </div>
+                <div className="form-group">
+                  <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Колір</label>
+                  <input style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.color || ''} onChange={e => setNewNom({...newNom, color: e.target.value})} placeholder="напр. Чорний" />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Доп. інфо</label>
+                <input style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.additional_info || ''} onChange={e => setNewNom({...newNom, additional_info: e.target.value})} placeholder="..." />
+              </div>
+
+              {newNom.type === 'part' && (
+                <div style={{ background: 'rgba(255,255,255,0.01)', padding: '20px', borderRadius: '16px', border: '1px solid #222', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 900, color: '#3b82f6', borderBottom: '1px solid #222', paddingBottom: '10px' }}>ПАРАМЕТРИ ДЕТАЛІ (ЛАЗЕР)</div>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                    <div className="form-group">
+                      <label style={{ fontSize: '0.65rem', color: '#3b82f6', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>МАТЕРІАЛ / ТОВЩИНА</label>
+                      <select 
+                        style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px', appearance: 'none' }} 
+                        value={newNom.material_type || ''} 
+                        onChange={e => setNewNom({...newNom, material_type: e.target.value})} 
+                        required
+                      >
+                        <option value="">Оберіть сировину...</option>
+                        {(() => {
+                          const thicknesses = Array.from(new Set(
+                            nomenclatures
+                              .filter(n => n.type === 'raw' && n.material_type)
+                              .map(n => n.material_type.trim())
+                          )).sort((a, b) => {
+                            const numA = parseFloat(a) || 0;
+                            const numB = parseFloat(b) || 0;
+                            return numA - numB;
+                          });
+
+                          const rawOptions = thicknesses.map(thick => {
+                            const label = `Лист (${thick})`
+                            return { id: thick, value: label, label }
+                          })
+                          
+                          if (newNom.material_type && !rawOptions.some(opt => opt.value === newNom.material_type)) {
+                            rawOptions.unshift({ id: 'current', value: newNom.material_type, label: newNom.material_type })
+                          }
+                          
+                          return rawOptions.map(opt => (
+                            <option key={opt.id} value={opt.value}>{opt.label}</option>
+                          ))
+                        })()}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label style={{ fontSize: '0.65rem', color: '#3b82f6', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>ЧПК (.DXF)</label>
+                      <input style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.cnc_program || ''} onChange={e => setNewNom({...newNom, cnc_program: e.target.value})} placeholder="..." />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                    <div className="form-group">
+                      <label style={{ fontSize: '0.65rem', color: '#3b82f6', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>ШТ/ЛИСТ</label>
+                      <input type="number" step="0.01" style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.units_per_sheet || ''} onChange={e => setNewNom({...newNom, units_per_sheet: e.target.value})} />
+                    </div>
+                    <div className="form-group">
+                      <label style={{ fontSize: '0.65rem', color: '#3b82f6', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>ЧАС РОЗКРОЮ/ШТ (ХВ)</label>
+                      <input type="number" step="0.01" style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.time_per_unit || ''} onChange={e => setNewNom({...newNom, time_per_unit: e.target.value})} />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {newNom.type === 'consumable' && (
+                <div style={{ background: 'rgba(255,255,255,0.01)', padding: '20px', borderRadius: '16px', border: '1px solid #222', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 900, color: '#ef4444', borderBottom: '1px solid #222', paddingBottom: '10px' }}>ПАРАМЕТРИ РОЗХІДНИКА</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                    <div className="form-group">
+                      <label style={{ fontSize: '0.65rem', color: '#ef4444', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>ВИТРАТА НА 1 ЛИСТ (ШТ)</label>
+                      <input type="number" step="0.01" style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.consumption_per_sheet || ''} onChange={e => setNewNom({...newNom, consumption_per_sheet: e.target.value})} />
+                    </div>
+                    <div className="form-group">
+                      <label style={{ fontSize: '0.65rem', color: '#ef4444', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>РЕСУРС (ПРИБЛИЗНО)</label>
+                      <input type="number" step="0.01" style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '12px' }} value={newNom.time_per_unit || ''} onChange={e => setNewNom({...newNom, time_per_unit: e.target.value})} />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <button type="submit" style={{ width: '100%', padding: '18px', background: isEditing ? '#3b82f6' : '#ff9000', color: '#000', border: 'none', borderRadius: '16px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', fontSize: '1rem', marginTop: '10px' }}>
                 {isEditing ? <Check size={20} /> : <Save size={20} />} {isEditing ? 'ОНОВИТИ ПОЗИЦІЮ' : 'ЗБЕРЕГТИ НОВУ ПОЗИЦІЮ'}
@@ -556,11 +635,15 @@ const NomenclatureModule = () => {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: '#111', borderBottom: '1px solid #222' }}>
-                    <th className="sticky-col" style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Назва</th>
+                    <th className="sticky-col" style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Номенклатура</th>
+                    <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Характеристика</th>
+                    <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Опис</th>
+                    <th style={{ padding: '15px', textAlign: 'center', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Кі-ть на од.</th>
+                    <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Опціон</th>
+                    <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Колір</th>
+                    <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Доп. інфо</th>
                     <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Тип</th>
-                    <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Матеріал</th>
-                    <th style={{ padding: '15px', textAlign: 'center', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Норма</th>
-                    <th style={{ padding: '15px', textAlign: 'center', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Час (хв)</th>
+                    <th style={{ padding: '15px', textAlign: 'left', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Тех. параметри</th>
                     <th style={{ padding: '15px', textAlign: 'center', fontSize: '0.7rem', color: '#555', textTransform: 'uppercase' }}>Дії</th>
                   </tr>
                 </thead>
@@ -570,19 +653,29 @@ const NomenclatureModule = () => {
                     return (
                       <tr key={n.id} style={{ borderBottom: '1px solid #151515' }}>
                         <td className="sticky-col" style={{ padding: '15px', fontWeight: 800 }}>{n.name}</td>
+                        <td style={{ padding: '15px', color: '#eee' }}>{n.characteristic || '—'}</td>
+                        <td style={{ padding: '15px', color: '#aaa', fontSize: '0.85rem' }}>{n.description || '—'}</td>
+                        <td style={{ padding: '15px', textAlign: 'center', color: '#ff9000', fontWeight: 800 }}>{n.qty_per_unit || '0'}</td>
+                        <td style={{ padding: '15px', color: '#999' }}>{n.option_label || '—'}</td>
+                        <td style={{ padding: '15px', color: '#ccc' }}>{n.color || '—'}</td>
+                        <td style={{ padding: '15px', color: '#777', fontSize: '0.85rem' }}>{n.additional_info || '—'}</td>
                         <td style={{ padding: '15px' }}><span style={{ color: typeInfo?.color, fontSize: '0.65rem', fontWeight: 900 }}>{typeInfo?.label.toUpperCase()}</span></td>
-                        <td style={{ padding: '15px', color: '#666' }}>{n.material_type || '—'}</td>
-                        <td style={{ padding: '15px', textAlign: 'center' }}>
-                           {n.type === 'consumable' ? (
-                             <span style={{ color: '#0ea5e9', fontWeight: 800 }}>{n.consumption_per_sheet || 0}</span>
-                           ) : (
-                             <span style={{ color: '#555' }}>{n.units_per_sheet || 0}</span>
-                           )}
-                           <span style={{ fontSize: '0.6rem', color: '#333', marginLeft: '5px' }}>/лист</span>
-                        </td>
-                        <td style={{ padding: '15px', textAlign: 'center' }}>
-                            <span style={{ color: '#555', fontWeight: 800 }}>{n.time_per_unit || 0}</span>
-                            <span style={{ fontSize: '0.6rem', color: '#333', marginLeft: '5px' }}>хв</span>
+                        <td style={{ padding: '15px', fontSize: '0.8rem' }}>
+                          {n.type === 'part' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                              <div><span style={{ color: '#555' }}>Мат:</span> <span style={{ color: '#3b82f6' }}>{n.material_type}</span></div>
+                              {n.cnc_program && <div><span style={{ color: '#555' }}>ЧПК:</span> <span style={{ color: '#10b981' }}>{n.cnc_program}</span></div>}
+                              <div><span style={{ color: '#555' }}>Норма:</span> <span style={{ color: '#ccc' }}>{n.units_per_sheet} шт/л</span></div>
+                              <div><span style={{ color: '#555' }}>Час:</span> <span style={{ color: '#ccc' }}>{n.time_per_unit} хв</span></div>
+                            </div>
+                          )}
+                          {n.type === 'consumable' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                              <div><span style={{ color: '#555' }}>Витрата:</span> <span style={{ color: '#ef4444' }}>{n.consumption_per_sheet} шт/л</span></div>
+                              <div><span style={{ color: '#555' }}>Ресурс:</span> <span style={{ color: '#ccc' }}>{n.time_per_unit}</span></div>
+                            </div>
+                          )}
+                          {n.type !== 'part' && n.type !== 'consumable' && <span style={{ color: '#333' }}>—</span>}
                         </td>
                         <td style={{ padding: '15px', textAlign: 'center' }}>
                            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
@@ -608,7 +701,28 @@ const NomenclatureModule = () => {
                        </div>
                     </div>
                     <strong>{n.name}</strong>
-                    <div style={{ color: '#555', fontSize: '0.8rem', marginTop: '5px' }}>{n.material_type}</div>
+                    {n.characteristic && <div style={{ fontSize: '0.8rem', color: '#eee', marginTop: '5px' }}>Характер.: {n.characteristic}</div>}
+                    {n.description && <div style={{ fontSize: '0.8rem', color: '#aaa' }}>Опис: {n.description}</div>}
+                    {n.qty_per_unit && <div style={{ fontSize: '0.8rem', color: '#ff9000' }}>Кі-ть на од.: {n.qty_per_unit}</div>}
+                    {n.option_label && <div style={{ fontSize: '0.8rem', color: '#999' }}>Опціон: {n.option_label}</div>}
+                    {n.color && <div style={{ fontSize: '0.8rem', color: '#ccc' }}>Колір: {n.color}</div>}
+                    {n.additional_info && <div style={{ fontSize: '0.8rem', color: '#777' }}>Доп. інфо: {n.additional_info}</div>}
+                    {(n.type === 'part' || n.type === 'consumable') && (
+                      <div style={{ color: '#555', fontSize: '0.8rem', marginTop: '5px', borderTop: '1px solid #222', paddingTop: '5px' }}>
+                        {n.type === 'part' && (
+                          <>
+                            <div>Мат: {n.material_type}</div>
+                            <div>Шт/Лист: {n.units_per_sheet} | Час: {n.time_per_unit} хв</div>
+                          </>
+                        )}
+                        {n.type === 'consumable' && (
+                          <>
+                            <div>Витрата: {n.consumption_per_sheet} шт/л</div>
+                            <div>Ресурс: {n.time_per_unit}</div>
+                          </>
+                        )}
+                      </div>
+                    )}
                  </div>
                ))}
             </div>

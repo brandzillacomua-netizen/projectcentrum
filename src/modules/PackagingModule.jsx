@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react'
-import { Package, ArrowLeft, ClipboardList, CheckCircle2, Box, Send, AlertCircle, Wrench, FileArchive, Layers, Clock, Scan, Loader2, Hash, Save, Eye, X, Menu } from 'lucide-react'
+import { Package, ArrowLeft, ClipboardList, CheckCircle2, Box, Send, AlertCircle, Wrench, FileArchive, Layers, Clock, Scan, Loader2, Hash, Save, Eye, X, Menu, Plus, Search, Trash2 } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useMES } from '../MESContext'
 
@@ -16,6 +16,18 @@ function getBoxColor(boxNum) {
   return BOX_COLORS[Math.abs(hash) % BOX_COLORS.length]
 }
 
+// ─── Detect category key from nomenclature ────────────────────────────────────
+function detectCategoryKey(nom) {
+  const name = (nom.name || '').toLowerCase()
+  const type = (nom.type || '').toLowerCase()
+  if (name.includes('кріплення') || name.includes('друк') || name.includes('3д')) return 'mounts'
+  if (name.includes('стійка') || type.includes('стійк')) return 'spacers'
+  if (name.includes('накладка') || name.includes('тримач') || name.includes('упаковка') || name.includes('пакет') || name.includes('гума')) return 'other'
+  if (type.includes('метиз') || type.includes('гвинт') || type.includes('гайка') || name.includes('гвинт') || name.includes('гайка') || type.includes('hardware') || type.includes('fastener')) return 'hardware'
+  if (name.includes('-іп') || name.includes(' іп') || type.includes('part') || type.includes('деталь') || type.includes('виріб') || type.includes('сгп')) return 'sgp'
+  return 'other'
+}
+
 const PackagingModule = () => {
   const location = useLocation()
   const {
@@ -30,6 +42,17 @@ const PackagingModule = () => {
   // Кастомні кількості пакувальника: { [nomId]: number }
   const [customQty, setCustomQty] = useState({})
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+
+  // ─── Додаткові позиції (кастомні) ────────────────────────────────────────
+  // [ { nom: NomObject, qty: number, categoryKey: string, uid: string } ]
+  const [customItems, setCustomItems] = useState([])
+
+  // ─── Модал додавання позиції ──────────────────────────────────────────────
+  const [showAddItemModal, setShowAddItemModal] = useState(false)
+  const [addItemSearch, setAddItemSearch] = useState('')
+  const [addItemQty, setAddItemQty] = useState(1)
+  const [addItemSelectedNom, setAddItemSelectedNom] = useState(null)
+  const [addItemCategoryKey, setAddItemCategoryKey] = useState('hardware')
 
   // Номери коробок: { [nomId]: boxNumber }
   const [boxNumbers, setBoxNumbers] = useState({})
@@ -56,6 +79,7 @@ const PackagingModule = () => {
     setSavedBoxes([])
     setShowBoxSummary(false)
     setCustomQty({})
+    setCustomItems([])
     if (selectedBatch) loadSavedBoxes(selectedBatch)
   }, [selectedBatch?.key])
 
@@ -230,56 +254,91 @@ const PackagingModule = () => {
     if (!activeBatchData) return { categorizedBOM: {}, hasBOM: false }
     const map = {}
     let foundAnyBom = false
-    let hasSnapshot = false
 
+    const order = orders.find(o => o.id === activeBatchData.orderId)
+    if (order && order.order_items) {
+      order.order_items.forEach(item => {
+        const parentBOM = bomItems.filter(b => String(b.parent_id) === String(item.nomenclature_id))
+        
+        if (parentBOM.length > 0) {
+          foundAnyBom = true
+          parentBOM.forEach(b => {
+            const nom = nomenclatures.find(n => String(n.id) === String(b.child_id))
+            if (nom) {
+              const nameLower = nom.name?.toLowerCase() || ''
+              if (nameLower.includes('прес') && (nameLower.includes('гайка') || nameLower.includes('втулка'))) return
+              
+              // Find quantity
+              let qty = 0
+              let snapFound = false
+              activeBatchData.tasks.forEach(t => {
+                if (t.plan_snapshot && t.plan_snapshot[nom.id]) {
+                  const snapItem = t.plan_snapshot[nom.id]
+                  if (snapItem && typeof snapItem === 'object') {
+                    qty = Math.max(qty, Number(snapItem.need) || 0)
+                    snapFound = true
+                  }
+                }
+              })
+              if (!snapFound) {
+                qty = Number(b.quantity_per_parent) * Number(activeBatchData.plannedSets)
+              }
+              
+              if (!map[nom.id]) map[nom.id] = { nom, qty: 0 }
+              map[nom.id].qty = Math.max(map[nom.id].qty, qty)
+            }
+          })
+        } else {
+          // If no BOM, show the order item itself
+          const nom = nomenclatures.find(n => String(n.id) === String(item.nomenclature_id))
+          if (nom) {
+            let qty = 0
+            let snapFound = false
+            activeBatchData.tasks.forEach(t => {
+              if (t.plan_snapshot && t.plan_snapshot[nom.id]) {
+                const snapItem = t.plan_snapshot[nom.id]
+                if (snapItem && typeof snapItem === 'object') {
+                  qty = Math.max(qty, Number(snapItem.need) || 0)
+                  snapFound = true
+                }
+              }
+            })
+            if (!snapFound) {
+              qty = Number(item.quantity)
+            }
+            if (!map[nom.id]) map[nom.id] = { nom, qty: 0 }
+            map[nom.id].qty = Math.max(map[nom.id].qty, qty)
+          }
+        }
+      })
+    }
+
+    // Now, also check if there is anything in plan_snapshot that was NOT in the BOM (e.g. custom parts added during launch)
+    const ignoreSnapshotKeys = ['materialSummary', 'selectedCutters', 'consumables', 'arrivals', 'arrival_doc_id', 'arrival_doc', 'nomenclatures'];
     activeBatchData.tasks.forEach(t => {
       if (t.plan_snapshot) {
-        hasSnapshot = true
         Object.keys(t.plan_snapshot).forEach(key => {
-          if (!key.startsWith('_') && key !== 'materialSummary' && key !== 'selectedCutters') {
+          if (!key.startsWith('_') && !ignoreSnapshotKeys.includes(key)) {
             const snapItem = t.plan_snapshot[key]
             if (!snapItem || typeof snapItem !== 'object') return
-            const nom = nomenclatures.find(n => String(n.id) === String(key)) || {
-              id: snapItem.id,
-              name: snapItem.name,
-              nomenclature_code: snapItem.code,
-              material_type: snapItem.material,
-              type: 'part'
-            }
-            const nameLower = nom.name?.toLowerCase() || ''
-            if (nameLower.includes('прес') && (nameLower.includes('гайка') || nameLower.includes('втулка'))) return
-            foundAnyBom = true
-            const qty = Number(snapItem.need) || 0
-            if (!map[nom.id]) {
-              map[nom.id] = { nom, qty: 0 }
-            }
-            if (qty > map[nom.id].qty) {
-              map[nom.id].qty = qty
+            if (!map[key]) {
+              const nom = nomenclatures.find(n => String(n.id) === String(key)) || {
+                id: snapItem.id,
+                name: snapItem.name,
+                nomenclature_code: snapItem.code,
+                material_type: snapItem.material,
+                type: 'part'
+              }
+              const nameLower = nom.name?.toLowerCase() || ''
+              if (nameLower.includes('прес') && (nameLower.includes('гайка') || nameLower.includes('втулка'))) return
+              const qty = Number(snapItem.need) || 0
+              map[key] = { nom, qty }
             }
           }
         })
       }
     })
 
-    if (!hasSnapshot) {
-      const order = orders.find(o => o.id === activeBatchData.orderId)
-      if (order && order.order_items) {
-        order.order_items.forEach(item => {
-          const parentBOM = bomItems.filter(b => String(b.parent_id) === String(item.nomenclature_id))
-          if (parentBOM.length > 0) foundAnyBom = true
-          parentBOM.forEach(b => {
-            const nom = nomenclatures.find(n => String(n.id) === String(b.child_id))
-            if (nom) {
-              const nameLower = nom.name?.toLowerCase() || ''
-              if (nameLower.includes('прес') && (nameLower.includes('гайка') || nameLower.includes('втулка'))) return
-              const totalQty = Number(b.quantity_per_parent) * Number(activeBatchData.plannedSets)
-              if (!map[nom.id]) map[nom.id] = { nom, qty: 0 }
-              map[nom.id].qty += totalQty
-            }
-          })
-        })
-      }
-    }
     const categories = {
       sgp: { title: '1. ДЕТАЛІ / ГОТОВІ ВИРОБИ (СГП)', items: [], color: '#f43f5e', icon: <Package size={18} /> },
       mounts: { title: '2. КРІПЛЕННЯ / 3Д ДРУК', items: [], color: '#eab308', icon: <Layers size={18} /> },
@@ -287,18 +346,29 @@ const PackagingModule = () => {
       spacers: { title: '4. СТІЙКИ', items: [], color: '#8b5cf6', icon: <Layers size={18} /> },
       other: { title: '5. НАКЛАДКИ / ТРИМАЧІ / УПАКОВКА', items: [], color: '#3b82f6', icon: <FileArchive size={18} /> }
     }
+
     Object.values(map).forEach(item => {
       const type = (item.nom.type || '').toLowerCase()
       const name = (item.nom.name || '').toLowerCase()
       const code = (item.nom.nomenclature_code || '').toLowerCase()
-      if (name.includes('кріплення') || name.includes('друк') || name.includes('3д')) categories.mounts.items.push(item)
-      else if (name.includes('іп') || code.includes('іп') || type.includes('part') || type.includes('деталь') || type.includes('виріб') || type.includes('сгп')) categories.sgp.items.push(item)
-      else if (name.includes('стійка') || type.includes('стійк')) categories.spacers.items.push(item)
-      else if (type.includes('метиз') || type.includes('гвинт') || type.includes('гайка') || name.includes('гвинт') || name.includes('гайка')) categories.hardware.items.push(item)
-      else categories.other.items.push(item)
+      if (name.includes('кріплення') || name.includes('друк') || name.includes('3д')) categories.mounts.items.push({ ...item, isCustom: false })
+      else if (name.includes('стійка') || type.includes('стійк')) categories.spacers.items.push({ ...item, isCustom: false })
+      else if (name.includes('накладка') || name.includes('тримач') || name.includes('упаковка') || name.includes('пакет') || name.includes('гума')) categories.other.items.push({ ...item, isCustom: false })
+      else if (type.includes('метиз') || type.includes('гвинт') || type.includes('гайка') || name.includes('гвинт') || name.includes('гайка') || type.includes('hardware') || type.includes('fastener')) categories.hardware.items.push({ ...item, isCustom: false })
+      else if (name.includes('-іп') || name.includes(' іп') || code.includes('іп') || type.includes('part') || type.includes('деталь') || type.includes('виріб') || type.includes('сгп')) categories.sgp.items.push({ ...item, isCustom: false })
+      else categories.other.items.push({ ...item, isCustom: false })
     })
+
+    // Inject custom items added by packer
+    customItems.forEach(ci => {
+      const catKey = ci.categoryKey
+      if (categories[catKey]) {
+        categories[catKey].items.push({ nom: ci.nom, qty: ci.qty, isCustom: true, uid: ci.uid })
+      }
+    })
+
     return { categorizedBOM: categories, hasBOM: foundAnyBom }
-  }, [activeBatchData, orders, bomItems, nomenclatures])
+  }, [activeBatchData, orders, bomItems, nomenclatures, customItems])
 
   const allBOMItems = useMemo(() => Object.values(categorizedBOM).flatMap(c => c.items), [categorizedBOM])
 
@@ -346,6 +416,22 @@ const PackagingModule = () => {
     })
     return Object.values(map).sort((a, b) => a.boxNumber.localeCompare(b.boxNumber, undefined, { numeric: true }))
   }, [boxNumbers, allBOMItems])
+
+  // ─── Пошук для модалу додавання ─────────────────────────────────────────
+  const addItemSearchResults = useMemo(() => {
+    const trimmed = addItemSearch.trim()
+    if (!trimmed) return []
+    const q = trimmed.toLowerCase()
+    return (nomenclatures || [])
+      .filter(n => {
+        const name = (n.name || '').toLowerCase()
+        const aliases = (n.aliases || '').toLowerCase()
+        const code = (n.nomenclature_code || '').toLowerCase()
+        const desc = (n.description || '').toLowerCase()
+        return name.includes(q) || aliases.includes(q) || code.includes(q) || desc.includes(q)
+      })
+      .slice(0, 15)
+  }, [nomenclatures, addItemSearch])
 
   // ─── HANDLERS ─────────────────────────────────────────────────────────────
   const handleCreateRequest = async () => {
@@ -453,13 +539,58 @@ const PackagingModule = () => {
     }
   }
 
+  // ─── Додавання кастомної позиції ─────────────────────────────────────────
+  const handleOpenAddItemModal = () => {
+    setAddItemSearch('')
+    setAddItemQty(1)
+    setAddItemSelectedNom(null)
+    setAddItemCategoryKey('hardware')
+    setShowAddItemModal(true)
+  }
+
+  const handleConfirmAddItem = () => {
+    if (!addItemSelectedNom) return
+    if (!addItemQty || Number(addItemQty) <= 0) return
+
+    // Don't add if already in BOM from spec (use customQty instead)
+    const existsInBOM = allBOMItems.some(item => String(item.nom.id) === String(addItemSelectedNom.id) && !item.isCustom)
+    if (existsInBOM) {
+      // Just highlight — can't add duplicate; user can change qty above
+      alert(`"${addItemSelectedNom.name}" вже є в специфікації. Щоб змінити кількість — відредагуйте поле кількості напроти цієї позиції.`)
+      return
+    }
+
+    // Don't add if already in customItems
+    const existsCustom = customItems.some(ci => String(ci.nom.id) === String(addItemSelectedNom.id))
+    if (existsCustom) {
+      alert(`"${addItemSelectedNom.name}" вже додано. Видаліть попередній запис або змініть кількість.`)
+      return
+    }
+
+    const detectedCat = detectCategoryKey(addItemSelectedNom)
+    const catKey = addItemCategoryKey || detectedCat
+
+    setCustomItems(prev => [...prev, {
+      nom: addItemSelectedNom,
+      qty: Number(addItemQty),
+      categoryKey: catKey,
+      uid: `custom_${addItemSelectedNom.id}_${Date.now()}`
+    }])
+    setShowAddItemModal(false)
+  }
+
+  const handleRemoveCustomItem = (uid) => {
+    setCustomItems(prev => prev.filter(ci => ci.uid !== uid))
+  }
+
   const getIconForType = (nom) => {
     const name = (nom.name || '').toLowerCase()
     const type = (nom.type || '').toLowerCase()
     if (name.includes('кріплення') || name.includes('друк') || name.includes('3д')) return <Layers size={16} color="#eab308" />
-    if (name.includes('іп') || type.includes('part') || type.includes('деталь')) return <Package size={16} color="#f43f5e" />
     if (name.includes('стійка')) return <Layers size={16} color="#8b5cf6" />
-    if (name.includes('гвинт') || name.includes('гайка') || type.includes('метиз')) return <Wrench size={16} color="#06b6d4" />
+    if (name.includes('гвинт') || name.includes('гайка') || type.includes('метиз') || type.includes('hardware') || type.includes('fastener')) return <Wrench size={16} color="#06b6d4" />
+    if (name.includes('накладка') || name.includes('тримач') || name.includes('упаковка') || name.includes('пакет') || name.includes('гума')) return <FileArchive size={16} color="#3b82f6" />
+    if (name.includes('-іп') || name.includes(' іп') || type.includes('part') || type.includes('деталь')) return <Package size={16} color="#f43f5e" />
     return <Box size={16} color="#444" />
   }
 
@@ -641,152 +772,236 @@ const PackagingModule = () => {
                     /* ─── СПИСОК BOM З ПОЛЯМИ НОМЕРІВ КОРОБОК ─── */
                     <>
                       {Object.entries(categorizedBOM).map(([key, cat]) => {
-                        if (cat.items.length === 0) return null
+                        if (cat.items.length === 0 && hasAnyRequests) return null
                         return (
                           <div key={key} style={{ marginBottom: '35px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', borderBottom: `1px solid ${cat.color}22`, paddingBottom: '10px' }}>
                               <div style={{ color: cat.color }}>{cat.icon}</div>
                               <h4 style={{ margin: 0, fontSize: '0.85rem', color: cat.color, fontWeight: 900, letterSpacing: '1px' }}>{cat.title}</h4>
                               <span style={{ marginLeft: 'auto', color: '#333', fontSize: '0.75rem', fontWeight: 800 }}>{cat.items.length} ПОЗИЦІЙ</span>
+                              {/* ─── Кнопка + Додати позицію (тільки до відправки запиту) ─── */}
+                              {!hasAnyRequests && !activeBatchData.isPackaged && (
+                                <button
+                                  onClick={() => {
+                                    setAddItemCategoryKey(key)
+                                    setAddItemSearch('')
+                                    setAddItemQty(1)
+                                    setAddItemSelectedNom(null)
+                                    setShowAddItemModal(true)
+                                  }}
+                                  style={{
+                                    display: 'flex', alignItems: 'center', gap: '5px',
+                                    background: `${cat.color}14`,
+                                    border: `1px solid ${cat.color}33`,
+                                    borderRadius: '8px',
+                                    color: cat.color,
+                                    fontSize: '0.7rem',
+                                    fontWeight: 900,
+                                    padding: '5px 10px',
+                                    cursor: 'pointer',
+                                    transition: '0.2s',
+                                    letterSpacing: '0.3px'
+                                  }}
+                                  onMouseEnter={e => { e.currentTarget.style.background = `${cat.color}25`; e.currentTarget.style.borderColor = `${cat.color}66` }}
+                                  onMouseLeave={e => { e.currentTarget.style.background = `${cat.color}14`; e.currentTarget.style.borderColor = `${cat.color}33` }}
+                                >
+                                  <Plus size={12} /> ДОДАТИ
+                                </button>
+                              )}
                             </div>
 
-                            <div className="bom-required-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '10px' }}>
-                              {cat.items.map((item, idx) => {
-                                const reqRequest = orderRequests.find(r => String(r.nomenclature_id) === String(item.nom.id))
-                                const isPicked = reqRequest?.status === 'completed' || reqRequest?.status === 'issued'
-                                const isPending = reqRequest?.status === 'pending'
-                                const isExcluded = excludedNomIds.has(item.nom.id)
-                                const canToggle = !hasAnyRequests && !activeBatchData.isPackaged && !isPicked
-                                const boxNum = boxNumbers[String(item.nom.id)] || ''
-                                const boxColor = getBoxColor(boxNum)
-                                const hasBox = boxNum.trim() !== ''
+                            {cat.items.length === 0 ? (
+                              <div style={{ padding: '16px', textAlign: 'center', color: '#333', border: '1px dashed #1a1a1a', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 700 }}>
+                                Немає позицій у цій категорії
+                              </div>
+                            ) : (
+                              <div className="bom-required-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '10px' }}>
+                                {cat.items.map((item, idx) => {
+                                  const reqRequest = orderRequests.find(r => String(r.nomenclature_id) === String(item.nom.id))
+                                  const isPicked = reqRequest?.status === 'completed' || reqRequest?.status === 'issued'
+                                  const isPending = reqRequest?.status === 'pending'
+                                  const isExcluded = excludedNomIds.has(item.nom.id)
+                                  const canToggle = !hasAnyRequests && !activeBatchData.isPackaged && !isPicked
+                                  const boxNum = boxNumbers[String(item.nom.id)] || ''
+                                  const boxColor = getBoxColor(boxNum)
+                                  const hasBox = boxNum.trim() !== ''
 
-                                return (
-                                  <div key={idx} style={{
-                                    background: isExcluded ? 'rgba(26,26,26,0.3)' : (isPicked ? '#10b98108' : (isPending ? '#eab30805' : '#0d0d0d')),
-                                    borderRadius: '16px',
-                                    border: `1px solid ${isExcluded ? '#222' : (hasBox && isPicked ? boxColor + '55' : (isPicked ? '#10b98144' : (isPending ? '#eab30833' : '#1a1a1a')))}`,
-                                    transition: '0.25s',
-                                    overflow: 'hidden',
-                                    opacity: isExcluded ? 0.35 : 1
-                                  }}>
-                                    {/* Верхня частина — назва + кількість */}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 14px 10px' }}>
-                                      {/* Чекбокс або статус */}
-                                      {!isPicked ? (
-                                        <div onClick={() => {
-                                          if (!canToggle) return
-                                          const ns = new Set(excludedNomIds)
-                                          ns.has(item.nom.id) ? ns.delete(item.nom.id) : ns.add(item.nom.id)
-                                          setExcludedNomIds(ns)
-                                        }} style={{ width: '20px', height: '20px', borderRadius: '6px', border: `2px solid ${isExcluded ? '#444' : '#f43f5e'}`, background: isExcluded ? 'transparent' : '#f43f5e', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: canToggle ? 'pointer' : 'not-allowed', flexShrink: 0, transition: '0.2s' }}>
-                                          {!isExcluded && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
-                                        </div>
-                                      ) : (
-                                        <CheckCircle2 size={20} color="#10b981" style={{ flexShrink: 0 }} />
+                                  return (
+                                    <div key={item.uid || idx} style={{
+                                      background: isExcluded ? 'rgba(26,26,26,0.3)' : (isPicked ? '#10b98108' : (isPending ? '#eab30805' : (item.isCustom ? '#06b6d408' : '#0d0d0d'))),
+                                      borderRadius: '16px',
+                                      border: `1px solid ${isExcluded ? '#222' : (hasBox && isPicked ? boxColor + '55' : (isPicked ? '#10b98144' : (isPending ? '#eab30833' : (item.isCustom ? '#06b6d433' : '#1a1a1a'))))}`,
+                                      transition: '0.25s',
+                                      overflow: 'hidden',
+                                      opacity: isExcluded ? 0.35 : 1,
+                                      position: 'relative'
+                                    }}>
+                                      {/* Custom badge */}
+                                      {item.isCustom && (
+                                        <div style={{
+                                          position: 'absolute', top: '6px', right: '6px',
+                                          background: '#06b6d422',
+                                          border: '1px solid #06b6d444',
+                                          borderRadius: '6px',
+                                          color: '#06b6d4',
+                                          fontSize: '0.55rem',
+                                          fontWeight: 900,
+                                          padding: '2px 6px',
+                                          letterSpacing: '0.5px'
+                                        }}>ДОДАНО</div>
                                       )}
 
-                                      <div style={{ background: '#1a1a1a', padding: '8px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                        {getIconForType(item.nom)}
-                                      </div>
-
-                                      <div style={{ flex: 1, minWidth: 0 }}>
-                                        <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#fff', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                          {item.nom.name}
-                                          {item.nom.material_type && <span style={{ fontSize: '0.7rem', color: '#666', marginLeft: '5px', fontWeight: 500 }}>{item.nom.material_type}</span>}
-                                        </div>
-                                        <div style={{ fontSize: '0.6rem', color: isExcluded ? '#555' : (isPicked ? '#10b981' : (isPending ? '#eab308' : '#444')), fontWeight: 900, textTransform: 'uppercase', marginTop: '2px' }}>
-                                          {isExcluded ? 'Виключено' : (isPicked ? 'Підтверджено складом' : (isPending ? 'В обробці' : 'Очікує'))}
-                                        </div>
-                                      </div>
-
-                                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                        {/* Редаговане поле кількості — тільки до відправки запиту */}
-                                        {!hasAnyRequests && !isPicked && !activeBatchData.isPackaged && !isExcluded ? (
-                                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
-                                            <input
-                                              type="number"
-                                              min="0"
-                                              value={customQty[String(item.nom.id)] !== undefined ? customQty[String(item.nom.id)] : item.qty}
-                                              onChange={e => {
-                                                const val = e.target.value === '' ? '' : Number(e.target.value)
-                                                setCustomQty(prev => ({ ...prev, [String(item.nom.id)]: val }))
-                                              }}
-                                              onClick={e => e.stopPropagation()}
-                                              style={{
-                                                width: '80px',
-                                                background: customQty[String(item.nom.id)] !== undefined && customQty[String(item.nom.id)] !== item.qty ? '#eab30818' : '#111',
-                                                border: `1.5px solid ${customQty[String(item.nom.id)] !== undefined && customQty[String(item.nom.id)] !== item.qty ? '#eab30866' : '#2a2a2a'}`,
-                                                borderRadius: '8px',
-                                                color: customQty[String(item.nom.id)] !== undefined && customQty[String(item.nom.id)] !== item.qty ? '#eab308' : '#fff',
-                                                fontSize: '1.1rem',
-                                                fontWeight: 1000,
-                                                padding: '4px 8px',
-                                                textAlign: 'right',
-                                                outline: 'none',
-                                              }}
-                                            />
-                                            <div style={{ fontSize: '0.55rem', color: '#444', fontWeight: 800 }}>{item.nom.unit || 'шт'}</div>
-                                            {customQty[String(item.nom.id)] !== undefined && customQty[String(item.nom.id)] !== item.qty && (
-                                              <div style={{ fontSize: '0.55rem', color: '#eab308', fontWeight: 900 }}>план: {item.qty}</div>
-                                            )}
+                                      {/* Верхня частина — назва + кількість */}
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 14px 10px' }}>
+                                        {/* Чекбокс або статус */}
+                                        {!isPicked ? (
+                                          <div onClick={() => {
+                                            if (!canToggle) return
+                                            const ns = new Set(excludedNomIds)
+                                            ns.has(item.nom.id) ? ns.delete(item.nom.id) : ns.add(item.nom.id)
+                                            setExcludedNomIds(ns)
+                                          }} style={{ width: '20px', height: '20px', borderRadius: '6px', border: `2px solid ${isExcluded ? '#444' : '#f43f5e'}`, background: isExcluded ? 'transparent' : '#f43f5e', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: canToggle ? 'pointer' : 'not-allowed', flexShrink: 0, transition: '0.2s' }}>
+                                            {!isExcluded && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
                                           </div>
                                         ) : (
-                                          <div>
-                                            <div style={{ fontSize: '1.2rem', fontWeight: 1000, color: isExcluded ? '#444' : (isPicked ? '#10b981' : (isPending ? '#eab308' : '#fff')) }}>
-                                              {isPicked && orderRequests.find(r => String(r.nomenclature_id) === String(item.nom.id))?.quantity
-                                                ? orderRequests.find(r => String(r.nomenclature_id) === String(item.nom.id)).quantity
-                                                : (customQty[String(item.nom.id)] !== undefined ? customQty[String(item.nom.id)] : item.qty)}
-                                            </div>
-                                            <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 800 }}>{item.nom.unit || 'шт'}</div>
+                                          <CheckCircle2 size={20} color="#10b981" style={{ flexShrink: 0 }} />
+                                        )}
+
+                                        <div style={{ background: '#1a1a1a', padding: '8px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                          {getIconForType(item.nom)}
+                                        </div>
+
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                          <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#fff', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {item.nom.name}
+                                            {item.nom.material_type && <span style={{ fontSize: '0.7rem', color: '#666', marginLeft: '5px', fontWeight: 500 }}>{item.nom.material_type}</span>}
                                           </div>
-                                        )}
+                                          <div style={{ fontSize: '0.6rem', color: isExcluded ? '#555' : (isPicked ? '#10b981' : (isPending ? '#eab308' : (item.isCustom ? '#06b6d4' : '#444'))), fontWeight: 900, textTransform: 'uppercase', marginTop: '2px' }}>
+                                            {isExcluded ? 'Виключено' : (isPicked ? 'Підтверджено складом' : (isPending ? 'В обробці' : (item.isCustom ? 'Додано пакувальником' : 'Очікує')))}
+                                          </div>
+                                        </div>
+
+                                        <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                                          {/* Редаговане поле кількості — тільки до відправки запиту */}
+                                          {!hasAnyRequests && !isPicked && !activeBatchData.isPackaged && !isExcluded ? (
+                                            <>
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                value={
+                                                  item.isCustom
+                                                    ? (customQty[String(item.nom.id)] !== undefined ? customQty[String(item.nom.id)] : item.qty)
+                                                    : (customQty[String(item.nom.id)] !== undefined ? customQty[String(item.nom.id)] : item.qty)
+                                                }
+                                                onChange={e => {
+                                                  const val = e.target.value === '' ? '' : Number(e.target.value)
+                                                  setCustomQty(prev => ({ ...prev, [String(item.nom.id)]: val }))
+                                                  // Also update customItems qty if it's custom
+                                                  if (item.isCustom) {
+                                                    setCustomItems(prev => prev.map(ci =>
+                                                      ci.uid === item.uid ? { ...ci, qty: Number(val) || 1 } : ci
+                                                    ))
+                                                  }
+                                                }}
+                                                onClick={e => e.stopPropagation()}
+                                                style={{
+                                                  width: '80px',
+                                                  background: customQty[String(item.nom.id)] !== undefined && customQty[String(item.nom.id)] !== item.qty ? '#eab30818' : '#111',
+                                                  border: `1.5px solid ${customQty[String(item.nom.id)] !== undefined && customQty[String(item.nom.id)] !== item.qty ? '#eab30866' : '#2a2a2a'}`,
+                                                  borderRadius: '8px',
+                                                  color: customQty[String(item.nom.id)] !== undefined && customQty[String(item.nom.id)] !== item.qty ? '#eab308' : '#fff',
+                                                  fontSize: '1.1rem',
+                                                  fontWeight: 1000,
+                                                  padding: '4px 8px',
+                                                  textAlign: 'right',
+                                                  outline: 'none',
+                                                }}
+                                              />
+                                              <div style={{ fontSize: '0.55rem', color: '#444', fontWeight: 800 }}>{item.nom.unit || 'шт'}</div>
+                                              {customQty[String(item.nom.id)] !== undefined && customQty[String(item.nom.id)] !== item.qty && (
+                                                <div style={{ fontSize: '0.55rem', color: '#eab308', fontWeight: 900 }}>план: {item.qty}</div>
+                                              )}
+                                              {/* Кнопка видалення для кастомних позицій */}
+                                              {item.isCustom && (
+                                                <button
+                                                  onClick={e => { e.stopPropagation(); handleRemoveCustomItem(item.uid) }}
+                                                  title="Видалити позицію"
+                                                  style={{
+                                                    marginTop: '4px',
+                                                    background: '#f43f5e14',
+                                                    border: '1px solid #f43f5e33',
+                                                    borderRadius: '6px',
+                                                    color: '#f43f5e',
+                                                    cursor: 'pointer',
+                                                    padding: '3px 6px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '3px',
+                                                    fontSize: '0.6rem',
+                                                    fontWeight: 900
+                                                  }}
+                                                >
+                                                  <Trash2 size={10} /> ВИДАЛИТИ
+                                                </button>
+                                              )}
+                                            </>
+                                          ) : (
+                                            <div>
+                                              <div style={{ fontSize: '1.2rem', fontWeight: 1000, color: isExcluded ? '#444' : (isPicked ? '#10b981' : (isPending ? '#eab308' : '#fff')) }}>
+                                                {isPicked && orderRequests.find(r => String(r.nomenclature_id) === String(item.nom.id))?.quantity
+                                                  ? orderRequests.find(r => String(r.nomenclature_id) === String(item.nom.id)).quantity
+                                                  : (customQty[String(item.nom.id)] !== undefined ? customQty[String(item.nom.id)] : item.qty)}
+                                              </div>
+                                              <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 800 }}>{item.nom.unit || 'шт'}</div>
+                                            </div>
+                                          )}
+                                        </div>
                                       </div>
+
+                                      {/* Нижня частина — поле номера коробки (тільки якщо склад підтвердив) */}
+                                      {isPicked && !isExcluded && !activeBatchData.isPackaged && (
+                                        <div style={{ padding: '0 14px 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                          <Hash size={13} color="#555" style={{ flexShrink: 0 }} />
+                                          <input
+                                            type="text"
+                                            value={boxNum}
+                                            onChange={e => setBoxNumbers(prev => ({ ...prev, [String(item.nom.id)]: e.target.value }))}
+                                            placeholder="Номер коробки..."
+                                            maxLength={20}
+                                            className="box-number-input"
+                                            style={{
+                                              flex: 1,
+                                              background: hasBox ? `${boxColor}18` : '#111',
+                                              border: `1.5px solid ${hasBox ? boxColor + '66' : '#222'}`,
+                                              borderRadius: '10px',
+                                              color: hasBox ? boxColor : '#888',
+                                              fontWeight: 900,
+                                              fontSize: '0.85rem',
+                                              padding: '8px 12px',
+                                              outline: 'none',
+                                              transition: '0.2s',
+                                              textTransform: 'uppercase',
+                                              letterSpacing: '0.5px'
+                                            }}
+                                          />
+                                          {hasBox && (
+                                            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: boxColor, flexShrink: 0, boxShadow: `0 0 8px ${boxColor}88` }} />
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {/* Якщо вже запаковано — показуємо збережений номер */}
+                                      {isPicked && !isExcluded && activeBatchData.isPackaged && hasBox && (
+                                        <div style={{ padding: '0 14px 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                          <Hash size={13} color={boxColor} style={{ flexShrink: 0 }} />
+                                          <span style={{ fontSize: '0.85rem', fontWeight: 900, color: boxColor, letterSpacing: '0.5px' }}>Коробка {boxNum.toUpperCase()}</span>
+                                        </div>
+                                      )}
                                     </div>
-
-                                    {/* Нижня частина — поле номера коробки (тільки якщо склад підтвердив) */}
-                                    {isPicked && !isExcluded && !activeBatchData.isPackaged && (
-                                      <div style={{ padding: '0 14px 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <Hash size={13} color="#555" style={{ flexShrink: 0 }} />
-                                        <input
-                                          type="text"
-                                          value={boxNum}
-                                          onChange={e => setBoxNumbers(prev => ({ ...prev, [String(item.nom.id)]: e.target.value }))}
-                                          placeholder="Номер коробки..."
-                                          maxLength={20}
-                                          className="box-number-input"
-                                          style={{
-                                            flex: 1,
-                                            background: hasBox ? `${boxColor}18` : '#111',
-                                            border: `1.5px solid ${hasBox ? boxColor + '66' : '#222'}`,
-                                            borderRadius: '10px',
-                                            color: hasBox ? boxColor : '#888',
-                                            fontWeight: 900,
-                                            fontSize: '0.85rem',
-                                            padding: '8px 12px',
-                                            outline: 'none',
-                                            transition: '0.2s',
-                                            textTransform: 'uppercase',
-                                            letterSpacing: '0.5px'
-                                          }}
-                                        />
-                                        {hasBox && (
-                                          <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: boxColor, flexShrink: 0, boxShadow: `0 0 8px ${boxColor}88` }} />
-                                        )}
-                                      </div>
-                                    )}
-
-                                    {/* Якщо вже запаковано — показуємо збережений номер */}
-                                    {isPicked && !isExcluded && activeBatchData.isPackaged && hasBox && (
-                                      <div style={{ padding: '0 14px 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <Hash size={13} color={boxColor} style={{ flexShrink: 0 }} />
-                                        <span style={{ fontSize: '0.85rem', fontWeight: 900, color: boxColor, letterSpacing: '0.5px' }}>Коробка {boxNum.toUpperCase()}</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                )
-                              })}
-                            </div>
+                                  )
+                                })}
+                              </div>
+                            )}
                           </div>
                         )
                       })}
@@ -1032,6 +1247,274 @@ const PackagingModule = () => {
               onMouseLeave={e => { e.currentTarget.style.transform = 'none' }}
             >
               ✓ Підтвердити та завершити пакування
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── МОДАЛ ДОДАВАННЯ ПОЗИЦІЇ ─── */}
+      {showAddItemModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.8)',
+          backdropFilter: 'blur(20px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2000,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: 'linear-gradient(145deg, #0a1628 0%, #060d1a 60%, #050a14 100%)',
+            border: '1px solid rgba(6,182,212,0.25)',
+            borderRadius: '28px',
+            width: '100%',
+            maxWidth: '540px',
+            padding: '32px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '20px',
+            boxShadow: '0 30px 80px rgba(0,0,0,0.8), 0 0 60px rgba(6,182,212,0.06), inset 0 1px 0 rgba(255,255,255,0.05)'
+          }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{
+                  width: '46px', height: '46px',
+                  borderRadius: '14px',
+                  background: 'linear-gradient(135deg, #06b6d4, #3b82f6)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 8px 20px rgba(6,182,212,0.35)'
+                }}>
+                  <Plus size={22} color="#fff" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 950, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Додати позицію
+                  </h3>
+                  <p style={{ margin: '4px 0 0', fontSize: '0.72rem', color: '#4a7a8a', lineHeight: '1.4' }}>
+                    Пошук по назві, коду або синоніму
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAddItemModal(false)}
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', color: '#888', cursor: 'pointer', padding: '8px', display: 'flex', transition: 'all 0.2s' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = '#fff' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#888' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Category selector */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontSize: '0.65rem', fontWeight: 900, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '1px' }}>Категорія</label>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {[
+                  { key: 'sgp', label: 'СГП / ДЕТАЛІ', color: '#f43f5e' },
+                  { key: 'mounts', label: 'КРІПЛЕННЯ', color: '#eab308' },
+                  { key: 'hardware', label: 'МЕТИЗИ', color: '#06b6d4' },
+                  { key: 'spacers', label: 'СТІЙКИ', color: '#8b5cf6' },
+                  { key: 'other', label: 'НАКЛАДКИ / ІНШЕ', color: '#3b82f6' }
+                ].map(cat => (
+                  <button
+                    key={cat.key}
+                    onClick={() => setAddItemCategoryKey(cat.key)}
+                    style={{
+                      padding: '6px 12px',
+                      background: addItemCategoryKey === cat.key ? `${cat.color}22` : 'rgba(255,255,255,0.03)',
+                      border: `1.5px solid ${addItemCategoryKey === cat.key ? cat.color + '66' : 'rgba(255,255,255,0.08)'}`,
+                      borderRadius: '10px',
+                      color: addItemCategoryKey === cat.key ? cat.color : '#555',
+                      fontSize: '0.65rem',
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      letterSpacing: '0.5px'
+                    }}
+                  >{cat.label}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Search field */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontSize: '0.65rem', fontWeight: 900, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '1px' }}>Пошук номенклатури</label>
+              <div style={{ position: 'relative' }}>
+                <Search size={16} color="#555" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                <input
+                  autoFocus
+                  type="text"
+                  value={addItemSearch}
+                  onChange={e => { setAddItemSearch(e.target.value); setAddItemSelectedNom(null) }}
+                  placeholder="Введіть назву, код або синонім..."
+                  style={{
+                    width: '100%',
+                    padding: '13px 14px 13px 42px',
+                    background: 'rgba(6,182,212,0.06)',
+                    border: '1.5px solid rgba(6,182,212,0.2)',
+                    borderRadius: '14px',
+                    color: '#fff',
+                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    transition: 'border-color 0.2s'
+                  }}
+                  onFocus={e => { e.target.style.borderColor = 'rgba(6,182,212,0.5)' }}
+                  onBlur={e => { e.target.style.borderColor = 'rgba(6,182,212,0.2)' }}
+                />
+              </div>
+
+              {/* Search results */}
+              {addItemSearch.trim() && addItemSearchResults.length > 0 && !addItemSelectedNom && (
+                <div style={{
+                  background: '#080e18',
+                  border: '1px solid rgba(6,182,212,0.15)',
+                  borderRadius: '14px',
+                  overflow: 'hidden',
+                  maxHeight: '220px',
+                  overflowY: 'auto'
+                }}>
+                  {addItemSearchResults.map(nom => (
+                    <div
+                      key={nom.id}
+                      onClick={() => {
+                        setAddItemSelectedNom(nom)
+                        setAddItemSearch(nom.name)
+                        // Auto-detect category if not already set by user explicitly
+                        const detectedCat = detectCategoryKey(nom)
+                        setAddItemCategoryKey(prev => prev || detectedCat)
+                      }}
+                      style={{
+                        padding: '10px 16px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        borderBottom: '1px solid rgba(255,255,255,0.04)',
+                        transition: 'background 0.15s'
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(6,182,212,0.08)' }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                    >
+                      <div style={{ background: '#111', padding: '6px', borderRadius: '6px', flexShrink: 0 }}>
+                        {getIconForType(nom)}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#e2e8f0', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nom.name}</div>
+                        <div style={{ fontSize: '0.65rem', color: '#3a5a6a', fontWeight: 600, marginTop: '2px' }}>
+                          {nom.nomenclature_code && <span style={{ marginRight: '8px', color: '#4a8a9a' }}>{nom.nomenclature_code}</span>}
+                          {nom.description && <span style={{ color: '#06b6d4', marginRight: '8px' }}>{nom.description}</span>}
+                          {nom.aliases && <span style={{ color: '#2a5a6a', marginLeft: '6px', fontStyle: 'italic' }}>{nom.aliases}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {addItemSearch.trim() && addItemSearchResults.length === 0 && !addItemSelectedNom && (
+                <div style={{ padding: '12px 16px', textAlign: 'center', color: '#3a5a6a', fontSize: '0.8rem', fontWeight: 700, background: 'rgba(6,182,212,0.04)', borderRadius: '10px', border: '1px solid rgba(6,182,212,0.1)' }}>
+                  Нічого не знайдено
+                </div>
+              )}
+
+              {addItemSelectedNom && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '10px 14px',
+                  background: 'rgba(6,182,212,0.1)',
+                  border: '1.5px solid rgba(6,182,212,0.35)',
+                  borderRadius: '12px'
+                }}>
+                  <CheckCircle2 size={16} color="#06b6d4" style={{ flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{addItemSelectedNom.name}</div>
+                    <div style={{ fontSize: '0.65rem', color: '#06b6d4', fontWeight: 700, display: 'flex', gap: '8px' }}>
+                      {addItemSelectedNom.nomenclature_code && <span>{addItemSelectedNom.nomenclature_code}</span>}
+                      {addItemSelectedNom.description && <span style={{ color: '#a0aec0' }}>{addItemSelectedNom.description}</span>}
+                    </div>
+                  </div>
+                  <button onClick={() => { setAddItemSelectedNom(null); setAddItemSearch('') }} style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer', padding: '2px' }}>
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Quantity */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontSize: '0.65rem', fontWeight: 900, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '1px' }}>Кількість</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button
+                  onClick={() => setAddItemQty(q => Math.max(1, Number(q) - 1))}
+                  style={{ width: '40px', height: '40px', background: 'rgba(6,182,212,0.08)', border: '1px solid rgba(6,182,212,0.2)', borderRadius: '10px', color: '#06b6d4', fontSize: '1.2rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(6,182,212,0.18)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(6,182,212,0.08)'}
+                >−</button>
+                <input
+                  type="number"
+                  min="1"
+                  value={addItemQty}
+                  onChange={e => setAddItemQty(Math.max(1, Number(e.target.value) || 1))}
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    background: 'rgba(6,182,212,0.06)',
+                    border: '1.5px solid rgba(6,182,212,0.2)',
+                    borderRadius: '10px',
+                    color: '#fff',
+                    fontSize: '1.2rem',
+                    fontWeight: 1000,
+                    textAlign: 'center',
+                    outline: 'none'
+                  }}
+                />
+                <button
+                  onClick={() => setAddItemQty(q => Number(q) + 1)}
+                  style={{ width: '40px', height: '40px', background: 'rgba(6,182,212,0.08)', border: '1px solid rgba(6,182,212,0.2)', borderRadius: '10px', color: '#06b6d4', fontSize: '1.2rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(6,182,212,0.18)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(6,182,212,0.08)'}
+                >+</button>
+                {addItemSelectedNom?.unit && (
+                  <span style={{ fontSize: '0.75rem', color: '#3a6a7a', fontWeight: 800 }}>{addItemSelectedNom.unit}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Confirm */}
+            <button
+              disabled={!addItemSelectedNom || !addItemQty || Number(addItemQty) <= 0}
+              onClick={handleConfirmAddItem}
+              style={{
+                padding: '15px',
+                background: addItemSelectedNom
+                  ? 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)'
+                  : 'rgba(255,255,255,0.04)',
+                border: 'none',
+                borderRadius: '14px',
+                color: addItemSelectedNom ? '#fff' : '#333',
+                fontSize: '0.9rem',
+                fontWeight: 900,
+                cursor: addItemSelectedNom ? 'pointer' : 'not-allowed',
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+                transition: 'all 0.3s',
+                boxShadow: addItemSelectedNom ? '0 8px 24px rgba(6,182,212,0.35)' : 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px'
+              }}
+              onMouseEnter={e => { if (addItemSelectedNom) e.currentTarget.style.transform = 'translateY(-2px)' }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'none' }}
+            >
+              <Plus size={18} /> Додати до списку комплектування
             </button>
           </div>
         </div>

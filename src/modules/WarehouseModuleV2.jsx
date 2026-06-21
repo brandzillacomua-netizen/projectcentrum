@@ -754,7 +754,14 @@ const WarehouseModuleV2 = () => {
                             fontSize: '0.78rem', color: '#888', padding: '4px 0',
                             borderBottom: '1px solid #1a1a1a'
                           }}>
-                            <span style={{ flex: 1, marginRight: '8px' }}>{parsedName || r.details}</span>
+                            <span style={{ flex: 1, marginRight: '8px' }}>
+                              {parsedName || r.details}
+                              {nom?.description && (
+                                <span style={{ color: '#06b6d4', fontSize: '0.72rem', marginLeft: '6px', fontWeight: 'bold' }}>
+                                  ({nom.description})
+                                </span>
+                              )}
+                            </span>
                             {isEditing ? (
                               <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 <input
