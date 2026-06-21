@@ -534,7 +534,9 @@ const MACHINE_TYPES = [
           return sum + (c.actualSheets ? Number(c.actualSheets) : Math.ceil(originalQty / unitsPerSheet))
         }, 0)
         
-        const totalBZ = (totalSheets * unitsPerSheet) + stockBZ - need
+        const plannedSheets = snap.sheets || 0
+        const totalSheetsMax = Math.max(plannedSheets, totalSheets)
+        const totalBZ = (totalSheetsMax * unitsPerSheet) + stockBZ - need
         const groupScrap = taskScrap[nomIdStr] || 0
         const shortage = (totalBZ - groupScrap) < 0 ? Math.abs(totalBZ - groupScrap) : 0
         
@@ -1359,7 +1361,7 @@ const MACHINE_TYPES = [
 
                               const rowMachineName = (productionCards.length > 0 && productionCards[0].machine && productionCards[0].machine !== 'Не вказано') 
                                 ? productionCards[0].machine 
-                                : ((task.plan_snapshot || {})[String(nomId)]?.machine || selectedMachines[rowId] || '')
+                                : ((task.plan_snapshot || {})[String(nomId)]?.machine || (task.plan_snapshot || {})[String(nomId)]?.selected_machine || selectedMachines[rowId] || '')
                               
                               // Use local state if it exists (for fluid typing), fallback to context
                               const splits = editingSplits[nomId] || (task.plan_snapshot || {})[String(nomId)]?.splits || []
@@ -1693,7 +1695,9 @@ const MACHINE_TYPES = [
                         const originalQty = (Number(c.quantity) || 0) + cardScrap
                         return sum + (c.actualSheets ? Number(c.actualSheets) : Math.ceil(originalQty / unitsPerSheet))
                       }, 0)
-                      const totalBZ = (totalSheets * unitsPerSheet) + stockBZ - need
+                      const plannedSheets = snapshot ? (Number(snapshot.sheets) || 0) : 0
+                      const totalSheetsMax = Math.max(plannedSheets, totalSheets)
+                      const totalBZ = (totalSheetsMax * unitsPerSheet) + stockBZ - need
                       const bzResult = totalBZ - groupScrap
                       const activeProductionCards = activeCards.filter(c => c.operation !== 'Склад БЗ')
                       const shortage = activeProductionCards.length === 0 ? 0 : (bzResult < 0 ? Math.abs(bzResult) : 0)

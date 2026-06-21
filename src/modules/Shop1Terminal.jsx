@@ -858,10 +858,31 @@ export default function Shop1Terminal() {
       if (!nom) continue
 
       let plannedQty = 0
-      if (task && task.plan_snapshot && Array.isArray(task.plan_snapshot.consumables)) {
-        const plannedCons = task.plan_snapshot.consumables.find(c => c.name?.trim().toLowerCase() === cutterName.trim().toLowerCase())
-        if (plannedCons) {
-          plannedQty = Math.round(Number(plannedCons.total) * ratio)
+      if (task && task.plan_snapshot) {
+        let genericName = null
+        if (task.plan_snapshot.selectedCutters && typeof task.plan_snapshot.selectedCutters === 'object') {
+          for (const [genName, invId] of Object.entries(task.plan_snapshot.selectedCutters)) {
+            if (!invId) continue
+            const inv = (inventory || []).find(i => String(i.id) === String(invId))
+            if (inv) {
+              const nom = nomenclatures?.find(n => String(n.id) === String(inv.nomenclature_id))
+              const resolvedName = nom ? nom.name.trim() : (inv.name ? inv.name.trim() : '')
+              if (resolvedName.toLowerCase() === cutterName.trim().toLowerCase()) {
+                genericName = genName
+                break
+              }
+            }
+          }
+        }
+
+        if (Array.isArray(task.plan_snapshot.consumables)) {
+          const plannedCons = task.plan_snapshot.consumables.find(c => 
+            (c.name?.trim().toLowerCase() === cutterName.trim().toLowerCase()) ||
+            (genericName && c.name?.trim().toLowerCase() === genericName.trim().toLowerCase())
+          )
+          if (plannedCons) {
+            plannedQty = Math.round(Number(plannedCons.total) * ratio)
+          }
         }
       }
 
@@ -921,7 +942,7 @@ export default function Shop1Terminal() {
 
           if (pocketItem) {
             await supabase.from('inventory').update({
-              total_qty: Math.max(0, (Number(pocketItem.total_qty) || 0) - pocketDeduct),
+              total_qty: (Number(pocketItem.total_qty) || 0) - pocketDeduct,
               updated_at: new Date().toISOString()
             }).eq('id', pocketItem.id)
           } else {
@@ -929,7 +950,7 @@ export default function Shop1Terminal() {
               nomenclature_id: nom.id,
               name: nom.name,
               unit: nom.unit || 'шт',
-              total_qty: 0,
+              total_qty: -pocketDeduct,
               warehouse: 'pocket',
               type: 'consumable',
               pocket_owner: card.manager_name && card.manager_name !== 'Не вказано' ? card.manager_name : null,

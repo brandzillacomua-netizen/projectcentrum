@@ -414,7 +414,7 @@ const Shop2Module = () => {
           }}>
             <ArrowLeft size={18} /> <span className="hide-mobile">На головну</span>
           </Link>
-          <button onClick={() => setIsDrawerOpen(true)} className="burger-btn-labeled mobile-only">
+          <button onClick={() => setIsDrawerOpen(true)} className="burger-btn-labeled">
             <Menu size={20} />
             <span>Черга</span>
             {activeQueueCount > 0 && (
@@ -577,7 +577,7 @@ const Shop2Module = () => {
         </div>
 
         {/* ───── ЦЕНТРАЛЬНА ЧАСТИНА (ДЕТАЛІЗУЦІЯ) ───── */}
-        <div style={{ flex: 1, padding: '40px', overflowY: 'auto' }}>
+        <div className="main-content" style={{ flex: 1, padding: '40px', overflowY: 'auto' }}>
           {activeTaskId ? (() => {
             const task = tasks.find(t => t.id === activeTaskId) // Шукаємо у всіх tasks, не тільки в relevant
             if (!task) return <div style={{ color: '#333' }}>Наряд не знайдено або він переміщений</div>
@@ -653,22 +653,22 @@ const Shop2Module = () => {
                 </div>
 
                 {/* ТАБЛИЦЯ НОМЕНКЛАТУРИ */}
-                <div style={{ background: '#111', borderRadius: '28px', border: '1px solid #1a1a1a', overflow: 'hidden' }}>
+                <div style={{ background: '#111', borderRadius: '28px', border: '1px solid #1a1a1a', overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: '#0a0a0a', textAlign: 'left', color: '#555', textTransform: 'uppercase', fontSize: '0.65rem', fontWeight: 900 }}>
-                        <th style={{ padding: '15px 25px' }}>НОМЕНКЛАТУРА</th>
-                        <th style={{ padding: '15px 20px', textAlign: 'center' }}>МАТЕРІАЛ</th>
-                        <th style={{ padding: '15px 20px', textAlign: 'center' }}>ПОТРЕБА</th>
+                        <th style={{ padding: '15px 25px', minWidth: '220px' }}>НОМЕНКЛАТУРА</th>
+                        <th style={{ padding: '15px 20px', textAlign: 'center', minWidth: '120px' }}>МАТЕРІАЛ</th>
+                        <th style={{ padding: '15px 20px', textAlign: 'center', minWidth: '80px' }}>ПОТРЕБА</th>
                         {!isReworkOrder && (
                           <>
-                            <th style={{ padding: '15px 20px', textAlign: 'center', color: '#eab308' }}>БЗ (ЗАПАС)</th>
-                            <th style={{ padding: '15px 20px', textAlign: 'center' }}>ЗАГАЛЬНА КІЛЬКІСТЬ</th>
+                            <th style={{ padding: '15px 20px', textAlign: 'center', color: '#eab308', minWidth: '100px' }}>БЗ (ЗАПАС)</th>
+                            <th style={{ padding: '15px 20px', textAlign: 'center', minWidth: '160px' }}>ЗАГАЛЬНА КІЛЬКІСТЬ</th>
                           </>
                         )}
-                        <th style={{ padding: '15px 20px' }}>ЕТАП</th>
-                        <th style={{ padding: '15px 20px', textAlign: 'center' }}>СТАН</th>
-                        <th style={{ padding: '15px 20px', textAlign: 'center' }}>ДІЯ</th>
+                        <th style={{ padding: '15px 20px', minWidth: '175px' }}>ЕТАП</th>
+                        <th style={{ padding: '15px 20px', textAlign: 'center', minWidth: '130px' }}>СТАН</th>
+                        <th style={{ padding: '15px 20px', textAlign: 'center', minWidth: '150px' }}>ДІЯ</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -750,7 +750,7 @@ const Shop2Module = () => {
                                   value={selectedStages[String(item.nom?.id)] || (task.plan_snapshot?.[String(item.nom?.id)]?.shop2_stage) || ''}
                                   disabled={task.status === 'completed'}
                                   onChange={(e) => handleUpdateStage(task, item.nom?.id, e.target.value)}
-                                  style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '10px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700 }}
+                                  style={{ width: '100%', minWidth: '150px', background: '#000', border: '1px solid #333', color: '#fff', padding: '10px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
                                 >
                                   <option value="" disabled hidden>Оберіть етап</option>
                                   <option value="Пресування">Пресування</option>
@@ -1107,7 +1107,7 @@ const Shop2Module = () => {
                       const cards = grouped[nomId]
 
                       return (
-                        <div key={nomId} style={{ marginBottom: '30px', background: '#111', borderRadius: '24px', border: '1px solid #1a1a1a', overflow: 'hidden' }}>
+                        <div key={nomId} style={{ marginBottom: '30px', background: '#111', borderRadius: '24px', border: '1px solid #1a1a1a', overflowX: 'auto' }}>
                           <div style={{ padding: '15px 20px', background: '#1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div style={{ fontWeight: 900, fontSize: '0.9rem', color: '#fff' }}>{nom?.name || 'Невідома деталь'}</div>
                             <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800 }}>КАРТОК: {cards.length}</div>
@@ -1234,10 +1234,11 @@ const Shop2Module = () => {
           .print-card { position: absolute; left: 0; top: 0; width: 100% !important; border: none !important; box-shadow: none !important; padding: 20px !important; }
           button { display: none !important; }
         }
-        @media (max-width: 768px) {
-          .hide-mobile { display: none; }
+        @media (max-width: 1024px) {
+          .hide-mobile { display: none !important; }
           .side-panel { position: fixed; left: 0; top: 0; bottom: 0; z-index: 100000; transform: translateX(-100%); width: 280px !important; }
           .drawer-open { transform: translateX(0); }
+          .main-content { padding: 15px !important; }
         }
         .anim-fade-in { animation: fadeIn 0.4s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }

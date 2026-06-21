@@ -11,7 +11,8 @@ import {
   ListChecks,
   Monitor,
   CheckCircle2,
-  Info
+  Info,
+  Shuffle
 } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useMES } from '../MESContext'
@@ -91,6 +92,7 @@ const MasterModule = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [selectedMachine, setSelectedMachine] = useState(null)
   const [rowMachines, setRowMachines] = useState({}) // { [partNomId]: machineType }
+  const [rowMachinesSplits, setRowMachinesSplits] = useState({}) // { [partNomId]: [ { machine, sheets, qty } ] }
   const [isReprintMode, setIsReprintMode] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
@@ -388,6 +390,7 @@ const MasterModule = () => {
     setPartCutterOverrides({})
     setSelectedMachine(null)
     setRowMachines({})
+    setRowMachinesSplits({})
     setMaterialSplits({})
     setActiveNaryadOrder(order)
     setIsDrawerOpen(false)
@@ -565,9 +568,22 @@ const MasterModule = () => {
 
     document.title = `НАРЯД № ${activeNaryadOrder.order_num}${batchSuffix} ${dateStr} ${customerStr}`;
 
-    const uniqueMachines = Array.from(new Set(
-      Object.values(rowMachines).filter(Boolean)
-    ))
+    const uniqueMachinesSet = new Set()
+    activeNaryadOrder.order_items?.forEach(it => {
+      const displayParts = getDisplayPartsForOrderItem(it)
+      displayParts.forEach(part => {
+        if (!part.nom) return
+        const splits = rowMachinesSplits[part.nom.id] || []
+        if (splits.length > 0) {
+          splits.forEach(s => {
+            if (s.machine) uniqueMachinesSet.add(s.machine)
+          })
+        } else if (rowMachines[part.nom.id]) {
+          uniqueMachinesSet.add(rowMachines[part.nom.id])
+        }
+      })
+    })
+    const uniqueMachines = Array.from(uniqueMachinesSet)
 
     // Calculate if we actually need to produce anything
     let totalPlanQuantity = 0;
@@ -651,7 +667,7 @@ const MasterModule = () => {
           await autoCreatePrepOrder(missingPrepQuantities, naryadDeadline || activeNaryadOrder.deadline);
 
           // 2. Create task
-          const createdTask = await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters, naryadParts, partCutterOverrides));
+          const createdTask = await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters, naryadParts, partCutterOverrides, rowMachinesSplits));
 
           if (createdTask) {
             setReprintTask(createdTask);
@@ -680,7 +696,7 @@ const MasterModule = () => {
         setReprintTask(null)
         setActiveNaryadOrder(null)
       } else {
-        const createdTask = await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters, naryadParts, partCutterOverrides))
+        const createdTask = await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters, naryadParts, partCutterOverrides, rowMachinesSplits))
         
         if (createdTask) {
           setReprintTask(createdTask);
@@ -722,15 +738,18 @@ const MasterModule = () => {
     }
 
     const initialRowMachines = {}
+    const initialRowMachinesSplits = {}
     if (task.step !== 'Підготовка') {
       Object.keys(task.plan_snapshot || {}).forEach(partId => {
         if (!partId.startsWith('_') && partId !== 'materialSummary') {
           const snapshotPart = task.plan_snapshot[partId]
           initialRowMachines[partId] = snapshotPart?.selected_machine || resolvedType || task.machine_name
+          initialRowMachinesSplits[partId] = snapshotPart?.splits || []
         }
       })
     }
     setRowMachines(initialRowMachines)
+    setRowMachinesSplits(initialRowMachinesSplits)
 
     if (task.step === 'Підготовка') {
       setIsReprintMode(true)
@@ -1050,14 +1069,21 @@ const MasterModule = () => {
           return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
         })()
         const totalToProduce = snapshot ? snapshot.plan : (isReprintMode ? 0 : Math.max(0, totalNeeded - inStock))
-        if (totalToProduce > 0 && !rowMachines[part.nom.id]) {
-          hasUnassigned = true
+        if (totalToProduce > 0) {
+          const splits = rowMachinesSplits[part.nom.id] || []
+          if (splits.length > 0) {
+            if (splits.some(s => !s.machine)) {
+              hasUnassigned = true
+            }
+          } else if (!rowMachines[part.nom.id]) {
+            hasUnassigned = true
+          }
         }
       })
     })
 
     return hasUnassigned
-  }, [activeNaryadOrder, isReprintMode, naryadQtys, nomenclatures, bomItems, inventory, reprintTask, rowMachines, naryadParts])
+  }, [activeNaryadOrder, isReprintMode, naryadQtys, nomenclatures, bomItems, inventory, reprintTask, rowMachines, rowMachinesSplits, naryadParts])
 
   const isPrintDisabled = useMemo(() => {
     if (isSubmitting) return true
@@ -2018,41 +2044,171 @@ const displayParts = getDisplayPartsForOrderItem(it)
                             </td>
                             <td style={{ padding: '18px 15px', textAlign: 'center' }} className="no-print">
                               {totalToProduce > 0 ? (
-                                <>
-                                  <div className="no-print">
-                                    <select
-                                      value={rowMachines[part.nom?.id] || ''}
-                                      onChange={(e) => {
-                                        const val = e.target.value;
-                                        setRowMachines(prev => ({
-                                          ...prev,
-                                          [part.nom?.id]: val
-                                        }));
-                                      }}
-                                      style={{
-                                        background: '#111',
-                                        border: '1px solid #333',
-                                        color: '#fff',
-                                        padding: '5px 8px',
-                                        borderRadius: '10px',
-                                        fontSize: '0.8rem',
-                                        fontWeight: 800,
-                                        outline: 'none',
-                                        cursor: 'pointer',
-                                        width: '100%',
-                                        maxWidth: '180px'
-                                      }}
-                                    >
-                                      <option value="">-- Оберіть верстат --</option>
-                                      {MACHINE_TYPES.map(type => (
-                                        <option key={type} value={type}>{type.split(' - ')[0]}</option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                  <span className="print-only" style={{ fontSize: '0.85rem', fontWeight: 800, color: '#eee' }}>
-                                    {rowMachines[part.nom?.id] ? rowMachines[part.nom?.id].split(' - ')[0] : '—'}
-                                  </span>
-                                </>
+                                (() => {
+                                  const splits = rowMachinesSplits[part.nom?.id] || []
+                                  const isSplitMode = splits.length > 0
+                                  const totalSheetsNeeded = sheets
+
+                                  if (!isSplitMode) {
+                                    return (
+                                      <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                                        <select
+                                          value={rowMachines[part.nom?.id] || ''}
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            setRowMachines(prev => ({
+                                              ...prev,
+                                              [part.nom?.id]: val
+                                            }));
+                                          }}
+                                          style={{
+                                            flex: 1,
+                                            background: '#111',
+                                            border: '1px solid #333',
+                                            color: '#fff',
+                                            padding: '8px',
+                                            borderRadius: '10px',
+                                            fontSize: '0.8rem',
+                                            fontWeight: 800,
+                                            outline: 'none',
+                                            cursor: 'pointer'
+                                          }}
+                                        >
+                                          <option value="">-- Оберіть верстат --</option>
+                                          {MACHINE_TYPES.map(type => (
+                                            <option key={type} value={type}>{type.split(' - ')[0]}</option>
+                                          ))}
+                                        </select>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const initialSplits = [{ machine: rowMachines[part.nom?.id] || '', sheets: sheets, qty: totalToProduce }]
+                                            setRowMachinesSplits(prev => ({
+                                              ...prev,
+                                              [part.nom?.id]: initialSplits
+                                            }))
+                                          }}
+                                          title="Розділити на кілька верстатів"
+                                          style={{ background: '#222', border: 'none', color: '#888', cursor: 'pointer', padding: '8px', borderRadius: '8px', display: 'flex', alignItems: 'center' }}
+                                        >
+                                          <Shuffle size={14} />
+                                        </button>
+                                      </div>
+                                    )
+                                  } else {
+                                    return (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        {splits.map((s, sIdx) => {
+                                          return (
+                                            <div key={sIdx} style={{ display: 'flex', gap: '5px', alignItems: 'center', background: '#080808', padding: '5px', borderRadius: '8px', border: '1px solid #151515' }}>
+                                              <input
+                                                type="number"
+                                                value={s.sheets || ''}
+                                                placeholder="Л."
+                                                onFocus={(e) => e.target.select()}
+                                                onChange={(e) => {
+                                                  const val = e.target.value === '' ? 0 : parseInt(e.target.value) || 0
+                                                  setRowMachinesSplits(prev => {
+                                                    const newSplits = [...(prev[part.nom?.id] || [])]
+                                                    newSplits[sIdx] = {
+                                                      ...newSplits[sIdx],
+                                                      sheets: val,
+                                                      qty: val * unitsPerSheet
+                                                    }
+                                                    return { ...prev, [part.nom?.id]: newSplits }
+                                                  })
+                                                }}
+                                                style={{ width: '60px', background: '#000', border: '1px solid #333', color: '#fff', padding: '6px 4px', borderRadius: '8px', fontSize: '0.9rem', fontWeight: 950, textAlign: 'center', outline: 'none' }}
+                                              />
+                                              <select
+                                                value={s.machine || ''}
+                                                onChange={(e) => {
+                                                  const val = e.target.value
+                                                  setRowMachinesSplits(prev => {
+                                                    const newSplits = [...(prev[part.nom?.id] || [])]
+                                                    newSplits[sIdx] = {
+                                                      ...newSplits[sIdx],
+                                                      machine: val
+                                                    }
+                                                    return { ...prev, [part.nom?.id]: newSplits }
+                                                  })
+                                                }}
+                                                style={{ flex: 1, background: '#000', border: '1px solid #222', color: '#fff', padding: '5px', borderRadius: '6px', fontSize: '0.7rem' }}
+                                              >
+                                                <option value="">Тип верстата</option>
+                                                {MACHINE_TYPES.map(t => <option key={t} value={t}>{t.split(' - ')[0]}</option>)}
+                                              </select>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setRowMachinesSplits(prev => {
+                                                    const newSplits = (prev[part.nom?.id] || []).filter((_, i) => i !== sIdx)
+                                                    return { ...prev, [part.nom?.id]: newSplits }
+                                                  })
+                                                }}
+                                                style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer' }}
+                                              >
+                                                <X size={12} />
+                                              </button>
+                                            </div>
+                                          )
+                                        })}
+                                        <div style={{ display: 'flex', gap: '5px' }}>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const currentSum = splits.reduce((a, b) => a + (Number(b.sheets) || 0), 0)
+                                              const remaining = Math.max(0, totalSheetsNeeded - currentSum)
+                                              setRowMachinesSplits(prev => {
+                                                const newSplits = [...(prev[part.nom?.id] || []), { machine: '', sheets: remaining, qty: remaining * unitsPerSheet }]
+                                                return { ...prev, [part.nom?.id]: newSplits }
+                                              })
+                                            }}
+                                            style={{ flex: 1, background: '#111', border: '1px solid #222', color: '#555', fontSize: '0.6rem', padding: '5px', borderRadius: '6px', cursor: 'pointer', fontWeight: 800 }}
+                                          >
+                                            + ДОДАТИ ВЕРСТАТ
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setRowMachinesSplits(prev => ({
+                                                ...prev,
+                                                [part.nom?.id]: []
+                                              }))
+                                            }}
+                                            style={{ background: '#111', border: '1px solid #222', color: '#ef4444', padding: '5px', borderRadius: '6px', cursor: 'pointer' }}
+                                          >
+                                            <X size={12} />
+                                          </button>
+                                        </div>
+                                        {(() => {
+                                          const currentSumSheets = splits.reduce((a, b) => a + (Number(b.sheets) || 0), 0);
+                                          const isOver = currentSumSheets > totalSheetsNeeded;
+                                          const isExact = currentSumSheets === totalSheetsNeeded;
+                                          const statusColor = isOver ? '#ef4444' : isExact ? '#10b981' : '#ff9000';
+                                          return (
+                                            <div style={{
+                                              fontSize: '0.65rem',
+                                              textAlign: 'center',
+                                              color: statusColor,
+                                              fontWeight: 950,
+                                              background: `${statusColor}11`,
+                                              padding: '4px',
+                                              borderRadius: '8px',
+                                              border: `1px solid ${statusColor}33`
+                                            }}>
+                                              {isOver ? (
+                                                <span>ПЕРЕВИЩЕННЯ: {currentSumSheets} / {totalSheetsNeeded} л.</span>
+                                              ) : (
+                                                <span>ПЛАН: {currentSumSheets} / {totalSheetsNeeded} листів</span>
+                                              )}
+                                            </div>
+                                          );
+                                        })()}
+                                      </div>
+                                    )
+                                  }
+                                })()
                               ) : (
                                 <span style={{ color: '#444', fontSize: '0.85rem' }}>—</span>
                               )}

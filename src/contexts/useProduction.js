@@ -1062,7 +1062,7 @@ export function createProductionActions({
     return { total: totalQty, planned, produced, packaged, isFullyPackaged: packaged >= totalQty && totalQty > 0, isFullyPlanned: planned >= totalQty && totalQty > 0, status }
   }
 
-  const createNaryad = async (orderId, machineName, customQuantities = null, customDeadline = null, customRowMachines = null, customMaterialSplits = null, customCutters = null, customBOMParts = null, customCutterOverrides = null) => {
+  const createNaryad = async (orderId, machineName, customQuantities = null, customDeadline = null, customRowMachines = null, customMaterialSplits = null, customCutters = null, customBOMParts = null, customCutterOverrides = null, customRowMachinesSplits = null) => {
     try {
       const order = orders.find(o => o.id === orderId)
       let totalMin = 0
@@ -1094,7 +1094,8 @@ export function createProductionActions({
           }
           const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
           let sheets = Math.ceil(totalToProduce / unitsPerSheet)
-          const selectedMachine = (customRowMachines && customRowMachines[part.nom.id]) || machineName;
+          const splits = (customRowMachinesSplits && customRowMachinesSplits[part.nom.id]) || []
+          const selectedMachine = splits.length > 0 ? (splits[0]?.machine || machineName) : ((customRowMachines && customRowMachines[part.nom.id]) || machineName);
 
           const split = customMaterialSplits && customMaterialSplits[part.nom.id]
           const sheets_t300 = split && split.t300 !== undefined ? Number(split.t300) : sheets
@@ -1115,7 +1116,9 @@ export function createProductionActions({
             material: part.nom.material_type, 
             order_item_id: item.id, 
             selected_machine: selectedMachine,
-            cutter_override: cutterOverride
+            machine: selectedMachine,
+            cutter_override: cutterOverride,
+            splits: splits
           }
 
           if (usedFromStock > 0 && invItem) bzStockDeductions.push({ id: invItem.id, next_qty: (Number(invItem.total_qty) || 0) - usedFromStock })

@@ -979,24 +979,15 @@ const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, prefilledN
   )
 }
 
-const ParentCreateModal = ({ onClose, onCreated, supabase, refreshTable, initialType = 'product', prefilledName = '' }) => {
+const ParentCreateModal = ({ onClose, onCreated, initialType = 'product', prefilledName = '' }) => {
   const [name, setName] = useState(prefilledName)
   const [type, setType] = useState(initialType)
   const [materialType, setMaterialType] = useState('')
-  const [saving, setSaving] = useState(false)
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!name.trim()) return alert('Введіть назву')
-    setSaving(true)
-    try {
-      const payload = { name: name.trim(), type, material_type: materialType.trim() || null }
-      const { data, error } = await supabase.from('nomenclatures').insert(payload).select().single()
-      if (error) throw error
-      await refreshTable('nomenclatures')
-      onCreated(data)
-      onClose()
-    } catch (e) { alert('Помилка: ' + e.message) }
-    finally { setSaving(false) }
+    onCreated({ name: name.trim(), type, material_type: materialType.trim() || null })
+    onClose()
   }
 
   const inputStyle = { width: '100%', padding: '12px 14px', background: '#111', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '10px', fontSize: '0.9rem', boxSizing: 'border-box', outline: 'none' }
@@ -1079,7 +1070,6 @@ const ParentCreateModal = ({ onClose, onCreated, supabase, refreshTable, initial
 
           <button 
             onClick={handleSave} 
-            disabled={saving} 
             style={{ 
               width: '100%', 
               padding: '14px', 
@@ -1093,7 +1083,7 @@ const ParentCreateModal = ({ onClose, onCreated, supabase, refreshTable, initial
               marginTop: '10px'
             }}
           >
-            {saving ? 'Створення...' : `+ Створити та почати редагування`}
+            + Створити та почати редагування
           </button>
         </div>
       </div>
@@ -1120,7 +1110,12 @@ const BomRow = ({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, supabas
   const filtered = useMemo(() => {
     if (!query || query.length < 2) return []
     const q = query.toLowerCase()
-    return nomenclatures.filter(n => n.name.toLowerCase().includes(q)).slice(0, 12)
+    return nomenclatures.filter(n => 
+      (n.name || '').toLowerCase().includes(q) ||
+      (n.description || '').toLowerCase().includes(q) ||
+      (n.material_type || '').toLowerCase().includes(q) ||
+      (n.nomenclature_code || '').toLowerCase().includes(q)
+    ).slice(0, 12)
   }, [query, nomenclatures])
 
   const subItems = useMemo(() => {
@@ -1321,6 +1316,7 @@ const SpecBuilderTab = () => {
 
   // Editor state
   const [parentId, setParentId] = useState('')
+  const [pendingParent, setPendingParent] = useState(null)
   const [parentSearch, setParentSearch] = useState('')
   const [showParentDrop, setShowParentDrop] = useState(false)
   const [rows, setRows] = useState([])
@@ -1428,7 +1424,12 @@ const SpecBuilderTab = () => {
   }
 
   // Derive the selected parent nomenclature object
-  const selectedParent = useMemo(() => nomenclatures.find(n => n.id === parentId), [parentId, nomenclatures])
+  const selectedParent = useMemo(() => {
+    if (parentId === 'temp-new') {
+      return { id: 'temp-new', name: pendingParent?.name, type: pendingParent?.type, material_type: pendingParent?.material_type }
+    }
+    return nomenclatures.find(n => n.id === parentId)
+  }, [parentId, nomenclatures, pendingParent])
 
   // Product list for parent selection
   const productNoms = useMemo(() => {
@@ -1445,26 +1446,30 @@ const SpecBuilderTab = () => {
       lastLoadedParentId.current = null
       return
     }
-    if (lastLoadedParentId.current !== parentId) {
-      const existing = bomItems.filter(b => String(b.parent_id) === String(parentId))
-      if (existing.length > 0) {
-        setRows(existing.map(b => {
-          const nom = nomenclatures.find(n => String(n.id) === String(b.child_id))
-          return {
-            nomId: b.child_id,
-            nomName: nom?.name || '(невідомо)',
-            nomType: nom?.type || 'part',
-            nomUnit: nom?.unit || 'шт',
-            group: b.group_label || autoClassify(nom),
-            qty: b.quantity_per_parent ?? 1
-          }
-        }))
-      } else {
-        setRows([])
-      }
-      lastLoadedParentId.current = parentId
+    if (parentId === 'temp-new') {
+      setRows([])
+      lastLoadedParentId.current = 'temp-new'
+      return
     }
-  }, [parentId, bomItems, nomenclatures])
+    
+    const existing = bomItems.filter(b => String(b.parent_id) === String(parentId))
+    if (existing.length > 0) {
+      setRows(existing.map(b => {
+        const nom = nomenclatures.find(n => String(n.id) === String(b.child_id))
+        return {
+          nomId: b.child_id,
+          nomName: nom?.name || '(невідомо)',
+          nomType: nom?.type || 'part',
+          nomUnit: nom?.unit || 'шт',
+          group: b.group_label || autoClassify(nom),
+          qty: b.quantity_per_parent ?? 1
+        }
+      }))
+    } else {
+      setRows([])
+    }
+    lastLoadedParentId.current = parentId
+  }, [parentId])
 
   const addRow = () => setRows(prev => [...prev, { nomId: null, nomName: '', nomType: 'part', nomUnit: 'шт', group: 'Деталі', qty: 1 }])
 
@@ -1479,6 +1484,24 @@ const SpecBuilderTab = () => {
 
     setSaving(true)
     try {
+      let activeParentId = parentId
+
+      if (parentId === 'temp-new') {
+        const payloadParent = { 
+          name: pendingParent.name, 
+          type: pendingParent.type, 
+          material_type: pendingParent.material_type 
+        }
+        const { data: newParent, error: parentErr } = await supabase
+          .from('nomenclatures')
+          .insert(payloadParent)
+          .select()
+          .single()
+        if (parentErr) throw parentErr
+        
+        activeParentId = newParent.id
+      }
+
       // Aggregate duplicate child_ids
       const agg = {}
       rows.forEach(r => {
@@ -1486,18 +1509,18 @@ const SpecBuilderTab = () => {
         else agg[r.nomId].qty += Number(r.qty) || 1
       })
       const payloadWithGroup = Object.values(agg).map(r => ({
-        parent_id: parentId,
+        parent_id: activeParentId,
         child_id: r.nomId,
         quantity_per_parent: r.qty,
         group_label: r.group
       }))
       const payloadNoGroup = Object.values(agg).map(r => ({
-        parent_id: parentId,
+        parent_id: activeParentId,
         child_id: r.nomId,
         quantity_per_parent: r.qty
       }))
 
-      await supabase.from('bom_items').delete().eq('parent_id', parentId)
+      await supabase.from('bom_items').delete().eq('parent_id', activeParentId)
       if (payloadWithGroup.length > 0) {
         // Try with group_label first; fall back without it if column doesn't exist
         const { error: err1 } = await supabase.from('bom_items').insert(payloadWithGroup)
@@ -1511,8 +1534,14 @@ const SpecBuilderTab = () => {
           }
         }
       }
+      
+      await refreshTable('nomenclatures')
       await refreshTable('bom_items')
-      lastLoadedParentId.current = null
+      
+      setPendingParent(null)
+      setParentId(activeParentId)
+      lastLoadedParentId.current = activeParentId
+      
       alert(`✅ Специфікацію збережено! (${payloadWithGroup.length} позицій)`)
     } catch (e) { alert('Помилка: ' + e.message) }
     finally { setSaving(false) }
@@ -1560,14 +1589,14 @@ const SpecBuilderTab = () => {
 
       {showParentCreate && (
         <ParentCreateModal 
-          supabase={supabase} 
-          refreshTable={refreshTable} 
           initialType={parentCreateType} 
           prefilledName={parentSearch}
           onClose={() => setShowParentCreate(false)} 
           onCreated={(data) => {
-            setParentId(data.id);
+            setPendingParent(data);
+            setParentId('temp-new');
             setParentSearch('');
+            setRows([]);
           }} 
         />
       )}
@@ -1723,7 +1752,7 @@ const SpecBuilderTab = () => {
                 style={{ width: '100%', padding: '12px 16px', background: parentId ? '#0f1a2e' : '#111', border: `1px solid ${parentId ? '#1d4ed840' : '#2a2a2a'}`, color: '#fff', borderRadius: '10px', fontSize: '0.95rem', fontWeight: 600, boxSizing: 'border-box' }}
               />
               {selectedParent && (
-                <button onClick={() => { setParentId(''); setParentSearch(''); setRows([]) }} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#555', cursor: 'pointer' }}><X size={16}/></button>
+                <button onClick={() => { setParentId(''); setPendingParent(null); setParentSearch(''); setRows([]) }} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#555', cursor: 'pointer' }}><X size={16}/></button>
               )}
               {showParentDrop && !selectedParent && (
                 <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#111', border: '1px solid #3b82f6', borderRadius: '12px', zIndex: 9999, maxHeight: '300px', overflowY: 'auto', boxShadow: '0 12px 40px rgba(0,0,0,0.8)', marginTop: '5px' }}>
