@@ -992,9 +992,8 @@ const MasterModule = () => {
             const qtyPerSheet = parseFloat(opParts[2]) || 0
             if (cutterNomId && qtyPerSheet > 0) {
               hasMachineSpecificCutters = true
-              const totalQty = Math.ceil(sheets * qtyPerSheet)
               let cutterNom = nomenclatures.find(n => String(n.id) === String(cutterNomId))
-              
+              let shouldSkip = false
               if (cutterNom) {
                 const nl = cutterNom.name.toLowerCase()
                 const m1 = nl.match(/ф\s*([0-9,.]+)/)
@@ -1002,14 +1001,15 @@ const MasterModule = () => {
                 const d = m1 ? parseFloat(m1[1].replace(',', '.')) : (m2 ? parseFloat(m2[1].replace(',', '.')) : null)
                 
                 if (override !== '1.5' && d && Math.abs(d - 1.5) < 0.01) {
-                  return // skip this Ф1.5 cutter because we chose Ф2
+                  shouldSkip = true
                 }
                 if (override === '1.5' && d && Math.abs(d - 2) < 0.01) {
                   cutterNom = { ...cutterNom, name: 'Фреза ф1.5', id: '__synthetic_f1.5__' }
                 }
               }
 
-              if (cutterNom && cutterNom.name.trim().toLowerCase() !== 'фреза') {
+              if (!shouldSkip && cutterNom && cutterNom.name.trim().toLowerCase() !== 'фреза') {
+                const totalQty = Math.ceil(sheets * qtyPerSheet)
                 const cleanName = cutterNom.name.trim()
                 const key = cleanName.toLowerCase()
                 if (!machineSpecificCutters[key]) {
