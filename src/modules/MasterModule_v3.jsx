@@ -963,9 +963,19 @@ const MasterModule = () => {
         
         // Calculate sheets using splits if split mode is active
         const splits = rowMachinesSplits[part.nom.id] || []
-        const sheets = splits.length > 0
-          ? splits.reduce((acc, s) => acc + (Number(s.sheets) || 0), 0)
-          : Math.ceil(totalToProduce / unitsPerSheet)
+        let sheets = 0
+        if (splits.length > 0) {
+          sheets = splits.reduce((acc, s) => acc + (Number(s.sheets) || 0), 0)
+        } else {
+          // If not split across multiple machines, get sheets from T300 + T700 split state
+          const sheets_t300 = snapshot
+            ? (snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : Number(snapshot.sheets))
+            : (materialSplits[part.nom.id]?.t300 !== undefined ? materialSplits[part.nom.id].t300 : Math.ceil(totalToProduce / unitsPerSheet))
+          const sheets_t700 = snapshot
+            ? (Number(snapshot.sheets_t700) || 0)
+            : (materialSplits[part.nom.id]?.t700 || 0)
+          sheets = sheets_t300 + sheets_t700
+        }
 
         if (sheets <= 0) return
 
@@ -1041,7 +1051,7 @@ const MasterModule = () => {
       })
 
     return Object.values(fallbackConsumables)
-  }, [activeNaryadOrder, materialSummary, nomenclatures, rowMachines, machineOperations, naryadQtys, isReprintMode, reprintTask, inventory, naryadParts, partCutterOverrides, rowMachinesSplits])
+  }, [activeNaryadOrder, materialSummary, nomenclatures, rowMachines, machineOperations, naryadQtys, isReprintMode, reprintTask, inventory, naryadParts, partCutterOverrides, rowMachinesSplits, materialSplits])
 
   const hasUnassignedMachines = useMemo(() => {
     if (!activeNaryadOrder) return false
