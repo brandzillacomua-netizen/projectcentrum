@@ -30,7 +30,7 @@ const WarehouseModuleV2 = () => {
     nomenclatures, receptionDocs, confirmReception,
     orders, tasks, approveWarehouse, createPurchaseRequest,
     purchaseRequests, receiveInventory, currentUser, fetchModuleData,
-    fetchData, managers
+    fetchData, managers, refreshTable
   } = useMES()
 
   // Load warehouse-specific data on mount
