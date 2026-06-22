@@ -1093,8 +1093,15 @@ const MasterModule = () => {
   const isPrintDisabled = useMemo(() => {
     if (isSubmitting) return true
     if (!activeNaryadOrder) return true
-    return hasUnassignedMachines
-  }, [isSubmitting, activeNaryadOrder, hasUnassignedMachines])
+    if (hasUnassignedMachines) return true
+
+    // Ensure all cutters from consumableSummary are selected
+    const cutterItems = consumableSummary.filter(c => c.name.toLowerCase().startsWith('фреза'))
+    const hasUnselectedCutter = cutterItems.some(c => !selectedCutters[c.name])
+    if (hasUnselectedCutter) return true
+
+    return false
+  }, [isSubmitting, activeNaryadOrder, hasUnassignedMachines, consumableSummary, selectedCutters])
 
   const renderAnalytics = () => (
     <div className="analytics-scroll" style={{ overflowX: 'auto', marginBottom: '25px', display: 'flex', gap: '15px', paddingBottom: '10px' }}>
