@@ -1236,12 +1236,17 @@ export function createProductionActions({
               const totalQty = Math.ceil(sheetsNeeded * qtyPerSheet)
               let cutterNom = nomenclatures.find(n => String(n.id) === String(cutterNomId))
               
-              if (cutterNom && partInfo.cutter_override === '1.5') {
+              if (cutterNom) {
                 const nl = cutterNom.name.toLowerCase()
                 const m1 = nl.match(/ф\s*([0-9,.]+)/)
                 const m2 = nl.match(/(?:кукурудза|двопера|однопера|спіральна|торцева|шарова|радіусна)?\s*([0-9][0-9,]*)(?:\s*[×xх×])/)
                 const d = m1 ? parseFloat(m1[1].replace(',', '.')) : (m2 ? parseFloat(m2[1].replace(',', '.')) : null)
-                if (d && Math.abs(d - 2) < 0.01) {
+                
+                if (partInfo.cutter_override !== '1.5' && d && Math.abs(d - 1.5) < 0.01) {
+                  return // skip this Ф1.5 cutter because we chose Ф2
+                }
+                if (partInfo.cutter_override === '1.5' && d && Math.abs(d - 2) < 0.01) {
+                  // Override Ф2 with Ф1.5
                   cutterNom = { ...cutterNom, name: 'Фреза ф1.5', id: '__synthetic_f1.5__' }
                 }
               }
