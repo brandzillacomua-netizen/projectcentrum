@@ -25,6 +25,26 @@ export const MESProvider = ({ children }) => {
     return () => clearInterval(timer);
   }, [data.fortnetUrl, data.accessLogs]);
 
+  // ── USER PRESENCE HEARTBEAT ──
+  useEffect(() => {
+    if (!data.currentUser?.id) return
+
+    const updatePresence = async () => {
+      try {
+        await supabase
+          .from('system_users')
+          .update({ last_seen: new Date().toISOString() })
+          .eq('id', data.currentUser.id)
+      } catch (err) {
+        console.error('Failed to update presence:', err)
+      }
+    }
+
+    updatePresence()
+    const timer = setInterval(updatePresence, 30000) // every 30s
+    return () => clearInterval(timer)
+  }, [data.currentUser?.id])
+
   // ── AUTH ──
   const authActions = createAuthActions({
     currentUser: data.currentUser, 

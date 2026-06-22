@@ -31,6 +31,28 @@ import {
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 
+const formatLastSeen = (lastSeen) => {
+  if (!lastSeen) return 'ніколи'
+  const date = new Date(lastSeen)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  if (diffMs < 0) return 'щойно'
+  
+  const diffMins = Math.floor(diffMs / 60000)
+  if (diffMins < 1) return 'щойно'
+  if (diffMins < 60) return `${diffMins} хв. тому`
+  
+  const diffHours = Math.floor(diffMins / 60)
+  if (diffHours < 24) return `${diffHours} год. тому`
+  
+  return date.toLocaleString('uk-UA', { 
+    day: 'numeric', 
+    month: 'short', 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  })
+}
+
 const SettingsModule = () => {
   const { 
     systemUsers, currentUser, upsertUser, deleteUser, logout,
@@ -1960,6 +1982,7 @@ const SettingsModule = () => {
                     // Find the user's department type to get appropriate icon
                     const deptNode = (companyStructure || []).find(s => s.name === user.department)
                     const allowedModulesCount = Object.values(user.access_rights || {}).filter(Boolean).length
+                    const isOnline = user.last_seen && (Date.now() - new Date(user.last_seen).getTime() < 120000)
 
                     return (
                       <div key={user.id} className="dossier-card" style={{ 
@@ -1990,11 +2013,11 @@ const SettingsModule = () => {
                               width: '12px', 
                               height: '12px', 
                               borderRadius: '50%', 
-                              background: '#10b981', 
+                              background: isOnline ? '#10b981' : '#6b7280', 
                               border: '2px solid #0e0e11' 
-                            }} title="Активний" />
+                            }} title={isOnline ? "В мережі" : "Не в мережі"} />
                           </div>
-
+ 
                           <div style={{ overflow: 'hidden', flex: 1 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'space-between' }}>
                               <span style={{ fontSize: '0.65rem', fontFamily: 'monospace', color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>ID: {user.id || 'new'}</span>
@@ -2008,6 +2031,19 @@ const SettingsModule = () => {
 
                         {/* Badges Info */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {/* Presence Info */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ 
+                              width: '6px', 
+                              height: '6px', 
+                              borderRadius: '50%', 
+                              background: isOnline ? '#10b981' : '#6b7280' 
+                            }} />
+                            <span style={{ fontSize: '0.72rem', color: isOnline ? '#34d399' : '#888', fontWeight: 600 }}>
+                              {isOnline ? 'В мережі' : `Візит: ${formatLastSeen(user.last_seen)}`}
+                            </span>
+                          </div>
+
                           {/* Role Badge */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <Briefcase size={12} color="#555" />

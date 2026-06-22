@@ -165,7 +165,7 @@ export function useData() {
         { data: mCalls }
       ] = await Promise.all([
         // Users & machines — needed for portal access filtering
-        supabase.from('system_users').select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar').order('login'),
+        supabase.from('system_users').select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar, last_seen').order('login'),
         supabase.from('machines').select('*').order('name'),
         // Kanban badge counter
         supabase.from('management_tasks').select('*').neq('status', 'completed').order('created_at', { ascending: false }),
@@ -271,7 +271,7 @@ export function useData() {
         needNomenclatures ? supabase.from('nomenclatures').select('*').limit(2000) : Promise.resolve({ data: null }),
         needBOM ? supabase.from('bom_items').select('*').limit(4000) : Promise.resolve({ data: null }),
         needMachines ? supabase.from('machines').select('*').order('name') : Promise.resolve({ data: null }),
-        needUsers ? supabase.from('system_users').select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar').order('login') : Promise.resolve({ data: null }),
+        needUsers ? supabase.from('system_users').select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar, last_seen').order('login') : Promise.resolve({ data: null }),
         supabase.from('management_tasks').select('*').neq('status', 'completed').order('created_at', { ascending: false }),
         supabase.from('work_cards').select('*').neq('status', 'completed').order('created_at', { ascending: true }),
         needStructure ? supabase.from('company_structure').select('*').order('name').then(res => res, () => ({ data: fallbackStructure, error: null })) : Promise.resolve({ data: null }),
@@ -771,7 +771,7 @@ export function useData() {
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'system_users' }, () => {
-        supabase.from('system_users').select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar').order('login').then(({ data }) => { if (data) setSystemUsers(data) })
+        supabase.from('system_users').select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar, last_seen').order('login').then(({ data }) => { if (data) setSystemUsers(data) })
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'company_structure' }, () => {
         supabase.from('company_structure').select('*').order('name').then(({ data, error }) => {
