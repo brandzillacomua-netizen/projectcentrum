@@ -1041,7 +1041,7 @@ const MasterModule = () => {
       })
 
     return Object.values(fallbackConsumables)
-  }, [activeNaryadOrder, materialSummary, nomenclatures, rowMachines, machineOperations, naryadQtys, isReprintMode, reprintTask, inventory, naryadParts, partCutterOverrides])
+  }, [activeNaryadOrder, materialSummary, nomenclatures, rowMachines, machineOperations, naryadQtys, isReprintMode, reprintTask, inventory, naryadParts, partCutterOverrides, rowMachinesSplits])
 
   const hasUnassignedMachines = useMemo(() => {
     if (!activeNaryadOrder) return false
