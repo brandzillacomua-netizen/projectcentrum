@@ -960,7 +960,12 @@ const MasterModule = () => {
         })()
         const totalToProduce = snapshot ? snapshot.plan : (isReprintMode ? 0 : Math.max(0, totalNeeded - inStock))
         const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
-        const sheets = Math.ceil(totalToProduce / unitsPerSheet)
+        
+        // Calculate sheets using splits if split mode is active
+        const splits = rowMachinesSplits[part.nom.id] || []
+        const sheets = splits.length > 0
+          ? splits.reduce((acc, s) => acc + (Number(s.sheets) || 0), 0)
+          : Math.ceil(totalToProduce / unitsPerSheet)
 
         if (sheets <= 0) return
 
