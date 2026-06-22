@@ -68,6 +68,14 @@ const SettingsModule = () => {
   const [cuttersUploadLog, setCuttersUploadLog] = useState('')
   const [cuttersPreviewList, setCuttersPreviewList] = useState([])
 
+  // Fasteners (метизи) stock upload states
+  const [fastenersFile, setFastenersFile] = useState(null)
+  const [fastenersRecordMode, setFastenersRecordMode] = useState('overwrite')
+  const [fastenersUploadStatus, setFastenersUploadStatus] = useState('idle')
+  const [fastenersUploadLog, setFastenersUploadLog] = useState('')
+  const [fastenersPreviewList, setFastenersPreviewList] = useState([])
+
+
   // Tabs: users, structure, system
   const [activeTab, setActiveTab] = useState('users') 
   const [structureSubTab, setStructureSubTab] = useState('departments')
@@ -802,6 +810,163 @@ const SettingsModule = () => {
       setCuttersUploadStatus('error')
     }
   }
+
+  // ── FASTENERS (МЕТИЗИ) UPLOAD HELPERS ──
+
+  const handleFastenersFileChange = async (e) => {
+    try {
+      const file = e.target.files[0]
+      if (!file) return
+      setFastenersFile(file)
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        try {
+          const text = event.target.result
+          const delim = detectDelimiter(text)
+          const parsed = parseCSV(text, delim)
+          if (parsed.length > 0) {
+            processFastenersCSV(parsed)
+          } else {
+            alert('Помилка: файл порожній або має невірний формат.')
+          }
+        } catch (innerErr) {
+          console.error(innerErr)
+          alert('Помилка обробки вмісту файлу метизів: ' + innerErr.message)
+        }
+        e.target.value = ''
+      }
+      reader.readAsText(file, 'UTF-8')
+    } catch (err) {
+      console.error(err)
+      alert('Помилка завантаження файлу метизів: ' + err.message)
+      if (e?.target) e.target.value = ''
+    }
+  }
+
+  const processFastenersCSV = (parsedCsv) => {
+    const headers = parsedCsv[0]
+    const nameColIdx = headers.findIndex(h => {
+      const n = h.toLowerCase().trim()
+      return n.includes('номенклатура') || n.includes('назва') || n === 'name'
+    })
+    let qtyColIdx = headers.findIndex(h => h.toLowerCase().includes('залишок'))
+    if (qtyColIdx === -1) qtyColIdx = headers.findIndex(h => {
+      const n = h.toLowerCase().trim()
+      return n.includes('склад') || n.includes('кількість') || n === 'qty'
+    })
+    if (nameColIdx === -1) {
+      alert('Помилка: не знайдено колонку «Номенклатура».')
+      return
+    }
+    const rows = parsedCsv.slice(1)
+    const items = []
+    rows.forEach((row, idx) => {
+      const name = row[nameColIdx] ? row[nameColIdx].trim() : ''
+      if (!name) return
+      const rawQty = qtyColIdx !== -1 ? (row[qtyColIdx] || '').trim() : ''
+      const qty = parseInt(rawQty) || 0
+      if (qty <= 0) return
+      items.push({ name, qty, rowNum: idx + 2 })
+    })
+    items.sort((a, b) => a.name.localeCompare(b.name, 'uk'))
+    setFastenersPreviewList(items)
+    setFastenersUploadStatus('preview')
+  }
+
+  const executeFastenersUpload = async () => {
+    setFastenersUploadStatus('uploading')
+    setFastenersUploadLog('Початок завантаження залишків метизів на СВ...\n')
+    const existingInventory = inventory || []
+    const updates = []
+    const inserts = []
+
+    // Group preview list by name
+    const aggregatedFasteners = {}
+    fastenersPreviewList.forEach(item => {
+      const key = item.name
+      if (!aggregatedFasteners[key]) {
+        aggregatedFasteners[key] = { ...item }
+      } else {
+        aggregatedFasteners[key].qty += item.qty
+      }
+    })
+    const groupedList = Object.values(aggregatedFasteners)
+
+    try {
+      const dbNomMap = {}
+      ;(nomenclatures || []).forEach(n => { dbNomMap[normalizeHomoglyphs(n.name)] = n })
+      setFastenersUploadLog(prev => prev + `Обробка ${groupedList.length} унікальних позицій метизів...\n`)
+
+      for (const item of groupedList) {
+        const normName = normalizeHomoglyphs(item.name)
+        let nomRecord = dbNomMap[normName]
+        if (!nomRecord) {
+          const { data: newNom, error: nomErr } = await supabase
+            .from('nomenclatures')
+            .insert([{ name: item.name, type: 'hardware' }])
+            .select().single()
+          if (nomErr) {
+            setFastenersUploadLog(prev => prev + `  ⚠️ [НОМ ПОМИЛКА] ${item.name}: ${nomErr.message}\n`)
+            continue
+          }
+          setFastenersUploadLog(prev => prev + `  ✅ [НОМ СТВОРЕНО] ${newNom.name} (ID: ${newNom.id})\n`)
+          nomRecord = newNom
+          dbNomMap[normName] = newNom
+        }
+
+        // Find existing inventory item on SV ('production') warehouse
+        const existingInv = existingInventory.find(i =>
+          i.warehouse === 'production' &&
+          String(i.nomenclature_id) === String(nomRecord.id)
+        )
+
+        if (existingInv) {
+          const newTotal = fastenersRecordMode === 'add'
+            ? (Number(existingInv.total_qty) || 0) + item.qty
+            : item.qty
+          updates.push({
+            id: existingInv.id,
+            nomenclature_id: nomRecord.id,
+            name: item.name,
+            type: existingInv.type || 'hardware',
+            warehouse: 'production',
+            unit: existingInv.unit || 'шт',
+            total_qty: newTotal,
+            reserved_qty: existingInv.reserved_qty || 0,
+            updated_at: new Date().toISOString()
+          })
+          setFastenersUploadLog(prev => prev + `[ОНОВИТИ СВ] ${item.name}: ${newTotal} шт\n`)
+        } else {
+          inserts.push({
+            nomenclature_id: nomRecord.id,
+            name: item.name,
+            type: 'hardware',
+            warehouse: 'production',
+            unit: 'шт',
+            total_qty: item.qty,
+            reserved_qty: 0,
+            updated_at: new Date().toISOString()
+          })
+          setFastenersUploadLog(prev => prev + `[НОВИЙ СВ] ${item.name}: ${item.qty} шт\n`)
+        }
+      }
+
+      setFastenersUploadLog(prev => prev + `\nНадсилання змін до Supabase...\n`)
+      const batchOps = []
+      if (updates.length > 0) batchOps.push(supabase.from('inventory').upsert(updates))
+      if (inserts.length > 0) batchOps.push(supabase.from('inventory').insert(inserts))
+      const results = await Promise.all(batchOps)
+      for (const res of results) { if (res.error) throw res.error }
+      setFastenersUploadLog(prev => prev + `✅ Успішно оновлено базу даних!\n`)
+      setFastenersUploadStatus('success')
+      refreshTable('inventory')
+      refreshTable('nomenclatures')
+    } catch (err) {
+      setFastenersUploadLog(prev => prev + `❌ Помилка запису в БД: ${err.message || err}\n`)
+      setFastenersUploadStatus('error')
+    }
+  }
+
 
   const parseCSV = (text, delimiter = ';') => {
     const lines = []
@@ -2986,6 +3151,136 @@ const SettingsModule = () => {
               )}
 
             </section>
+
+            {/* ── ЗАВАНТАЖЕННЯ ЗАЛИШКІВ МЕТИЗІВ (СВ) ── */}
+            <section className="settings-panel glass-panel" style={{ background: '#0e0e11', padding: '30px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.04)', gridColumn: '1 / -1' }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 900, marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '10px', color: '#ff9000' }}>
+                <Layers size={20} /> ЗАВАНТАЖЕННЯ ЗАЛИШКІВ МЕТИЗІВ (СВ)
+              </h3>
+              <p style={{ fontSize: '0.72rem', color: '#555', marginTop: 0, marginBottom: '24px', lineHeight: '1.5' }}>
+                Завантажте CSV-файл залишків метизів для Складу Виробництва (СВ). Колонки: <strong style={{ color: '#ff9000' }}>«Номенклатура»</strong>, <strong style={{ color: '#10b981' }}>«Залишок на складі»</strong>.
+              </p>
+
+              {fastenersUploadStatus === 'idle' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <div style={{ border: '2px dashed rgba(255,144,0,0.3)', borderRadius: '18px', padding: '36px 20px', textAlign: 'center', background: 'rgba(255,144,0,0.01)', cursor: 'pointer', transition: 'all 0.2s ease', position: 'relative', maxWidth: '520px' }}
+                  >
+                    <input 
+                      id="fasteners-file-input" 
+                      type="file" 
+                      accept=".csv" 
+                      onChange={handleFastenersFileChange} 
+                      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} 
+                    />
+                    <Upload size={38} color="#ff9000" style={{ marginBottom: '14px', opacity: 0.8, marginLeft: 'auto', marginRight: 'auto' }} />
+                    <h4 style={{ margin: '0 0 6px 0', fontSize: '0.9rem', fontWeight: 800 }}>Оберіть або перетягніть CSV файл</h4>
+                    <p style={{ margin: 0, fontSize: '0.7rem', color: '#666', fontWeight: 600 }}>«Номенклатура» | «Залишок на складі»</p>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '0.72rem', color: '#888', fontWeight: 700 }}>Режим запису:</span>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      {[{ v: 'overwrite', label: '✎ Перезаписати (рекомендовано)' }, { v: 'add', label: '+ Додати до наявного' }].map(opt => (
+                        <button key={opt.v} onClick={() => setFastenersRecordMode(opt.v)} type="button" style={{
+                          background: fastenersRecordMode === opt.v ? 'rgba(255,144,0,0.12)' : 'transparent',
+                          border: fastenersRecordMode === opt.v ? '1px solid #ff9000' : '1px solid rgba(255,255,255,0.07)',
+                          color: fastenersRecordMode === opt.v ? '#ff9000' : '#888',
+                          padding: '6px 14px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 800, cursor: 'pointer', transition: '0.2s'
+                        }}>{opt.label}</button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {fastenersUploadStatus === 'preview' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
+                    {[
+                      { label: 'Всього метизів', val: fastenersPreviewList.length, color: '#ff9000' },
+                      { label: 'Загальна кількість', val: fastenersPreviewList.reduce((s, i) => s + i.qty, 0), color: '#10b981' },
+                    ].map(s => (
+                      <div key={s.label} style={{ background: 'rgba(0,0,0,0.25)', border: `1px solid ${s.color}22`, borderRadius: '14px', padding: '12px 20px', minWidth: '160px' }}>
+                        <div style={{ fontSize: '1.4rem', fontWeight: 900, color: s.color }}>{s.val}</div>
+                        <div style={{ fontSize: '0.68rem', color: '#888', fontWeight: 700, marginTop: '2px' }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ maxHeight: '380px', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '14px', background: 'rgba(0,0,0,0.12)' }} className="custom-scroll">
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+                      <thead>
+                        <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.05)', color: '#666' }}>
+                          <th style={{ padding: '10px 16px' }}>Назва метизу</th>
+                          <th style={{ padding: '10px 16px', textAlign: 'center', color: '#10b981' }}>Залишок (шт)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {fastenersPreviewList.map((item, i) => (
+                          <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                            <td style={{ padding: '10px 16px', fontWeight: 700, color: '#eee' }}>{item.name}</td>
+                            <td style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 900, color: '#10b981', fontSize: '1rem' }}>{item.qty}</td>
+                          </tr>
+                        ))}
+                        {fastenersPreviewList.length === 0 && <tr><td colSpan={2} style={{ padding: '24px', textAlign: 'center', color: '#555' }}>Жодних метизів не знайдено</td></tr>}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '18px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '0.72rem', color: '#888', fontWeight: 700 }}>Режим запису:</span>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        {[{ v: 'overwrite', label: '✎ Перезаписати' }, { v: 'add', label: '+ Додати' }].map(opt => (
+                          <button key={opt.v} onClick={() => setFastenersRecordMode(opt.v)} type="button" style={{
+                            background: fastenersRecordMode === opt.v ? 'rgba(255,144,0,0.12)' : 'transparent',
+                            border: fastenersRecordMode === opt.v ? '1px solid #ff9000' : '1px solid rgba(255,255,255,0.07)',
+                            color: fastenersRecordMode === opt.v ? '#ff9000' : '#888',
+                            padding: '6px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 800, cursor: 'pointer', transition: '0.2s'
+                          }}>{opt.label}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button type="button" onClick={() => { setFastenersUploadStatus('idle'); setFastenersFile(null); setFastenersPreviewList([]) }} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', color: '#aaa', padding: '12px 22px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}>← НАЗАД</button>
+                      <button type="button" onClick={executeFastenersUpload} disabled={fastenersPreviewList.length === 0} style={{ background: fastenersPreviewList.length === 0 ? '#222' : 'linear-gradient(135deg, #ff9000, #ff6a00)', border: 'none', color: fastenersPreviewList.length === 0 ? '#555' : '#000', padding: '12px 28px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 900, cursor: fastenersPreviewList.length === 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Upload size={16} /> ЗАПИСАТИ В СИСТЕМУ ({fastenersPreviewList.length} метизів)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {fastenersUploadStatus === 'uploading' && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '18px', padding: '30px 0' }}>
+                  <div className="spinner-mes" style={{ width: '44px', height: '44px', borderRadius: '50%', border: '3px solid rgba(255,144,0,0.15)', borderTopColor: '#ff9000', animation: 'spin 1s linear infinite' }} />
+                  <div style={{ fontSize: '0.85rem', color: '#aaa', fontWeight: 700 }}>Запис залишків метизів у базу...</div>
+                  <pre style={{ background: '#000', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', padding: '14px', color: '#00ff66', fontFamily: 'monospace', fontSize: '0.7rem', width: '100%', maxWidth: '640px', maxHeight: '180px', overflowY: 'auto', whiteSpace: 'pre-wrap', margin: 0 }} className="custom-scroll">{fastenersUploadLog}</pre>
+                </div>
+              )}
+
+              {fastenersUploadStatus === 'success' && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '24px 0' }}>
+                  <CheckCircle2 size={52} color="#10b981" />
+                  <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900, color: '#fff' }}>ЗАВАНТАЖЕННЯ ЗАВЕРШЕНО УСПІШНО!</h4>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: '#aaa', textAlign: 'center' }}>Залишки метизів на складі СВ оновлено.</p>
+                  <pre style={{ background: '#000', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', padding: '14px', color: '#00ff66', fontFamily: 'monospace', fontSize: '0.7rem', width: '100%', maxWidth: '640px', maxHeight: '180px', overflowY: 'auto', whiteSpace: 'pre-wrap', margin: 0 }} className="custom-scroll">{fastenersUploadLog}</pre>
+                  <button type="button" onClick={() => { setFastenersUploadStatus('idle'); setFastenersFile(null); setFastenersPreviewList([]); setFastenersUploadLog('') }} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', padding: '12px 28px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 800, cursor: 'pointer', marginTop: '6px' }}>
+                    ЗАВАНТАЖИТИ НАСТУПНИЙ ФАЙЛ
+                  </button>
+                </div>
+              )}
+
+              {fastenersUploadStatus === 'error' && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '24px 0' }}>
+                  <AlertCircle size={52} color="#ef4444" />
+                  <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900, color: '#fff' }}>ПОМИЛКА ПРИ ЗАПИСІ</h4>
+                  <pre style={{ background: '#000', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '12px', padding: '14px', color: '#ef4444', fontFamily: 'monospace', fontSize: '0.7rem', width: '100%', maxWidth: '640px', maxHeight: '180px', overflowY: 'auto', whiteSpace: 'pre-wrap', margin: 0 }} className="custom-scroll">{fastenersUploadLog}</pre>
+                  <button type="button" onClick={() => setFastenersUploadStatus('preview')} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', padding: '12px 28px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 800, cursor: 'pointer' }}>
+                    ← ПОВЕРНУТИСЬ ДО ПЕРЕГЛЯДУ
+                  </button>
+                </div>
+              )}
+
+            </section>
+
 
           </div>
         )}

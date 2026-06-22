@@ -1237,25 +1237,12 @@ export function createProductionActions({
               let cutterNom = nomenclatures.find(n => String(n.id) === String(cutterNomId))
               
               if (cutterNom && partInfo.cutter_override === '1.5') {
-                const nameLower = cutterNom.name.toLowerCase()
-                const fMatch = nameLower.match(/ф\s*([0-9,.]+)/)
-                const parsedDiam = fMatch ? parseFloat(fMatch[1].replace(',', '.')) : null
-                if (parsedDiam === 2 || parsedDiam === 2.0) {
-                  // Robust: search by diameter 1.5, not by mangled name string
-                  const altNom = nomenclatures.find(n => {
-                    const nl = n.name.toLowerCase()
-                    if (!nl.startsWith('фреза')) return false
-                    const m = nl.match(/ф\s*([0-9][0-9,.]*)/)
-                    if (!m) return false
-                    const d = parseFloat(m[1].replace(',', '.'))
-                    return Math.abs(d - 1.5) < 0.01
-                  })
-                  if (altNom) {
-                    cutterNom = altNom
-                  } else {
-                    // Fallback: synthetic entry so СО request still shows Ф1.5
-                    cutterNom = { ...cutterNom, name: 'Фреза ф1.5', id: '__synthetic_f1.5__' }
-                  }
+                const nl = cutterNom.name.toLowerCase()
+                const m1 = nl.match(/ф\s*([0-9,.]+)/)
+                const m2 = nl.match(/(?:кукурудза|двопера|однопера|спіральна|торцева|шарова|радіусна)?\s*([0-9][0-9,]*)(?:\s*[×xх×])/)
+                const d = m1 ? parseFloat(m1[1].replace(',', '.')) : (m2 ? parseFloat(m2[1].replace(',', '.')) : null)
+                if (d && Math.abs(d - 2) < 0.01) {
+                  cutterNom = { ...cutterNom, name: 'Фреза ф1.5', id: '__synthetic_f1.5__' }
                 }
               }
 
@@ -1458,8 +1445,26 @@ export function createProductionActions({
           const selectedInv = inventory.find(i => String(i.id) === String(inventoryItemId))
           if (!selectedInv) return
           const existingReq = requestsToInsert.find(r => {
-            const nom = nomenclatures.find(n => String(n.id) === String(r.nomenclature_id));
-            return nom && nom.name === cutterName;
+            if (r.nomenclature_id && selectedInv.nomenclature_id && String(r.nomenclature_id) === String(selectedInv.nomenclature_id)) {
+              return true
+            }
+            let nameToCheck = ""
+            if (r.nomenclature_id) {
+              const nom = nomenclatures.find(n => String(n.id) === String(r.nomenclature_id))
+              nameToCheck = nom?.name || ""
+            } else if (r.details) {
+              const match = r.details.match(/:\s*(.*?)\s*—/)
+              if (match) nameToCheck = match[1].trim()
+            }
+            if (nameToCheck === cutterName) return true
+            
+            // Handle Ф2 -> Ф1.5 override mapping
+            const normCheck = nameToCheck.toLowerCase().replace(/\s+/g, '')
+            const normCutter = cutterName.toLowerCase().replace(/\s+/g, '')
+            if (normCutter === 'фрезаф2' && normCheck === 'фрезаф1.5') {
+              return true
+            }
+            return false
           })
           if (existingReq) {
             existingReq.nomenclature_id = selectedInv.nomenclature_id

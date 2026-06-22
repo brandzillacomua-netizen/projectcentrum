@@ -981,26 +981,12 @@ const MasterModule = () => {
               let cutterNom = nomenclatures.find(n => String(n.id) === String(cutterNomId))
               
               if (cutterNom && override === '1.5') {
-                const nameLower = cutterNom.name.toLowerCase()
-                const fMatch = nameLower.match(/ф\s*([0-9,.]+)/)
-                const parsedDiam = fMatch ? parseFloat(fMatch[1].replace(',', '.')) : null
-                if (parsedDiam === 2 || parsedDiam === 2.0) {
-                  // Robust search: find any nomenclature named "фреза" with diameter 1.5
-                  const altNom = nomenclatures.find(n => {
-                    const nl = n.name.toLowerCase()
-                    if (!nl.startsWith('фреза')) return false
-                    const m = nl.match(/ф\s*([0-9][0-9,.]*)/)
-                    if (!m) return false
-                    const d = parseFloat(m[1].replace(',', '.'))
-                    return Math.abs(d - 1.5) < 0.01
-                  })
-                  if (altNom) {
-                    cutterNom = altNom
-                  } else {
-                    // Fallback: if Ф1.5 not in nomenclatures yet, build a synthetic entry
-                    // so the summary label still shows the correct cutter name
-                    cutterNom = { ...cutterNom, name: 'Фреза ф1.5', id: '__synthetic_f1.5__' }
-                  }
+                const nl = cutterNom.name.toLowerCase()
+                const m1 = nl.match(/ф\s*([0-9,.]+)/)
+                const m2 = nl.match(/(?:кукурудза|двопера|однопера|спіральна|торцева|шарова|радіусна)?\s*([0-9][0-9,]*)(?:\s*[×xх×])/)
+                const d = m1 ? parseFloat(m1[1].replace(',', '.')) : (m2 ? parseFloat(m2[1].replace(',', '.')) : null)
+                if (d && Math.abs(d - 2) < 0.01) {
+                  cutterNom = { ...cutterNom, name: 'Фреза ф1.5', id: '__synthetic_f1.5__' }
                 }
               }
 

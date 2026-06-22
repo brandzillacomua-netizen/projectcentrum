@@ -2283,8 +2283,11 @@ const MACHINE_TYPES = [
                             <div style={{ borderTop: '1px solid #000', borderBottom: '1px solid #000', margin: '2px 0', padding: '2px 0' }}>Лист | Лист</div>
                             1, 2 | 3, 4
                           </td>
-                          <td style={{ border: '1.5px solid #000', width: '13%', fontSize: '6.5pt', fontWeight: 'bold' }}>Операція (2 сторона вирізка)<br/>Ф2мм</td>
-                          <td style={{ border: '1.5px solid #000', width: '13%', fontSize: '6.5pt', fontWeight: 'bold' }}>Операція (2 сторона вирізка)<br/>Ф1.5мм</td>
+                          {!isCutter1_5 ? (
+                            <td style={{ border: '1.5px solid #000', width: '26%', fontSize: '6.5pt', fontWeight: 'bold' }}>Операція (2 сторона вирізка)<br/>Ф2мм</td>
+                          ) : (
+                            <td style={{ border: '1.5px solid #000', width: '26%', fontSize: '6.5pt', fontWeight: 'bold' }}>Операція (2 сторона вирізка)<br/>Ф1.5мм</td>
+                          )}
                           <td style={{ border: '1.5px solid #000', width: '8%', fontSize: '5.5pt', lineHeight: 1 }}>Статус<br />виконання<br />☑</td>
                         </tr>
                       </thead>
@@ -2295,8 +2298,11 @@ const MACHINE_TYPES = [
                             <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt', letterSpacing: '2px' }}>☐ | ☐</td>
                             <td style={{ border: '1.5px solid #000', paddingLeft: '4px' }}>{row.s2}</td>
                             <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt', letterSpacing: '2px' }}>☐ | ☐</td>
-                            <td style={{ border: '1.5px solid #000', paddingLeft: '4px', background: !isCutter1_5 ? '#fff' : '#f9f9f9', color: !isCutter1_5 ? '#000' : '#888' }}>{row.s2cF2}</td>
-                            <td style={{ border: '1.5px solid #000', paddingLeft: '4px', background: isCutter1_5 ? '#fff' : '#f9f9f9', color: isCutter1_5 ? '#000' : '#888' }}>{row.s2cF15}</td>
+                            {!isCutter1_5 ? (
+                              <td style={{ border: '1.5px solid #000', paddingLeft: '4px' }}>{row.s2cF2}</td>
+                            ) : (
+                              <td style={{ border: '1.5px solid #000', paddingLeft: '4px' }}>{row.s2cF15}</td>
+                            )}
                             <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt' }}>☐</td>
                           </tr>
                         ))}

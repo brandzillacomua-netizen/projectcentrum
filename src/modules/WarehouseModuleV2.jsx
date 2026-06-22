@@ -1319,6 +1319,7 @@ const WarehouseModuleV2 = () => {
                     <tr style={{ borderBottom: '1px solid #222', textAlign: 'left' }}>
                       <th className="sticky-col" style={{ padding: '15px', fontSize: '0.7rem', color: '#555' }}>НАЙМЕНУВАННЯ</th>
                       <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'center' }}>НАЯВНІСТЬ</th>
+                      <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'center' }}>ВІЛЬНО</th>
                       <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'center' }}>РЕЗЕРВ</th>
                       <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'right' }}>ОСТАННЄ ОНОВЛЕННЯ</th>
                     </tr>
@@ -1326,7 +1327,7 @@ const WarehouseModuleV2 = () => {
                   <tbody>
                     {filteredInventory.length === 0 ? (
                       <tr>
-                        <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: '#333', fontSize: '0.85rem' }}>
+                        <td colSpan={5} style={{ padding: '40px', textAlign: 'center', color: '#333', fontSize: '0.85rem' }}>
                           Позицій не знайдено
                         </td>
                       </tr>
@@ -1334,7 +1335,7 @@ const WarehouseModuleV2 = () => {
                       Object.entries(groupedPocketInventory).map(([owner, items]) => (
                         <React.Fragment key={owner}>
                           <tr style={{ background: 'rgba(255, 144, 0, 0.04)', borderBottom: '1px solid #222' }}>
-                            <td colSpan={4} style={{ padding: '12px 15px', fontWeight: 900, color: '#ff9000', fontSize: '0.85rem', letterSpacing: '0.03em' }}>
+                            <td colSpan={5} style={{ padding: '12px 15px', fontWeight: 900, color: '#ff9000', fontSize: '0.85rem', letterSpacing: '0.03em' }}>
                               👤 МАЙСТЕР: {owner.toUpperCase()}
                             </td>
                           </tr>
@@ -1373,6 +1374,9 @@ const WarehouseModuleV2 = () => {
                                     <small style={{ color: '#444', fontWeight: 400 }}>{item.unit}</small>
                                   </>
                                 )}
+                              </td>
+                              <td style={{ padding: '15px', textAlign: 'center', color: '#10b981', fontWeight: 900 }}>
+                                {editingInvId === item.id ? (Number(editingInvTotal) || 0) - (Number(editingInvReserved) || 0) : (item.total_qty || 0) - (item.reserved_qty || 0)}
                               </td>
                               <td style={{ padding: '15px', textAlign: 'center', color: Number(item.reserved_qty) > 0 ? '#3b82f6' : '#222', fontWeight: 800 }}>
                                 {editingInvId === item.id ? (
@@ -1468,6 +1472,9 @@ const WarehouseModuleV2 = () => {
                                 <small style={{ color: '#444', fontWeight: 400 }}>{item.unit}</small>
                               </>
                             )}
+                          </td>
+                          <td style={{ padding: '15px', textAlign: 'center', color: '#10b981', fontWeight: 900 }}>
+                            {editingInvId === item.id ? (Number(editingInvTotal) || 0) - (Number(editingInvReserved) || 0) : (item.total_qty || 0) - (item.reserved_qty || 0)}
                           </td>
                           <td style={{ padding: '15px', textAlign: 'center', color: Number(item.reserved_qty) > 0 ? '#3b82f6' : '#222', fontWeight: 800 }}>
                             {editingInvId === item.id ? (
@@ -1588,6 +1595,14 @@ const WarehouseModuleV2 = () => {
                                 </div>
                                 {activeTab !== 'bz' && (
                                   <div>
+                                    <div style={{ fontSize: '0.6rem', color: '#555' }}>ВІЛЬНО</div>
+                                    <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#10b981' }}>
+                                      {(item.total_qty || 0) - (item.reserved_qty || 0)}
+                                    </div>
+                                  </div>
+                                )}
+                                {activeTab !== 'bz' && (
+                                  <div>
                                     <div style={{ fontSize: '0.6rem', color: '#555' }}>РЕЗЕРВ</div>
                                     <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#3b82f6' }}>{item.reserved_qty || 0}</div>
                                   </div>
@@ -1670,6 +1685,14 @@ const WarehouseModuleV2 = () => {
                                 {item.total_qty || 0}
                               </div>
                             </div>
+                            {activeTab !== 'bz' && (
+                              <div>
+                                <div style={{ fontSize: '0.6rem', color: '#555' }}>ВІЛЬНО</div>
+                                <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#10b981' }}>
+                                  {(item.total_qty || 0) - (item.reserved_qty || 0)}
+                                </div>
+                              </div>
+                            )}
                             {activeTab !== 'bz' && (
                               <div>
                                 <div style={{ fontSize: '0.6rem', color: '#555' }}>РЕЗЕРВ</div>

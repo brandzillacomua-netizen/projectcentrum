@@ -90,13 +90,32 @@ const renderCutterListEditorShared = (cutters, setCutters, nomenclatures) => {
   )
 }
 
+const combineOps = (f2Arr, f15Arr) => {
+  const maxLen = Math.max(f2Arr.length, f15Arr.length)
+  const combined = []
+  for (let i = 0; i < maxLen; i++) {
+    const valF2 = (f2Arr[i] || "").trim()
+    const valF15 = (f15Arr[i] || "").trim()
+    if (valF2 && valF15 && valF2 !== valF15) {
+      combined.push(`${valF2} | ${valF15}`)
+    } else if (valF2) {
+      combined.push(valF2)
+    } else if (valF15) {
+      combined.push(valF15)
+    }
+  }
+  return combined.filter(Boolean)
+}
+
 const MachineOperationsTab = () => {
   const { nomenclatures, machines, machineOperations, supabase, bomItems, refreshTable } = useMES()
   const [selectedNom, setSelectedNom] = useState('')
   const [selectedMachine, setSelectedMachine] = useState('')
   const [side1Ops, setSide1Ops] = useState([])
-  const [side2Ops, setSide2Ops] = useState([])
-  const [side2CutOps, setSide2CutOps] = useState([])
+  const [side2OpsF2, setSide2OpsF2] = useState([])
+  const [side2OpsF15, setSide2OpsF15] = useState([])
+  const [side2CutOpsF2, setSide2CutOpsF2] = useState([])
+  const [side2CutOpsF15, setSide2CutOpsF15] = useState([])
   const [cuttersList, setCuttersList] = useState([])
   const [uploading, setUploading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -109,8 +128,12 @@ const MachineOperationsTab = () => {
       )
       if (existing) {
         setSide1Ops((existing.side1_ops || []).filter(op => !op.startsWith('__CUTTER__:')))
-        setSide2Ops((existing.side2_ops || []).filter(op => !op.startsWith('__CUTTER__:')))
-        setSide2CutOps((existing.side2_cut_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:')))
+        const s2 = (existing.side2_ops || []).filter(op => !op.startsWith('__CUTTER__:'))
+        setSide2OpsF2(s2.map(op => op.includes('|') ? op.split('|')[0].trim() : op))
+        setSide2OpsF15(s2.map(op => op.includes('|') ? op.split('|')[1].trim() : op))
+        const s2c = (existing.side2_cut_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:'))
+        setSide2CutOpsF2(s2c.map(op => op.includes('|') ? op.split('|')[0].trim() : op))
+        setSide2CutOpsF15(s2c.map(op => op.includes('|') ? op.split('|')[1].trim() : op))
         
         const cutterOps = (existing.side2_cut_ops || []).filter(op => op.startsWith('__CUTTER__:'))
         const parsed = cutterOps.map(c => {
@@ -120,8 +143,10 @@ const MachineOperationsTab = () => {
         setCuttersList(parsed)
       } else {
         setSide1Ops([])
-        setSide2Ops([])
-        setSide2CutOps([])
+        setSide2OpsF2([])
+        setSide2OpsF15([])
+        setSide2CutOpsF2([])
+        setSide2CutOpsF15([])
         setCuttersList([])
       }
     }
@@ -145,8 +170,8 @@ const MachineOperationsTab = () => {
       machine_id: isType ? null : selectedMachine,
       machine_type: isType ? selectedMachine : null,
       side1_ops: side1Ops.filter(Boolean),
-      side2_ops: side2Ops.filter(Boolean),
-      side2_cut_ops: [...side2CutOps.filter(Boolean), ...cutterStrings]
+      side2_ops: combineOps(side2OpsF2, side2OpsF15),
+      side2_cut_ops: [...combineOps(side2CutOpsF2, side2CutOpsF15), ...cutterStrings]
     }
     
     if (existing) {
@@ -1012,9 +1037,11 @@ const MachineOperationsTab = () => {
         {selectedNom && selectedMachine && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
-              {renderOpList(side1Ops, setSide1Ops, 'Операція (1 сторона)')}
-              {renderOpList(side2Ops, setSide2Ops, 'Операція (2 сторона)')}
-              {renderOpList(side2CutOps, setSide2CutOps, 'Операція (2 сторона вирізка)')}
+              {renderOpList(side1Ops, setSide1Ops, '1 сторона')}
+              {renderOpList(side2OpsF2, setSide2OpsF2, '2 сторона (Ф2)')}
+              {renderOpList(side2OpsF15, setSide2OpsF15, '2 сторона (Ф1.5)')}
+              {renderOpList(side2CutOpsF2, setSide2CutOpsF2, 'Вирізка (Ф2)')}
+              {renderOpList(side2CutOpsF15, setSide2CutOpsF15, 'Вирізка (Ф1.5)')}
               {renderCutterListEditor(cuttersList, setCuttersList)}
             </div>
             <button onClick={handleSave} style={{ padding: '15px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '1rem' }}>
@@ -1441,8 +1468,10 @@ const SpecBuilderTab = () => {
   const [activeInlinePart, setActiveInlinePart] = useState(null) // { id, name }
   const [selectedMachine, setSelectedMachine] = useState('')
   const [side1Ops, setSide1Ops] = useState([])
-  const [side2Ops, setSide2Ops] = useState([])
-  const [side2CutOps, setSide2CutOps] = useState([])
+  const [side2OpsF2, setSide2OpsF2] = useState([])
+  const [side2OpsF15, setSide2OpsF15] = useState([])
+  const [side2CutOpsF2, setSide2CutOpsF2] = useState([])
+  const [side2CutOpsF15, setSide2CutOpsF15] = useState([])
   const [inlineCuttersList, setInlineCuttersList] = useState([])
   const [savingOps, setSavingOps] = useState(false)
 
@@ -1472,8 +1501,12 @@ const SpecBuilderTab = () => {
       )
       if (existing) {
         setSide1Ops((existing.side1_ops || []).filter(op => !op.startsWith('__CUTTER__:')))
-        setSide2Ops((existing.side2_ops || []).filter(op => !op.startsWith('__CUTTER__:')))
-        setSide2CutOps((existing.side2_cut_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:')))
+        const s2 = (existing.side2_ops || []).filter(op => !op.startsWith('__CUTTER__:'))
+        setSide2OpsF2(s2.map(op => op.includes('|') ? op.split('|')[0].trim() : op))
+        setSide2OpsF15(s2.map(op => op.includes('|') ? op.split('|')[1].trim() : op))
+        const s2c = (existing.side2_cut_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:'))
+        setSide2CutOpsF2(s2c.map(op => op.includes('|') ? op.split('|')[0].trim() : op))
+        setSide2CutOpsF15(s2c.map(op => op.includes('|') ? op.split('|')[1].trim() : op))
         
         const cutterOps = (existing.side2_cut_ops || []).filter(op => op.startsWith('__CUTTER__:'))
         const parsed = cutterOps.map(c => {
@@ -1483,8 +1516,10 @@ const SpecBuilderTab = () => {
         setInlineCuttersList(parsed)
       } else {
         setSide1Ops([])
-        setSide2Ops([])
-        setSide2CutOps([])
+        setSide2OpsF2([])
+        setSide2OpsF15([])
+        setSide2CutOpsF2([])
+        setSide2CutOpsF15([])
         setInlineCuttersList([])
       }
     }
@@ -1510,8 +1545,8 @@ const SpecBuilderTab = () => {
         machine_id: isType ? null : selectedMachine,
         machine_type: isType ? selectedMachine : null,
         side1_ops: side1Ops.filter(Boolean),
-        side2_ops: side2Ops.filter(Boolean),
-        side2_cut_ops: [...side2CutOps.filter(Boolean), ...cutterStrings]
+        side2_ops: combineOps(side2OpsF2, side2OpsF15),
+        side2_cut_ops: [...combineOps(side2CutOpsF2, side2CutOpsF15), ...cutterStrings]
       }
       
       if (existing) {
@@ -1783,28 +1818,52 @@ const SpecBuilderTab = () => {
                       <button onClick={() => setSide1Ops([...side1Ops, ''])} style={{ width: '100%', padding: '5px', background: 'transparent', border: '1px dashed #222', color: '#3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem' }}>+ Додати</button>
                     </div>
 
-                    {/* Render inputs side2 */}
+                    {/* Render inputs side2 F2 */}
                     <div style={{ flex: 1, minWidth: '180px', background: '#0a0a0a', padding: '12px', borderRadius: '12px', border: '1px solid #111' }}>
-                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: '#888' }}>2 сторона</h5>
-                      {side2Ops.map((op, idx) => (
+                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: '#888' }}>2 сторона (Ф2)</h5>
+                      {side2OpsF2.map((op, idx) => (
                         <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
-                          <input value={op} onChange={e => { const copy = [...side2Ops]; copy[idx] = e.target.value; setSide2Ops(copy) }} style={{ flex: 1, padding: '6px', background: '#000', border: '1px solid #222', color: '#fff', borderRadius: '6px', fontSize: '0.75rem' }} />
-                          <button onClick={() => setSide2Ops(side2Ops.filter((_, i) => i !== idx))} style={{ background: '#7f1d1d', border: 'none', color: '#fff', borderRadius: '6px', padding: '0 8px', cursor: 'pointer' }}><Trash2 size={12}/></button>
+                          <input value={op} onChange={e => { const copy = [...side2OpsF2]; copy[idx] = e.target.value; setSide2OpsF2(copy) }} style={{ flex: 1, padding: '6px', background: '#000', border: '1px solid #222', color: '#fff', borderRadius: '6px', fontSize: '0.75rem' }} />
+                          <button onClick={() => setSide2OpsF2(side2OpsF2.filter((_, i) => i !== idx))} style={{ background: '#7f1d1d', border: 'none', color: '#fff', borderRadius: '6px', padding: '0 8px', cursor: 'pointer' }}><Trash2 size={12}/></button>
                         </div>
                       ))}
-                      <button onClick={() => setSide2Ops([...side2Ops, ''])} style={{ width: '100%', padding: '5px', background: 'transparent', border: '1px dashed #222', color: '#3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem' }}>+ Додати</button>
+                      <button onClick={() => setSide2OpsF2([...side2OpsF2, ''])} style={{ width: '100%', padding: '5px', background: 'transparent', border: '1px dashed #333', color: '#3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem' }}>+ Додати</button>
                     </div>
 
-                    {/* Render inputs side2cut */}
+                    {/* Render inputs side2 F1.5 */}
                     <div style={{ flex: 1, minWidth: '180px', background: '#0a0a0a', padding: '12px', borderRadius: '12px', border: '1px solid #111' }}>
-                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: '#888' }}>Вирізка</h5>
-                      {side2CutOps.map((op, idx) => (
+                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: '#888' }}>2 сторона (Ф1.5)</h5>
+                      {side2OpsF15.map((op, idx) => (
                         <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
-                          <input value={op} onChange={e => { const copy = [...side2CutOps]; copy[idx] = e.target.value; setSide2CutOps(copy) }} style={{ flex: 1, padding: '6px', background: '#000', border: '1px solid #222', color: '#fff', borderRadius: '6px', fontSize: '0.75rem' }} />
-                          <button onClick={() => setSide2CutOps(side2CutOps.filter((_, i) => i !== idx))} style={{ background: '#7f1d1d', border: 'none', color: '#fff', borderRadius: '6px', padding: '0 8px', cursor: 'pointer' }}><Trash2 size={12}/></button>
+                          <input value={op} onChange={e => { const copy = [...side2OpsF15]; copy[idx] = e.target.value; setSide2OpsF15(copy) }} style={{ flex: 1, padding: '6px', background: '#000', border: '1px solid #222', color: '#fff', borderRadius: '6px', fontSize: '0.75rem' }} />
+                          <button onClick={() => setSide2OpsF15(side2OpsF15.filter((_, i) => i !== idx))} style={{ background: '#7f1d1d', border: 'none', color: '#fff', borderRadius: '6px', padding: '0 8px', cursor: 'pointer' }}><Trash2 size={12}/></button>
                         </div>
                       ))}
-                      <button onClick={() => setSide2CutOps([...side2CutOps, ''])} style={{ width: '100%', padding: '5px', background: 'transparent', border: '1px dashed #222', color: '#3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem' }}>+ Додати</button>
+                      <button onClick={() => setSide2OpsF15([...side2OpsF15, ''])} style={{ width: '100%', padding: '5px', background: 'transparent', border: '1px dashed #333', color: '#3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem' }}>+ Додати</button>
+                    </div>
+
+                    {/* Render inputs side2cut F2 */}
+                    <div style={{ flex: 1, minWidth: '180px', background: '#0a0a0a', padding: '12px', borderRadius: '12px', border: '1px solid #111' }}>
+                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: '#888' }}>Вирізка (Ф2)</h5>
+                      {side2CutOpsF2.map((op, idx) => (
+                        <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
+                          <input value={op} onChange={e => { const copy = [...side2CutOpsF2]; copy[idx] = e.target.value; setSide2CutOpsF2(copy) }} style={{ flex: 1, padding: '6px', background: '#000', border: '1px solid #222', color: '#fff', borderRadius: '6px', fontSize: '0.75rem' }} />
+                          <button onClick={() => setSide2CutOpsF2(side2CutOpsF2.filter((_, i) => i !== idx))} style={{ background: '#7f1d1d', border: 'none', color: '#fff', borderRadius: '6px', padding: '0 8px', cursor: 'pointer' }}><Trash2 size={12}/></button>
+                        </div>
+                      ))}
+                      <button onClick={() => setSide2CutOpsF2([...side2CutOpsF2, ''])} style={{ width: '100%', padding: '5px', background: 'transparent', border: '1px dashed #333', color: '#3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem' }}>+ Додати</button>
+                    </div>
+
+                    {/* Render inputs side2cut F1.5 */}
+                    <div style={{ flex: 1, minWidth: '180px', background: '#0a0a0a', padding: '12px', borderRadius: '12px', border: '1px solid #111' }}>
+                      <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: '#888' }}>Вирізка (Ф1.5)</h5>
+                      {side2CutOpsF15.map((op, idx) => (
+                        <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
+                          <input value={op} onChange={e => { const copy = [...side2CutOpsF15]; copy[idx] = e.target.value; setSide2CutOpsF15(copy) }} style={{ flex: 1, padding: '6px', background: '#000', border: '1px solid #222', color: '#fff', borderRadius: '6px', fontSize: '0.75rem' }} />
+                          <button onClick={() => setSide2CutOpsF15(side2CutOpsF15.filter((_, i) => i !== idx))} style={{ background: '#7f1d1d', border: 'none', color: '#fff', borderRadius: '6px', padding: '0 8px', cursor: 'pointer' }}><Trash2 size={12}/></button>
+                        </div>
+                      ))}
+                      <button onClick={() => setSide2CutOpsF15([...side2CutOpsF15, ''])} style={{ width: '100%', padding: '5px', background: 'transparent', border: '1px dashed #333', color: '#3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem' }}>+ Додати</button>
                     </div>
 
                     {/* Render cutters */}

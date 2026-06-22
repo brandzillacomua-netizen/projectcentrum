@@ -1558,6 +1558,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                     <tr style={{ borderBottom: '1px solid #222', textAlign: 'left' }}>
                       <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555' }}>НАЙМЕНУВАННЯ</th>
                       <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'center' }}>НАЯВНІСТЬ</th>
+                      <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'center' }}>ВІЛЬНО</th>
                       <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'center' }}>РЕЗЕРВ</th>
                     </tr>
                   </thead>
@@ -1601,6 +1602,9 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                                 {item.total_qty || 0} <small style={{ color: '#444' }}>{item.unit}</small>
                               </>
                             )}
+                          </td>
+                          <td style={{ padding: '15px', textAlign: 'center', color: '#10b981', fontWeight: 900 }}>
+                            {editingInvId === item.id ? (Number(editingInvTotal) || 0) - (Number(editingInvReserved) || 0) : (item.total_qty || 0) - (item.reserved_qty || 0)}
                           </td>
                           <td style={{ padding: '15px', textAlign: 'center', color: Number(item.reserved_qty) > 0 ? '#3b82f6' : '#222', fontWeight: 800 }}>
                             {editingInvId === item.id ? (
