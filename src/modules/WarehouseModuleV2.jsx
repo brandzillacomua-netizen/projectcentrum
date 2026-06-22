@@ -863,6 +863,20 @@ const WarehouseModuleV2 = () => {
                         )
                       })}
                     </div>
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (window.confirm('Перенаправити прийомку на Склад Виробництва (СВ)?')) {
+                            const { error } = await supabase.from('reception_docs').update({ target_warehouse: 'production' }).eq('id', doc.id)
+                            if (!error) refreshTable('reception_docs')
+                          }
+                        }}
+                        style={{ background: 'rgba(255, 144, 0, 0.05)', border: '1px solid rgba(255, 144, 0, 0.3)', color: '#ff9000', padding: '4px 10px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 800, cursor: 'pointer', transition: '0.2s' }}
+                      >
+                        Перенаправити на СВ
+                      </button>
+                    </div>
                   </div>
                   <button
                     disabled={processingDocs.has(doc.id)}

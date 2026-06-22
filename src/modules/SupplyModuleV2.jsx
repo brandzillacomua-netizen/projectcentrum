@@ -756,6 +756,20 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                         </div>
                       ))}
                     </div>
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '12px', borderTop: '1px solid #111', paddingTop: '10px' }}>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (window.confirm('Перенаправити прийомку на Склад Операційний (СО)?')) {
+                            const { error } = await supabase.from('reception_docs').update({ target_warehouse: 'operational' }).eq('id', doc.id)
+                            if (!error) refreshTable('reception_docs')
+                          }
+                        }}
+                        style={{ background: 'rgba(255, 144, 0, 0.05)', border: '1px solid rgba(255, 144, 0, 0.3)', color: '#ff9000', padding: '4px 10px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 800, cursor: 'pointer', transition: '0.2s' }}
+                      >
+                        Перенаправити на СО
+                      </button>
+                    </div>
                   </div>
                 ))}
               {(receptionDocs || []).filter(d => (d.status === 'shipped' || d.status === 'ordered') && (!d.target_warehouse || d.target_warehouse === 'production')).length === 0 && (
@@ -1462,6 +1476,55 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                             )
                           })}
                         </div>
+
+                        {doc.status !== 'completed' && (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '15px', borderTop: '1px dashed #222', paddingTop: '15px', marginBottom: '15px' }}>
+                            <span style={{ fontSize: '0.75rem', color: '#555', fontWeight: 800 }}>СКЛАД ПРИЗНАЧЕННЯ:</span>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              {[
+                                { id: 'operational', label: 'СО (Операційний)' },
+                                { id: 'production', label: 'СВ (Виробництва)' }
+                              ].map(w => {
+                                const active = (doc.target_warehouse || 'production') === w.id
+                                return (
+                                  <button
+                                    key={w.id}
+                                    type="button"
+                                    disabled={processingDocs.has(doc.id)}
+                                    onClick={async (e) => {
+                                      e.stopPropagation()
+                                      setProcessingDocs(prev => new Set(prev).add(doc.id))
+                                      try {
+                                        const { error } = await supabase
+                                          .from('reception_docs')
+                                          .update({ target_warehouse: w.id })
+                                          .eq('id', doc.id)
+                                        if (error) throw error
+                                        refreshTable('reception_docs')
+                                      } catch (err) {
+                                        alert('Помилка оновлення складу: ' + err.message)
+                                      } finally {
+                                        setProcessingDocs(prev => { const next = new Set(prev); next.delete(doc.id); return next; })
+                                      }
+                                    }}
+                                    style={{
+                                      background: active ? 'rgba(255, 144, 0, 0.12)' : 'transparent',
+                                      border: active ? '1px solid #ff9000' : '1px solid rgba(255,255,255,0.07)',
+                                      color: active ? '#ff9000' : '#888',
+                                      padding: '4px 10px',
+                                      borderRadius: '6px',
+                                      fontSize: '0.7rem',
+                                      fontWeight: 800,
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    {w.label}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
 
                         {doc.status === 'shipped' && !isProcurementOnly && (
                           <button
