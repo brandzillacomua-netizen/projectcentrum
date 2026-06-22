@@ -1336,6 +1336,7 @@ const SettingsModule = () => {
   const [filterDepartment, setFilterDepartment] = useState('all')
   const [filterPosition, setFilterPosition] = useState('all')
   const [filterShift, setFilterShift] = useState('all')
+  const [filterOnlyOnline, setFilterOnlyOnline] = useState(false)
 
   const handleSaveUser = async (e) => {
     e.preventDefault()
@@ -1506,9 +1507,9 @@ const SettingsModule = () => {
     }
   }
 
-  // Filtered Users List
+  // Filtered & Sorted Users List
   const filteredUsers = useMemo(() => {
-    return (systemUsers || []).filter(u => {
+    const list = (systemUsers || []).filter(u => {
       const matchSearch = 
         u.login.toLowerCase().includes(userSearch.toLowerCase()) ||
         (u.first_name || '').toLowerCase().includes(userSearch.toLowerCase()) ||
@@ -1519,9 +1520,29 @@ const SettingsModule = () => {
       const matchPos = filterPosition === 'all' || u.position === filterPosition
       const matchShift = filterShift === 'all' || u.shift === filterShift
 
-      return matchSearch && matchDept && matchPos && matchShift
+      const isOnline = u.last_seen && (Date.now() - new Date(u.last_seen).getTime() < 120000)
+      const matchOnline = !filterOnlyOnline || isOnline
+
+      return matchSearch && matchDept && matchPos && matchShift && matchOnline
     })
-  }, [systemUsers, userSearch, filterDepartment, filterPosition, filterShift])
+
+    // Sort: Online users first, then by last_seen (most recent first), then fallback to login
+    return [...list].sort((a, b) => {
+      const aOnline = a.last_seen && (Date.now() - new Date(a.last_seen).getTime() < 120000)
+      const bOnline = b.last_seen && (Date.now() - new Date(b.last_seen).getTime() < 120000)
+      
+      if (aOnline && !bOnline) return -1
+      if (!aOnline && bOnline) return 1
+      
+      const aTime = a.last_seen ? new Date(a.last_seen).getTime() : 0
+      const bTime = b.last_seen ? new Date(b.last_seen).getTime() : 0
+      if (aTime !== bTime) {
+        return bTime - aTime
+      }
+      
+      return a.login.localeCompare(b.login)
+    })
+  }, [systemUsers, userSearch, filterDepartment, filterPosition, filterShift, filterOnlyOnline])
 
   // Get distinct roles/positions for the filter dropdown
   const distinctPositions = useMemo(() => {
@@ -1955,11 +1976,35 @@ const SettingsModule = () => {
                     <option value="Зміна 4">Зміна 4</option>
                     <option value="Без зміни">Без зміни</option>
                   </select>
+ 
+                  {/* Only Online Toggle */}
+                  <label style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '8px', 
+                    cursor: 'pointer', 
+                    background: filterOnlyOnline ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.02)', 
+                    border: filterOnlyOnline ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(255,255,255,0.05)', 
+                    padding: '6px 12px', 
+                    borderRadius: '10px', 
+                    fontSize: '0.72rem', 
+                    fontWeight: 700, 
+                    color: filterOnlyOnline ? '#34d399' : '#888',
+                    transition: '0.2s' 
+                  }}>
+                    <input 
+                      type="checkbox" 
+                      checked={filterOnlyOnline} 
+                      onChange={e => setFilterOnlyOnline(e.target.checked)} 
+                      style={{ accentColor: '#10b981', cursor: 'pointer' }}
+                    />
+                    Тільки онлайн
+                  </label>
 
                   {/* Reset Filters */}
-                  {(filterDepartment !== 'all' || filterPosition !== 'all' || filterShift !== 'all' || userSearch !== '') && (
+                  {(filterDepartment !== 'all' || filterPosition !== 'all' || filterShift !== 'all' || userSearch !== '' || filterOnlyOnline) && (
                     <button 
-                      onClick={() => { setFilterDepartment('all'); setFilterPosition('all'); setFilterShift('all'); setUserSearch('') }}
+                      onClick={() => { setFilterDepartment('all'); setFilterPosition('all'); setFilterShift('all'); setUserSearch(''); setFilterOnlyOnline(false) }}
                       style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: '#aaa', padding: '6px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
                     >
                       <X size={12} /> скинути
