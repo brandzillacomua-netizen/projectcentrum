@@ -891,6 +891,51 @@ export function createProductionActions({
 
     await Promise.all(writePromises)
 
+    if (currentOp === 'Розкрій' && cuttersBreakdown && Object.keys(cuttersBreakdown).length > 0) {
+      for (const [cutterName, actualQtyVal] of Object.entries(cuttersBreakdown)) {
+        const actualQty = Number(actualQtyVal) || 0
+        if (actualQty <= 0) continue
+
+        const nom = nomenclatures?.find(n => n.name?.trim().toLowerCase() === cutterName.trim().toLowerCase() && n.type === 'consumable')
+        if (!nom) continue
+
+        try {
+          const query = supabase.from('inventory')
+            .select('*')
+            .eq('nomenclature_id', nom.id)
+            .eq('warehouse', 'pocket')
+
+          if (card.manager_name && card.manager_name !== 'Не вказано') {
+            query.eq('pocket_owner', card.manager_name)
+          } else {
+            query.is('pocket_owner', null)
+          }
+
+          const { data: pocketItem } = await query.limit(1).maybeSingle()
+
+          if (pocketItem) {
+            await supabase.from('inventory').update({
+              total_qty: (Number(pocketItem.total_qty) || 0) - actualQty,
+              updated_at: new Date().toISOString()
+            }).eq('id', pocketItem.id)
+          } else {
+            await supabase.from('inventory').insert([{
+              nomenclature_id: nom.id,
+              name: nom.name,
+              unit: nom.unit || 'шт',
+              total_qty: -actualQty,
+              warehouse: 'pocket',
+              type: 'consumable',
+              pocket_owner: card.manager_name && card.manager_name !== 'Не вказано' ? card.manager_name : null,
+              updated_at: new Date().toISOString()
+            }])
+          }
+        } catch (e) {
+          console.warn('Failed to update Pocket inventory for cutter in confirmBuffer:', e)
+        }
+      }
+    }
+
     if (isRework) {
       const nom = nomenclatures.find(n => n.id === card.nomenclature_id)
       if (nom && qtyCompleted > 0) {
@@ -1097,9 +1142,13 @@ export function createProductionActions({
           const splits = (customRowMachinesSplits && customRowMachinesSplits[part.nom.id]) || []
           const selectedMachine = splits.length > 0 ? (splits[0]?.machine || machineName) : ((customRowMachines && customRowMachines[part.nom.id]) || machineName);
 
+          const isDefaultT700 = (part.nom?.material_type || part.nom?.name || '').toLowerCase().includes('т700') || (part.nom?.material_type || part.nom?.name || '').toLowerCase().includes('t700')
+          const defaultT300 = isDefaultT700 ? 0 : sheets
+          const defaultT700 = isDefaultT700 ? sheets : 0
+
           const split = customMaterialSplits && customMaterialSplits[part.nom.id]
-          const sheets_t300 = split && split.t300 !== undefined ? Number(split.t300) : sheets
-          const sheets_t700 = split && split.t700 !== undefined ? Number(split.t700) : 0
+          const sheets_t300 = split && split.t300 !== undefined ? Number(split.t300) : defaultT300
+          const sheets_t700 = split && split.t700 !== undefined ? Number(split.t700) : defaultT700
 
           const cutterOverride = customCutterOverrides?.[part.nom.id] || '2';
           plan_snapshot[part.nom.id] = { 

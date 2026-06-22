@@ -61,12 +61,13 @@ const renderCutterListEditorShared = (cutters, setCutters, nomenclatures) => {
             </select>
             <input 
               type="number"
-              min="1"
+              min="0.001"
+              step="any"
               placeholder="к-сть"
               value={c.qty || ''}
               onChange={e => {
                 const copy = [...cutters]
-                copy[idx].qty = parseInt(e.target.value, 10) || 0
+                copy[idx].qty = parseFloat(e.target.value) || 0
                 setCutters(copy)
               }}
               style={{ width: '70px', padding: '8px', background: '#000', border: '1px solid #333', color: '#f59e0b', borderRadius: '6px', fontSize: '0.8rem', textAlign: 'center', fontWeight: 800 }}
@@ -138,7 +139,7 @@ const MachineOperationsTab = () => {
         const cutterOps = (existing.side2_cut_ops || []).filter(op => op.startsWith('__CUTTER__:'))
         const parsed = cutterOps.map(c => {
           const parts = c.split(':')
-          return { nomId: parts[1], qty: parseInt(parts[2], 10) || 0 }
+          return { nomId: parts[1], qty: parseFloat(parts[2]) || 0 }
         })
         setCuttersList(parsed)
       } else {
@@ -1511,7 +1512,7 @@ const SpecBuilderTab = () => {
         const cutterOps = (existing.side2_cut_ops || []).filter(op => op.startsWith('__CUTTER__:'))
         const parsed = cutterOps.map(c => {
           const parts = c.split(':')
-          return { nomId: parts[1], qty: parseInt(parts[2], 10) || 0 }
+          return { nomId: parts[1], qty: parseFloat(parts[2]) || 0 }
         })
         setInlineCuttersList(parsed)
       } else {

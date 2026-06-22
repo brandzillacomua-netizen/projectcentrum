@@ -887,12 +887,16 @@ const MasterModule = () => {
         const sheets = Math.ceil(totalToProduce / unitsPerSheet)
         const unit = (part.nom.type === 'hardware' || part.nom.type === 'fastener') ? 'шт' : 'ЛИСТІВ'
 
+        const isDefaultT700 = (part.nom?.material_type || part.nom?.name || '').toLowerCase().includes('т700') || (part.nom?.material_type || part.nom?.name || '').toLowerCase().includes('t700')
+        const defaultT300 = isDefaultT700 ? 0 : sheets
+        const defaultT700 = isDefaultT700 ? sheets : 0
+
         const sheets_t300 = snapshot
-          ? (snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : Number(snapshot.sheets))
-          : (materialSplits[part.nom.id]?.t300 !== undefined ? materialSplits[part.nom.id].t300 : sheets)
+          ? (snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : (isDefaultT700 ? 0 : Number(snapshot.sheets)))
+          : (materialSplits[part.nom.id]?.t300 !== undefined ? materialSplits[part.nom.id].t300 : defaultT300)
         const sheets_t700 = snapshot
-          ? (Number(snapshot.sheets_t700) || 0)
-          : (materialSplits[part.nom.id]?.t700 || 0)
+          ? (snapshot.sheets_t700 !== undefined ? Number(snapshot.sheets_t700) : (isDefaultT700 ? Number(snapshot.sheets) : 0))
+          : (materialSplits[part.nom.id]?.t700 !== undefined ? materialSplits[part.nom.id].t700 : defaultT700)
 
         const addToSummary = (typePrefix, qty) => {
           if (qty <= 0) return
@@ -968,12 +972,17 @@ const MasterModule = () => {
           sheets = splits.reduce((acc, s) => acc + (Number(s.sheets) || 0), 0)
         } else {
           // If not split across multiple machines, get sheets from T300 + T700 split state
+          const totalSheets = Math.ceil(totalToProduce / unitsPerSheet)
+          const isDefaultT700 = (part.nom?.material_type || part.nom?.name || '').toLowerCase().includes('т700') || (part.nom?.material_type || part.nom?.name || '').toLowerCase().includes('t700')
+          const defaultT300 = isDefaultT700 ? 0 : totalSheets
+          const defaultT700 = isDefaultT700 ? totalSheets : 0
+
           const sheets_t300 = snapshot
-            ? (snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : Number(snapshot.sheets))
-            : (materialSplits[part.nom.id]?.t300 !== undefined ? materialSplits[part.nom.id].t300 : Math.ceil(totalToProduce / unitsPerSheet))
+            ? (snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : (isDefaultT700 ? 0 : Number(snapshot.sheets)))
+            : (materialSplits[part.nom.id]?.t300 !== undefined ? materialSplits[part.nom.id].t300 : defaultT300)
           const sheets_t700 = snapshot
-            ? (Number(snapshot.sheets_t700) || 0)
-            : (materialSplits[part.nom.id]?.t700 || 0)
+            ? (snapshot.sheets_t700 !== undefined ? Number(snapshot.sheets_t700) : (isDefaultT700 ? Number(snapshot.sheets) : 0))
+            : (materialSplits[part.nom.id]?.t700 !== undefined ? materialSplits[part.nom.id].t700 : defaultT700)
           sheets = sheets_t300 + sheets_t700
         }
 
@@ -1785,12 +1794,16 @@ const displayParts = getDisplayPartsForOrderItem(it)
                         const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
                         const sheets = Math.ceil(totalToProduce / unitsPerSheet)
 
+                        const isDefaultT700 = (part.nom?.material_type || part.nom?.name || '').toLowerCase().includes('т700') || (part.nom?.material_type || part.nom?.name || '').toLowerCase().includes('t700')
+                        const defaultT300 = isDefaultT700 ? 0 : (totalToProduce > 0 ? sheets : 0)
+                        const defaultT700 = isDefaultT700 ? (totalToProduce > 0 ? sheets : 0) : 0
+
                         const sheets_t300 = snapshot
-                          ? (snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : Number(snapshot.sheets))
-                          : (materialSplits[part.nom?.id]?.t300 !== undefined ? materialSplits[part.nom?.id].t300 : (totalToProduce > 0 ? sheets : 0))
+                          ? (snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : (isDefaultT700 ? 0 : Number(snapshot.sheets)))
+                          : (materialSplits[part.nom?.id]?.t300 !== undefined ? materialSplits[part.nom?.id].t300 : defaultT300)
                         const sheets_t700 = snapshot
-                          ? (Number(snapshot.sheets_t700) || 0)
-                          : (materialSplits[part.nom?.id]?.t700 || 0)
+                          ? (snapshot.sheets_t700 !== undefined ? Number(snapshot.sheets_t700) : (isDefaultT700 ? Number(snapshot.sheets) : 0))
+                          : (materialSplits[part.nom?.id]?.t700 !== undefined ? materialSplits[part.nom?.id].t700 : defaultT700)
 
                         const totalSplitsSheets = sheets_t300 + sheets_t700
 
@@ -2370,12 +2383,16 @@ const displayParts = getDisplayPartsForOrderItem(it)
                             const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1;
                             const sheets = Math.ceil(plan / unitsPerSheet);
 
+                            const isDefaultT700 = (part.nom?.material_type || part.nom?.name || '').toLowerCase().includes('т700') || (part.nom?.material_type || part.nom?.name || '').toLowerCase().includes('t700')
+                            const defaultT300 = isDefaultT700 ? 0 : (plan > 0 ? sheets : 0)
+                            const defaultT700 = isDefaultT700 ? (plan > 0 ? sheets : 0) : 0
+
                             const sheets_t300 = snapshot
-                              ? (snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : Number(snapshot.sheets))
-                              : (materialSplits[part.nom?.id]?.t300 !== undefined ? materialSplits[part.nom?.id].t300 : (plan > 0 ? sheets : 0));
+                              ? (snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : (isDefaultT700 ? 0 : Number(snapshot.sheets)))
+                              : (materialSplits[part.nom?.id]?.t300 !== undefined ? materialSplits[part.nom?.id].t300 : defaultT300);
                             const sheets_t700 = snapshot
-                              ? (Number(snapshot.sheets_t700) || 0)
-                              : (materialSplits[part.nom?.id]?.t700 || 0);
+                              ? (snapshot.sheets_t700 !== undefined ? Number(snapshot.sheets_t700) : (isDefaultT700 ? Number(snapshot.sheets) : 0))
+                              : (materialSplits[part.nom?.id]?.t700 !== undefined ? materialSplits[part.nom?.id].t700 : defaultT700);
 
                             totalNeed += need;
                             totalPlan += plan;
@@ -2480,12 +2497,16 @@ const displayParts = getDisplayPartsForOrderItem(it)
                         const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
                         const sheets = Math.ceil(totalToProduce / unitsPerSheet)
 
+                        const isDefaultT700 = (part.nom?.material_type || part.nom?.name || '').toLowerCase().includes('т700') || (part.nom?.material_type || part.nom?.name || '').toLowerCase().includes('t700')
+                        const defaultT300 = isDefaultT700 ? 0 : (totalToProduce > 0 ? sheets : 0)
+                        const defaultT700 = isDefaultT700 ? (totalToProduce > 0 ? sheets : 0) : 0
+
                         const sheets_t300 = snapshot
-                          ? (snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : Number(snapshot.sheets))
-                          : (materialSplits[part.nom?.id]?.t300 !== undefined ? materialSplits[part.nom?.id].t300 : (totalToProduce > 0 ? sheets : 0))
+                          ? (snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : (isDefaultT700 ? 0 : Number(snapshot.sheets)))
+                          : (materialSplits[part.nom?.id]?.t300 !== undefined ? materialSplits[part.nom?.id].t300 : defaultT300)
                         const sheets_t700 = snapshot
-                          ? (Number(snapshot.sheets_t700) || 0)
-                          : (materialSplits[part.nom?.id]?.t700 || 0)
+                          ? (snapshot.sheets_t700 !== undefined ? Number(snapshot.sheets_t700) : (isDefaultT700 ? Number(snapshot.sheets) : 0))
+                          : (materialSplits[part.nom?.id]?.t700 !== undefined ? materialSplits[part.nom?.id].t700 : defaultT700)
 
                         const totalSplitsSheets = sheets_t300 + sheets_t700
 
@@ -2554,12 +2575,16 @@ const displayParts = getDisplayPartsForOrderItem(it)
                             const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1;
                             const sheets = Math.ceil(plan / unitsPerSheet);
 
+                            const isDefaultT700 = (part.nom?.material_type || part.nom?.name || '').toLowerCase().includes('т700') || (part.nom?.material_type || part.nom?.name || '').toLowerCase().includes('t700')
+                            const defaultT300 = isDefaultT700 ? 0 : (plan > 0 ? sheets : 0)
+                            const defaultT700 = isDefaultT700 ? (plan > 0 ? sheets : 0) : 0
+
                             const sheets_t300 = snapshot
-                              ? (snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : Number(snapshot.sheets))
-                              : (materialSplits[part.nom?.id]?.t300 !== undefined ? materialSplits[part.nom?.id].t300 : (plan > 0 ? sheets : 0));
+                              ? (snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : (isDefaultT700 ? 0 : Number(snapshot.sheets)))
+                              : (materialSplits[part.nom?.id]?.t300 !== undefined ? materialSplits[part.nom?.id].t300 : defaultT300);
                             const sheets_t700 = snapshot
-                              ? (Number(snapshot.sheets_t700) || 0)
-                              : (materialSplits[part.nom?.id]?.t700 || 0);
+                              ? (snapshot.sheets_t700 !== undefined ? Number(snapshot.sheets_t700) : (isDefaultT700 ? Number(snapshot.sheets) : 0))
+                              : (materialSplits[part.nom?.id]?.t700 !== undefined ? materialSplits[part.nom?.id].t700 : defaultT700);
 
                             totalNeed += need;
                             totalPlan += plan;

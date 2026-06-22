@@ -6,6 +6,32 @@ import { QRCodeSVG } from 'qrcode.react'
 import { apiService } from '../services/apiDispatcher'
 import { supabase } from '../supabase'
 
+const getDisplayMaterial = (partNom, snapshot) => {
+  const baseMat = partNom?.material_type || '—'
+  if (!snapshot) return baseMat
+  const s300 = snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : 0
+  const s700 = snapshot.sheets_t700 !== undefined ? Number(snapshot.sheets_t700) : 0
+  
+  const isDefaultT700 = (baseMat || '').toLowerCase().includes('т700') || (baseMat || '').toLowerCase().includes('t700')
+  
+  // If we have custom sheets in snapshot
+  if (snapshot.sheets_t300 !== undefined || snapshot.sheets_t700 !== undefined) {
+    if (s700 > 0 && s300 === 0) {
+      return baseMat.replace(/т300/gi, 'Т700').replace(/t300/gi, 'Т700')
+    }
+    if (s300 > 0 && s700 > 0) {
+      return baseMat.replace(/т300/gi, 'Т300+Т700').replace(/t300/gi, 'Т300+Т700')
+    }
+    if (s300 > 0 && s700 === 0) {
+      return baseMat.replace(/т700/gi, 'Т300').replace(/t700/gi, 'Т300')
+    }
+  } else if (isDefaultT700) {
+    return baseMat.replace(/т300/gi, 'Т700').replace(/t300/gi, 'Т700')
+  }
+  
+  return baseMat
+}
+
 const ForemanWorkplace = () => {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -1399,7 +1425,7 @@ const MACHINE_TYPES = [
                                       <td style={{ padding: '15px', textAlign: 'center', color: '#eab308', fontWeight: 900 }}>{plan}</td>
                                     </>
                                   )}
-                                  <td style={{ padding: '15px', textAlign: 'center', color: '#aaa', fontSize: '0.75rem' }}>{part.nom?.material_type || '—'}</td>
+                                  <td style={{ padding: '15px', textAlign: 'center', color: '#aaa', fontSize: '0.75rem' }}>{getDisplayMaterial(part.nom, snapshot)}</td>
                                   <td style={{ padding: '15px', textAlign: 'center' }}>{unitsPerSheet}</td>
                                   <td style={{ padding: '15px', textAlign: 'center', color: '#10b981', fontWeight: 1000, fontSize: '1.1rem' }}>{sheets}</td>
                                   <td style={{ padding: '15px' }}>
@@ -2222,7 +2248,7 @@ const MACHINE_TYPES = [
                           <div style={{ width: '10%', borderRight: '1px solid #000', fontSize: '13pt', fontWeight: 1000 }}>
                              {Math.ceil(m.qty / (nomenclature?.units_per_sheet || 1))}
                           </div>
-                          <div style={{ width: '12%', borderRight: '1px solid #000', fontSize: '8pt', fontWeight: 1000, lineHeight: 1.1 }}>{nomenclature?.material_type || '—'}</div>
+                          <div style={{ width: '12%', borderRight: '1px solid #000', fontSize: '8pt', fontWeight: 1000, lineHeight: 1.1 }}>{getDisplayMaterial(nomenclature, snapshotPart)}</div>
                           <div style={{ width: '15%', borderRight: '1px solid #000', fontSize: '7.5pt', fontWeight: 1000, padding: '0 2px' }}>{m.machine}</div>
                           <div style={{ width: '15%', borderRight: '1px solid #000', fontSize: '11pt', fontWeight: 1000 }}>{m.loading?.split(' [')[0]}</div>
                           <div style={{ width: '18%', fontSize: '6pt', fontWeight: 900 }}></div>
@@ -2864,10 +2890,13 @@ const MACHINE_TYPES = [
 
                 // Get planned splits from snapshot
                 const snapEntry = snapshot?.[p.nomId]
-                let plannedT300 = snapEntry ? Number(snapEntry.sheets_t300) : p.sheets
-                let plannedT700 = snapEntry ? Number(snapEntry.sheets_t700) : 0
-                if (isNaN(plannedT300)) plannedT300 = p.sheets
-                if (isNaN(plannedT700)) plannedT700 = 0
+                const isDefaultT700 = (p.material || '').toLowerCase().includes('т700') || (p.material || '').toLowerCase().includes('t700')
+                const defaultT300 = isDefaultT700 ? 0 : p.sheets
+                const defaultT700 = isDefaultT700 ? p.sheets : 0
+                let plannedT300 = snapEntry ? (snapEntry.sheets_t300 !== undefined ? Number(snapEntry.sheets_t300) : (isDefaultT700 ? 0 : Number(p.sheets))) : defaultT300
+                let plannedT700 = snapEntry ? (snapEntry.sheets_t700 !== undefined ? Number(snapEntry.sheets_t700) : (isDefaultT700 ? Number(p.sheets) : 0)) : defaultT700
+                if (isNaN(plannedT300)) plannedT300 = defaultT300
+                if (isNaN(plannedT700)) plannedT700 = defaultT700
 
                 const totalPlanned = plannedT300 + plannedT700
                 const ratioT300 = totalPlanned > 0 ? (plannedT300 / totalPlanned) : 1

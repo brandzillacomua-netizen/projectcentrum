@@ -845,121 +845,46 @@ export default function Shop1Terminal() {
   const handleCuttersInventoryDeduction = async (card, breakdown) => {
     if (card.operation !== 'Розкрій' || !breakdown || Object.keys(breakdown).length === 0) return
 
-    const task = tasks?.find(t => String(t.id) === String(card.task_id))
-    const totalTaskQty = Number(task?.planned_sets) || 
-      workCards.filter(wc => String(wc.task_id) === String(card.task_id)).reduce((sum, wc) => sum + (wc.quantity || 0), 0) || 1
-    const ratio = (card.quantity || 0) / totalTaskQty
-
     for (const [cutterName, actualQtyVal] of Object.entries(breakdown)) {
       const actualQty = Number(actualQtyVal) || 0
-      if (actualQty < 0) continue
+      if (actualQty <= 0) continue
 
       const nom = nomenclatures?.find(n => n.name?.trim().toLowerCase() === cutterName.trim().toLowerCase() && n.type === 'consumable')
       if (!nom) continue
 
-      let plannedQty = 0
-      if (task && task.plan_snapshot) {
-        let genericName = null
-        if (task.plan_snapshot.selectedCutters && typeof task.plan_snapshot.selectedCutters === 'object') {
-          for (const [genName, invId] of Object.entries(task.plan_snapshot.selectedCutters)) {
-            if (!invId) continue
-            const inv = (inventory || []).find(i => String(i.id) === String(invId))
-            if (inv) {
-              const nom = nomenclatures?.find(n => String(n.id) === String(inv.nomenclature_id))
-              const resolvedName = nom ? nom.name.trim() : (inv.name ? inv.name.trim() : '')
-              if (resolvedName.toLowerCase() === cutterName.trim().toLowerCase()) {
-                genericName = genName
-                break
-              }
-            }
-          }
+      try {
+        const query = supabase.from('inventory')
+          .select('*')
+          .eq('nomenclature_id', nom.id)
+          .eq('warehouse', 'pocket')
+
+        if (card.manager_name && card.manager_name !== 'Не вказано') {
+          query.eq('pocket_owner', card.manager_name)
+        } else {
+          query.is('pocket_owner', null)
         }
 
-        if (Array.isArray(task.plan_snapshot.consumables)) {
-          const plannedCons = task.plan_snapshot.consumables.find(c => 
-            (c.name?.trim().toLowerCase() === cutterName.trim().toLowerCase()) ||
-            (genericName && c.name?.trim().toLowerCase() === genericName.trim().toLowerCase())
-          )
-          if (plannedCons) {
-            plannedQty = Math.round(Number(plannedCons.total) * ratio)
-          }
+        const { data: pocketItem } = await query.limit(1).maybeSingle()
+
+        if (pocketItem) {
+          await supabase.from('inventory').update({
+            total_qty: (Number(pocketItem.total_qty) || 0) - actualQty,
+            updated_at: new Date().toISOString()
+          }).eq('id', pocketItem.id)
+        } else {
+          await supabase.from('inventory').insert([{
+            nomenclature_id: nom.id,
+            name: nom.name,
+            unit: nom.unit || 'шт',
+            total_qty: -actualQty,
+            warehouse: 'pocket',
+            type: 'consumable',
+            pocket_owner: card.manager_name && card.manager_name !== 'Не вказано' ? card.manager_name : null,
+            updated_at: new Date().toISOString()
+          }])
         }
-      }
-
-      let coChange = 0
-      let pocketChange = 0
-
-      if (actualQty < plannedQty) {
-        coChange = plannedQty - actualQty
-      } else if (actualQty > plannedQty) {
-        pocketChange = -(actualQty - plannedQty)
-      }
-
-      if (coChange > 0) {
-        try {
-          const { data: coItem } = await supabase.from('inventory')
-            .select('*')
-            .eq('nomenclature_id', nom.id)
-            .eq('warehouse', 'operational')
-            .limit(1).maybeSingle()
-
-          if (coItem) {
-            await supabase.from('inventory').update({
-              total_qty: (Number(coItem.total_qty) || 0) + coChange,
-              updated_at: new Date().toISOString()
-            }).eq('id', coItem.id)
-          } else {
-            await supabase.from('inventory').insert([{
-              nomenclature_id: nom.id,
-              name: nom.name,
-              unit: nom.unit || 'шт',
-              total_qty: coChange,
-              warehouse: 'operational',
-              type: 'consumable',
-              updated_at: new Date().toISOString()
-            }])
-          }
-        } catch (e) {
-          console.warn('Failed to update CO inventory for cutter:', e)
-        }
-      }
-
-      if (pocketChange < 0) {
-        const pocketDeduct = Math.abs(pocketChange)
-        try {
-          const query = supabase.from('inventory')
-            .select('*')
-            .eq('nomenclature_id', nom.id)
-            .eq('warehouse', 'pocket')
-
-          if (card.manager_name && card.manager_name !== 'Не вказано') {
-            query.eq('pocket_owner', card.manager_name)
-          } else {
-            query.is('pocket_owner', null)
-          }
-
-          const { data: pocketItem } = await query.limit(1).maybeSingle()
-
-          if (pocketItem) {
-            await supabase.from('inventory').update({
-              total_qty: (Number(pocketItem.total_qty) || 0) - pocketDeduct,
-              updated_at: new Date().toISOString()
-            }).eq('id', pocketItem.id)
-          } else {
-            await supabase.from('inventory').insert([{
-              nomenclature_id: nom.id,
-              name: nom.name,
-              unit: nom.unit || 'шт',
-              total_qty: -pocketDeduct,
-              warehouse: 'pocket',
-              type: 'consumable',
-              pocket_owner: card.manager_name && card.manager_name !== 'Не вказано' ? card.manager_name : null,
-              updated_at: new Date().toISOString()
-            }])
-          }
-        } catch (e) {
-          console.warn('Failed to update Pocket inventory for cutter:', e)
-        }
+      } catch (e) {
+        console.warn('Failed to update Pocket inventory for cutter:', e)
       }
     }
   }
