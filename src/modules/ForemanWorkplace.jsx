@@ -2141,13 +2141,29 @@ const MACHINE_TYPES = [
             const isCutter1_5 = snapshotPart?.cutter_override === '1.5'
             
             if (isCutter1_5) {
-              const replacer = (op) => op.replace(/[фФ]2(?![0-9.])/g, match => match[0] === 'ф' ? 'ф1.5' : 'Ф1.5')
+              const replacer = (op) => {
+                if (op.includes('|')) return op.split('|')[1].trim()
+                return op.replace(/[фФ]2(?![0-9.])/g, match => match[0] === 'ф' ? 'ф1.5' : 'Ф1.5')
+              }
+              s1Ops = s1Ops.map(replacer)
+              s2Ops = s2Ops.map(replacer)
+            } else {
+              const replacer = (op) => {
+                if (op.includes('|')) return op.split('|')[0].trim()
+                return op
+              }
               s1Ops = s1Ops.map(replacer)
               s2Ops = s2Ops.map(replacer)
             }
 
-            const s2CutOpsF2 = s2CutOps.map(op => op.replace(/[фФ]1\.5(?![0-9.])/g, match => match[0] === 'ф' ? 'ф2' : 'Ф2'))
-            const s2CutOpsF15 = s2CutOps.map(op => op.replace(/[фФ]2(?![0-9.])/g, match => match[0] === 'ф' ? 'ф1.5' : 'Ф1.5'))
+            const s2CutOpsF2 = s2CutOps.map(op => {
+              if (op.includes('|')) return op.split('|')[0].trim()
+              return op.replace(/[фФ]1\.5(?![0-9.])/g, match => match[0] === 'ф' ? 'ф2' : 'Ф2')
+            })
+            const s2CutOpsF15 = s2CutOps.map(op => {
+              if (op.includes('|')) return op.split('|')[1].trim()
+              return op.replace(/[фФ]2(?![0-9.])/g, match => match[0] === 'ф' ? 'ф1.5' : 'Ф1.5')
+            })
             
             const maxOps = Math.max(10, s1Ops.length, s2Ops.length, s2CutOpsF2.length, s2CutOpsF15.length)
             const opRows = Array.from({ length: maxOps }).map((_, i) => ({

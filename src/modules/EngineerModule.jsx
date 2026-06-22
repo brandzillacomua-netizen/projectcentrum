@@ -208,7 +208,34 @@ const MachineOperationsTab = () => {
   }
 
   const parseConsolidatedCsv = async (text, localNomsCopy) => {
-    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+    const splitCsvIntoRows = (txt) => {
+      const rows = []
+      let current = ''
+      let inQuotes = false
+      for (let i = 0; i < txt.length; i++) {
+        const char = txt[i]
+        if (char === '"') {
+          inQuotes = !inQuotes
+          current += char
+        } else if ((char === '\n' || char === '\r') && !inQuotes) {
+          if (current.trim()) {
+            rows.push(current)
+          }
+          current = ''
+          if (char === '\r' && txt[i + 1] === '\n') {
+            i++
+          }
+        } else {
+          current += char
+        }
+      }
+      if (current.trim()) {
+        rows.push(current)
+      }
+      return rows
+    }
+
+    const lines = splitCsvIntoRows(text).map(l => l.trim()).filter(Boolean)
     if (lines.length === 0) return []
 
     const parseCsvLine = (line) => {
@@ -389,19 +416,99 @@ const MachineOperationsTab = () => {
       const s1 = [], s2 = [], s2c = []
       const cuttersMap = {}
 
+      // Find the header row in this block's rows to identify operation columns
+      const headerRow = rb.rows.find(parts => 
+        parts[0]?.toLowerCase().includes('операція') || 
+        parts[1]?.toLowerCase().includes('операція')
+      )
+
+      let s1ColIdx = 0
+      let s2ColIdx = 1
+      let s2f15ColIdx = -1
+      let s2cColIdx = 2
+      let s2cf15ColIdx = -1
+
+      if (headerRow) {
+        headerRow.forEach((colText, idx) => {
+          const txt = colText.toLowerCase().replace(/\s+/g, ' ');
+          if (txt.includes('1 сторона')) {
+            s1ColIdx = idx
+          } else if (txt.includes('2 сторона') && !txt.includes('вирізка')) {
+            if (txt.includes('1.5') || txt.includes('1,5')) {
+              s2f15ColIdx = idx
+            } else {
+              s2ColIdx = idx
+            }
+          } else if (txt.includes('вирізка')) {
+            if (txt.includes('1.5') || txt.includes('1,5')) {
+              s2cf15ColIdx = idx
+            } else {
+              s2cColIdx = idx
+            }
+          }
+        })
+      }
+
+      // Find cutter columns dynamically
+      let cutterSizeIdx = 5
+      let cutterQtyIdx = 6
+
+      const cutterHeaderRow = rb.rows.find(parts => 
+        parts.some(c => c.toLowerCase().includes('фреза') && (c.toLowerCase().includes('d') || c.toLowerCase().includes('тип')))
+      ) || rb.rows.find(parts =>
+        parts.some(c => c.toLowerCase().includes('фреза'))
+      )
+
+      if (cutterHeaderRow) {
+        cutterHeaderRow.forEach((colText, idx) => {
+          const txt = colText.toLowerCase();
+          if (txt.includes('фреза')) {
+            cutterSizeIdx = idx
+          } else if (txt.includes('к-сть') || txt.includes('кількість') || txt.includes('кол-во') || txt.includes('qty') || txt.includes('шт')) {
+            cutterQtyIdx = idx
+          }
+        })
+      } else {
+        const maxCols = Math.max(...rb.rows.map(r => r.length))
+        if (maxCols <= 5) {
+          cutterSizeIdx = 3
+          cutterQtyIdx = 4
+        }
+      }
+
       for (const parts of rb.rows) {
-        const isHeaderRow = parts[0]?.toLowerCase().includes('операція') ||
-                            parts[1]?.toLowerCase().includes('операція') ||
-                            parts[2]?.toLowerCase().includes('операція')
+        const isHeaderRow = parts.some(p => p?.toLowerCase().includes('операція') || p?.toLowerCase().includes('станок'))
 
         if (!isHeaderRow) {
-          if (parts[0]?.trim()) s1.push(parts[0].trim())
-          if (parts[1]?.trim()) s2.push(parts[1].trim())
-          if (parts[2]?.trim()) s2c.push(parts[2].trim())
+          if (parts[s1ColIdx]?.trim()) {
+            s1.push(parts[s1ColIdx].trim())
+          }
+
+          // Side 2
+          const s2ValF2 = s2ColIdx !== -1 ? parts[s2ColIdx]?.trim() : ""
+          const s2ValF15 = s2f15ColIdx !== -1 ? parts[s2f15ColIdx]?.trim() : ""
+          if (s2ValF2 && s2ValF15 && s2ValF2 !== s2ValF15) {
+            s2.push(`${s2ValF2} | ${s2ValF15}`)
+          } else if (s2ValF2) {
+            s2.push(s2ValF2)
+          } else if (s2ValF15) {
+            s2.push(s2ValF15)
+          }
+
+          // Side 2 Cutout
+          const s2cValF2 = s2cColIdx !== -1 ? parts[s2cColIdx]?.trim() : ""
+          const s2cValF15 = s2cf15ColIdx !== -1 ? parts[s2cf15ColIdx]?.trim() : ""
+          if (s2cValF2 && s2cValF15 && s2cValF2 !== s2cValF15) {
+            s2c.push(`${s2cValF2} | ${s2cValF15}`)
+          } else if (s2cValF2) {
+            s2c.push(s2cValF2)
+          } else if (s2cValF15) {
+            s2c.push(s2cValF15)
+          }
         }
 
-        const cutterSize = parts[3]?.trim()
-        const cutterQtyStr = parts[4]?.trim()
+        const cutterSize = cutterSizeIdx !== -1 ? parts[cutterSizeIdx]?.trim() : ""
+        const cutterQtyStr = cutterQtyIdx !== -1 ? parts[cutterQtyIdx]?.trim() : ""
 
         if (cutterSize && cutterQtyStr &&
             !cutterSize.toLowerCase().includes('фреза') &&
@@ -1381,7 +1488,7 @@ const SpecBuilderTab = () => {
         setInlineCuttersList([])
       }
     }
-  }, [activeInlinePart, selectedMachine, machineOperations])
+  }, [activeInlinePart, selectedMachine])
 
   const handleSaveInlineOps = async () => {
     if (!activeInlinePart || !selectedMachine) return
