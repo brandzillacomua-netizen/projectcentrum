@@ -627,7 +627,7 @@ const MACHINE_TYPES = [
     }
   }, [printQueue, printNaryadQueue, showReportModal, reportTaskId, orders, allOrdersMap, nomenclatures, tasks, relevantTasks])
 
-  const handleGenerateFromWorksheet = async (task, part, sheets, selectedMachineName, count, localGeneratedCount = 0, totalToReach = 0, isRepair = false, globalTotalCards = null, globalSeqOffset = 0) => {
+  const handleGenerateFromWorksheet = async (task, part, sheets, selectedMachineName, count, localGeneratedCount = 0, totalToReach = 0, isRepair = false, globalTotalCards = null, globalSeqOffset = 0, customCapacity = null) => {
     if (generatingLockRef.current) {
       console.warn("Generation already in progress, ignoring duplicate call.");
       return
@@ -635,7 +635,7 @@ const MACHINE_TYPES = [
     generatingLockRef.current = true
 
     const machineObj = findMachine(selectedMachineName)
-    const capacity = (Number(machineObj?.sheet_capacity) || 1)
+    const capacity = customCapacity !== null ? Number(customCapacity) : (Number(machineObj?.sheet_capacity) || 1)
     const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
 
     const maxCardsForThisSplit = Math.ceil(sheets / capacity)
@@ -1892,7 +1892,9 @@ const MACHINE_TYPES = [
                     const cap = findMachine(split.machine)?.sheet_capacity || 1
                     const unitsPerSheet = genModal.part.nom?.units_per_sheet || 1
                     const splitSheets = Number(split.sheets) || Math.ceil(split.qty / unitsPerSheet)
-                    const splitLoadings = Math.ceil(splitSheets / cap)
+                    const capacityKey = `${genModal.part.nom?.id}_${sIdx}_cap`
+                    const currentCapacity = customLoadingCapacities[capacityKey] ?? cap
+                    const splitLoadings = Math.ceil(splitSheets / currentCapacity)
                     const splitQty = split.qty || (splitSheets * unitsPerSheet)
                     const qtyPerCard = Math.ceil(splitQty / splitLoadings)
 
@@ -1960,6 +1962,21 @@ const MACHINE_TYPES = [
                         {!isGenerated && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                              <span style={{ fontSize: '0.55rem', color: '#ff9000', fontWeight: 900 }}>ЗАГРУЗКА</span>
+                              <input
+                                type="number"
+                                min="1"
+                                max={splitSheets}
+                                value={currentCapacity}
+                                onChange={(e) => {
+                                  const val = Math.max(1, parseInt(e.target.value) || 1)
+                                  setCustomLoadingCapacities(prev => ({ ...prev, [capacityKey]: val }))
+                                }}
+                                style={{ width: '45px', background: '#000', border: '1px solid rgba(255,144,0,0.4)', color: '#ff9000', textAlign: 'center', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 900, padding: '4px 0' }}
+                                title="Кількість листів на одну загрузку (картку)"
+                              />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
                               <span style={{ fontSize: '0.55rem', color: '#444', fontWeight: 900 }}>ДРУК</span>
                               <input
                                 type="number"
@@ -1989,7 +2006,8 @@ const MACHINE_TYPES = [
                                   splitQty,
                                   genModal.isRepair,
                                   globalTotalLoadings,
-                                  splitGlobalOffsetForThisMachine
+                                  splitGlobalOffsetForThisMachine,
+                                  currentCapacity
                                 )
                               }}
                               style={{ background: isGenerating ? '#333' : '#10b981', color: '#fff', border: 'none', padding: '10px 15px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 950, cursor: isGenerating ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '5px', pointerEvents: isGenerating ? 'none' : 'auto' }}
