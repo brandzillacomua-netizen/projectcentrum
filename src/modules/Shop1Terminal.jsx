@@ -83,6 +83,9 @@ export default function Shop1Terminal() {
   const [shiftChangeOperator, setShiftChangeOperator] = useState('')
   const [shiftChangeShift, setShiftChangeShift] = useState('')
 
+  // Фільтр таблиці "В роботі та буфері"
+  const [activeTableFilter, setActiveTableFilter] = useState('all') // 'all' | 'in-progress' | 'at-buffer'
+
   // Emergency Machine Call Modal state
   const [machineCallModal, setMachineCallModal] = useState(null)
   const [machineCallSuccess, setMachineCallSuccess] = useState('')
@@ -415,7 +418,8 @@ export default function Shop1Terminal() {
     const displayName = fullName || currentUser?.login || ''
     const name = currentUser?.position ? `${displayName} (${currentUser.position})` : displayName
     setSelectedManager(name)
-    setSelectedShift(currentCard?.shift_name || '')
+    // Auto-select shift: use card's existing shift, or foreman's own shift, or empty
+    setSelectedShift(currentCard?.shift_name || currentUser?.shift || '')
 
     const combined = currentCard?.machine || ''
     const match = combined.match(/^(.*?) ?№ ?(\S+)$/)
@@ -1923,18 +1927,27 @@ export default function Shop1Terminal() {
             
             return (
               <div style={{ textAlign: 'center' }}>
-                {/* Плашка з кількістю в роботі */}
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '12px', background: '#3b82f610', border: '1px solid #3b82f630', padding: '10px 24px', borderRadius: '14px', marginBottom: '24px' }}>
-                  <div style={{ textAlign: 'left' }}>
-                    <div style={{ fontSize: '0.55rem', color: '#3b82f6', fontWeight: 900, textTransform: 'uppercase' }}>У РОБОТІ</div>
-                    <div style={{ fontSize: '1.4rem', fontWeight: 1000 }}>{currentCard.quantity} <small style={{ fontSize: '0.6rem', opacity: 0.4 }}>шт</small></div>
+                {/* Єдина інфо-плашка: Кількість | Етап | Верстат */}
+                <div style={{ display: 'inline-flex', alignItems: 'stretch', gap: '0', background: '#0f0f0f', border: '1px solid #222', borderRadius: '16px', marginBottom: '24px', overflow: 'hidden' }}>
+                  {/* К-сть */}
+                  <div style={{ padding: '10px 20px', textAlign: 'left', borderRight: '1px solid #222' }}>
+                    <div style={{ fontSize: '0.5rem', color: '#3b82f6', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}>У РОБОТІ</div>
+                    <div style={{ fontSize: '1.4rem', fontWeight: 1000, lineHeight: 1.2 }}>{currentCard.quantity} <small style={{ fontSize: '0.6rem', opacity: 0.35 }}>шт</small></div>
                   </div>
-                  <div style={{ width: '1px', height: '24px', background: '#3b82f620' }} />
-                  <div style={{ textAlign: 'left' }}>
-                    <div style={{ fontSize: '0.55rem', color: '#555', fontWeight: 900, textTransform: 'uppercase' }}>ЕТАП</div>
-                    <div style={{ fontSize: '0.9rem', fontWeight: 900, color: '#3b82f6' }}>{opName}</div>
+                  {/* Етап */}
+                  <div style={{ padding: '10px 20px', textAlign: 'left', borderRight: currentCard.machine ? '1px solid #222' : 'none' }}>
+                    <div style={{ fontSize: '0.5rem', color: '#555', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}>ЕТАП</div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 900, color: '#3b82f6', lineHeight: 1.2, marginTop: '2px' }}>{opName}</div>
                   </div>
+                  {/* Верстат — тільки якщо є */}
+                  {currentCard.machine && (
+                    <div style={{ padding: '10px 20px', textAlign: 'left', background: '#eab30808' }}>
+                      <div style={{ fontSize: '0.5rem', color: '#eab308', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}>⚙ ВЕРСТАТ</div>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 900, color: '#eab308', lineHeight: 1.2, marginTop: '2px', whiteSpace: 'nowrap' }}>{currentCard.machine}</div>
+                    </div>
+                  )}
                 </div>
+
 
                 {/* Великий ТАЙМЕР - Загальний час на етапі (Сума всіх попередніх змін + поточна) */}
                 <div>
@@ -2708,9 +2721,26 @@ export default function Shop1Terminal() {
 
       {/* Таблиця активних карток */}
       <div style={{ background: '#111', borderRadius: '24px', border: '1px solid #1a1a1a', overflow: 'hidden' }}>
-        <div style={{ padding: '25px', borderBottom: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding: '20px 25px', borderBottom: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900 }}>В РОБОТІ ТА БУФЕРІ</h3>
-          {isSyncing && <div style={{ fontSize: '0.7rem', color: '#eab308', display: 'flex', alignItems: 'center', gap: '8px' }}><RefreshCw className="spin-s1" size={12} /> Оновлення...</div>}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {isSyncing && <div style={{ fontSize: '0.7rem', color: '#eab308', display: 'flex', alignItems: 'center', gap: '6px', marginRight: '8px' }}><RefreshCw className="spin-s1" size={12} /> Оновлення...</div>}
+            {/* Кнопки фільтру */}
+            {[['all', 'ВСІ'], ['in-progress', '▶ РОБОТА'], ['at-buffer', '■ БУФЕР']].map(([val, label]) => (
+              <button key={val} onClick={() => setActiveTableFilter(val)} style={{
+                padding: '6px 14px', borderRadius: '8px', border: 'none', cursor: 'pointer',
+                fontSize: '0.65rem', fontWeight: 900, letterSpacing: '0.04em',
+                transition: 'all 0.15s',
+                background: activeTableFilter === val
+                  ? (val === 'in-progress' ? '#3b82f6' : val === 'at-buffer' ? '#f59e0b' : '#fff')
+                  : '#1a1a1a',
+                color: activeTableFilter === val
+                  ? (val === 'all' ? '#000' : '#fff')
+                  : '#555',
+                boxShadow: activeTableFilter === val ? '0 2px 8px rgba(0,0,0,0.3)' : 'none'
+              }}>{label}</button>
+            ))}
+          </div>
         </div>
         <div style={{ overflowX: 'auto', border: 'none', borderRadius: 0, width: '100%', WebkitOverflowScrolling: 'touch' }}>
           <table style={{ width: '100%', minWidth: '1200px', borderCollapse: 'collapse', textAlign: 'left' }}>
@@ -2744,7 +2774,11 @@ export default function Shop1Terminal() {
                     if (String(parentTask.step || '').includes('[ЦЕХ №2]')) return false
                   }
 
-                  return CHAIN.includes(c.operation) && (c.status === 'in-progress' || c.status === 'at-buffer')
+                  if (!CHAIN.includes(c.operation)) return false
+                  if (c.status !== 'in-progress' && c.status !== 'at-buffer') return false
+                  if (activeTableFilter === 'in-progress' && c.status !== 'in-progress') return false
+                  if (activeTableFilter === 'at-buffer' && c.status !== 'at-buffer') return false
+                  return true
                 })
 
                 if (activeCards.length === 0) {

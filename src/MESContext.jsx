@@ -101,9 +101,11 @@ export const MESProvider = ({ children }) => {
   })
 
   const formatUserName = (u) => {
-    const fullName = [u.first_name, u.last_name].filter(Boolean).join(' ')
-    const displayName = fullName || u.login
-    return u.position ? `${displayName} (${u.position})` : displayName
+    // Display as: Прізвище Ім'я (without position)
+    const lastName = u.last_name || ''
+    const firstName = u.first_name || ''
+    const fullName = [lastName, firstName].filter(Boolean).join(' ')
+    return fullName || u.login || ''
   }
 
   const operators = (data.systemUsers || [])
@@ -209,6 +211,12 @@ export const MESProvider = ({ children }) => {
       })
     }
 
+    // Sort alphabetically by last_name, then first_name
+    list = list.sort((a, b) => {
+      const aName = (a.last_name || '').localeCompare(b.last_name || '', 'uk') ||
+                    (a.first_name || '').localeCompare(b.first_name || '', 'uk')
+      return aName
+    })
     return list.map(formatUserName).filter(Boolean)
   }
 
