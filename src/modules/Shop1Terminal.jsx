@@ -415,10 +415,9 @@ export default function Shop1Terminal() {
     prevCardIdRef.current = selectedCardId
 
     setSelectedOperator('')
-    const fullName = [currentUser?.first_name, currentUser?.last_name].filter(Boolean).join(' ')
-    const displayName = fullName || currentUser?.login || ''
-    const name = currentUser?.position ? `${displayName} (${currentUser.position})` : displayName
-    setSelectedManager(name)
+    // Auto-select manager: format must match formatUserName from MESContext → "Прізвище Ім'я" (no position)
+    const autoManagerName = [currentUser?.last_name, currentUser?.first_name].filter(Boolean).join(' ') || currentUser?.login || ''
+    setSelectedManager(autoManagerName)
     // Auto-select shift: use card's existing shift, or foreman's own shift, or empty
     setSelectedShift(currentCard?.shift_name || currentUser?.shift || '')
 
@@ -1951,7 +1950,7 @@ export default function Shop1Terminal() {
             return (
               <div style={{ textAlign: 'center' }}>
                 {/* Єдина інфо-плашка: Кількість | Етап | Верстат */}
-                <div style={{ display: 'inline-flex', alignItems: 'stretch', gap: '0', background: '#0f0f0f', border: '1px solid #222', borderRadius: '16px', marginBottom: '24px', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'stretch', gap: '0', background: '#0f0f0f', border: '1px solid #222', borderRadius: '16px', marginBottom: '24px', overflow: 'hidden', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
                   {/* К-сть */}
                   <div style={{ padding: '10px 20px', textAlign: 'left', borderRight: '1px solid #222' }}>
                     <div style={{ fontSize: '0.5rem', color: '#3b82f6', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}>У РОБОТІ</div>
@@ -1964,9 +1963,9 @@ export default function Shop1Terminal() {
                   </div>
                   {/* Верстат — тільки якщо є */}
                   {currentCard.machine && (
-                    <div style={{ padding: '10px 20px', textAlign: 'left', background: '#eab30808' }}>
+                    <div style={{ padding: '10px 14px', textAlign: 'left', background: '#eab30808', flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: '0.5rem', color: '#eab308', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}>⚙ ВЕРСТАТ</div>
-                      <div style={{ fontSize: '0.95rem', fontWeight: 900, color: '#eab308', lineHeight: 1.2, marginTop: '2px', whiteSpace: 'nowrap' }}>{currentCard.machine}</div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 900, color: '#eab308', lineHeight: 1.3, marginTop: '2px', whiteSpace: 'normal', wordBreak: 'break-word' }}>{currentCard.machine}</div>
                     </div>
                   )}
                 </div>
