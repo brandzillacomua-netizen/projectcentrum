@@ -1683,8 +1683,24 @@ export default function Shop1Terminal() {
               <strong style={{ fontSize: '0.9rem', fontWeight: 950, letterSpacing: '-0.01em' }}>
                 {nom?.name || 'Деталь'}
               </strong>
-              <div style={{ fontSize: '0.75rem', fontWeight: 1000, opacity: active ? 1 : 0.4 }}>
-                {card.quantity}<small style={{ fontSize: '0.5rem' }}> шт</small>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {(() => {
+                  const seqMatch = (card.card_info || '').match(/(\d+\/\d+)/)
+                  return seqMatch ? (
+                    <span style={{
+                      background: active ? 'rgba(0,0,0,0.15)' : '#eab30820',
+                      color: active ? '#000' : '#eab308',
+                      border: active ? '1px solid rgba(0,0,0,0.15)' : '1px solid #eab30840',
+                      padding: '2px 6px', borderRadius: '6px',
+                      fontSize: '0.6rem', fontWeight: 900
+                    }}>
+                      {seqMatch[1]}
+                    </span>
+                  ) : null
+                })()}
+                <div style={{ fontSize: '0.75rem', fontWeight: 1000, opacity: active ? 1 : 0.4 }}>
+                  {card.quantity}<small style={{ fontSize: '0.5rem' }}> шт</small>
+                </div>
               </div>
             </div>
             <div style={{ fontSize: '0.6rem', opacity: active ? 0.7 : 0.4, marginBottom: '10px', fontWeight: 600 }}>
