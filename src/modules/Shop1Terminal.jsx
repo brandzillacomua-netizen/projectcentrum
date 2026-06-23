@@ -831,11 +831,16 @@ export default function Shop1Terminal() {
         machine_name: currentCard.machine,
         card_info: historyCardInfo
       }])
-      // Оновлюємо оператора на картці (щоб таймер показував нового)
+      // Зберігаємо первинний час запуску етапу в card_info, якщо його там немає
+      const originalStart = currentCard.card_info?.match(/\[ORIGINAL_START:([^\]]+)\]/)?.[1] || currentCard.started_at || now;
+      const updatedCardInfo = ((currentCard.card_info || '').replace(/\[ORIGINAL_START:[^\]]+\]/g, '').trim() + ` [ORIGINAL_START:${originalStart}]`).trim();
+
+      // Оновлюємо оператора на картці (залишаємо початковий started_at для загального часу, або записуємо новий started_at для поточного оператора)
       await supabase.from('work_cards').update({
         operator_name: shiftChangeOperator,
         shift_name: shiftChangeShift,
-        started_at: now // скидаємо таймер на нового оператора
+        started_at: now, // поточний оператор починає зараз
+        card_info: updatedCardInfo // зберігаємо оригінальний старт в метаданих
       }).eq('id', currentCard.id)
       setShowShiftChangeModal(false)
       setShiftChangeOperator('')
@@ -1913,6 +1918,9 @@ export default function Shop1Terminal() {
           {/* ── СТАН: IN-PROGRESS (якщо вже в CHAIN) → Таймер + завершити ── */}
           {status === 'in-progress' && CHAIN.includes(currentCard.operation) && (() => {
             const opName = currentCard.operation?.toUpperCase()
+            // Обчислюємо загальний час на етапі (з урахуванням ORIGINAL_START з метаданих або просто started_at)
+            const originalStart = currentCard.card_info?.match(/\[ORIGINAL_START:([^\]]+)\]/)?.[1] || currentCard.started_at
+            
             return (
               <div style={{ textAlign: 'center' }}>
                 {/* Плашка з кількістю в роботі */}
@@ -1928,35 +1936,98 @@ export default function Shop1Terminal() {
                   </div>
                 </div>
 
-                <div style={{ fontSize: '4.5rem', fontWeight: 1000, color: '#10b981', fontFamily: 'monospace', lineHeight: 1, letterSpacing: '-0.05em' }}>
-                  {formatTime(currentCard.started_at)}
+                {/* Великий ТАЙМЕР - Загальний час на етапі (Сума всіх попередніх змін + поточна) */}
+                <div>
+                  <div style={{ fontSize: '4.5rem', fontWeight: 1000, color: '#10b981', fontFamily: 'monospace', lineHeight: 1, letterSpacing: '-0.05em' }}>
+                    {(() => {
+                      // 1. Рахуємо час поточного оператора
+                      const currentDiffSec = Math.max(0, Math.floor((currentTime - new Date(currentCard.started_at)) / 1000))
+                      
+                      // 2. Рахуємо суму часу попередніх операторів з історії
+                      const shiftHistory = (workCardHistory || []).filter(h =>
+                        String(h.card_id) === String(currentCard.id) &&
+                        h.stage_name === 'Розкрій (перезмінка)'
+                      )
+                      let totalPrevSec = 0
+                      shiftHistory.forEach(h => {
+                        const diff = Math.max(0, Math.floor((new Date(h.completed_at) - new Date(h.started_at)) / 1000))
+                        totalPrevSec += diff
+                      })
+                      
+                      // 3. Загальна сума
+                      const totalSec = currentDiffSec + totalPrevSec
+                      const hrs = Math.floor(totalSec / 3600)
+                      const mins = Math.floor((totalSec % 3600) / 60)
+                      const secs = totalSec % 60
+                      return [hrs, mins, secs].map(v => String(v).padStart(2, '0')).join(':')
+                    })()}
+                  </div>
+                  <div style={{ fontSize: '0.55rem', color: '#10b981', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '4px', opacity: 0.8 }}>
+                    ЗАГАЛЬНИЙ ЧАС НА ЕТАПІ
+                  </div>
                 </div>
 
-                <div style={{ color: '#444', fontSize: '0.7rem', marginTop: '15px', fontWeight: 800, textTransform: 'uppercase' }}>
-                  ОПЕРАТОР: <span style={{ color: '#888' }}>{currentCard.operator_name || '—'}</span>
+                {/* Поточний оператор та його особистий таймер */}
+                <div style={{ 
+                  margin: '20px auto 10px', 
+                  padding: '12px 20px', 
+                  background: 'rgba(255,255,255,0.02)', 
+                  border: '1px solid #222', 
+                  borderRadius: '16px', 
+                  maxWidth: '380px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <div style={{ textAlign: 'left' }}>
+                    <div style={{ color: '#555', fontSize: '0.55rem', fontWeight: 800, textTransform: 'uppercase' }}>ПОТОЧНИЙ ОПЕРАТОР</div>
+                    <div style={{ color: '#fff', fontSize: '0.85rem', fontWeight: 900, marginTop: '2px' }}>{currentCard.operator_name || '—'}</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ color: '#555', fontSize: '0.55rem', fontWeight: 800, textTransform: 'uppercase' }}>ЧАС ЗМІНИ</div>
+                    <div style={{ color: '#eab308', fontSize: '1.1rem', fontWeight: 900, fontFamily: 'monospace', marginTop: '2px' }}>
+                      {formatTime(currentCard.started_at)}
+                    </div>
+                  </div>
                 </div>
 
-                {/* Список усіх попередніх операторів перезмінки */}
+                {/* Список усіх попередніх операторів перезмінки та їх часу роботи */}
                 {currentCard.operation === 'Розкрій' && (() => {
                   const shiftHistory = (workCardHistory || []).filter(h =>
                     String(h.card_id) === String(currentCard.id) &&
                     h.stage_name === 'Розкрій (перезмінка)'
                   ).sort((a, b) => new Date(a.completed_at) - new Date(b.completed_at))
                   if (shiftHistory.length === 0) return null
+
+                  const formatMsToDuration = (start, end) => {
+                    const diffSec = Math.max(0, Math.floor((new Date(end) - new Date(start)) / 1000))
+                    const hrs = Math.floor(diffSec / 3600)
+                    const mins = Math.floor((diffSec % 3600) / 60)
+                    const secs = diffSec % 60
+                    return [hrs, mins, secs].map(v => String(v).padStart(2, '0')).join(':')
+                  }
+
                   return (
-                    <div style={{ margin: '10px auto 0', maxWidth: '340px', background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: '12px', padding: '10px 14px' }}>
-                      <div style={{ fontSize: '0.55rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.08em' }}>Попередні виконавці</div>
+                    <div style={{ margin: '15px auto 0', maxWidth: '380px', background: '#09090b', border: '1px solid #18181b', borderRadius: '16px', padding: '14px 18px' }}>
+                      <div style={{ fontSize: '0.55rem', color: '#555', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.08em', textAlign: 'left' }}>
+                        ⏱️ ЧАС ПОПЕРЕДНІХ ЗМІН
+                      </div>
                       {shiftHistory.map((h, i) => (
-                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0', borderBottom: i < shiftHistory.length - 1 ? '1px solid #111' : 'none' }}>
-                          <span style={{ fontSize: '0.65rem', color: '#666', fontWeight: 700 }}>#{i + 1} {h.operator_name}</span>
-                          <span style={{ fontSize: '0.55rem', color: '#333', fontWeight: 700 }}>{h.shift_name}</span>
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: i < shiftHistory.length - 1 ? '1px solid #18181b' : 'none' }}>
+                          <div style={{ textAlign: 'left' }}>
+                            <span style={{ fontSize: '0.75rem', color: '#a1a1aa', fontWeight: 700 }}>#{i + 1} {h.operator_name}</span>
+                            <span style={{ fontSize: '0.6rem', color: '#52525b', fontWeight: 700, marginLeft: '8px' }}>{h.shift_name}</span>
+                          </div>
+                          <span style={{ fontSize: '0.75rem', color: '#71717a', fontWeight: 800, fontFamily: 'monospace' }}>
+                            {formatMsToDuration(h.started_at, h.completed_at)}
+                          </span>
                         </div>
                       ))}
                     </div>
                   )
                 })()}
 
-                <div style={{ marginBottom: '30px' }} />
+                <div style={{ marginBottom: '25px' }} />
 
                 {/* Стрілка куди піде картка */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '25px', background: '#f59e0b0d', border: '1px solid #f59e0b22', borderRadius: '14px', padding: '12px', flexWrap: 'wrap' }}>
@@ -2641,8 +2712,8 @@ export default function Shop1Terminal() {
           <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900 }}>В РОБОТІ ТА БУФЕРІ</h3>
           {isSyncing && <div style={{ fontSize: '0.7rem', color: '#eab308', display: 'flex', alignItems: 'center', gap: '8px' }}><RefreshCw className="spin-s1" size={12} /> Оновлення...</div>}
         </div>
-        <div style={{ overflowX: 'auto', border: 'none', borderRadius: 0, width: '100%' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+        <div style={{ overflowX: 'auto', border: 'none', borderRadius: 0, width: '100%', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ width: '100%', minWidth: '1200px', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr style={{ background: '#0a0a0a', fontSize: '0.65rem', fontWeight: 900, color: '#555', textTransform: 'uppercase' }}>
                 <th style={{ padding: '12px 14px' }}>ДЕТАЛЬ</th>
@@ -2653,8 +2724,8 @@ export default function Shop1Terminal() {
                 <th style={{ padding: '12px 14px' }}>ЗМІНА</th>
                 <th style={{ padding: '12px 14px' }}>ОПЕРАТОР</th>
                 <th style={{ padding: '12px 14px' }}>ВЕРСТАТ</th>
-                <th style={{ padding: '12px 14px' }}>ПЛАН. ЧАС</th>
-                <th style={{ padding: '12px 14px' }}>ЧАС</th>
+                <th style={{ padding: '12px 14px', color: '#10b981' }}>ЗАГАЛЬНИЙ ЧАС</th>
+                <th style={{ padding: '12px 14px', color: '#eab308' }}>ЧАС ЗМІНИ</th>
                 <th style={{ padding: '12px 14px' }}></th>
               </tr>
             </thead>
@@ -2743,8 +2814,15 @@ export default function Shop1Terminal() {
                       <td style={{ padding: '10px 14px', color: '#888' }}>{card.shift_name || '—'}</td>
                       <td style={{ padding: '10px 14px', color: '#aaa' }}>{card.operator_name || '—'}</td>
                       <td style={{ padding: '10px 14px', color: '#eab308', fontWeight: 800 }}>{formatMachine(card.machine)}</td>
-                      <td style={{ padding: '10px 14px', color: '#3b82f6', fontWeight: 700 }}>{formatPlanned(getPlannedTime(card))}</td>
-                      <td style={{ padding: '10px 14px', color: '#10b981', fontFamily: 'monospace', fontWeight: 700 }}>{formatTime(inBuf ? (card.completed_at || card.started_at) : card.started_at)}</td>
+                      <td style={{ padding: '10px 14px', color: '#10b981', fontFamily: 'monospace', fontWeight: 700 }}>
+                        {(() => {
+                          const originalStart = card.card_info?.match(/\[ORIGINAL_START:([^\]]+)\]/)?.[1] || card.started_at
+                          return formatTime(inBuf ? (card.completed_at || card.started_at) : originalStart)
+                        })()}
+                      </td>
+                      <td style={{ padding: '10px 14px', color: '#eab308', fontFamily: 'monospace', fontWeight: 700 }}>
+                        {formatTime(inBuf ? (card.completed_at || card.started_at) : card.started_at)}
+                      </td>
                       <td style={{ padding: '10px 14px', textAlign: 'right' }}>
                         <button onClick={(e) => { e.stopPropagation(); setSelectedCardId(card.id); setSelectedOperator('') }}
                           style={{ background: '#eab308', border: 'none', color: '#000', padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
