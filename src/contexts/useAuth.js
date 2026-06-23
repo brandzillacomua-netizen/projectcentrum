@@ -11,9 +11,25 @@ export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers,
 
   const login = async (loginName, password) => {
     // ── Step 1: Authenticate via Supabase (primary, fast) ──────────────────
-    const { data, error: rpcError } = await supabase
+    const loginPromise = supabase
       .rpc('verify_user_password', { login_name: loginName, plain_password: password })
       .maybeSingle()
+
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('TIMEOUT')), 8000)
+    )
+
+    let response;
+    try {
+      response = await Promise.race([loginPromise, timeoutPromise])
+    } catch (err) {
+      if (err.message === 'TIMEOUT') {
+        return { success: false, error: 'Помилка підключення: Сервер не відповідає. Спробуйте увійти знову. Якщо проблема повторюється, перевірте, чи не призупинено проект в Supabase.' }
+      }
+      return { success: false, error: 'Помилка підключення до сервера бази даних. Спробуйте пізніше.' }
+    }
+
+    const { data, error: rpcError } = response
 
     if (rpcError || !data) {
       return { success: false, error: 'Невірний логін або пароль' }

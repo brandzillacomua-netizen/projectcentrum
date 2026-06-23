@@ -257,6 +257,7 @@ const DashboardModule = () => {
         let bottleneckPartName = ''
         let bottleneckPartCode = ''
         let bottleneckQty = 0
+        let bottleneckQtyPerProduct = 1
         let hasValidDetail = false
 
         groups[prod.id].rows.forEach(row => {
@@ -269,6 +270,7 @@ const DashboardModule = () => {
               bottleneckPartName = row.name
               bottleneckPartCode = row.code
               bottleneckQty = sumVal
+              bottleneckQtyPerProduct = qtyPerProduct
               hasValidDetail = true
             }
         })
@@ -305,6 +307,7 @@ const DashboardModule = () => {
           return acc + qty
         }, 0)
 
+        const bottleneckNeeded = totalDemand * bottleneckQtyPerProduct
         trends[prod.id] = {
           id: prod.id,
           name: prod.name,
@@ -313,7 +316,9 @@ const DashboardModule = () => {
           actual: sgpInventory,
           demand: totalDemand,
           bottleneck: bottleneckPartName ? `${bottleneckPartName}${bottleneckPartCode ? ` (${bottleneckPartCode})` : ''}` : null,
-          bottleneckQty
+          bottleneckQty,
+          bottleneckNeeded,
+          bottleneckQtyPerProduct
         }
         groups[prod.id].trend = trends[prod.id]
     })
@@ -579,9 +584,21 @@ const DashboardModule = () => {
                               <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#fff', wordBreak: 'break-word', lineHeight: 1.3 }} title={trend.bottleneck}>
                                 {trend.bottleneck.length > 35 ? trend.bottleneck.substring(0, 32) + '…' : trend.bottleneck}
                               </div>
-                              <div style={{ fontSize: '0.65rem', color: '#9ca3af', marginTop: '3px', fontWeight: 600 }}>
-                                В наявності: <span style={{ color: '#fca5a5', fontWeight: 800 }}>{trend.bottleneckQty} шт.</span>
+                              {/* Ratio: potential sets / demand */}
+                              <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginTop: '5px' }}>
+                                <span style={{ fontSize: '0.58rem', color: '#9ca3af', fontWeight: 700, marginRight: '2px' }}>Виробів:</span>
+                                <span style={{ fontSize: '1rem', fontWeight: 900, color: '#fca5a5', lineHeight: 1 }}>{(trend.potential || 0).toLocaleString('uk-UA')}</span>
+                                <span style={{ fontSize: '0.65rem', color: '#6b7280', fontWeight: 700 }}>/</span>
+                                <span style={{ fontSize: '1rem', fontWeight: 900, color: '#f4f4f5', lineHeight: 1 }}>{(trend.demand || 0).toLocaleString('uk-UA')}</span>
+                                <span style={{ fontSize: '0.6rem', color: '#6b7280', fontWeight: 600 }}>шт.</span>
                               </div>
+                              {/* Still needed */}
+                              {(trend.demand || 0) > (trend.potential || 0) && (
+                                <div style={{ marginTop: '5px', fontSize: '0.65rem', color: '#f87171', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <span style={{ fontSize: '0.7rem' }}>⬆</span>
+                                  Потрібно ще: <span style={{ fontWeight: 900 }}>{((trend.demand || 0) - (trend.potential || 0)).toLocaleString('uk-UA')} шт.</span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         ) : (

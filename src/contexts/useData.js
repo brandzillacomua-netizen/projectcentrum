@@ -770,8 +770,18 @@ export function useData() {
           setMachineCalls(prev => prev.filter(c => c.id !== payload.old.id))
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'system_users' }, () => {
-        supabase.from('system_users').select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar, last_seen').order('login').then(({ data }) => { if (data) setSystemUsers(data) })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'system_users' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setSystemUsers(prev => {
+            if (prev.some(u => u.id === payload.new.id)) return prev
+            const updated = [...prev, payload.new]
+            return updated.sort((a, b) => (a.login || '').localeCompare(b.login || ''))
+          })
+        } else if (payload.eventType === 'UPDATE') {
+          setSystemUsers(prev => prev.map(u => u.id === payload.new.id ? { ...u, ...payload.new } : u))
+        } else if (payload.eventType === 'DELETE') {
+          setSystemUsers(prev => prev.filter(u => u.id !== payload.old.id))
+        }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'company_structure' }, () => {
         supabase.from('company_structure').select('*').order('name').then(({ data, error }) => {
@@ -818,12 +828,19 @@ export function useData() {
     }
 
     // ── Step 2: Verify in background (non-blocking) ──────────────────────
-    supabase
+    const verifyPromise = supabase
       .from('system_users')
       .select('id,login,password,first_name,last_name,position,access_rights,department,shift')
       .eq('login', savedLogin)
       .maybeSingle()
-      .then(({ data }) => {
+
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('TIMEOUT')), 8000)
+    )
+
+    Promise.race([verifyPromise, timeoutPromise])
+      .then((res) => {
+        const { data } = res || {}
         if (data) {
           const token = localStorage.getItem('BACKEND_TOKEN')
           setCurrentUser({ ...data, token })
@@ -838,7 +855,7 @@ export function useData() {
         setSessionLoading(false)  // Safety: ensure loading stops even if cache was corrupt
       })
       .catch(() => {
-        // Network error: keep cached user, don't force logout
+        // Network error or timeout: keep cached user, don't force logout
         setSessionLoading(false)
       })
   }, [])
