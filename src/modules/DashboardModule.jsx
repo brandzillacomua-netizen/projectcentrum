@@ -307,6 +307,23 @@ const DashboardModule = () => {
           return acc + qty
         }, 0)
 
+        const bottlenecksList = []
+        groups[prod.id].rows.forEach(row => {
+          const qtyPerProduct = row.qtyPerProduct || 1
+          const sumVal = row.sum
+          const potentialSetsForThisPart = Math.floor(sumVal / qtyPerProduct)
+          if (potentialSetsForThisPart < totalDemand) {
+            bottlenecksList.push({
+              name: row.name,
+              code: row.code,
+              potential: potentialSetsForThisPart,
+              qty: sumVal,
+              needed: totalDemand * qtyPerProduct
+            })
+          }
+        })
+        bottlenecksList.sort((a, b) => a.potential - b.potential)
+
         const bottleneckNeeded = totalDemand * bottleneckQtyPerProduct
         trends[prod.id] = {
           id: prod.id,
@@ -318,7 +335,8 @@ const DashboardModule = () => {
           bottleneck: bottleneckPartName ? `${bottleneckPartName}${bottleneckPartCode ? ` (${bottleneckPartCode})` : ''}` : null,
           bottleneckQty,
           bottleneckNeeded,
-          bottleneckQtyPerProduct
+          bottleneckQtyPerProduct,
+          bottlenecks: bottlenecksList
         }
         groups[prod.id].trend = trends[prod.id]
     })
@@ -506,13 +524,15 @@ const DashboardModule = () => {
                   const hasGroup = groupedDashboardData.some(g => String(g.id) === String(id))
                   if (!hasGroup) return null
 
-                  const pct = trend.demand > 0 ? Math.min(100, Math.round((trend.potential / trend.demand) * 100)) : 0
+                  const pct = trend.demand > 0 ? Math.min(100, Math.round((trend.actual / trend.demand) * 100)) : 0
                   const isCritical = pct < 30
                   const isWarning = pct >= 30 && pct < 70
                   const accentColor = isCritical ? '#ef4444' : isWarning ? '#f59e0b' : '#10b981'
                   const accentBg = isCritical ? 'rgba(239,68,68,0.07)' : isWarning ? 'rgba(245,158,11,0.07)' : 'rgba(16,185,129,0.07)'
                   const accentBorder = isCritical ? 'rgba(239,68,68,0.22)' : isWarning ? 'rgba(245,158,11,0.22)' : 'rgba(16,185,129,0.22)'
                   const statusLabel = isCritical ? '🔴 КРИТИЧНИЙ ДЕФІЦИТ' : isWarning ? '🟡 УВАГА' : '🟢 В НОРМІ'
+                  const wip = Math.max(0, trend.potential - trend.actual)
+                  const remainingDemand = Math.max(0, (trend.demand || 0) - trend.actual - wip)
 
                   return (
                     <div key={id} style={{
@@ -543,9 +563,9 @@ const DashboardModule = () => {
 
                           {/* Ratio */}
                           <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                            <div style={{ fontSize: '0.55rem', color: '#52525b', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Потенціал / Потреба</div>
+                            <div style={{ fontSize: '0.55rem', color: '#52525b', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>СГП / Потреба</div>
                             <div style={{ fontSize: '1.4rem', fontWeight: 950, color: accentColor, lineHeight: 1.1, marginTop: '3px' }}>
-                              {trend.potential}
+                              {trend.actual}
                               <span style={{ fontSize: '0.8rem', color: '#71717a', fontWeight: 500 }}> / {trend.demand || 0}</span>
                             </div>
                             <div style={{ fontSize: '0.62rem', color: '#52525b', fontWeight: 700 }}>шт.</div>
@@ -564,41 +584,44 @@ const DashboardModule = () => {
                         </div>
 
                         {/* Stats Row */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
                           <div style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: '12px', padding: '10px 12px' }}>
                             <div style={{ fontSize: '0.58rem', color: '#6b7280', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>На СГП зараз</div>
                             <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#10b981' }}>{trend.actual} <span style={{ fontSize: '0.65rem', color: '#6b7280', fontWeight: 600 }}>шт.</span></div>
                           </div>
+                          <div style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: '12px', padding: '10px 12px' }}>
+                            <div style={{ fontSize: '0.58rem', color: '#6b7280', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>В роботі</div>
+                            <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#3b82f6' }}>{wip} <span style={{ fontSize: '0.65rem', color: '#6b7280', fontWeight: 600 }}>шт.</span></div>
+                          </div>
                           <div style={{ background: 'rgba(255,144,0,0.06)', border: '1px solid rgba(255,144,0,0.15)', borderRadius: '12px', padding: '10px 12px' }}>
                             <div style={{ fontSize: '0.58rem', color: '#6b7280', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Залишок потреби</div>
-                            <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#ff9000' }}>{Math.max(0, (trend.demand || 0) - trend.actual)} <span style={{ fontSize: '0.65rem', color: '#6b7280', fontWeight: 600 }}>шт.</span></div>
+                            <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#ff9000' }}>{remainingDemand} <span style={{ fontSize: '0.65rem', color: '#6b7280', fontWeight: 600 }}>шт.</span></div>
                           </div>
                         </div>
 
-                        {/* Bottleneck Detail */}
-                        {trend.bottleneck ? (
-                          <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.18)', borderRadius: '12px', padding: '11px 14px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                            <div style={{ fontSize: '1.1rem', flexShrink: 0, marginTop: '1px' }}>⚠️</div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: '0.6rem', color: '#f87171', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '3px' }}>Вузьке місце</div>
-                              <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#fff', wordBreak: 'break-word', lineHeight: 1.3 }} title={trend.bottleneck}>
-                                {trend.bottleneck.length > 35 ? trend.bottleneck.substring(0, 32) + '…' : trend.bottleneck}
-                              </div>
-                              {/* Ratio: potential sets / demand */}
-                              <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginTop: '5px' }}>
-                                <span style={{ fontSize: '0.58rem', color: '#9ca3af', fontWeight: 700, marginRight: '2px' }}>Виробів:</span>
-                                <span style={{ fontSize: '1rem', fontWeight: 900, color: '#fca5a5', lineHeight: 1 }}>{(trend.potential || 0).toLocaleString('uk-UA')}</span>
-                                <span style={{ fontSize: '0.65rem', color: '#6b7280', fontWeight: 700 }}>/</span>
-                                <span style={{ fontSize: '1rem', fontWeight: 900, color: '#f4f4f5', lineHeight: 1 }}>{(trend.demand || 0).toLocaleString('uk-UA')}</span>
-                                <span style={{ fontSize: '0.6rem', color: '#6b7280', fontWeight: 600 }}>шт.</span>
-                              </div>
-                              {/* Still needed */}
-                              {(trend.demand || 0) > (trend.potential || 0) && (
-                                <div style={{ marginTop: '5px', fontSize: '0.65rem', color: '#f87171', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <span style={{ fontSize: '0.7rem' }}>⬆</span>
-                                  Потрібно ще: <span style={{ fontWeight: 900 }}>{((trend.demand || 0) - (trend.potential || 0)).toLocaleString('uk-UA')} шт.</span>
+                        {/* Bottleneck Details */}
+                        {trend.bottlenecks && trend.bottlenecks.length > 0 ? (
+                          <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.18)', borderRadius: '12px', padding: '11px 14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                              <span style={{ fontSize: '1rem' }}>⚠️</span>
+                              <span style={{ fontSize: '0.65rem', color: '#f87171', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Вузькі місця ({trend.bottlenecks.length})</span>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto', paddingRight: '4px' }} className="tasks-scroll">
+                              {trend.bottlenecks.map(b => (
+                                <div key={b.name} style={{ borderBottom: '1px solid rgba(239,68,68,0.1)', paddingBottom: '6px' }}>
+                                  <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#fff', wordBreak: 'break-word' }}>
+                                    {b.name} {b.code ? `(${b.code})` : ''}
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                                    <span style={{ fontSize: '0.65rem', color: '#9ca3af' }}>
+                                      Виробів: <strong style={{ color: '#fca5a5' }}>{b.potential}</strong> / {trend.demand} шт.
+                                    </span>
+                                    <span style={{ fontSize: '0.65rem', color: '#f87171', fontWeight: 700 }}>
+                                      Дефіцит: -{(trend.demand - b.potential)} шт.
+                                    </span>
+                                  </div>
                                 </div>
-                              )}
+                              ))}
                             </div>
                           </div>
                         ) : (
@@ -622,7 +645,7 @@ const DashboardModule = () => {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'inherit', fontSize: '0.8rem', color: '#f4f4f5' }}>
               <thead>
                 <tr style={{ background: '#18181b', color: '#a1a1aa', textAlign: 'center', borderBottom: '2px solid #27272a' }}>
-                  <th style={{ padding: '14px 18px', textAlign: 'left', fontWeight: 'bold', borderRight: '1px solid #27272a', color: '#f4f4f5', position: 'sticky', top: 0, zIndex: 10, background: '#18181b' }}>Номенклатура</th>
+                  <th className="wip-sticky-col" style={{ padding: '14px 18px', textAlign: 'left', fontWeight: 'bold', borderRight: '1px solid #27272a', color: '#f4f4f5', position: 'sticky', top: 0, left: 0, zIndex: 40, background: '#18181b' }}>Номенклатура</th>
                   <th style={{ padding: '14px 18px', fontWeight: 'bold', borderRight: '1px solid #27272a', background: '#251b14', color: '#ff9000', minWidth: '70px', position: 'sticky', top: 0, zIndex: 10 }}>Сума</th>
                   <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: '#18181b', color: '#a1a1aa', position: 'sticky', top: 0, zIndex: 10 }}>Очікують Розкрою</th>
                   <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', position: 'sticky', top: 0, zIndex: 10, background: '#18181b' }}>Розкрій (Робота)</th>
@@ -658,7 +681,7 @@ const DashboardModule = () => {
                       <React.Fragment key={group.id}>
                         {/* Group Header Row */}
                         <tr style={{ background: '#1c1917', color: '#fff', borderBottom: '2px solid #27272a' }}>
-                          <td colSpan={19} style={{ padding: '14px 18px', textAlign: 'left', fontWeight: 'bold', borderBottom: '1px solid #27272a' }}>
+                          <td colSpan={19} style={{ padding: '14px 18px', textAlign: 'left', fontWeight: 'bold', borderBottom: '1px solid #27272a', position: 'sticky', left: 0, background: '#1c1917', zIndex: 2 }}>
                             <span style={{ color: '#ff9000', marginRight: '8px' }}>📦</span> 
                             {group.name} 
                             {group.code ? ` (${group.code})` : ''}
@@ -673,7 +696,7 @@ const DashboardModule = () => {
                         {/* Group Row Items */}
                         {group.rows.map((row, idx) => (
                           <tr key={row.id} className="wip-row">
-                            <td style={{ padding: '12px 18px', fontWeight: 'bold', color: '#f4f4f5', borderRight: '1px solid #27272a', paddingLeft: '30px' }}>
+                            <td className="wip-sticky-col" style={{ padding: '12px 18px', fontWeight: 'bold', color: '#f4f4f5', borderRight: '1px solid #27272a', paddingLeft: '30px', position: 'sticky', left: 0, background: '#09090b', zIndex: 2 }}>
                               {row.name}
                               {row.code && <span style={{ display: 'block', fontSize: '0.72rem', color: '#71717a', fontWeight: 'normal', marginTop: '2px' }}>Код: {row.code}</span>}
                             </td>
@@ -702,7 +725,7 @@ const DashboardModule = () => {
 
                         {/* Group Subtotals */}
                         <tr style={{ background: '#121214', fontWeight: 'bold', borderTop: '1px solid #27272a', borderBottom: '1px solid #27272a', color: '#a1a1aa', fontSize: '0.78rem' }}>
-                          <td style={{ padding: '12px 18px', borderRight: '1px solid #27272a', fontStyle: 'italic', paddingLeft: '30px' }}>
+                          <td className="wip-sticky-col" style={{ padding: '12px 18px', borderRight: '1px solid #27272a', fontStyle: 'italic', paddingLeft: '30px', position: 'sticky', left: 0, background: '#121214', zIndex: 2 }}>
                             Підсумок по виробу:
                           </td>
                           <td style={{ padding: '12px 18px', textAlign: 'center', background: 'rgba(255, 144, 0, 0.08)', borderRight: '1px solid #27272a', color: '#ff9000' }}>
@@ -734,7 +757,7 @@ const DashboardModule = () => {
                 {/* Grand Total Row */}
                 {groupedDashboardData.length > 0 && (
                   <tr style={{ background: '#18181b', fontWeight: 'bold', borderTop: '2px solid #ff9000', color: '#fff', fontSize: '0.8rem' }}>
-                    <td style={{ padding: '14px 18px', borderRight: '1px solid #27272a', textTransform: 'uppercase', letterSpacing: '0.5px' }}>ЗАГАЛЬНИЙ WIP РАЗОМ:</td>
+                    <td className="wip-sticky-col" style={{ padding: '14px 18px', borderRight: '1px solid #27272a', textTransform: 'uppercase', letterSpacing: '0.5px', position: 'sticky', left: 0, background: '#18181b', zIndex: 2 }}>ЗАГАЛЬНИЙ WIP РАЗОМ:</td>
                     <td style={{ padding: '14px 18px', textAlign: 'center', background: 'rgba(255, 144, 0, 0.12)', borderRight: '1px solid #27272a', color: '#ff9000' }}>
                       {renderValue(totals.sum, 'sum')}
                     </td>
@@ -774,6 +797,25 @@ const DashboardModule = () => {
         .wip-row:hover {
           background: #18181b !important;
           box-shadow: inset 4px 0 0 0 #ff9000;
+        }
+        .wip-sticky-col {
+          min-width: 240px;
+          max-width: 240px;
+          width: 240px;
+          box-sizing: border-box;
+        }
+        @media (max-width: 768px) {
+          .wip-sticky-col {
+            min-width: 140px !important;
+            max-width: 140px !important;
+            width: 140px !important;
+            font-size: 0.7rem !important;
+            padding-left: 12px !important;
+            padding-right: 8px !important;
+          }
+        }
+        .wip-row:hover td.wip-sticky-col {
+          background: #18181b !important;
         }
       `}} />
     </div>
