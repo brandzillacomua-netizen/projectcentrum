@@ -85,6 +85,7 @@ export default function Shop1Terminal() {
 
   // Фільтр таблиці "В роботі та буфері"
   const [activeTableFilter, setActiveTableFilter] = useState('all') // 'all' | 'in-progress' | 'at-buffer'
+  const [queueFilter, setQueueFilter] = useState('all') // 'all' | 'new' | 'at-buffer'
 
   // Emergency Machine Call Modal state
   const [machineCallModal, setMachineCallModal] = useState(null)
@@ -1665,18 +1666,26 @@ export default function Shop1Terminal() {
   }
 
   // ── Рендер: ліва черга (Преміум-вигляд) ──────────────────────────────────
-  const renderQueue = () => (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px 20px', scrollbarWidth: 'none' }}>
-      <style>{`div::-webkit-scrollbar { display: none; }`}</style>
-      {queueCards.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '40px 20px', color: '#222', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          <Layers size={24} style={{ marginBottom: '10px', opacity: 0.2 }} /><br />
-          Черга порожня
-        </div>
-      )}
-      {queueCards.map(card => {
-        const nom = getNom(card)
-        const active = selectedCardId === card.id
+  const renderQueue = () => {
+    const filteredQueueCards = queueCards.filter(card => {
+      if (queueFilter === 'all') return true
+      if (queueFilter === 'new') return card.status === 'new'
+      if (queueFilter === 'at-buffer') return card.status === 'at-buffer'
+      return true
+    })
+
+    return (
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px 20px', scrollbarWidth: 'none' }}>
+        <style>{`div::-webkit-scrollbar { display: none; }`}</style>
+        {filteredQueueCards.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '40px 20px', color: '#555', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <Layers size={24} style={{ marginBottom: '10px', opacity: 0.2 }} /><br />
+            {queueFilter === 'new' ? 'Немає нових карт' : queueFilter === 'at-buffer' ? 'Немає карт в буфері' : 'Черга порожня'}
+          </div>
+        )}
+        {filteredQueueCards.map(card => {
+          const nom = getNom(card)
+          const active = selectedCardId === card.id
         const isBuffer = card.status === 'at-buffer'
         const statusColor = isBuffer ? '#f59e0b' : '#3b82f6'
         const statusLabel = isBuffer ? `БУФЕР · ${card.operation}` : `НОВА · ${CHAIN.includes(card.operation) ? card.operation : 'Розкрій'}`
@@ -1693,64 +1702,78 @@ export default function Shop1Terminal() {
               transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
               transform: active ? 'scale(1.02)' : 'scale(1)'
             }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
-              <strong style={{ fontSize: '0.9rem', fontWeight: 950, letterSpacing: '-0.01em' }}>
-                {nom?.name || 'Деталь'}
-              </strong>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                {(() => {
-                  const seqMatch = (card.card_info || '').match(/(\d+\/\d+)/)
-                  return seqMatch ? (
-                    <span style={{
-                      background: active ? 'rgba(0,0,0,0.15)' : '#eab30820',
-                      color: active ? '#000' : '#eab308',
-                      border: active ? '1px solid rgba(0,0,0,0.15)' : '1px solid #eab30840',
-                      padding: '2px 6px', borderRadius: '6px',
-                      fontSize: '0.6rem', fontWeight: 900
-                    }}>
-                      {seqMatch[1]}
-                    </span>
-                  ) : null
-                })()}
-                <div style={{ fontSize: '0.75rem', fontWeight: 1000, opacity: active ? 1 : 0.4 }}>
-                  {card.quantity}<small style={{ fontSize: '0.5rem' }}> шт</small>
-                </div>
+            {/* Верхній рядок: Порядковий номер (Зліва) та Номер замовлення (Справа) */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              {(() => {
+                const seqMatch = (card.card_info || '').match(/(\d+\/\d+)/)
+                return seqMatch ? (
+                  <span style={{
+                    background: active ? 'rgba(0,0,0,0.15)' : '#eab30820',
+                    color: active ? '#000' : '#eab308',
+                    border: active ? '1px solid rgba(0,0,0,0.15)' : '1px solid #eab30840',
+                    padding: '2px 8px', borderRadius: '6px',
+                    fontSize: '0.65rem', fontWeight: 950
+                  }}>
+                    {seqMatch[1]}
+                  </span>
+                ) : <div />
+              })()}
+              <div style={{ fontSize: '0.6rem', opacity: active ? 0.7 : 0.4, fontWeight: 600 }}>
+                №{orders?.find(o => o.id === card.order_id)?.order_num || ''} · #{card.id.slice(-8).toUpperCase()}
               </div>
             </div>
-            <div style={{ fontSize: '0.6rem', opacity: active ? 0.7 : 0.4, marginBottom: '10px', fontWeight: 600 }}>
-              №{orders?.find(o => o.id === card.order_id)?.order_num || ''} · #{card.id.slice(-8).toUpperCase()}
+
+            {/* Назва деталі (Середина) */}
+            <div style={{ marginBottom: '12px' }}>
+              <strong style={{ fontSize: '0.95rem', fontWeight: 950, letterSpacing: '-0.01em', lineHeight: '1.2' }}>
+                {nom?.name || 'Деталь'}
+              </strong>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-start' }}>
-              <span style={{
-                fontSize: '0.55rem', fontWeight: 1000, textTransform: 'uppercase', letterSpacing: '0.05em',
-                background: active ? 'rgba(0,0,0,0.1)' : `${statusColor}15`,
-                color: active ? '#000' : statusColor,
-                padding: '3px 8px', borderRadius: '6px', border: active ? '1px solid rgba(0,0,0,0.1)' : 'none',
-                display: 'inline-block'
-              }}>{statusLabel}</span>
-              {card.status === 'at-buffer' && card.operation === 'Розкрій' && (() => {
-                const pColors = { 1: '#ef4444', 2: '#3b82f6', 3: '#10b981' }
-                const pNames = { 1: 'ВИСОКИЙ', 2: 'СЕРЕДНІЙ', 3: 'НИЗЬКИЙ' }
-                const pVal = card.galt_priority || 2
-                return (
-                  <span style={{
-                    fontSize: '0.55rem', fontWeight: 1000, textTransform: 'uppercase', letterSpacing: '0.05em',
-                    background: active ? 'rgba(0,0,0,0.15)' : `${pColors[pVal]}15`,
-                    color: active ? '#000' : pColors[pVal],
-                    padding: '3px 8px', borderRadius: '6px',
-                    border: active ? '1px solid rgba(0,0,0,0.1)' : `1px solid ${pColors[pVal]}30`,
-                    display: 'inline-block'
-                  }}>
-                    ⚠️ ПРІОР: {pVal} ({pNames[pVal]})
-                  </span>
-                )
-              })()}
+
+            {/* Нижня частина: Кількість (Зліва) та Статус/Пріоритет (Справа) */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '10px' }}>
+              {/* Кількість великим шрифтом (Знизу зліва) */}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <div style={{ fontSize: '1.25rem', fontWeight: 1000, color: active ? '#000' : '#fff', lineHeight: 1 }}>
+                  {card.quantity}
+                  <span style={{ fontSize: '0.65rem', fontWeight: 800, marginLeft: '3px', opacity: 0.7 }}>шт</span>
+                </div>
+              </div>
+
+              {/* Статус та пріоритет (Знизу справа) */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-end' }}>
+                <span style={{
+                  fontSize: '0.55rem', fontWeight: 1000, textTransform: 'uppercase', letterSpacing: '0.05em',
+                  background: active ? 'rgba(0,0,0,0.1)' : `${statusColor}15`,
+                  color: active ? '#000' : statusColor,
+                  padding: '3px 8px', borderRadius: '6px', border: active ? '1px solid rgba(0,0,0,0.1)' : 'none',
+                  display: 'inline-block'
+                }}>{statusLabel}</span>
+                {card.status === 'at-buffer' && card.operation === 'Розкрій' && (() => {
+                  const pColors = { 1: '#ef4444', 2: '#3b82f6', 3: '#10b981' }
+                  const pNames = { 1: 'ВИСОКИЙ', 2: 'СЕРЕДНІЙ', 3: 'НИЗЬКИЙ' }
+                  const pVal = card.galt_priority || 2
+                  return (
+                    <span style={{
+                      fontSize: '0.55rem', fontWeight: 1000, textTransform: 'uppercase', letterSpacing: '0.05em',
+                      background: active ? 'rgba(0,0,0,0.15)' : `${pColors[pVal]}15`,
+                      color: active ? '#000' : pColors[pVal],
+                      padding: '3px 8px', borderRadius: '6px',
+                      border: active ? '1px solid rgba(0,0,0,0.1)' : `1px solid ${pColors[pVal]}30`,
+                      display: 'inline-block'
+                    }}>
+                      ⚠️ ПРІОР: {pVal}
+                    </span>
+                  )
+                })()}
+              </div>
             </div>
           </div>
         )
       })}
     </div>
   )
+}
 
   // ── Рендер: вигляд картки (головна область) ──────────────────────────────
   const renderCardView = () => {
@@ -2585,11 +2608,10 @@ export default function Shop1Terminal() {
                   <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: s.inWork > 0 ? '#10b981' : '#222', boxShadow: s.inWork > 0 ? '0 0 8px #10b981' : 'none' }} />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '8px' }}>
                   {[
                     { label: 'РОБОТА', val: s.inWork, color: '#3b82f6' },
                     { label: 'БУФЕР', val: s.inBuffer, color: '#f59e0b' },
-                    { label: 'БРАК', val: s.scrap, color: '#ef4444' },
                   ].map(({ label, val, color }, li) => (
                     <div key={label} style={li > 0 ? { borderLeft: '1px solid #111', paddingLeft: '8px' } : {}}>
                       <div style={{ fontSize: '0.55rem', color: '#333', fontWeight: 1000, marginBottom: '2px', textTransform: 'uppercase' }}>{label}</div>
@@ -2696,11 +2718,10 @@ export default function Shop1Terminal() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '6px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '6px' }}>
                 {[
                   { label: 'ПРИЙОМКА', val: receptionQty, color: '#3b82f6' },
                   { label: 'СОРТУВАННЯ', val: realSortingQty, color: '#8b5cf6' },
-                  { label: 'БРАК', val: scrapQty, color: '#ef4444' },
                 ].map(({ label, val, color }, i) => (
                   <div key={label} style={i > 0 ? { borderLeft: '1px solid #111', paddingLeft: '6px' } : {}}>
                     <div style={{ fontSize: '0.45rem', color: '#333', fontWeight: 1000, marginBottom: '2px', textTransform: 'uppercase' }}>{label}</div>
@@ -2942,8 +2963,26 @@ export default function Shop1Terminal() {
 
         {/* Ліва панель черги (Десктоп) */}
         <div className="side-panel hide-mobile" style={{ width: '280px', background: '#111', borderRight: '1px solid #1a1a1a', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-          <div style={{ padding: '20px 15px 15px', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 900, color: '#555', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid #1a1a1a' }}>
-            <ClipboardList size={16} /> ЧЕРГА КАРТ ({queueCards.length})
+          <div style={{ padding: '20px 15px 15px', borderBottom: '1px solid #1a1a1a', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 900, color: '#555', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <ClipboardList size={16} /> ЧЕРГА КАРТ ({queueCards.length})
+            </div>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              {[['all', 'ВСІ'], ['new', 'НОВІ'], ['at-buffer', 'БУФЕР']].map(([val, label]) => (
+                <button key={val} onClick={() => setQueueFilter(val)} style={{
+                  flex: 1, padding: '5px 0', borderRadius: '6px', border: 'none', cursor: 'pointer',
+                  fontSize: '0.55rem', fontWeight: 900, letterSpacing: '0.02em',
+                  transition: 'all 0.15s',
+                  background: queueFilter === val
+                    ? (val === 'new' ? '#3b82f6' : val === 'at-buffer' ? '#f59e0b' : '#fff')
+                    : '#1a1a1a',
+                  color: queueFilter === val
+                    ? (val === 'all' ? '#000' : '#fff')
+                    : '#555',
+                  boxShadow: queueFilter === val ? '0 2px 4px rgba(0,0,0,0.3)' : 'none'
+                }}>{label}</button>
+              ))}
+            </div>
           </div>
           {renderQueue()}
           <div style={{ padding: '15px', borderTop: '1px solid #1a1a1a' }}>
@@ -2957,9 +2996,27 @@ export default function Shop1Terminal() {
         {/* Мобільний дравер */}
         {isDrawerOpen && <div className="drawer-backdrop" onClick={() => setIsDrawerOpen(false)} />}
         <div className={`side-drawer ${isDrawerOpen ? 'open' : ''}`}>
-          <div className="drawer-header">
-            <span style={{ fontSize: '0.8rem', fontWeight: 900, color: '#eab308' }}>ЧЕРГА (ОБЕРІТЬ КАРТУ)</span>
-            <button onClick={() => setIsDrawerOpen(false)} className="burger-btn"><X size={20} /></button>
+          <div className="drawer-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '8px', padding: '15px 20px', borderBottom: '1px solid #1a1a1a' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 900, color: '#eab308' }}>ЧЕРГА (ОБЕРІТЬ КАРТУ)</span>
+              <button onClick={() => setIsDrawerOpen(false)} className="burger-btn"><X size={20} /></button>
+            </div>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              {[['all', 'ВСІ'], ['new', 'НОВІ'], ['at-buffer', 'БУФЕР']].map(([val, label]) => (
+                <button key={val} onClick={() => setQueueFilter(val)} style={{
+                  flex: 1, padding: '6px 0', borderRadius: '6px', border: 'none', cursor: 'pointer',
+                  fontSize: '0.6rem', fontWeight: 900, letterSpacing: '0.02em',
+                  transition: 'all 0.15s',
+                  background: queueFilter === val
+                    ? (val === 'new' ? '#3b82f6' : val === 'at-buffer' ? '#f59e0b' : '#fff')
+                    : '#1a1a1a',
+                  color: queueFilter === val
+                    ? (val === 'all' ? '#000' : '#fff')
+                    : '#555',
+                  boxShadow: queueFilter === val ? '0 2px 4px rgba(0,0,0,0.3)' : 'none'
+                }}>{label}</button>
+              ))}
+            </div>
           </div>
           {renderQueue()}
         </div>
