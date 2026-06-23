@@ -95,6 +95,8 @@ const ForemanWorkplace = () => {
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 8
 
+  const [expandedGroups, setExpandedGroups] = useState({})
+
   // Звіти по наряду
   const [showReportModal, setShowReportModal] = useState(false)
   const [reportTaskId, setReportTaskId] = useState(null)
@@ -1665,11 +1667,11 @@ const MACHINE_TYPES = [
                   </div>
 
                   {/* ───── АРХІВ КАРТОК ───── */}
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#444', textTransform: 'uppercase', marginBottom: '25px', marginTop: '50px', borderLeft: '4px solid #ef4444', paddingLeft: '15px' }}>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#444', textTransform: 'uppercase', marginBottom: '12px', marginTop: '20px', borderLeft: '4px solid #ef4444', paddingLeft: '15px' }}>
                     Архів робочих карток
                   </h3>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     {Object.keys(task.plan_snapshot || {}).map((nomIdStr) => {
                       const nomId = isNaN(nomIdStr) ? nomIdStr : Number(nomIdStr)
                       const nom = nomenclatures.find(n => String(n.id) === String(nomId))
@@ -1733,8 +1735,11 @@ const MACHINE_TYPES = [
                       }, { waiting: 0, cutting: 0, tumbling: 0, reception: 0 })
 
                       return (
-                        <div key={nomId} className="nomenclature-archive-group" style={{ marginBottom: '30px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', background: '#111', padding: '12px 20px', borderRadius: '12px', border: '1px solid #222' }}>
+                        <div key={nomId} className="nomenclature-archive-group" style={{ marginBottom: '0' }}>
+                          <div 
+                            onClick={() => setExpandedGroups(prev => ({ ...prev, [nomId]: !prev[nomId] }))}
+                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', background: '#111', padding: '12px 20px', borderRadius: '12px', border: '1px solid #222', cursor: 'pointer', userSelect: 'none' }}
+                          >
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                               <div style={{ fontWeight: 900, fontSize: '0.95rem', color: '#fff' }}>{nom?.name || 'Невідома деталь'}</div>
                               <div style={{ fontSize: '0.65rem', color: '#444', marginTop: '2px', fontWeight: 700 }}>
@@ -1763,7 +1768,7 @@ const MACHINE_TYPES = [
                                 БРАК: {groupScrap}
                               </div>
                               {shortage > 0 && task.status !== 'completed' && (
-                                <div style={{ padding: '4px 12px', borderRadius: '8px', background: '#ef444422', border: '1px solid #ef444444', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div onClick={(e) => e.stopPropagation()} style={{ padding: '4px 12px', borderRadius: '8px', background: '#ef444422', border: '1px solid #ef444444', display: 'flex', alignItems: 'center', gap: '12px' }}>
                                   <div style={{ color: '#ef4444', fontSize: '0.7rem', fontWeight: 950 }}>НЕСТАЧА: {shortage}</div>
                                   <button
                                     onClick={() => {
@@ -1789,85 +1794,98 @@ const MACHINE_TYPES = [
                                   </button>
                                 </div>
                               )}
+                              <div style={{ color: '#555', fontWeight: 900, fontSize: '0.8rem', marginLeft: '5px' }}>
+                                {expandedGroups[nomId] ? '▼' : '▶'}
+                              </div>
                             </div>
                           </div>
 
                           {/* ───── КАРТКИ ───── */}
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '15px' }}>
-                            {activeCards.map(card => {
-                              const loadingText = card.card_info?.split(' [')[0]
-                              const isRedo = (card.card_info || '').includes('[REDO]')
-                              const cardScrap = groupHistory
-                                .filter(h => String(h.card_id) === String(card.id))
-                                .reduce((sum, h) => sum + (Number(h.scrap_qty) || 0), 0)
+                          {expandedGroups[nomId] && (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '15px' }}>
+                              {(() => {
+                                const getCardSeq = (card) => {
+                                  const match = (card.card_info || '').match(/(\d+)\/(\d+)/)
+                                  return match ? parseInt(match[1]) : 999999
+                                }
+                                const sortedCards = [...activeCards].sort((a, b) => getCardSeq(a) - getCardSeq(b))
 
-                              const getStatusBadge = () => {
-                                if (card.status === 'new') return { label: 'ОЧІКУЄ', color: '#eab308' }
-                                if (card.status === 'in-progress') return { label: `У РОБОТІ: ${card.operation?.toUpperCase()}`, color: '#3b82f6' }
-                                if (card.status === 'at-buffer' || card.status === 'waiting-buffer') return { label: `БУФЕР: ${card.operation?.toUpperCase()}`, color: '#10b981' }
-                                if (card.status === 'completed') return { label: 'ЗАВЕРШЕНО', color: '#10b981' }
-                                return { label: card.status?.toUpperCase(), color: '#555' }
-                              }
-                              const badge = getStatusBadge()
+                                return sortedCards.map(card => {
+                                  const loadingText = card.card_info?.split(' [')[0]
+                                  const isRedo = (card.card_info || '').includes('[REDO]')
+                                  const cardScrap = groupHistory
+                                    .filter(h => String(h.card_id) === String(card.id))
+                                    .reduce((sum, h) => sum + (Number(h.scrap_qty) || 0), 0)
 
-                              return (
-                                <div
-                                  key={card.id}
-                                  className="archive-card-hover"
-                                  style={{ background: '#0f0f0f', padding: '15px', borderRadius: '20px', display: 'flex', gap: '15px', alignItems: 'center', border: `1px solid ${isRedo ? '#ef444444' : '#1a1a1a'}`, borderLeft: cardScrap > 0 ? '4px solid #ef4444' : `1px solid ${isRedo ? '#ef444444' : '#1a1a1a'}`, cursor: 'pointer', transition: '0.2s', position: 'relative' }}
-                                  onClick={() => setPrintQueue({
-                                    task,
-                                    part: { nom, nomenclature_id: card.nomenclature_id },
-                                    metadata: [{
-                                      id: card.id,
-                                      loading: card.card_info,
-                                      qty: card.quantity,
-                                      machine: card.machine || snapshot?.machine,
-                                      totalLoadings: '—',
-                                      sheetsPerLoading: findMachine(card.machine || snapshot?.machine)?.sheet_capacity || 1,
-                                      estimatedTime: (Number(nom?.time_per_unit) || 0) * (Number(card.quantity) || 0) * 60
-                                    }]
-                                  })}
-                                >
-                                  <div style={{ background: '#fff', padding: '5px', borderRadius: '8px', boxShadow: '0 5px 15px rgba(0,0,0,0.3)' }}><QRCodeSVG value={`CENTRUM_CARD_${card.id}`} size={45} /></div>
-                                  <div style={{ flex: 1 }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                      <div style={{ fontSize: '0.7rem', fontWeight: 1000, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Картка #{card.id.slice(-8).toUpperCase()}</div>
-                                      <span style={{ fontSize: '0.5rem', fontWeight: 1000, padding: '3px 8px', borderRadius: '6px', background: `${badge.color}22`, color: badge.color, border: `1px solid ${badge.color}44` }}>{badge.label}</span>
-                                    </div>
-                                    <div style={{ fontSize: '0.65rem', color: '#666', marginTop: '6px', fontWeight: 700 }}>
-                                      <span style={{ color: '#aaa' }}>{loadingText}</span> | <span style={{ color: '#555' }}>Верстат:</span> <span style={{ color: '#fff' }}>{card.machine || snapshot?.machine || '—'}</span> | <span style={{ color: '#555' }}>Шт:</span> <span style={{ color: '#fff' }}>{card.quantity}</span> | <span style={{ color: '#ef4444' }}>Брак:</span> <span style={{ color: cardScrap > 0 ? '#ef4444' : '#888' }}>{cardScrap}</span>
-                                    </div>
-                                    {cardScrap > 0 && (
-                                      <div style={{ position: 'absolute', top: '-10px', right: '15px', display: 'flex', alignItems: 'center', gap: '4px', background: '#ef4444', color: '#fff', padding: '3px 10px', borderRadius: '8px', fontWeight: 950, fontSize: '0.6rem', boxShadow: '0 8px 20px rgba(239, 68, 68, 0.4)' }}>
-                                        <AlertTriangle size={10} /> БРАК: {cardScrap} ШТ
-                                      </div>
-                                    )}
-                                    {(() => {
-                                      const cardShiftChanges = groupHistory
-                                        .filter(h => String(h.card_id) === String(card.id) && h.stage_name === 'Розкрій (перезмінка)')
-                                        .sort((a, b) => new Date(a.completed_at) - new Date(b.completed_at))
-                                      if (cardShiftChanges.length === 0) return null
-                                      return (
-                                        <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                                          <span style={{ fontSize: '0.5rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', alignSelf: 'center' }}>Перезмінка:</span>
-                                          {cardShiftChanges.map((h, i) => {
-                                            const replacedMatch = h.card_info?.match(/\[REPLACED_BY:(.*?)\]/)
-                                            const replacement = replacedMatch ? replacedMatch[1].split(' (')[0] : ''
-                                            return (
-                                              <span key={i} style={{ fontSize: '0.5rem', background: '#f59e0b11', border: '1px solid #f59e0b22', color: '#f59e0b', padding: '1px 6px', borderRadius: '5px', fontWeight: 800 }}>
-                                                {h.operator_name}{replacement ? ` ➔ ${replacement}` : ''}
-                                              </span>
-                                            )
-                                          })}
+                                  const getStatusBadge = () => {
+                                    if (card.status === 'new') return { label: 'ОЧІКУЄ', color: '#eab308' }
+                                    if (card.status === 'in-progress') return { label: `У РОБОТІ: ${card.operation?.toUpperCase()}`, color: '#3b82f6' }
+                                    if (card.status === 'at-buffer' || card.status === 'waiting-buffer') return { label: `БУФЕР: ${card.operation?.toUpperCase()}`, color: '#10b981' }
+                                    if (card.status === 'completed') return { label: 'ЗАВЕРШЕНО', color: '#10b981' }
+                                    return { label: card.status?.toUpperCase(), color: '#555' }
+                                  }
+                                  const badge = getStatusBadge()
+
+                                  return (
+                                    <div
+                                      key={card.id}
+                                      className="archive-card-hover"
+                                      style={{ background: '#0f0f0f', padding: '15px', borderRadius: '20px', display: 'flex', gap: '15px', alignItems: 'center', border: `1px solid ${isRedo ? '#ef444444' : '#1a1a1a'}`, borderLeft: cardScrap > 0 ? '4px solid #ef4444' : `1px solid ${isRedo ? '#ef444444' : '#1a1a1a'}`, cursor: 'pointer', transition: '0.2s', position: 'relative' }}
+                                      onClick={() => setPrintQueue({
+                                        task,
+                                        part: { nom, nomenclature_id: card.nomenclature_id },
+                                        metadata: [{
+                                          id: card.id,
+                                          loading: card.card_info,
+                                          qty: card.quantity,
+                                          machine: card.machine || snapshot?.machine,
+                                          totalLoadings: '—',
+                                          sheetsPerLoading: findMachine(card.machine || snapshot?.machine)?.sheet_capacity || 1,
+                                          estimatedTime: (Number(nom?.time_per_unit) || 0) * (Number(card.quantity) || 0) * 60
+                                        }]
+                                      })}
+                                    >
+                                      <div style={{ background: '#fff', padding: '5px', borderRadius: '8px', boxShadow: '0 5px 15px rgba(0,0,0,0.3)' }}><QRCodeSVG value={`CENTRUM_CARD_${card.id}`} size={45} /></div>
+                                      <div style={{ flex: 1 }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                          <div style={{ fontSize: '0.7rem', fontWeight: 1000, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Картка #{card.id.slice(-8).toUpperCase()}</div>
+                                          <span style={{ fontSize: '0.5rem', fontWeight: 1000, padding: '3px 8px', borderRadius: '6px', background: `${badge.color}22`, color: badge.color, border: `1px solid ${badge.color}44` }}>{badge.label}</span>
                                         </div>
-                                      )
-                                    })()}
-                                  </div>
-                                </div>
-                              )
-                            })}
-                          </div>
+                                        <div style={{ fontSize: '0.65rem', color: '#666', marginTop: '6px', fontWeight: 700 }}>
+                                          <span style={{ color: '#aaa' }}>{loadingText}</span> | <span style={{ color: '#555' }}>Верстат:</span> <span style={{ color: '#fff' }}>{card.machine || snapshot?.machine || '—'}</span> | <span style={{ color: '#555' }}>Шт:</span> <span style={{ color: '#fff' }}>{card.quantity}</span> | <span style={{ color: '#ef4444' }}>Брак:</span> <span style={{ color: cardScrap > 0 ? '#ef4444' : '#888' }}>{cardScrap}</span>
+                                        </div>
+                                        {cardScrap > 0 && (
+                                          <div style={{ position: 'absolute', top: '-10px', right: '15px', display: 'flex', alignItems: 'center', gap: '4px', background: '#ef4444', color: '#fff', padding: '3px 10px', borderRadius: '8px', fontWeight: 950, fontSize: '0.6rem', boxShadow: '0 8px 20px rgba(239, 68, 68, 0.4)' }}>
+                                            <AlertTriangle size={10} /> БРАК: {cardScrap} ШТ
+                                          </div>
+                                        )}
+                                        {(() => {
+                                          const cardShiftChanges = groupHistory
+                                            .filter(h => String(h.card_id) === String(card.id) && h.stage_name === 'Розкрій (перезмінка)')
+                                            .sort((a, b) => new Date(a.completed_at) - new Date(b.completed_at))
+                                          if (cardShiftChanges.length === 0) return null
+                                          return (
+                                            <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                              <span style={{ fontSize: '0.5rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', alignSelf: 'center' }}>Перезмінка:</span>
+                                              {cardShiftChanges.map((h, i) => {
+                                                const replacedMatch = h.card_info?.match(/\[REPLACED_BY:(.*?)\]/)
+                                                const replacement = replacedMatch ? replacedMatch[1].split(' (')[0] : ''
+                                                return (
+                                                  <span key={i} style={{ fontSize: '0.5rem', background: '#f59e0b11', border: '1px solid #f59e0b22', color: '#f59e0b', padding: '1px 6px', borderRadius: '5px', fontWeight: 800 }}>
+                                                    {h.operator_name}{replacement ? ` ➔ ${replacement}` : ''}
+                                                  </span>
+                                                )
+                                              })}
+                                            </div>
+                                          )
+                                        })()}
+                                      </div>
+                                    </div>
+                                  )
+                                })
+                              })()}
+                            </div>
+                          )}
                         </div>
                       )
                     })}
