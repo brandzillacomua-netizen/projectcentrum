@@ -162,6 +162,12 @@ export default function Shop1Terminal() {
   const [qcReason, setQcReason] = useState('Биття цанги')
   const [qcCustomReason, setQcCustomReason] = useState('')
 
+  // Кастомне сповіщення для iOS (заміна стандартного window.alert)
+  const [customAlert, setCustomAlert] = useState(null) // { title, message }
+  const showAlert = (message, title = 'Сповіщення') => {
+    setCustomAlert({ title, message })
+  }
+
   // Детальна статистика етапу
   const [detailStage, setDetailStage] = useState(null)
   const [detailTab, setDetailTab] = useState('work')
@@ -739,10 +745,9 @@ export default function Shop1Terminal() {
 
         if (!machineExists) {
           setIsProcessing(false)
-          alert(
-            `❌ ПОМИЛКА: ВЕРСТАТ НЕ ЗНАЙДЕНО В СИСТЕМІ!\n\n` +
-            `Вказаного верстата "${targetMachine}" немає в списку обладнання (/machines).\n\n` +
-            `Будь ласка, введіть коректну назву або інвентарний номер верстата з наявних у системі.`
+          showAlert(
+            `Вказаного верстата "${targetMachine}" немає в списку обладнання.\n\nБудь ласка, введіть коректну назву або інвентарний номер верстата з наявних у системі.`,
+            `❌ Помилка: верстат не знайдено`
           )
           return
         }
@@ -771,12 +776,12 @@ export default function Shop1Terminal() {
         if (runningCard) {
           const nom = nomenclatures.find(n => n.id === runningCard.nomenclature_id)
           setIsProcessing(false)
-          alert(
-            `⚠️ ПОМИЛКА: ВЕРСТАТ "${targetMachine}" ВЖЕ ЗАЙНЯТИЙ!\n\n` +
-            `На ньому зараз виконується робота:\n` +
+          showAlert(
+            `На ньому зараз виконується робота:\n\n` +
             `• Картка: #${runningCard.id.slice(-8).toUpperCase()} (${nom?.name || 'Деталь'})\n` +
             `• Оператор: ${runningCard.operator_name || 'Не вказано'}\n\n` +
-            `Будь ласка, оберіть інший вільний верстат або завершіть поточну картку на цьому верстаті.`
+            `Будь ласка, оберіть інший вільний верстат або завершіть поточну картку на цьому верстаті.`,
+            `⚠️ Помилка: Верстат "${targetMachine}" вже зайнятий!`
           )
           return
         }
@@ -3538,6 +3543,47 @@ export default function Shop1Terminal() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── КАСТОМНЕ СПОВІЩЕННЯ (IOS-сумісний alert) ────────────────── */}
+      {customAlert && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 99999, padding: '20px',
+          animation: 'fadeIn 0.2s ease-out'
+        }}>
+          <div style={{
+            background: '#18181b', border: '1px solid #27272a',
+            borderRadius: '24px', padding: '30px 24px', width: '100%', maxWidth: '440px',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.5)', textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: '16px' }}>
+              {customAlert.title.includes('Помилка') || customAlert.title.includes('❌') || customAlert.title.includes('⚠️') ? '⚠️' : 'ℹ️'}
+            </div>
+            <h3 style={{ margin: '0 0 14px', fontSize: '1.2rem', fontWeight: 900, color: '#fff' }}>
+              {customAlert.title}
+            </h3>
+            <p style={{
+              margin: '0 0 24px', fontSize: '0.9rem', color: '#a1a1aa',
+              lineHeight: 1.5, whiteSpace: 'pre-line', textAlign: 'left'
+            }}>
+              {customAlert.message}
+            </p>
+            <button
+              onClick={() => setCustomAlert(null)}
+              style={{
+                width: '100%', background: '#eab308', color: '#000',
+                border: 'none', padding: '14px', borderRadius: '14px',
+                fontSize: '1rem', fontWeight: 1000, cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(234,179,8,0.2)'
+              }}
+            >
+              ЗРОЗУМІЛО
+            </button>
           </div>
         </div>
       )}
