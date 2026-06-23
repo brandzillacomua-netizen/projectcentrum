@@ -641,12 +641,12 @@ const DashboardModule = () => {
           {/* ========================================== */}
           {/*        SPREADSHEET REPLICA (GROUPED)       */}
           {/* ========================================== */}
-          <div style={{ overflow: 'auto', maxHeight: 'calc(100vh - 280px)', borderRadius: '16px', border: '1px solid #27272a', background: '#09090b', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', padding: '1px' }}>
+          <div className="wip-table-container" style={{ borderRadius: '16px', border: '1px solid #27272a', background: '#09090b', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', padding: '1px' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'inherit', fontSize: '0.8rem', color: '#f4f4f5' }}>
               <thead>
                 <tr style={{ background: '#18181b', color: '#a1a1aa', textAlign: 'center', borderBottom: '2px solid #27272a' }}>
                   <th className="wip-sticky-col" style={{ padding: '14px 18px', textAlign: 'left', fontWeight: 'bold', borderRight: '1px solid #27272a', color: '#f4f4f5', position: 'sticky', top: 0, left: 0, zIndex: 40, background: '#18181b' }}>Номенклатура</th>
-                  <th style={{ padding: '14px 18px', fontWeight: 'bold', borderRight: '1px solid #27272a', background: '#251b14', color: '#ff9000', minWidth: '70px', position: 'sticky', top: 0, zIndex: 10 }}>Сума</th>
+                  <th className="wip-sticky-sum" style={{ padding: '14px 18px', fontWeight: 'bold', borderRight: '1px solid #27272a', background: '#251b14', color: '#ff9000', position: 'sticky', top: 0, zIndex: 40 }}>Сума</th>
                   <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: '#18181b', color: '#a1a1aa', position: 'sticky', top: 0, zIndex: 10 }}>Очікують Розкрою</th>
                   <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', position: 'sticky', top: 0, zIndex: 10, background: '#18181b' }}>Розкрій (Робота)</th>
                   <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: '#18181b', color: '#a1a1aa', position: 'sticky', top: 0, zIndex: 10 }}>Буфер Розкрою</th>
@@ -701,9 +701,9 @@ const DashboardModule = () => {
                               {row.name}
                               {row.code && <span style={{ display: 'block', fontSize: '0.72rem', color: '#71717a', fontWeight: 'normal', marginTop: '2px' }}>Код: {row.code}</span>}
                             </td>
-                            <td style={{ padding: '12px 18px', textAlign: 'center', background: 'rgba(255, 144, 0, 0.02)', borderRight: '1px solid #27272a', fontWeight: 'bold' }}>
-                              {renderValue(row.sum, 'sum', row.demand)}
-                            </td>
+                            <td className="wip-sticky-sum" style={{ padding: '12px 18px', textAlign: 'center', background: '#1c130d', borderRight: '1px solid #27272a', fontWeight: 'bold', position: 'sticky', zIndex: 2 }}>
+                               {renderValue(row.sum, 'sum', row.demand)}
+                             </td>
                             <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(row.qCutWait, 'normal')}</td>
                             <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(row.qCut, 'normal')}</td>
                             <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(row.qCutBuf, 'normal')}</td>
@@ -729,9 +729,9 @@ const DashboardModule = () => {
                           <td className="wip-sticky-col" style={{ padding: '12px 18px', borderRight: '1px solid #27272a', fontStyle: 'italic', paddingLeft: '30px', position: 'sticky', left: 0, background: '#121214', zIndex: 2 }}>
                             Підсумок по виробу:
                           </td>
-                          <td style={{ padding: '12px 18px', textAlign: 'center', background: 'rgba(255, 144, 0, 0.08)', borderRight: '1px solid #27272a', color: '#ff9000' }}>
-                            {renderValue(groupTotals.sum, 'sum')}
-                          </td>
+                           <td className="wip-sticky-sum" style={{ padding: '12px 18px', textAlign: 'center', background: '#251a12', borderRight: '1px solid #27272a', color: '#ff9000', position: 'sticky', zIndex: 2 }}>
+                             {renderValue(groupTotals.sum, 'sum')}
+                           </td>
                           <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(groupTotals.qCutWait, 'normal')}</td>
                           <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(groupTotals.qCut, 'normal')}</td>
                           <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(groupTotals.qCutBuf, 'normal')}</td>
@@ -759,9 +759,9 @@ const DashboardModule = () => {
                 {groupedDashboardData.length > 0 && (
                   <tr style={{ background: '#18181b', fontWeight: 'bold', borderTop: '2px solid #ff9000', color: '#fff', fontSize: '0.8rem' }}>
                     <td className="wip-sticky-col" style={{ padding: '14px 18px', borderRight: '1px solid #27272a', textTransform: 'uppercase', letterSpacing: '0.5px', position: 'sticky', left: 0, background: '#18181b', zIndex: 2 }}>ЗАГАЛЬНИЙ WIP РАЗОМ:</td>
-                    <td style={{ padding: '14px 18px', textAlign: 'center', background: 'rgba(255, 144, 0, 0.12)', borderRight: '1px solid #27272a', color: '#ff9000' }}>
-                      {renderValue(totals.sum, 'sum')}
-                    </td>
+                     <td className="wip-sticky-sum" style={{ padding: '14px 18px', textAlign: 'center', background: '#2e2014', borderRight: '1px solid #27272a', color: '#ff9000', position: 'sticky', zIndex: 2 }}>
+                       {renderValue(totals.sum, 'sum')}
+                     </td>
                     <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.02)' }}>{renderValue(totals.qCutWait, 'normal')}</td>
                     <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(totals.qCut, 'normal')}</td>
                     <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.02)' }}>{renderValue(totals.qCutBuf, 'normal')}</td>
@@ -800,10 +800,24 @@ const DashboardModule = () => {
           box-shadow: inset 4px 0 0 0 #ff9000;
         }
         .wip-sticky-col {
-          min-width: 240px;
-          max-width: 240px;
-          width: 240px;
+          min-width: 240px !important;
+          max-width: 240px !important;
+          width: 240px !important;
           box-sizing: border-box;
+        }
+        .wip-sticky-sum {
+          position: sticky;
+          left: 240px !important;
+          min-width: 130px !important;
+          max-width: 130px !important;
+          width: 130px !important;
+          box-sizing: border-box;
+          padding-left: 4px !important;
+          padding-right: 4px !important;
+        }
+        .wip-table-container {
+          overflow: auto;
+          max-height: calc(100vh - 280px);
         }
         @media (max-width: 768px) {
           .wip-sticky-col {
@@ -814,9 +828,24 @@ const DashboardModule = () => {
             padding-left: 12px !important;
             padding-right: 8px !important;
           }
+          .wip-sticky-sum {
+            left: 140px !important;
+            min-width: 105px !important;
+            max-width: 105px !important;
+            width: 105px !important;
+            font-size: 0.7rem !important;
+            padding-left: 2px !important;
+            padding-right: 2px !important;
+          }
+          .wip-table-container {
+            max-height: calc(100vh - 120px) !important;
+          }
         }
         .wip-row:hover td.wip-sticky-col {
           background: #18181b !important;
+        }
+        .wip-row:hover td.wip-sticky-sum {
+          background: #251c14 !important;
         }
       `}} />
     </div>
