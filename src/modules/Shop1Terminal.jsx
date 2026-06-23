@@ -2663,11 +2663,30 @@ export default function Shop1Terminal() {
 
                 return activeCards.map(card => {
                   const inBuf = card.status === 'at-buffer'
+                  const seqMatch = (card.card_info || '').match(/(\d+\/\d+)/)
+                  const cardSeq = seqMatch ? seqMatch[1] : ''
                   return (
                     <tr key={card.id} 
                       onClick={() => { setSelectedCardId(card.id); setSelectedOperator('') }}
                       style={{ borderBottom: '1px solid #1a1a1a', fontSize: '0.85rem', cursor: 'pointer' }}>
-                      <td style={{ padding: '10px 14px', fontWeight: 800, whiteSpace: 'nowrap', fontSize: '0.75rem' }}>{getNom(card)?.name || '—'}</td>
+                      <td style={{ padding: '10px 14px', fontWeight: 800, whiteSpace: 'nowrap', fontSize: '0.75rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {cardSeq && (
+                            <span style={{ 
+                              background: '#eab30815', 
+                              color: '#eab308', 
+                              padding: '2px 6px', 
+                              borderRadius: '6px', 
+                              fontSize: '0.65rem', 
+                              fontWeight: 900,
+                              border: '1px solid #eab30830'
+                            }}>
+                              {cardSeq}
+                            </span>
+                          )}
+                          <span>{getNom(card)?.name || '—'}</span>
+                        </div>
+                      </td>
                       <td style={{ padding: '10px 14px' }}>{card.operation}</td>
                       <td style={{ padding: '10px 14px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
