@@ -31,6 +31,37 @@ const MachinesModule = () => {
     return () => clearInterval(timer)
   }, [])
 
+  const isCardOnMachine = (c, m) => {
+    if (!c || !m) return false;
+    if (c.machine_id === m.id) return true;
+
+    const cardMachineTxt = String(c.machine || '').toLowerCase().trim();
+    if (!cardMachineTxt || cardMachineTxt === 'не вказано') return false;
+
+    const machName = String(m.name || '').toLowerCase().trim();
+    const machInv = String(m.inventory_no || '').toLowerCase().trim();
+    const machSeq = String(m.sequence_number || '').toLowerCase().trim();
+    const machType = String(m.type || '').toLowerCase().trim();
+
+    if (machName && cardMachineTxt === machName) return true;
+    if (machInv && cardMachineTxt === machInv) return true;
+    
+    // Match by type + sequence_number, e.g. "CNC 12x8 - 4 листи (Малий) №2" matches type "CNC 12x8 - 4 листи (Малий)" and sequence_number "2"
+    if (machType && machSeq && cardMachineTxt.includes(machType) && (cardMachineTxt.includes(`№${machSeq}`) || cardMachineTxt.includes(` ${machSeq}`))) return true;
+
+    // Check if inventory number is mentioned
+    if (machInv && (cardMachineTxt.includes(`№${machInv}`) || cardMachineTxt.includes(` ${machInv}`))) return true;
+
+    // Check if sequence number is mentioned in the machine name and type matches
+    if (machSeq && machType && cardMachineTxt.includes(machType) && cardMachineTxt.endsWith(machSeq)) return true;
+
+    return false;
+  }
+
+  const activeWorkForMachine = (m) => {
+    return workCards.find(c => c.status === 'in-progress' && String(c.operation || '').trim().toLowerCase() === 'розкрій' && isCardOnMachine(c, m));
+  }
+
   const activeCallsForMachine = useMemo(() => {
     if (!selectedMachineId || !machineCalls) return []
     return machineCalls.filter(c => c.machine_id === selectedMachineId && c.status === 'pending')
@@ -152,7 +183,7 @@ const MachinesModule = () => {
   const stats = useMemo(() => {
     const total = machines.length
     const repair = machines.filter(m => m.status === 'repair').length
-    const busy = machines.filter(m => m.status !== 'repair' && workCards.some(c => c.machine_id === m.id && c.status === 'in-progress')).length
+    const busy = machines.filter(m => m.status !== 'repair' && workCards.some(c => c.status === 'in-progress' && String(c.operation || '').trim().toLowerCase() === 'розкрій' && isCardOnMachine(c, m))).length
     return { total, busy, repair, idle: total - busy - repair }
   }, [machines, workCards])
 
@@ -213,36 +244,7 @@ const MachinesModule = () => {
 
   const selectedMachine = machines.find(m => m.id === selectedMachineId)
 
-  const isCardOnMachine = (c, m) => {
-    if (!c || !m) return false;
-    if (c.machine_id === m.id) return true;
 
-    const cardMachineTxt = String(c.machine || '').toLowerCase().trim();
-    if (!cardMachineTxt || cardMachineTxt === 'не вказано') return false;
-
-    const machName = String(m.name || '').toLowerCase().trim();
-    const machInv = String(m.inventory_no || '').toLowerCase().trim();
-    const machSeq = String(m.sequence_number || '').toLowerCase().trim();
-    const machType = String(m.type || '').toLowerCase().trim();
-
-    if (machName && cardMachineTxt === machName) return true;
-    if (machInv && cardMachineTxt === machInv) return true;
-    
-    // Match by type + sequence_number, e.g. "CNC 12x8 - 4 листи (Малий) №2" matches type "CNC 12x8 - 4 листи (Малий)" and sequence_number "2"
-    if (machType && machSeq && cardMachineTxt.includes(machType) && (cardMachineTxt.includes(`№${machSeq}`) || cardMachineTxt.includes(` ${machSeq}`))) return true;
-
-    // Check if inventory number is mentioned
-    if (machInv && (cardMachineTxt.includes(`№${machInv}`) || cardMachineTxt.includes(` ${machInv}`))) return true;
-
-    // Check if sequence number is mentioned in the machine name and type matches
-    if (machSeq && machType && cardMachineTxt.includes(machType) && cardMachineTxt.endsWith(machSeq)) return true;
-
-    return false;
-  }
-
-  const activeWorkForMachine = (m) => {
-    return workCards.find(c => c.status === 'in-progress' && isCardOnMachine(c, m));
-  }
 
   const getHistoryForMachine = (m) => {
     if (!m) return [];
@@ -262,7 +264,7 @@ const MachinesModule = () => {
 
     // 2. Оперативний архів (ті, що щойно завершені оператором і чекають підтвердження)
     const fromWaiting = workCards.filter(c => 
-      c.status === 'waiting-buffer' && isCardOnMachine(c, m)
+      c.status === 'waiting-buffer' && String(c.operation || '').trim().toLowerCase() === 'розкрій' && isCardOnMachine(c, m)
     ).map(c => ({
       ...c,
       card_id: c.id,
@@ -273,7 +275,7 @@ const MachinesModule = () => {
 
     // 3. Також додаємо активну роботу, щоб її було видно в історії зі статусом "В РОБОТІ"
     const fromActive = workCards.filter(c => 
-      (c.status === 'in-progress' || c.status === 'new') && isCardOnMachine(c, m)
+      (c.status === 'in-progress' || c.status === 'new') && String(c.operation || '').trim().toLowerCase() === 'розкрій' && isCardOnMachine(c, m)
     ).map(c => ({
       ...c,
       card_id: c.id,
