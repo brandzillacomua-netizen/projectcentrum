@@ -276,10 +276,21 @@ const DashboardModule = () => {
         if (!hasValidDetail) return
         if (minPotential === Infinity) minPotential = 0
 
-        const sgpInventory = (inventory || [])
+        const parentSgpQty = (inventory || [])
           .filter(i => String(i.nomenclature_id) === String(prod.id) && 
                        (i.type === 'finished' || i.warehouse === 'sgp' || i.warehouse === 'SGP'))
           .reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
+
+        let minSgpPotential = Infinity
+        groups[prod.id].rows.forEach(row => {
+          const qtyPerProduct = row.qtyPerProduct || 1
+          const sgpVal = row.qSgp || 0
+          const potentialSgpSets = Math.floor(sgpVal / qtyPerProduct)
+          if (potentialSgpSets < minSgpPotential) {
+            minSgpPotential = potentialSgpSets
+          }
+        })
+        const sgpInventory = parentSgpQty + (minSgpPotential === Infinity ? 0 : minSgpPotential)
 
         const activeOrders = (orders || []).filter(o => o.status !== 'completed' && o.status !== 'shipped' && o.status !== 'cancelled')
         const totalDemand = activeOrders.reduce((acc, o) => {
