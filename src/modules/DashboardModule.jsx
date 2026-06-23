@@ -682,14 +682,15 @@ const DashboardModule = () => {
                         {/* Group Header Row */}
                         <tr style={{ background: '#1c1917', color: '#fff', borderBottom: '2px solid #27272a' }}>
                           <td colSpan={19} style={{ padding: '14px 18px', textAlign: 'left', fontWeight: 'bold', borderBottom: '1px solid #27272a', position: 'sticky', left: 0, background: '#1c1917', zIndex: 2 }}>
-                            <span style={{ color: '#ff9000', marginRight: '8px' }}>📦</span> 
-                            {group.name} 
-                            {group.code ? ` (${group.code})` : ''}
-                            {group.trend && (
-                              <span style={{ marginLeft: '15px', color: '#a1a1aa', fontSize: '0.78rem', fontWeight: 'normal' }}>
-                                (Потенційний тренд: <strong style={{ color: '#fff' }}>{group.trend.potential}</strong> / {group.trend.demand || 0} шт. | На СГП: <strong style={{ color: '#10b981' }}>{group.trend.actual} шт.</strong>)
-                              </span>
-                            )}
+                            <div style={{ position: 'sticky', left: '16px', display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px 12px', maxWidth: 'calc(100vw - 40px)' }}>
+                              <span style={{ color: '#ff9000' }}>📦</span> 
+                              <span style={{ whiteSpace: 'nowrap' }}>{group.name}{group.code ? ` (${group.code})` : ''}</span>
+                              {group.trend && (
+                                <span style={{ color: '#a1a1aa', fontSize: '0.78rem', fontWeight: 'normal' }}>
+                                  (Потенційний тренд: <strong style={{ color: '#fff' }}>{group.trend.potential}</strong> / {group.trend.demand || 0} шт. | На СГП: <strong style={{ color: '#10b981' }}>{group.trend.actual} шт.</strong>)
+                                </span>
+                              )}
+                            </div>
                           </td>
                         </tr>
 
