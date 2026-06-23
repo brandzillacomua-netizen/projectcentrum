@@ -315,10 +315,28 @@ export default function TumblingTerminal() {
     handleCardActionById(clean)
   }
 
+  const getCorrectedCurrentTime = () => {
+    let maxFutureDiff = 0
+    const nowMs = currentTime.getTime()
+    const allCards = workCards || []
+    allCards.forEach(c => {
+      if (c.started_at) {
+        const diff = new Date(c.started_at).getTime() - nowMs
+        if (diff > maxFutureDiff) maxFutureDiff = diff
+      }
+      if (c.completed_at) {
+        const diff = new Date(c.completed_at).getTime() - nowMs
+        if (diff > maxFutureDiff) maxFutureDiff = diff
+      }
+    })
+    return new Date(nowMs + maxFutureDiff)
+  }
+
   // Helper timers formatting
   const formatDuration = (isoStart) => {
     if (!isoStart) return '00:00:00'
-    const diff = Math.max(0, Math.floor((currentTime - new Date(isoStart)) / 1000))
+    const correctedTime = getCorrectedCurrentTime()
+    const diff = Math.max(0, Math.floor((correctedTime - new Date(isoStart)) / 1000))
     const h = Math.floor(diff / 3600)
     const m = Math.floor((diff % 3600) / 60)
     const s = diff % 60

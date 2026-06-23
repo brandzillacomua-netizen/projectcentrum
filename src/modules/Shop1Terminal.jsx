@@ -370,10 +370,74 @@ export default function Shop1Terminal() {
   // ── Хелпери ──────────────────────────────────────────────────────────────
   const currentCard = workCards.find(c => c.id === selectedCardId)
   const getNom = card => nomenclatures.find(n => n.id === card?.nomenclature_id)
+  const formatSec = (totalSec) => {
+    const hrs = Math.floor(totalSec / 3600)
+    const mins = Math.floor((totalSec % 3600) / 60)
+    const secs = totalSec % 60
+    return [hrs, mins, secs].map(v => String(v).padStart(2, '0')).join(':')
+  }
+  const getCardTimeMetrics = (card) => {
+    if (!card) return { totalSec: 0, currentSec: 0 }
+    const nowMs = currentTime.getTime()
+
+    if (card.status === 'in-progress') {
+      // Час поточного оператора від started_at
+      const currentSec = card.started_at
+        ? Math.max(0, Math.floor((nowMs - new Date(card.started_at).getTime()) / 1000))
+        : 0
+
+      // Загальний час на поточному етапі:
+      // Визначаємо реальний старт поточного запуску:
+      // ORIGINAL_START береться лише якщо він НЕ старіший за started_at
+      // (щоб уникнути накладання з попередніх запусків картки)
+      const originalStartStr = (card.card_info || '').match(/\[ORIGINAL_START:([^\]]+)\]/)?.[1]
+      const startedAtMs = card.started_at ? new Date(card.started_at).getTime() : nowMs
+      const originalStartMs = originalStartStr ? new Date(originalStartStr).getTime() : null
+
+      // ORIGINAL_START вважається валідним для цього запуску лише якщо він <= started_at
+      // (тобто він передує або рівний моменту взяття в роботу поточним оператором)
+      const validOriginalStartMs = (originalStartMs !== null && originalStartMs <= startedAtMs)
+        ? originalStartMs
+        : null
+
+      if (validOriginalStartMs !== null) {
+        const totalSec = Math.max(0, Math.floor((nowMs - validOriginalStartMs) / 1000))
+        return { totalSec, currentSec }
+      }
+
+      // 2) Якщо ORIGINAL_START відсутній або недійсний — сумуємо перезмінки поточного запуску + currentSec
+      const stageShiftHistorySec = (workCardHistory || [])
+        .filter(h =>
+          String(h.card_id) === String(card.id) &&
+          h.stage_name === `${card.operation} (перезмінка)` &&
+          // Тільки перезмінки після моменту взяття в роботу поточного запуску
+          h.completed_at && new Date(h.completed_at).getTime() >= startedAtMs
+        )
+        .reduce((sum, h) => {
+          if (h.started_at && h.completed_at) {
+            return sum + Math.max(0, Math.floor((new Date(h.completed_at) - new Date(h.started_at)) / 1000))
+          }
+          return sum
+        }, 0)
+
+      return { totalSec: stageShiftHistorySec + currentSec, currentSec }
+    }
+
+    if (card.status === 'at-buffer') {
+      // Час у буфері від completed_at (момент потрапляння до буферу)
+      const bufferStart = card.completed_at || card.started_at
+      const currentSec = bufferStart
+        ? Math.max(0, Math.floor((nowMs - new Date(bufferStart).getTime()) / 1000))
+        : 0
+      return { totalSec: currentSec, currentSec }
+    }
+
+    return { totalSec: 0, currentSec: 0 }
+  }
   const formatTime = iso => {
     if (!iso) return '00:00:00'
-    const d = Math.max(0, Math.floor((currentTime - new Date(iso)) / 1000))
-    return [Math.floor(d / 3600), Math.floor((d % 3600) / 60), d % 60].map(v => String(v).padStart(2, '0')).join(':')
+    const d = Math.max(0, Math.floor((currentTime.getTime() - new Date(iso).getTime()) / 1000))
+    return formatSec(d)
   }
   const formatPlanned = (mins) => {
     if (!mins || mins <= 0) return '—'
@@ -1979,28 +2043,7 @@ export default function Shop1Terminal() {
                 {/* Великий ТАЙМЕР - Загальний час на етапі (Сума всіх попередніх змін + поточна) */}
                 <div>
                   <div style={{ fontSize: '4.5rem', fontWeight: 1000, color: '#10b981', fontFamily: 'monospace', lineHeight: 1, letterSpacing: '-0.05em' }}>
-                    {(() => {
-                      // 1. Рахуємо час поточного оператора
-                      const currentDiffSec = Math.max(0, Math.floor((currentTime - new Date(currentCard.started_at)) / 1000))
-                      
-                      // 2. Рахуємо суму часу попередніх операторів з історії
-                      const shiftHistory = (workCardHistory || []).filter(h =>
-                        String(h.card_id) === String(currentCard.id) &&
-                        h.stage_name === 'Розкрій (перезмінка)'
-                      )
-                      let totalPrevSec = 0
-                      shiftHistory.forEach(h => {
-                        const diff = Math.max(0, Math.floor((new Date(h.completed_at) - new Date(h.started_at)) / 1000))
-                        totalPrevSec += diff
-                      })
-                      
-                      // 3. Загальна сума
-                      const totalSec = currentDiffSec + totalPrevSec
-                      const hrs = Math.floor(totalSec / 3600)
-                      const mins = Math.floor((totalSec % 3600) / 60)
-                      const secs = totalSec % 60
-                      return [hrs, mins, secs].map(v => String(v).padStart(2, '0')).join(':')
-                    })()}
+                    {formatSec(getCardTimeMetrics(currentCard).totalSec)}
                   </div>
                   <div style={{ fontSize: '0.55rem', color: '#10b981', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '4px', opacity: 0.8 }}>
                     ЗАГАЛЬНИЙ ЧАС НА ЕТАПІ
@@ -2033,9 +2076,16 @@ export default function Shop1Terminal() {
 
                 {/* Список усіх попередніх операторів перезмінки та їх часу роботи */}
                 {currentCard.operation === 'Розкрій' && (() => {
+                  // Визначаємо початок поточного запуску етапу
+                  const stageRunStart = currentCard.card_info?.match(/\[ORIGINAL_START:([^\]]+)\]/)?.[1]
+                    || currentCard.started_at
+                  const stageRunStartMs = stageRunStart ? new Date(stageRunStart).getTime() : 0
+
                   const shiftHistory = (workCardHistory || []).filter(h =>
                     String(h.card_id) === String(currentCard.id) &&
-                    h.stage_name === 'Розкрій (перезмінка)'
+                    h.stage_name === 'Розкрій (перезмінка)' &&
+                    // Тільки перезмінки поточного запуску (не старі з попередніх запусків)
+                    h.completed_at && new Date(h.completed_at).getTime() >= stageRunStartMs
                   ).sort((a, b) => new Date(a.completed_at) - new Date(b.completed_at))
                   if (shiftHistory.length === 0) return null
 
@@ -2874,34 +2924,10 @@ export default function Shop1Terminal() {
                       <td style={{ padding: '10px 14px', color: '#aaa' }}>{card.operator_name || '—'}</td>
                       <td style={{ padding: '10px 14px', color: '#eab308', fontWeight: 800 }}>{formatMachine(card.machine)}</td>
                       <td style={{ padding: '10px 14px', color: '#10b981', fontFamily: 'monospace', fontWeight: 700 }}>
-                        {(() => {
-                          if (inBuf) {
-                            return formatTime(card.completed_at || card.started_at)
-                          }
-                          // 1. Рахуємо час поточного оператора
-                          const currentDiffSec = Math.max(0, Math.floor((currentTime - new Date(card.started_at)) / 1000))
-                          
-                          // 2. Рахуємо суму часу попередніх операторів з історії
-                          const shiftHistory = (workCardHistory || []).filter(h =>
-                            String(h.card_id) === String(card.id) &&
-                            h.stage_name === 'Розкрій (перезмінка)'
-                          )
-                          let totalPrevSec = 0
-                          shiftHistory.forEach(h => {
-                            const diff = Math.max(0, Math.floor((new Date(h.completed_at) - new Date(h.started_at)) / 1000))
-                            totalPrevSec += diff
-                          })
-                          
-                          // 3. Загальна сума
-                          const totalSec = currentDiffSec + totalPrevSec
-                          const hrs = Math.floor(totalSec / 3600)
-                          const mins = Math.floor((totalSec % 3600) / 60)
-                          const secs = totalSec % 60
-                          return [hrs, mins, secs].map(v => String(v).padStart(2, '0')).join(':')
-                        })()}
+                        {formatSec(getCardTimeMetrics(card).totalSec)}
                       </td>
                       <td style={{ padding: '10px 14px', color: '#eab308', fontFamily: 'monospace', fontWeight: 700 }}>
-                        {formatTime(inBuf ? (card.completed_at || card.started_at) : card.started_at)}
+                        {formatSec(getCardTimeMetrics(card).currentSec)}
                       </td>
                       <td style={{ padding: '10px 14px', textAlign: 'right' }}>
                         <button onClick={(e) => { e.stopPropagation(); setSelectedCardId(card.id); setSelectedOperator('') }}
