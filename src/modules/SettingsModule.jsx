@@ -1361,9 +1361,19 @@ const SettingsModule = () => {
     }
 
     const payload = {
-      ...userForm,
       login: cleanLogin,
-      password: cleanPassword
+      password: cleanPassword,
+      first_name: userForm.first_name || '',
+      last_name: userForm.last_name || '',
+      position: userForm.position,
+      department: userForm.department,
+      shift: userForm.shift || 'Без зміни',
+      access_rights: userForm.access_rights,
+      avatar: userForm.avatar || null
+    }
+
+    if (userForm.id) {
+      payload.id = userForm.id
     }
     
     const { error } = await upsertUser(payload)
