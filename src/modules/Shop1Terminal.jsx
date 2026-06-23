@@ -767,6 +767,7 @@ export default function Shop1Terminal() {
         const runningCard = (workCards || []).find(c => {
           if (c.status !== 'in-progress') return false
           if (c.id === currentCard.id) return false
+          if (c.operation !== 'Розкрій') return false
 
           const cMachine = String(c.machine || '').trim().toLowerCase()
           if (!cMachine || cMachine === 'не вказано') return false
