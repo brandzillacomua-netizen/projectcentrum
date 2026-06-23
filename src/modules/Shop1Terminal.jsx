@@ -2816,8 +2816,29 @@ export default function Shop1Terminal() {
                       <td style={{ padding: '10px 14px', color: '#eab308', fontWeight: 800 }}>{formatMachine(card.machine)}</td>
                       <td style={{ padding: '10px 14px', color: '#10b981', fontFamily: 'monospace', fontWeight: 700 }}>
                         {(() => {
-                          const originalStart = card.card_info?.match(/\[ORIGINAL_START:([^\]]+)\]/)?.[1] || card.started_at
-                          return formatTime(inBuf ? (card.completed_at || card.started_at) : originalStart)
+                          if (inBuf) {
+                            return formatTime(card.completed_at || card.started_at)
+                          }
+                          // 1. Рахуємо час поточного оператора
+                          const currentDiffSec = Math.max(0, Math.floor((currentTime - new Date(card.started_at)) / 1000))
+                          
+                          // 2. Рахуємо суму часу попередніх операторів з історії
+                          const shiftHistory = (workCardHistory || []).filter(h =>
+                            String(h.card_id) === String(card.id) &&
+                            h.stage_name === 'Розкрій (перезмінка)'
+                          )
+                          let totalPrevSec = 0
+                          shiftHistory.forEach(h => {
+                            const diff = Math.max(0, Math.floor((new Date(h.completed_at) - new Date(h.started_at)) / 1000))
+                            totalPrevSec += diff
+                          })
+                          
+                          // 3. Загальна сума
+                          const totalSec = currentDiffSec + totalPrevSec
+                          const hrs = Math.floor(totalSec / 3600)
+                          const mins = Math.floor((totalSec % 3600) / 60)
+                          const secs = totalSec % 60
+                          return [hrs, mins, secs].map(v => String(v).padStart(2, '0')).join(':')
                         })()}
                       </td>
                       <td style={{ padding: '10px 14px', color: '#eab308', fontFamily: 'monospace', fontWeight: 700 }}>
