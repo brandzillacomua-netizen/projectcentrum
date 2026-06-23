@@ -86,16 +86,23 @@ function wrapQueryBuilder(builder, tableName) {
     const cloned = isArray ? values.map(v => ({ ...v })) : (values ? { ...values } : {})
     const records = isArray ? cloned : [cloned]
     
+    // Лише для таблиць з текстовими/UUID ідентифікаторами генеруємо UUID (work_cards, tasks тощо).
+    // Для system_users, company_structure, company_positions ідентифікатори числові (bigint)
+    const numericIdTables = ['system_users', 'company_structure', 'company_positions', 'machines']
+    const isNumericTable = numericIdTables.includes(tableName)
+
     for (const r of records) {
       if (r && typeof r === 'object') {
-        if (!r.id) {
+        if (!r.id && !isNumericTable) {
           r.id = generateUUID()
         }
-        window.myConfirmedWrites.add(r.id)
-        const idToClean = r.id
-        setTimeout(() => {
-          window.myConfirmedWrites.delete(idToClean)
-        }, 5 * 60 * 1000)
+        if (r.id) {
+          window.myConfirmedWrites.add(r.id)
+          const idToClean = r.id
+          setTimeout(() => {
+            window.myConfirmedWrites.delete(idToClean)
+          }, 5 * 60 * 1000)
+        }
       }
     }
     
