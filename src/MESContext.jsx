@@ -102,10 +102,10 @@ export const MESProvider = ({ children }) => {
 
   const formatUserName = (u) => {
     // Display as: Прізвище Ім'я (without position)
-    const lastName = u.last_name || ''
-    const firstName = u.first_name || ''
+    const lastName = (u.last_name || '').trim()
+    const firstName = (u.first_name || '').trim()
     const fullName = [lastName, firstName].filter(Boolean).join(' ')
-    return fullName || u.login || ''
+    return (fullName || u.login || '').trim()
   }
 
   const operators = (data.systemUsers || [])
@@ -207,7 +207,7 @@ export const MESProvider = ({ children }) => {
       list = list.filter(u => {
         if (!u.position) return false
         const pos = u.position.toLowerCase()
-        return ['оператор', 'галтовщик', 'пресов', 'преsuв', 'маляр', 'слюсар', 'чистил', 'працівник', 'вкя', 'якост', 'підготов'].map(kw => kw === 'преsuв' ? 'пресув' : kw).some(kw => pos.includes(kw))
+        return ['оператор', 'галтовщик', 'пресов', 'пресув', 'маляр', 'слюсар', 'чистил', 'працівник', 'вкя', 'якост', 'підготов'].map(kw => kw === 'преsuв' ? 'пресув' : kw).some(kw => pos.includes(kw))
       })
     }
 
@@ -272,6 +272,7 @@ export const MESProvider = ({ children }) => {
       machineCalls: data.machineCalls,
       setMachineCalls: data.setMachineCalls,
       fetchModuleData: data.fetchModuleData,
+      formatUserName,
       supabase
     }}>
       {children}
@@ -280,3 +281,4 @@ export const MESProvider = ({ children }) => {
 }
 
 export const useMES = () => useContext(MESContext)
+

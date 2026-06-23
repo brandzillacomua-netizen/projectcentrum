@@ -45,7 +45,7 @@ const MACHINE_TYPES = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function Shop1Terminal() {
-  const { workCards, nomenclatures, operators, getFilteredOperators, getFilteredManagers, managers, workCardHistory, inventory, fetchData, createWorkCard, orders, bomItems, tasks, currentUser, machines, systemUsers, machineOperations } = useMES()
+  const { workCards, nomenclatures, operators, getFilteredOperators, getFilteredManagers, managers, workCardHistory, inventory, fetchData, createWorkCard, orders, bomItems, tasks, currentUser, machines, systemUsers, machineOperations, formatUserName } = useMES()
 
   const [currentTime, setCurrentTime] = useState(new Date())
   const [selectedCardId, setSelectedCardId] = useState(null)
@@ -409,46 +409,50 @@ export default function Shop1Terminal() {
       prevCardIdRef.current = null
       return
     }
-    if (selectedCardId === prevCardIdRef.current) {
-      return
+    
+    const cardChanged = selectedCardId !== prevCardIdRef.current
+    if (cardChanged) {
+      prevCardIdRef.current = selectedCardId
+      setSelectedOperator('')
+      
+      const combined = currentCard?.machine || ''
+      const match = combined.match(/^(.*?) ?№ ?(\S+)$/)
+      if (match) {
+        setSelectedMachine(match[1].trim())
+        setMachineNumber(match[2].trim())
+      } else {
+        setSelectedMachine(combined)
+        setMachineNumber('')
+      }
+      
+      setFinalOperator('')
+      setScrapCount(0)
+      setReworkCount(0)
+      setQcScrapCount(0)
+      setQcInspector('')
+      setCuttersUsed(0)
+      if (currentCard?.operation === 'Розкрій') {
+        const initCutters = getCuttersForCard(currentCard)
+        const initBreakdown = {}
+        initCutters.forEach(name => { initBreakdown[name] = 0 })
+        setCuttersBreakdown(initBreakdown)
+      } else {
+        setCuttersBreakdown({})
+      }
+      setGaltPriority(currentCard?.galt_priority || 2)
     }
-    prevCardIdRef.current = selectedCardId
 
-    setSelectedOperator('')
-    // Auto-select manager: format must match formatUserName from MESContext → "Прізвище Ім'я" (no position)
-    const autoManagerName = [currentUser?.last_name, currentUser?.first_name].filter(Boolean).join(' ') || currentUser?.login || ''
-    setSelectedManager(autoManagerName)
-    // Auto-select shift: use card's existing shift, or foreman's own shift, or empty
-    setSelectedShift(currentCard?.shift_name || currentUser?.shift || '')
-
-    const combined = currentCard?.machine || ''
-    const match = combined.match(/^(.*?) ?№ ?(\S+)$/)
-    if (match) {
-      setSelectedMachine(match[1].trim())
-      setMachineNumber(match[2].trim())
-    } else {
-      setSelectedMachine(combined)
-      setMachineNumber('')
+    // Auto-select manager and shift when card is loaded or currentUser info changes
+    const autoManagerName = currentUser ? formatUserName(currentUser) : ''
+    if (autoManagerName && !selectedManager) {
+      setSelectedManager(autoManagerName)
     }
-
-    setFinalOperator('')
-    setScrapCount(0)
-    setReworkCount(0)
-    setQcScrapCount(0)
-    setQcInspector('')
-    setCuttersUsed(0)
-    // Pre-populate breakdown with all known cutters at 0
-    // so keys exist even if operator doesn't touch +/−
-    if (currentCard?.operation === 'Розкрій') {
-      const initCutters = getCuttersForCard(currentCard)
-      const initBreakdown = {}
-      initCutters.forEach(name => { initBreakdown[name] = 0 })
-      setCuttersBreakdown(initBreakdown)
-    } else {
-      setCuttersBreakdown({})
+    if (cardChanged) {
+      setSelectedShift(currentCard?.shift_name || currentUser?.shift || '')
+    } else if (!selectedShift && (currentCard?.shift_name || currentUser?.shift)) {
+      setSelectedShift(currentCard?.shift_name || currentUser?.shift || '')
     }
-    setGaltPriority(currentCard?.galt_priority || 2)
-  }, [selectedCardId, currentCard, currentUser])
+  }, [selectedCardId, currentCard, currentUser, systemUsers, selectedManager, selectedShift])
 
   const getCuttersForCard = (card) => {
     if (!card) return []

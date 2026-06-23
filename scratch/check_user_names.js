@@ -15,15 +15,15 @@ if (urlMatch && keyMatch) {
   })
   
   const check = async () => {
-    const { data: users, error } = await supabase.from('system_users').select('*')
+    const { data: user, error } = await supabase.from('system_users').select('*').eq('login', 'm4.ws1').single()
     if (error) {
       console.error(error)
       return
     }
-    console.log("System Users:")
-    users.forEach(u => {
-      console.log(`- ${u.id}: ${u.login} | Name: ${u.last_name} ${u.first_name} | Pos: ${u.position} | Dept: ${u.department} | Shift: ${u.shift}`)
-    })
+    console.log("User details:")
+    console.log("last_name:", JSON.stringify(user.last_name))
+    console.log("first_name:", JSON.stringify(user.first_name))
+    console.log("login:", JSON.stringify(user.login))
   }
   
   check()
