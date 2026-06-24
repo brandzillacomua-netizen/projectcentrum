@@ -50,8 +50,8 @@ async function syncTimeDrift() {
       parse: (json) => json.unixtime * 1000
     },
     {
-      url: 'https://timeapi.io/api/Time/current/zone?timeZone=Europe/Kyiv',
-      parse: (json) => new OriginalDate(json.dateTime).getTime()
+      url: 'https://timeapi.io/api/Time/current/zone?timeZone=UTC',
+      parse: (json) => new OriginalDate(json.dateTime + 'Z').getTime()
     }
   ];
 

@@ -18,7 +18,7 @@ async function run() {
     console.error("Error tasks:", tErr);
     return;
   }
-  
+
   const targetTask = tasks.find(t => JSON.stringify(t.plan_snapshot || {}).includes("Київ"));
   if (!targetTask) {
     console.log("No task with 'Київ' found.");
