@@ -218,6 +218,11 @@ const ForemanWorkplace = () => {
   const [allOrdersMap, setAllOrdersMap] = useState({})
   const [taskHistory, setTaskHistory] = useState([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+  const taskDataCacheRef = useRef({
+    archiveCards: {},
+    taskHistory: {},
+    lastWorkCards: null
+  })
   const [staticCompletedCards, setStaticCompletedCards] = useState([])
   const [staticHistory, setStaticHistory] = useState([])
 
@@ -396,6 +401,24 @@ const ForemanWorkplace = () => {
   // Підвантажуємо архівні картки та історію при зміні активного наряду
   useEffect(() => {
     if (activeTaskId) {
+      // Якщо глобальні workCards змінилися — скидаємо кеш
+      if (taskDataCacheRef.current.lastWorkCards !== workCards) {
+        taskDataCacheRef.current.archiveCards = {}
+        taskDataCacheRef.current.taskHistory = {}
+        taskDataCacheRef.current.lastWorkCards = workCards
+      }
+
+      // Перевіряємо чи є дані в кеші для цього наряду
+      const cachedCards = taskDataCacheRef.current.archiveCards[activeTaskId]
+      const cachedHistory = taskDataCacheRef.current.taskHistory[activeTaskId]
+
+      if (cachedCards && cachedHistory) {
+        setArchiveCards(cachedCards)
+        setTaskHistory(cachedHistory)
+        setIsLoadingHistory(false)
+        return
+      }
+
       setIsLoadingHistory(true)
       fetchTaskArchiveCards(activeTaskId).then(async (cards) => {
         setArchiveCards(cards || [])
@@ -403,15 +426,21 @@ const ForemanWorkplace = () => {
         const activeTaskCards = workCards.filter(c => c.task_id === activeTaskId)
         const allTaskCards = [...activeTaskCards, ...(cards || [])]
         const cardIds = allTaskCards.map(c => c.id)
+        let histData = []
         if (cardIds.length > 0) {
-          const { data: histData } = await supabase
+          const { data } = await supabase
             .from('work_card_history')
             .select('*')
             .in('card_id', cardIds)
-          setTaskHistory(histData || [])
+          histData = data || []
+          setTaskHistory(histData)
         } else {
           setTaskHistory([])
         }
+
+        // Записуємо в кеш
+        taskDataCacheRef.current.archiveCards[activeTaskId] = cards || []
+        taskDataCacheRef.current.taskHistory[activeTaskId] = histData
         setIsLoadingHistory(false)
       }).catch(() => {
         setIsLoadingHistory(false)
@@ -1530,7 +1559,7 @@ const ForemanWorkplace = () => {
                               }
 
                               const existing = taskCards.filter(c => String(c.nomenclature_id) === String(nomId))
-                              const productionCards = existing.filter(c => c.operation === 'Розкрій')
+                              const productionCards = existing.filter(c => c.operation !== 'Склад БЗ')
                               const reworks = productionCards.filter(c => (c.card_info || '').includes('[REDO]'))
                               const redoCount = reworks.length
 
