@@ -83,6 +83,7 @@ const ForemanWorkplace = () => {
     localStorage.setItem('foreman_active_view', activeView)
   }, [activeView])
   const [selectedMachines, setSelectedMachines] = useState({})
+  const [rowCapacities, setRowCapacities] = useState({})
   const [editingSplits, setEditingSplits] = useState({}) // { nomId: [{machine, qty}] }
   const saveTimeoutRef = useRef(null)
   const [genModal, setGenModal] = useState(null)
@@ -1396,7 +1397,8 @@ const MACHINE_TYPES = [
                               const isSplitMode = splits.length > 0
                               const totalSheetsNeeded = sheets // This is the total sheets for the whole naryad row
 
-                              const machineCapacity = findMachine(rowMachineName)?.sheet_capacity || 1
+                              const defaultCapacity = findMachine(rowMachineName)?.sheet_capacity || 1
+                              const machineCapacity = (rowCapacities[rowId] !== undefined && rowCapacities[rowId] !== '') ? rowCapacities[rowId] : defaultCapacity
 
                               const baseLoads = rowMachineName ? Math.ceil(sheets / machineCapacity) : (sheets || 0)
                               const loads = (plan === 0 && existing.some(c => c.operation === 'Склад БЗ')) ? 1 : baseLoads
@@ -1449,17 +1451,18 @@ const MACHINE_TYPES = [
                                             return <option key={t} value={t}>{t} ({cap} л.)</option>
                                           })}
                                         </select>
-                                        {plan > 0 && productionCards.length === 0 && (
-                                          <button 
-                                            onClick={() => {
-                                              const initialSplits = [{ machine: rowMachineName || '', qty: plan }]
-                                              handleUpdateMachineInSnapshot(task, nomId, null, initialSplits)
+                                        {plan > 0 && productionCards.length === 0 && rowMachineName && (
+                                          <input
+                                            type="number"
+                                            title="Кількість листів на одне завантаження"
+                                            placeholder="Завант."
+                                            value={rowCapacities[rowId] !== undefined ? rowCapacities[rowId] : defaultCapacity}
+                                            onChange={(e) => {
+                                              const v = parseInt(e.target.value)
+                                              setRowCapacities(p => ({ ...p, [rowId]: isNaN(v) ? '' : Math.max(1, v) }))
                                             }}
-                                            title="Розділити на кілька верстатів"
-                                            style={{ background: '#222', border: 'none', color: '#555', cursor: 'pointer', padding: '8px', borderRadius: '8px' }}
-                                          >
-                                            <Shuffle size={16} />
-                                          </button>
+                                            style={{ width: '60px', background: '#000', border: '1px solid #333', color: '#ff9000', padding: '8px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700, textAlign: 'center' }}
+                                          />
                                         )}
                                       </div>
                                     ) : (
@@ -1614,7 +1617,8 @@ const MACHINE_TYPES = [
                                                   })
                                                 } else {
                                                   if (!rowMachineName) return;
-                                                  setGenModal({ task, part, total: Math.max(1, totalTargetLoads - productionCards.length), targetTotal: totalTargetLoads, requirement: plan, created: productionCards.length, rowId, machineName: rowMachineName, sheets })
+                                                  const mObj = findMachine(rowMachineName);
+                                                  setGenModal({ task, part, total: Math.max(1, totalTargetLoads - productionCards.length), targetTotal: totalTargetLoads, requirement: plan, created: productionCards.length, rowId, machineName: rowMachineName, sheets, capacity: (rowCapacities[rowId] !== undefined && rowCapacities[rowId] !== '') ? rowCapacities[rowId] : (mObj?.sheet_capacity || 1) })
                                                 }
                                               }}
                                               style={{ 
@@ -1779,7 +1783,7 @@ const MACHINE_TYPES = [
                                       const machineName = MACHINE_TYPES.find(t => t === resolvedMachine?.type || t === resolvedMachine?.name) || resolvedMachine?.name || MACHINE_TYPES[0];
                                       const capacity = Number(resolvedMachine?.sheet_capacity) || 1;
                                       const cardsNeeded = Math.ceil(sheetsNeeded / capacity);
-                                      setGenModal({ task, part: { nom }, total: cardsNeeded, targetTotal: cardsNeeded, requirement: shortage, created: 0, machineName, sheets: sheetsNeeded, isRepair: true })
+                                      setGenModal({ task, part: { nom }, total: cardsNeeded, targetTotal: cardsNeeded, requirement: shortage, created: 0, machineName, sheets: sheetsNeeded, isRepair: true, capacity })
                                     }}
                                     disabled={activeCards.some(c => ['new', 'waiting-materials'].includes(c.status) && (c.card_info || '').includes('[REDO]'))}
                                     style={{
@@ -2122,6 +2126,28 @@ const MACHINE_TYPES = [
                   </div>
                 )}
 
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', color: '#ff9000', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px', textAlign: 'center' }}>
+                    Завантаження (місткість верстата: {findMachine(genModal.machineName)?.sheet_capacity || 1} л.)
+                  </label>
+                  <input
+                    type="number"
+                    value={genModal.capacity || findMachine(genModal.machineName)?.sheet_capacity || 1}
+                    onChange={(e) => {
+                      const newCap = Math.max(1, parseInt(e.target.value) || 1);
+                      const newTargetTotal = Math.ceil(genModal.sheets / newCap);
+                      setGenModal(prev => ({ 
+                        ...prev, 
+                        capacity: newCap, 
+                        total: Math.max(1, newTargetTotal - (prev.created || 0)), 
+                        targetTotal: newTargetTotal 
+                      }));
+                    }}
+                    min="1"
+                    style={{ width: '100%', background: '#000', border: '1px solid rgba(255,144,0,0.5)', color: '#ff9000', fontSize: '1.5rem', fontWeight: 950, textAlign: 'center', padding: '10px', borderRadius: '15px', outline: 'none' }}
+                  />
+                </div>
+
                 <div style={{ marginBottom: '30px' }}>
                   <label style={{ display: 'block', color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px', textAlign: 'center' }}>
                     {genModal.isRepair ? 'Кількість карт до друку' : 'Скільки ще карт згенерувати?'}
@@ -2143,7 +2169,7 @@ const MACHINE_TYPES = [
                   onClick={() => {
                     const v = parseInt(document.getElementById('gen_count_input').value)
                     if (v > 0) {
-                      handleGenerateFromWorksheet(genModal.task, genModal.part, genModal.sheets, genModal.machineName, v, genModal.created, genModal.requirement, genModal.isRepair)
+                      handleGenerateFromWorksheet(genModal.task, genModal.part, genModal.sheets, genModal.machineName, v, genModal.created, genModal.requirement, genModal.isRepair, null, 0, genModal.capacity)
                       setGenModal(null)
                     }
                   }}
