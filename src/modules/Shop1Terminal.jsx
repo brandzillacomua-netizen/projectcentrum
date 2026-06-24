@@ -376,67 +376,73 @@ export default function Shop1Terminal() {
     const secs = totalSec % 60
     return [hrs, mins, secs].map(v => String(v).padStart(2, '0')).join(':')
   }
+  // Компенсація зсуву часового поясу БД (+10 годин)
+  const parseDBTime = (iso) => {
+    if (!iso) return null;
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
+    d.setTime(d.getTime() - 10 * 3600 * 1000);
+    return d;
+  }
+
   const getCardTimeMetrics = (card) => {
     if (!card) return { totalSec: 0, currentSec: 0 }
     const nowMs = currentTime.getTime()
 
-    if (card.status === 'in-progress') {
-      // Час поточного оператора від started_at
-      const currentSec = card.started_at
-        ? Math.max(0, Math.floor((nowMs - new Date(card.started_at).getTime()) / 1000))
-        : 0
-
-      // Загальний час на поточному етапі:
-      // Визначаємо реальний старт поточного запуску:
-      // ORIGINAL_START береться лише якщо він НЕ старіший за started_at
-      // (щоб уникнути накладання з попередніх запусків картки)
-      const originalStartStr = (card.card_info || '').match(/\[ORIGINAL_START:([^\]]+)\]/)?.[1]
-      const startedAtMs = card.started_at ? new Date(card.started_at).getTime() : nowMs
-      const originalStartMs = originalStartStr ? new Date(originalStartStr).getTime() : null
-
-      // ORIGINAL_START вважається валідним для цього запуску лише якщо він <= started_at
-      // (тобто він передує або рівний моменту взяття в роботу поточним оператором)
-      const validOriginalStartMs = (originalStartMs !== null && originalStartMs <= startedAtMs)
-        ? originalStartMs
-        : null
-
-      if (validOriginalStartMs !== null) {
-        const totalSec = Math.max(0, Math.floor((nowMs - validOriginalStartMs) / 1000))
-        return { totalSec, currentSec }
-      }
-
-      // 2) Якщо ORIGINAL_START відсутній або недійсний — сумуємо перезмінки поточного запуску + currentSec
-      const stageShiftHistorySec = (workCardHistory || [])
-        .filter(h =>
-          String(h.card_id) === String(card.id) &&
-          h.stage_name === `${card.operation} (перезмінка)` &&
-          // Тільки перезмінки після моменту взяття в роботу поточного запуску
-          h.completed_at && new Date(h.completed_at).getTime() >= startedAtMs
-        )
-        .reduce((sum, h) => {
-          if (h.started_at && h.completed_at) {
-            return sum + Math.max(0, Math.floor((new Date(h.completed_at) - new Date(h.started_at)) / 1000))
+    // 1) Загальний час за всю історію картки (всі етапи та буфери)
+    let totalHistorySec = 0
+    if (workCardHistory && workCardHistory.length > 0) {
+      const cardHistory = workCardHistory.filter(h => String(h.card_id) === String(card.id))
+      cardHistory.forEach(h => {
+        if (h.started_at && h.completed_at) {
+          const s = parseDBTime(h.started_at)?.getTime() || 0;
+          const c = parseDBTime(h.completed_at)?.getTime() || 0;
+          if (s && c) {
+            totalHistorySec += Math.max(0, Math.floor((c - s) / 1000))
           }
-          return sum
-        }, 0)
-
-      return { totalSec: stageShiftHistorySec + currentSec, currentSec }
+        }
+      })
     }
 
-    if (card.status === 'at-buffer') {
-      // Час у буфері від completed_at (момент потрапляння до буферу)
-      const bufferStart = card.completed_at || card.started_at
-      const currentSec = bufferStart
-        ? Math.max(0, Math.floor((nowMs - new Date(bufferStart).getTime()) / 1000))
+    // 2) Час на поточному етапі / буфері
+    let currentSec = 0
+    if (card.status === 'in-progress') {
+      const s = parseDBTime(card.started_at)?.getTime() || 0;
+      currentSec = s 
+        ? Math.max(0, Math.floor((nowMs - s) / 1000)) 
         : 0
-      return { totalSec: currentSec, currentSec }
+    } else if (card.status === 'at-buffer') {
+      const bufferStart = card.completed_at || card.started_at
+      const s = parseDBTime(bufferStart)?.getTime() || 0;
+      currentSec = s 
+        ? Math.max(0, Math.floor((nowMs - s) / 1000)) 
+        : 0
     }
 
-    return { totalSec: 0, currentSec: 0 }
+    return { totalSec: totalHistorySec + currentSec, currentSec }
+  }
+
+  const getCardStartDate = (card) => {
+    const history = (workCardHistory || []).filter(h => String(h.card_id) === String(card.id) && h.started_at);
+    if (history.length > 0) {
+      return new Date(Math.min(...history.map(h => parseDBTime(h.started_at).getTime())));
+    }
+    return parseDBTime(card.started_at ? card.started_at : card.created_at);
+  }
+
+  const formatDateTimeParts = (date) => {
+    if (!date) return { date: '—', time: '' };
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return { date: '—', time: '' };
+    const datePart = d.toLocaleString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const timePart = d.toLocaleString('uk-UA', { hour: '2-digit', minute: '2-digit' });
+    return { date: datePart, time: timePart };
   }
   const formatTime = iso => {
     if (!iso) return '00:00:00'
-    const d = Math.max(0, Math.floor((currentTime.getTime() - new Date(iso).getTime()) / 1000))
+    const s = parseDBTime(iso)?.getTime() || 0;
+    if (!s) return '00:00:00';
+    const d = Math.max(0, Math.floor((currentTime.getTime() - s) / 1000))
     return formatSec(d)
   }
   const formatPlanned = (mins) => {
@@ -2817,15 +2823,15 @@ export default function Shop1Terminal() {
             ))}
           </div>
         </div>
-        <div style={{ overflowX: 'auto', border: 'none', borderRadius: 0, width: '100%', WebkitOverflowScrolling: 'touch' }}>
+        <div style={{ overflowX: 'auto', maxWidth: '100%', border: 'none', borderRadius: 0, width: '100%', WebkitOverflowScrolling: 'touch' }}>
           <table style={{ width: '100%', minWidth: '1200px', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr style={{ background: '#0a0a0a', fontSize: '0.65rem', fontWeight: 900, color: '#555', textTransform: 'uppercase' }}>
+                <th style={{ padding: '12px 14px' }}>ДАТА І ЧАС</th>
                 <th style={{ padding: '12px 14px' }}>ДЕТАЛЬ</th>
                 <th style={{ padding: '12px 14px' }}>ЕТАП</th>
                 <th style={{ padding: '12px 14px' }}>СТАТУС</th>
                 <th style={{ padding: '12px 14px' }}>К-СТЬ</th>
-                <th style={{ padding: '12px 14px' }}>МАЙСТЕР</th>
                 <th style={{ padding: '12px 14px' }}>ЗМІНА</th>
                 <th style={{ padding: '12px 14px' }}>ОПЕРАТОР</th>
                 <th style={{ padding: '12px 14px' }}>ВЕРСТАТ</th>
@@ -2854,11 +2860,11 @@ export default function Shop1Terminal() {
                   if (activeTableFilter === 'in-progress' && c.status !== 'in-progress') return false
                   if (activeTableFilter === 'at-buffer' && c.status !== 'at-buffer') return false
                   return true
-                })
+                }).sort((a, b) => getCardStartDate(b).getTime() - getCardStartDate(a).getTime())
 
                 if (activeCards.length === 0) {
                   return (
-                    <tr><td colSpan={11} style={{ padding: '50px', textAlign: 'center', color: '#444', fontSize: '0.8rem' }}>Немає активних карток</td></tr>
+                    <tr><td colSpan={12} style={{ padding: '50px', textAlign: 'center', color: '#444', fontSize: '0.8rem' }}>Немає активних карток</td></tr>
                   )
                 }
 
@@ -2870,6 +2876,17 @@ export default function Shop1Terminal() {
                     <tr key={card.id} 
                       onClick={() => { setSelectedCardId(card.id); setSelectedOperator('') }}
                       style={{ borderBottom: '1px solid #1a1a1a', fontSize: '0.85rem', cursor: 'pointer' }}>
+                      <td style={{ padding: '10px 14px', color: '#888', whiteSpace: 'nowrap' }}>
+                        {(() => {
+                          const parts = formatDateTimeParts(getCardStartDate(card));
+                          return (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#aaa' }}>{parts.date}</span>
+                              {parts.time && <span style={{ fontSize: '0.65rem', color: '#777' }}>{parts.time}</span>}
+                            </div>
+                          );
+                        })()}
+                      </td>
                       <td style={{ padding: '10px 14px', fontWeight: 800, whiteSpace: 'nowrap', fontSize: '0.75rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           {cardSeq && (
@@ -2919,7 +2936,6 @@ export default function Shop1Terminal() {
                         </div>
                       </td>
                       <td style={{ padding: '10px 14px', fontWeight: 900 }}>{card.quantity} шт</td>
-                      <td style={{ padding: '10px 14px', color: '#888' }}>{card.manager_name || '—'}</td>
                       <td style={{ padding: '10px 14px', color: '#888' }}>{card.shift_name || '—'}</td>
                       <td style={{ padding: '10px 14px', color: '#aaa' }}>{card.operator_name || '—'}</td>
                       <td style={{ padding: '10px 14px', color: '#eab308', fontWeight: 800 }}>{formatMachine(card.machine)}</td>
@@ -3052,7 +3068,7 @@ export default function Shop1Terminal() {
         </div>
 
         {/* Основний контент */}
-        <div className="content-panel" style={{ flex: 1, overflowY: 'auto', padding: '25px 15px', background: '#0a0a0a' }}>
+        <div className="content-panel" style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '25px 15px', background: '#0a0a0a' }}>
           {scanError && (
             <div style={{ background: '#ef444420', border: '1px solid #ef444440', borderRadius: '10px', padding: '12px 16px', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '10px', color: '#ef4444', maxWidth: '680px' }}>
               <AlertTriangle size={16} /> {scanError}
