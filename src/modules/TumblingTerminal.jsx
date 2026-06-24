@@ -148,10 +148,10 @@ export default function TumblingTerminal() {
     setIsProcessing(true)
     setScanError(null)
     try {
-      let card = workCards.find(c => String(c.id).trim() === id)
+      let card = workCards.find(c => String(c.id).trim() === id || String(c.id).toUpperCase().endsWith(id.toUpperCase()))
       if (!card) {
         await fetchData('work_cards').catch(() => { })
-        card = workCards.find(c => String(c.id).trim() === id)
+        card = workCards.find(c => String(c.id).trim() === id || String(c.id).toUpperCase().endsWith(id.toUpperCase()))
       }
 
       if (!card) {
@@ -311,7 +311,7 @@ export default function TumblingTerminal() {
   const handleManualSubmit = (e) => {
     e.preventDefault()
     if (!manualId.trim()) return
-    const clean = translateCyrillic(manualId.trim()).replace('CENTRUM_CARD_', '').trim()
+    const clean = translateCyrillic(manualId.trim()).replace('CENTRUM_CARD_', '').replace('#', '').trim()
     handleCardActionById(clean)
   }
 

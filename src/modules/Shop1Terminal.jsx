@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { ArrowLeft, Camera, X, ChevronRight, Package, AlertTriangle, ClipboardList, Menu, ArrowRight, Layers, RefreshCw, Eye } from 'lucide-react'
+import { ArrowLeft, Camera, X, ChevronRight, Package, AlertTriangle, ClipboardList, Menu, ArrowRight, Layers, RefreshCw, Eye, Search } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { supabase } from '../supabase'
@@ -182,6 +182,7 @@ export default function Shop1Terminal() {
   const [scannedIds, setScannedIds] = useState(() => {
     try { return JSON.parse(localStorage.getItem('shop1_scanned') || '[]') } catch { return [] }
   })
+  const [collapsedGroups, setCollapsedGroups] = useState({})
 
   useEffect(() => { localStorage.setItem('shop1_scanned', JSON.stringify(scannedIds)) }, [scannedIds])
   useEffect(() => { const t = setInterval(() => setCurrentTime(new Date()), 1000); return () => clearInterval(t) }, [])
@@ -335,7 +336,7 @@ export default function Shop1Terminal() {
     if (e) e.preventDefault()
     if (!manualId) return
 
-    const cleanInput = translateCyrillic(manualId.trim())
+    const cleanInput = translateCyrillic(manualId.trim()).replace('CENTRUM_CARD_', '').replace('#', '').trim()
 
     // Check if it's a machine call QR code URL
     const isMachineQR = await handleMachineQRScan(cleanInput)
@@ -348,10 +349,10 @@ export default function Shop1Terminal() {
 
     setIsProcessing(true)
 
-    let card = workCards.find(c => String(c.id).trim() === cleanInput)
+    let card = workCards.find(c => String(c.id).trim() === cleanInput || String(c.id).toUpperCase().endsWith(cleanInput.toUpperCase()))
     if (!card) {
       await fetchData('work_cards').catch(() => { })
-      card = workCards.find(c => String(c.id).trim() === cleanInput)
+      card = workCards.find(c => String(c.id).trim() === cleanInput || String(c.id).toUpperCase().endsWith(cleanInput.toUpperCase()))
     }
 
     if (!card) {
@@ -2636,10 +2637,26 @@ export default function Shop1Terminal() {
             Розкрій → Буфер → Галтовка → Буфер → Прийомка
           </p>
         </div>
-        <button onClick={() => setIsScanning(true)}
-          style={{ background: '#eab308', border: 'none', color: '#000', padding: '13px 26px', borderRadius: '13px', fontWeight: 900, fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-          <Camera size={17} /> ВІДКРИТИ СКАНЕР
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <form onSubmit={handleManualEntry} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#0e0e12', border: '1px solid #1a1a1a', padding: '10px 14px', borderRadius: '13px' }}>
+            <Search size={16} color="#6b7280" />
+            <input
+              type="text"
+              placeholder="Введіть системний номер..."
+              value={manualId}
+              onChange={e => setManualId(e.target.value)}
+              disabled={isProcessing}
+              style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '0.85rem', fontWeight: 700, outline: 'none', width: '180px' }}
+            />
+            <button type="submit" disabled={isProcessing} style={{ background: '#eab308', color: '#000', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', transition: '0.2s' }}>
+              {isProcessing ? <RefreshCw size={12} className="anim-spin" /> : 'ЗНАЙТИ'}
+            </button>
+          </form>
+          <button onClick={() => setIsScanning(true)}
+            style={{ background: '#eab308', border: 'none', color: '#000', padding: '13px 26px', borderRadius: '13px', fontWeight: 900, fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <Camera size={17} /> ВІДКРИТИ СКАНЕР
+          </button>
+        </div>
       </div>
 
       {/* Ланцюжок з буферами + сток Прийомки (GRID LAYOUT) */}
@@ -2868,7 +2885,14 @@ export default function Shop1Terminal() {
                   )
                 }
 
-                return activeCards.map(card => {
+                const grouped = {}
+                CHAIN.forEach(op => { grouped[op] = [] })
+                activeCards.forEach(card => {
+                  if (grouped[card.operation]) grouped[card.operation].push(card)
+                })
+
+                const rows = []
+                const renderCardRow = (card) => {
                   const inBuf = card.status === 'at-buffer'
                   const seqMatch = (card.card_info || '').match(/(\d+\/\d+)/)
                   const cardSeq = seqMatch ? seqMatch[1] : ''
@@ -2954,7 +2978,30 @@ export default function Shop1Terminal() {
                       </td>
                     </tr>
                   )
+                }
+
+                CHAIN.forEach(op => {
+                  if (grouped[op] && grouped[op].length > 0) {
+                    const isCollapsed = collapsedGroups[op]
+                    rows.push(
+                      <tr key={`header-${op}`} 
+                          onClick={() => setCollapsedGroups(prev => ({ ...prev, [op]: !prev[op] }))}
+                          style={{ background: '#0a0a0a', cursor: 'pointer', userSelect: 'none' }}>
+                        <td colSpan={11} style={{ padding: '12px 14px', fontSize: '0.7rem', fontWeight: 950, color: '#eab308', textTransform: 'uppercase', letterSpacing: '0.15em', borderBottom: '1px solid #1a1a1a', borderTop: '1px solid #1a1a1a' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ width: '0', height: '0', borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: isCollapsed ? 'none' : '5px solid #eab308', borderBottom: isCollapsed ? '5px solid #eab308' : 'none', transform: isCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.2s' }} />
+                            {op} <span style={{ color: '#555' }}>({grouped[op].length})</span>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                    if (!isCollapsed) {
+                      grouped[op].forEach(card => rows.push(renderCardRow(card)))
+                    }
+                  }
                 })
+
+                return rows
               })()}
             </tbody>
           </table>
