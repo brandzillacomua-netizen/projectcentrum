@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { ArrowLeft, Camera, X, ChevronRight, Package, AlertTriangle, ClipboardList, Menu, ArrowRight, Layers, RefreshCw, Eye, Search } from 'lucide-react'
+import { ArrowLeft, Camera, X, ChevronRight, Package, AlertTriangle, ClipboardList, Menu, ArrowRight, Layers, RefreshCw, Eye, Search, QrCode } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { supabase } from '../supabase'
@@ -2653,8 +2653,26 @@ export default function Shop1Terminal() {
             </button>
           </form>
           <button onClick={() => setIsScanning(true)}
-            style={{ background: '#eab308', border: 'none', color: '#000', padding: '13px 26px', borderRadius: '13px', fontWeight: 900, fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-            <Camera size={17} /> ВІДКРИТИ СКАНЕР
+            className="hover-lift"
+            style={{ 
+              background: '#eab308', 
+              border: 'none', 
+              color: '#000', 
+              width: '64px',
+              height: '64px',
+              borderRadius: '50%', 
+              display: 'flex', 
+              justifyContent: 'center',
+              alignItems: 'center', 
+              cursor: 'pointer',
+              position: 'fixed',
+              bottom: '30px',
+              right: '30px',
+              zIndex: 1000,
+              boxShadow: '0 10px 30px rgba(234,179,8,0.4)',
+              transition: 'all 0.2s'
+            }}>
+            <QrCode size={32} />
           </button>
         </div>
       </div>
