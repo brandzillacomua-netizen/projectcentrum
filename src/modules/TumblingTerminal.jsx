@@ -503,7 +503,7 @@ export default function TumblingTerminal() {
                   : '—'
 
                 return (
-                  <div key={card.id} style={{ background: '#111116', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '18px', padding: '16px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '16px', transition: '0.2s', position: 'relative' }} className="hover-lift">
+                  <div key={card.id} style={{ background: '#111116', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '18px', padding: '16px 18px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px', transition: '0.2s', position: 'relative' }} className="hover-lift">
 
                     {/* Priority strip */}
                     <div style={{ position: 'absolute', left: 0, top: '15px', bottom: '15px', width: '3px', background: pInfo.text, borderRadius: '0 3px 3px 0' }} />
@@ -585,7 +585,7 @@ export default function TumblingTerminal() {
                 const workTime = formatDuration(card.started_at)
 
                 return (
-                  <div key={card.id} style={{ background: '#111116', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '18px', padding: '16px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '16px', transition: '0.2s', position: 'relative' }}>
+                  <div key={card.id} style={{ background: '#111116', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '18px', padding: '16px 18px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px', transition: '0.2s', position: 'relative' }}>
 
                     {/* Active strip */}
                     <div style={{ position: 'absolute', left: 0, top: '15px', bottom: '15px', width: '3px', background: '#10b981', borderRadius: '0 3px 3px 0' }} />
