@@ -359,9 +359,32 @@ const ReportsModule = () => {
       .filter(h => Number(h.scrap_qty) > 0 && filterByDate(h.completed_at))
       .map(h => {
         const nom = nomenclatures.find(n => n.id === h.nomenclature_id);
+        
+        let cat1 = 0, cat2 = 0, cat3 = 0, cat4 = 0;
+        if (h.qc_scrap_comment && h.qc_scrap_comment.includes('SCRAP_CAT:')) {
+          try {
+            const match = h.qc_scrap_comment.match(/\[SCRAP_CAT:([^\]]+)\]/);
+            if (match) {
+              const cats = JSON.parse(match[1]);
+              cat1 = Number(cats.cat1 || 0);
+              cat2 = Number(cats.cat2 || 0);
+              cat3 = Number(cats.cat3 || 0);
+              cat4 = Number(cats.cat4 || 0);
+            }
+          } catch (e) {}
+        }
+        
+        const totalClassified = cat1 + cat2 + cat3 + cat4;
+        const unclassified = Math.max(0, Number(h.scrap_qty) - totalClassified);
+
         return {
           ...h,
-          nom_name: nom ? nom.name : 'Невідома деталь'
+          nom_name: nom ? nom.name : 'Невідома деталь',
+          cat1,
+          cat2,
+          cat3,
+          cat4,
+          unclassified
         };
       })
       .filter(h => !searchQuery || h.nom_name.toLowerCase().includes(searchQuery.toLowerCase()) || h.operator_name.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -877,12 +900,17 @@ const ReportsModule = () => {
               <h4 style={{ margin: '0 0 15px', fontSize: '0.8rem', color: '#888', textTransform: 'uppercase' }}>Деталізація випадків</h4>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                 <thead>
-                  <tr style={{ color: '#555', textAlign: 'left', borderBottom: '1px solid #222' }}>
+                  <tr style={{ color: '#555', textAlign: 'left', borderBottom: '2px solid #222' }}>
                     <th style={{ padding: '10px' }}>Дата</th>
                     <th style={{ padding: '10px' }}>Деталь</th>
                     <th style={{ padding: '10px' }}>Оператор</th>
                     <th style={{ padding: '10px' }}>Етап</th>
-                    <th style={{ padding: '10px', textAlign: 'right' }}>К-сть</th>
+                    <th style={{ padding: '10px', textAlign: 'center', color: '#10b981' }}>Кат. 1</th>
+                    <th style={{ padding: '10px', textAlign: 'center', color: '#eab308' }}>Кат. 2</th>
+                    <th style={{ padding: '10px', textAlign: 'center', color: '#f97316' }}>Кат. 3</th>
+                    <th style={{ padding: '10px', textAlign: 'center', color: '#ef4444' }}>Кат. 4</th>
+                    <th style={{ padding: '10px', textAlign: 'center', color: '#666' }}>Не класиф.</th>
+                    <th style={{ padding: '10px', textAlign: 'right' }}>Всього</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -892,11 +920,16 @@ const ReportsModule = () => {
                       <td style={{ padding: '10px', color: '#fff', fontWeight: 700 }}>{h.nom_name}</td>
                       <td style={{ padding: '10px', color: '#aaa' }}>{h.operator_name}</td>
                       <td style={{ padding: '10px', color: '#aaa' }}>{h.stage_name}</td>
+                      <td style={{ padding: '10px', textAlign: 'center', color: h.cat1 > 0 ? '#10b981' : '#444', fontWeight: h.cat1 > 0 ? '900' : '400' }}>{h.cat1 || '—'}</td>
+                      <td style={{ padding: '10px', textAlign: 'center', color: h.cat2 > 0 ? '#eab308' : '#444', fontWeight: h.cat2 > 0 ? '900' : '400' }}>{h.cat2 || '—'}</td>
+                      <td style={{ padding: '10px', textAlign: 'center', color: h.cat3 > 0 ? '#f97316' : '#444', fontWeight: h.cat3 > 0 ? '900' : '400' }}>{h.cat3 || '—'}</td>
+                      <td style={{ padding: '10px', textAlign: 'center', color: h.cat4 > 0 ? '#ef4444' : '#444', fontWeight: h.cat4 > 0 ? '900' : '400' }}>{h.cat4 || '—'}</td>
+                      <td style={{ padding: '10px', textAlign: 'center', color: h.unclassified > 0 ? '#888' : '#333', fontWeight: h.unclassified > 0 ? '700' : '400' }}>{h.unclassified || '—'}</td>
                       <td style={{ padding: '10px', textAlign: 'right', color: '#ef4444', fontWeight: 900 }}>{h.scrap_qty}</td>
                     </tr>
                   ))}
                   {scrapStats.list.length === 0 && (
-                    <tr><td colSpan="5" style={{ padding: '20px', textAlign: 'center', color: '#555' }}>Брак відсутній за обраний період</td></tr>
+                    <tr><td colSpan="10" style={{ padding: '20px', textAlign: 'center', color: '#555' }}>Брак відсутній за обраний період</td></tr>
                   )}
                 </tbody>
               </table>
