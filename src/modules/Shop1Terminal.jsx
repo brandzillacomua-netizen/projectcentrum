@@ -3212,7 +3212,13 @@ export default function Shop1Terminal() {
 
               {/* Фактична кількість фрез (Тільки для Розкрою) */}
               {currentCard.operation === 'Розкрій' && (() => {
-                const cardCutters = getCuttersForCard(currentCard)
+                const cardCutters = [...getCuttersForCard(currentCard)].sort((a, b) => {
+                  const getDiam = (str) => {
+                    const m = str.match(/(\d+(?:[.,]\d+)?)[xх]/i)
+                    return m ? parseFloat(m[1].replace(',', '.')) : 999
+                  }
+                  return getDiam(a) - getDiam(b)
+                })
                 return (
                   <div style={{ background: '#0d0d0d', borderRadius: '14px', padding: '18px', border: '1px solid #eab30822', display: 'flex', flexDirection: 'column', gap: '15px' }}>
                     <label style={{ color: '#eab308', fontWeight: 900, fontSize: '0.7rem', textTransform: 'uppercase', display: 'block', textAlign: 'center' }}>
