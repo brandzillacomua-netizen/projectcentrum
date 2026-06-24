@@ -2530,13 +2530,21 @@ export default function Shop1Terminal() {
                 setIsBulkMoving(true)
                 try {
                   await Promise.all(scrapItemsToMove.map(async (item) => {
-                    const { data: existing } = await supabase.from('inventory').select('*').eq('nomenclature_id', item.nomenclature_id).eq('type', 'scrap_ready').limit(1).maybeSingle()
-                    if (existing) {
-                      await supabase.from('inventory').update({ total_qty: (Number(existing.total_qty) || 0) + (Number(item.total_qty) || 0), updated_at: new Date().toISOString() }).eq('id', existing.id)
-                      await supabase.from('inventory').delete().eq('id', item.id)
-                    } else {
-                      await supabase.from('inventory').update({ type: 'scrap_ready', updated_at: new Date().toISOString() }).eq('id', item.id)
+                    // Find matching unarchived history rows for this nomenclature
+                    const { data: historyToArchive } = await supabase.from('work_card_history')
+                      .select('id')
+                      .eq('nomenclature_id', item.nomenclature_id)
+                      .eq('is_archived_scrap', false)
+                      .gt('scrap_qty', 0);
+                      
+                    if (historyToArchive && historyToArchive.length > 0) {
+                      await supabase.from('work_card_history')
+                        .update({ is_archived_scrap: true })
+                        .in('id', historyToArchive.map(h => h.id));
                     }
+                    
+                    // Delete the local shop inventory record since it's now in Isolator
+                    await supabase.from('inventory').delete().eq('id', item.id);
                   }))
                   fetchData('inventory').catch(() => {})
                 } catch (e) { alert('Помилка: ' + e.message) }
@@ -2588,13 +2596,21 @@ export default function Shop1Terminal() {
                       onClick={async () => {
                         setMovingScrapIds(prev => new Set([...prev, item.id]))
                         try {
-                          const { data: existing } = await supabase.from('inventory').select('*').eq('nomenclature_id', item.nomenclature_id).eq('type', 'scrap_ready').limit(1).maybeSingle()
-                          if (existing) {
-                            await supabase.from('inventory').update({ total_qty: (Number(existing.total_qty) || 0) + (Number(item.total_qty) || 0), updated_at: new Date().toISOString() }).eq('id', existing.id)
-                            await supabase.from('inventory').delete().eq('id', item.id)
-                          } else {
-                            await supabase.from('inventory').update({ type: 'scrap_ready', updated_at: new Date().toISOString() }).eq('id', item.id)
+                          // Find matching unarchived history rows for this nomenclature
+                          const { data: historyToArchive } = await supabase.from('work_card_history')
+                            .select('id')
+                            .eq('nomenclature_id', item.nomenclature_id)
+                            .eq('is_archived_scrap', false)
+                            .gt('scrap_qty', 0);
+                            
+                          if (historyToArchive && historyToArchive.length > 0) {
+                            await supabase.from('work_card_history')
+                              .update({ is_archived_scrap: true })
+                              .in('id', historyToArchive.map(h => h.id));
                           }
+                          
+                          // Delete local inventory record
+                          await supabase.from('inventory').delete().eq('id', item.id);
                           fetchData('inventory').catch(() => {})
                         } catch (e) { alert('Помилка: ' + e.message) }
                         finally { setMovingScrapIds(prev => { const next = new Set(prev); next.delete(item.id); return next }) }

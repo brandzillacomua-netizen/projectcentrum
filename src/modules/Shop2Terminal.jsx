@@ -450,11 +450,6 @@ const Shop2Terminal = () => {
         supabase.from('work_cards').update(updatePayload).eq('id', currentCard.id)
       )
 
-      // 3. Записуємо виявлений брак на склад для класифікації
-      promises.push(
-        updateInventoryStock(currentCard.nomenclature_id, qcScrapCount, 'scrap_ready')
-      )
-
       const results = await Promise.all(promises)
       for (const res of results) {
         if (res.error) throw res.error

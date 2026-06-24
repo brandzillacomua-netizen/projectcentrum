@@ -247,7 +247,8 @@ export default function TumblingTerminal() {
         scrap_qty: actualScrap,
         started_at: activeCompletingCard.started_at || now,
         completed_at: now,
-        shift_name: activeCompletingCard.shift_name || selectedShift || 'Без зміни',
+        is_archived_scrap: true,
+        shift_name: activeCompletingCard.shift_name || selectedShift || 'Не вказано',
         manager_name: activeCompletingCard.manager_name || 'Не вказано',
         machine_name: activeCompletingCard.machine || 'Не вказано'
       }])

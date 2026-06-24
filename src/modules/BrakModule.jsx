@@ -5,7 +5,7 @@ import { useMES } from '../MESContext'
 import { supabase } from '../supabase'
 
 export default function BrakModule() {
-  const { inventory, nomenclatures, fetchData, currentUser, disposeScrapItem, createReworkNaryad, productionStages, workCards, orders, machineCalls, machines, supabase } = useMES()
+  const { inventory, nomenclatures, fetchData, currentUser, disposeScrapItem, createReworkNaryad, productionStages, workCards, orders, machineCalls, machines, supabase, workCardHistory } = useMES()
   const [isProcessing, setIsProcessing] = useState(false)
   const [selectedItem, setSelectedItem] = useState(null)
   const [distribution, setDistribution] = useState({ 1: 0, 2: 0, 3: 0, 4: 0 })
@@ -165,17 +165,69 @@ export default function BrakModule() {
     } finally { setIsProcessing(false) }
   }
 
+  const [localScrapHistory, setLocalScrapHistory] = useState([])
+
+  const loadScrapHistory = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('work_card_history')
+        .select('*')
+        .eq('is_archived_scrap', true)
+        .gt('scrap_qty', 0)
+        .order('created_at', { ascending: false })
+      if (!error && data) {
+        setLocalScrapHistory(data)
+      }
+    } catch (e) {
+      console.error('Failed to fetch local scrap history:', e)
+    }
+  }
+
+  useEffect(() => {
+    loadScrapHistory()
+  }, [workCardHistory])
+
   // Reset distribution when selected item changes
-  React.useEffect(() => {
+  useEffect(() => {
     setDistribution({ 1: 0, 2: 0, 3: 0, 4: 0 })
   }, [selectedItem])
 
   const totalDistributed = Object.values(distribution).reduce((a, b) => a + b, 0)
   const remainingInBatch = selectedItem ? Number(selectedItem.total_qty) - totalDistributed : 0
 
-  // Filter for items ready for classification
-  const readyItems = (inventory || []).filter(i => i.type === 'scrap_ready' && (Number(i.total_qty) > 0))
-  
+  // Filter for items ready for classification from work_card_history
+  const readyItems = (localScrapHistory || [])
+    .filter(h => h.is_archived_scrap && Number(h.scrap_qty) > 0)
+    .map(h => {
+      let sum = 0;
+      if (h.qc_scrap_comment && h.qc_scrap_comment.includes('SCRAP_CAT:')) {
+        try {
+          const match = h.qc_scrap_comment.match(/\[SCRAP_CAT:([^\]]+)\]/);
+          if (match) {
+            const cats = JSON.parse(match[1]);
+            sum = Object.values(cats).reduce((a, b) => a + Number(b), 0);
+          }
+        } catch(e) {}
+      }
+      const remaining = Math.max(0, Number(h.scrap_qty) - sum);
+      if (remaining <= 0) return null;
+      
+      const nom = nomenclatures?.find(n => n.id === h.nomenclature_id);
+      return {
+        id: h.id, // we use history id as item id
+        is_history_row: true,
+        history_row: h,
+        nomenclature_id: h.nomenclature_id,
+        name: nom?.name || 'Деталь',
+        unit: nom?.unit || 'шт',
+        total_qty: remaining, // Show remaining as total_qty for UI compatibility
+        operator: h.operator_name,
+        stage: h.stage_name,
+        updated_at: h.created_at
+      };
+    })
+    .filter(Boolean);
+
   // Stats for categorized scrap
   const categorizedStats = {
     cat1: (inventory || []).filter(i => i.type === 'scrap_cat_1').reduce((a, b) => a + (Number(b.total_qty) || 0), 0),
@@ -230,19 +282,38 @@ export default function BrakModule() {
       }
       
       const absoluteRemaining = Number(selectedItem.total_qty) - totalDistributed
-      if (absoluteRemaining > 0) {
-        await supabase.from('inventory').update({
-          total_qty: absoluteRemaining,
-          updated_at: new Date().toISOString()
-        }).eq('id', selectedItem.id)
+      
+      // We need to update the work_card_history with the new JSON distribution
+      if (selectedItem.is_history_row) {
+        const row = selectedItem.history_row;
+        let existingCats = { cat1: 0, cat2: 0, cat3: 0, cat4: 0, restoration: 0 };
+        if (row.qc_scrap_comment && row.qc_scrap_comment.includes('SCRAP_CAT:')) {
+          try {
+            const match = row.qc_scrap_comment.match(/\[SCRAP_CAT:([^\]]+)\]/);
+            if (match) existingCats = JSON.parse(match[1]);
+          } catch(e) {}
+        }
         
+        const newCats = { ...existingCats };
+        for (const [cat, qty] of categoriesToProcess) {
+           const key = cat === 'restoration' ? 'restoration' : `cat${cat}`;
+           newCats[key] = (newCats[key] || 0) + Number(qty);
+        }
+        
+        const jsonStr = `[SCRAP_CAT:${JSON.stringify(newCats)}]`;
+        const baseComment = row.qc_scrap_comment ? row.qc_scrap_comment.replace(/\[SCRAP_CAT:[^\]]+\]/g, '').trim() : '';
+        const newComment = baseComment ? `${baseComment} ${jsonStr}` : jsonStr;
+        
+        await supabase.from('work_card_history').update({ qc_scrap_comment: newComment }).eq('id', selectedItem.id);
+      }
+      
+      if (absoluteRemaining > 0) {
         setSelectedItem({ ...selectedItem, total_qty: absoluteRemaining })
       } else {
-        await supabase.from('inventory').delete().eq('id', selectedItem.id)
         setSelectedItem(null)
       }
       
-      await fetchData('inventory')
+      await fetchData(['inventory', 'work_card_history'])
     } catch (e) {
       alert('Помилка при класифікації: ' + e.message)
     } finally {
@@ -529,6 +600,7 @@ export default function BrakModule() {
                         <div>
                           <div style={{ fontWeight: 900, fontSize: '1.05rem', marginBottom: '2px' }}>{nom?.name || item.name}</div>
                           <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800 }}>Отримано: {new Date(item.updated_at).toLocaleDateString()}</div>
+                          {item.operator && <div style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 800 }}>Оператор: {item.operator} | Етап: {item.stage}</div>}
                         </div>
                       </div>
                       <div style={{ textAlign: 'right' }}>

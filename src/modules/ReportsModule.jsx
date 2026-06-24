@@ -35,9 +35,12 @@ const ReportsModule = () => {
   } = useMES()
 
   const [activeTab, setActiveTab] = useState('warehouse')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [quickPeriod, setQuickPeriod] = useState('')
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const [startDate, setStartDate] = useState(todayStr)
+  const [endDate, setEndDate] = useState(todayStr)
   const [workCardHistory, setWorkCardHistory] = useState(initialHistory)
   const [isSyncing, setIsSyncing] = useState(false)
 
@@ -79,6 +82,60 @@ const ReportsModule = () => {
   }, [startDate, endDate, initialHistory])
 
   // Date Filtering Logic
+  const handleQuickDateSelect = (e) => {
+    const val = e.target.value;
+    if (!val) return;
+    
+    const today = new Date();
+    const toISO = (d) => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    const todayStr = toISO(today);
+    let startStr = '';
+    let endStr = todayStr;
+
+    if (val === 'today') {
+      startStr = todayStr;
+    } else if (val === 'yesterday') {
+      const yest = new Date();
+      yest.setDate(yest.getDate() - 1);
+      startStr = toISO(yest);
+      endStr = startStr;
+    } else if (val === '3days') {
+      const d = new Date();
+      d.setDate(d.getDate() - 2);
+      startStr = toISO(d);
+    } else if (val === 'week') {
+      const d = new Date();
+      d.setDate(d.getDate() - 6);
+      startStr = toISO(d);
+    } else if (val === 'month') {
+      const d = new Date();
+      d.setMonth(d.getMonth() - 1);
+      startStr = toISO(d);
+    } else if (val === 'quarter') {
+      const d = new Date();
+      d.setMonth(d.getMonth() - 3);
+      startStr = toISO(d);
+    } else if (val === 'halfyear') {
+      const d = new Date();
+      d.setMonth(d.getMonth() - 6);
+      startStr = toISO(d);
+    } else if (val === 'year') {
+      const d = new Date();
+      d.setFullYear(d.getFullYear() - 1);
+      startStr = toISO(d);
+    }
+
+    setStartDate(startStr);
+    setEndDate(endStr);
+    setQuickPeriod(val);
+  };
+
   const filterByDate = (dateString) => {
     if (!startDate && !endDate) return true;
     if (!dateString) return false;
@@ -1087,25 +1144,42 @@ const ReportsModule = () => {
                 <input 
                   type="date" 
                   value={startDate} 
-                  onChange={(e) => setStartDate(e.target.value)}
-                  style={{ background: 'transparent', border: 'none', color: startDate ? '#fff' : '#555', padding: '10px 15px', fontSize: '0.85rem', outline: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+                  onClick={(e) => e.target.showPicker && e.target.showPicker()}
+                  onChange={(e) => { setStartDate(e.target.value); setQuickPeriod(''); }}
+                  style={{ background: 'transparent', border: 'none', color: startDate ? '#fff' : '#555', padding: '10px 15px', fontSize: '0.85rem', outline: 'none', cursor: 'pointer', fontFamily: 'inherit', colorScheme: 'dark' }}
                 />
                 <span style={{ color: '#555' }}>—</span>
                 <input 
                   type="date" 
                   value={endDate} 
-                  onChange={(e) => setEndDate(e.target.value)}
-                  style={{ background: 'transparent', border: 'none', color: endDate ? '#fff' : '#555', padding: '10px 15px', fontSize: '0.85rem', outline: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+                  onClick={(e) => e.target.showPicker && e.target.showPicker()}
+                  onChange={(e) => { setEndDate(e.target.value); setQuickPeriod(''); }}
+                  style={{ background: 'transparent', border: 'none', color: endDate ? '#fff' : '#555', padding: '10px 15px', fontSize: '0.85rem', outline: 'none', cursor: 'pointer', fontFamily: 'inherit', colorScheme: 'dark' }}
                 />
                 {(startDate || endDate) && (
                   <button 
-                    onClick={() => { setStartDate(''); setEndDate(''); }}
+                    onClick={() => { setStartDate(''); setEndDate(''); setQuickPeriod(''); }}
                     style={{ background: 'transparent', border: 'none', padding: '10px 15px', cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#ef4444', borderLeft: '1px solid #222' }}
                     title="Очистити період"
                   >
                     <X size={14} />
                   </button>
                 )}
+                <select 
+                  onChange={handleQuickDateSelect} 
+                  value={quickPeriod}
+                  style={{ background: '#0a0a0a', border: 'none', borderLeft: '1px solid #222', color: '#ff9000', padding: '10px 15px', fontSize: '0.8rem', outline: 'none', cursor: 'pointer', fontWeight: 800, textTransform: 'uppercase' }}
+                >
+                  <option value="" disabled hidden>ОБРАТИ ПЕРІОД</option>
+                  <option value="today">Сьогодні</option>
+                  <option value="yesterday">Вчора</option>
+                  <option value="3days">Останні 3 дні</option>
+                  <option value="week">Останній тиждень</option>
+                  <option value="month">Останній місяць</option>
+                  <option value="quarter">Останній квартал</option>
+                  <option value="halfyear">Останні пів року</option>
+                  <option value="year">Останній рік</option>
+                </select>
               </div>
             )}
           </div>
