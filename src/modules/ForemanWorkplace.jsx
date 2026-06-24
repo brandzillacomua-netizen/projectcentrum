@@ -1782,7 +1782,7 @@ const MACHINE_TYPES = [
                         <div key={nomId} className="nomenclature-archive-group" style={{ marginBottom: '0' }}>
                           <div 
                             onClick={() => setExpandedGroups(prev => ({ ...prev, [nomId]: !prev[nomId] }))}
-                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', background: '#111', padding: '12px 20px', borderRadius: '12px', border: '1px solid #222', cursor: 'pointer', userSelect: 'none' }}
+                            style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', background: '#111', padding: '12px 20px', borderRadius: '12px', border: '1px solid #222', cursor: 'pointer', userSelect: 'none' }}
                           >
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                               <div style={{ fontWeight: 900, fontSize: '0.95rem', color: '#fff' }}>{nom?.name || 'Невідома деталь'}</div>
@@ -1797,7 +1797,7 @@ const MACHINE_TYPES = [
                                 </span>
                               </div>
                             </div>
-                            <div style={{ display: 'flex', gap: '25px', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', alignItems: 'center' }}>
                               <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800 }}>
                                 КАРТОК: <span style={{ color: '#fff' }}>{activeCards.length}</span>
                                 <small style={{ marginLeft: '10px', color: '#333' }}>
@@ -1805,7 +1805,7 @@ const MACHINE_TYPES = [
                                   {stages.reception > 0 && <span style={{ color: '#10b981' }}>Готові: {stages.reception}</span>})
                                 </small>
                               </div>
-                              <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800, borderLeft: '1px solid #222', paddingLeft: '20px' }}>
+                              <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800, paddingLeft: '10px' }}>
                                 ПРИЙНЯТО: <span style={{ color: '#3b82f6' }}>{groupProduced}</span>
                               </div>
                               <div style={{ fontSize: '0.7rem', color: groupScrap > 0 ? '#ef4444' : '#333', fontWeight: 950 }}>

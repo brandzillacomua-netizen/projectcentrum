@@ -14,6 +14,20 @@ const DashboardModule = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [shippedQuantities, setShippedQuantities] = useState({})
+  const [selectedTaskId, setSelectedTaskId] = useState(null)
+
+  const activeTasks = useMemo(() => {
+    if (!tasks) return []
+    return tasks.filter(t => t.status !== 'completed' && t.status !== 'cancelled' && t.step === 'Розкрій')
+  }, [tasks])
+
+  const filteredWorkCards = useMemo(() => {
+    if (!workCards) return []
+    if (selectedTaskId) {
+      return workCards.filter(c => c.task_id === selectedTaskId)
+    }
+    return workCards
+  }, [workCards, selectedTaskId])
 
   // Fetch all tasks for active orders to count shipped batch quantities
   useEffect(() => {
@@ -72,6 +86,31 @@ const DashboardModule = () => {
 
   const demandData = useMemo(() => {
     if (!orders || !bomItems) return { globalDemand: {}, productDemand: {} }
+
+    if (selectedTaskId) {
+      const task = tasks?.find(t => t.id === selectedTaskId)
+      const globalDemand = {}
+      const productDemand = {}
+      if (task) {
+        const order = orders.find(o => o.id === task.order_id)
+        if (order) {
+           if (order.order_items && order.order_items.length > 0) {
+             order.order_items.forEach(it => {
+               productDemand[it.nomenclature_id] = (productDemand[it.nomenclature_id] || 0) + (Number(it.quantity) || 0)
+             })
+           } else if (order.nomenclature_id) {
+             productDemand[order.nomenclature_id] = (Number(order.quantity) || 0)
+           }
+        }
+        if (task.plan_snapshot) {
+          Object.keys(task.plan_snapshot).forEach(nomId => {
+            globalDemand[nomId] = task.plan_snapshot[nomId].need || 0
+          })
+        }
+      }
+      return { globalDemand, productDemand }
+    }
+
     const activeOrders = orders.filter(o => o.status !== 'completed' && o.status !== 'shipped' && o.status !== 'cancelled')
     
     const productDemand = {}
@@ -96,7 +135,7 @@ const DashboardModule = () => {
       }
     })
     return { globalDemand, productDemand }
-  }, [orders, bomItems, shippedQuantities])
+  }, [orders, bomItems, shippedQuantities, selectedTaskId, tasks])
 
   // Map tasks to parent products to know which order a workCard belongs to
   const taskParentMap = useMemo(() => {
@@ -164,7 +203,7 @@ const DashboardModule = () => {
         const specificDemand = isOther ? 0 : (demandData.productDemand[parentId] || 0) * qtyPerProduct
 
         const getQty = (operation, statuses) => {
-           return (workCards || []).filter(c => {
+           return (filteredWorkCards || []).filter(c => {
               if (String(c.nomenclature_id) !== String(nom.id)) return false
               // Filter by order via taskParentMap IF not "other"
               if (!isOther && c.task_id && taskParentMap[c.task_id]) {
@@ -177,7 +216,7 @@ const DashboardModule = () => {
         }
 
         const getQtySort = () => {
-           return (workCards || []).filter(c => {
+           return (filteredWorkCards || []).filter(c => {
               if (String(c.nomenclature_id) !== String(nom.id)) return false
               if (!isOther && c.task_id && taskParentMap[c.task_id] && taskParentMap[c.task_id] !== String(parentId)) return false
               return c.status === 'at-shop2-buffer'
@@ -419,6 +458,14 @@ const DashboardModule = () => {
     )
   }
 
+  const selectedOrderNum = useMemo(() => {
+    if (!selectedTaskId || !tasks || !orders) return ''
+    const task = tasks.find(t => t.id === selectedTaskId)
+    if (!task) return ''
+    const order = orders.find(o => String(o.id) === String(task.order_id))
+    return order?.order_num || selectedTaskId.split('-')[0]
+  }, [selectedTaskId, tasks, orders])
+
   return (
     <div className="dashboard-module-v2" style={{ background: '#09090b', minHeight: '100vh', color: '#f4f4f5', display: 'flex', flexDirection: 'column' }}>
       {/* Navigation bar matching look and feel of other modules */}
@@ -438,7 +485,7 @@ const DashboardModule = () => {
           </Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <LayoutDashboard className="text-secondary" size={24} color="#ff9000" />
-            <h1 style={{ fontSize: '1rem', fontWeight: 900, textTransform: 'uppercase', margin: 0, letterSpacing: '0.5px' }}>Дашборд Виробництва (WIP)</h1>
+            <h1 style={{ fontSize: '1rem', fontWeight: 900, textTransform: 'uppercase', margin: 0, letterSpacing: '0.5px' }}>Дашборд Виробництва (WIP){selectedTaskId ? ` — НАРЯД №${selectedOrderNum}` : ''}</h1>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
@@ -448,6 +495,51 @@ const DashboardModule = () => {
           </div>
         </div>
       </nav>
+
+      {/* ── TABS ── */}
+      <div style={{ display: 'flex', overflowX: 'auto', gap: '10px', padding: '0 24px', marginBottom: '10px', marginTop: '15px' }}>
+        <button
+          onClick={() => setSelectedTaskId(null)}
+          style={{
+            background: selectedTaskId === null ? '#ff9000' : '#18181b',
+            color: selectedTaskId === null ? '#000' : '#a1a1aa',
+            border: `1px solid ${selectedTaskId === null ? '#ff9000' : '#27272a'}`,
+            padding: '8px 16px',
+            borderRadius: '10px',
+            fontWeight: 800,
+            fontSize: '0.8rem',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            transition: 'all 0.2s'
+          }}
+        >
+          ЗАГАЛЬНИЙ ДАШБОРД
+        </button>
+        {activeTasks.map(task => {
+          const order = orders?.find(o => String(o.id) === String(task.order_id))
+          const displayNum = order?.order_num || task.id.split('-')[0]
+          return (
+            <button
+              key={task.id}
+              onClick={() => setSelectedTaskId(task.id)}
+              style={{
+                background: selectedTaskId === task.id ? '#3b82f6' : '#18181b',
+                color: selectedTaskId === task.id ? '#fff' : '#a1a1aa',
+                border: `1px solid ${selectedTaskId === task.id ? '#3b82f6' : '#27272a'}`,
+                padding: '8px 16px',
+                borderRadius: '10px',
+                fontWeight: 800,
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                transition: 'all 0.2s'
+              }}
+            >
+              НАРЯД №{displayNum}
+            </button>
+          )
+        })}
+      </div>
 
       {/* Module Content Area */}
       <div className="module-content" style={{ padding: '30px', overflowY: 'auto', flex: 1, maxWidth: '1600px', margin: '0 auto', width: '100%' }}>
@@ -614,10 +706,10 @@ const DashboardModule = () => {
                                   </div>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
                                     <span style={{ fontSize: '0.65rem', color: '#9ca3af' }}>
-                                      Виробів: <strong style={{ color: '#fca5a5' }}>{b.potential}</strong> / {trend.demand} шт.
+                                      Деталей: <strong style={{ color: '#fca5a5' }}>{b.qty}</strong> / {b.needed} шт.
                                     </span>
                                     <span style={{ fontSize: '0.65rem', color: '#f87171', fontWeight: 700 }}>
-                                      Дефіцит: -{(trend.demand - b.potential)} шт.
+                                      Дефіцит: -{(b.needed - b.qty)} шт.
                                     </span>
                                   </div>
                                 </div>
