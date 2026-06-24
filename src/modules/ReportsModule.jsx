@@ -311,6 +311,10 @@ const ReportsModule = () => {
         department: u.department,
         produced: 0, 
         scrap: 0, 
+        cat1: 0,
+        cat2: 0,
+        cat3: 0,
+        cat4: 0,
         operations: 0 
       };
     });
@@ -322,12 +326,26 @@ const ReportsModule = () => {
       const key = user ? user.login : h.operator_name;
       
       if (!stats[key]) {
-        stats[key] = { name: key, position: 'Невідомо', department: '-', produced: 0, scrap: 0, operations: 0 };
+        stats[key] = { name: key, position: 'Невідомо', department: '-', produced: 0, scrap: 0, cat1: 0, cat2: 0, cat3: 0, cat4: 0, operations: 0 };
       }
       
       stats[key].produced += Number(h.qty_completed) || 0;
       stats[key].scrap += Number(h.scrap_qty) || 0;
       stats[key].operations += 1;
+
+      // Extract categories if present
+      if (h.qc_scrap_comment && h.qc_scrap_comment.includes('SCRAP_CAT:')) {
+        try {
+          const match = h.qc_scrap_comment.match(/\[SCRAP_CAT:([^\]]+)\]/);
+          if (match) {
+            const cats = JSON.parse(match[1]);
+            stats[key].cat1 += Number(cats.cat1 || 0);
+            stats[key].cat2 += Number(cats.cat2 || 0);
+            stats[key].cat3 += Number(cats.cat3 || 0);
+            stats[key].cat4 += Number(cats.cat4 || 0);
+          }
+        } catch (e) {}
+      }
     });
 
     return Object.values(stats)
@@ -795,6 +813,10 @@ const ReportsModule = () => {
                   <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #222' }}>Операцій</th>
                   <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #222' }}>Вироблено (шт)</th>
                   <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #222' }}>Брак (шт)</th>
+                  <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #222', color: '#10b981' }}>Кат. 1</th>
+                  <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #222', color: '#eab308' }}>Кат. 2</th>
+                  <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #222', color: '#f97316' }}>Кат. 3</th>
+                  <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #222', color: '#ef4444' }}>Кат. 4</th>
                   <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #222' }}>Ефективність</th>
                 </tr>
               </thead>
@@ -809,6 +831,10 @@ const ReportsModule = () => {
                       <td style={{ padding: '15px', textAlign: 'center', color: '#bbb' }}>{emp.operations}</td>
                       <td style={{ padding: '15px', textAlign: 'center', fontWeight: 900, color: '#22c55e' }}>{emp.produced}</td>
                       <td style={{ padding: '15px', textAlign: 'center', fontWeight: 900, color: emp.scrap > 0 ? '#ef4444' : '#555' }}>{emp.scrap}</td>
+                      <td style={{ padding: '15px', textAlign: 'center', color: emp.cat1 > 0 ? '#10b981' : '#444', fontWeight: emp.cat1 > 0 ? '900' : '400' }}>{emp.cat1}</td>
+                      <td style={{ padding: '15px', textAlign: 'center', color: emp.cat2 > 0 ? '#eab308' : '#444', fontWeight: emp.cat2 > 0 ? '900' : '400' }}>{emp.cat2}</td>
+                      <td style={{ padding: '15px', textAlign: 'center', color: emp.cat3 > 0 ? '#f97316' : '#444', fontWeight: emp.cat3 > 0 ? '900' : '400' }}>{emp.cat3}</td>
+                      <td style={{ padding: '15px', textAlign: 'center', color: emp.cat4 > 0 ? '#ef4444' : '#444', fontWeight: emp.cat4 > 0 ? '900' : '400' }}>{emp.cat4}</td>
                       <td style={{ padding: '15px', textAlign: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
                            <div style={{ width: '50px', height: '6px', background: '#222', borderRadius: '3px', overflow: 'hidden' }}>

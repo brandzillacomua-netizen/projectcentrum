@@ -11,6 +11,91 @@ export const rawSupabase = createClient(supabaseUrl, supabaseAnonKey, {
   }
 })
 
+// Sync time drift and patch Date globally to use synchronized time
+const OriginalDate = window.Date;
+
+// Global time drift tracking
+window.timeDrift = window.timeDrift || 0;
+
+const PatchedDate = function(...args) {
+  if (!(this instanceof PatchedDate)) {
+    return new OriginalDate(OriginalDate.now() + (window.timeDrift || 0)).toString();
+  }
+  if (args.length === 0) {
+    return new OriginalDate(OriginalDate.now() + (window.timeDrift || 0));
+  }
+  return new OriginalDate(...args);
+};
+
+PatchedDate.prototype = OriginalDate.prototype;
+PatchedDate.now = function () {
+  return OriginalDate.now() + (window.timeDrift || 0);
+};
+
+if (OriginalDate.parse) PatchedDate.parse = OriginalDate.parse;
+if (OriginalDate.UTC) PatchedDate.UTC = OriginalDate.UTC;
+
+window.Date = PatchedDate;
+
+export function getCurrentTime() {
+  return new PatchedDate();
+}
+window.getCurrentTime = getCurrentTime;
+
+// Sync time immediately on load and every 5 minutes
+async function syncTimeDrift() {
+  const apis = [
+    {
+      url: 'https://worldtimeapi.org/api/timezone/Europe/Kyiv',
+      parse: (json) => json.unixtime * 1000
+    },
+    {
+      url: 'https://timeapi.io/api/Time/current/zone?timeZone=Europe/Kyiv',
+      parse: (json) => new OriginalDate(json.dateTime).getTime()
+    }
+  ];
+
+  for (const api of apis) {
+    try {
+      const start = OriginalDate.now();
+      const response = await fetch(api.url);
+      if (!response.ok) continue;
+      const json = await response.json();
+      const serverTimeMs = api.parse(json);
+      if (serverTimeMs) {
+        const latency = (OriginalDate.now() - start) / 2;
+        window.timeDrift = (serverTimeMs + latency) - OriginalDate.now();
+        console.log('[Time Sync] Server drift synchronized via API:', window.timeDrift, 'ms');
+        return;
+      }
+    } catch (e) {
+      console.warn('[Time Sync] API fetch failed:', api.url, e);
+    }
+  }
+
+  try {
+    const start = OriginalDate.now();
+    const response = await fetch(`${supabaseUrl}/rest/v1/`, {
+      method: 'GET',
+      headers: {
+        'apikey': supabaseAnonKey
+      }
+    });
+    const serverDate = response.headers.get('date');
+    if (serverDate) {
+      const serverTimeMs = new OriginalDate(serverDate).getTime();
+      const latency = (OriginalDate.now() - start) / 2;
+      window.timeDrift = (serverTimeMs + latency) - OriginalDate.now();
+      console.log('[Time Sync] Server drift synchronized via Supabase header:', window.timeDrift, 'ms');
+    }
+  } catch (e) {
+    console.warn('[Time Sync] Failed to sync time drift:', e);
+  }
+}
+
+syncTimeDrift();
+setInterval(syncTimeDrift, 5 * 60 * 1000);
+
 // Global set to keep track of record IDs created/updated by this client session
 window.myConfirmedWrites = window.myConfirmedWrites || new Set()
 
