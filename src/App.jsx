@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, Suspense, lazy, useRef } from 'react'
 import { Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { 
+import {
   Menu,
   LayoutDashboard,
   Warehouse,
@@ -32,34 +32,34 @@ import {
 } from 'lucide-react'
 
 // ── Lazy-loaded modules (loaded on demand, not at startup) ─────────────────────
-const ManagerModule        = lazy(() => import('./modules/ManagerModule'))
-const WarehouseModule      = lazy(() => import('./modules/WarehouseModuleV2'))
-const MasterModule         = lazy(() => import('./modules/MasterModule_v3'))
-const NomenclatureModule   = lazy(() => import('./modules/NomenclatureModule'))
-const EngineerModule       = lazy(() => import('./modules/EngineerModule'))
-const DirectorModule       = lazy(() => import('./modules/DirectorModule'))
-const OperatorTerminal     = lazy(() => import('./modules/OperatorTerminalV2'))
-const ShippingModule       = lazy(() => import('./modules/ShippingModule'))
-const SupplyModule         = lazy(() => import('./modules/SupplyModuleV2'))
-const PreparationTerminal  = lazy(() => import('./modules/PreparationTerminal'))
-const ForemanWorkplace     = lazy(() => import('./modules/ForemanWorkplace'))
-const PackagingModule      = lazy(() => import('./modules/PackagingModule'))
-const MachinesModule       = lazy(() => import('./modules/MachinesModule'))
-const SettingsModule       = lazy(() => import('./modules/SettingsModule'))
-const LoginPage            = lazy(() => import('./modules/LoginPage'))
-const Shop1Terminal        = lazy(() => import('./modules/Shop1Terminal'))
-const Shop2Module          = lazy(() => import('./modules/Shop2Module'))
-const Shop2Terminal        = lazy(() => import('./modules/Shop2Terminal'))
-const NomenclatureV2       = lazy(() => import('./modules/NomenclatureV2'))
-const AnalyticsModule      = lazy(() => import('./modules/AnalyticsModule'))
-const BrakModule           = lazy(() => import('./modules/BrakModule'))
-const KanbanModule         = lazy(() => import('./modules/KanbanModule'))
-const AccessModule         = lazy(() => import('./modules/AccessModule'))
-const ReportsModule        = lazy(() => import('./modules/ReportsModule'))
-const DashboardModule      = lazy(() => import('./modules/DashboardModule'))
-const MachineCallModule    = lazy(() => import('./modules/MachineCallModule'))
-const TumblingTerminal     = lazy(() => import('./modules/TumblingTerminal'))
-const SimulatorModule      = lazy(() => import('./modules/SimulatorModule'))
+const ManagerModule = lazy(() => import('./modules/ManagerModule'))
+const WarehouseModule = lazy(() => import('./modules/WarehouseModuleV2'))
+const MasterModule = lazy(() => import('./modules/MasterModule_v3'))
+const NomenclatureModule = lazy(() => import('./modules/NomenclatureModule'))
+const EngineerModule = lazy(() => import('./modules/EngineerModule'))
+const DirectorModule = lazy(() => import('./modules/DirectorModule'))
+const OperatorTerminal = lazy(() => import('./modules/OperatorTerminalV2'))
+const ShippingModule = lazy(() => import('./modules/ShippingModule'))
+const SupplyModule = lazy(() => import('./modules/SupplyModuleV2'))
+const PreparationTerminal = lazy(() => import('./modules/PreparationTerminal'))
+const ForemanWorkplace = lazy(() => import('./modules/ForemanWorkplace'))
+const PackagingModule = lazy(() => import('./modules/PackagingModule'))
+const MachinesModule = lazy(() => import('./modules/MachinesModule'))
+const SettingsModule = lazy(() => import('./modules/SettingsModule'))
+const LoginPage = lazy(() => import('./modules/LoginPage'))
+const Shop1Terminal = lazy(() => import('./modules/Shop1Terminal'))
+const Shop2Module = lazy(() => import('./modules/Shop2Module'))
+const Shop2Terminal = lazy(() => import('./modules/Shop2Terminal'))
+const NomenclatureV2 = lazy(() => import('./modules/NomenclatureV2'))
+const AnalyticsModule = lazy(() => import('./modules/AnalyticsModule'))
+const BrakModule = lazy(() => import('./modules/BrakModule'))
+const KanbanModule = lazy(() => import('./modules/KanbanModule'))
+const AccessModule = lazy(() => import('./modules/AccessModule'))
+const ReportsModule = lazy(() => import('./modules/ReportsModule'))
+const DashboardModule = lazy(() => import('./modules/DashboardModule'))
+const MachineCallModule = lazy(() => import('./modules/MachineCallModule'))
+const TumblingTerminal = lazy(() => import('./modules/TumblingTerminal'))
+const SimulatorModule = lazy(() => import('./modules/SimulatorModule'))
 
 import { MESProvider, useMES } from './MESContext'
 import { subscribeToPush } from './services/pushService'
@@ -75,7 +75,7 @@ const ModuleLoader = () => (
 
 
 const FileCodeIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="m10 13-2 2 2 2"/><path d="m14 17 2-2-2-2"/></svg>
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /><path d="m10 13-2 2 2 2" /><path d="m14 17 2-2-2-2" /></svg>
 )
 
 const getAllModules = (badgeCount = 0) => [
@@ -193,32 +193,32 @@ const renderAvatar = (avatar, initials, size = '38px', fontSize = '0.85rem') => 
 
   if (avatar && avatar.startsWith('data:image/')) {
     return (
-      <img 
-        src={avatar} 
-        alt="Avatar" 
-        style={{ 
-          width: size, 
-          height: size, 
-          borderRadius: '10px', 
+      <img
+        src={avatar}
+        alt="Avatar"
+        style={{
+          width: size,
+          height: size,
+          borderRadius: '10px',
           objectFit: 'cover',
           border: '1px solid rgba(255,255,255,0.1)'
-        }} 
+        }}
       />
     );
   }
 
   const grad = getGradient(avatar);
   return (
-    <div style={{ 
-      width: size, 
-      height: size, 
-      borderRadius: '10px', 
-      background: grad, 
-      display: 'flex', 
-      alignItems: 'center', 
-      justifyContent: 'center', 
-      color: '#fff', 
-      fontWeight: 1000, 
+    <div style={{
+      width: size,
+      height: size,
+      borderRadius: '10px',
+      background: grad,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#fff',
+      fontWeight: 1000,
       fontSize: fontSize,
       border: '1px solid rgba(255,255,255,0.1)',
       textShadow: '0 1px 2px rgba(0,0,0,0.2)'
@@ -269,7 +269,7 @@ const GlobalUserNav = () => {
   const handleAvatarUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     const reader = new FileReader();
     reader.onload = (event) => {
       const img = new Image();
@@ -278,12 +278,12 @@ const GlobalUserNav = () => {
         const ctx = canvas.getContext('2d');
         canvas.width = 128;
         canvas.height = 128;
-        
+
         const minDim = Math.min(img.width, img.height);
         const sx = (img.width - minDim) / 2;
         const sy = (img.height - minDim) / 2;
         ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, 128, 128);
-        
+
         const base64 = canvas.toDataURL('image/jpeg', 0.85);
         setProfileAvatar(base64);
       };
@@ -304,7 +304,7 @@ const GlobalUserNav = () => {
         ...notifSettings,
         avatar: profileAvatar
       };
-      
+
       const payload = {
         ...currentUser,
         first_name: profileFirstName.trim(),
@@ -336,9 +336,9 @@ const GlobalUserNav = () => {
       const local = localStorage.getItem(`notification_settings_${currentUser.id}`);
       let parsed = null;
       if (local) {
-        try { parsed = JSON.parse(local); } catch (e) {}
+        try { parsed = JSON.parse(local); } catch (e) { }
       }
-      
+
       const dbSettings = currentUser.notification_settings;
       if (dbSettings) {
         setNotifSettings(dbSettings);
@@ -364,7 +364,7 @@ const GlobalUserNav = () => {
     const updated = { ...currentUser?.notification_settings, ...notifSettings, [key]: val };
     setNotifSettings(updated);
     localStorage.setItem(`notification_settings_${currentUser?.id}`, JSON.stringify(updated));
-    
+
     if (currentUser?.id) {
       try {
         const { error } = await supabase
@@ -485,20 +485,20 @@ const GlobalUserNav = () => {
       const now = new Date();
       const diffMs = now - date;
       if (isNaN(diffMs) || diffMs < 0) return 'щойно';
-      
+
       const diffSec = Math.floor(diffMs / 1000);
       if (diffSec < 60) return 'щойно';
-      
+
       const diffMin = Math.floor(diffSec / 60);
       if (diffMin < 60) return `${diffMin} хв. тому`;
-      
+
       const diffHours = Math.floor(diffMin / 60);
       if (diffHours < 24) return `${diffHours} год. тому`;
-      
+
       const diffDays = Math.floor(diffHours / 24);
       if (diffDays === 1) return 'вчора';
       if (diffDays < 7) return `${diffDays} дн. тому`;
-      
+
       return date.toLocaleDateString('uk-UA', { day: 'numeric', month: 'short' });
     } catch (e) {
       return '';
@@ -517,7 +517,7 @@ const GlobalUserNav = () => {
     if (hasOrderCreationAccess && orders) {
       orders.forEach(order => {
         if (order.order_num && (order.order_num.startsWith('ВБ') || order.order_num.startsWith('VB'))) return;
-        
+
         const orderTasks = (tasks || []).filter(t => t.order_id === order.id);
         if (orderTasks.length === 0 && order.status !== 'completed' && order.status !== 'cancelled' && order.status !== 'shipped') {
           let path = '/';
@@ -570,7 +570,7 @@ const GlobalUserNav = () => {
         if (r.status === 'pending') {
           const order = orders?.find(o => o.id === r.order_id);
           const orderNum = order?.order_num || '';
-          
+
           let batchIndex = '';
           if (r.details) {
             // Extract batch index (e.g. 02062026-01/1)
@@ -586,7 +586,7 @@ const GlobalUserNav = () => {
           }
 
           const groupKey = `${r.order_id}_${r.task_id || 'null'}_${batchIndex || 'no-batch'}`;
-          
+
           if (!groups[groupKey]) {
             groups[groupKey] = {
               orderId: r.order_id,
@@ -598,12 +598,12 @@ const GlobalUserNav = () => {
               latestCreatedAt: r.created_at
             };
           }
-          
+
           groups[groupKey].count += 1;
           if (r.created_at > groups[groupKey].latestCreatedAt) {
             groups[groupKey].latestCreatedAt = r.created_at;
           }
-          
+
           let itemName = '';
           if (r.details) {
             const splitCol = r.details.split(': ');
@@ -629,7 +629,7 @@ const GlobalUserNav = () => {
 
         const batchStr = g.batchIndex ? `/${g.batchIndex}` : '';
         const orderPart = g.orderNum ? ` (№ ${g.orderNum}${batchStr})` : '';
-        
+
         let desc = '';
         if (g.count === 1) {
           desc = g.items[0] || 'Новий запит матеріалу';
@@ -743,8 +743,8 @@ const GlobalUserNav = () => {
             else if (hasModule('warehouse')) path = '/warehouse';
           }
 
-          const docId = rec.order_id === null && rec.task_id === null 
-            ? `№РП-${String(rec.id).substring(0, 6).toUpperCase()}` 
+          const docId = rec.order_id === null && rec.task_id === null
+            ? `№РП-${String(rec.id).substring(0, 6).toUpperCase()}`
             : `#${String(rec.id).substring(0, 6)}`;
 
           list.push({
@@ -767,10 +767,10 @@ const GlobalUserNav = () => {
         if (c.status === 'pending') {
           const mach = machines?.find(m => m.id === c.machine_id);
           const machName = mach ? mach.name : 'Верстат';
-          
+
           let isRelevant = false;
           let roleLabel = '';
-          
+
           // Check if targeted to a specific user
           if (c.called_employee_id) {
             isRelevant = currentUser?.id === c.called_employee_id;
@@ -792,7 +792,7 @@ const GlobalUserNav = () => {
           } else if (c.called_role === 'quality' || c.called_role === 'qc') {
             roleLabel = 'ВКЯ';
           }
-          
+
           if (isRelevant) {
             list.push({
               id: `call-${c.id}`,
@@ -828,7 +828,7 @@ const GlobalUserNav = () => {
       allCards.forEach(card => {
         const tid = card.task_id;
         const nid = String(card.nomenclature_id);
-        
+
         if (!prodCache[tid]) prodCache[tid] = {};
         if (!sCache[tid]) sCache[tid] = {};
         if (!rCache[tid]) rCache[tid] = {};
@@ -856,7 +856,7 @@ const GlobalUserNav = () => {
         const card = allCards.find(c => c.id === h.card_id);
         if (card) {
           const tid = card.task_id;
-          const nid = String(h.nomenclature_id);
+          const nid = String(card.nomenclature_id);
           if (!sCache[tid]) sCache[tid] = {};
           sCache[tid][nid] = (sCache[tid][nid] || 0) + (Number(h.scrap_qty) || 0);
         }
@@ -867,7 +867,7 @@ const GlobalUserNav = () => {
         const taskScrap = sCache[task.id] || {};
         const taskRedo = rCache[task.id] || {};
         const taskCards = allCards.filter(c => c.task_id === task.id);
-        
+
         let hasShortage = false;
         let shortageDetails = '';
 
@@ -877,26 +877,26 @@ const GlobalUserNav = () => {
           if (nom?.type !== 'part') return;
           const snap = snapshot[nomIdStr];
           if (!snap) return;
-          
+
           const need = snap.need || 0;
           const stockBZ = snap.stock || 0;
           const unitsPerSheet = snap.units_per_sheet || 1;
-          
+
           const activeCardsForNom = taskCards.filter(c => String(c.nomenclature_id) === String(nomIdStr));
           const activeProductionCards = activeCardsForNom.filter(c => c.operation !== 'Склад БЗ');
           if (activeProductionCards.length === 0) return;
-          
+
           const totalSheets = activeCardsForNom.reduce((sum, c) => {
             if (c.operation === 'Склад БЗ') return sum;
             const cardScrap = cardScrapCache[c.id] || 0;
             const originalQty = (Number(c.quantity) || 0) + cardScrap;
             return sum + (c.actualSheets ? Number(c.actualSheets) : Math.ceil(originalQty / unitsPerSheet));
           }, 0);
-          
+
           const totalBZ = (totalSheets * unitsPerSheet) + stockBZ - need;
           const groupScrap = taskScrap[nomIdStr] || 0;
           const shortage = (totalBZ - groupScrap) < 0 ? Math.abs(totalBZ - groupScrap) : 0;
-          
+
           if (shortage > 0) {
             hasShortage = true;
             shortageDetails = `${nom.name || 'деталь'} (нестача: ${shortage} шт.)`;
@@ -950,7 +950,7 @@ const GlobalUserNav = () => {
         // Check if all display parts are completed
         const snapshot = task.plan_snapshot || {};
         const snapshotValues = Object.values(snapshot).filter(v => v && typeof v === 'object' && v.id && v.is_rework);
-        
+
         let itemsToCheck = [];
         if (snapshotValues.length > 0) {
           itemsToCheck = snapshotValues.map(s => ({
@@ -1014,8 +1014,8 @@ const GlobalUserNav = () => {
     if (isShop2ManagerOrDirector && tasks && orders) {
       // Find tasks that are in status !== 'completed' and are ready to close in Shop 2
       // Step contains 'Пресування', 'ЦЕХ №2', or 'Доопрацювання'
-      const shop2Tasks = tasks.filter(t => 
-        t.status !== 'completed' && 
+      const shop2Tasks = tasks.filter(t =>
+        t.status !== 'completed' &&
         (t.step?.includes('Пресування') || t.step?.includes('ЦЕХ №2') || t.step?.includes('Доопрацювання'))
       );
 
@@ -1236,7 +1236,7 @@ const GlobalUserNav = () => {
 
     // Find new notifications that were not present in previous render and are unread
     const prevIds = new Set((prevNotificationsRef.current || []).map(n => n.id));
-    
+
     // We only trigger pushes for notifications created after page load (minus a 5s buffer to account for clock skew)
     // and that have not been shown in the current browser session.
     const cutoffTime = pageLoadTimeRef.current - 5000;
@@ -1254,10 +1254,10 @@ const GlobalUserNav = () => {
         return false;
       }
 
-      return created > cutoffTime && 
-             !prevIds.has(n.id) && 
-             !readIds.includes(n.id) && 
-             !shownNotifsRef.current.has(n.id);
+      return created > cutoffTime &&
+        !prevIds.has(n.id) &&
+        !readIds.includes(n.id) &&
+        !shownNotifsRef.current.has(n.id);
     });
 
     newUnread.forEach(n => {
@@ -1329,8 +1329,8 @@ const GlobalUserNav = () => {
   if (isAdmin) return null;
 
   // Kanban task count badge remains on the menu item itself
-  const myPendingTasksCount = (managementTasks || []).filter(t => 
-    t.status !== 'done' && 
+  const myPendingTasksCount = (managementTasks || []).filter(t =>
+    t.status !== 'done' &&
     (t.assigned_to === currentUser.login || t.created_by === currentUser.login)
   ).length;
 
@@ -1530,20 +1530,20 @@ const GlobalUserNav = () => {
 
       {/* Floating Menu Toggle Button */}
       <div className="no-print" style={{ position: 'fixed', top: '15px', left: '20px', zIndex: 99998 }}>
-        <button 
+        <button
           onClick={() => setMenuOpen(true)}
-          style={{ 
+          style={{
             position: 'relative',
-            background: 'rgba(255, 144, 0, 0.08)', 
-            border: '1px solid rgba(255, 144, 0, 0.3)', 
-            color: '#ff9000', 
-            borderRadius: '12px', 
-            width: '42px', 
-            height: '42px', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            cursor: 'pointer', 
+            background: 'rgba(255, 144, 0, 0.08)',
+            border: '1px solid rgba(255, 144, 0, 0.3)',
+            color: '#ff9000',
+            borderRadius: '12px',
+            width: '42px',
+            height: '42px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
             boxShadow: '0 4px 20px rgba(0,0,0,0.6), 0 0 10px rgba(255, 144, 0, 0.15)',
             transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
           }}
@@ -1562,7 +1562,7 @@ const GlobalUserNav = () => {
         >
           <Menu size={22} strokeWidth={2.5} />
           {unreadCount > 0 && (
-            <span 
+            <span
               className="notif-badge-pulse"
               style={{
                 position: 'absolute',
@@ -1594,7 +1594,7 @@ const GlobalUserNav = () => {
 
       {/* Drawer Panel */}
       <div className={`sidebar-drawer ${menuOpen ? 'open' : ''}`} style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'fixed' }}>
-        
+
         {/* Main Content Pane */}
         <div style={{
           display: 'flex',
@@ -1619,19 +1619,19 @@ const GlobalUserNav = () => {
                 </span>
               </div>
             </div>
-            <button 
+            <button
               onClick={handleCloseMenu}
-              style={{ 
-                background: 'transparent', 
-                border: 'none', 
-                color: '#555', 
-                cursor: 'pointer', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                padding: '6px', 
-                borderRadius: '8px', 
-                transition: 'all 0.2s ease' 
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#555',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '6px',
+                borderRadius: '8px',
+                transition: 'all 0.2s ease'
               }}
               onMouseEnter={e => e.currentTarget.style.color = '#fff'}
               onMouseLeave={e => e.currentTarget.style.color = '#555'}
@@ -1641,18 +1641,18 @@ const GlobalUserNav = () => {
           </div>
 
           {/* User Mini Profile */}
-          <div style={{ 
-            padding: '16px 20px', 
-            background: 'rgba(255,255,255,0.01)', 
-            borderBottom: '1px solid rgba(255,255,255,0.04)', 
-            display: 'flex', 
-            alignItems: 'center', 
+          <div style={{
+            padding: '16px 20px',
+            background: 'rgba(255,255,255,0.01)',
+            borderBottom: '1px solid rgba(255,255,255,0.04)',
+            display: 'flex',
+            alignItems: 'center',
             justifyContent: 'space-between',
-            gap: '12px' 
+            gap: '12px'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               {renderAvatar(
-                currentUser?.avatar || currentUser?.notification_settings?.avatar, 
+                currentUser?.avatar || currentUser?.notification_settings?.avatar,
                 (currentUser?.first_name?.[0] || '') + (currentUser?.last_name?.[0] || ''),
                 '38px',
                 '0.85rem'
@@ -1666,7 +1666,7 @@ const GlobalUserNav = () => {
                 </span>
               </div>
             </div>
-            <button 
+            <button
               onClick={() => setActiveSubPanel('notif_settings')}
               style={{
                 background: 'transparent',
@@ -1690,13 +1690,13 @@ const GlobalUserNav = () => {
 
           {/* Notification Center Trigger Row */}
           <div style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-            <div 
+            <div
               onClick={() => setActiveSubPanel('notifications')}
-              style={{ 
-                padding: '14px 20px', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'space-between', 
+              style={{
+                padding: '14px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
                 cursor: 'pointer',
                 background: 'rgba(255,255,255,0.005)',
                 transition: 'background 0.2s'
@@ -1708,12 +1708,12 @@ const GlobalUserNav = () => {
                 <Bell size={16} color={unreadCount > 0 ? '#ff9000' : '#555'} />
                 <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#fff' }}>Сповіщення</span>
                 {unreadCount > 0 && (
-                  <span style={{ 
-                    background: '#ef4444', 
-                    color: '#fff', 
-                    fontSize: '0.6rem', 
-                    fontWeight: 900, 
-                    borderRadius: '10px', 
+                  <span style={{
+                    background: '#ef4444',
+                    color: '#fff',
+                    fontSize: '0.6rem',
+                    fontWeight: 900,
+                    borderRadius: '10px',
                     padding: '1px 6px',
                     boxShadow: '0 0 8px rgba(239,68,68,0.4)'
                   }}>
@@ -1739,7 +1739,7 @@ const GlobalUserNav = () => {
               return (
                 <div key={cat.id} style={{ display: 'flex', flexDirection: 'column' }}>
                   {/* Category Header (Accordion toggle) */}
-                  <div 
+                  <div
                     onClick={() => setOpenCategories(prev => ({ ...prev, [cat.id]: !prev[cat.id] }))}
                     style={{
                       display: 'flex',
@@ -1773,13 +1773,13 @@ const GlobalUserNav = () => {
                         ({catModules.length})
                       </span>
                     </div>
-                    <ChevronDown 
-                      size={14} 
-                      color="#555" 
-                      style={{ 
-                        transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', 
-                        transition: 'transform 0.2s ease' 
-                      }} 
+                    <ChevronDown
+                      size={14}
+                      color="#555"
+                      style={{
+                        transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                        transition: 'transform 0.2s ease'
+                      }}
                     />
                   </div>
 
@@ -1789,20 +1789,20 @@ const GlobalUserNav = () => {
                       {catModules.map(m => {
                         const isActive = location.pathname === m.path;
                         return (
-                          <Link 
-                            key={m.id} 
-                            to={m.path} 
+                          <Link
+                            key={m.id}
+                            to={m.path}
                             className={`sidebar-link ${isActive ? 'active' : ''}`}
                             onClick={handleCloseMenu}
                           >
-                            <div style={{ 
-                              color: isActive ? '#ff9000' : m.color, 
-                              background: isActive ? 'rgba(255,144,0,0.1)' : 'rgba(0,0,0,0.2)', 
-                              width: '32px', 
-                              height: '32px', 
-                              borderRadius: '10px', 
-                              display: 'flex', 
-                              alignItems: 'center', 
+                            <div style={{
+                              color: isActive ? '#ff9000' : m.color,
+                              background: isActive ? 'rgba(255,144,0,0.1)' : 'rgba(0,0,0,0.2)',
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '10px',
+                              display: 'flex',
+                              alignItems: 'center',
                               justifyContent: 'center',
                               transition: '0.2s',
                               flexShrink: 0
@@ -1816,12 +1816,12 @@ const GlobalUserNav = () => {
                               </span>
                             </div>
                             {m.badge > 0 && (
-                              <span style={{ 
-                                background: m.color, 
-                                color: '#fff', 
-                                padding: '2px 8px', 
-                                borderRadius: '10px', 
-                                fontSize: '0.6rem', 
+                              <span style={{
+                                background: m.color,
+                                color: '#fff',
+                                padding: '2px 8px',
+                                borderRadius: '10px',
+                                fontSize: '0.6rem',
                                 fontWeight: 900,
                                 boxShadow: `0 2px 8px ${m.color}40`
                               }}>
@@ -1847,17 +1847,17 @@ const GlobalUserNav = () => {
                   Технічна підтримка
                 </span>
               </div>
-              <a 
-                href="tel:0960116699" 
-                style={{ 
-                  fontSize: '1.05rem', 
-                  fontWeight: 950, 
-                  color: '#fff', 
-                  textDecoration: 'none', 
-                  display: 'inline-flex', 
-                  alignItems: 'center', 
-                  gap: '8px', 
-                  transition: 'color 0.2s' 
+              <a
+                href="tel:0960116699"
+                style={{
+                  fontSize: '1.05rem',
+                  fontWeight: 950,
+                  color: '#fff',
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'color 0.2s'
                 }}
                 onMouseEnter={e => e.currentTarget.style.color = '#ff9000'}
                 onMouseLeave={e => e.currentTarget.style.color = '#fff'}
@@ -1868,23 +1868,23 @@ const GlobalUserNav = () => {
                 096 011 66 99
               </a>
             </div>
-            
-            <button 
+
+            <button
               onClick={() => {
                 localStorage.removeItem('MES_SESSION_LOGIN');
                 localStorage.removeItem('MES_SESSION_USER');
                 window.location.href = '/login';
               }}
-              style={{ 
-                width: '100%', 
-                background: 'transparent', 
-                border: 'none', 
-                color: '#ef4444', 
-                textAlign: 'center', 
-                padding: '12px', 
-                cursor: 'pointer', 
-                fontSize: '0.8rem', 
-                fontWeight: 800, 
+              style={{
+                width: '100%',
+                background: 'transparent',
+                border: 'none',
+                color: '#ef4444',
+                textAlign: 'center',
+                padding: '12px',
+                cursor: 'pointer',
+                fontSize: '0.8rem',
+                fontWeight: 800,
                 borderRadius: '12px',
                 transition: 'background 0.2s',
                 display: 'flex',
@@ -1918,15 +1918,15 @@ const GlobalUserNav = () => {
         }}>
           {/* Header section with Back and Close button */}
           <div style={{ padding: '24px 20px 20px 20px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <button 
+            <button
               onClick={() => setActiveSubPanel(null)}
-              style={{ 
-                background: 'transparent', 
-                border: 'none', 
-                color: '#ff9000', 
-                cursor: 'pointer', 
-                display: 'flex', 
-                alignItems: 'center', 
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#ff9000',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
                 gap: '6px',
                 fontSize: '0.85rem',
                 fontWeight: 800,
@@ -1942,24 +1942,24 @@ const GlobalUserNav = () => {
 
           {/* Mark all as read bar */}
           {notifications.length > 0 && unreadCount > 0 && (
-            <div style={{ 
-              padding: '12px 20px', 
-              display: 'flex', 
-              justifyContent: 'space-between', 
+            <div style={{
+              padding: '12px 20px',
+              display: 'flex',
+              justifyContent: 'space-between',
               alignItems: 'center',
               borderBottom: '1px solid rgba(255,255,255,0.02)'
             }}>
               <span style={{ fontSize: '0.65rem', color: '#444', fontWeight: 800 }}>
                 НЕПРОЧИТАНИХ: {unreadCount}
               </span>
-              <button 
+              <button
                 onClick={handleMarkAllAsRead}
-                style={{ 
-                  background: 'transparent', 
-                  border: 'none', 
-                  color: '#ff9000', 
-                  fontSize: '0.65rem', 
-                  fontWeight: 800, 
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#ff9000',
+                  fontSize: '0.65rem',
+                  fontWeight: 800,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
@@ -1989,7 +1989,7 @@ const GlobalUserNav = () => {
               notifications.map(n => {
                 const isUnread = !readIds.includes(n.id);
                 return (
-                  <div 
+                  <div
                     key={n.id}
                     onClick={() => handleNotificationClick(n)}
                     style={{
@@ -2015,14 +2015,14 @@ const GlobalUserNav = () => {
                       e.currentTarget.style.transform = 'none';
                     }}
                   >
-                    <div style={{ 
-                      width: '32px', 
-                      height: '32px', 
-                      borderRadius: '50%', 
-                      background: `${n.color}15`, 
-                      color: n.color, 
-                      display: 'flex', 
-                      alignItems: 'center', 
+                    <div style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      background: `${n.color}15`,
+                      color: n.color,
+                      display: 'flex',
+                      alignItems: 'center',
                       justifyContent: 'center',
                       flexShrink: 0
                     }}>
@@ -2040,11 +2040,11 @@ const GlobalUserNav = () => {
                       </span>
                     </div>
                     {isUnread && (
-                      <div style={{ 
-                        width: '6px', 
-                        height: '6px', 
-                        borderRadius: '50%', 
-                        background: '#ef4444', 
+                      <div style={{
+                        width: '6px',
+                        height: '6px',
+                        borderRadius: '50%',
+                        background: '#ef4444',
                         boxShadow: '0 0 6px #ef4444',
                         alignSelf: 'center',
                         flexShrink: 0
@@ -2075,15 +2075,15 @@ const GlobalUserNav = () => {
         }}>
           {/* Header section with Back */}
           <div style={{ padding: '24px 20px 20px 20px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <button 
+            <button
               onClick={() => setActiveSubPanel(null)}
-              style={{ 
-                background: 'transparent', 
-                border: 'none', 
-                color: '#ff9000', 
-                cursor: 'pointer', 
-                display: 'flex', 
-                alignItems: 'center', 
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#ff9000',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
                 gap: '6px',
                 fontSize: '0.85rem',
                 fontWeight: 800,
@@ -2174,7 +2174,7 @@ const GlobalUserNav = () => {
                           {cfg.desc}
                         </span>
                       </div>
-                      <div 
+                      <div
                         onClick={() => updateNotifSetting(cfg.key, !notifSettings[cfg.key])}
                         style={{
                           width: '40px',
@@ -2205,18 +2205,18 @@ const GlobalUserNav = () => {
             ) : (
               /* Profile tab content */
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                
+
                 {/* Avatar section */}
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '10px 0' }}>
                   <div style={{ position: 'relative' }}>
                     {renderAvatar(
-                      profileAvatar, 
-                      (profileFirstName?.[0] || '') + (profileLastName?.[0] || ''), 
-                      '80px', 
+                      profileAvatar,
+                      (profileFirstName?.[0] || '') + (profileLastName?.[0] || ''),
+                      '80px',
                       '1.8rem'
                     )}
-                    <label 
-                      htmlFor="avatar-upload-input" 
+                    <label
+                      htmlFor="avatar-upload-input"
                       style={{
                         position: 'absolute',
                         bottom: '-4px',
@@ -2236,20 +2236,20 @@ const GlobalUserNav = () => {
                       title="Завантажити фото"
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                        <circle cx="12" cy="13" r="4"/>
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                        <circle cx="12" cy="13" r="4" />
                       </svg>
                     </label>
-                    <input 
-                      type="file" 
-                      id="avatar-upload-input" 
-                      accept="image/*" 
-                      onChange={handleAvatarUpload} 
-                      style={{ display: 'none' }} 
+                    <input
+                      type="file"
+                      id="avatar-upload-input"
+                      accept="image/*"
+                      onChange={handleAvatarUpload}
+                      style={{ display: 'none' }}
                     />
                   </div>
                   <span style={{ fontSize: '0.72rem', color: '#666' }}>Натисніть на іконку для завантаження фото</span>
-                  
+
                   {/* Preset Gradients Selection */}
                   <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
                     {['orange', 'purple', 'blue', 'emerald', 'ruby'].map(g => (
@@ -2264,10 +2264,10 @@ const GlobalUserNav = () => {
                           cursor: 'pointer',
                           padding: 0,
                           background: g === 'orange' ? 'linear-gradient(135deg, #ff9000, #ff5500)' :
-                                      g === 'purple' ? 'linear-gradient(135deg, #a855f7, #6366f1)' :
-                                      g === 'blue'   ? 'linear-gradient(135deg, #3b82f6, #06b6d4)' :
-                                      g === 'emerald'? 'linear-gradient(135deg, #10b981, #059669)' :
-                                      'linear-gradient(135deg, #f43f5e, #be123c)',
+                            g === 'purple' ? 'linear-gradient(135deg, #a855f7, #6366f1)' :
+                              g === 'blue' ? 'linear-gradient(135deg, #3b82f6, #06b6d4)' :
+                                g === 'emerald' ? 'linear-gradient(135deg, #10b981, #059669)' :
+                                  'linear-gradient(135deg, #f43f5e, #be123c)',
                           boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
                           transition: 'all 0.1s ease'
                         }}
@@ -2362,13 +2362,13 @@ const GlobalUserNav = () => {
                       >
                         {showPassword ? (
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                            <line x1="1" y1="1" x2="23" y2="23"/>
+                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                            <line x1="1" y1="1" x2="23" y2="23" />
                           </svg>
                         ) : (
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                            <circle cx="12" cy="12" r="3" />
                           </svg>
                         )}
                       </button>
@@ -2405,7 +2405,7 @@ const GlobalUserNav = () => {
                     <div style={{ width: '16px', height: '16px', border: '2.5px solid #000', borderTop: '2.5px solid transparent', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} />
                   ) : (
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12"/>
+                      <polyline points="20 6 9 17 4 12" />
                     </svg>
                   )}
                   {isSavingProfile ? 'Збереження...' : 'Зберегти зміни'}
@@ -2425,8 +2425,8 @@ const Portal = () => {
   const location = useLocation()
 
   // Badge logic for Kanban Module
-  const myPendingTasksCount = (managementTasks || []).filter(t => 
-    t.status !== 'done' && 
+  const myPendingTasksCount = (managementTasks || []).filter(t =>
+    t.status !== 'done' &&
     (t.assigned_to === currentUser?.login || t.created_by === currentUser?.login)
   ).length
 
@@ -2447,28 +2447,29 @@ const Portal = () => {
     <div className="portal-container-v2" style={{ background: '#050505', minHeight: '100vh', color: '#fff', padding: '40px 20px' }}>
       <header className="portal-header-v2" style={{ maxWidth: '1200px', margin: '0 auto 50px', textAlign: 'center' }}>
         <div className="logo-section" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
-           <img src="/kulytsya.png" alt="Logo" style={{ height: '70px', filter: 'drop-shadow(0 0 15px rgba(255,144,0,0.4))' }} />
-           <h1 style={{ fontSize: '2.4rem', fontWeight: 950, margin: 0, letterSpacing: '-1px' }}>CRM <span style={{ color: '#ff9000' }}>КУЛИЦЯ</span></h1>
-           <p style={{ color: '#333', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.4em' }}>Industrial Control v2.0</p>
+          <img src="/kulytsya.png" alt="Logo" style={{ height: '70px', filter: 'drop-shadow(0 0 15px rgba(255,144,0,0.4))' }} />
+          <h1 style={{ fontSize: '2.4rem', fontWeight: 950, margin: 0, letterSpacing: '-1px' }}>CRM <span style={{ color: '#ff9000' }}>КУЛИЦЯ</span></h1>
+          <p style={{ color: '#333', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.4em' }}>Industrial Control v2.0</p>
         </div>
       </header>
       <div className="portal-grid-v2" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', maxWidth: '1200px', margin: '0 auto' }}>
         {modules.map(mod => (
           <Link key={mod.id} to={mod.path} className="portal-card-v2 glass-panel" style={{ textDecoration: 'none', background: '#111', border: '1px solid #1a1a1a', borderRadius: '24px', padding: '25px', display: 'flex', alignItems: 'center', gap: '20px', transition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)', position: 'relative', overflow: 'hidden' }}>
-             <div className="card-icon-v2" style={{ background: '#000', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: mod.color, position: 'relative' }}>
-                 {mod.icon}
-                 {mod.badge > 0 && <span className="badge-count anim-pulse" style={{ position: 'absolute', top: -5, right: -5 }}>{mod.badge}</span>}
-             </div>
-             <div className="card-info-v2" style={{ flex: 1 }}>
-                 <h3 style={{ margin: '0 0 4px 0', fontSize: '1.1rem', color: '#fff', fontWeight: 900 }}>{mod.title}</h3>
-                 <p style={{ margin: 0, fontSize: '0.75rem', color: '#555', fontWeight: 500 }}>{mod.desc}</p>
-             </div>
-             <ChevronRight className="arrow-v2" size={18} style={{ color: '#222', transition: '0.3s' }} />
-             <div className="hover-line" style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', background: mod.color, opacity: 0, transition: '0.3s' }}></div>
+            <div className="card-icon-v2" style={{ background: '#000', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: mod.color, position: 'relative' }}>
+              {mod.icon}
+              {mod.badge > 0 && <span className="badge-count anim-pulse" style={{ position: 'absolute', top: -5, right: -5 }}>{mod.badge}</span>}
+            </div>
+            <div className="card-info-v2" style={{ flex: 1 }}>
+              <h3 style={{ margin: '0 0 4px 0', fontSize: '1.1rem', color: '#fff', fontWeight: 900 }}>{mod.title}</h3>
+              <p style={{ margin: 0, fontSize: '0.75rem', color: '#555', fontWeight: 500 }}>{mod.desc}</p>
+            </div>
+            <ChevronRight className="arrow-v2" size={18} style={{ color: '#222', transition: '0.3s' }} />
+            <div className="hover-line" style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', background: mod.color, opacity: 0, transition: '0.3s' }}></div>
           </Link>
         ))}
       </div>
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         .portal-card-v2:hover { transform: translateY(-5px) scale(1.02); background: #181818; border-color: #333; box-shadow: 0 20px 40px rgba(0,0,0,0.4); }
         .portal-card-v2:hover .arrow-v2 { color: #ff9000; transform: translateX(5px); }
         .portal-card-v2:hover .hover-line { opacity: 1; }
@@ -2483,7 +2484,7 @@ const Portal = () => {
 const PermissionGuard = ({ id, children }) => {
   const { currentUser, managementTasks } = useMES()
   const location = useLocation()
-  
+
   if (!currentUser) return children
 
   const isAdmin = currentUser?.position === 'Адмін' || currentUser?.role === 'admin'
@@ -2558,48 +2559,48 @@ const AppContent = () => {
     <>
       <ScrollToTop />
       <Suspense fallback={<ModuleLoader />}>
-      {currentUser && 
-       currentUser.position !== 'Адмін' && 
-       currentUser.role !== 'admin' && 
-       location.pathname !== '/login' && 
-       location.pathname !== '/' && (
-         <GlobalUserNav key={currentUser.id} />
-       )}
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/" element={<Portal />} />
-        <Route path="/dashboard" element={<PermissionGuard id="dashboard"><DashboardModule /></PermissionGuard>} />
-        <Route path="/manager" element={<PermissionGuard id="manager"><ManagerModule /></PermissionGuard>} />
-        <Route path="/warehouse" element={<PermissionGuard id="warehouse"><WarehouseModule /></PermissionGuard>} />
-        <Route path="/master" element={<PermissionGuard id="master"><MasterModule /></PermissionGuard>} />
-        <Route path="/foreman" element={<PermissionGuard id="foreman"><ForemanWorkplace /></PermissionGuard>} />
-        <Route path="/operator" element={<PermissionGuard id="operator"><OperatorTerminal /></PermissionGuard>} />
-        <Route path="/prep-terminal" element={<PermissionGuard id="prep_terminal"><PreparationTerminal /></PermissionGuard>} />
-        <Route path="/shop1" element={<PermissionGuard id="shop1"><Shop1Terminal /></PermissionGuard>} />
-        <Route path="/tumbling-terminal" element={<PermissionGuard id="tumbling_terminal"><TumblingTerminal /></PermissionGuard>} />
-        <Route path="/shop2" element={<PermissionGuard id="shop2"><Shop2Module /></PermissionGuard>} />
-        <Route path="/shop2-terminal" element={<PermissionGuard id="shop2_terminal"><Shop2Terminal /></PermissionGuard>} />
-        <Route path="/packaging" element={<PermissionGuard id="packaging"><PackagingModule /></PermissionGuard>} />
-        <Route path="/engineer" element={<PermissionGuard id="engineer"><EngineerModule /></PermissionGuard>} />
-        <Route path="/director" element={<PermissionGuard id="director"><DirectorModule /></PermissionGuard>} />
-        <Route path="/shipping" element={<PermissionGuard id="shipping"><ShippingModule /></PermissionGuard>} />
-        <Route path="/supply" element={<PermissionGuard id="supply"><SupplyModule /></PermissionGuard>} />
-        <Route path="/nomenclature" element={<PermissionGuard id="nomenclature"><NomenclatureModule /></PermissionGuard>} />
-        <Route path="/nomenclature-v2" element={<PermissionGuard id="nomenclature_v2"><NomenclatureV2 /></PermissionGuard>} />
-        <Route path="/machines" element={<PermissionGuard id="machines"><MachinesModule /></PermissionGuard>} />
-        <Route path="/machines/:id/call" element={<PermissionGuard id="public_call"><MachineCallModule /></PermissionGuard>} />
-        <Route path="/analytics" element={<PermissionGuard id="analytics"><AnalyticsModule /></PermissionGuard>} />
-        <Route path="/brak" element={<PermissionGuard id="brak"><BrakModule /></PermissionGuard>} />
-        <Route path="/tasks" element={<PermissionGuard id="kanban"><KanbanModule /></PermissionGuard>} />
-        <Route path="/access" element={<PermissionGuard id="access"><AccessModule /></PermissionGuard>} />
-        <Route path="/procurement" element={<PermissionGuard id="procurement"><SupplyModule isProcurementOnly={true} /></PermissionGuard>} />
-        <Route path="/reports" element={<PermissionGuard id="reports"><ReportsModule /></PermissionGuard>} />
-        <Route path="/settings" element={<PermissionGuard id="settings"><SettingsModule /></PermissionGuard>} />
-        <Route path="/simulator" element={<PermissionGuard id="simulator"><SimulatorModule /></PermissionGuard>} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Suspense>
-  </>
+        {currentUser &&
+          currentUser.position !== 'Адмін' &&
+          currentUser.role !== 'admin' &&
+          location.pathname !== '/login' &&
+          location.pathname !== '/' && (
+            <GlobalUserNav key={currentUser.id} />
+          )}
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/" element={<Portal />} />
+          <Route path="/dashboard" element={<PermissionGuard id="dashboard"><DashboardModule /></PermissionGuard>} />
+          <Route path="/manager" element={<PermissionGuard id="manager"><ManagerModule /></PermissionGuard>} />
+          <Route path="/warehouse" element={<PermissionGuard id="warehouse"><WarehouseModule /></PermissionGuard>} />
+          <Route path="/master" element={<PermissionGuard id="master"><MasterModule /></PermissionGuard>} />
+          <Route path="/foreman" element={<PermissionGuard id="foreman"><ForemanWorkplace /></PermissionGuard>} />
+          <Route path="/operator" element={<PermissionGuard id="operator"><OperatorTerminal /></PermissionGuard>} />
+          <Route path="/prep-terminal" element={<PermissionGuard id="prep_terminal"><PreparationTerminal /></PermissionGuard>} />
+          <Route path="/shop1" element={<PermissionGuard id="shop1"><Shop1Terminal /></PermissionGuard>} />
+          <Route path="/tumbling-terminal" element={<PermissionGuard id="tumbling_terminal"><TumblingTerminal /></PermissionGuard>} />
+          <Route path="/shop2" element={<PermissionGuard id="shop2"><Shop2Module /></PermissionGuard>} />
+          <Route path="/shop2-terminal" element={<PermissionGuard id="shop2_terminal"><Shop2Terminal /></PermissionGuard>} />
+          <Route path="/packaging" element={<PermissionGuard id="packaging"><PackagingModule /></PermissionGuard>} />
+          <Route path="/engineer" element={<PermissionGuard id="engineer"><EngineerModule /></PermissionGuard>} />
+          <Route path="/director" element={<PermissionGuard id="director"><DirectorModule /></PermissionGuard>} />
+          <Route path="/shipping" element={<PermissionGuard id="shipping"><ShippingModule /></PermissionGuard>} />
+          <Route path="/supply" element={<PermissionGuard id="supply"><SupplyModule /></PermissionGuard>} />
+          <Route path="/nomenclature" element={<PermissionGuard id="nomenclature"><NomenclatureModule /></PermissionGuard>} />
+          <Route path="/nomenclature-v2" element={<PermissionGuard id="nomenclature_v2"><NomenclatureV2 /></PermissionGuard>} />
+          <Route path="/machines" element={<PermissionGuard id="machines"><MachinesModule /></PermissionGuard>} />
+          <Route path="/machines/:id/call" element={<PermissionGuard id="public_call"><MachineCallModule /></PermissionGuard>} />
+          <Route path="/analytics" element={<PermissionGuard id="analytics"><AnalyticsModule /></PermissionGuard>} />
+          <Route path="/brak" element={<PermissionGuard id="brak"><BrakModule /></PermissionGuard>} />
+          <Route path="/tasks" element={<PermissionGuard id="kanban"><KanbanModule /></PermissionGuard>} />
+          <Route path="/access" element={<PermissionGuard id="access"><AccessModule /></PermissionGuard>} />
+          <Route path="/procurement" element={<PermissionGuard id="procurement"><SupplyModule isProcurementOnly={true} /></PermissionGuard>} />
+          <Route path="/reports" element={<PermissionGuard id="reports"><ReportsModule /></PermissionGuard>} />
+          <Route path="/settings" element={<PermissionGuard id="settings"><SettingsModule /></PermissionGuard>} />
+          <Route path="/simulator" element={<PermissionGuard id="simulator"><SimulatorModule /></PermissionGuard>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
+    </>
   )
 }
 

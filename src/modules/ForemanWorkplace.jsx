@@ -11,9 +11,9 @@ const getDisplayMaterial = (partNom, snapshot) => {
   if (!snapshot) return baseMat
   const s300 = snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : 0
   const s700 = snapshot.sheets_t700 !== undefined ? Number(snapshot.sheets_t700) : 0
-  
+
   const isDefaultT700 = (baseMat || '').toLowerCase().includes('т700') || (baseMat || '').toLowerCase().includes('t700')
-  
+
   // If we have custom sheets in snapshot
   if (snapshot.sheets_t300 !== undefined || snapshot.sheets_t700 !== undefined) {
     if (s700 > 0 && s300 === 0) {
@@ -28,7 +28,7 @@ const getDisplayMaterial = (partNom, snapshot) => {
   } else if (isDefaultT700) {
     return baseMat.replace(/т300/gi, 'Т700').replace(/t300/gi, 'Т700')
   }
-  
+
   return baseMat
 }
 
@@ -43,9 +43,9 @@ const ForemanWorkplace = () => {
     return false
   }
 
-  const activeCalls = (machineCalls || []).filter(c => 
-    c.status === 'pending' && 
-    c.called_role === 'master' && 
+  const activeCalls = (machineCalls || []).filter(c =>
+    c.status === 'pending' &&
+    c.called_role === 'master' &&
     (!c.called_employee_id || c.called_employee_id === currentUser?.id)
   )
 
@@ -175,7 +175,7 @@ const ForemanWorkplace = () => {
         ...(task.plan_snapshot || {}),
         _report_snapshot: finalData
       }
-      
+
       await supabase.from('tasks').update({ plan_snapshot: updatedSnapshot }).eq('id', task.id)
     } catch (e) {
       console.error(e)
@@ -227,18 +227,18 @@ const ForemanWorkplace = () => {
   useEffect(() => {
 
     if (tasks.length === 0) return;
-    
+
     // Get all order IDs from tasks that might be shown in the UI
     const neededIds = [...new Set(tasks.map(t => t.order_id).filter(Boolean))];
-    
+
     // Find IDs that are neither in the global orders list nor in our local allOrdersMap cache
-    const missingIds = neededIds.filter(id => 
-      !orders.find(o => String(o.id) === String(id)) && 
+    const missingIds = neededIds.filter(id =>
+      !orders.find(o => String(o.id) === String(id)) &&
       !allOrdersMap[id]
     );
 
     if (missingIds.length === 0) return;
-    
+
     supabase
       .from('orders')
       .select('*, order_items(*)')
@@ -259,9 +259,10 @@ const ForemanWorkplace = () => {
   }, [tasks, orders]);
 
   // ── Load static completed progress for ALL relevant tasks ──────────────
+  // Тригер: tasks (коли змінюється список нарядів)
   useEffect(() => {
     if (tasks.length === 0) return;
-    
+
     const taskIds = tasks.filter(t => t.status !== 'completed').map(t => t.id);
     if (taskIds.length === 0) return;
 
@@ -299,6 +300,25 @@ const ForemanWorkplace = () => {
       });
   }, [tasks]);
 
+  // ── Sync staticHistory з реалтайм workCardHistory (без зайвих DB-запитів) ──
+  // При новому браку через realtime INSERT → workCardHistory оновлюється →
+  // цей ефект мержить нові записи в staticHistory якщо вони належать completed-карткам.
+  useEffect(() => {
+    if (staticCompletedCards.length === 0 || workCardHistory.length === 0) return;
+    const completedCardIds = new Set(staticCompletedCards.map(c => String(c.id)));
+    // Фільтруємо тільки нові history-рядки для completed-карток цього модуля
+    const relevantNew = workCardHistory.filter(h => h.card_id && completedCardIds.has(String(h.card_id)));
+    if (relevantNew.length === 0) return;
+    setStaticHistory(prev => {
+      const existingIds = new Set(prev.map(h => h.id));
+      const toAdd = relevantNew.filter(h => !existingIds.has(h.id));
+      if (toAdd.length === 0) return prev;
+      return [...prev, ...toAdd];
+    });
+  }, [workCardHistory, staticCompletedCards]);
+
+
+
   // ── Compute production, scrap, and redo caches in memory ──────────────
   const { productionCache, scrapCache, redoCache, allCardsCache, cardScrapCache } = useMemo(() => {
     const prodCache = {};
@@ -313,7 +333,7 @@ const ForemanWorkplace = () => {
     allCards.forEach(card => {
       const tid = card.task_id;
       const nid = String(card.nomenclature_id);
-      
+
       if (!prodCache[tid]) prodCache[tid] = {};
       if (!sCache[tid]) sCache[tid] = {};
       if (!rCache[tid]) rCache[tid] = {};
@@ -340,7 +360,7 @@ const ForemanWorkplace = () => {
       const card = allCards.find(c => c.id === h.card_id);
       if (card) {
         const tid = card.task_id;
-        const nid = String(h.nomenclature_id);
+        const nid = String(card.nomenclature_id);
         if (!sCache[tid]) sCache[tid] = {};
         sCache[tid][nid] = (sCache[tid][nid] || 0) + (Number(h.scrap_qty) || 0);
       }
@@ -377,7 +397,7 @@ const ForemanWorkplace = () => {
     if (activeTaskId) {
       fetchTaskArchiveCards(activeTaskId).then(async (cards) => {
         setArchiveCards(cards || [])
-        
+
         const activeTaskCards = workCards.filter(c => c.task_id === activeTaskId)
         const allTaskCards = [...activeTaskCards, ...(cards || [])]
         const cardIds = allTaskCards.map(c => c.id)
@@ -423,18 +443,18 @@ const ForemanWorkplace = () => {
     return parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
   }
 
-const MACHINE_TYPES = [
-  'CNC 1200x800 - 4 листи (Малий)',
-  'CNC 3050(16)х16 - 3-12 листів (швидкісний)',
-  'CNC 3060х1600 - 3-36 листів (Три Головий)',
-  'CNC 6000x2000 - 4 - 96 листів (Дракон)',
-  'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
-]
+  const MACHINE_TYPES = [
+    'CNC 1200x800 - 4 листи (Малий)',
+    'CNC 3050(16)х16 - 3-12 листів (швидкісний)',
+    'CNC 3060х1600 - 3-36 листів (Три Головий)',
+    'CNC 6000x2000 - 4 - 96 листів (Дракон)',
+    'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
+  ]
 
   const findMachine = (name) => {
     if (!name || name === 'Не вказано') return null
     const baseName = name.split(' №')[0].trim()
-    const found = machines.find(m => m.name === baseName) 
+    const found = machines.find(m => m.name === baseName)
       || machines.find(m => m.name === name)
       || machines.find(m => m.type === baseName)
       || machines.find(m => m.type === name)
@@ -534,9 +554,9 @@ const MACHINE_TYPES = [
     tasks.forEach(task => {
       if (task.status === 'completed') { map[task.id] = false; return }
       const order = task.orders || orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
-      
+
       const taskCache = productionCache[task.id] || {}
-      
+
       const isReady = order?.order_items?.every(item => {
         const rows = getDisplayPartsForOrderItem(task, item)
         const shop1Parts = rows.filter(r => r.nom?.type === 'part')
@@ -548,7 +568,7 @@ const MACHINE_TYPES = [
             ? snapshot.need
             : (Number(item.quantity) * (Number(part.quantity_per_parent) || 1))
           if (need === 0) return true
-          
+
           const produced = taskCache[nomId] || 0
           return produced >= need
         })
@@ -568,7 +588,7 @@ const MACHINE_TYPES = [
       const taskScrap = scrapCache[task.id] || {}
       const taskRedo = redoCache[task.id] || {}
       const taskCards = allCardsCache.filter(c => c.task_id === task.id)
-      
+
       let hasShortage = false
       Object.keys(snapshot).forEach(nomIdStr => {
         if (hasShortage) return
@@ -576,28 +596,28 @@ const MACHINE_TYPES = [
         if (nom?.type !== 'part') return
         const snap = snapshot[nomIdStr]
         if (!snap) return
-        
+
         const need = snap.need || 0
         const stockBZ = snap.stock || 0
         const unitsPerSheet = snap.units_per_sheet || 1
-        
+
         const activeCards = taskCards.filter(c => String(c.nomenclature_id) === String(nomIdStr))
         const activeProductionCards = activeCards.filter(c => c.operation !== 'Склад БЗ')
         if (activeProductionCards.length === 0) return
-        
+
         const totalSheets = activeCards.reduce((sum, c) => {
           if (c.operation === 'Склад БЗ') return sum
           const cardScrap = cardScrapCache[c.id] || 0
           const originalQty = (Number(c.quantity) || 0) + cardScrap
           return sum + (c.actualSheets ? Number(c.actualSheets) : Math.ceil(originalQty / unitsPerSheet))
         }, 0)
-        
+
         const plannedSheets = snap.sheets || 0
         const totalSheetsMax = Math.max(plannedSheets, totalSheets)
         const totalBZ = (totalSheetsMax * unitsPerSheet) + stockBZ - need
         const groupScrap = taskScrap[nomIdStr] || 0
         const shortage = (totalBZ - groupScrap) < 0 ? Math.abs(totalBZ - groupScrap) : 0
-        
+
         if (shortage > 0) {
           hasShortage = true
         }
@@ -607,12 +627,71 @@ const MACHINE_TYPES = [
     return map
   }, [tasks, scrapCache, redoCache, nomenclatures, allCardsCache, cardScrapCache])
 
+  // ── Точний override shortage для активного наряду (використовує повну taskHistory) ──
+  // taskShortageMap може мати хибний false якщо записи браку не потрапили в ліміт workCardHistory.
+  // Цей мемо перераховує shortage для activeTaskId з повними даними що вже є в state.
+  const activeTaskShortageOverride = useMemo(() => {
+    if (!activeTaskId) return false
+    const task = tasks.find(t => t.id === activeTaskId)
+    if (!task || task.status === 'completed') return false
+
+    const snapshot = task.plan_snapshot || {}
+    const taskCards = [
+      ...workCards.filter(c => c.task_id === activeTaskId),
+      ...archiveCards
+    ]
+    const allHistory = taskHistory.length > 0 ? taskHistory : workCardHistory.filter(h => {
+      const cardId = taskCards.find(c => c.id === h.card_id)
+      return !!cardId
+    })
+
+    let hasShortage = false
+    Object.keys(snapshot).forEach(nomIdStr => {
+      if (hasShortage) return
+      const nom = nomenclatures.find(n => String(n.id) === String(nomIdStr))
+      if (nom?.type !== 'part') return
+      const snap = snapshot[nomIdStr]
+      if (!snap) return
+
+      const need = snap.need || 0
+      const stockBZ = snap.stock || 0
+      const unitsPerSheet = snap.units_per_sheet || 1
+
+      const nomCards = taskCards.filter(c => String(c.nomenclature_id) === String(nomIdStr))
+      const productionCards = nomCards.filter(c => c.operation !== 'Склад БЗ')
+      if (productionCards.length === 0) return
+
+      // Рахуємо groupScrap з повної taskHistory
+      const cardIds = new Set(nomCards.map(c => String(c.id)))
+      const groupScrap = allHistory
+        .filter(h => h.card_id && cardIds.has(String(h.card_id)))
+        .reduce((sum, h) => sum + (Number(h.scrap_qty) || 0), 0)
+
+      // Рахуємо totalSheets з кешу браку по картках
+      const totalSheets = productionCards.reduce((sum, c) => {
+        const cardScrap = allHistory
+          .filter(h => String(h.card_id) === String(c.id))
+          .reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
+        const originalQty = (Number(c.quantity) || 0) + cardScrap
+        return sum + (c.actualSheets ? Number(c.actualSheets) : Math.ceil(originalQty / unitsPerSheet))
+      }, 0)
+
+      const plannedSheets = snap.sheets || 0
+      const totalSheetsMax = Math.max(plannedSheets, totalSheets)
+      const totalBZ = (totalSheetsMax * unitsPerSheet) + stockBZ - need
+      const shortage = (totalBZ - groupScrap) < 0 ? Math.abs(totalBZ - groupScrap) : 0
+
+      if (shortage > 0) hasShortage = true
+    })
+    return hasShortage
+  }, [activeTaskId, tasks, workCards, archiveCards, taskHistory, workCardHistory, nomenclatures])
+
   const relevantTasks = useMemo(() => {
     return tasks
       .filter(t => {
         const stepName = (t.step || '').toLowerCase()
         const isLaser = stepName.includes('розкрій') || stepName.includes('різка')
-        
+
         // Якщо наряд АКТИВНИЙ (не завершений)
         if (t.status !== 'completed') {
           return t.warehouse_conf && t.engineer_conf && t.director_conf && isLaser
@@ -621,7 +700,7 @@ const MACHINE_TYPES = [
         // Якщо наряд ЗАВЕРШЕНИЙ (Архів)
         const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
         const isRecent = (t.completed_at && new Date(t.completed_at) > threeDaysAgo) || (t.updated_at && new Date(t.updated_at) > threeDaysAgo)
-        
+
         // Для архіву Цеху №1 показуємо будь-який нещодавній наряд, який був розкрійним/різкою
         // (Або взагалі будь-який завершений нещодавно, щоб нічого не зникло)
         return isRecent && (isLaser || !t.step)
@@ -633,23 +712,25 @@ const MACHINE_TYPES = [
         // Ready for Shop 2 → top
         if (taskReadinessMap[a.id] && !taskReadinessMap[b.id]) return -1
         if (!taskReadinessMap[a.id] && taskReadinessMap[b.id]) return 1
-        // Needs ДОВИПУСК → second
-        if (taskShortageMap[a.id] && !taskShortageMap[b.id]) return -1
-        if (!taskShortageMap[a.id] && taskShortageMap[b.id]) return 1
+        // Needs ДОВИПУСК → second (для активного наряду — точний override)
+        const aShortage = a.id === activeTaskId ? activeTaskShortageOverride : taskShortageMap[a.id]
+        const bShortage = b.id === activeTaskId ? activeTaskShortageOverride : taskShortageMap[b.id]
+        if (aShortage && !bShortage) return -1
+        if (!aShortage && bShortage) return 1
         // New tasks (no cards) → third
         const aNew = a.status !== 'completed' && (taskCardsCountMap[a.id] || 0) === 0
         const bNew = b.status !== 'completed' && (taskCardsCountMap[b.id] || 0) === 0
         if (aNew && !bNew) return -1
         if (!aNew && bNew) return 1
         // In Progress tasks → fourth
-        const aInProg = a.status !== 'completed' && (taskCardsCountMap[a.id] || 0) > 0 && !taskReadinessMap[a.id] && !taskShortageMap[a.id]
-        const bInProg = b.status !== 'completed' && (taskCardsCountMap[b.id] || 0) > 0 && !taskReadinessMap[b.id] && !taskShortageMap[b.id]
+        const aInProg = a.status !== 'completed' && (taskCardsCountMap[a.id] || 0) > 0 && !taskReadinessMap[a.id] && !aShortage
+        const bInProg = b.status !== 'completed' && (taskCardsCountMap[b.id] || 0) > 0 && !taskReadinessMap[b.id] && !bShortage
         if (aInProg && !bInProg) return -1
         if (!aInProg && bInProg) return 1
-        
+
         return new Date(b.created_at) - new Date(a.created_at)
       })
-  }, [tasks, taskReadinessMap, taskShortageMap, taskCardsCountMap])
+  }, [tasks, taskReadinessMap, taskShortageMap, taskCardsCountMap, activeTaskId, activeTaskShortageOverride])
 
   const activeQueueCount = useMemo(() => {
     return relevantTasks.filter(t => t.status !== 'completed').length
@@ -722,7 +803,7 @@ const MACHINE_TYPES = [
       } catch (err) {
         console.error("Error fetching dbCardsCount:", err)
       }
-      
+
       finalCount = Math.min(finalCount, displayTotal - dbCardsCount)
     }
 
@@ -732,7 +813,7 @@ const MACHINE_TYPES = [
     }
 
     // DYNAMIC NUMBERING: Find absolute max sequence across ALL machines for this nomenclature
-    const existingNomenclatureCards = (workCards || []).filter(wc => 
+    const existingNomenclatureCards = (workCards || []).filter(wc =>
       String(wc.task_id) === String(task.id) &&
       String(wc.nomenclature_id) === String(part.nom?.id)
     )
@@ -763,19 +844,19 @@ const MACHINE_TYPES = [
       // Start calculating for THIS SPLIT
       // localIdx tracks where we are in CURRENT machine split
       let sheetsRemainingForThisSplit = sheets - (localGeneratedCount * capacity)
-      
+
       // FIX: Use the Snapshot's NEED (e.g. 1000) not just the Plan (e.g. 775)
       // for the purpose of the REQ/BZ labels on the card.
       const snapshotEntry = task.plan_snapshot?.[String(part.nom?.id)]
       const originalNeed = snapshotEntry?.need || totalToReach || 0
-      
+
       let reqRemainingForThisSplit = originalNeed - (localGeneratedCount * capacity * unitsPerSheet)
       if (reqRemainingForThisSplit < 0) reqRemainingForThisSplit = 0
 
       for (let i = 1; i <= finalCount; i++) {
         // Sequential numbering
         const currentSeq = startSeqForThisBatch + (i - 1)
-        
+
         // Use EXACT MIN logic to ensure we don't exceed the split or nomenclature capacity
         const sheetsInThisLoading = Math.min(sheetsRemainingForThisSplit, capacity)
         const qtyInThisLoading = Math.ceil(sheetsInThisLoading * unitsPerSheet)
@@ -801,7 +882,7 @@ const MACHINE_TYPES = [
       }
 
       const createdCards = await apiService.submitCreateWorkCardsBatch(task.id, task.order_id, part.nom.id, cardsBatch, createWorkCardsBatch)
-      
+
       if (isRepair && sheets > 0) {
         const totalQty = finalCount * capacity * unitsPerSheet;
         await createDovyпускMaterialRequests(task.id, task.order_id, part.nom, sheets, totalQty);
@@ -871,7 +952,7 @@ const MACHINE_TYPES = [
     if (!task || !nomId) return
     const sId = String(nomId)
     const currentSnapshot = task.plan_snapshot || {}
-    
+
     // Construct updated entry
     const entry = { ...(currentSnapshot[sId] || {}) }
     if (machineName !== null) entry.machine = machineName
@@ -892,10 +973,10 @@ const MACHINE_TYPES = [
   const debouncedUpdateSplits = (task, nomId, newSplits) => {
     // 1. Update local state immediately for UI response
     setEditingSplits(prev => ({ ...prev, [nomId]: newSplits }))
-    
+
     // 2. Clear old timeout
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
-    
+
     // 3. Set new timeout to sync with DB
     saveTimeoutRef.current = setTimeout(() => {
       handleUpdateMachineInSnapshot(task, nomId, null, newSplits)
@@ -983,7 +1064,8 @@ const MACHINE_TYPES = [
               const order = task.orders || orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
               const isActive = activeTaskId === task.id
               const isReady = taskReadinessMap[task.id]
-              const isShortage = taskShortageMap[task.id]
+              // Для активного наряду — використовуємо точний override з повною taskHistory
+              const isShortage = isActive ? activeTaskShortageOverride : taskShortageMap[task.id]
               const isCompleted = task.status === 'completed'
               const taskCardsCount = taskCardsCountMap[task.id] || 0
               const isNew = !isCompleted && taskCardsCount === 0
@@ -1022,11 +1104,11 @@ const MACHINE_TYPES = [
                     setIsDrawerOpen(false);
                     setSearchParams({ task: task.id });
                   }}
-                  style={{ 
-                    padding: '18px 15px', 
-                    borderLeft: `${borderSize} solid ${borderColor}`, 
-                    background: bgColor, 
-                    cursor: 'pointer', 
+                  style={{
+                    padding: '18px 15px',
+                    borderLeft: `${borderSize} solid ${borderColor}`,
+                    background: bgColor,
+                    cursor: 'pointer',
                     transition: 'all 0.2s',
                     marginBottom: '1px',
                     position: 'relative'
@@ -1142,7 +1224,7 @@ const MACHINE_TYPES = [
                         <span style={{ fontSize: '0.75rem', color: '#666', fontWeight: 700 }}>
                           {new Date(c.created_at).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })}
                         </span>
-                        <button 
+                        <button
                           onClick={() => handleResolveCall(c.id)}
                           style={{ background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 16px', fontWeight: 800, fontSize: '0.8rem', cursor: 'pointer' }}
                         >
@@ -1181,7 +1263,7 @@ const MACHINE_TYPES = [
               const activeTaskCards = workCards.filter(c => c.task_id === task.id)
               const taskCards = [...activeTaskCards, ...(archiveCards || []).filter(c => c.task_id === task.id && !activeTaskCards.some(ac => ac.id === c.id))]
               const isReworkOrder = order?.order_num?.startsWith('ВБ')
-              
+
               // Fallback for Product Names: if order has no items (internal rework), use snapshot names
               let productNames = order?.order_items?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ')
               if (!productNames && task.plan_snapshot) {
@@ -1199,7 +1281,7 @@ const MACHINE_TYPES = [
                 return shop1Parts.every(part => {
                   const snapshot = task.plan_snapshot?.[String(part.nom?.id)]
                   const need = snapshot ? snapshot.need : (Number(item.quantity) * (Number(part.quantity_per_parent) || 1))
-                   const produced = taskCards
+                  const produced = taskCards
                     .filter(c => String(c.nomenclature_id) === String(part.nom?.id))
                     .reduce((sum, c) => sum + (countAsProduced(c) ? Number(c.quantity) : 0), 0)
                   return produced >= need
@@ -1207,7 +1289,8 @@ const MACHINE_TYPES = [
               })
 
               const isReady = taskReadinessMap[task.id]
-              const isShortage = taskShortageMap[task.id]
+              // Активний наряд — override з повною taskHistory
+              const isShortage = task.id === activeTaskId ? activeTaskShortageOverride : taskShortageMap[task.id]
               const taskCardsCount = taskCardsCountMap[task.id] || 0
               const isNew = task.status !== 'completed' && taskCardsCount === 0
               const isInProgress = task.status !== 'completed' && taskCardsCount > 0 && !isReady && !isShortage
@@ -1270,7 +1353,7 @@ const MACHINE_TYPES = [
                             Копіювати посилання
                           </button>
                         </h2>
-                        
+
                         <button
                           onClick={() => handleOpenReport(task, order, taskCards)}
                           style={{
@@ -1336,13 +1419,13 @@ const MACHINE_TYPES = [
                           <button
                             onClick={() => handleCompleteShop1Task(task.id)}
                             disabled={isCompletingTask}
-                            style={{ 
-                              background: isCompletingTask ? '#222' : '#10b981', 
-                              color: isCompletingTask ? '#555' : '#fff', 
-                              border: 'none', 
-                              padding: '12px 28px', 
-                              borderRadius: '12px', 
-                              fontWeight: 900, 
+                            style={{
+                              background: isCompletingTask ? '#222' : '#10b981',
+                              color: isCompletingTask ? '#555' : '#fff',
+                              border: 'none',
+                              padding: '12px 28px',
+                              borderRadius: '12px',
+                              fontWeight: 900,
                               cursor: isCompletingTask ? 'not-allowed' : 'pointer',
                               boxShadow: isCompletingTask ? 'none' : '0 10px 20px -5px rgba(16, 185, 129, 0.4)',
                               transition: '0.3s',
@@ -1366,30 +1449,30 @@ const MACHINE_TYPES = [
                   {/* ───── ТАБЛИЦЯ ДЕТАЛЕЙ ───── */}
                   <div style={{ marginBottom: '40px', background: '#111', borderRadius: '20px', overflow: 'hidden', border: '1px solid #222' }}>
                     <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                      <table style={{ width: '100%', minWidth: '1150px', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                      <table style={{ width: '100%', minWidth: '950px', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                         <thead>
                           <tr style={{ background: '#1a1a1a', textAlign: 'left', color: '#555', textTransform: 'uppercase', fontSize: '0.65rem', fontWeight: 900 }}>
-                            <th style={{ padding: '12px 15px', width: '18%' }}>ДЕТАЛЬ В РОЗКРІЙ</th>
-                            <th style={{ padding: '12px 15px', textAlign: 'center' }}>ПОТРЕБА</th>
+                            <th style={{ padding: '12px 10px', width: '23%', minWidth: '170px' }}>ДЕТАЛЬ В РОЗКРІЙ</th>
+                            <th style={{ padding: '12px 6px', textAlign: 'center' }}>ПОТРЕБА</th>
                             {!isReworkOrder && (
                               <>
-                                <th style={{ padding: '12px 15px', textAlign: 'center' }}>СКЛАД БЗ</th>
-                                <th style={{ padding: '12px 15px', textAlign: 'center', color: '#eab308' }}>ПЛАН</th>
+                                <th style={{ padding: '12px 6px', textAlign: 'center' }}>СКЛАД БЗ</th>
+                                <th style={{ padding: '12px 6px', textAlign: 'center', color: '#eab308' }}>ПЛАН</th>
                               </>
                             )}
-                            <th style={{ padding: '12px 15px', textAlign: 'center' }}>МАТЕРІАЛ</th>
-                            <th style={{ padding: '12px 15px', textAlign: 'center' }}>ШТ/Л</th>
-                            <th style={{ padding: '12px 15px', textAlign: 'center', color: '#10b981' }}>ЛИСТІВ</th>
-                            <th style={{ padding: '12px 15px', width: '14%' }}>ВЕРСТАТ</th>
-                            <th style={{ padding: '12px 15px', textAlign: 'center', color: '#3b82f6' }}>ЗАВАНТ.</th>
-                            {!isReworkOrder && <th style={{ padding: '12px 15px', textAlign: 'center', color: '#ef4444' }}>БЗ</th>}
-                            <th style={{ padding: '12px 15px', textAlign: 'center' }}>ДІЇ</th>
+                            <th style={{ padding: '12px 6px', textAlign: 'center' }}>МАТЕРІАЛ</th>
+                            <th style={{ padding: '12px 6px', textAlign: 'center' }}>ШТ/Л</th>
+                            <th style={{ padding: '12px 6px', textAlign: 'center', color: '#10b981' }}>ЛИСТІВ</th>
+                            <th style={{ padding: '12px 10px', width: '14%' }}>ВЕРСТАТ</th>
+                            <th style={{ padding: '12px 6px', textAlign: 'center', color: '#3b82f6' }}>ЗАВАНТ.</th>
+                            {!isReworkOrder && <th style={{ padding: '12px 6px', textAlign: 'center', color: '#ef4444' }}>БЗ</th>}
+                            <th style={{ padding: '12px 6px', textAlign: 'center' }}>ДІЇ</th>
                           </tr>
                         </thead>
                         <tbody>
                           {order?.order_items?.flatMap(item => {
                             const rows = getDisplayPartsForOrderItem(task, item).filter(r => r.nom?.type === 'part')
-                            
+
                             return rows.map((part, idx) => {
                               const rowId = `${item.id}-${part.nom?.id || idx}`
                               const nomId = part.nom?.id
@@ -1417,10 +1500,10 @@ const MACHINE_TYPES = [
                               const reworks = productionCards.filter(c => (c.card_info || '').includes('[REDO]'))
                               const redoCount = reworks.length
 
-                              const rowMachineName = (productionCards.length > 0 && productionCards[0].machine && productionCards[0].machine !== 'Не вказано') 
-                                ? productionCards[0].machine 
+                              const rowMachineName = (productionCards.length > 0 && productionCards[0].machine && productionCards[0].machine !== 'Не вказано')
+                                ? productionCards[0].machine
                                 : ((task.plan_snapshot || {})[String(nomId)]?.machine || (task.plan_snapshot || {})[String(nomId)]?.selected_machine || selectedMachines[rowId] || '')
-                              
+
                               // Use local state if it exists (for fluid typing), fallback to context
                               const splits = editingSplits[nomId] || (task.plan_snapshot || {})[String(nomId)]?.splits || []
                               const isSplitMode = splits.length > 0
@@ -1444,27 +1527,27 @@ const MACHINE_TYPES = [
                                   return sum + Math.ceil(sSheets / cap)
                                 }, 0)
                               }
-                              
+
                               totalTargetLoads += redoCount
                               const surplus = sheets > 0 ? Math.max(0, (sheets * unitsPerSheet) - plan) : 0
 
                               return (
                                 <tr key={rowId} style={{ borderBottom: '1px solid #1a1a1a' }}>
-                                  <td style={{ padding: '15px' }}>
-                                    <div style={{ fontWeight: 800, color: '#fff' }}>{part.nom?.name || '—'}</div>
+                                  <td style={{ padding: '10px 8px', minWidth: '170px' }}>
+                                    <div style={{ fontWeight: 800, color: '#fff', wordBreak: 'break-word', whiteSpace: 'normal' }}>{part.nom?.name || '—'}</div>
                                     <div style={{ fontSize: '0.65rem', color: '#444' }}>{part.nom?.nomenclature_code || 'БЕЗ КОДУ'}</div>
                                   </td>
-                                  <td style={{ padding: '15px', textAlign: 'center', color: '#666' }}>{need}</td>
+                                  <td style={{ padding: '10px 4px', textAlign: 'center', color: '#666' }}>{need}</td>
                                   {!isReworkOrder && (
                                     <>
-                                      <td style={{ padding: '15px', textAlign: 'center', color: '#666' }}>{stockBZ}</td>
-                                      <td style={{ padding: '15px', textAlign: 'center', color: '#eab308', fontWeight: 900 }}>{plan}</td>
+                                      <td style={{ padding: '10px 4px', textAlign: 'center', color: '#666' }}>{stockBZ}</td>
+                                      <td style={{ padding: '10px 4px', textAlign: 'center', color: '#eab308', fontWeight: 900 }}>{plan}</td>
                                     </>
                                   )}
-                                  <td style={{ padding: '15px', textAlign: 'center', color: '#aaa', fontSize: '0.75rem' }}>{getDisplayMaterial(part.nom, snapshot)}</td>
-                                  <td style={{ padding: '15px', textAlign: 'center' }}>{unitsPerSheet}</td>
-                                  <td style={{ padding: '15px', textAlign: 'center', color: '#10b981', fontWeight: 1000, fontSize: '1.1rem' }}>{sheets}</td>
-                                  <td style={{ padding: '15px' }}>
+                                  <td style={{ padding: '10px 6px', textAlign: 'center', color: '#aaa', fontSize: '0.75rem' }}>{getDisplayMaterial(part.nom, snapshot)}</td>
+                                  <td style={{ padding: '10px 4px', textAlign: 'center' }}>{unitsPerSheet}</td>
+                                  <td style={{ padding: '10px 4px', textAlign: 'center', color: '#10b981', fontWeight: 1000, fontSize: '1.1rem' }}>{sheets}</td>
+                                  <td style={{ padding: '10px 4px' }}>
                                     {!isSplitMode ? (
                                       <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
                                         <select
@@ -1513,9 +1596,9 @@ const MACHINE_TYPES = [
                                           const l = Math.ceil(sh / cap)
                                           return (
                                             <div key={sIdx} style={{ display: 'flex', gap: '5px', alignItems: 'center', background: '#080808', padding: '5px', borderRadius: '8px', border: '1px solid #151515' }}>
-                                              <input 
-                                                type="number" 
-                                                value={(s.sheets || (unitsPerSheet > 0 ? Math.ceil((s.qty || 0) / unitsPerSheet) : 0)) || ''} 
+                                              <input
+                                                type="number"
+                                                value={(s.sheets || (unitsPerSheet > 0 ? Math.ceil((s.qty || 0) / unitsPerSheet) : 0)) || ''}
                                                 placeholder="Л."
                                                 onFocus={(e) => e.target.select()}
                                                 onChange={(e) => {
@@ -1548,7 +1631,7 @@ const MACHINE_TYPES = [
                                                 {MACHINE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                                               </select>
                                               <span style={{ fontSize: '0.65rem', color: '#444', fontWeight: 900, minWidth: '35px' }}>{l} завант.</span>
-                                              <button 
+                                              <button
                                                 onClick={() => {
                                                   const newSplits = splits.filter((_, i) => i !== sIdx)
                                                   handleUpdateMachineInSnapshot(task, nomId, null, newSplits.length === 0 ? null : newSplits)
@@ -1561,7 +1644,7 @@ const MACHINE_TYPES = [
                                           )
                                         })}
                                         <div style={{ display: 'flex', gap: '5px' }}>
-                                          <button 
+                                          <button
                                             onClick={() => {
                                               const currentSum = splits.reduce((a, b) => a + (Number(b.sheets) || (unitsPerSheet > 0 ? Math.ceil((Number(b.qty) || 0) / unitsPerSheet) : 0)), 0)
                                               const remaining = Math.max(0, totalSheetsNeeded - currentSum)
@@ -1572,7 +1655,7 @@ const MACHINE_TYPES = [
                                           >
                                             + ДОДАТИ ВЕРСТАТ
                                           </button>
-                                          <button 
+                                          <button
                                             onClick={() => handleUpdateMachineInSnapshot(task, nomId, null, [])}
                                             style={{ background: '#111', border: '1px solid #222', color: '#ef4444', padding: '5px', borderRadius: '6px', cursor: 'pointer' }}
                                           >
@@ -1585,13 +1668,13 @@ const MACHINE_TYPES = [
                                           const isExact = currentSumSheets === totalSheetsNeeded;
                                           const statusColor = isOver ? '#ef4444' : isExact ? '#10b981' : '#ff9000';
                                           return (
-                                            <div style={{ 
-                                              fontSize: '0.65rem', 
-                                              textAlign: 'center', 
-                                              color: statusColor, 
-                                              fontWeight: 950, 
-                                              background: `${statusColor}11`, 
-                                              padding: '6px', 
+                                            <div style={{
+                                              fontSize: '0.65rem',
+                                              textAlign: 'center',
+                                              color: statusColor,
+                                              fontWeight: 950,
+                                              background: `${statusColor}11`,
+                                              padding: '6px',
                                               borderRadius: '10px',
                                               border: `1px solid ${statusColor}33`,
                                               marginTop: '5px'
@@ -1609,7 +1692,7 @@ const MACHINE_TYPES = [
                                       </div>
                                     )}
                                   </td>
-                                  <td style={{ padding: '15px', textAlign: 'center', color: '#3b82f6', fontWeight: 1000, fontSize: '1.2rem' }}>
+                                  <td style={{ padding: '10px 4px', textAlign: 'center', color: '#3b82f6', fontWeight: 1000, fontSize: '1.2rem' }}>
                                     {rowMachineName || isSplitMode ? (
                                       <>
                                         <span style={{ color: productionCards.length < totalTargetLoads ? '#444' : '#3b82f6' }}>{productionCards.length}</span>
@@ -1622,9 +1705,9 @@ const MACHINE_TYPES = [
                                     )}
                                   </td>
                                   {!isReworkOrder && (
-                                    <td style={{ padding: '15px', textAlign: 'center', color: '#ef4444', fontWeight: 900 }}>{surplus > 0 ? `+${surplus}` : '0'}</td>
+                                    <td style={{ padding: '10px 4px', textAlign: 'center', color: '#ef4444', fontWeight: 900 }}>{surplus > 0 ? `+${surplus}` : '0'}</td>
                                   )}
-                                  <td style={{ padding: '15px', textAlign: 'center' }}>
+                                  <td style={{ padding: '10px 4px', textAlign: 'center' }}>
                                     <div style={{ display: 'flex', gap: '5px' }}>
                                       {plan === 0 ? (
                                         (stockBZ > 0 && existing.find(c => c.operation === 'Склад БЗ')) ? (
@@ -1651,9 +1734,9 @@ const MACHINE_TYPES = [
                                                 }
 
                                                 if (isSplitMode) {
-                                                  setGenModal({ 
-                                                    task, part, 
-                                                    total: Math.max(1, totalTargetLoads - productionCards.length), targetTotal: totalTargetLoads, requirement: plan, created: productionCards.length, rowId, machineName: rowMachineName || splits[0]?.machine, sheets, splits: splits 
+                                                  setGenModal({
+                                                    task, part,
+                                                    total: Math.max(1, totalTargetLoads - productionCards.length), targetTotal: totalTargetLoads, requirement: plan, created: productionCards.length, rowId, machineName: rowMachineName || splits[0]?.machine, sheets, splits: splits
                                                   })
                                                 } else {
                                                   if (!rowMachineName) return;
@@ -1661,15 +1744,15 @@ const MACHINE_TYPES = [
                                                   setGenModal({ task, part, total: Math.max(1, totalTargetLoads - productionCards.length), targetTotal: totalTargetLoads, requirement: plan, created: productionCards.length, rowId, machineName: rowMachineName, sheets, capacity: machineCapacity })
                                                 }
                                               }}
-                                              style={{ 
-                                                background: (rowMachineName || isSplitMode) ? '#ff9000' : '#222', 
-                                                color: (rowMachineName || isSplitMode) ? '#000' : '#444', 
-                                                border: 'none', 
-                                                padding: '8px 15px', 
-                                                borderRadius: '8px', 
-                                                fontSize: '0.65rem', 
-                                                fontWeight: 900, 
-                                                cursor: (rowMachineName || isSplitMode) ? 'pointer' : 'not-allowed', 
+                                              style={{
+                                                background: (rowMachineName || isSplitMode) ? '#ff9000' : '#222',
+                                                color: (rowMachineName || isSplitMode) ? '#000' : '#444',
+                                                border: 'none',
+                                                padding: '8px 15px',
+                                                borderRadius: '8px',
+                                                fontSize: '0.65rem',
+                                                fontWeight: 900,
+                                                cursor: (rowMachineName || isSplitMode) ? 'pointer' : 'not-allowed',
                                                 textTransform: 'uppercase',
                                                 opacity: (isSplitMode && splits.reduce((a, b) => a + (Number(b.sheets) || (unitsPerSheet > 0 ? Math.ceil((Number(b.qty) || 0) / unitsPerSheet) : 0)), 0) > totalSheetsNeeded) ? 0.3 : 1
                                               }}
@@ -1719,12 +1802,12 @@ const MACHINE_TYPES = [
                     {Object.keys(task.plan_snapshot || {}).map((nomIdStr) => {
                       const nomId = isNaN(nomIdStr) ? nomIdStr : Number(nomIdStr)
                       const nom = nomenclatures.find(n => String(n.id) === String(nomId))
-                      
+
                       if (nom?.type !== 'part') return null
 
                       const activeCards = taskCards.filter(c => String(c.nomenclature_id) === String(nomId))
                       const cardIdsStrings = activeCards.map(c => String(c.id))
-                      const groupHistory = taskHistory.length > 0 
+                      const groupHistory = taskHistory.length > 0
                         ? taskHistory.filter(h => h.card_id && cardIdsStrings.includes(String(h.card_id)))
                         : workCardHistory.filter(h => h.card_id && cardIdsStrings.includes(String(h.card_id)))
 
@@ -1780,7 +1863,7 @@ const MACHINE_TYPES = [
 
                       return (
                         <div key={nomId} className="nomenclature-archive-group" style={{ marginBottom: '0' }}>
-                          <div 
+                          <div
                             onClick={() => setExpandedGroups(prev => ({ ...prev, [nomId]: !prev[nomId] }))}
                             style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', background: '#111', padding: '12px 20px', borderRadius: '12px', border: '1px solid #222', cursor: 'pointer', userSelect: 'none' }}
                           >
@@ -1989,11 +2072,11 @@ const MACHINE_TYPES = [
                     // INTELLIGENT FILTERING:
                     // Instead of exact sheet matching (which fails for partials), 
                     // we count sheets for THIS MACHINE in order of splits.
-                    
+
                     // 1. Get ALL cards for this nomenclature that match the machine name
                     const machineCards = existingNomenclatureCards
                       .filter(wc => wc.machine === split.machine)
-                      .sort((a,b) => a.id - b.id)
+                      .sort((a, b) => a.id - b.id)
 
                     // 2. Determine which cards belong to THIS specific split index
                     const prevSplitsSameMachine = genModal.splits.slice(0, sIdx).filter(s => s.machine === split.machine)
@@ -2006,28 +2089,28 @@ const MACHINE_TYPES = [
                     let sheetsUsedInThisSplit = 0
                     let cardsBelongingToThisSplitCount = 0
                     let currentGlobalSheets = 0
-                    
+
                     machineCards.forEach(wc => {
                       const cardSheets = Math.ceil((Number(wc.quantity) || 0) / unitsPerSheet)
                       const cardStart = currentGlobalSheets
                       const cardEnd = currentGlobalSheets + cardSheets
-                      
+
                       const splitStart = sheetsSkipped
                       const splitEnd = sheetsSkipped + splitSheets
-                      
+
                       // If any part of this card falls within this split's range
                       if (cardEnd > splitStart && cardStart < splitEnd) {
                         cardsBelongingToThisSplitCount++
                         sheetsUsedInThisSplit += cardSheets // simplified
                       }
-                      
+
                       currentGlobalSheets += cardSheets
                     })
 
                     const generatedCount = cardsBelongingToThisSplitCount
                     const isGenerated = sheetsUsedInThisSplit >= splitSheets
                     const remainingCount = Math.max(0, splitLoadings - generatedCount)
-                    
+
                     const splitGlobalOffsetForThisMachine = currentGlobalOffset
                     currentGlobalOffset += splitLoadings
                     const toGen = partialCounts[`${genModal.part.nom?.id}_${sIdx}`] ?? remainingCount
@@ -2180,11 +2263,11 @@ const MACHINE_TYPES = [
                       const maxC = m?.max_capacity || m?.sheet_capacity || 1;
                       const safeCap = isNaN(newCap) ? 1 : Math.min(maxC, Math.max(minC, newCap));
                       const newTargetTotal = Math.ceil(genModal.sheets / safeCap);
-                      setGenModal(prev => ({ 
-                        ...prev, 
-                        capacity: isNaN(newCap) ? '' : newCap, 
-                        total: Math.max(1, newTargetTotal - (prev.created || 0)), 
-                        targetTotal: newTargetTotal 
+                      setGenModal(prev => ({
+                        ...prev,
+                        capacity: isNaN(newCap) ? '' : newCap,
+                        total: Math.max(1, newTargetTotal - (prev.created || 0)),
+                        targetTotal: newTargetTotal
                       }));
                     }}
                     onBlur={(e) => {
@@ -2195,11 +2278,11 @@ const MACHINE_TYPES = [
                       if (isNaN(v)) v = minC;
                       else v = Math.min(maxC, Math.max(minC, v));
                       const newTargetTotal = Math.ceil(genModal.sheets / v);
-                      setGenModal(prev => ({ 
-                        ...prev, 
-                        capacity: v, 
-                        total: Math.max(1, newTargetTotal - (prev.created || 0)), 
-                        targetTotal: newTargetTotal 
+                      setGenModal(prev => ({
+                        ...prev,
+                        capacity: v,
+                        total: Math.max(1, newTargetTotal - (prev.created || 0)),
+                        targetTotal: newTargetTotal
                       }));
                     }}
                     min={findMachine(genModal.machineName)?.min_capacity || 1}
@@ -2274,20 +2357,20 @@ const MACHINE_TYPES = [
               if (h > 0) return `${h}год ${min}хв`
               return `${min}хв`
             }
-            
+
             // Dynamically resolve operations
             const mac = machines.find(mac => mac.name === m.machine)
-            const opData = machineOperations?.find(o => 
-              o.nomenclature_id === nomenclature?.id && 
+            const opData = machineOperations?.find(o =>
+              o.nomenclature_id === nomenclature?.id &&
               (o.machine_type === m.machine || (mac && o.machine_id === mac.id))
             )
             let s1Ops = (opData?.side1_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:'))
             let s2Ops = (opData?.side2_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:'))
             let s2CutOps = (opData?.side2_cut_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:'))
-            
+
             const snapshotPart = printQueue.task.plan_snapshot?.[String(nomenclature?.id)]
             const isCutter1_5 = snapshotPart?.cutter_override === '1.5'
-            
+
             if (isCutter1_5) {
               const replacer = (op) => {
                 if (op.includes('|')) return op.split('|')[1].trim()
@@ -2312,7 +2395,7 @@ const MACHINE_TYPES = [
               if (op.includes('|')) return op.split('|')[1].trim()
               return op.replace(/[фФ]2(?![0-9.])/g, match => match[0] === 'ф' ? 'ф1.5' : 'Ф1.5')
             })
-            
+
             const maxOps = Math.max(10, s1Ops.length, s2Ops.length, s2CutOpsF2.length, s2CutOpsF15.length)
             const opRows = Array.from({ length: maxOps }).map((_, i) => ({
               s1: s1Ops[i] || '',
@@ -2350,7 +2433,7 @@ const MACHINE_TYPES = [
                         <div style={{ display: 'flex', height: '26px', borderBottom: '1.5px solid #000', textAlign: 'center', alignItems: 'center' }}>
                           <div style={{ width: '30%', borderRight: '1px solid #000', fontSize: '9pt', fontWeight: 1000 }}>{finishedProduct?.name || '—'}</div>
                           <div style={{ width: '10%', borderRight: '1px solid #000', fontSize: '13pt', fontWeight: 1000 }}>
-                             {Math.ceil(m.qty / (nomenclature?.units_per_sheet || 1))}
+                            {Math.ceil(m.qty / (nomenclature?.units_per_sheet || 1))}
                           </div>
                           <div style={{ width: '12%', borderRight: '1px solid #000', fontSize: '8pt', fontWeight: 1000, lineHeight: 1.1 }}>{getDisplayMaterial(nomenclature, snapshotPart)}</div>
                           <div style={{ width: '15%', borderRight: '1px solid #000', fontSize: '7.5pt', fontWeight: 1000, padding: '0 2px' }}>{m.machine}</div>
@@ -2421,20 +2504,20 @@ const MACHINE_TYPES = [
                         <tr style={{ background: '#fff', textAlign: 'center', fontWeight: 'bold' }}>
                           <td style={{ border: '1.5px solid #000', width: '22%', height: '36px' }}>Операція (1 сторона)</td>
                           <td style={{ border: '1.5px solid #000', width: '11%', fontSize: '5.5pt', lineHeight: 1.2 }}>
-                            Статус<br />виконання ☑<br/>
+                            Статус<br />виконання ☑<br />
                             <div style={{ borderTop: '1px solid #000', borderBottom: '1px solid #000', margin: '2px 0', padding: '2px 0' }}>Лист | Лист</div>
                             1, 2 | 3, 4
                           </td>
                           <td style={{ border: '1.5px solid #000', width: '22%' }}>Операція (2 сторона)</td>
                           <td style={{ border: '1.5px solid #000', width: '11%', fontSize: '5.5pt', lineHeight: 1.2 }}>
-                            Статус<br />виконання ☑<br/>
+                            Статус<br />виконання ☑<br />
                             <div style={{ borderTop: '1px solid #000', borderBottom: '1px solid #000', margin: '2px 0', padding: '2px 0' }}>Лист | Лист</div>
                             1, 2 | 3, 4
                           </td>
                           {!isCutter1_5 ? (
-                            <td style={{ border: '1.5px solid #000', width: '26%', fontSize: '6.5pt', fontWeight: 'bold' }}>Операція (2 сторона вирізка)<br/>Ф2мм</td>
+                            <td style={{ border: '1.5px solid #000', width: '26%', fontSize: '6.5pt', fontWeight: 'bold' }}>Операція (2 сторона вирізка)<br />Ф2мм</td>
                           ) : (
-                            <td style={{ border: '1.5px solid #000', width: '26%', fontSize: '6.5pt', fontWeight: 'bold' }}>Операція (2 сторона вирізка)<br/>Ф1.5мм</td>
+                            <td style={{ border: '1.5px solid #000', width: '26%', fontSize: '6.5pt', fontWeight: 'bold' }}>Операція (2 сторона вирізка)<br />Ф1.5мм</td>
                           )}
                           <td style={{ border: '1.5px solid #000', width: '8%', fontSize: '5.5pt', lineHeight: 1 }}>Статус<br />виконання<br />☑</td>
                         </tr>
@@ -2500,42 +2583,42 @@ const MACHINE_TYPES = [
                         <div>4мм - </div>
                         <div>6мм - </div>
                       </div>
-                  </div>
-                  <div style={{ marginTop: '2px', border: '1.5px solid #000', display: 'flex', fontSize: '7.5pt', height: '60px' }}>
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
-                      <div style={{ width: '110px', padding: '2px', fontWeight: 1000, textAlign: 'center' }}>Причина браку:</div>
-                      <div style={{ flex: 1, padding: '2px', fontSize: '5.5pt', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px' }}>
-                        <div>☐ Биття цанги</div>
-                        <div>☐ Помилка програми</div>
-                        <div>☐ Збій станка</div>
-                        <div>☐ Кривизна листа</div>
-                        <div>☐ Поломка флешки</div>
-                        <div>☐ Прив'язка</div>
-                        <div>☐ Помилка оператора</div>
-                        <div>☐ Інше (коментар)</div>
-                      </div>
                     </div>
-                    <div style={{ width: '120px', borderLeft: '1.5px solid #000', textAlign: 'center', display: 'flex', flexDirection: 'column' }}>
-                      <div style={{ borderBottom: '1px solid #000', padding: '2px', fontWeight: 1000 }}>Кількість браку</div>
-                      <div style={{ flex: 1 }}></div>
-                    </div>
-                    <div style={{ width: '140px', borderLeft: '1.5px solid #000', display: 'flex', flexDirection: 'column' }}>
-                      <div style={{ borderBottom: '1px solid #000', padding: '2px', textAlign: 'center', fontWeight: 1000, fontSize: '6pt' }}>Корекція перегортання</div>
-                      <div style={{ flex: 1, display: 'flex' }}>
-                        <div style={{ flex: 1, borderRight: '1px solid #000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                          <span style={{ fontSize: '7pt', fontWeight: 900 }}>X</span>
-                          <div style={{ flex: 1 }}></div>
+                    <div style={{ marginTop: '2px', border: '1.5px solid #000', display: 'flex', fontSize: '7.5pt', height: '60px' }}>
+                      <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
+                        <div style={{ width: '110px', padding: '2px', fontWeight: 1000, textAlign: 'center' }}>Причина браку:</div>
+                        <div style={{ flex: 1, padding: '2px', fontSize: '5.5pt', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px' }}>
+                          <div>☐ Биття цанги</div>
+                          <div>☐ Помилка програми</div>
+                          <div>☐ Збій станка</div>
+                          <div>☐ Кривизна листа</div>
+                          <div>☐ Поломка флешки</div>
+                          <div>☐ Прив'язка</div>
+                          <div>☐ Помилка оператора</div>
+                          <div>☐ Інше (коментар)</div>
                         </div>
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                          <span style={{ fontSize: '7pt', fontWeight: 900 }}>Y</span>
-                          <div style={{ flex: 1 }}></div>
+                      </div>
+                      <div style={{ width: '120px', borderLeft: '1.5px solid #000', textAlign: 'center', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ borderBottom: '1px solid #000', padding: '2px', fontWeight: 1000 }}>Кількість браку</div>
+                        <div style={{ flex: 1 }}></div>
+                      </div>
+                      <div style={{ width: '140px', borderLeft: '1.5px solid #000', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ borderBottom: '1px solid #000', padding: '2px', textAlign: 'center', fontWeight: 1000, fontSize: '6pt' }}>Корекція перегортання</div>
+                        <div style={{ flex: 1, display: 'flex' }}>
+                          <div style={{ flex: 1, borderRight: '1px solid #000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                            <span style={{ fontSize: '7pt', fontWeight: 900 }}>X</span>
+                            <div style={{ flex: 1 }}></div>
+                          </div>
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                            <span style={{ fontSize: '7pt', fontWeight: 900 }}>Y</span>
+                            <div style={{ flex: 1 }}></div>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
             )
           })}
         </div>
@@ -2544,7 +2627,7 @@ const MACHINE_TYPES = [
       {/* ───── ДРУК НАРЯДУ ───── */}
       {printNaryadQueue && (() => {
         const { task, order, materialRequests } = printNaryadQueue
-        
+
         let productNames = order?.order_items?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ')
         if (!productNames && task.plan_snapshot) {
           productNames = Object.values(task.plan_snapshot)
@@ -2554,21 +2637,21 @@ const MACHINE_TYPES = [
         }
 
         const isReworkOrder = order?.order_num?.startsWith('ВБ')
-        
+
         const tableRows = []
         let totalNeed = 0
         let totalPlan = 0
         let totalSheets = 0
-        
+
         const snapshot = task.plan_snapshot
         const hasSnapshot = snapshot && Object.keys(snapshot).filter(k => !k.startsWith('_') && !['materialSummary', 'arrivals', 'arrival_doc_id', 'arrival_doc', 'nomenclatures'].includes(k)).length > 0
-        
+
         if (hasSnapshot) {
           const keys = Object.keys(snapshot).filter(k => !k.startsWith('_') && !['materialSummary', 'arrivals', 'arrival_doc_id', 'arrival_doc', 'nomenclatures'].includes(k))
           keys.forEach(nomId => {
             const snapEntry = snapshot[nomId]
             if (!snapEntry) return
-            
+
             const need = Number(snapEntry.need) || 0
             const plan = Number(snapEntry.plan) || 0
             const sheets = Number(snapEntry.sheets) || 0
@@ -2577,11 +2660,11 @@ const MACHINE_TYPES = [
             const name = snapEntry.name || nomenclatures.find(n => String(n.id) === String(nomId))?.name || '—'
             const code = snapEntry.code || nomenclatures.find(n => String(n.id) === String(nomId))?.nomenclature_code || 'БЕЗ КОДУ'
             const material = snapEntry.material || nomenclatures.find(n => String(n.id) === String(nomId))?.material_type || '—'
-            
+
             totalNeed += need
             totalPlan += plan
             totalSheets += sheets
-            
+
             tableRows.push({
               name,
               code,
@@ -2598,7 +2681,7 @@ const MACHINE_TYPES = [
             const parts = getBOMParts(item.nomenclature_id)
             const initialRows = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }]
             const rows = initialRows.filter(r => r.nom?.type === 'part')
-            
+
             rows.forEach((part, idx) => {
               const nomId = part.nom?.id
               const need = (Number(item.quantity) || 0) * (Number(part.quantity_per_parent) || 1)
@@ -2607,11 +2690,11 @@ const MACHINE_TYPES = [
               const plan = Math.max(0, need - stockBZ)
               const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
               const sheets = Math.ceil(plan / unitsPerSheet)
-              
+
               totalNeed += need
               totalPlan += plan
               totalSheets += sheets
-              
+
               tableRows.push({
                 name: part.nom?.name || '—',
                 code: part.nom?.nomenclature_code || 'БЕЗ КОДУ',
@@ -2898,7 +2981,7 @@ const MACHINE_TYPES = [
               const currentTask = relevantTasks.find(t => t.id === reportTaskId) || tasks.find(t => t.id === reportTaskId)
               if (!currentTask) return <div>Наряд не знайдено</div>
               const currentOrder = orders.find(o => o.id === currentTask.order_id) || allOrdersMap[currentTask.order_id]
-              
+
               // BOM parts helper inside modal
               const getBOMPartsLocal = (nomenclatureId) => {
                 return bomItems
@@ -2942,7 +3025,7 @@ const MACHINE_TYPES = [
                 currentOrder?.order_items?.forEach(item => {
                   const parts = getBOMPartsLocal(item.nomenclature_id)
                   const rows = parts.length > 0 ? parts.filter(r => r.nom?.type === 'part') : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }].filter(r => r.nom?.type === 'part')
-                  
+
                   rows.forEach(part => {
                     const nomId = part.nom?.id
                     if (!nomId) return
@@ -3028,7 +3111,7 @@ const MACHINE_TYPES = [
                 if (thickness) {
                   const t300Name = getMaterialName('Т300', thickness)
                   const t700Name = getMaterialName('Т700', thickness)
-                  
+
                   addToStats(t300Name, plannedT300, actualT300)
                   addToStats(t700Name, plannedT700, actualT700)
                 } else {
@@ -3037,7 +3120,7 @@ const MACHINE_TYPES = [
               })
 
               totalScrap = reportData.historyRows.reduce((sum, row) => sum + (Number(row.scrap_qty) || 0), 0)
-              
+
               const cutterRequests = (reportData.materialRequests || []).filter(r => {
                 const nomName = r.nomenclature?.name?.toLowerCase() || ''
                 const detailsStr = r.details?.toLowerCase() || ''
@@ -3148,7 +3231,7 @@ const MACHINE_TYPES = [
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '15px', marginBottom: '30px' }}>
-                    
+
                     <div style={{ background: '#111', border: '1px solid #222', borderRadius: '16px', padding: '15px' }}>
                       <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>Час виконання</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -3231,9 +3314,9 @@ const MACHINE_TYPES = [
                           <span style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 500 }}>План:</span>
                           <strong style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 700 }}>{totalPlannedParts} шт</strong>
                         </div>
-                        
+
                         {/* Прийнято: Clickable for breakdown */}
-                        <div 
+                        <div
                           onClick={() => setReportDetailModal('accepted')}
                           style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'opacity 0.2s' }}
                           onMouseEnter={e => e.currentTarget.style.opacity = 0.8}
@@ -3241,14 +3324,14 @@ const MACHINE_TYPES = [
                           title="Клікніть для деталізації прийнятих деталей"
                         >
                           <span style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 500 }}>Прийнято:</span>
-                          <strong 
-                            style={{ 
-                              color: '#10b981', 
-                              fontSize: '0.9rem', 
-                              fontWeight: 700, 
+                          <strong
+                            style={{
+                              color: '#10b981',
+                              fontSize: '0.9rem',
+                              fontWeight: 700,
                               borderBottom: '1px dashed #10b981',
                               paddingBottom: '1px'
-                            }} 
+                            }}
                             className="text-accent-green"
                           >
                             {totalActualParts} шт
@@ -3256,7 +3339,7 @@ const MACHINE_TYPES = [
                         </div>
 
                         {/* Брак: Clickable for breakdown */}
-                        <div 
+                        <div
                           onClick={() => setReportDetailModal('scrap')}
                           style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'opacity 0.2s' }}
                           onMouseEnter={e => e.currentTarget.style.opacity = 0.8}
@@ -3264,14 +3347,14 @@ const MACHINE_TYPES = [
                           title="Клікніть для деталізації браку за етапами"
                         >
                           <span style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 500 }}>Брак:</span>
-                          <strong 
-                            style={{ 
-                              color: '#ef4444', 
-                              fontSize: '0.9rem', 
-                              fontWeight: 700, 
+                          <strong
+                            style={{
+                              color: '#ef4444',
+                              fontSize: '0.9rem',
+                              fontWeight: 700,
                               borderBottom: '1px dashed #ef4444',
                               paddingBottom: '1px'
-                            }} 
+                            }}
                             className="text-accent-red"
                           >
                             {totalScrap} шт
@@ -3304,7 +3387,7 @@ const MACHINE_TYPES = [
                       if (row.started_at && row.completed_at) {
                         const diff = new Date(row.completed_at) - new Date(row.started_at)
                         const sec = diff > 0 ? Math.round(diff / 1000) : 0
-                        
+
                         if (timeStats.stages[row.stage_name]) {
                           timeStats.stages[row.stage_name].total += sec
                           timeStats.stages[row.stage_name].count += 1
@@ -3336,7 +3419,7 @@ const MACHINE_TYPES = [
                               {timeStats.totalShop1 > 0 ? formatDurationHMS(timeStats.totalShop1) : '—'}
                             </div>
                             <div style={{ fontSize: '0.6rem', color: '#555', marginTop: '4px', borderBottom: '1px solid #222', paddingBottom: '8px', width: '100%' }}>Від першого розкрою до передачі в Цех №2</div>
-                            
+
                             <div style={{ fontSize: '0.7rem', color: '#aaa', marginTop: '8px', width: '100%', display: 'flex', flexDirection: 'column', gap: '5px', textAlign: 'left' }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                 <span style={{ color: '#888' }}>Сер. робота / картку:</span>
@@ -3402,7 +3485,7 @@ const MACHINE_TYPES = [
                     <h4 style={{ fontSize: '1rem', fontWeight: 900, margin: 0, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                       Хронологічний лог етапів
                     </h4>
-                    
+
                     <div style={{ display: 'flex', gap: '4px', background: '#0a0a0a', padding: '4px', borderRadius: '10px', border: '1px solid #222' }} className="no-print">
                       {['All', 'Розкрій', 'Галтовка', 'Прийомка', 'Сортування'].map(stage => {
                         const isSelected = reportStageFilter === stage
@@ -3471,7 +3554,7 @@ const MACHINE_TYPES = [
                               const completedTime = row.completed_at
                                 ? new Date(row.completed_at).toLocaleString('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit' })
                                 : '—'
-                              
+
                               const card = reportData.taskCards.find(c => c.id === row.card_id)
                               const planSec = card?.estimated_time || 0
                               const planStr = planSec > 0 ? formatDurationHMS(planSec) : '—'
@@ -3491,12 +3574,11 @@ const MACHINE_TYPES = [
                                   <td style={{ padding: '12px 15px', textAlign: 'center', color: '#3b82f6', fontWeight: 700 }}>{factStr}</td>
                                   <td style={{ padding: '12px 15px' }}>
                                     <span
-                                      className={`stage-badge stage-${
-                                        row.stage_name.startsWith('Буфер') ? 'buffer' :
+                                      className={`stage-badge stage-${row.stage_name.startsWith('Буфер') ? 'buffer' :
                                         row.stage_name === 'Розкрій' ? 'cutting' :
-                                        row.stage_name === 'Галтовка' ? 'tumbling' :
-                                        (row.stage_name === 'Прийомка' || row.stage_name === 'completed') ? 'reception' : 'sorting'
-                                      }`}
+                                          row.stage_name === 'Галтовка' ? 'tumbling' :
+                                            (row.stage_name === 'Прийомка' || row.stage_name === 'completed') ? 'reception' : 'sorting'
+                                        }`}
                                       style={{
                                         background: row.stage_name.startsWith('Буфер') ? '#a78bfa1e' : row.stage_name === 'Розкрій' ? '#3b82f61a' : row.stage_name === 'Галтовка' ? '#eab3081a' : row.stage_name === 'Прийомка' || row.stage_name === 'completed' ? '#10b9811a' : '#14b8a61a',
                                         color: row.stage_name.startsWith('Буфер') ? '#a78bfa' : row.stage_name === 'Розкрій' ? '#3b82f6' : row.stage_name === 'Галтовка' ? '#eab308' : row.stage_name === 'Прийомка' || row.stage_name === 'completed' ? '#10b981' : '#14b8a6',
@@ -3588,7 +3670,7 @@ const MACHINE_TYPES = [
 
           {/* ───── ДЕТАЛІЗАЦІЯ ПРИЙНЯТОГО / БРАКУ (no-print) ───── */}
           {reportDetailModal && (
-            <div 
+            <div
               className="no-print"
               onClick={() => setReportDetailModal(null)}
               style={{
@@ -3603,7 +3685,7 @@ const MACHINE_TYPES = [
                 padding: '20px'
               }}
             >
-              <div 
+              <div
                 onClick={e => e.stopPropagation()}
                 style={{
                   background: '#0d0d0d',
@@ -3644,7 +3726,7 @@ const MACHINE_TYPES = [
                 {reportDetailModal === 'accepted' ? (() => {
                   const acceptedMap = {}
                   const acceptedRows = (reportData?.historyRows || []).filter(h => h.stage_name === 'Прийомка' || h.stage_name === 'completed')
-                  
+
                   acceptedRows.forEach(row => {
                     const nomId = String(row.nomenclature_id)
                     if (!acceptedMap[nomId]) {
@@ -3696,7 +3778,7 @@ const MACHINE_TYPES = [
                   )
                 })() : (() => {
                   const scrapRows = (reportData?.historyRows || []).filter(h => (Number(h.scrap_qty) || 0) > 0)
-                  
+
                   const items = scrapRows.map(row => {
                     const nom = nomenclatures.find(n => String(n.id) === String(row.nomenclature_id))
                     const dateStr = row.completed_at
@@ -3748,7 +3830,7 @@ const MACHINE_TYPES = [
                   )
                 })()}
 
-                <button 
+                <button
                   onClick={() => setReportDetailModal(null)}
                   style={{
                     width: '100%',

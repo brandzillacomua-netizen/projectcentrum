@@ -187,7 +187,7 @@ export function useData() {
         supabase.from('material_requests').select('*').neq('status', 'completed').order('created_at', { ascending: false }),
         supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300),
         supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300),
-        supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(200),
+        supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(500),
         supabase.from('machine_operations').select('*'),
         supabase.from('machine_calls').select('*').order('created_at', { ascending: false })
       ])
@@ -279,7 +279,7 @@ export function useData() {
         supabase.from('material_requests').select('*').neq('status', 'completed').order('created_at', { ascending: false }),
         supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300),
         supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300),
-        supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(200),
+        supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(500),
         needOperations ? supabase.from('machine_operations').select('*') : Promise.resolve({ data: null }),
         supabase.from('machine_calls').select('*').order('created_at', { ascending: false })
       ])
@@ -394,7 +394,7 @@ export function useData() {
         const { data } = await supabase.from('material_requests').select('*').neq('status', 'completed').order('created_at', { ascending: false })
         if (data) setRequests(data)
       } else if (tableName === 'work_card_history') {
-        const { data } = await supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(200)
+        const { data } = await supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(500)
         if (data) setWorkCardHistory(data)
       }
     } catch (e) { console.error(`Error refreshing ${tableName}:`, e) }
@@ -442,7 +442,7 @@ export function useData() {
           inventory: inventory.slice(0, 2000),
           receptionDocs: receptionDocs.slice(0, 100),
           purchaseRequests: purchaseRequests.slice(0, 100),
-          workCardHistory: workCardHistory.slice(0, 100)
+          workCardHistory: workCardHistory.slice(0, 200)
         }
         localStorage.setItem(CACHE_KEY, JSON.stringify(dataToCache))
       } catch (e) {
@@ -521,7 +521,11 @@ export function useData() {
         }
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'work_card_history' }, (payload) => {
-        setWorkCardHistory(prev => prev.some(h => h.id === payload.new.id) ? prev : [payload.new, ...prev].slice(0, 300))
+        setWorkCardHistory(prev => prev.some(h => h.id === payload.new.id) ? prev : [payload.new, ...prev].slice(0, 500))
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'work_card_history' }, (payload) => {
+        // Синхронізуємо оновлення (is_archived_scrap, qc_scrap_comment тощо) в реальному часі
+        setWorkCardHistory(prev => prev.map(h => h.id === payload.new.id ? { ...h, ...payload.new } : h))
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }

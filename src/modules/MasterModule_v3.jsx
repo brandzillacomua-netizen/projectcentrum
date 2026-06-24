@@ -1678,15 +1678,15 @@ const MasterModule = () => {
                 <table className="print-table screen-only-table no-print" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                   <thead>
                     <tr style={{ background: '#111', textAlign: 'left', color: '#555' }} className="print-thr">
-                      <th style={{ padding: '12px 15px', width: '20%', borderBottom: '1.5px solid #222' }} className="col-name">ДЕТАЛЬ В РОЗКРІЙ</th>
-                      <th style={{ padding: '12px 15px', width: '14%', textAlign: 'center', borderBottom: '1.5px solid #222' }} className="no-print">ВЕРСТАТ</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '7%' }} className="no-print">ПОТРЕБА</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '7%' }} className="no-print">СКЛАД БЗ</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '7%', color: '#ff9000' }} className="col-plan">ПЛАН</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '12%' }} className="col-material">МАТЕРІАЛ</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '5%' }} className="col-qty-sh">ШТ/Л</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%', color: '#a855f7' }} className="col-sheets-total">
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+                      <th style={{ padding: '12px 8px', width: '23%', minWidth: '170px', borderBottom: '1.5px solid #222' }} className="col-name">ДЕТАЛЬ В РОЗКРІЙ</th>
+                      <th style={{ padding: '12px 6px', width: '13%', textAlign: 'center', borderBottom: '1.5px solid #222' }} className="no-print">ВЕРСТАТ</th>
+                      <th style={{ padding: '12px 4px', textAlign: 'center', width: '5%' }} className="no-print">ПОТРЕБА</th>
+                      <th style={{ padding: '12px 4px', textAlign: 'center', width: '5%' }} className="no-print">СКЛАД БЗ</th>
+                      <th style={{ padding: '12px 4px', textAlign: 'center', width: '5%', color: '#ff9000' }} className="col-plan">ПЛАН</th>
+                      <th style={{ padding: '12px 6px', textAlign: 'center', width: '12%' }} className="col-material">МАТЕРІАЛ</th>
+                      <th style={{ padding: '12px 4px', textAlign: 'center', width: '4%' }} className="col-qty-sh">ШТ/Л</th>
+                      <th style={{ padding: '12px 4px', textAlign: 'center', width: '11%', color: '#a855f7' }} className="col-sheets-total">
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
                           ЗАГАЛОМ ЛИСТІВ
                           <button
                             type="button"
@@ -1701,11 +1701,11 @@ const MasterModule = () => {
                               display: 'inline-flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              width: '24px',
-                              height: '24px',
+                              width: '20px',
+                              height: '20px',
                               outline: 'none',
                               transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                              marginLeft: '6px',
+                              marginLeft: '2px',
                               boxShadow: '0 0 8px rgba(168, 85, 247, 0.2), inset 0 0 4px rgba(168, 85, 247, 0.1)',
                               verticalAlign: 'middle'
                             }}
@@ -1724,13 +1724,13 @@ const MasterModule = () => {
                               e.currentTarget.style.boxShadow = '0 0 8px rgba(168, 85, 247, 0.2), inset 0 0 4px rgba(168, 85, 247, 0.1)';
                             }}
                           >
-                            <Info size={13} style={{ strokeWidth: 2.5 }} />
+                            <Info size={11} style={{ strokeWidth: 2.5 }} />
                           </button>
                         </div>
                       </th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%', color: '#22c55e' }} className="col-sheets">ЛИСТІВ Т300</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '8%', color: '#0ea5e9' }} className="col-sheets-t700">ЛИСТІВ Т700</th>
-                      <th style={{ padding: '12px 15px', textAlign: 'center', width: '4%', color: '#ff9000' }} className="col-bz">БЗ</th>
+                      <th style={{ padding: '12px 4px', textAlign: 'center', width: '9%', color: '#22c55e' }} className="col-sheets">ЛИСТІВ Т300</th>
+                      <th style={{ padding: '12px 4px', textAlign: 'center', width: '9%', color: '#0ea5e9' }} className="col-sheets-t700">ЛИСТІВ Т700</th>
+                      <th style={{ padding: '12px 4px', textAlign: 'center', width: '4%', color: '#ff9000' }} className="col-bz">БЗ</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1809,7 +1809,7 @@ const displayParts = getDisplayPartsForOrderItem(it)
 
                         return (
                           <tr key={`${it.id}-${pIdx}`} style={{ borderBottom: '1px solid #1a1a1a' }} className="print-tr">
-                            <td style={{ padding: '18px 15px' }} className="col-name">
+                            <td style={{ padding: '10px 6px', minWidth: '170px' }} className="col-name">
                               {!isReprintMode ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -1822,11 +1822,13 @@ const displayParts = getDisplayPartsForOrderItem(it)
                                          n.name.toLowerCase().includes(query.toLowerCase()) ||
                                          (n.nomenclature_code && n.nomenclature_code.toLowerCase().includes(query.toLowerCase())))
                                       )
+                                      const currentName = partSearchQueries[rowKey] !== undefined ? partSearchQueries[rowKey] : (part.nom?.name || '')
                                       return (
                                         <div style={{ position: 'relative', flex: 1 }}>
                                           <input
                                             type="text"
-                                            value={partSearchQueries[rowKey] !== undefined ? partSearchQueries[rowKey] : (part.nom?.name || '')}
+                                            value={currentName}
+                                            title={currentName}
                                             onChange={(e) => {
                                               const val = e.target.value
                                               setPartSearchQueries(prev => ({ ...prev, [rowKey]: val }))
@@ -2067,7 +2069,7 @@ const displayParts = getDisplayPartsForOrderItem(it)
                                 </>
                               )}
                             </td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center' }} className="no-print">
+                            <td style={{ padding: '10px 4px', textAlign: 'center' }} className="no-print">
                               {totalToProduce > 0 ? (
                                 (() => {
                                   const splits = rowMachinesSplits[part.nom?.id] || []
@@ -2238,27 +2240,27 @@ const displayParts = getDisplayPartsForOrderItem(it)
                                 <span style={{ color: '#444', fontSize: '0.85rem' }}>—</span>
                               )}
                             </td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center', fontSize: '1.1rem', color: '#fff', fontWeight: 900 }} className="no-print">
+                            <td style={{ padding: '10px 4px', textAlign: 'center', fontSize: '1.1rem', color: '#fff', fontWeight: 900 }} className="no-print">
                               {totalNeeded.toString()}
                             </td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center', color: '#555', fontSize: '0.85rem' }} className="no-print">
+                            <td style={{ padding: '10px 4px', textAlign: 'center', color: '#555', fontSize: '0.85rem' }} className="no-print">
                               {inStock.toString()}
                             </td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center', fontSize: '1.2rem', color: '#ff9000', fontWeight: 1000 }} className="col-plan">
+                            <td style={{ padding: '10px 4px', textAlign: 'center', fontSize: '1.2rem', color: '#ff9000', fontWeight: 1000 }} className="col-plan">
                               {totalToProduce.toString()}
                             </td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center' }} className="col-material">
+                            <td style={{ padding: '10px 6px', textAlign: 'center' }} className="col-material">
                               <div style={{ fontSize: '0.85rem', color: '#aaa', fontWeight: 700 }} className="print-subtxt">
                                 {(part.nom?.material_type || '—').replace(/т300/gi, '').replace(/t300/gi, '').replace(/т700/gi, '').replace(/t700/gi, '').replace(/\s+/g, ' ').trim()}
                               </div>
                             </td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center', color: '#555', fontSize: '0.9rem' }} className="col-qty-sh">
+                            <td style={{ padding: '10px 4px', textAlign: 'center', color: '#555', fontSize: '0.9rem' }} className="col-qty-sh">
                               {unitsPerSheet.toString()}
                             </td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center', fontWeight: 1000, color: '#a855f7', fontSize: '1.4rem' }} className="col-sheets-total print-accent-p">
+                            <td style={{ padding: '10px 4px', textAlign: 'center', fontWeight: 1000, color: '#a855f7', fontSize: '1.4rem' }} className="col-sheets-total print-accent-p">
                               {totalToProduce > 0 ? (sheets || 0).toString() : '0'}
                             </td>
-                            <td style={{ padding: '10px 15px', textAlign: 'center', fontWeight: 1000, color: '#22c55e', fontSize: '1.4rem' }} className="col-sheets print-accent-g">
+                            <td style={{ padding: '10px 4px', textAlign: 'center', fontWeight: 1000, color: '#22c55e', fontSize: '1.4rem' }} className="col-sheets print-accent-g">
                               {isReprintMode ? (
                                 sheets_t300.toString()
                               ) : totalToProduce > 0 ? (
@@ -2269,11 +2271,11 @@ const displayParts = getDisplayPartsForOrderItem(it)
                                   value={sheets_t300}
                                   onChange={(e) => handleSplitChange(part.nom?.id, 't300', e.target.value, sheets)}
                                   style={{
-                                    width: '60px',
+                                    width: '55px',
                                     background: '#111',
                                     border: '1px solid #333',
                                     color: '#22c55e',
-                                    padding: '5px',
+                                    padding: '5px 2px',
                                     borderRadius: '5px',
                                     textAlign: 'center',
                                     fontWeight: 'bold',
@@ -2282,7 +2284,7 @@ const displayParts = getDisplayPartsForOrderItem(it)
                                 />
                               ) : '0'}
                             </td>
-                            <td style={{ padding: '10px 15px', textAlign: 'center', fontWeight: 1000, color: '#0ea5e9', fontSize: '1.4rem' }} className="col-sheets-t700 print-accent-b">
+                            <td style={{ padding: '10px 4px', textAlign: 'center', fontWeight: 1000, color: '#0ea5e9', fontSize: '1.4rem' }} className="col-sheets-t700 print-accent-b">
                               {isReprintMode ? (
                                 sheets_t700.toString()
                               ) : totalToProduce > 0 ? (
@@ -2293,11 +2295,11 @@ const displayParts = getDisplayPartsForOrderItem(it)
                                   value={sheets_t700}
                                   onChange={(e) => handleSplitChange(part.nom?.id, 't700', e.target.value, sheets)}
                                   style={{
-                                    width: '60px',
+                                    width: '55px',
                                     background: '#111',
                                     border: '1px solid #333',
                                     color: '#0ea5e9',
-                                    padding: '5px',
+                                    padding: '5px 2px',
                                     borderRadius: '5px',
                                     textAlign: 'center',
                                     fontWeight: 'bold',
@@ -2306,7 +2308,7 @@ const displayParts = getDisplayPartsForOrderItem(it)
                                 />
                               ) : '0'}
                             </td>
-                            <td style={{ padding: '18px 15px', textAlign: 'center', fontSize: '1rem', color: '#ff9000', fontWeight: 900 }} className="col-bz">
+                            <td style={{ padding: '10px 4px', textAlign: 'center', fontSize: '1rem', color: '#ff9000', fontWeight: 900 }} className="col-bz">
                               {totalToProduce > 0 ? `+${(totalSplitsSheets * unitsPerSheet) - totalToProduce}` : '0'}
                             </td>
                           </tr>
