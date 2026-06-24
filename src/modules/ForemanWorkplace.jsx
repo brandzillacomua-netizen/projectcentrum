@@ -454,7 +454,7 @@ const ForemanWorkplace = () => {
   const findMachine = (name) => {
     if (!name || name === 'Не вказано') return null
     const baseName = name.split(' №')[0].trim()
-    const found = machines.find(m => m.name === baseName)
+    let found = machines.find(m => m.name === baseName)
       || machines.find(m => m.name === name)
       || machines.find(m => m.type === baseName)
       || machines.find(m => m.type === name)
@@ -1566,25 +1566,39 @@ const ForemanWorkplace = () => {
                                             return <option key={t} value={t}>{t} ({cap} л.)</option>
                                           })}
                                         </select>
-                                        {plan > 0 && productionCards.length === 0 && rowMachineName && (
+                                        {plan > 0 && rowMachineName && defaultCapacity !== maxCapacity && (
                                           <input
                                             type="number"
-                                            title={`Кількість листів (від ${defaultCapacity} до ${maxCapacity})`}
+                                            title={`Листів за завантаження (від ${defaultCapacity} до ${maxCapacity})`}
                                             placeholder="Завант."
-                                            value={rowCapacities[rowId] !== undefined ? rowCapacities[rowId] : defaultCapacity}
+                                            value={rowCapacities[rowId] !== undefined ? rowCapacities[rowId] : machineCapacity}
                                             min={defaultCapacity}
                                             max={maxCapacity}
+                                            readOnly={productionCards.length > 0 && productionCards.length >= totalTargetLoads}
                                             onChange={(e) => {
+                                              if (productionCards.length > 0 && productionCards.length >= totalTargetLoads) return
                                               const v = parseInt(e.target.value)
                                               setRowCapacities(p => ({ ...p, [rowId]: isNaN(v) ? '' : v }))
                                             }}
                                             onBlur={(e) => {
+                                              if (productionCards.length > 0 && productionCards.length >= totalTargetLoads) return
                                               let v = parseInt(e.target.value)
                                               if (isNaN(v)) v = defaultCapacity;
                                               else v = Math.min(maxCapacity, Math.max(defaultCapacity, v));
                                               setRowCapacities(p => ({ ...p, [rowId]: v }));
                                             }}
-                                            style={{ width: '60px', background: '#000', border: '1px solid #333', color: '#ff9000', padding: '8px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700, textAlign: 'center' }}
+                                            style={{
+                                              width: '60px',
+                                              background: '#000',
+                                              border: `1px solid ${productionCards.length > 0 && productionCards.length >= totalTargetLoads ? '#222' : '#ff9000'}`,
+                                              color: productionCards.length > 0 && productionCards.length >= totalTargetLoads ? '#444' : '#ff9000',
+                                              padding: '8px',
+                                              borderRadius: '8px',
+                                              fontSize: '0.75rem',
+                                              fontWeight: 700,
+                                              textAlign: 'center',
+                                              cursor: productionCards.length > 0 && productionCards.length >= totalTargetLoads ? 'default' : 'text'
+                                            }}
                                           />
                                         )}
                                       </div>
