@@ -217,6 +217,7 @@ const ForemanWorkplace = () => {
   const [archiveCards, setArchiveCards] = useState([]) // Завершені картки (статус completed) для поточного наряду
   const [allOrdersMap, setAllOrdersMap] = useState({})
   const [taskHistory, setTaskHistory] = useState([])
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const [staticCompletedCards, setStaticCompletedCards] = useState([])
   const [staticHistory, setStaticHistory] = useState([])
 
@@ -395,6 +396,7 @@ const ForemanWorkplace = () => {
   // Підвантажуємо архівні картки та історію при зміні активного наряду
   useEffect(() => {
     if (activeTaskId) {
+      setIsLoadingHistory(true)
       fetchTaskArchiveCards(activeTaskId).then(async (cards) => {
         setArchiveCards(cards || [])
 
@@ -410,10 +412,14 @@ const ForemanWorkplace = () => {
         } else {
           setTaskHistory([])
         }
+        setIsLoadingHistory(false)
+      }).catch(() => {
+        setIsLoadingHistory(false)
       })
     } else {
       setArchiveCards([])
       setTaskHistory([])
+      setIsLoadingHistory(false)
     }
   }, [activeTaskId, workCards]) // workCards — тригер після будь-якого оновлення
 
@@ -450,6 +456,31 @@ const ForemanWorkplace = () => {
     'CNC 6000x2000 - 4 - 96 листів (Дракон)',
     'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
   ]
+
+  const getStandardMachineType = (name) => {
+    if (!name || name === 'Не вказано') return ''
+    const normName = name.toLowerCase()
+    const directMatch = MACHINE_TYPES.find(t => t.toLowerCase() === normName)
+    if (directMatch) return directMatch
+    if (normName.includes('12x8') || normName.includes('1200x800') || normName.includes('малий')) {
+      return 'CNC 1200x800 - 4 листи (Малий)'
+    }
+    if (normName.includes('16x16') || normName.includes('3050(16)') || normName.includes('швидкісний') || normName.includes('3050x1600') || normName.includes('3050х1600') || normName.includes('3050')) {
+      return 'CNC 3050(16)х16 - 3-12 листів (швидкісний)'
+    }
+    if (normName.includes('30x16') || normName.includes('3060x1600') || normName.includes('3060х1600') || normName.includes('три головий') || normName.includes('триголовий')) {
+      return 'CNC 3060х1600 - 3-36 листів (Три Головий)'
+    }
+    if (normName.includes('60x20') || normName.includes('6000x2000') || normName.includes('дракон')) {
+      return 'CNC 6000x2000 - 4 - 96 листів (Дракон)'
+    }
+    if (normName.includes('ke xin') || normName.includes('фея')) {
+      return 'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
+    }
+    const partial = MACHINE_TYPES.find(t => t.toLowerCase().includes(normName) || normName.includes(t.toLowerCase()))
+    if (partial) return partial
+    return ''
+  }
 
   const findMachine = (name) => {
     if (!name || name === 'Не вказано') return null
@@ -632,6 +663,9 @@ const ForemanWorkplace = () => {
   // Цей мемо перераховує shortage для activeTaskId з повними даними що вже є в state.
   const activeTaskShortageOverride = useMemo(() => {
     if (!activeTaskId) return false
+    if (isLoadingHistory) {
+      return !!taskShortageMap[activeTaskId]
+    }
     const task = tasks.find(t => t.id === activeTaskId)
     if (!task || task.status === 'completed') return false
 
@@ -684,7 +718,7 @@ const ForemanWorkplace = () => {
       if (shortage > 0) hasShortage = true
     })
     return hasShortage
-  }, [activeTaskId, tasks, workCards, archiveCards, taskHistory, workCardHistory, nomenclatures])
+  }, [activeTaskId, tasks, workCards, archiveCards, taskHistory, workCardHistory, nomenclatures, isLoadingHistory, taskShortageMap])
 
   const relevantTasks = useMemo(() => {
     return tasks
@@ -1496,13 +1530,14 @@ const ForemanWorkplace = () => {
                               }
 
                               const existing = taskCards.filter(c => String(c.nomenclature_id) === String(nomId))
-                              const productionCards = existing.filter(c => c.operation !== 'Склад БЗ')
+                              const productionCards = existing.filter(c => c.operation === 'Розкрій')
                               const reworks = productionCards.filter(c => (c.card_info || '').includes('[REDO]'))
                               const redoCount = reworks.length
 
-                              const rowMachineName = (productionCards.length > 0 && productionCards[0].machine && productionCards[0].machine !== 'Не вказано')
-                                ? productionCards[0].machine
-                                : ((task.plan_snapshot || {})[String(nomId)]?.machine || (task.plan_snapshot || {})[String(nomId)]?.selected_machine || selectedMachines[rowId] || '')
+                              const rawRowMachineName = ((task.plan_snapshot || {})[String(nomId)]?.machine || (task.plan_snapshot || {})[String(nomId)]?.selected_machine || selectedMachines[rowId] || '')
+                                || (productionCards.length > 0 && productionCards[0].machine && productionCards[0].machine !== 'Не вказано' ? productionCards[0].machine : '')
+                              const rowMachineName = getStandardMachineType(rawRowMachineName)
+                              console.log(`[NOM:${part.nom?.name}] rawRowMachineName: "${rawRowMachineName}", rowMachineName: "${rowMachineName}", productionCardsCount: ${productionCards.length}`)
 
                               // Use local state if it exists (for fluid typing), fallback to context
                               const splits = editingSplits[nomId] || (task.plan_snapshot || {})[String(nomId)]?.splits || []
