@@ -438,23 +438,52 @@ const MACHINE_TYPES = [
       || machines.find(m => m.name === name)
       || machines.find(m => m.type === baseName)
       || machines.find(m => m.type === name)
-    if (found) return found
+    if (!found) {
+      const baseNameLower = baseName.toLowerCase()
+      if (baseNameLower.includes('12x8') || baseNameLower.includes('1200x800') || baseNameLower.includes('малий')) {
+        found = { sheet_capacity: 4, name: 'CNC 1200x800 - 4 листи (Малий)' }
+      } else if (baseNameLower.includes('16x16') || baseNameLower.includes('3050(16)') || baseNameLower.includes('швидкісний') || baseNameLower.includes('3050x1600') || baseNameLower.includes('3050х1600') || baseNameLower.includes('3050')) {
+        found = { sheet_capacity: 12, name: 'CNC 3050(16)х16 - 3-12 листів (швидкісний)' }
+      } else if (baseNameLower.includes('30x16') || baseNameLower.includes('3060x1600') || baseNameLower.includes('3060х1600') || baseNameLower.includes('три головий') || baseNameLower.includes('триголовий')) {
+        found = { sheet_capacity: 36, name: 'CNC 3060х1600 - 3-36 листів (Три Головий)' }
+      } else if (baseNameLower.includes('60x20') || baseNameLower.includes('6000x2000') || baseNameLower.includes('дракон')) {
+        found = { sheet_capacity: 96, name: 'CNC 6000x2000 - 4 - 96 листів (Дракон)' }
+      } else if (baseNameLower.includes('ke xin') || baseNameLower.includes('фея')) {
+        found = { sheet_capacity: 16, name: 'CNC KE XIN - 4 - 16 листів (ФЕЯ)' }
+      }
+    }
 
-    const baseNameLower = baseName.toLowerCase()
-    if (baseNameLower.includes('12x8') || baseNameLower.includes('1200x800') || baseNameLower.includes('малий')) {
-      return { sheet_capacity: 4, name: 'CNC 1200x800 - 4 листи (Малий)' }
-    }
-    if (baseNameLower.includes('16x16') || baseNameLower.includes('3050(16)') || baseNameLower.includes('швидкісний') || baseNameLower.includes('3050x1600') || baseNameLower.includes('3050х1600') || baseNameLower.includes('3050')) {
-      return { sheet_capacity: 12, name: 'CNC 3050(16)х16 - 3-12 листів (швидкісний)' }
-    }
-    if (baseNameLower.includes('30x16') || baseNameLower.includes('3060x1600') || baseNameLower.includes('3060х1600') || baseNameLower.includes('три головий') || baseNameLower.includes('триголовий')) {
-      return { sheet_capacity: 36, name: 'CNC 3060х1600 - 3-36 листів (Три Головий)' }
-    }
-    if (baseNameLower.includes('60x20') || baseNameLower.includes('6000x2000') || baseNameLower.includes('дракон')) {
-      return { sheet_capacity: 96, name: 'CNC 6000x2000 - 4 - 96 листів (Дракон)' }
-    }
-    if (baseNameLower.includes('ke xin') || baseNameLower.includes('фея')) {
-      return { sheet_capacity: 16, name: 'CNC KE XIN - 4 - 16 листів (ФЕЯ)' }
+    if (found) {
+      const result = { ...found }
+      const searchName = (result.name || '') + ' ' + (name || '')
+      const match = searchName.match(/(\d+)\s*-\s*(\d+)\s*лист/i)
+      if (match) {
+        result.min_capacity = parseInt(match[1])
+        result.max_capacity = parseInt(match[2])
+      } else {
+        const matchSingle = searchName.match(/(\d+)\s*лист/i)
+        if (matchSingle) {
+          result.min_capacity = parseInt(matchSingle[1])
+          result.max_capacity = parseInt(matchSingle[1])
+        } else {
+          const bnl = searchName.toLowerCase()
+          if (bnl.includes('12x8') || bnl.includes('1200x800') || bnl.includes('малий')) {
+            result.min_capacity = 4; result.max_capacity = 4;
+          } else if (bnl.includes('16x16') || bnl.includes('3050(16)') || bnl.includes('швидкісний') || bnl.includes('3050x1600') || bnl.includes('3050х1600') || bnl.includes('3050')) {
+            result.min_capacity = 3; result.max_capacity = 12;
+          } else if (bnl.includes('30x16') || bnl.includes('3060x1600') || bnl.includes('3060х1600') || bnl.includes('три головий') || bnl.includes('триголовий')) {
+            result.min_capacity = 3; result.max_capacity = 36;
+          } else if (bnl.includes('60x20') || bnl.includes('6000x2000') || bnl.includes('дракон')) {
+            result.min_capacity = 4; result.max_capacity = 96;
+          } else if (bnl.includes('ke xin') || bnl.includes('фея')) {
+            result.min_capacity = 4; result.max_capacity = 16;
+          } else {
+            result.min_capacity = result.sheet_capacity || 1
+            result.max_capacity = result.sheet_capacity || 1
+          }
+        }
+      }
+      return result
     }
     return null
   }
@@ -1397,8 +1426,11 @@ const MACHINE_TYPES = [
                               const isSplitMode = splits.length > 0
                               const totalSheetsNeeded = sheets // This is the total sheets for the whole naryad row
 
-                              const defaultCapacity = findMachine(rowMachineName)?.sheet_capacity || 1
-                              const machineCapacity = (rowCapacities[rowId] !== undefined && rowCapacities[rowId] !== '') ? rowCapacities[rowId] : defaultCapacity
+                              const machineObjForCapacity = findMachine(rowMachineName)
+                              const defaultCapacity = machineObjForCapacity?.min_capacity || machineObjForCapacity?.sheet_capacity || 1
+                              const maxCapacity = machineObjForCapacity?.max_capacity || machineObjForCapacity?.sheet_capacity || 1
+                              const rawCapacity = (rowCapacities[rowId] !== undefined && rowCapacities[rowId] !== '') ? rowCapacities[rowId] : defaultCapacity
+                              const machineCapacity = Math.min(maxCapacity, Math.max(defaultCapacity, rawCapacity))
 
                               const baseLoads = rowMachineName ? Math.ceil(sheets / machineCapacity) : (sheets || 0)
                               const loads = (plan === 0 && existing.some(c => c.operation === 'Склад БЗ')) ? 1 : baseLoads
@@ -1454,12 +1486,20 @@ const MACHINE_TYPES = [
                                         {plan > 0 && productionCards.length === 0 && rowMachineName && (
                                           <input
                                             type="number"
-                                            title="Кількість листів на одне завантаження"
+                                            title={`Кількість листів (від ${defaultCapacity} до ${maxCapacity})`}
                                             placeholder="Завант."
                                             value={rowCapacities[rowId] !== undefined ? rowCapacities[rowId] : defaultCapacity}
+                                            min={defaultCapacity}
+                                            max={maxCapacity}
                                             onChange={(e) => {
                                               const v = parseInt(e.target.value)
-                                              setRowCapacities(p => ({ ...p, [rowId]: isNaN(v) ? '' : Math.max(1, v) }))
+                                              setRowCapacities(p => ({ ...p, [rowId]: isNaN(v) ? '' : v }))
+                                            }}
+                                            onBlur={(e) => {
+                                              let v = parseInt(e.target.value)
+                                              if (isNaN(v)) v = defaultCapacity;
+                                              else v = Math.min(maxCapacity, Math.max(defaultCapacity, v));
+                                              setRowCapacities(p => ({ ...p, [rowId]: v }));
                                             }}
                                             style={{ width: '60px', background: '#000', border: '1px solid #333', color: '#ff9000', padding: '8px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700, textAlign: 'center' }}
                                           />
@@ -1618,7 +1658,7 @@ const MACHINE_TYPES = [
                                                 } else {
                                                   if (!rowMachineName) return;
                                                   const mObj = findMachine(rowMachineName);
-                                                  setGenModal({ task, part, total: Math.max(1, totalTargetLoads - productionCards.length), targetTotal: totalTargetLoads, requirement: plan, created: productionCards.length, rowId, machineName: rowMachineName, sheets, capacity: (rowCapacities[rowId] !== undefined && rowCapacities[rowId] !== '') ? rowCapacities[rowId] : (mObj?.sheet_capacity || 1) })
+                                                  setGenModal({ task, part, total: Math.max(1, totalTargetLoads - productionCards.length), targetTotal: totalTargetLoads, requirement: plan, created: productionCards.length, rowId, machineName: rowMachineName, sheets, capacity: machineCapacity })
                                                 }
                                               }}
                                               style={{ 
@@ -2128,22 +2168,42 @@ const MACHINE_TYPES = [
 
                 <div style={{ marginBottom: '20px' }}>
                   <label style={{ display: 'block', color: '#ff9000', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px', textAlign: 'center' }}>
-                    Завантаження (місткість верстата: {findMachine(genModal.machineName)?.sheet_capacity || 1} л.)
+                    Завантаження (від {findMachine(genModal.machineName)?.min_capacity || 1} до {findMachine(genModal.machineName)?.max_capacity || findMachine(genModal.machineName)?.sheet_capacity || 1} л.)
                   </label>
                   <input
                     type="number"
-                    value={genModal.capacity || findMachine(genModal.machineName)?.sheet_capacity || 1}
+                    value={genModal.capacity !== undefined ? genModal.capacity : (findMachine(genModal.machineName)?.min_capacity || 1)}
                     onChange={(e) => {
-                      const newCap = Math.max(1, parseInt(e.target.value) || 1);
-                      const newTargetTotal = Math.ceil(genModal.sheets / newCap);
+                      const newCap = parseInt(e.target.value);
+                      const m = findMachine(genModal.machineName);
+                      const minC = m?.min_capacity || 1;
+                      const maxC = m?.max_capacity || m?.sheet_capacity || 1;
+                      const safeCap = isNaN(newCap) ? 1 : Math.min(maxC, Math.max(minC, newCap));
+                      const newTargetTotal = Math.ceil(genModal.sheets / safeCap);
                       setGenModal(prev => ({ 
                         ...prev, 
-                        capacity: newCap, 
+                        capacity: isNaN(newCap) ? '' : newCap, 
                         total: Math.max(1, newTargetTotal - (prev.created || 0)), 
                         targetTotal: newTargetTotal 
                       }));
                     }}
-                    min="1"
+                    onBlur={(e) => {
+                      const m = findMachine(genModal.machineName);
+                      const minC = m?.min_capacity || 1;
+                      const maxC = m?.max_capacity || m?.sheet_capacity || 1;
+                      let v = parseInt(e.target.value);
+                      if (isNaN(v)) v = minC;
+                      else v = Math.min(maxC, Math.max(minC, v));
+                      const newTargetTotal = Math.ceil(genModal.sheets / v);
+                      setGenModal(prev => ({ 
+                        ...prev, 
+                        capacity: v, 
+                        total: Math.max(1, newTargetTotal - (prev.created || 0)), 
+                        targetTotal: newTargetTotal 
+                      }));
+                    }}
+                    min={findMachine(genModal.machineName)?.min_capacity || 1}
+                    max={findMachine(genModal.machineName)?.max_capacity || findMachine(genModal.machineName)?.sheet_capacity || 1}
                     style={{ width: '100%', background: '#000', border: '1px solid rgba(255,144,0,0.5)', color: '#ff9000', fontSize: '1.5rem', fontWeight: 950, textAlign: 'center', padding: '10px', borderRadius: '15px', outline: 'none' }}
                   />
                 </div>
