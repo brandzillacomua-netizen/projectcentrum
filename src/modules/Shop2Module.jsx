@@ -1052,10 +1052,6 @@ const Shop2Module = () => {
 
                 {/* ───── АРХІВ РОБОЧИХ КАРТОК (ЦЕХ №2) ───── */}
                 <div style={{ marginTop: '60px' }}>
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: 950, color: '#444', textTransform: 'uppercase', marginBottom: '25px', borderLeft: '4px solid #8b5cf6', paddingLeft: '15px' }}>
-                    Архів робочих карток (Цех №2)
-                  </h3>
-
                   {(() => {
                     // Об'єднуємо АКТИВНІ (з глобального стейту) та ЗАВЕРШЕНІ (локально завантажені) карти
                     // Використовуємо Map для гарантованої унікальності за ID
@@ -1073,11 +1069,6 @@ const Shop2Module = () => {
                       return (oMatch || tMatch || infoMatch) && c.card_info?.includes('[ЦЕХ №2]')
                     })
 
-                    // DEBUG для Архіву
-                    if (taskCards.length > 0) {
-                      console.log(`Found ${taskCards.length} cards for archive of task ${task.id}`);
-                    }
-
                     const grouped = taskCards.reduce((acc, c) => {
                       const nomId = String(c.nomenclature_id)
                       if (!acc[nomId]) acc[nomId] = []
@@ -1085,34 +1076,88 @@ const Shop2Module = () => {
                       return acc
                     }, {})
 
-                    if (taskCards.length === 0) {
-                      return <div style={{ color: '#222', fontSize: '0.85rem', fontWeight: 700 }}>Ще не згенеровано жодної картки</div>
-                    }
+                    return (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+                          <h3 style={{ fontSize: '1.2rem', fontWeight: 950, color: '#444', textTransform: 'uppercase', borderLeft: '4px solid #8b5cf6', paddingLeft: '15px', margin: 0 }}>
+                            Архів робочих карток (Цех №2)
+                          </h3>
+                          {taskCards.length > 0 && (
+                            <button
+                              onClick={() => {
+                                const order = orders.find(o => o.id === task.order_id)
+                                setPrintModalData({
+                                  isMultiple: true,
+                                  cards: taskCards.map(c => {
+                                    let cNom = nomenclatures.find(n => String(n.id) === String(c.nomenclature_id))
+                                    if (!cNom || String(c.nomenclature_id) === 'null') {
+                                      const info = c.card_info || ''
+                                      const orderNumMatch = info.match(/Наряд №(\d+)/)
+                                      const orderNum = orderNumMatch ? orderNumMatch[1] : null
+                                      if (orderNum) {
+                                        const orderObj = orders.find(o => String(o.order_num) === String(orderNum) || String(o.id) === String(orderNum))
+                                        const match = orderObj?.order_items?.find(it => Number(it.quantity) === Number(c.quantity))
+                                        if (match) cNom = nomenclatures.find(n => String(n.id) === String(match.nomenclature_id))
+                                      }
+                                    }
+                                    return {
+                                      cardId: c.id,
+                                      nomName: cNom?.name || 'Невідома деталь',
+                                      qty: c.quantity,
+                                      stage: c.operation,
+                                      orderNum: order?.order_num || '—',
+                                      customer: order?.customer || '—'
+                                    }
+                                  })
+                                })
+                              }}
+                              style={{
+                                background: '#8b5cf6',
+                                color: '#fff',
+                                border: 'none',
+                                padding: '10px 20px',
+                                borderRadius: '12px',
+                                fontWeight: 900,
+                                fontSize: '0.8rem',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)'
+                              }}
+                            >
+                              <Printer size={16} /> ДРУКУВАТИ ВСІ КАРТКИ ({taskCards.length})
+                            </button>
+                          )}
+                        </div>
 
-                    return Object.keys(grouped).map(nomId => {
-                      let nom = nomenclatures.find(n => String(n.id) === String(nomId))
+                        {taskCards.length === 0 ? (
+                          <div style={{ color: '#222', fontSize: '0.85rem', fontWeight: 700 }}>Ще не згенеровано жодної картки</div>
+                        ) : (
+                          Object.keys(grouped).map(nomId => {
+                            let nom = nomenclatures.find(n => String(n.id) === String(nomId))
 
-                      // Херистіка для фантомних карток (якщо ID зламаний, групуємо за кількістю та замовленням)
-                      if (!nom || nomId === 'null' || nomId === 'NaN') {
-                        const sampleCard = grouped[nomId][0]
-                        const info = sampleCard?.card_info || ''
-                        const orderNumMatch = info.match(/Наряд №(\d+)/)
-                        const orderNum = orderNumMatch ? orderNumMatch[1] : null
-                        if (orderNum) {
-                          const order = orders.find(o => String(o.order_num) === String(orderNum) || String(o.id) === String(orderNum))
-                          const match = order?.order_items?.find(it => Number(it.quantity) === Number(sampleCard.quantity))
-                          if (match) nom = nomenclatures.find(n => String(n.id) === String(match.nomenclature_id))
-                        }
-                      }
-                      const cards = grouped[nomId]
+                            // Херистіка для фантомних карток (якщо ID зламаний, групуємо за кількістю та замовленням)
+                            if (!nom || nomId === 'null' || nomId === 'NaN') {
+                              const sampleCard = grouped[nomId][0]
+                              const info = sampleCard?.card_info || ''
+                              const orderNumMatch = info.match(/Наряд №(\d+)/)
+                              const orderNum = orderNumMatch ? orderNumMatch[1] : null
+                              if (orderNum) {
+                                const order = orders.find(o => String(o.order_num) === String(orderNum) || String(o.id) === String(orderNum))
+                                const match = order?.order_items?.find(it => Number(it.quantity) === Number(sampleCard.quantity))
+                                if (match) nom = nomenclatures.find(n => String(n.id) === String(match.nomenclature_id))
+                              }
+                            }
+                            const cards = grouped[nomId]
 
-                      return (
-                        <div key={nomId} style={{ marginBottom: '30px', background: '#111', borderRadius: '24px', border: '1px solid #1a1a1a', overflowX: 'auto' }}>
-                          <div style={{ padding: '15px 20px', background: '#1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ fontWeight: 900, fontSize: '0.9rem', color: '#fff' }}>{nom?.name || 'Невідома деталь'}</div>
-                            <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800 }}>КАРТОК: {cards.length}</div>
-                          </div>
-                          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            return (
+                              <div key={nomId} style={{ marginBottom: '30px', background: '#111', borderRadius: '24px', border: '1px solid #1a1a1a', overflowX: 'auto' }}>
+                                <div style={{ padding: '15px 20px', background: '#1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <div style={{ fontWeight: 900, fontSize: '0.9rem', color: '#fff' }}>{nom?.name || 'Невідома деталь'}</div>
+                                  <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800 }}>КАРТОК: {cards.length}</div>
+                                </div>
+                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead>
                               <tr style={{ textAlign: 'left', color: '#444', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', borderBottom: '1px solid #1a1a1a' }}>
                                 <th style={{ padding: '12px 20px' }}>ID КАРТКИ</th>
@@ -1163,7 +1208,10 @@ const Shop2Module = () => {
                         </div>
                       )
                     })
-                  })()}
+                  )}
+                </>
+              )
+            })()}
                 </div>
               </div>
             )
@@ -1179,66 +1227,314 @@ const Shop2Module = () => {
 
       {/* ───── МОДАЛ ДРУКУ КАРТКИ ───── */}
       {printModalData && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div className="print-card" style={{ background: '#fff', color: '#000', padding: '40px', borderRadius: '32px', maxWidth: '500px', width: '100%', textAlign: 'center', boxShadow: '0 30px 60px rgba(0,0,0,0.5)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-              <div style={{ textAlign: 'left' }}>
-                <div style={{ fontSize: '0.7rem', fontWeight: 900, color: '#888', textTransform: 'uppercase' }}>Робоча картка Цех №2</div>
-                <div style={{ fontSize: '1.5rem', fontWeight: 1000 }}>Наряд №{printModalData.orderNum}</div>
-              </div>
-              <button onClick={() => setPrintModalData(null)} style={{ background: '#f5f5f5', border: 'none', width: '40px', height: '40px', borderRadius: '50%', cursor: 'pointer' }}><X size={20} /></button>
-            </div>
-
-            <div style={{ background: '#f9f9f9', padding: '20px', borderRadius: '24px', marginBottom: '30px' }}>
-              <QRCodeCanvas
-                value={JSON.stringify({ id: printModalData.cardId, type: 'work_card_shop2' })}
-                size={220}
-                level="H"
-                includeMargin={true}
-              />
-              <div style={{ marginTop: '15px', fontSize: '0.8rem', fontWeight: 900, color: '#aaa', letterSpacing: '0.1em' }}>ID: {printModalData.cardId.slice(0, 8)}</div>
-            </div>
-
-            <div style={{ textAlign: 'left', marginBottom: '40px' }}>
-              <div style={{ marginBottom: '15px' }}>
-                <div style={{ fontSize: '0.65rem', fontWeight: 900, color: '#888', textTransform: 'uppercase' }}>Номенклатура</div>
-                <div style={{ fontSize: '1.1rem', fontWeight: 900 }}>{printModalData.nomName}</div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+        <div className="print-modal-backdrop" style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          {printModalData.isMultiple ? (
+            /* MULTIPLE CARDS MODAL */
+            <div className="print-multiple-wrapper" style={{ background: '#fff', color: '#000', padding: '30px', borderRadius: '32px', maxWidth: '900px', width: '100%', maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', boxShadow: '0 30px 60px rgba(0,0,0,0.5)' }}>
+              <div className="print-hide" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <div>
-                  <div style={{ fontSize: '0.65rem', fontWeight: 900, color: '#888', textTransform: 'uppercase' }}>Кількість</div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 1000, color: '#8b5cf6' }}>{printModalData.qty} шт</div>
+                  <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 1000 }}>Друк всіх робочих карток цеху</h3>
+                  <div style={{ fontSize: '0.85rem', color: '#666', marginTop: '4px' }}>Всього карток до друку: {printModalData.cards.length} шт</div>
                 </div>
-                <div>
-                  <div style={{ fontSize: '0.65rem', fontWeight: 900, color: '#888', textTransform: 'uppercase' }}>Етап</div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 1000, color: '#10b981' }}>{printModalData.stage}</div>
+                <button onClick={() => setPrintModalData(null)} style={{ background: '#f5f5f5', border: 'none', width: '40px', height: '40px', borderRadius: '50%', cursor: 'pointer' }}><X size={20} /></button>
+              </div>
+
+              <div className="print-multiple-grid">
+                {printModalData.cards.map((card, idx) => (
+                  <div key={idx} className="print-card" style={{ background: '#fff', color: '#000', border: '1px solid #000', borderRadius: '15px', padding: '10px 15px', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', boxSizing: 'border-box', width: '100%' }}>
+                    <div className="print-layout-container" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', width: '100%', justifyContent: 'space-between', gap: '15px' }}>
+                      <div className="print-qr-section" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                        <QRCodeCanvas
+                          value={JSON.stringify({ id: card.cardId, type: 'work_card_shop2' })}
+                          size={110}
+                          level="H"
+                          includeMargin={true}
+                        />
+                        <div style={{ marginTop: '5px', fontSize: '0.65rem', fontWeight: 900, color: '#000', letterSpacing: '0.1em' }}>ID: {card.cardId.slice(0, 8)}</div>
+                      </div>
+
+                      <div className="print-info-section" style={{ textAlign: 'left', flex: 1 }}>
+                        <div className="print-only-header" style={{ marginBottom: '5px' }}>
+                          <div style={{ fontSize: '0.55rem', fontWeight: 900, color: '#666', textTransform: 'uppercase', lineHeight: 1 }}>Робоча картка Цех №2</div>
+                          <div style={{ fontSize: '0.9rem', fontWeight: 1000, lineHeight: 1.1 }}>Наряд №{card.orderNum}</div>
+                        </div>
+
+                        <div style={{ marginBottom: '8px' }}>
+                          <div style={{ fontSize: '0.6rem', fontWeight: 900, color: '#666', textTransform: 'uppercase' }}>Номенклатура</div>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 900, wordBreak: 'break-all' }}>{card.nomName}</div>
+                        </div>
+                        <div className="print-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                          <div>
+                            <div style={{ fontSize: '0.6rem', fontWeight: 900, color: '#666', textTransform: 'uppercase' }}>Кількість</div>
+                            <div style={{ fontSize: '1.1rem', fontWeight: 1000, color: '#000' }} className="print-qty-text">{card.qty} шт</div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '0.6rem', fontWeight: 900, color: '#666', textTransform: 'uppercase' }}>Етап</div>
+                            <div style={{ fontSize: '1.1rem', fontWeight: 1000, color: '#000' }} className="print-stage-text">{card.stage}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                className="print-hide"
+                onClick={() => window.print()}
+                style={{ width: '100%', background: '#000', color: '#fff', border: 'none', padding: '20px', borderRadius: '20px', fontWeight: 1000, fontSize: '1.1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginTop: '30px' }}
+              >
+                ДРУКУВАТИ ВСІ КАРТКИ ({printModalData.cards.length} шт)
+              </button>
+            </div>
+          ) : (
+            <div className="print-card" style={{ background: '#fff', color: '#000', padding: '40px', borderRadius: '32px', maxWidth: '500px', width: '100%', textAlign: 'center', boxShadow: '0 30px 60px rgba(0,0,0,0.5)' }}>
+              <div className="print-hide" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 900, color: '#888', textTransform: 'uppercase' }}>Робоча картка Цех №2</div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 1000 }}>Наряд №{printModalData.orderNum}</div>
+                </div>
+                <button onClick={() => setPrintModalData(null)} style={{ background: '#f5f5f5', border: 'none', width: '40px', height: '40px', borderRadius: '50%', cursor: 'pointer' }}><X size={20} /></button>
+              </div>
+
+              <div className="print-layout-container" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div className="print-qr-section" style={{ background: '#f9f9f9', padding: '20px', borderRadius: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <QRCodeCanvas
+                    value={JSON.stringify({ id: printModalData.cardId, type: 'work_card_shop2' })}
+                    size={220}
+                    level="H"
+                    includeMargin={true}
+                  />
+                  <div style={{ marginTop: '15px', fontSize: '0.8rem', fontWeight: 900, color: '#aaa', letterSpacing: '0.1em' }}>ID: {printModalData.cardId.slice(0, 8)}</div>
+                </div>
+
+                <div className="print-info-section" style={{ textAlign: 'left' }}>
+                  <div className="print-only-header" style={{ display: 'none', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '0.55rem', fontWeight: 900, color: '#666', textTransform: 'uppercase', lineHeight: 1 }}>Робоча картка Цех №2</div>
+                    <div style={{ fontSize: '1rem', fontWeight: 1000, lineHeight: 1.1 }}>Наряд №{printModalData.orderNum}</div>
+                  </div>
+
+                  <div style={{ marginBottom: '15px' }}>
+                    <div style={{ fontSize: '0.65rem', fontWeight: 900, color: '#888', textTransform: 'uppercase' }}>Номенклатура</div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 900, wordBreak: 'break-all' }}>{printModalData.nomName}</div>
+                  </div>
+                  <div className="print-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                    <div>
+                      <div style={{ fontSize: '0.65rem', fontWeight: 900, color: '#888', textTransform: 'uppercase' }}>Кількість</div>
+                      <div style={{ fontSize: '1.5rem', fontWeight: 1000, color: '#8b5cf6' }} className="print-qty-text">{printModalData.qty} шт</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.65rem', fontWeight: 900, color: '#888', textTransform: 'uppercase' }}>Етап</div>
+                      <div style={{ fontSize: '1.5rem', fontWeight: 1000, color: '#10b981' }} className="print-stage-text">{printModalData.stage}</div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <button
-              onClick={() => window.print()}
-              style={{ width: '100%', background: '#000', color: '#fff', border: 'none', padding: '20px', borderRadius: '20px', fontWeight: 1000, fontSize: '1.1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
-            >
-              ДРУКУВАТИ КАРТКУ
-            </button>
-          </div>
+              <button
+                className="print-hide"
+                onClick={() => window.print()}
+                style={{ width: '100%', background: '#000', color: '#fff', border: 'none', padding: '20px', borderRadius: '20px', fontWeight: 1000, fontSize: '1.1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginTop: '30px' }}
+              >
+                ДРУКУВАТИ КАРТКУ
+              </button>
+            </div>
+          )}
         </div>
       )}
 
       <style dangerouslySetInnerHTML={{
         __html: `
         @media print {
-          body * { visibility: hidden; }
-          .print-card, .print-card * { visibility: visible; }
-          .print-card { position: absolute; left: 0; top: 0; width: 100% !important; border: none !important; box-shadow: none !important; padding: 20px !important; }
-          button { display: none !important; }
+          @page {
+            size: auto;
+            margin: 0;
+          }
+          body {
+            margin: 0;
+            background: #fff;
+            color: #000;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          /* Reset main module wrapper background to white */
+          .shop2-module {
+            background: #fff !important;
+            color: #000 !important;
+            min-height: 0 !important;
+            height: auto !important;
+          }
+          /* Hide non-print layouts completely so they do not take layout space or trigger extra pages */
+          header, .side-panel, .main-content, .print-hide {
+            display: none !important;
+          }
+          /* Reset modal backdrop styles for printing */
+          .print-modal-backdrop {
+            position: static !important;
+            background: none !important;
+            padding: 0 !important;
+            display: block !important;
+            width: auto !important;
+            height: auto !important;
+            box-shadow: none !important;
+          }
+          .print-multiple-wrapper {
+            position: static !important;
+            background: none !important;
+            padding: 0 !important;
+            width: auto !important;
+            height: auto !important;
+            box-shadow: none !important;
+            max-height: none !important;
+            overflow: visible !important;
+          }
+          .print-multiple-grid {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 6mm 10mm !important;
+            padding: 15mm !important;
+            box-sizing: border-box !important;
+            width: 100% !important;
+            height: auto !important;
+            overflow: visible !important;
+            max-height: none !important;
+            background: none !important; /* Усуваємо темний фон */
+            border: none !important;     /* Прибираємо зовнішню рамку */
+          }
+          .print-multiple-grid .print-card {
+            position: relative !important;
+            left: auto !important;
+            top: auto !important;
+            width: 8.6cm !important;
+            height: 5.5cm !important;
+            margin: 0 !important;
+            padding: 0.2cm 0.4cm !important;
+            border: 1px solid #000 !important; /* Чорна рамка для зручного вирізання ножницями */
+            box-shadow: none !important;
+            background: #fff !important;
+            color: #000 !important;
+            box-sizing: border-box !important;
+            border-radius: 4mm !important; /* Заокруглені кути */
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            page-break-inside: avoid !important;
+          }
+          .print-card {
+            position: absolute !important;
+            left: 15mm !important;
+            top: 15mm !important;
+            width: 8.6cm !important;
+            height: 5.5cm !important;
+            margin: 0 !important;
+            padding: 0.2cm 0.4cm !important;
+            border: 1px solid #000 !important; /* Чорна рамка для зручного вирізання ножницями */
+            box-shadow: none !important;
+            background: #fff !important;
+            color: #000 !important;
+            box-sizing: border-box !important;
+            border-radius: 4mm !important; /* Заокруглені кути */
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+          }
+          .print-layout-container {
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            width: 100% !important;
+            height: 100% !important;
+            justify-content: space-between !important;
+            gap: 0.4cm !important;
+          }
+          .print-qr-section {
+            background: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            border-radius: 0 !important;
+            width: 3.2cm !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+          }
+          .print-qr-section canvas {
+            width: 2.8cm !important;
+            height: 2.8cm !important;
+            display: block !important;
+          }
+          .print-qr-section div {
+            margin-top: 2px !important;
+            font-size: 8px !important;
+            color: #000 !important;
+            font-weight: bold !important;
+          }
+          .print-info-section {
+            flex: 1 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: center !important;
+            text-align: left !important;
+            height: 100% !important;
+          }
+          .print-only-header {
+            display: block !important;
+          }
+          .print-only-header div:first-child {
+            font-size: 7px !important;
+            color: #555 !important;
+            font-weight: 900 !important;
+          }
+          .print-only-header div:last-child {
+            font-size: 13px !important;
+            font-weight: 1000 !important;
+            margin-top: 1px !important;
+            color: #000 !important;
+          }
+          .print-info-section > div {
+            margin-bottom: 4px !important;
+          }
+          .print-info-section > div div:first-child {
+            font-size: 7px !important;
+            color: #555 !important;
+            font-weight: 900 !important;
+          }
+          .print-info-section > div div:last-child {
+            font-size: 9px !important;
+            font-weight: 850 !important;
+            line-height: 1.1 !important;
+            color: #000 !important;
+          }
+          .print-info-section .print-grid {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 10px !important;
+            margin-top: 2px !important;
+          }
+          .print-qty-text, .print-stage-text {
+            font-size: 12px !important;
+            font-weight: 1000 !important;
+            color: #000 !important;
+          }
         }
         @media (max-width: 1024px) {
           .hide-mobile { display: none !important; }
           .side-panel { position: fixed; left: 0; top: 0; bottom: 0; z-index: 100000; transform: translateX(-100%); width: 280px !important; }
           .drawer-open { transform: translateX(0); }
           .main-content { padding: 15px !important; }
+        }
+        .print-multiple-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+          gap: 15px;
+          max-height: 60vh;
+          overflow-y: auto;
+          padding: 10px;
+          background: #0d0d0d;
+          border-radius: 20px;
+          border: 1px solid #222;
         }
         .anim-fade-in { animation: fadeIn 0.4s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
