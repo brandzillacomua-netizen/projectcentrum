@@ -82,6 +82,7 @@ export default function Shop1Terminal() {
   const [showShiftChangeModal, setShowShiftChangeModal] = useState(false)
   const [shiftChangeOperator, setShiftChangeOperator] = useState('')
   const [shiftChangeShift, setShiftChangeShift] = useState('')
+  const [scrapOperator, setScrapOperator] = useState('')
 
   // Фільтр таблиці "В роботі та буфері"
   const [activeTableFilter, setActiveTableFilter] = useState('all') // 'all' | 'in-progress' | 'at-buffer'
@@ -370,6 +371,23 @@ export default function Shop1Terminal() {
 
   // ── Хелпери ──────────────────────────────────────────────────────────────
   const currentCard = workCards.find(c => c.id === selectedCardId)
+  const cardOperators = React.useMemo(() => {
+    if (!currentCard) return []
+    const ops = new Set()
+    if (currentCard.operator_name) {
+      ops.add(currentCard.operator_name)
+    }
+    if (workCardHistory && workCardHistory.length > 0) {
+      const history = workCardHistory.filter(h => String(h.card_id) === String(currentCard.id))
+      history.forEach(h => {
+        if (h.operator_name) {
+          ops.add(h.operator_name)
+        }
+      })
+    }
+    return Array.from(ops)
+  }, [currentCard, workCardHistory])
+
   const getNom = card => nomenclatures.find(n => n.id === card?.nomenclature_id)
   const formatSec = (totalSec) => {
     const hrs = Math.floor(totalSec / 3600)
@@ -496,6 +514,7 @@ export default function Shop1Terminal() {
       }
       
       setFinalOperator('')
+      setScrapOperator('')
       setScrapCount(0)
       setReworkCount(0)
       setQcScrapCount(0)
@@ -523,6 +542,12 @@ export default function Shop1Terminal() {
       setSelectedShift(currentCard?.shift_name || currentUser?.shift || '')
     }
   }, [selectedCardId, currentCard, currentUser, systemUsers, selectedManager, selectedShift])
+
+  useEffect(() => {
+    if (scrapCount > 0 && !scrapOperator && currentCard) {
+      setScrapOperator(currentCard.operator_name || '')
+    }
+  }, [scrapCount, currentCard, scrapOperator])
 
   const getCuttersForCard = (card) => {
     if (!card) return []
@@ -998,25 +1023,75 @@ export default function Shop1Terminal() {
       const promises = []
 
       // 1. Записуємо в history (galt_priority не існує в work_card_history!)
-      promises.push(
-        supabase.from('work_card_history').insert([{
-          card_id: currentCard.id,
-          nomenclature_id: currentCard.nomenclature_id,
-          stage_name: currentCard.operation,
-          operator_name: op,
-          qty_at_start: currentCard.quantity,
-          qty_completed: qtyDone,
-          scrap_qty: scrapCount,
-          started_at: currentCard.started_at,
-          completed_at: new Date().toISOString(),
-          is_archived_scrap: scrapCount > 0,
-          shift_name: activeShift,
-          manager_name: currentCard.manager_name,
-          machine_name: currentCard.machine,
-          cutters_used: cuttersQty,
-          card_info: historyCardInfo
-        }])
-      )
+      if (scrapCount > 0 && scrapOperator && scrapOperator !== op) {
+        // Запис для виконаних деталей (під фінальним оператором)
+        if (qtyDone > 0) {
+          promises.push(
+            supabase.from('work_card_history').insert([{
+              card_id: currentCard.id,
+              nomenclature_id: currentCard.nomenclature_id,
+              stage_name: currentCard.operation,
+              operator_name: op,
+              qty_at_start: currentCard.quantity - scrapCount,
+              qty_completed: qtyDone,
+              scrap_qty: 0,
+              started_at: currentCard.started_at,
+              completed_at: new Date().toISOString(),
+              is_archived_scrap: false,
+              shift_name: activeShift,
+              manager_name: currentCard.manager_name,
+              machine_name: currentCard.machine,
+              cutters_used: cuttersQty,
+              card_info: historyCardInfo
+            }])
+          )
+        }
+        // Запис для браку (під обраним оператором)
+        let scrapShift = activeShift
+        const scrapOpUser = systemUsers?.find(u => formatUserName(u) === scrapOperator)
+        if (scrapOpUser?.shift) {
+          scrapShift = scrapOpUser.shift
+        }
+        promises.push(
+          supabase.from('work_card_history').insert([{
+            card_id: currentCard.id,
+            nomenclature_id: currentCard.nomenclature_id,
+            stage_name: currentCard.operation,
+            operator_name: scrapOperator,
+            qty_at_start: scrapCount,
+            qty_completed: 0,
+            scrap_qty: scrapCount,
+            started_at: currentCard.started_at,
+            completed_at: new Date().toISOString(),
+            is_archived_scrap: true,
+            shift_name: scrapShift,
+            manager_name: currentCard.manager_name,
+            machine_name: currentCard.machine,
+            cutters_used: cuttersQty,
+            card_info: (historyCardInfo + ' [SCRAP_ASSIGNED]').trim()
+          }])
+        )
+      } else {
+        promises.push(
+          supabase.from('work_card_history').insert([{
+            card_id: currentCard.id,
+            nomenclature_id: currentCard.nomenclature_id,
+            stage_name: currentCard.operation,
+            operator_name: op,
+            qty_at_start: currentCard.quantity,
+            qty_completed: qtyDone,
+            scrap_qty: scrapCount,
+            started_at: currentCard.started_at,
+            completed_at: new Date().toISOString(),
+            is_archived_scrap: scrapCount > 0,
+            shift_name: activeShift,
+            manager_name: currentCard.manager_name,
+            machine_name: currentCard.machine,
+            cutters_used: cuttersQty,
+            card_info: historyCardInfo
+          }])
+        )
+      }
 
       // 2. Оновлюємо картку (тільки перехід у буфер, фінальна прийомка далі)
       promises.push(
@@ -1162,22 +1237,32 @@ export default function Shop1Terminal() {
       const promises = []
 
       // 1. Записуємо в history
+      let scrapOpToUse = op
+      let scrapShiftToUse = activeShift
+      if (scrapOperator) {
+        scrapOpToUse = scrapOperator
+        const scrapOpUser = systemUsers?.find(u => formatUserName(u) === scrapOperator)
+        if (scrapOpUser?.shift) {
+          scrapShiftToUse = scrapOpUser.shift
+        }
+      }
+
       promises.push(
         supabase.from('work_card_history').insert([{
           card_id: currentCard.id,
           nomenclature_id: currentCard.nomenclature_id,
           stage_name: currentCard.operation,
-          operator_name: op,
+          operator_name: scrapOpToUse,
           qty_at_start: currentCard.quantity,
           qty_completed: 0,
           scrap_qty: currentCard.quantity,
           started_at: currentCard.started_at,
           completed_at: new Date().toISOString(),
           is_archived_scrap: true,
-          shift_name: activeShift,
+          shift_name: scrapShiftToUse,
           manager_name: currentCard.manager_name,
           machine_name: currentCard.machine,
-          card_info: historyCardInfo,
+          card_info: scrapOperator && scrapOperator !== op ? (historyCardInfo + ' [SCRAP_ASSIGNED]').trim() : historyCardInfo,
           cutters_used: cuttersQty
         }])
       )
@@ -3371,6 +3456,24 @@ export default function Shop1Terminal() {
                   {' · '}Брак: <strong style={{ color: '#ef4444' }}>{scrapCount} шт</strong>
                 </div>
               </div>
+
+              {scrapCount > 0 && cardOperators.length > 0 && (
+                <div style={{ background: '#1c1212', borderRadius: '14px', padding: '15px 18px', border: '1px solid #ef444425' }}>
+                  <label style={{ color: '#f87171', fontWeight: 900, fontSize: '0.7rem', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
+                    Кому присвоїти брак?
+                  </label>
+                  <select
+                    value={scrapOperator}
+                    onChange={e => setScrapOperator(e.target.value)}
+                    style={{ ...selectStyle, background: '#000', borderColor: '#ef444430', color: '#fca5a5' }}
+                  >
+                    <option value="">— Оберіть оператора —</option>
+                    {cardOperators.map(o => (
+                      <option key={o} value={o}>{o}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {Math.max(0, (currentCard.quantity || 0) - scrapCount) === 0 ? (
                 <button onClick={handleRequestRework} disabled={isProcessing}

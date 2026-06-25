@@ -23,11 +23,16 @@ const DashboardModule = () => {
 
   const filteredWorkCards = useMemo(() => {
     if (!workCards) return []
-    if (selectedTaskId) {
-      return workCards.filter(c => c.task_id === selectedTaskId)
+    if (selectedTaskId && tasks) {
+      const selectedTask = tasks.find(t => t.id === selectedTaskId)
+      if (selectedTask) {
+        const orderId = selectedTask.order_id
+        const orderTaskIds = tasks.filter(t => t.order_id === orderId).map(t => t.id)
+        return workCards.filter(c => orderTaskIds.includes(c.task_id))
+      }
     }
     return workCards
-  }, [workCards, selectedTaskId])
+  }, [workCards, selectedTaskId, tasks])
 
   // Fetch all tasks for active orders to count shipped batch quantities
   useEffect(() => {
@@ -243,9 +248,9 @@ const DashboardModule = () => {
         const qMalWait = getQty(['Фарбування', 'Малярка'], 'new')
         const qMal = getQty(['Фарбування', 'Малярка'], 'in-progress')
         const qMalBuf = getQty(['Фарбування', 'Малярка'], 'at-buffer')
-        const qPres = getQty('Пресування', 'in-progress')
+        const qPres = getQty('Пресування', ['new', 'in-progress'])
         const qPresBuf = getQty('Пресування', 'at-buffer')
-        const qDoop = getQty('Доопрацювання', 'in-progress')
+        const qDoop = getQty('Доопрацювання', ['new', 'in-progress'])
         const qDoopBuf = getQty('Доопрацювання', 'at-buffer')
 
         const qSgp = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id) && (i.type === 'finished' || i.warehouse === 'sgp' || i.warehouse === 'SGP')).reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
@@ -333,18 +338,19 @@ const DashboardModule = () => {
         })
         const sgpInventory = parentSgpQty + (minSgpPotential === Infinity ? 0 : minSgpPotential)
 
-        const activeOrders = (orders || []).filter(o => o.status !== 'completed' && o.status !== 'shipped' && o.status !== 'cancelled')
-        const totalDemand = activeOrders.reduce((acc, o) => {
-          const shipped = shippedQuantities[o.id] || 0
-          let qty = 0
-          if (o.order_items && o.order_items.length > 0) {
-            const items = o.order_items.filter(it => String(it.nomenclature_id) === String(prod.id))
-            qty = items.reduce((sum, it) => sum + Math.max(0, (Number(it.quantity) || 0) - shipped), 0)
-          } else if (String(o.nomenclature_id) === String(prod.id)) {
-            qty = Math.max(0, (Number(o.quantity) || 0) - shipped)
-          }
-          return acc + qty
-        }, 0)
+        const totalDemand = selectedTaskId 
+          ? (demandData.productDemand[prod.id] || 0)
+          : (orders || []).filter(o => o.status !== 'completed' && o.status !== 'shipped' && o.status !== 'cancelled').reduce((acc, o) => {
+              const shipped = shippedQuantities[o.id] || 0
+              let qty = 0
+              if (o.order_items && o.order_items.length > 0) {
+                const items = o.order_items.filter(it => String(it.nomenclature_id) === String(prod.id))
+                qty = items.reduce((sum, it) => sum + Math.max(0, (Number(it.quantity) || 0) - shipped), 0)
+              } else if (String(o.nomenclature_id) === String(prod.id)) {
+                qty = Math.max(0, (Number(o.quantity) || 0) - shipped)
+              }
+              return acc + qty
+            }, 0)
 
         const bottlenecksList = []
         groups[prod.id].rows.forEach(row => {

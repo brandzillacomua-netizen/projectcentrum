@@ -12,16 +12,18 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 async function run() {
-  const { data: noms } = await supabase.from('nomenclatures').select('*');
-  const part = noms.find(n => n.name.includes('Х-3-39'));
-  console.log('Part:', part?.name, 'ID:', part?.id);
-
-  // Get work cards
-  const { data: cards } = await supabase.from('work_cards').select('*').eq('nomenclature_id', part?.id);
-  console.log(`\nWork cards count: ${cards.length}`);
-  cards.forEach(c => {
-    console.log(`- ID: ${c.id}, Op: ${c.operation}, Status: ${c.status}, Qty: ${c.quantity}, UsedInShop2: ${c.used_in_shop2_qty}, TaskID: ${c.task_id}`);
-  });
+  const ids = [
+    'dc154eb4-a568-4944-8608-9cb0dae1180e', // KH-10(210)-Х-4-109
+    '076ba504-b3f6-4ec8-8844-fe9515077d9c'  // KR-Line-210-415-В-3-28
+  ];
+  
+  for (const id of ids) {
+    const { data: inv } = await supabase.from('inventory').select('*').eq('nomenclature_id', id);
+    console.log(`\nInventory for ID ${id}:`);
+    inv.forEach(i => {
+      console.log(`  - Type: ${i.type}, Warehouse: ${i.warehouse}, Qty: ${i.total_qty}, Reserved: ${i.reserved_qty}`);
+    });
+  }
 }
 
 run();

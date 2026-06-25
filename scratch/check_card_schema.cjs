@@ -12,16 +12,19 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 async function run() {
-  const { data: noms } = await supabase.from('nomenclatures').select('*');
-  const part = noms.find(n => n.name.includes('Х-3-39'));
-  console.log('Part:', part?.name, 'ID:', part?.id);
+  const { data: cards, error } = await supabase.from('work_cards').select('*').limit(1);
+  if (error) {
+    console.error("Cards Error:", error);
+    return;
+  }
+  console.log('Work Card Columns:', Object.keys(cards[0] || {}));
 
-  // Get work cards
-  const { data: cards } = await supabase.from('work_cards').select('*').eq('nomenclature_id', part?.id);
-  console.log(`\nWork cards count: ${cards.length}`);
-  cards.forEach(c => {
-    console.log(`- ID: ${c.id}, Op: ${c.operation}, Status: ${c.status}, Qty: ${c.quantity}, UsedInShop2: ${c.used_in_shop2_qty}, TaskID: ${c.task_id}`);
-  });
+  const { data: history, error: hErr } = await supabase.from('work_card_history').select('*').limit(1);
+  if (hErr) {
+    console.error("History Error:", hErr);
+    return;
+  }
+  console.log('History Columns:', Object.keys(history[0] || {}));
 }
 
 run();

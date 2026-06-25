@@ -13,15 +13,19 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 
 async function run() {
   const { data: noms } = await supabase.from('nomenclatures').select('*');
-  const part = noms.find(n => n.name.includes('Х-3-39'));
-  console.log('Part:', part?.name, 'ID:', part?.id);
+  const targetSubstrings = ['KH-10', 'KR-10', 'KR-Line', 'KHARAK'];
+  
+  const matches = noms.filter(n => targetSubstrings.some(sub => n.name.includes(sub)));
+  console.log(`Found ${matches.length} matching nomenclatures:`);
+  matches.forEach(m => console.log(`- ${m.name} (${m.id})`));
 
-  // Get work cards
-  const { data: cards } = await supabase.from('work_cards').select('*').eq('nomenclature_id', part?.id);
-  console.log(`\nWork cards count: ${cards.length}`);
-  cards.forEach(c => {
-    console.log(`- ID: ${c.id}, Op: ${c.operation}, Status: ${c.status}, Qty: ${c.quantity}, UsedInShop2: ${c.used_in_shop2_qty}, TaskID: ${c.task_id}`);
-  });
+  for (const match of matches) {
+    const { data: inv } = await supabase.from('inventory').select('*').eq('nomenclature_id', match.id);
+    console.log(`\nInventory for ${match.name}:`);
+    inv.forEach(i => {
+      console.log(`  - Type: ${i.type}, Warehouse: ${i.warehouse}, Qty: ${i.total_qty}`);
+    });
+  }
 }
 
 run();
