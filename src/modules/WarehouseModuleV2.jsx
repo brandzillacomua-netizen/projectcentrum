@@ -313,7 +313,9 @@ const WarehouseModuleV2 = () => {
   }, [requests, inventory, tasks, receptionDocs, nomenclatures])
 
   const filteredInventory = (inventory || []).filter(i => {
-    const matchesSearch = (i.name || '').toLowerCase().includes(searchQuery.toLowerCase())
+    const normName = (i.name || '').toLowerCase().replace(/[^a-z0-9а-яіїєґ]/gi, '')
+    const normSearch = searchQuery.toLowerCase().replace(/[^a-z0-9а-яіїєґ]/gi, '')
+    const matchesSearch = normName.includes(normSearch)
     
     if (activeTab === 'pocket') {
       const matchesOwner = !selectedPocketOwner || i.pocket_owner === selectedPocketOwner
