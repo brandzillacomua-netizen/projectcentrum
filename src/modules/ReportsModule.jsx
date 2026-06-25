@@ -19,6 +19,25 @@ import {
 } from 'lucide-react'
 import { useMES } from '../MESContext'
 
+const matchesOperator = (opName, filterVal) => {
+  if (!filterVal || filterVal === 'all') return true;
+  if (!opName) return false;
+  
+  const clean = (str) => str.toLowerCase().replace(/\s+/g, ' ').trim();
+  const oClean = clean(opName);
+  const fClean = clean(filterVal);
+  
+  if (oClean === fClean) return true;
+  
+  const oParts = oClean.split(' ');
+  const fParts = fClean.split(' ');
+  
+  const match1 = fParts.every(p => oParts.includes(p) || oParts.some(op => op.includes(p) || p.includes(op)));
+  const match2 = oParts.every(p => fParts.includes(p) || fParts.some(fp => fp.includes(p) || p.includes(fp)));
+  
+  return match1 || match2;
+};
+
 const ReportsModule = () => {
   const { 
     inventory, 
@@ -43,6 +62,20 @@ const ReportsModule = () => {
   const [endDate, setEndDate] = useState(todayStr)
   const [workCardHistory, setWorkCardHistory] = useState(initialHistory)
   const [isSyncing, setIsSyncing] = useState(false)
+  const [selectedShiftFilter, setSelectedShiftFilter] = useState('all')
+  const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState('all')
+
+  const uniqueOperators = useMemo(() => {
+    const ops = new Set();
+    systemUsers.forEach(u => {
+      const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim();
+      if (fullName) ops.add(fullName);
+    });
+    workCardHistory.forEach(h => {
+      if (h.operator_name) ops.add(h.operator_name);
+    });
+    return Array.from(ops).filter(Boolean).sort();
+  }, [systemUsers, workCardHistory]);
 
   // Функція для завантаження даних за період
   const syncHistory = async (startStr, endStr) => {
@@ -320,43 +353,45 @@ const ReportsModule = () => {
     });
 
     // Add Work Card History
-    workCardHistory.filter(h => filterByDate(h.completed_at)).forEach(h => {
-      // Match by exact login or try to match name loosely
-      const user = systemUsers.find(u => u.login === h.operator_name || `${u.first_name} ${u.last_name}` === h.operator_name);
-      const key = user ? user.login : h.operator_name;
-      
-      if (!stats[key]) {
-        stats[key] = { name: key, position: 'Невідомо', department: '-', produced: 0, scrap: 0, cat1: 0, cat2: 0, cat3: 0, cat4: 0, operations: 0 };
-      }
-      
-      stats[key].produced += Number(h.qty_completed) || 0;
-      stats[key].scrap += Number(h.scrap_qty) || 0;
-      stats[key].operations += 1;
+    workCardHistory
+      .filter(h => filterByDate(h.completed_at) && (selectedShiftFilter === 'all' || h.shift_name === selectedShiftFilter))
+      .forEach(h => {
+        // Match by exact login or try to match name loosely
+        const user = systemUsers.find(u => u.login === h.operator_name || `${u.first_name} ${u.last_name}` === h.operator_name);
+        const key = user ? user.login : h.operator_name;
+        
+        if (!stats[key]) {
+          stats[key] = { name: key, position: 'Невідомо', department: '-', produced: 0, scrap: 0, cat1: 0, cat2: 0, cat3: 0, cat4: 0, operations: 0 };
+        }
+        
+        stats[key].produced += Number(h.qty_completed) || 0;
+        stats[key].scrap += Number(h.scrap_qty) || 0;
+        stats[key].operations += 1;
 
-      // Extract categories if present
-      if (h.qc_scrap_comment && h.qc_scrap_comment.includes('SCRAP_CAT:')) {
-        try {
-          const match = h.qc_scrap_comment.match(/\[SCRAP_CAT:([^\]]+)\]/);
-          if (match) {
-            const cats = JSON.parse(match[1]);
-            stats[key].cat1 += Number(cats.cat1 || 0);
-            stats[key].cat2 += Number(cats.cat2 || 0);
-            stats[key].cat3 += Number(cats.cat3 || 0);
-            stats[key].cat4 += Number(cats.cat4 || 0);
-          }
-        } catch (e) {}
-      }
-    });
+        // Extract categories if present
+        if (h.qc_scrap_comment && h.qc_scrap_comment.includes('SCRAP_CAT:')) {
+          try {
+            const match = h.qc_scrap_comment.match(/\[SCRAP_CAT:([^\]]+)\]/);
+            if (match) {
+              const cats = JSON.parse(match[1]);
+              stats[key].cat1 += Number(cats.cat1 || 0);
+              stats[key].cat2 += Number(cats.cat2 || 0);
+              stats[key].cat3 += Number(cats.cat3 || 0);
+              stats[key].cat4 += Number(cats.cat4 || 0);
+            }
+          } catch (e) {}
+        }
+      });
 
     return Object.values(stats)
-      .filter(s => s.operations > 0 || (searchQuery && s.name.toLowerCase().includes(searchQuery.toLowerCase())))
+      .filter(s => (s.operations > 0 || (searchQuery && s.name.toLowerCase().includes(searchQuery.toLowerCase()))) && matchesOperator(s.name, selectedEmployeeFilter))
       .sort((a, b) => b.produced - a.produced);
-  }, [systemUsers, workCardHistory, startDate, endDate, searchQuery])
+  }, [systemUsers, workCardHistory, startDate, endDate, searchQuery, selectedShiftFilter, selectedEmployeeFilter])
 
   // 3. Scrap Report
   const scrapStats = useMemo(() => {
     const list = workCardHistory
-      .filter(h => Number(h.scrap_qty) > 0 && filterByDate(h.completed_at))
+      .filter(h => Number(h.scrap_qty) > 0 && filterByDate(h.completed_at) && (selectedShiftFilter === 'all' || h.shift_name === selectedShiftFilter) && matchesOperator(h.operator_name, selectedEmployeeFilter))
       .map(h => {
         const nom = nomenclatures.find(n => n.id === h.nomenclature_id);
         
@@ -398,7 +433,7 @@ const ReportsModule = () => {
     }, {});
 
     return { list, totalScrap, byStage };
-  }, [workCardHistory, nomenclatures, startDate, endDate, searchQuery])
+  }, [workCardHistory, nomenclatures, startDate, endDate, searchQuery, selectedShiftFilter, selectedEmployeeFilter])
 
   // 4. General Analytics
   const generalStats = useMemo(() => {
@@ -620,24 +655,26 @@ const ReportsModule = () => {
     });
 
     // Використано фрез з історії деталей
-    workCardHistory.filter(h => filterByDate(h.completed_at)).forEach(h => {
-      if (h.card_info && h.card_info.includes('[CUTTERS_BREAKDOWN:')) {
-        try {
-          const match = h.card_info.match(/\[CUTTERS_BREAKDOWN:({.*?})\]/);
-          if (match && match[1]) {
-            const breakdown = JSON.parse(match[1]);
-            Object.entries(breakdown).forEach(([cutterName, qty]) => {
-              const cleanCutterName = cutterName.trim();
-              if (stats[cleanCutterName]) {
-                stats[cleanCutterName].used += Number(qty) || 0;
-              }
-            });
+    workCardHistory
+      .filter(h => filterByDate(h.completed_at) && (selectedShiftFilter === 'all' || h.shift_name === selectedShiftFilter) && matchesOperator(h.operator_name, selectedEmployeeFilter))
+      .forEach(h => {
+        if (h.card_info && h.card_info.includes('[CUTTERS_BREAKDOWN:')) {
+          try {
+            const match = h.card_info.match(/\[CUTTERS_BREAKDOWN:({.*?})\]/);
+            if (match && match[1]) {
+              const breakdown = JSON.parse(match[1]);
+              Object.entries(breakdown).forEach(([cutterName, qty]) => {
+                const cleanCutterName = cutterName.trim();
+                if (stats[cleanCutterName]) {
+                  stats[cleanCutterName].used += Number(qty) || 0;
+                }
+              });
+            }
+          } catch (e) {
+            // ignore
           }
-        } catch (e) {
-          // ignore
         }
-      }
-    });
+      });
 
     // Фактично на Складі
     (inventory || []).forEach(i => {
@@ -1195,50 +1232,78 @@ const ReportsModule = () => {
             </div>
             {/* Date Range */}
             {activeTab !== 'warehouse' && (
-              <div style={{ display: 'flex', alignItems: 'center', background: '#0a0a0a', borderRadius: '10px', border: '1px solid #222', overflow: 'hidden' }}>
-                <div style={{ display: 'flex', alignItems: 'center', padding: '0 15px', borderRight: '1px solid #222' }}>
-                  <Calendar size={14} color="#888" style={{ marginRight: '8px' }} />
-                  <span style={{ fontSize: '0.75rem', color: '#666', textTransform: 'uppercase', fontWeight: 800 }}>Період:</span>
-                </div>
-                <input 
-                  type="date" 
-                  value={startDate} 
-                  onClick={(e) => e.target.showPicker && e.target.showPicker()}
-                  onChange={(e) => { setStartDate(e.target.value); setQuickPeriod(''); }}
-                  style={{ background: 'transparent', border: 'none', color: startDate ? '#fff' : '#555', padding: '10px 15px', fontSize: '0.85rem', outline: 'none', cursor: 'pointer', fontFamily: 'inherit', colorScheme: 'dark' }}
-                />
-                <span style={{ color: '#555' }}>—</span>
-                <input 
-                  type="date" 
-                  value={endDate} 
-                  onClick={(e) => e.target.showPicker && e.target.showPicker()}
-                  onChange={(e) => { setEndDate(e.target.value); setQuickPeriod(''); }}
-                  style={{ background: 'transparent', border: 'none', color: endDate ? '#fff' : '#555', padding: '10px 15px', fontSize: '0.85rem', outline: 'none', cursor: 'pointer', fontFamily: 'inherit', colorScheme: 'dark' }}
-                />
-                {(startDate || endDate) && (
-                  <button 
-                    onClick={() => { setStartDate(''); setEndDate(''); setQuickPeriod(''); }}
-                    style={{ background: 'transparent', border: 'none', padding: '10px 15px', cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#ef4444', borderLeft: '1px solid #222' }}
-                    title="Очистити період"
-                  >
-                    <X size={14} />
-                  </button>
-                )}
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                {/* Shift Selector */}
                 <select 
-                  onChange={handleQuickDateSelect} 
-                  value={quickPeriod}
-                  style={{ background: '#0a0a0a', border: 'none', borderLeft: '1px solid #222', color: '#ff9000', padding: '10px 15px', fontSize: '0.8rem', outline: 'none', cursor: 'pointer', fontWeight: 800, textTransform: 'uppercase' }}
+                  value={selectedShiftFilter}
+                  onChange={e => setSelectedShiftFilter(e.target.value)}
+                  style={{ background: '#0a0a0a', border: '1px solid #222', color: '#fff', padding: '10px 15px', borderRadius: '10px', fontSize: '0.85rem', outline: 'none', cursor: 'pointer', fontWeight: 'bold' }}
                 >
-                  <option value="" disabled hidden>ОБРАТИ ПЕРІОД</option>
-                  <option value="today">Сьогодні</option>
-                  <option value="yesterday">Вчора</option>
-                  <option value="3days">Останні 3 дні</option>
-                  <option value="week">Останній тиждень</option>
-                  <option value="month">Останній місяць</option>
-                  <option value="quarter">Останній квартал</option>
-                  <option value="halfyear">Останні пів року</option>
-                  <option value="year">Останній рік</option>
+                  <option value="all">-- Всі зміни --</option>
+                  <option value="Зміна 1">Зміна 1</option>
+                  <option value="Зміна 2">Зміна 2</option>
+                  <option value="Зміна 3">Зміна 3</option>
+                  <option value="Зміна 4">Зміна 4</option>
+                  <option value="Без зміни">Без зміни</option>
                 </select>
+
+                {/* Employee Selector */}
+                <select 
+                  value={selectedEmployeeFilter}
+                  onChange={e => setSelectedEmployeeFilter(e.target.value)}
+                  style={{ background: '#0a0a0a', border: '1px solid #222', color: '#fff', padding: '10px 15px', borderRadius: '10px', fontSize: '0.85rem', outline: 'none', cursor: 'pointer', maxWidth: '200px', fontWeight: 'bold' }}
+                >
+                  <option value="all">-- Всі працівники --</option>
+                  {uniqueOperators.map(op => (
+                    <option key={op} value={op}>{op}</option>
+                  ))}
+                </select>
+
+                <div style={{ display: 'flex', alignItems: 'center', background: '#0a0a0a', borderRadius: '10px', border: '1px solid #222', overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', padding: '0 15px', borderRight: '1px solid #222' }}>
+                    <Calendar size={14} color="#888" style={{ marginRight: '8px' }} />
+                    <span style={{ fontSize: '0.75rem', color: '#666', textTransform: 'uppercase', fontWeight: 800 }}>Період:</span>
+                  </div>
+                  <input 
+                    type="date" 
+                    value={startDate} 
+                    onClick={(e) => e.target.showPicker && e.target.showPicker()}
+                    onChange={(e) => { setStartDate(e.target.value); setQuickPeriod(''); }}
+                    style={{ background: 'transparent', border: 'none', color: startDate ? '#fff' : '#555', padding: '10px 15px', fontSize: '0.85rem', outline: 'none', cursor: 'pointer', fontFamily: 'inherit', colorScheme: 'dark' }}
+                  />
+                  <span style={{ color: '#555' }}>—</span>
+                  <input 
+                    type="date" 
+                    value={endDate} 
+                    onClick={(e) => e.target.showPicker && e.target.showPicker()}
+                    onChange={(e) => { setEndDate(e.target.value); setQuickPeriod(''); }}
+                    style={{ background: 'transparent', border: 'none', color: endDate ? '#fff' : '#555', padding: '10px 15px', fontSize: '0.85rem', outline: 'none', cursor: 'pointer', fontFamily: 'inherit', colorScheme: 'dark' }}
+                  />
+                  {(startDate || endDate) && (
+                    <button 
+                      onClick={() => { setStartDate(''); setEndDate(''); setQuickPeriod(''); }}
+                      style={{ background: 'transparent', border: 'none', padding: '10px 15px', cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#ef4444', borderLeft: '1px solid #222' }}
+                      title="Очистити період"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                  <select 
+                    onChange={handleQuickDateSelect} 
+                    value={quickPeriod}
+                    style={{ background: '#0a0a0a', border: 'none', borderLeft: '1px solid #222', color: '#ff9000', padding: '10px 15px', fontSize: '0.8rem', outline: 'none', cursor: 'pointer', fontWeight: 800, textTransform: 'uppercase' }}
+                  >
+                    <option value="" disabled hidden>ОБРАТИ ПЕРІОД</option>
+                    <option value="today">Сьогодні</option>
+                    <option value="yesterday">Вчора</option>
+                    <option value="3days">Останні 3 дні</option>
+                    <option value="week">Останній тиждень</option>
+                    <option value="month">Останній місяць</option>
+                    <option value="quarter">Останній квартал</option>
+                    <option value="halfyear">Останні пів року</option>
+                    <option value="year">Останній рік</option>
+                  </select>
+                </div>
               </div>
             )}
           </div>
