@@ -24,7 +24,7 @@ const DashboardModule = () => {
         .map(t => t.order_id)
         .filter(Boolean)
     )
-    return orders.filter(o => activeOrderIds.has(o.id))
+    return orders.filter(o => activeOrderIds.has(o.id) && !(o.order_num && (o.order_num.startsWith('ВБ') || o.order_num.toUpperCase().startsWith('VB'))))
   }, [tasks, orders])
 
   const filteredWorkCards = useMemo(() => {
