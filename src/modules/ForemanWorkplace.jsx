@@ -276,14 +276,17 @@ const ForemanWorkplace = () => {
       .from('work_cards')
       .select('id, task_id, nomenclature_id, quantity, operation, status, card_info')
       .in('task_id', taskIds)
-      .eq('status', 'completed')
       .then(async ({ data: cardsData, error: cardsError }) => {
         if (cardsError) {
-          console.error('Error fetching completed cards:', cardsError);
+          console.error('Error fetching cards for static progress:', cardsError);
           return;
         }
-        setStaticCompletedCards(cardsData || []);
+        
+        // Filter out completed ones to update staticCompletedCards state (reactive split)
+        const completedCards = (cardsData || []).filter(c => c.status === 'completed');
+        setStaticCompletedCards(completedCards);
 
+        // Fetch history for ALL cards (completed and active) to ensure scrap quantities are 100% accurate
         const cardIds = (cardsData || []).map(c => c.id);
         if (cardIds.length > 0) {
           const chunkSize = 500;
@@ -293,7 +296,7 @@ const ForemanWorkplace = () => {
             promises.push(
               supabase
                 .from('work_card_history')
-                .select('card_id, nomenclature_id, scrap_qty')
+                .select('id, card_id, nomenclature_id, scrap_qty')
                 .in('card_id', chunk)
             );
           }
@@ -1209,6 +1212,16 @@ const ForemanWorkplace = () => {
                       )}
                     </div>
                   </div>
+                  {(() => {
+                    const prodId = order?.nomenclature_id || order?.order_items?.[0]?.nomenclature_id
+                    const prod = nomenclatures?.find(n => String(n.id) === String(prodId))
+                    const qty = task.planned_sets || order?.quantity || 0
+                    return (
+                      <div style={{ fontSize: '0.85rem', color: isCompleted ? '#555' : '#eaeaea', fontWeight: 900, margin: '4px 0' }}>
+                        {prod ? prod.name : '—'} • <span style={{ color: isCompleted ? '#777' : '#ff9000' }}>{qty} шт.</span>
+                      </div>
+                    )
+                  })()}
                   <div style={{ fontSize: '0.7rem', color: isCompleted ? '#333' : '#555' }}>{order?.customer}</div>
                   {isCompleted && <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 900, marginTop: '4px' }}>ВИКОНАНО</div>}
                   {isReady && !isCompleted && (
@@ -1526,8 +1539,8 @@ const ForemanWorkplace = () => {
                             <th style={{ padding: '12px 6px', textAlign: 'center' }}>МАТЕРІАЛ</th>
                             <th style={{ padding: '12px 6px', textAlign: 'center' }}>ШТ/Л</th>
                             <th style={{ padding: '12px 6px', textAlign: 'center', color: '#10b981' }}>ЛИСТІВ</th>
-                            <th style={{ padding: '12px 10px', width: '14%' }}>ВЕРСТАТ</th>
-                            <th style={{ padding: '12px 6px', textAlign: 'center', color: '#3b82f6' }}>ЗАВАНТ.</th>
+                            <th style={{ padding: '12px 10px', width: '12%' }}>ВЕРСТАТ</th>
+                            <th style={{ padding: '12px 6px', textAlign: 'center', color: '#3b82f6', width: '8%' }}>ЗАВАНТ.</th>
                             {!isReworkOrder && <th style={{ padding: '12px 6px', textAlign: 'center', color: '#ef4444' }}>БЗ</th>}
                             <th style={{ padding: '12px 6px', textAlign: 'center' }}>ДІЇ</th>
                           </tr>
@@ -1560,8 +1573,9 @@ const ForemanWorkplace = () => {
 
                               const existing = taskCards.filter(c => String(c.nomenclature_id) === String(nomId))
                               const productionCards = existing.filter(c => c.operation !== 'Склад БЗ')
-                              const reworks = productionCards.filter(c => (c.card_info || '').includes('[REDO]'))
-                              const redoCount = reworks.length
+                              const allRedos = existing.filter(c => c.operation !== 'Склад БЗ' && (c.card_info || '').includes('[REDO]'))
+                              const redoCount = allRedos.length
+                              const activeProductionCards = productionCards.filter(c => !(c.card_info || '').includes('[REDO]'))
 
                               const rawRowMachineName = ((task.plan_snapshot || {})[String(nomId)]?.machine || (task.plan_snapshot || {})[String(nomId)]?.selected_machine || selectedMachines[rowId] || '')
                                 || (productionCards.length > 0 && productionCards[0].machine && productionCards[0].machine !== 'Не вказано' ? productionCards[0].machine : '')
@@ -1592,7 +1606,6 @@ const ForemanWorkplace = () => {
                                 }, 0)
                               }
 
-                              totalTargetLoads += redoCount
                               const surplus = sheets > 0 ? Math.max(0, (sheets * unitsPerSheet) - plan) : 0
 
                               return (
@@ -1773,10 +1786,10 @@ const ForemanWorkplace = () => {
                                   <td style={{ padding: '10px 4px', textAlign: 'center', color: '#3b82f6', fontWeight: 1000, fontSize: '1.2rem' }}>
                                     {rowMachineName || isSplitMode ? (
                                       <>
-                                        <span style={{ color: productionCards.length < totalTargetLoads ? '#444' : '#3b82f6' }}>{productionCards.length}</span>
+                                        <span style={{ color: activeProductionCards.length < totalTargetLoads ? '#444' : '#3b82f6' }}>{activeProductionCards.length}</span>
                                         <span style={{ color: '#222', margin: '0 5px' }}>/</span>
                                         <span>{totalTargetLoads}</span>
-                                        {redoCount > 0 && <span style={{ fontSize: '0.7rem', color: '#ef4444', marginLeft: '5px' }}>+{redoCount}</span>}
+                                        {redoCount > 0 && <span style={{ fontSize: '0.9rem', color: '#ef4444', marginLeft: '5px', fontWeight: 900 }}>+{redoCount}</span>}
                                       </>
                                     ) : (
                                       <span style={{ color: '#222', fontSize: '0.8rem' }}>—</span>
@@ -1914,20 +1927,34 @@ const ForemanWorkplace = () => {
                         }
                       }
 
-                      const unitsPerSheet = snapshot ? snapshot.units_per_sheet : (Number(nom?.units_per_sheet) || 1)
-                      const stockBZ = snapshot ? (snapshot.stock || 0) : 0
-                      const totalSheets = activeCards.reduce((sum, c) => {
-                        if (c.operation === 'Склад БЗ') return sum
-                        const cardScrap = cardScrapCache[c.id] || 0
-                        const originalQty = (Number(c.quantity) || 0) + cardScrap
-                        return sum + (c.actualSheets ? Number(c.actualSheets) : Math.ceil(originalQty / unitsPerSheet))
-                      }, 0)
-                      const plannedSheets = snapshot ? (Number(snapshot.sheets) || 0) : 0
-                      const totalSheetsMax = Math.max(plannedSheets, totalSheets)
-                      const totalBZ = (totalSheetsMax * unitsPerSheet) + stockBZ - need
-                      const bzResult = totalBZ - groupScrap
-                      const activeProductionCards = activeCards.filter(c => c.operation !== 'Склад БЗ')
-                      const shortage = activeProductionCards.length === 0 ? 0 : (bzResult < 0 ? Math.abs(bzResult) : 0)
+                      // Find all cards (active and archived) for this order and nomenclature
+                      const orderCards = [
+                        ...(workCards || []).filter(c => c.order_id === task.order_id && String(c.nomenclature_id) === String(nom?.id)),
+                        ...(archiveCards || []).filter(c => String(c.nomenclature_id) === String(nom?.id))
+                      ]
+
+                      const qCutWait = orderCards.filter(c => c.operation === 'Розкрій' && c.status === 'new').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+                      const qCut = orderCards.filter(c => c.operation === 'Розкрій' && c.status === 'in-progress').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+                      const qCutBuf = orderCards.filter(c => c.operation === 'Розкрій' && c.status === 'at-buffer').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+                      const qGalt = orderCards.filter(c => c.operation === 'Галтовка' && c.status === 'in-progress').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+                      const qGaltBuf = orderCards.filter(c => c.operation === 'Галтовка' && c.status === 'at-buffer').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+                      const qPriyCards = orderCards.filter(c => c.operation === 'Прийомка').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+                      const qSortAct = orderCards.filter(c => c.operation === 'Сортування' && ['in-progress', 'at-buffer'].includes(c.status)).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+                      const qSortCards = orderCards.filter(c => c.status === 'at-shop2-buffer').reduce((sum, c) => sum + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0)), 0)
+                      const qMalWait = orderCards.filter(c => ['Фарбування', 'Малярка'].includes(c.operation) && c.status === 'new').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+                      const qMal = orderCards.filter(c => ['Фарбування', 'Малярка'].includes(c.operation) && c.status === 'in-progress').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+                      const qMalBuf = orderCards.filter(c => ['Фарбування', 'Малярка'].includes(c.operation) && c.status === 'at-buffer').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+                      const qPres = orderCards.filter(c => c.operation === 'Пресування' && ['new', 'in-progress'].includes(c.status)).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+                      const qPresBuf = orderCards.filter(c => c.operation === 'Пресування' && c.status === 'at-buffer').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+                      const qDoop = orderCards.filter(c => c.operation === 'Доопрацювання' && ['new', 'in-progress'].includes(c.status)).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+                      const qDoopBuf = orderCards.filter(c => c.operation === 'Доопрацювання' && c.status === 'at-buffer').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+
+                      const qBz = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom?.id) && i.type === 'bz').reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
+                      const qBzShop2 = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom?.id) && i.type === 'bz_shop2').reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
+                      const qSgp = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom?.id) && (i.type === 'finished' || i.warehouse === 'sgp' || i.warehouse === 'SGP')).reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
+
+                      const sumVal = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriyCards + qSortAct + qSortCards + qMalWait + qMal + qMalBuf + qPres + qPresBuf + qDoop + qDoopBuf + qBz + qBzShop2 + qSgp
+                      const shortage = Math.max(0, need - sumVal)
 
                       const stages = activeCards.reduce((acc, c) => {
                         if (c.status === 'new') acc.waiting++

@@ -479,8 +479,23 @@ export function useData() {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (payload) => {
         if (payload.eventType === 'UPDATE') {
-          setTasks(prev => prev.map(t => t.id === payload.new.id ? { ...t, ...payload.new } : t))
-          setTasks(prev => prev.some(t => t.id === payload.new.id) ? prev : [payload.new, ...prev])
+          setTasks(prev => {
+            const exists = prev.some(t => t.id === payload.new.id);
+            if (exists) {
+              return prev.map(t => {
+                if (t.id === payload.new.id) {
+                  const merged = { ...t, ...payload.new };
+                  if (t.plan_snapshot && !payload.new.plan_snapshot) {
+                    merged.plan_snapshot = t.plan_snapshot;
+                  }
+                  return merged;
+                }
+                return t;
+              });
+            } else {
+              return [payload.new, ...prev];
+            }
+          });
           // Push відвантажувальникам та директору коли партія стає готовою до відвантаження
           const wasPackaged = payload.old?.plan_snapshot?._metadata?.is_packaged
           const isNowPackaged = payload.new?.plan_snapshot?._metadata?.is_packaged

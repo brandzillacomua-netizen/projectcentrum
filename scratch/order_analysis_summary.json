@@ -1,0 +1,276 @@
+{
+  "order": {
+    "id": "53741df6-bd90-476b-9000-2c4bec9e9080",
+    "order_num": "22062026-03",
+    "customer": "Київ К",
+    "quantity": 10000,
+    "status": "in-progress"
+  },
+  "parent_nomenclature": {
+    "id": "26a77a50-d932-4a02-a65d-b4cd608ec6ac",
+    "name": "Рама F10",
+    "type": "product"
+  },
+  "bom": [
+    {
+      "child_id": "005b2814-d0af-4f20-acb9-437001fe03c6",
+      "child_name": "Пластина VTX SMA",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "06d70cda-761b-43bf-967a-ca3303f6c7de",
+      "child_name": "Гвинт CH|SH М3*16",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "0c8bfad4-8d31-40d8-a2b5-d87c8529e331",
+      "child_name": "Гвинт CH|SH М3*14",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "127f8a20-31bc-4137-8fa4-bf5ed90fccb3",
+      "child_name": "Задня накладка Гума",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "1b759021-d634-49bd-9ab8-0df95c914846",
+      "child_name": "Гвинт BH М3*12",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "1cb8b816-6e0a-4e11-8f7c-704f2d65ab42",
+      "child_name": "Панель рами задня права, F10",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "244e0683-14c1-469e-b15d-af6c842dabbd",
+      "child_name": "Демпфер камери рами лівий, F10",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "24f8b360-8f5a-4d8d-8348-f3ae6d8447c0",
+      "child_name": "Панель рами передня ліва, F10",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "26fbeb77-1ca5-4b2f-82e1-2105ff6e58b1",
+      "child_name": "Гвинт BH М3*10",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "2ec991f8-e65a-4ecd-8cdd-abb315ee21a9",
+      "child_name": "Гвинт FH М3*8",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "343417a7-4a5c-4e31-8f44-18abb41defec",
+      "child_name": "Київ К-ІП9/10/31/36/37-9-10-11-Х-3-39",
+      "child_type": "part"
+    },
+    {
+      "child_id": "3a98ae5b-2a5e-407d-9887-eead1fce21ff",
+      "child_name": "Центральна накладка Гума",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "421771f1-4ddb-40de-8ef3-1bcaf9251e59",
+      "child_name": "Фронтальна стійка камери права, F10",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "50947afc-4e40-4165-a682-780275d5feda",
+      "child_name": "Київ К-ІП9/10/31/36/37-9-10-11-Н-3-14",
+      "child_type": "part"
+    },
+    {
+      "child_id": "526c6eb2-a188-4dd8-959b-c7a1226590f6",
+      "child_name": "Стійка 25 мм М3x25мм",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "573fefec-534a-4e8b-ade2-c254786501d4",
+      "child_name": "Гвинт FH М3*10",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "5b6c4a1a-3fc2-4069-bd35-6ca9e5e69093",
+      "child_name": "Гвинт BH М2*8",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "5ecf63e5-802d-4f98-8291-aad9a52bfaa4",
+      "child_name": "Київ К-ІП9/10/31/36/37-9-10-11-В-3-30",
+      "child_type": "part"
+    },
+    {
+      "child_id": "6249bbc0-2bf1-467a-9243-c88f990edf9a",
+      "child_name": "Кронштейн антенний відеопередавача рами кронштейн для пластини VTX SMA, F10",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "64b727fd-3abd-493c-98fd-7581140b42b2",
+      "child_name": "Гвинт BH М3*13",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "6c70b5fd-e502-4621-b891-7ec3b5b4b732",
+      "child_name": "Гвинт BH М3*22",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "72cdc4a3-b035-4726-9ac4-5344fabc48f1",
+      "child_name": "Фронтальна стійка камери ліва, F10",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "735746b4-dbad-43fc-ad91-e831217e532b",
+      "child_name": "Гвинт BH М3*24",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "738db6a7-1f21-4a2b-9bde-d3f5a57da18b",
+      "child_name": "Гвинт CH|SH М3*13",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "7602b018-75a7-474b-83bb-94a3431c290c",
+      "child_name": "Панель рами передня права, F10",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "7ab3e3d3-9515-4ae9-9737-d8b93259b719",
+      "child_name": "Демпфер камери рами правий, F10",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "8296a812-39eb-41e6-a4f5-956ec96ef4cd",
+      "child_name": "Прес гайка",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "92600d5d-634f-457d-b53c-f0a0b18c9b64",
+      "child_name": "Тримач кабелю 10x65 Пластик",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "a3222c06-607a-45f0-9749-75d164135d11",
+      "child_name": "Гвинт CH|SH М3*20",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "b35f45b6-1473-4a21-a795-6188dedf75b6",
+      "child_name": "Стійка 32 мм М3x32мм",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "b5c4dd36-daa8-4d11-b3c0-0d498a675afe",
+      "child_name": "Гвинт BH М2.5*6",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "b77e0883-0af2-40a4-a834-a1e47b6570da",
+      "child_name": "Київ К-ІП9-10-П-7-46",
+      "child_type": "part"
+    },
+    {
+      "child_id": "bf5e0340-e9a8-41e3-ad7b-090cdcb80b16",
+      "child_name": "Гайка М3, з фланцем",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "c61f8d74-1a0c-4fbc-9579-7657bd2cb9fb",
+      "child_name": "Гвинт BH М2*7",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "cd510a8c-fb61-461d-8ccf-7dc081b01fa9",
+      "child_name": "Опора рами Універсальна опора, F7-F11",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "d5cb0afd-94ba-4471-b7a0-36c94c559fba",
+      "child_name": "Гвинт BH М2*5",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "e0f58ca0-eb79-49fc-afd6-39a4f8d2a665",
+      "child_name": "Стійка рами М3 32 мм D6(чорна, алюміній)",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "e28167a9-4daf-4a6e-88fc-bb7c180b9716",
+      "child_name": "Панель рами задня ліва, F10",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "f0e577c7-6052-4b1b-91de-0c546ac8c826",
+      "child_name": "Гвинт BH М3*11",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "f208f0d4-6c7e-444b-97a4-5d70cce9d5b7",
+      "child_name": "Гвинт BH М2*4",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "f4390779-faae-4c5b-ba27-faf396488382",
+      "child_name": "Гайка М3, нейлонова кріплення стека",
+      "child_type": "hardware"
+    },
+    {
+      "child_id": "fae30259-3073-4aaa-b240-b26c88bfb3be",
+      "child_name": "Гвинт Гайка М3",
+      "child_type": "hardware"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "0940169f-6565-4d43-97b1-a3760fb7d3fb",
+      "step": "Пресування [ЦЕХ №2]",
+      "status": "in-progress",
+      "good_qty": 0,
+      "scrap_qty": 0,
+      "planned_sets": 10000
+    },
+    {
+      "id": "c7055204-cbad-4f74-bae6-4a8a79c14b7e",
+      "step": "Розкрій",
+      "status": "in-progress",
+      "good_qty": 0,
+      "scrap_qty": 0,
+      "planned_sets": 10000
+    }
+  ],
+  "work_cards_summary": {
+    "total": 234,
+    "by_status": {
+      "completed": 5,
+      "in-progress": 14,
+      "at-shop2-buffer": 86,
+      "new": 52,
+      "at-buffer": 77
+    },
+    "by_nomenclature": {
+      "Київ К-ІП9/10/31/36/37-9-10-11-В-3-30": 10585,
+      "Київ К-ІП9/10/31/36/37-9-10-11-Н-3-14": 10647,
+      "Київ К-ІП9/10/31/36/37-9-10-11-Х-3-39": 10491,
+      "Київ К-ІП9-10-П-7-46": 41682
+    },
+    "by_operation": {
+      "Склад БЗ": 4,
+      "Розкрій": 61,
+      "Сортування": 86,
+      "Фарбування": 3,
+      "Прийомка": 36,
+      "Галтовка": 42,
+      "Пакування/СГП": 1,
+      "Пресування": 1
+    },
+    "nomenclatures_in_cards": [
+      "Київ К-ІП9/10/31/36/37-9-10-11-В-3-30",
+      "Київ К-ІП9/10/31/36/37-9-10-11-Н-3-14",
+      "Київ К-ІП9/10/31/36/37-9-10-11-Х-3-39",
+      "Київ К-ІП9-10-П-7-46"
+    ]
+  }
+}
