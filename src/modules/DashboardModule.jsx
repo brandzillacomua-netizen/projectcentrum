@@ -1,15 +1,15 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { 
-  ArrowLeft, 
-  LayoutDashboard, 
-  Search, 
-  RefreshCw 
+import {
+  ArrowLeft,
+  LayoutDashboard,
+  Search,
+  RefreshCw
 } from 'lucide-react'
 import { useMES } from '../MESContext'
 
 const DashboardModule = () => {
-  const { currentUser, workCards, inventory, nomenclatures, fetchData, orders, bomItems, tasks, supabase } = useMES()
+  const { currentUser, workCards, inventory, nomenclatures, fetchData, orders, bomItems, tasks, supabase, workCardHistory } = useMES()
   const [wipOnly, setWipOnly] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -108,13 +108,13 @@ const DashboardModule = () => {
       const productDemand = {}
       const order = orders.find(o => o.id === selectedOrderId)
       if (order) {
-         if (order.order_items && order.order_items.length > 0) {
-           order.order_items.forEach(it => {
-             productDemand[it.nomenclature_id] = (productDemand[it.nomenclature_id] || 0) + (Number(it.quantity) || 0)
-           })
-         } else if (order.nomenclature_id) {
-           productDemand[order.nomenclature_id] = (Number(order.quantity) || 0)
-         }
+        if (order.order_items && order.order_items.length > 0) {
+          order.order_items.forEach(it => {
+            productDemand[it.nomenclature_id] = (productDemand[it.nomenclature_id] || 0) + (Number(it.quantity) || 0)
+          })
+        } else if (order.nomenclature_id) {
+          productDemand[order.nomenclature_id] = (Number(order.quantity) || 0)
+        }
       }
       if (taskWithSnapshot && taskWithSnapshot.plan_snapshot) {
         Object.keys(taskWithSnapshot.plan_snapshot).forEach(nomId => {
@@ -125,7 +125,7 @@ const DashboardModule = () => {
     }
 
     const activeOrders = orders.filter(o => o.status !== 'completed' && o.status !== 'shipped' && o.status !== 'cancelled')
-    
+
     const productDemand = {}
     activeOrders.forEach(o => {
       const shipped = shippedQuantities[o.id] || 0
@@ -139,7 +139,7 @@ const DashboardModule = () => {
         productDemand[o.nomenclature_id] = (productDemand[o.nomenclature_id] || 0) + remainingQty
       }
     })
-    
+
     const globalDemand = {}
     bomItems.forEach(b => {
       if (productDemand[b.parent_id]) {
@@ -157,13 +157,13 @@ const DashboardModule = () => {
     tasks.forEach(t => {
       const order = orders.find(o => String(o.id) === String(t.order_id))
       if (order) {
-         let parentId = order.nomenclature_id
-         if (!parentId && order.order_items && order.order_items.length > 0) {
-           parentId = order.order_items[0].nomenclature_id
-         }
-         if (parentId) {
-           map[t.id] = String(parentId)
-         }
+        let parentId = order.nomenclature_id
+        if (!parentId && order.order_items && order.order_items.length > 0) {
+          parentId = order.order_items[0].nomenclature_id
+        }
+        if (parentId) {
+          map[t.id] = String(parentId)
+        }
       }
     })
     return map
@@ -176,6 +176,109 @@ const DashboardModule = () => {
     const totalsAcc = { qCutWait: 0, qCut: 0, qCutBuf: 0, qGalt: 0, qGaltBuf: 0, qPriy: 0, qSortAct: 0, qSort: 0, qMalWait: 0, qMal: 0, qMalBuf: 0, qPres: 0, qPresBuf: 0, qDoop: 0, qDoopBuf: 0, qSgp: 0, qBz: 0, qScrap: 0, sum: 0 }
 
     if (!nomenclatures || !bomItems || !orders) return { groupedDashboardData: [], totals: totalsAcc, productTrends: {} }
+
+    // Sequential allocation of global stock to active orders (oldest first)
+    const sortedOrdersForAlloc = [...orders]
+      .filter(o => o.status !== 'completed' && o.status !== 'shipped' && o.status !== 'cancelled')
+      .sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0))
+
+    const sgpRemaining = {}
+    const bzRemaining = {}
+    const bzShop2Remaining = {}
+
+    ;(inventory || []).forEach(i => {
+      const nomId = String(i.nomenclature_id)
+      const qty = Number(i.total_qty) || 0
+      if (i.type === 'finished' || i.warehouse === 'sgp' || i.warehouse === 'SGP') {
+        sgpRemaining[nomId] = (sgpRemaining[nomId] || 0) + qty
+      } else if (i.type === 'bz') {
+        bzRemaining[nomId] = (bzRemaining[nomId] || 0) + qty
+      } else if (i.type === 'bz_shop2') {
+        bzShop2Remaining[nomId] = (bzShop2Remaining[nomId] || 0) + qty
+      }
+    })
+
+    const orderAllocatedSgp = {}
+    const orderAllocatedBz = {}
+    const orderAllocatedBzShop2 = {}
+
+    sortedOrdersForAlloc.forEach(order => {
+      orderAllocatedSgp[order.id] = {}
+      orderAllocatedBz[order.id] = {}
+      orderAllocatedBzShop2[order.id] = {}
+
+      let prodId = order.nomenclature_id
+      if (!prodId && order.order_items && order.order_items.length > 0) {
+        prodId = order.order_items[0].nomenclature_id
+      }
+      if (!prodId) return
+      prodId = String(prodId)
+
+      const orderTasks = tasks?.filter(t => t.order_id === order.id) || []
+      const plannedTask = orderTasks.find(t => t.planned_sets) || orderTasks[0]
+      const totalDemand = Number(plannedTask?.planned_sets) || Number(order.order_items?.[0]?.quantity) || Number(order.quantity) || 0
+
+      const orderBoms = []
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+      const taskWithSnapshot = orderTasks.find(t => t.plan_snapshot && Object.keys(t.plan_snapshot).some(k => uuidRegex.test(k)))
+
+      if (taskWithSnapshot) {
+        const plannedSets = Number(taskWithSnapshot.planned_sets) || 1
+        Object.entries(taskWithSnapshot.plan_snapshot).forEach(([childId, entry]) => {
+          if (!uuidRegex.test(childId)) return
+          const need = Number(entry.need) || 0
+          orderBoms.push({
+            child_id: childId,
+            quantity_per_parent: plannedSets > 0 ? Math.round(need / plannedSets) : need
+          })
+        })
+      } else {
+        bomItems.filter(b => String(b.parent_id) === prodId).forEach(b => {
+          orderBoms.push({
+            child_id: String(b.child_id),
+            quantity_per_parent: Number(b.quantity_per_parent) || 1
+          })
+        })
+      }
+
+      orderBoms.forEach(bomEntry => {
+        const childId = String(bomEntry.child_id)
+        const qtyPerProduct = Number(bomEntry.quantity_per_parent) || 1
+        const needQty = totalDemand * qtyPerProduct
+
+        let remainingNeed = needQty
+
+        // Allocate SGP
+        if (sgpRemaining[childId] > 0) {
+          const alloc = Math.min(sgpRemaining[childId], remainingNeed)
+          orderAllocatedSgp[order.id][childId] = alloc
+          sgpRemaining[childId] -= alloc
+          remainingNeed -= alloc
+        } else {
+          orderAllocatedSgp[order.id][childId] = 0
+        }
+
+        // Allocate BZ
+        if (bzRemaining[childId] > 0) {
+          const alloc = Math.min(bzRemaining[childId], remainingNeed)
+          orderAllocatedBz[order.id][childId] = alloc
+          bzRemaining[childId] -= alloc
+          remainingNeed -= alloc
+        } else {
+          orderAllocatedBz[order.id][childId] = 0
+        }
+
+        // Allocate BZ Shop2
+        if (bzShop2Remaining[childId] > 0) {
+          const alloc = Math.min(bzShop2Remaining[childId], remainingNeed)
+          orderAllocatedBzShop2[order.id][childId] = alloc
+          bzShop2Remaining[childId] -= alloc
+          remainingNeed -= alloc
+        } else {
+          orderAllocatedBzShop2[order.id][childId] = 0
+        }
+      })
+    })
 
     const parts = nomenclatures.filter(n => n.type === 'part')
     const parentProducts = nomenclatures.filter(n => n.type === 'product')
@@ -218,18 +321,18 @@ const DashboardModule = () => {
 
       if (selectedOrderId && order.id !== selectedOrderId) return
 
-      const orderTasks = tasks.filter(t => t.order_id === order.id)
+      const orderTasks = tasks?.filter(t => t.order_id === order.id) || []
       const taskWithSnapshot = orderTasks.find(t => t.plan_snapshot && Object.keys(t.plan_snapshot).some(k => !k.startsWith('_') && k !== 'materialSummary'))
 
       if (taskWithSnapshot) {
         const plannedSets = Number(taskWithSnapshot.planned_sets) || 1
         if (!activeParentToChildren[parentId]) activeParentToChildren[parentId] = {}
-        
+
         Object.entries(taskWithSnapshot.plan_snapshot).forEach(([childId, entry]) => {
           if (childId.startsWith('_') || ['materialSummary', 'selectedCutters', 'consumables'].includes(childId)) return
           const need = Number(entry.need) || 0
           const qtyPerParent = plannedSets > 0 ? Math.round(need / plannedSets) : need
-          
+
           activeParentToChildren[parentId][childId] = qtyPerParent
 
           if (!childToParentsMap[childId]) childToParentsMap[childId] = new Set()
@@ -277,24 +380,24 @@ const DashboardModule = () => {
         const specificDemand = isOther ? 0 : (demandData.productDemand[parentId] || 0) * qtyPerProduct
 
         const getQty = (operation, statuses) => {
-           return (filteredWorkCards || []).filter(c => {
-              if (String(c.nomenclature_id) !== String(nom.id)) return false
-              // Filter by order via taskParentMap IF not "other"
-              if (!isOther && c.task_id && taskParentMap[c.task_id]) {
-                 if (taskParentMap[c.task_id] !== String(parentId)) return false
-              }
-              const matchOp = Array.isArray(operation) ? operation.includes(c.operation) : c.operation === operation
-              const matchStat = Array.isArray(statuses) ? statuses.includes(c.status) : c.status === statuses
-              return matchOp && matchStat
-           }).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+          return (filteredWorkCards || []).filter(c => {
+            if (String(c.nomenclature_id) !== String(nom.id)) return false
+            // Filter by order via taskParentMap IF not "other"
+            if (!isOther && c.task_id && taskParentMap[c.task_id]) {
+              if (taskParentMap[c.task_id] !== String(parentId)) return false
+            }
+            const matchOp = Array.isArray(operation) ? operation.includes(c.operation) : c.operation === operation
+            const matchStat = Array.isArray(statuses) ? statuses.includes(c.status) : c.status === statuses
+            return matchOp && matchStat
+          }).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
         }
 
         const getQtySort = () => {
-           return (filteredWorkCards || []).filter(c => {
-              if (String(c.nomenclature_id) !== String(nom.id)) return false
-              if (!isOther && c.task_id && taskParentMap[c.task_id] && taskParentMap[c.task_id] !== String(parentId)) return false
-              return c.status === 'at-shop2-buffer'
-           }).reduce((sum, c) => sum + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0)), 0)
+          return (filteredWorkCards || []).filter(c => {
+            if (String(c.nomenclature_id) !== String(nom.id)) return false
+            if (!isOther && c.task_id && taskParentMap[c.task_id] && taskParentMap[c.task_id] !== String(parentId)) return false
+            return c.status === 'at-shop2-buffer'
+          }).reduce((sum, c) => sum + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0)), 0)
         }
 
         const qCutWait = getQty(['Розкрій'], 'new')
@@ -303,16 +406,14 @@ const DashboardModule = () => {
         const qGalt = getQty('Галтовка', 'in-progress')
         const qGaltBuf = getQty('Галтовка', 'at-buffer')
         const qPriyCards = getQty('Прийомка', ['new', 'in-progress', 'at-buffer'])
-        
+
         const qPriyInv = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id) && i.type === 'semi').reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
-        const qPriy = Math.max(qPriyCards, qPriyInv) // Inventory is global, so attribute to Other or just don't duplicate. Wait! Let's duplicate it for now so they see SGP/Semi globally like before.
-        // Wait, if I use `isOther ? qPriyInv : 0`, they won't see inventory in order groups.
-        // Let's use qPriyInv directly so it works like before.
-        
+        const qPriy = Math.max(qPriyCards, qPriyInv)
+
         const qSortAct = getQty('Сортування', ['in-progress', 'at-buffer'])
         const qSortCards = getQtySort()
         const qSortInv = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id) && i.type === 'semi_shop2').reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
-        const qSort = Math.max(qSortCards, isOther ? qSortInv : qSortInv)
+        const qSort = Math.max(qSortCards, qSortInv)
 
         const qMalWait = getQty(['Фарбування', 'Малярка'], 'new')
         const qMal = getQty(['Фарбування', 'Малярка'], 'in-progress')
@@ -322,9 +423,43 @@ const DashboardModule = () => {
         const qDoop = getQty('Доопрацювання', ['new', 'in-progress'])
         const qDoopBuf = getQty('Доопрацювання', 'at-buffer')
 
-        const qSgp = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id) && (i.type === 'finished' || i.warehouse === 'sgp' || i.warehouse === 'SGP')).reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
-        const qBz = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id) && i.type === 'bz').reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
-        const qScrap = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id) && String(i.type).startsWith('scrap')).reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
+        // Allocate SGP / BZ stock for the spreadsheet replica view
+        let qSgp = 0
+        let qBz = 0
+        let qScrap = 0
+
+        if (selectedOrderId) {
+          const orderTasks = tasks?.filter(t => t.order_id === selectedOrderId) || []
+          const orderTaskIds = orderTasks.map(t => t.id)
+          qScrap = (workCardHistory || [])
+            .filter(h => String(h.nomenclature_id) === String(nom.id) && h.task_id && orderTaskIds.includes(h.task_id))
+            .reduce((sum, h) => sum + (Number(h.scrap_qty) || 0), 0)
+        } else {
+          qScrap = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id) && String(i.type).startsWith('scrap')).reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
+        }
+
+        if (selectedOrderId) {
+          qSgp = orderAllocatedSgp[selectedOrderId]?.[nom.id] || 0
+          qBz = orderAllocatedBz[selectedOrderId]?.[nom.id] || 0
+        } else {
+          const activeOrdersForParent = activeOrders.filter(o => {
+            let pId = o.nomenclature_id
+            if (!pId && o.order_items && o.order_items.length > 0) {
+              pId = o.order_items[0].nomenclature_id
+            }
+            return String(pId) === String(parentId)
+          })
+
+          if (activeOrdersForParent.length > 0) {
+            activeOrdersForParent.forEach(o => {
+              qSgp += orderAllocatedSgp[o.id]?.[nom.id] || 0
+              qBz += orderAllocatedBz[o.id]?.[nom.id] || 0
+            })
+          } else {
+            qSgp = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id) && (i.type === 'finished' || i.warehouse === 'sgp' || i.warehouse === 'SGP')).reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
+            qBz = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id) && i.type === 'bz').reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
+          }
+        }
 
         const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriyCards + qSortAct + qSortCards + qMalWait + qMal + qMalBuf + qPres + qPresBuf + qDoop + qDoopBuf + qSgp + qBz
 
@@ -333,25 +468,34 @@ const DashboardModule = () => {
           name: nom.name,
           code: nom.code || '',
           type: nom.type,
-          demand: specificDemand,
+          demand: Math.round(specificDemand / qtyPerProduct),
           qtyPerProduct,
-          qCutWait, qCut, qCutBuf, qGalt, qGaltBuf, qPriy: qPriyCards, qSortAct, qSort: qSortCards, qMalWait, qMal, qMalBuf, qPres, qPresBuf, qDoop, qDoopBuf, qSgp, qBz, qScrap, sum
+          qCutWait: Math.round(qCutWait / qtyPerProduct),
+          qCut: Math.round(qCut / qtyPerProduct),
+          qCutBuf: Math.round(qCutBuf / qtyPerProduct),
+          qGalt: Math.round(qGalt / qtyPerProduct),
+          qGaltBuf: Math.round(qGaltBuf / qtyPerProduct),
+          qPriy: Math.round(qPriyCards / qtyPerProduct),
+          qSortAct: Math.round(qSortAct / qtyPerProduct),
+          qSort: Math.round(qSortCards / qtyPerProduct),
+          qMalWait: Math.round(qMalWait / qtyPerProduct),
+          qMal: Math.round(qMal / qtyPerProduct),
+          qMalBuf: Math.round(qMalBuf / qtyPerProduct),
+          qPres: Math.round(qPres / qtyPerProduct),
+          qPresBuf: Math.round(qPresBuf / qtyPerProduct),
+          qDoop: Math.round(qDoop / qtyPerProduct),
+          qDoopBuf: Math.round(qDoopBuf / qtyPerProduct),
+          qSgp: Math.round(qSgp / qtyPerProduct),
+          qBz: Math.round(qBz / qtyPerProduct),
+          qScrap: Math.round(qScrap / qtyPerProduct),
+          sum: Math.round(sum / qtyPerProduct)
         }
 
         const matchesSearch = row.name.toLowerCase().includes(searchQuery.toLowerCase()) || row.code.toLowerCase().includes(searchQuery.toLowerCase())
         if (matchesSearch) {
-           if (wipOnly) {
-              const hasActiveOrder = !isOther && (demandData.productDemand[parentId] || 0) > 0
-              if (hasActiveOrder) {
-                 groups[parentId].rows.push(row)
-                 totalsAcc.qCutWait += qCutWait; totalsAcc.qCut += qCut; totalsAcc.qCutBuf += qCutBuf;
-                 totalsAcc.qGalt += qGalt; totalsAcc.qGaltBuf += qGaltBuf; totalsAcc.qPriy += qPriyCards;
-                 totalsAcc.qSortAct += qSortAct; totalsAcc.qSort += qSortCards; totalsAcc.qMalWait += qMalWait;
-                 totalsAcc.qMal += qMal; totalsAcc.qMalBuf += qMalBuf; totalsAcc.qPres += qPres;
-                 totalsAcc.qPresBuf += qPresBuf; totalsAcc.qDoop += qDoop; totalsAcc.qDoopBuf += qDoopBuf;
-                 totalsAcc.qSgp += qSgp; totalsAcc.qBz += qBz; totalsAcc.qScrap += qScrap; totalsAcc.sum += sum;
-              }
-           } else {
+          if (wipOnly) {
+            const hasActiveOrder = !isOther && (demandData.productDemand[parentId] || 0) > 0
+            if (hasActiveOrder) {
               groups[parentId].rows.push(row)
               totalsAcc.qCutWait += qCutWait; totalsAcc.qCut += qCut; totalsAcc.qCutBuf += qCutBuf;
               totalsAcc.qGalt += qGalt; totalsAcc.qGaltBuf += qGaltBuf; totalsAcc.qPriy += qPriyCards;
@@ -359,227 +503,237 @@ const DashboardModule = () => {
               totalsAcc.qMal += qMal; totalsAcc.qMalBuf += qMalBuf; totalsAcc.qPres += qPres;
               totalsAcc.qPresBuf += qPresBuf; totalsAcc.qDoop += qDoop; totalsAcc.qDoopBuf += qDoopBuf;
               totalsAcc.qSgp += qSgp; totalsAcc.qBz += qBz; totalsAcc.qScrap += qScrap; totalsAcc.sum += sum;
-           }
+            }
+          } else {
+            groups[parentId].rows.push(row)
+            totalsAcc.qCutWait += qCutWait; totalsAcc.qCut += qCut; totalsAcc.qCutBuf += qCutBuf;
+            totalsAcc.qGalt += qGalt; totalsAcc.qGaltBuf += qGaltBuf; totalsAcc.qPriy += qPriyCards;
+            totalsAcc.qSortAct += qSortAct; totalsAcc.qSort += qSortCards; totalsAcc.qMalWait += qMalWait;
+            totalsAcc.qMal += qMal; totalsAcc.qMalBuf += qMalBuf; totalsAcc.qPres += qPres;
+            totalsAcc.qPresBuf += qPresBuf; totalsAcc.qDoop += qDoop; totalsAcc.qDoopBuf += qDoopBuf;
+            totalsAcc.qSgp += qSgp; totalsAcc.qBz += qBz; totalsAcc.qScrap += qScrap; totalsAcc.sum += sum;
+          }
         }
       })
     })
 
     activeOrders.forEach(order => {
-        const orderTasks = tasks.filter(t => t.order_id === order.id)
-        if (orderTasks.length === 0) return
-        
-        // Find the parent product for this order
-        let prodId = order.nomenclature_id
-        if (!prodId && order.order_items && order.order_items.length > 0) {
-          prodId = order.order_items[0].nomenclature_id
-        }
-        if (!prodId) return
-        const prod = nomenclatures.find(n => String(n.id) === String(prodId))
-        if (!prod) return
+      const orderTasks = tasks?.filter(t => t.order_id === order.id) || []
+      if (orderTasks.length === 0) return
 
-        const displayNum = order.order_num || order.id.split('-')[0]
+      // Find the parent product for this order
+      let prodId = order.nomenclature_id
+      if (!prodId && order.order_items && order.order_items.length > 0) {
+        prodId = order.order_items[0].nomenclature_id
+      }
+      if (!prodId) return
+      const prod = nomenclatures.find(n => String(n.id) === String(prodId))
+      if (!prod) return
 
-        let minPotential = Infinity
-        let maxWipSetsCalculated = 0
-        let bottleneckPartName = ''
-        let bottleneckPartCode = ''
-        let bottleneckQty = 0
-        let bottleneckQtyPerProduct = 1
-        let hasValidDetail = false
+      const displayNum = order.order_num || order.id.split('-')[0]
 
-        // Get BOM items for this order: if snapshot exists, use it; otherwise use static bomItems
-        const orderBoms = []
-        // UUID regex to filter out non-part keys like 'arrivals'
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-        const taskWithSnapshot = orderTasks.find(t => t.plan_snapshot && Object.keys(t.plan_snapshot).some(k => uuidRegex.test(k)))
-        if (taskWithSnapshot) {
-          const plannedSets = Number(taskWithSnapshot.planned_sets) || 1
-          Object.entries(taskWithSnapshot.plan_snapshot).forEach(([childId, entry]) => {
-            // Only process valid UUID keys (skip 'arrivals', '_metadata', etc.)
-            if (!uuidRegex.test(childId)) return
-            const need = Number(entry.need) || 0
-            orderBoms.push({
-              child_id: childId,
-              quantity_per_parent: plannedSets > 0 ? Math.round(need / plannedSets) : need
-            })
+      let minPotential = Infinity
+      let maxWipSetsCalculated = 0
+      let bottleneckPartName = ''
+      let bottleneckPartCode = ''
+      let bottleneckQty = 0
+      let bottleneckQtyPerProduct = 1
+      let hasValidDetail = false
+
+      // Get BOM items for this order: if snapshot exists, use it; otherwise use static bomItems
+      const orderBoms = []
+      // UUID regex to filter out non-part keys like 'arrivals'
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+      const taskWithSnapshot = orderTasks.find(t => t.plan_snapshot && Object.keys(t.plan_snapshot).some(k => uuidRegex.test(k)))
+      if (taskWithSnapshot) {
+        const plannedSets = Number(taskWithSnapshot.planned_sets) || 1
+        Object.entries(taskWithSnapshot.plan_snapshot).forEach(([childId, entry]) => {
+          // Only process valid UUID keys (skip 'arrivals', '_metadata', etc.)
+          if (!uuidRegex.test(childId)) return
+          const need = Number(entry.need) || 0
+          orderBoms.push({
+            child_id: childId,
+            quantity_per_parent: plannedSets > 0 ? Math.round(need / plannedSets) : need
           })
-        } else {
-          bomItems.filter(b => String(b.parent_id) === String(prod.id)).forEach(b => {
-            orderBoms.push({
-              child_id: String(b.child_id),
-              quantity_per_parent: Number(b.quantity_per_parent) || 1
-            })
-          })
-        }
-
-        const bottlenecksList = []
-        const orderTaskIds = orderTasks.map(t => t.id)
-        const orderTaskCards = (workCards || []).filter(c => orderTaskIds.includes(c.task_id))
-
-        orderBoms.forEach(bomEntry => {
-          const nom = nomenclatures.find(n => String(n.id) === String(bomEntry.child_id))
-          if (!nom || nom.type !== 'part') return
-          
-          const qtyPerProduct = Number(bomEntry.quantity_per_parent) || 1
-
-          // Calculate WIP for this order's tasks
-          const taskCards = orderTaskCards.filter(c => String(c.nomenclature_id) === String(nom.id))
-          
-          const qCutWait = taskCards.filter(c => c.operation === 'Розкрій' && c.status === 'new').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-          const qCut = taskCards.filter(c => c.operation === 'Розкрій' && c.status === 'in-progress').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-          const qCutBuf = taskCards.filter(c => c.operation === 'Розкрій' && c.status === 'at-buffer').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-          const qGalt = taskCards.filter(c => c.operation === 'Галтовка' && c.status === 'in-progress').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-          const qGaltBuf = taskCards.filter(c => c.operation === 'Галтовка' && c.status === 'at-buffer').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-          const qPriyCards = taskCards.filter(c => c.operation === 'Прийомка').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-          const qSortAct = taskCards.filter(c => c.operation === 'Сортування' && ['in-progress', 'at-buffer'].includes(c.status)).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-          const qSortCards = taskCards.filter(c => c.status === 'at-shop2-buffer').reduce((sum, c) => sum + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0)), 0)
-          const qMalWait = taskCards.filter(c => ['Фарбування', 'Малярка'].includes(c.operation) && c.status === 'new').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-          const qMal = taskCards.filter(c => ['Фарбування', 'Малярка'].includes(c.operation) && c.status === 'in-progress').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-          const qMalBuf = taskCards.filter(c => ['Фарбування', 'Малярка'].includes(c.operation) && c.status === 'at-buffer').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-          const qPres = taskCards.filter(c => c.operation === 'Пресування' && ['new', 'in-progress'].includes(c.status)).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-          const qPresBuf = taskCards.filter(c => c.operation === 'Пресування' && c.status === 'at-buffer').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-          const qDoop = taskCards.filter(c => c.operation === 'Доопрацювання' && ['new', 'in-progress'].includes(c.status)).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-          const qDoopBuf = taskCards.filter(c => c.operation === 'Доопрацювання' && c.status === 'at-buffer').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-
-          const qBz = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id) && i.type === 'bz').reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
-          const qBzShop2 = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id) && i.type === 'bz_shop2').reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
-          const qSgp = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id) && (i.type === 'finished' || i.warehouse === 'sgp' || i.warehouse === 'SGP')).reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
-
-          const sumVal = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriyCards + qSortAct + qSortCards + qMalWait + qMal + qMalBuf + qPres + qPresBuf + qDoop + qDoopBuf + qBz + qBzShop2 + qSgp
-
-          // WIP sets from active production cards
-          const activeProductionCards = taskCards.filter(c => c.operation !== 'Склад БЗ')
-          const partWipQty = activeProductionCards.reduce((sum, c) => {
-            if (c.status === 'completed') return sum
-            if (c.status === 'at-shop2-buffer') {
-              return sum + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0))
-            }
-            return sum + (Number(c.quantity) || 0)
-          }, 0)
-          const partWipSets = Math.floor(partWipQty / qtyPerProduct)
-          if (partWipSets > maxWipSetsCalculated) {
-            maxWipSetsCalculated = partWipSets
-          }
-
-          const snapshot = taskWithSnapshot?.plan_snapshot?.[String(nom.id)]
-          let need = 0
-          if (snapshot) {
-            need = Number(snapshot.need) || 0
-          } else {
-            const itemRef = order.order_items?.find(it => it.nomenclature_id === nom.id)
-            if (itemRef) {
-              need = Number(itemRef.quantity) || 0
-            } else {
-              (order.order_items || []).forEach(oi => {
-                const bom = bomItems.filter(b => b.parent_id === oi.nomenclature_id)
-                const bItem = bom.find(b => b.child_id === nom.id)
-                if (bItem) {
-                  need += (Number(oi.quantity) || 0) * (Number(bItem.quantity_per_parent) || 1)
-                }
-              })
-            }
-          }
-
-          const shortage = Math.max(0, need - sumVal)
-
-          // Calculate potential sets
-          const potentialSetsForThisPart = Math.floor(sumVal / qtyPerProduct)
-          if (potentialSetsForThisPart < minPotential) {
-            minPotential = potentialSetsForThisPart
-            bottleneckPartName = nom.name
-            bottleneckPartCode = nom.code
-            bottleneckQty = sumVal
-            bottleneckQtyPerProduct = qtyPerProduct
-            hasValidDetail = true
-          }
-          if (shortage > 0) {
-            bottlenecksList.push({
-              name: nom.name,
-              code: nom.code,
-              potential: Math.floor(sumVal / qtyPerProduct),
-              qty: sumVal,
-              needed: need,
-              shortage: shortage,
-              qtyPerProduct
-            })
-          }
         })
+      } else {
+        bomItems.filter(b => String(b.parent_id) === String(prod.id)).forEach(b => {
+          orderBoms.push({
+            child_id: String(b.child_id),
+            quantity_per_parent: Number(b.quantity_per_parent) || 1
+          })
+        })
+      }
 
-        if (minPotential === Infinity) minPotential = 0
+      const bottlenecksList = []
+      const orderTaskIds = orderTasks.map(t => t.id)
+      const orderTaskCards = (workCards || []).filter(c => orderTaskIds.includes(c.task_id))
 
-        // Calculate SGP inventory specific to this order
-        let bzReservedSets = Infinity
-        let hasSnapshot = false
-        orderTasks.forEach(t => {
-          if (t.plan_snapshot) {
-            hasSnapshot = true
-            orderBoms.forEach(bomEntry => {
-              const nom = nomenclatures.find(n => String(n.id) === String(bomEntry.child_id))
-              if (!nom || nom.type !== 'part') return
-              const qtyPerProduct = Number(bomEntry.quantity_per_parent) || 1
-              const entry = t.plan_snapshot[String(bomEntry.child_id)]
-              const stock = entry ? (Number(entry.stock) || 0) : 0
-              const sets = Math.floor(stock / qtyPerProduct)
-              if (sets < bzReservedSets) {
-                bzReservedSets = sets
+      orderBoms.forEach(bomEntry => {
+        const nom = nomenclatures.find(n => String(n.id) === String(bomEntry.child_id))
+        if (!nom || nom.type !== 'part') return
+
+        const qtyPerProduct = Number(bomEntry.quantity_per_parent) || 1
+
+        // Calculate WIP for this order's tasks
+        const taskCards = orderTaskCards.filter(c => String(c.nomenclature_id) === String(nom.id))
+
+        const qCutWait = taskCards.filter(c => c.operation === 'Розкрій' && c.status === 'new').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+        const qCut = taskCards.filter(c => c.operation === 'Розкрій' && c.status === 'in-progress').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+        const qCutBuf = taskCards.filter(c => c.operation === 'Розкрій' && c.status === 'at-buffer').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+        const qGalt = taskCards.filter(c => c.operation === 'Галтовка' && c.status === 'in-progress').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+        const qGaltBuf = taskCards.filter(c => c.operation === 'Галтовка' && c.status === 'at-buffer').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+        const qPriyCards = taskCards.filter(c => c.operation === 'Прийомка').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+        const qSortAct = taskCards.filter(c => c.operation === 'Сортування' && ['in-progress', 'at-buffer'].includes(c.status)).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+        const qSortCards = taskCards.filter(c => c.status === 'at-shop2-buffer').reduce((sum, c) => sum + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0)), 0)
+        const qMalWait = taskCards.filter(c => ['Фарбування', 'Малярка'].includes(c.operation) && c.status === 'new').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+        const qMal = taskCards.filter(c => ['Фарбування', 'Малярка'].includes(c.operation) && c.status === 'in-progress').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+        const qMalBuf = taskCards.filter(c => ['Фарбування', 'Малярка'].includes(c.operation) && c.status === 'at-buffer').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+        const qPres = taskCards.filter(c => c.operation === 'Пресування' && ['new', 'in-progress'].includes(c.status)).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+        const qPresBuf = taskCards.filter(c => c.operation === 'Пресування' && c.status === 'at-buffer').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+        const qDoop = taskCards.filter(c => c.operation === 'Доопрацювання' && ['new', 'in-progress'].includes(c.status)).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+        const qDoopBuf = taskCards.filter(c => c.operation === 'Доопрацювання' && c.status === 'at-buffer').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+
+        // Use allocated inventory quantities for order-specific bottleneck calculations
+        const qBz = orderAllocatedBz[order.id]?.[nom.id] || 0
+        const qBzShop2 = orderAllocatedBzShop2[order.id]?.[nom.id] || 0
+        const qSgp = orderAllocatedSgp[order.id]?.[nom.id] || 0
+
+        const sumVal = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriyCards + qSortAct + qSortCards + qMalWait + qMal + qMalBuf + qPres + qPresBuf + qDoop + qDoopBuf + qBz + qBzShop2 + qSgp
+
+        // WIP sets from active production cards
+        const activeProductionCards = taskCards.filter(c => c.operation !== 'Склад БЗ')
+        const partWipQty = activeProductionCards.reduce((sum, c) => {
+          if (c.status === 'completed') return sum
+          if (c.status === 'at-shop2-buffer') {
+            return sum + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0))
+          }
+          return sum + (Number(c.quantity) || 0)
+        }, 0)
+        const partWipSets = Math.floor(partWipQty / qtyPerProduct)
+        if (partWipSets > maxWipSetsCalculated) {
+          maxWipSetsCalculated = partWipSets
+        }
+
+        const snapshot = taskWithSnapshot?.plan_snapshot?.[String(nom.id)]
+        let need = 0
+        if (snapshot) {
+          need = Number(snapshot.need) || 0
+        } else {
+          const itemRef = order.order_items?.find(it => it.nomenclature_id === nom.id)
+          if (itemRef) {
+            need = Number(itemRef.quantity) || 0
+          } else {
+            (order.order_items || []).forEach(oi => {
+              const bom = bomItems.filter(b => b.parent_id === oi.nomenclature_id)
+              const bItem = bom.find(b => b.child_id === nom.id)
+              if (bItem) {
+                need += (Number(oi.quantity) || 0) * (Number(bItem.quantity_per_parent) || 1)
               }
             })
           }
-        })
-        if (bzReservedSets === Infinity || !hasSnapshot) bzReservedSets = 0
-
-        const completedTasksSets = orderTasks
-          .filter(t => t.status === 'completed')
-          .reduce((sum, t) => sum + (Number(t.planned_sets) || 0), 0)
-
-        const sgpInventory = bzReservedSets + completedTasksSets
-
-        // Calculate current actual sets on SGP dynamically from child parts stock
-        let actualSgpSets = Infinity
-        orderBoms.forEach(bomEntry => {
-          const nom = nomenclatures.find(n => String(n.id) === String(bomEntry.child_id))
-          if (!nom || nom.type !== 'part') return
-          const qtyPerProduct = Number(bomEntry.quantity_per_parent) || 1
-          const currentSgpQty = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id) && (i.type === 'finished' || i.warehouse === 'sgp' || i.warehouse === 'SGP')).reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
-          const sets = Math.floor(currentSgpQty / qtyPerProduct)
-          if (sets < actualSgpSets) {
-            actualSgpSets = sets
-          }
-        })
-        if (actualSgpSets === Infinity) actualSgpSets = 0
-
-        const plannedTask = orderTasks.find(t => t.planned_sets) || orderTasks[0]
-        const totalDemand = Number(plannedTask?.planned_sets) || Number(order.order_items?.[0]?.quantity) || Number(order.quantity) || 0
-
-        bottlenecksList.sort((a, b) => a.shortage - b.shortage)
-        
-        const componentShortagesInSets = bottlenecksList.map(b => Math.ceil(b.shortage / (Number(b.qtyPerProduct) || 1)))
-        const remainingDemand = componentShortagesInSets.length > 0 ? Math.max(...componentShortagesInSets) : 0
-
-        trends[order.id] = {
-          id: order.id,
-          name: `Наряд №${displayNum} (${prod.name})`,
-          code: prod.code || '',
-          potential: minPotential,
-          actual: actualSgpSets,
-          demand: totalDemand,
-          wip: Math.max(0, totalDemand - actualSgpSets - remainingDemand),
-          remainingDemand,
-          bottleneck: bottleneckPartName ? `${bottleneckPartName}${bottleneckPartCode ? ` (${bottleneckPartCode})` : ''}` : null,
-          bottleneckQty,
-          bottleneckNeeded: totalDemand * bottleneckQtyPerProduct,
-          bottleneckQtyPerProduct,
-          bottlenecks: bottlenecksList
         }
-        if (groups[prod.id]) {
-          groups[prod.id].trend = trends[order.id]
+
+        const shortage = Math.max(0, need - sumVal)
+
+        // Calculate potential sets
+        const potentialSetsForThisPart = Math.floor(sumVal / qtyPerProduct)
+        if (potentialSetsForThisPart < minPotential) {
+          minPotential = potentialSetsForThisPart
+          bottleneckPartName = nom.name
+          bottleneckPartCode = nom.code
+          bottleneckQty = sumVal
+          bottleneckQtyPerProduct = qtyPerProduct
+          hasValidDetail = true
         }
+        if (shortage > 0) {
+          bottlenecksList.push({
+            name: nom.name,
+            code: nom.code,
+            potential: Math.floor(sumVal / qtyPerProduct),
+            qty: sumVal,
+            needed: need,
+            shortage: shortage,
+            qtyPerProduct
+          })
+        }
+      })
+
+      if (minPotential === Infinity) minPotential = 0
+
+      // Calculate SGP inventory specific to this order
+      let bzReservedSets = Infinity
+      let hasSnapshot = false
+      orderTasks.forEach(t => {
+        if (t.plan_snapshot) {
+          hasSnapshot = true
+          orderBoms.forEach(bomEntry => {
+            const nom = nomenclatures.find(n => String(n.id) === String(bomEntry.child_id))
+            if (!nom || nom.type !== 'part') return
+            const qtyPerProduct = Number(bomEntry.quantity_per_parent) || 1
+            const entry = t.plan_snapshot[String(bomEntry.child_id)]
+            const stock = entry ? (Number(entry.stock) || 0) : 0
+            const sets = Math.floor(stock / qtyPerProduct)
+            if (sets < bzReservedSets) {
+              bzReservedSets = sets
+            }
+          })
+        }
+      })
+      if (bzReservedSets === Infinity || !hasSnapshot) bzReservedSets = 0
+
+      const completedTasksSets = orderTasks
+        .filter(t => t.status === 'completed')
+        .reduce((sum, t) => sum + (Number(t.planned_sets) || 0), 0)
+
+      const sgpInventory = bzReservedSets + completedTasksSets
+
+      // Calculate current actual sets on SGP dynamically from allocated child parts stock
+      let actualSgpSets = Infinity
+      orderBoms.forEach(bomEntry => {
+        const nom = nomenclatures.find(n => String(n.id) === String(bomEntry.child_id))
+        if (!nom || nom.type !== 'part') return
+        const qtyPerProduct = Number(bomEntry.quantity_per_parent) || 1
+        const currentSgpQty = orderAllocatedSgp[order.id]?.[nom.id] || 0
+        const sets = Math.floor(currentSgpQty / qtyPerProduct)
+        if (sets < actualSgpSets) {
+          actualSgpSets = sets
+        }
+      })
+      if (actualSgpSets === Infinity) actualSgpSets = 0
+
+      const plannedTask = orderTasks.find(t => t.planned_sets) || orderTasks[0]
+      const totalDemand = Number(plannedTask?.planned_sets) || Number(order.order_items?.[0]?.quantity) || Number(order.quantity) || 0
+
+      bottlenecksList.sort((a, b) => a.shortage - b.shortage)
+
+      const calculatedWip = Math.max(0, minPotential - actualSgpSets)
+      const remainingDemand = Math.max(0, totalDemand - actualSgpSets - calculatedWip)
+
+      trends[order.id] = {
+        id: order.id,
+        name: `Наряд №${displayNum} (${prod.name})`,
+        code: prod.code || '',
+        potential: minPotential,
+        actual: actualSgpSets,
+        demand: totalDemand,
+        wip: calculatedWip,
+        remainingDemand,
+        bottleneck: bottleneckPartName ? `${bottleneckPartName}${bottleneckPartCode ? ` (${bottleneckPartCode})` : ''}` : null,
+        bottleneckQty,
+        bottleneckNeeded: totalDemand * bottleneckQtyPerProduct,
+        bottleneckQtyPerProduct,
+        bottlenecks: bottlenecksList
+      }
+      if (groups[prod.id]) {
+        groups[prod.id].trend = trends[order.id]
+      }
     })
 
     const finalGroups = Object.values(groups).filter(g => g.rows.length > 0)
 
     return { groupedDashboardData: finalGroups, totals: totalsAcc, productTrends: trends }
-  }, [nomenclatures, bomItems, orders, workCards, inventory, demandData, taskParentMap, searchQuery, wipOnly, shippedQuantities, activeOrders])
+  }, [nomenclatures, bomItems, orders, workCards, inventory, demandData, taskParentMap, searchQuery, wipOnly, shippedQuantities, activeOrders, workCardHistory])
 
   const getGroupTotals = (rows) => {
     const res = { qCutWait: 0, qCut: 0, qCutBuf: 0, qGalt: 0, qGaltBuf: 0, qPriy: 0, qSortAct: 0, qSort: 0, qMalWait: 0, qMal: 0, qMalBuf: 0, qPres: 0, qPresBuf: 0, qDoop: 0, qDoopBuf: 0, qSgp: 0, qBz: 0, qScrap: 0, sum: 0 }
@@ -609,7 +763,7 @@ const DashboardModule = () => {
 
   const renderValue = (val, type = 'normal', demand = 0) => {
     if (!val) val = 0;
-    
+
     if (val === 0 && !demand) {
       return <span style={{ color: '#4b5563', fontWeight: 400, opacity: 0.5 }}>0</span>
     }
@@ -618,7 +772,7 @@ const DashboardModule = () => {
     let border = 'none'
     let padding = '2px 6px'
     let borderRadius = '4px'
-    
+
     if (type === 'sum') {
       color = '#ff9000'
       bg = 'rgba(255, 144, 0, 0.08)'
@@ -642,12 +796,12 @@ const DashboardModule = () => {
     }
 
     return (
-      <span style={{ 
-        fontWeight: 'bold', 
-        color, 
-        background: bg, 
-        border, 
-        padding, 
+      <span style={{
+        fontWeight: 'bold',
+        color,
+        background: bg,
+        border,
+        padding,
         borderRadius,
         display: 'inline-block',
         minWidth: '24px',
@@ -668,15 +822,15 @@ const DashboardModule = () => {
   return (
     <div className="dashboard-module-v2" style={{ background: '#09090b', minHeight: '100vh', color: '#f4f4f5', display: 'flex', flexDirection: 'column' }}>
       {/* Navigation bar matching look and feel of other modules */}
-      <nav className="module-nav" style={{ 
-        flexShrink: 0, 
-        padding: '0 24px', 
-        height: '70px', 
-        background: '#09090b', 
-        borderBottom: '1px solid #27272a', 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center' 
+      <nav className="module-nav" style={{
+        flexShrink: 0,
+        padding: '0 24px',
+        height: '70px',
+        background: '#09090b',
+        borderBottom: '1px solid #27272a',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <Link to="/" style={{ color: '#a1a1aa', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', transition: 'color 0.2s' }}>
@@ -749,10 +903,10 @@ const DashboardModule = () => {
               </h2>
               <p style={{ color: '#a1a1aa', fontSize: '0.78rem', margin: 0 }}>Розподіл деталей та напівфабрикатів за етапами технологічного ланцюжка</p>
             </div>
-            
+
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
               {/* Refresh Button */}
-              <button 
+              <button
                 onClick={handleRefresh}
                 disabled={isRefreshing}
                 style={{ background: '#18181b', border: '1px solid #27272a', color: '#fff', padding: '10px 14px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s', fontSize: '0.85rem' }}
@@ -769,7 +923,7 @@ const DashboardModule = () => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', background: '#09090b', padding: '15px 20px', borderRadius: '18px', marginBottom: '20px', border: '1px solid #27272a' }}>
             <div style={{ position: 'relative', flex: 1, minWidth: '260px' }}>
               <Search size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#71717a' }} />
-              <input 
+              <input
                 type="text"
                 placeholder="Пошук деталі за назвою або кодом..."
                 value={searchQuery}
@@ -781,7 +935,7 @@ const DashboardModule = () => {
             </div>
 
             <label style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#a1a1aa', fontSize: '0.85rem', cursor: 'pointer', userSelect: 'none' }}>
-              <input 
+              <input
                 type="checkbox"
                 checked={wipOnly}
                 onChange={e => setWipOnly(e.target.checked)}
@@ -833,108 +987,108 @@ const DashboardModule = () => {
                     const wip = trend.wip || 0
                     const remainingDemand = trend.remainingDemand || 0
 
-                  return (
-                    <div key={id} style={{
-                      background: 'linear-gradient(145deg, #141417, #0f0f12)',
-                      border: `1px solid ${accentBorder}`,
-                      borderRadius: '20px',
-                      overflow: 'hidden',
-                      boxShadow: `0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.03)`,
-                      transition: 'transform 0.2s, box-shadow 0.2s',
-                    }}
-                      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 10px 32px rgba(0,0,0,0.5), 0 0 0 1px ${accentBorder}` }}
-                      onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = `0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.03)` }}
-                    >
-                      {/* Card Top Stripe */}
-                      <div style={{ height: '3px', background: `linear-gradient(90deg, ${accentColor}, transparent)` }} />
+                    return (
+                      <div key={id} style={{
+                        background: 'linear-gradient(145deg, #141417, #0f0f12)',
+                        border: `1px solid ${accentBorder}`,
+                        borderRadius: '20px',
+                        overflow: 'hidden',
+                        boxShadow: `0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.03)`,
+                        transition: 'transform 0.2s, box-shadow 0.2s',
+                      }}
+                        onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 10px 32px rgba(0,0,0,0.5), 0 0 0 1px ${accentBorder}` }}
+                        onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = `0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.03)` }}
+                      >
+                        {/* Card Top Stripe */}
+                        <div style={{ height: '3px', background: `linear-gradient(90deg, ${accentColor}, transparent)` }} />
 
-                      <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
 
-                        {/* Header: Name + Status Badge */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
-                          <div style={{ flex: 1 }}>
-                            <span style={{ fontSize: '0.58rem', background: accentBg, color: accentColor, padding: '3px 8px', borderRadius: '6px', fontWeight: 900, letterSpacing: '0.06em', border: `1px solid ${accentBorder}` }}>
-                              {statusLabel}
-                            </span>
-                            <div style={{ fontSize: '0.95rem', fontWeight: 900, color: '#f4f4f5', marginTop: '7px', lineHeight: 1.2 }}>{trend.name}</div>
-                            {trend.code && <div style={{ fontSize: '0.62rem', color: '#52525b', fontWeight: 700, marginTop: '3px' }}>КОД: {trend.code}</div>}
-                          </div>
-
-                          {/* Ratio */}
-                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                            <div style={{ fontSize: '0.55rem', color: '#52525b', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>СГП / Потреба</div>
-                            <div style={{ fontSize: '1.4rem', fontWeight: 950, color: accentColor, lineHeight: 1.1, marginTop: '3px' }}>
-                              {trend.actual}
-                              <span style={{ fontSize: '0.8rem', color: '#71717a', fontWeight: 500 }}> / {trend.demand || 0}</span>
+                          {/* Header: Name + Status Badge */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                            <div style={{ flex: 1 }}>
+                              <span style={{ fontSize: '0.58rem', background: accentBg, color: accentColor, padding: '3px 8px', borderRadius: '6px', fontWeight: 900, letterSpacing: '0.06em', border: `1px solid ${accentBorder}` }}>
+                                {statusLabel}
+                              </span>
+                              <div style={{ fontSize: '0.95rem', fontWeight: 900, color: '#f4f4f5', marginTop: '7px', lineHeight: 1.2 }}>{trend.name}</div>
+                              {trend.code && <div style={{ fontSize: '0.62rem', color: '#52525b', fontWeight: 700, marginTop: '3px' }}>КОД: {trend.code}</div>}
                             </div>
-                            <div style={{ fontSize: '0.62rem', color: '#52525b', fontWeight: 700 }}>компл.</div>
-                          </div>
-                        </div>
 
-                        {/* Progress Bar */}
-                        <div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', fontWeight: 800, marginBottom: '5px' }}>
-                            <span style={{ color: '#71717a' }}>Виконання потреби замовлень</span>
-                            <span style={{ color: accentColor }}>{pct}%</span>
-                          </div>
-                          <div style={{ height: '7px', background: '#09090b', borderRadius: '10px', overflow: 'hidden', border: '1px solid #27272a', position: 'relative' }}>
-                            <div style={{ width: `${pct}%`, height: '100%', background: `linear-gradient(90deg, ${accentColor}, ${accentColor}cc)`, borderRadius: '10px', transition: 'width 0.5s ease', boxShadow: `0 0 8px ${accentColor}66` }} />
-                          </div>
-                        </div>
-
-                        {/* Stats Row */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
-                          <div style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: '12px', padding: '10px 12px' }}>
-                            <div style={{ fontSize: '0.58rem', color: '#6b7280', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>На СГП зараз</div>
-                            <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#10b981' }}>{trend.actual} <span style={{ fontSize: '0.65rem', color: '#6b7280', fontWeight: 600 }}>компл.</span></div>
-                          </div>
-                          <div style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: '12px', padding: '10px 12px' }}>
-                            <div style={{ fontSize: '0.58rem', color: '#6b7280', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>В роботі</div>
-                            <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#3b82f6' }}>{wip} <span style={{ fontSize: '0.65rem', color: '#6b7280', fontWeight: 600 }}>компл.</span></div>
-                          </div>
-                          <div style={{ background: 'rgba(255,144,0,0.06)', border: '1px solid rgba(255,144,0,0.15)', borderRadius: '12px', padding: '10px 12px' }}>
-                            <div style={{ fontSize: '0.58rem', color: '#6b7280', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Залишок потреби</div>
-                            <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#ff9000' }}>{remainingDemand} <span style={{ fontSize: '0.65rem', color: '#6b7280', fontWeight: 600 }}>компл.</span></div>
-                          </div>
-                        </div>
-
-                        {/* Bottleneck Details */}
-                        {trend.bottlenecks && trend.bottlenecks.length > 0 ? (
-                          <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.18)', borderRadius: '12px', padding: '11px 14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
-                              <span style={{ fontSize: '1rem' }}>⚠️</span>
-                              <span style={{ fontSize: '0.65rem', color: '#f87171', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Вузькі місця ({trend.bottlenecks.length})</span>
+                            {/* Ratio */}
+                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                              <div style={{ fontSize: '0.55rem', color: '#52525b', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>СГП / Потреба</div>
+                              <div style={{ fontSize: '1.4rem', fontWeight: 950, color: accentColor, lineHeight: 1.1, marginTop: '3px' }}>
+                                {trend.actual}
+                                <span style={{ fontSize: '0.8rem', color: '#71717a', fontWeight: 500 }}> / {trend.demand || 0}</span>
+                              </div>
+                              <div style={{ fontSize: '0.62rem', color: '#52525b', fontWeight: 700 }}>компл.</div>
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto', paddingRight: '4px' }} className="tasks-scroll">
-                              {trend.bottlenecks.map(b => (
-                                <div key={b.name} style={{ borderBottom: '1px solid rgba(239,68,68,0.1)', paddingBottom: '6px' }}>
-                                  <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#fff', wordBreak: 'break-word' }}>
-                                    {b.name} {b.code ? `(${b.code})` : ''}
+                          </div>
+
+                          {/* Progress Bar */}
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', fontWeight: 800, marginBottom: '5px' }}>
+                              <span style={{ color: '#71717a' }}>Виконання потреби замовлень</span>
+                              <span style={{ color: accentColor }}>{pct}%</span>
+                            </div>
+                            <div style={{ height: '7px', background: '#09090b', borderRadius: '10px', overflow: 'hidden', border: '1px solid #27272a', position: 'relative' }}>
+                              <div style={{ width: `${pct}%`, height: '100%', background: `linear-gradient(90deg, ${accentColor}, ${accentColor}cc)`, borderRadius: '10px', transition: 'width 0.5s ease', boxShadow: `0 0 8px ${accentColor}66` }} />
+                            </div>
+                          </div>
+
+                          {/* Stats Row */}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                            <div style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: '12px', padding: '10px 12px' }}>
+                              <div style={{ fontSize: '0.58rem', color: '#6b7280', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>На СГП зараз</div>
+                              <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#10b981' }}>{trend.actual} <span style={{ fontSize: '0.65rem', color: '#6b7280', fontWeight: 600 }}>компл.</span></div>
+                            </div>
+                            <div style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: '12px', padding: '10px 12px' }}>
+                              <div style={{ fontSize: '0.58rem', color: '#6b7280', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>В роботі</div>
+                              <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#3b82f6' }}>{wip} <span style={{ fontSize: '0.65rem', color: '#6b7280', fontWeight: 600 }}>компл.</span></div>
+                            </div>
+                            <div style={{ background: 'rgba(255,144,0,0.06)', border: '1px solid rgba(255,144,0,0.15)', borderRadius: '12px', padding: '10px 12px' }}>
+                              <div style={{ fontSize: '0.58rem', color: '#6b7280', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Залишок потреби</div>
+                              <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#ff9000' }}>{remainingDemand} <span style={{ fontSize: '0.65rem', color: '#6b7280', fontWeight: 600 }}>компл.</span></div>
+                            </div>
+                          </div>
+
+                          {/* Bottleneck Details */}
+                          {trend.bottlenecks && trend.bottlenecks.length > 0 ? (
+                            <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.18)', borderRadius: '12px', padding: '11px 14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                                <span style={{ fontSize: '1rem' }}>⚠️</span>
+                                <span style={{ fontSize: '0.65rem', color: '#f87171', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Вузькі місця ({trend.bottlenecks.length})</span>
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto', paddingRight: '4px' }} className="tasks-scroll">
+                                {trend.bottlenecks.map(b => (
+                                  <div key={b.name} style={{ borderBottom: '1px solid rgba(239,68,68,0.1)', paddingBottom: '6px' }}>
+                                    <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#fff', wordBreak: 'break-word' }}>
+                                      {b.name} {b.code ? `(${b.code})` : ''}
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                                      <span style={{ fontSize: '0.65rem', color: '#9ca3af' }}>
+                                        Деталей: <strong style={{ color: '#fca5a5' }}>{b.qty}</strong> / {b.needed} шт.
+                                      </span>
+                                      <span style={{ fontSize: '0.65rem', color: '#f87171', fontWeight: 700 }}>
+                                        Дефіцит: -{b.shortage} шт.
+                                      </span>
+                                    </div>
                                   </div>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
-                                    <span style={{ fontSize: '0.65rem', color: '#9ca3af' }}>
-                                      Деталей: <strong style={{ color: '#fca5a5' }}>{b.qty}</strong> / {b.needed} шт.
-                                    </span>
-                                    <span style={{ fontSize: '0.65rem', color: '#f87171', fontWeight: 700 }}>
-                                      Дефіцит: -{b.shortage} шт.
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        ) : (
-                          <div style={{ background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.12)', borderRadius: '12px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontSize: '1rem' }}>✅</span>
-                            <span style={{ fontSize: '0.72rem', color: '#6ee7b7', fontWeight: 700 }}>Вузьких місць не виявлено</span>
-                          </div>
-                        )}
+                          ) : (
+                            <div style={{ background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.12)', borderRadius: '12px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontSize: '1rem' }}>✅</span>
+                              <span style={{ fontSize: '0.72rem', color: '#6ee7b7', fontWeight: 700 }}>Вузьких місць не виявлено</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )
-                })}
+                    )
+                  })}
+                </div>
               </div>
-            </div>
             )
           })()}
 
@@ -984,7 +1138,7 @@ const DashboardModule = () => {
                         <tr style={{ background: '#1c1917', color: '#fff', borderBottom: '2px solid #27272a' }}>
                           <td colSpan={20} style={{ padding: '14px 18px', textAlign: 'left', fontWeight: 'bold', borderBottom: '1px solid #27272a', position: 'sticky', left: 0, background: '#1c1917', zIndex: 2 }}>
                             <div style={{ position: 'sticky', left: '16px', display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px 12px', maxWidth: 'calc(100vw - 40px)' }}>
-                              <span style={{ color: '#ff9000' }}>📦</span> 
+                              <span style={{ color: '#ff9000' }}>📦</span>
                               <span style={{ whiteSpace: 'nowrap' }}>{group.name}{group.code ? ` (${group.code})` : ''}</span>
                               {group.trend && (
                                 <span style={{ color: '#a1a1aa', fontSize: '0.78rem', fontWeight: 'normal' }}>
@@ -1003,8 +1157,8 @@ const DashboardModule = () => {
                               {row.code && <span style={{ display: 'block', fontSize: '0.72rem', color: '#71717a', fontWeight: 'normal', marginTop: '2px' }}>Код: {row.code}</span>}
                             </td>
                             <td className="wip-sticky-sum" style={{ padding: '12px 18px', textAlign: 'center', background: '#1c130d', borderRight: '1px solid #27272a', fontWeight: 'bold', position: 'sticky', zIndex: 2 }}>
-                               {renderValue(row.sum, 'sum', row.demand)}
-                             </td>
+                              {renderValue(row.sum, 'sum', row.demand)}
+                            </td>
                             <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(row.qCutWait, 'normal')}</td>
                             <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(row.qCut, 'normal')}</td>
                             <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(row.qCutBuf, 'normal')}</td>
@@ -1031,9 +1185,9 @@ const DashboardModule = () => {
                           <td className="wip-sticky-col" style={{ padding: '12px 18px', borderRight: '1px solid #27272a', fontStyle: 'italic', paddingLeft: '30px', position: 'sticky', left: 0, background: '#121214', zIndex: 2 }}>
                             Підсумок по виробу:
                           </td>
-                           <td className="wip-sticky-sum" style={{ padding: '12px 18px', textAlign: 'center', background: '#251a12', borderRight: '1px solid #27272a', color: '#ff9000', position: 'sticky', zIndex: 2 }}>
-                             {renderValue(groupTotals.sum, 'sum')}
-                           </td>
+                          <td className="wip-sticky-sum" style={{ padding: '12px 18px', textAlign: 'center', background: '#251a12', borderRight: '1px solid #27272a', color: '#ff9000', position: 'sticky', zIndex: 2 }}>
+                            {renderValue(groupTotals.sum, 'sum')}
+                          </td>
                           <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(groupTotals.qCutWait, 'normal')}</td>
                           <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(groupTotals.qCut, 'normal')}</td>
                           <td style={{ padding: '12px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.01)' }}>{renderValue(groupTotals.qCutBuf, 'normal')}</td>
@@ -1057,14 +1211,14 @@ const DashboardModule = () => {
                     )
                   })
                 )}
-                
+
                 {/* Grand Total Row */}
                 {groupedDashboardData.length > 0 && (
                   <tr style={{ background: '#18181b', fontWeight: 'bold', borderTop: '2px solid #ff9000', color: '#fff', fontSize: '0.8rem' }}>
                     <td className="wip-sticky-col" style={{ padding: '14px 18px', borderRight: '1px solid #27272a', textTransform: 'uppercase', letterSpacing: '0.5px', position: 'sticky', left: 0, background: '#18181b', zIndex: 2 }}>ЗАГАЛЬНИЙ WIP РАЗОМ:</td>
-                     <td className="wip-sticky-sum" style={{ padding: '14px 18px', textAlign: 'center', background: '#2e2014', borderRight: '1px solid #27272a', color: '#ff9000', position: 'sticky', zIndex: 2 }}>
-                       {renderValue(totals.sum, 'sum')}
-                     </td>
+                    <td className="wip-sticky-sum" style={{ padding: '14px 18px', textAlign: 'center', background: '#2e2014', borderRight: '1px solid #27272a', color: '#ff9000', position: 'sticky', zIndex: 2 }}>
+                      {renderValue(totals.sum, 'sum')}
+                    </td>
                     <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.02)' }}>{renderValue(totals.qCutWait, 'normal')}</td>
                     <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a' }}>{renderValue(totals.qCut, 'normal')}</td>
                     <td style={{ padding: '14px 18px', textAlign: 'center', borderRight: '1px solid #27272a', background: 'rgba(255, 255, 255, 0.02)' }}>{renderValue(totals.qCutBuf, 'normal')}</td>
@@ -1091,7 +1245,8 @@ const DashboardModule = () => {
         </section>
       </div>
 
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         .anim-spin { animation: spin 1.2s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .wip-row {
