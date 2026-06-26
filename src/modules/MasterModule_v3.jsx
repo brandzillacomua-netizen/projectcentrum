@@ -67,6 +67,8 @@ const MasterModule = () => {
   // Load module-specific data on mount (inventory, work_cards, requests)
   useEffect(() => { fetchModuleData('master') }, [])
 
+
+
   const activeCalls = (machineCalls || []).filter(c =>
     c.status === 'pending' &&
     c.called_role === 'master' &&
@@ -113,6 +115,232 @@ const MasterModule = () => {
   const [showPrepModal, setShowPrepModal] = useState(false)
   const [prepQuantities, setPrepQuantities] = useState({})
   const [prepDeadline, setPrepDeadline] = useState('')
+
+  // Custom independent card states
+  const [showCustomCardModal, setShowCustomCardModal] = useState(false)
+  const [customCardNomId, setCustomCardNomId] = useState('')
+  const [customCardQty, setCustomCardQty] = useState('')
+  const [customCardMachine, setCustomCardMachine] = useState('')
+  const [customCardDeadline, setCustomCardDeadline] = useState('')
+  const [customCardSearch, setCustomCardSearch] = useState('')
+  const [isSavingDraftOrder, setIsSavingDraftOrder] = useState(false)
+
+  useEffect(() => {
+    if (isSavingDraftOrder && activeNaryadOrder && !activeNaryadOrder.isVirtualDraft) {
+      setIsSavingDraftOrder(false)
+      handlePrint()
+    }
+  }, [isSavingDraftOrder, activeNaryadOrder])
+
+  const handleCreateCustomCard = async () => {
+    if (!customCardNomId) return alert('Оберіть номенклатуру!')
+    const qty = parseInt(customCardQty) || 0
+    if (qty <= 0) return alert('Введіть кількість більше 0!')
+    if (!customCardMachine) return alert('Оберіть верстат!')
+
+    setIsSubmitting(true)
+    try {
+      // 1. Generate virtual order number (ВБXXXX)
+      const { data: bzOrders, error: bzErr } = await supabase
+        .from('orders')
+        .select('order_num')
+        .like('order_num', 'ВБ%')
+
+      if (bzErr) throw bzErr
+
+      let nextNum = 1
+      if (bzOrders && bzOrders.length > 0) {
+        const numbers = bzOrders.map(o => {
+          const numPart = o.order_num.replace('ВБ', '')
+          return parseInt(numPart) || 0
+        })
+        nextNum = Math.max(...numbers) + 1
+      }
+      const newOrderNum = `ВБ${String(nextNum).padStart(4, '0')}`
+
+      const selectedNom = nomenclatures.find(n => n.id === customCardNomId)
+
+      // 2. Insert the virtual order
+      const { data: newOrder, error: orderErr } = await supabase
+        .from('orders')
+        .insert([{
+          order_num: newOrderNum,
+          customer: 'ВЛАСНИЙ ВИПУСК (НАЧ. ЦЕХУ)',
+          status: 'in-progress',
+          source: 'Виробництво',
+          nomenclature_id: customCardNomId,
+          quantity: qty,
+          deadline: customCardDeadline || null,
+          accessories: selectedNom?.name || ''
+        }])
+        .select()
+
+      if (orderErr) throw orderErr
+      if (!newOrder || newOrder.length === 0) throw new Error('Не вдалося створити віртуальне замовлення')
+
+      const createdOrder = newOrder[0]
+
+      // 3. Insert order item
+      const { data: newItem, error: itemErr } = await supabase
+        .from('order_items')
+        .insert([{
+          order_id: createdOrder.id,
+          nomenclature_id: customCardNomId,
+          quantity: qty
+        }])
+        .select()
+
+      if (itemErr) throw itemErr
+      if (!newItem || newItem.length === 0) throw new Error('Не вдалося створити елемент замовлення')
+
+      // 4. Force reload order queue list internally to cache it
+      await fetchModuleData('master')
+
+      // 5. Open standard detailed planning modal
+      handleOpenNaryadModal(createdOrder, qty, customCardDeadline || null)
+      setRowMachines({ [customCardNomId]: customCardMachine })
+
+      setShowCustomCardModal(false)
+      setCustomCardNomId('')
+      setCustomCardQty('')
+      setCustomCardMachine('')
+      setCustomCardDeadline('')
+      setCustomCardSearch('')
+    } catch (e) {
+      alert('Помилка при створенні картки: ' + e.message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleOpenCustomVirtualNaryad = async () => {
+    setIsReprintMode(false)
+    setSelectedCutters({})
+    setPartCutterOverrides({})
+    setSelectedMachine(null)
+    setRowMachines({})
+    setRowMachinesSplits({})
+    setMaterialSplits({})
+    setIsDrawerOpen(false)
+    setNaryadDeadline('')
+    setNaryadParts({})
+    setNaryadQtys({})
+
+    let nextNum = 1
+    try {
+      const { data: bzOrders, error: bzErr } = await supabase
+        .from('orders')
+        .select('order_num')
+        .like('order_num', 'ВБ%')
+
+      if (!bzErr && bzOrders && bzOrders.length > 0) {
+        const numbers = bzOrders.map(o => {
+          const numPart = o.order_num.replace('ВБ', '')
+          return parseInt(numPart) || 0
+        })
+        nextNum = Math.max(...numbers) + 1
+      }
+    } catch (e) {
+      console.error(e)
+    }
+    const newOrderNum = `ВБ${String(nextNum).padStart(4, '0')}`
+
+    const virtualOrder = {
+      id: 'draft-' + Date.now(),
+      order_num: newOrderNum,
+      customer: 'ВЛАСНИЙ ВИПУСК (НАЧ. ЦЕХУ)',
+      status: 'in-progress',
+      source: 'Виробництво',
+      isVirtualDraft: true,
+      order_items: []
+    }
+
+    setActiveNaryadOrder(virtualOrder)
+  }
+
+  const handleSaveVirtualDraft = async () => {
+    if (!activeNaryadOrder || !activeNaryadOrder.isVirtualDraft) return;
+    if (!activeNaryadOrder.order_items || activeNaryadOrder.order_items.length === 0) {
+      alert("Додайте принаймні одну деталь!");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      // 1. Insert order
+      const { data: newOrder, error: orderErr } = await supabase
+        .from('orders')
+        .insert([{
+          order_num: activeNaryadOrder.order_num,
+          customer: 'ВЛАСНИЙ ВИПУСК (НАЧ. ЦЕХУ)',
+          status: 'in-progress',
+          source: 'Виробництво',
+          deadline: naryadDeadline || null,
+          accessories: activeNaryadOrder.order_items.map(it => it.nomenclature?.name || '').join(', ')
+        }])
+        .select();
+
+      if (orderErr) throw orderErr;
+      const createdOrder = newOrder[0];
+
+      // 2. Insert order items
+      const itemsToInsert = activeNaryadOrder.order_items.map(it => {
+        const qty = naryadQtys[it.id] || 0;
+        return {
+          order_id: createdOrder.id,
+          nomenclature_id: it.nomenclature_id,
+          quantity: qty
+        };
+      });
+
+      const { data: newItems, error: itemsErr } = await supabase
+        .from('order_items')
+        .insert(itemsToInsert)
+        .select();
+
+      if (itemsErr) throw itemsErr;
+
+      // 3. Map temporary IDs in states to new real order item IDs
+      const tempIdToRealId = {};
+      activeNaryadOrder.order_items.forEach((it, idx) => {
+        const realItem = newItems[idx];
+        if (realItem) {
+          tempIdToRealId[it.id] = realItem.id;
+        }
+      });
+
+      const updatedNaryadQtys = {};
+      const updatedNaryadParts = {};
+      Object.entries(naryadQtys).forEach(([key, val]) => {
+        const realId = tempIdToRealId[key] || key;
+        updatedNaryadQtys[realId] = val;
+      });
+
+      Object.entries(naryadParts).forEach(([key, val]) => {
+        const realId = tempIdToRealId[key] || key;
+        updatedNaryadParts[realId] = val;
+      });
+
+      // Update states
+      setNaryadQtys(updatedNaryadQtys);
+      setNaryadParts(updatedNaryadParts);
+
+      // Reload module data so the order is in local state cache
+      await fetchModuleData('master');
+
+      const finalOrder = {
+        ...createdOrder,
+        order_items: newItems
+      };
+
+      setIsSavingDraftOrder(true);
+      setActiveNaryadOrder(finalOrder);
+    } catch (err) {
+      console.error(err);
+      alert("Помилка при створенні наряду: " + err.message);
+      setIsSubmitting(false);
+    }
+  };
 
   const handleCreatePrepOrder = async () => {
     const itemsToCreate = Object.entries(prepQuantities).filter(([_, qty]) => Number(qty) > 0);
@@ -671,6 +899,12 @@ const MasterModule = () => {
 
           if (createdTask) {
             setReprintTask(createdTask);
+            if (activeNaryadOrder.order_num?.startsWith('ВБ')) {
+              await supabase.from('tasks').update({
+                engineer_conf: true,
+                director_conf: true
+              }).eq('id', createdTask.id)
+            }
           }
 
           // 3. Trigger print dialog
@@ -700,6 +934,12 @@ const MasterModule = () => {
         
         if (createdTask) {
           setReprintTask(createdTask);
+          if (activeNaryadOrder.order_num?.startsWith('ВБ')) {
+            await supabase.from('tasks').update({
+              engineer_conf: true,
+              director_conf: true
+            }).eq('id', createdTask.id)
+          }
         }
         
         window.print()
@@ -1102,6 +1342,7 @@ const MasterModule = () => {
   const isPrintDisabled = useMemo(() => {
     if (isSubmitting) return true
     if (!activeNaryadOrder) return true
+    if (activeNaryadOrder.isVirtualDraft && (!activeNaryadOrder.order_items || activeNaryadOrder.order_items.length === 0)) return true
     if (hasUnassignedMachines) return true
 
     // Ensure all cutters from consumableSummary are selected
@@ -1208,12 +1449,20 @@ const MasterModule = () => {
     <section className="grid-col">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
         <h3 style={{ fontSize: '0.85rem', color: '#555', margin: 0, flex: 1 }}><ListChecks size={16} /> ЧЕРГА ЗАМОВЛЕНЬ</h3>
-        <button
-          onClick={() => setShowPrepModal(true)}
-          style={{ background: '#10b981', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer' }}
-        >
-          НАРЯД НА ПІДГОТОВКУ
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={() => setShowPrepModal(true)}
+            style={{ background: '#10b981', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer' }}
+          >
+            НАРЯД НА ПІДГОТОВКУ
+          </button>
+          <button
+            onClick={handleOpenCustomVirtualNaryad}
+            style={{ background: '#ff9000', color: '#000', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer' }}
+          >
+            ВЛАСНА РОБОЧА КАРТКА
+          </button>
+        </div>
         <div style={{ position: 'relative' }}>
           <Search size={12} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#444' }} />
           <input style={{ background: '#000', border: '1px solid #222', borderRadius: '8px', padding: '4px 8px 4px 25px', color: '#fff', fontSize: '0.75rem', width: '110px' }} placeholder="Пошук..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
@@ -1734,6 +1983,57 @@ const MasterModule = () => {
                     </tr>
                   </thead>
                   <tbody>
+                    {activeNaryadOrder.isVirtualDraft && !isReprintMode && (
+                      <tr className="no-print" style={{ borderBottom: '1px solid #1a1a1a' }}>
+                        <td colSpan={11} style={{ padding: '12px 15px' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const firstPart = nomenclatures.find(n => n.type === 'part') || nomenclatures[0]
+                              const newItemId = 'draft-item-' + Date.now()
+                              setActiveNaryadOrder(prev => {
+                                const nextItems = [...(prev.order_items || [])]
+                                nextItems.push({
+                                  id: newItemId,
+                                  order_id: prev.id,
+                                  nomenclature_id: firstPart?.id,
+                                  quantity: 1,
+                                  nomenclature: firstPart
+                                })
+                                return { ...prev, order_items: nextItems }
+                              })
+                              setNaryadQtys(prev => ({
+                                ...prev,
+                                [newItemId]: 1
+                              }))
+                              setNaryadParts(prev => ({
+                                ...prev,
+                                [newItemId]: [{
+                                  nom: firstPart,
+                                  quantity_per_parent: 1
+                                }]
+                              }))
+                            }}
+                            style={{
+                              background: 'rgba(16, 185, 129, 0.1)',
+                              border: '1px solid rgba(16, 185, 129, 0.3)',
+                              color: '#10b981',
+                              padding: '8px 16px',
+                              borderRadius: '10px',
+                              fontSize: '0.8rem',
+                              fontWeight: 900,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            ➕ Додати деталь в розкрій
+                          </button>
+                        </td>
+                      </tr>
+                    )}
                     {activeNaryadOrder.order_items?.map(it => {
                       const nom = nomenclatures.find(n => n.id === it.nomenclature_id)
                       const thisNaryadQty = isReprintMode ? Number(it.quantity) : (naryadQtys[it.id] || 0)
@@ -1820,7 +2120,10 @@ const displayParts = getDisplayPartsForOrderItem(it)
                                         n.type === 'part' &&
                                         (query === '' ||
                                          n.name.toLowerCase().includes(query.toLowerCase()) ||
-                                         (n.nomenclature_code && n.nomenclature_code.toLowerCase().includes(query.toLowerCase())))
+                                         (n.nomenclature_code && n.nomenclature_code.toLowerCase().includes(query.toLowerCase())) ||
+                                         (n.description && n.description.toLowerCase().includes(query.toLowerCase())) ||
+                                         (n.additional_info && n.additional_info.toLowerCase().includes(query.toLowerCase())) ||
+                                         (n.material_type && n.material_type.toLowerCase().includes(query.toLowerCase())))
                                       )
                                       const currentName = partSearchQueries[rowKey] !== undefined ? partSearchQueries[rowKey] : (part.nom?.name || '')
                                       return (
@@ -1886,6 +2189,17 @@ const displayParts = getDisplayPartsForOrderItem(it)
                                                         itemParts[pIdx] = { ...itemParts[pIdx], nom: n }
                                                         return { ...prev, [it.id]: itemParts }
                                                       })
+                                                      if (activeNaryadOrder.isVirtualDraft) {
+                                                        setActiveNaryadOrder(prev => {
+                                                          const nextItems = (prev.order_items || []).map(item => {
+                                                            if (item.id === it.id) {
+                                                              return { ...item, nomenclature_id: n.id, nomenclature: n }
+                                                            }
+                                                            return item
+                                                          })
+                                                          return { ...prev, order_items: nextItems }
+                                                        })
+                                                      }
                                                       if (oldNomId && oldNomId !== n.id) {
                                                         setRowMachines(prev => {
                                                           if (prev[oldNomId]) {
@@ -1937,10 +2251,27 @@ const displayParts = getDisplayPartsForOrderItem(it)
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        setNaryadParts(prev => {
-                                          const itemParts = (prev[it.id] || []).filter((_, idx) => idx !== pIdx)
-                                          return { ...prev, [it.id]: itemParts }
-                                        })
+                                        if (activeNaryadOrder.isVirtualDraft) {
+                                          setActiveNaryadOrder(prev => {
+                                            const nextItems = (prev.order_items || []).filter(item => item.id !== it.id)
+                                            return { ...prev, order_items: nextItems }
+                                          })
+                                          setNaryadQtys(prev => {
+                                            const next = { ...prev }
+                                            delete next[it.id]
+                                            return next
+                                          })
+                                          setNaryadParts(prev => {
+                                            const next = { ...prev }
+                                            delete next[it.id]
+                                            return next
+                                          })
+                                        } else {
+                                          setNaryadParts(prev => {
+                                            const itemParts = (prev[it.id] || []).filter((_, idx) => idx !== pIdx)
+                                            return { ...prev, [it.id]: itemParts }
+                                          })
+                                        }
                                       }}
                                       style={{
                                         background: 'rgba(239, 68, 68, 0.1)',
@@ -2241,7 +2572,34 @@ const displayParts = getDisplayPartsForOrderItem(it)
                               )}
                             </td>
                             <td style={{ padding: '10px 4px', textAlign: 'center', fontSize: '1.1rem', color: '#fff', fontWeight: 900 }} className="no-print">
-                              {totalNeeded.toString()}
+                              {activeNaryadOrder.isVirtualDraft ? (
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={thisNaryadQty}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value) || 0
+                                    setNaryadQtys(prev => ({
+                                      ...prev,
+                                      [it.id]: val
+                                    }))
+                                  }}
+                                  style={{
+                                    width: '65px',
+                                    background: '#000',
+                                    border: '1px solid #333',
+                                    color: '#fff',
+                                    padding: '6px 4px',
+                                    borderRadius: '8px',
+                                    fontSize: '1rem',
+                                    fontWeight: 950,
+                                    textAlign: 'center',
+                                    outline: 'none'
+                                  }}
+                                />
+                              ) : (
+                                totalNeeded.toString()
+                              )}
                             </td>
                             <td style={{ padding: '10px 4px', textAlign: 'center', color: '#555', fontSize: '0.85rem' }} className="no-print">
                               {inStock.toString()}
@@ -3310,6 +3668,142 @@ const displayParts = getDisplayPartsForOrderItem(it)
                   style={{ flex: 2, padding: '12px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}
                 >
                   {isSubmitting ? 'ЧЕКАЙТЕ...' : 'СТВОРИТИ'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* CUSTOM INDEPENDENT WORK CARD MODAL */}
+      {showCustomCardModal && (() => {
+        const partNomenclatures = nomenclatures.filter(n => n.type === 'part')
+        const filteredNoms = partNomenclatures.filter(n => 
+          n.name?.toLowerCase().includes(customCardSearch.toLowerCase()) || 
+          n.description?.toLowerCase().includes(customCardSearch.toLowerCase()) || 
+          n.additional_info?.toLowerCase().includes(customCardSearch.toLowerCase()) || 
+          n.material_type?.toLowerCase().includes(customCardSearch.toLowerCase())
+        ).slice(0, 15) // Limit to 15 search results for performance
+
+        const selectedNom = nomenclatures.find(n => n.id === customCardNomId)
+
+        return (
+          <div className="worksheet-modal-overlay no-print" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backdropFilter: 'blur(5px)' }}>
+            <div className="worksheet-panel" style={{ background: '#0d0d0d', border: '1px solid #222', width: '100%', maxWidth: '600px', borderRadius: '24px', padding: '30px', boxShadow: '0 20px 50px rgba(0,0,0,0.5)', overflowY: 'auto', maxHeight: '90vh' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '1px solid #1a1a1a', paddingBottom: '15px' }}>
+                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 950, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>СТВОРИТИ ВЛАСНУ РОБОЧУ КАРТКУ</h2>
+                <button onClick={() => setShowCustomCardModal(false)} style={{ background: '#1a1a1a', border: '1px solid #333', color: '#aaa', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifySelf: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} /></button>
+              </div>
+
+              {/* NOMENCLATURE SELECTION */}
+              <div style={{ marginBottom: '20px', position: 'relative' }}>
+                <label style={{ display: 'block', fontSize: '0.75rem', color: '#555', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>Деталь (Номенклатура)</label>
+                {selectedNom ? (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#111', border: '1px solid #22c55e', borderRadius: '12px', padding: '12px' }}>
+                    <div>
+                      <div style={{ fontWeight: 800, color: '#fff', fontSize: '0.9rem' }}>{selectedNom.name}</div>
+                      {selectedNom.description && (
+                        <div style={{ fontSize: '0.75rem', color: '#aaa', marginTop: '2px' }}>{selectedNom.description}</div>
+                      )}
+                      {selectedNom.additional_info && (
+                        <div style={{ fontSize: '0.75rem', color: '#888', marginTop: '2px' }}>{selectedNom.additional_info}</div>
+                      )}
+                    </div>
+                    <button 
+                      onClick={() => {
+                        setCustomCardNomId('')
+                        setCustomCardSearch('')
+                      }} 
+                      style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer' }}
+                    >
+                      Змінити
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="Введіть назву, опис або параметри деталі..."
+                      value={customCardSearch}
+                      onChange={e => setCustomCardSearch(e.target.value)}
+                      style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '0.9rem', outline: 'none' }}
+                    />
+                    {customCardSearch.trim().length > 0 && (
+                      <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', background: '#0d0d0d', border: '1px solid #222', borderRadius: '12px', zIndex: 10001, marginTop: '5px', overflowHidden: 'hidden', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', maxHeight: '200px', overflowY: 'auto' }}>
+                        {filteredNoms.length > 0 ? (
+                          filteredNoms.map(n => (
+                            <div 
+                              key={n.id} 
+                              onClick={() => {
+                                setCustomCardNomId(n.id)
+                                setCustomCardSearch('')
+                              }}
+                              className="search-nom-item"
+                              style={{ padding: '12px 15px', borderBottom: '1px solid #111', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '2px', transition: 'background 0.2s' }}
+                            >
+                              <span style={{ color: '#fff', fontWeight: 800, fontSize: '0.85rem' }}>{n.name}</span>
+                              {(n.description || n.additional_info) && (
+                                <span style={{ color: '#aaa', fontSize: '0.7rem' }}>{n.description || n.additional_info}</span>
+                              )}
+                              <span style={{ color: '#444', fontSize: '0.65rem' }}>Матеріал: {n.material_type || '—'}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <div style={{ padding: '15px', color: '#444', fontSize: '0.8rem', textAlign: 'center' }}>Нічого не знайдено</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* QUANTITY */}
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '0.75rem', color: '#555', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>Кількість деталей, шт</label>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="Введіть потрібну кількість"
+                  value={customCardQty}
+                  onChange={e => setCustomCardQty(e.target.value)}
+                  style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '1rem', fontWeight: 800, outline: 'none' }}
+                />
+              </div>
+
+              {/* MACHINE / CNC TYPE */}
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '0.75rem', color: '#555', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>CNC Верстат</label>
+                <select
+                  value={customCardMachine}
+                  onChange={e => setCustomCardMachine(e.target.value)}
+                  style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '0.9rem', fontWeight: 800, outline: 'none' }}
+                >
+                  <option value="">Оберіть верстат</option>
+                  {MACHINE_TYPES.map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* DEADLINE */}
+              <div style={{ marginBottom: '30px' }}>
+                <label style={{ display: 'block', fontSize: '0.75rem', color: '#555', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>Дедлайн</label>
+                <input
+                  type="date"
+                  value={customCardDeadline}
+                  onChange={e => setCustomCardDeadline(e.target.value)}
+                  style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '0.9rem', fontWeight: 800, outline: 'none' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button onClick={() => setShowCustomCardModal(false)} style={{ flex: 1, padding: '12px', background: '#1a1a1a', color: '#888', border: 'none', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>СКАСУВАТИ</button>
+                <button
+                  onClick={handleCreateCustomCard}
+                  disabled={isSubmitting}
+                  style={{ flex: 2, padding: '12px', background: '#ff9000', color: '#000', border: 'none', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', transition: 'all 0.2s' }}
+                >
+                  {isSubmitting ? 'ЗБЕРЕЖЕННЯ...' : 'СТВОРИТИ'}
                 </button>
               </div>
             </div>
