@@ -41,6 +41,9 @@ export default function TumblingTerminal() {
   const [scrapCount, setScrapCount] = useState(0)
   const [finishedCount, setFinishedCount] = useState(0)
 
+  // Custom confirm modal (replaces window.confirm) for "start card" action
+  const [pendingStartCard, setPendingStartCard] = useState(null)
+
   // 1. Tick clock
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000)
@@ -165,7 +168,10 @@ export default function TumblingTerminal() {
       const isInWork = card.status === 'in-progress' && card.operation === 'Галтовка'
 
       if (isWaiting) {
-        await startTumblingCard(card)
+        // Instead of window.confirm, show custom modal
+        setPendingStartCard(card)
+        setIsProcessing(false)
+        return
       } else if (isInWork) {
         openCompleteModal(card)
       } else {
@@ -178,44 +184,52 @@ export default function TumblingTerminal() {
     }
   }
 
-  // Action: Take card to work
+  // Action: Take card to work — called after custom confirm modal is accepted
   const startTumblingCard = async (card) => {
     if (!selectedShift) {
-      alert('⚠️ Будь ласка, спочатку оберіть зміну вгорі екрану!')
+      setScanError('⚠️ Будь ласка, спочатку оберіть зміну вгорі екрану!')
       return
     }
 
-    const now = new Date().toISOString()
-    const bufferStart = card.completed_at || card.started_at || now
+    setIsProcessing(true)
+    try {
+      const now = new Date().toISOString()
+      const bufferStart = card.completed_at || card.started_at || now
 
-    // 1. Insert history log for waiting buffer
-    await supabase.from('work_card_history').insert([{
-      card_id: card.id,
-      nomenclature_id: card.nomenclature_id,
-      stage_name: 'Буфер Розкрій',
-      operator_name: 'Команда',
-      qty_at_start: card.quantity || 0,
-      qty_completed: card.quantity || 0,
-      scrap_qty: 0,
-      started_at: bufferStart,
-      completed_at: now,
-      shift_name: selectedShift,
-      manager_name: card.manager_name || 'Не вказано',
-      machine_name: card.machine || 'Не вказано'
-    }])
+      // 1. Insert history log for waiting buffer
+      await supabase.from('work_card_history').insert([{
+        card_id: card.id,
+        nomenclature_id: card.nomenclature_id,
+        stage_name: 'Буфер Розкрій',
+        operator_name: 'Команда',
+        qty_at_start: card.quantity || 0,
+        qty_completed: card.quantity || 0,
+        scrap_qty: 0,
+        started_at: bufferStart,
+        completed_at: now,
+        shift_name: selectedShift,
+        manager_name: card.manager_name || 'Не вказано',
+        machine_name: card.machine || 'Не вказано'
+      }])
 
-    // 2. Update card state in DB
-    await supabase.from('work_cards').update({
-      status: 'in-progress',
-      operation: 'Галтовка',
-      started_at: now,
-      operator_name: 'Команда',
-      shift_name: selectedShift
-    }).eq('id', card.id)
+      // 2. Update card state in DB
+      await supabase.from('work_cards').update({
+        status: 'in-progress',
+        operation: 'Галтовка',
+        started_at: now,
+        operator_name: 'Команда',
+        shift_name: selectedShift
+      }).eq('id', card.id)
 
-    setScanError(null)
-    setManualId('')
-    fetchData(['work_cards', 'work_card_history']).catch(() => { })
+      setScanError(null)
+      setManualId('')
+      fetchData(['work_cards', 'work_card_history']).catch(() => { })
+    } catch (e) {
+      setScanError(`Помилка запуску: ${e.message}`)
+    } finally {
+      setIsProcessing(false)
+      setPendingStartCard(null)
+    }
   }
 
   // Complete Stage modal triggers
@@ -272,7 +286,7 @@ export default function TumblingTerminal() {
       setScanError(null)
       fetchData(['work_cards', 'work_card_history', 'inventory']).catch(() => { })
     } catch (e) {
-      alert('Помилка завершення галтовки: ' + e.message)
+      setScanError('Помилка завершення галтовки: ' + e.message)
     } finally {
       setIsProcessing(false)
     }
@@ -494,9 +508,25 @@ export default function TumblingTerminal() {
                     {/* Card main info */}
                     <div style={{ flex: '1 1 200px', paddingLeft: '6px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '0.62rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                          Картка #{card.id.slice(-8).toUpperCase()}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '0.62rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            Картка #{card.id.slice(-8).toUpperCase()}
+                          </span>
+                          {(() => {
+                            const seqMatch = (card.card_info || '').match(/(\d+\/\d+)/)
+                            return seqMatch ? (
+                              <span style={{
+                                background: 'rgba(255, 144, 0, 0.15)',
+                                color: '#ff9000',
+                                border: '1px solid rgba(255, 144, 0, 0.3)',
+                                padding: '2px 6px', borderRadius: '6px',
+                                fontSize: '0.6rem', fontWeight: 950
+                              }}>
+                                {seqMatch[1]}
+                              </span>
+                            ) : null
+                          })()}
+                        </div>
                         <span style={{ fontSize: '0.55rem', background: pInfo.bg, color: pInfo.text, border: pInfo.border, padding: '2px 8px', borderRadius: '6px', fontWeight: 900 }}>
                           Пріорітет: {pInfo.label}
                         </span>
@@ -525,7 +555,7 @@ export default function TumblingTerminal() {
                         <Clock size={11} /> {waitTime}
                       </div>
                       <button
-                        onClick={() => startTumblingCard(card)}
+                        onClick={() => setPendingStartCard(card)}
                         disabled={isProcessing}
                         style={{ background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.2)', color: '#06b6d4', padding: '8px 12px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: '0.2s' }}
                         className="btn-cyan"
@@ -575,9 +605,25 @@ export default function TumblingTerminal() {
 
                     {/* Card main info */}
                     <div style={{ flex: '1 1 200px', paddingLeft: '6px' }}>
-                      <span style={{ fontSize: '0.62rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '8px' }}>
-                        Картка #{card.id.slice(-8).toUpperCase()}
-                      </span>
+                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                         <span style={{ fontSize: '0.62rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                           Картка #{card.id.slice(-8).toUpperCase()}
+                         </span>
+                         {(() => {
+                           const seqMatch = (card.card_info || '').match(/(\d+\/\d+)/)
+                           return seqMatch ? (
+                             <span style={{
+                               background: 'rgba(255, 144, 0, 0.15)',
+                               color: '#ff9000',
+                               border: '1px solid rgba(255, 144, 0, 0.3)',
+                               padding: '2px 6px', borderRadius: '6px',
+                               fontSize: '0.6rem', fontWeight: 950
+                             }}>
+                               {seqMatch[1]}
+                             </span>
+                           ) : null
+                         })()}
+                       </div>
 
                       <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#fff', margin: '0 0 6px 0', lineHeight: 1.3 }}>
                         {nom?.name || 'Невказана деталь'}
@@ -619,6 +665,77 @@ export default function TumblingTerminal() {
         </section>
 
       </main>
+
+      {/* ── КАСТОМНА МОДАЛКА ПІДТВЕРДЖЕННЯ ЗАПУСКУ ГАЛТОВКИ ────────────────── */}
+      {pendingStartCard && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10050, padding: '20px', backdropFilter: 'blur(10px)' }}>
+          <div style={{ background: '#0e0e12', width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid rgba(6,182,212,0.25)', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}>
+
+            {/* Header */}
+            <div style={{ padding: '20px 24px', background: 'rgba(6,182,212,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(6,182,212,0.1)' }}>
+              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 950, color: '#06b6d4', display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'uppercase' }}>
+                <Play size={16} fill="currentColor" /> Взяти в галтовку
+              </h3>
+              <button
+                onClick={() => setPendingStartCard(null)}
+                style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              {/* Card info block */}
+              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '16px', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '0.6rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase' }}>
+                    #{pendingStartCard.id.slice(-8).toUpperCase()}
+                  </span>
+                  {(() => {
+                    const seqMatch = (pendingStartCard.card_info || '').match(/(\d+\/\d+)/)
+                    return seqMatch ? (
+                      <span style={{ background: 'rgba(255,144,0,0.15)', color: '#ff9000', border: '1px solid rgba(255,144,0,0.3)', padding: '2px 6px', borderRadius: '5px', fontSize: '0.58rem', fontWeight: 950 }}>
+                        {seqMatch[1]}
+                      </span>
+                    ) : null
+                  })()}
+                </div>
+                <div style={{ fontSize: '1rem', fontWeight: 900, color: '#fff' }}>
+                  {getNom(pendingStartCard)?.name || 'Деталь'}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 700 }}>
+                  К-сть: <strong style={{ color: '#fff' }}>{pendingStartCard.quantity} шт</strong>
+                  {pendingStartCard.machine ? <> · Верстат: <span style={{ color: '#aaa' }}>{pendingStartCard.machine}</span></> : null}
+                </div>
+              </div>
+
+              <p style={{ margin: 0, fontSize: '0.82rem', color: '#9ca3af', fontWeight: 600, textAlign: 'center', lineHeight: 1.5 }}>
+                Підтвердіть що картка переходить у роботу на <strong style={{ color: '#fff' }}>Галтовку</strong>.
+              </p>
+
+              {/* Buttons */}
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  onClick={() => setPendingStartCard(null)}
+                  disabled={isProcessing}
+                  style={{ flex: 1, background: '#1a1a1f', border: '1px solid rgba(255,255,255,0.05)', color: '#aaa', padding: '14px', borderRadius: '14px', fontSize: '0.8rem', fontWeight: 900, cursor: 'pointer' }}
+                >
+                  СКАСУВАТИ
+                </button>
+                <button
+                  onClick={() => startTumblingCard(pendingStartCard)}
+                  disabled={isProcessing}
+                  style={{ flex: 2, background: '#06b6d4', border: 'none', color: '#000', padding: '14px', borderRadius: '14px', fontSize: '0.9rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 16px rgba(6,182,212,0.25)' }}
+                >
+                  {isProcessing ? <RefreshCw size={15} className="anim-spin" /> : <><Play size={15} fill="currentColor" /> В РОБОТУ</>}
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* COMPLETE WORK MODAL */}
       {showCompleteModal && activeCompletingCard && (

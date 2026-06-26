@@ -84,6 +84,11 @@ export default function Shop1Terminal() {
   const [shiftChangeShift, setShiftChangeShift] = useState('')
   const [scrapOperator, setScrapOperator] = useState('')
 
+  // Пауза / Зупинка (тільки для Розкрою)
+  const [showPauseModal, setShowPauseModal] = useState(false)
+  const [pauseReason, setPauseReason] = useState('Поломка верстата')
+  const [customPauseReason, setCustomPauseReason] = useState('')
+
   // Фільтр таблиці "В роботі та буфері"
   const [activeTableFilter, setActiveTableFilter] = useState('all') // 'all' | 'in-progress' | 'at-buffer'
   const [queueFilter, setQueueFilter] = useState('all') // 'all' | 'new' | 'at-buffer'
@@ -413,6 +418,7 @@ export default function Shop1Terminal() {
       const cardHistory = workCardHistory.filter(h => String(h.card_id) === String(card.id))
       cardHistory.forEach(h => {
         if (h.started_at && h.completed_at) {
+          if (String(h.stage_name).includes('пауза') || String(h.stage_name).includes('зупинка')) return;
           const s = parseDBTime(h.started_at)?.getTime() || 0;
           const c = parseDBTime(h.completed_at)?.getTime() || 0;
           if (s && c) {
@@ -770,7 +776,7 @@ export default function Shop1Terminal() {
   // - картки що були вже відскановані в цьому сеансі
   const queueCards = workCards.filter(c => {
     // 1. Обов'язкові виключення
-    if (c.status === 'completed' || c.status === 'in-progress' || c.status === 'at-shop2-buffer') return false
+    if (c.status === 'completed' || c.status === 'in-progress' || c.status === 'paused' || c.status === 'at-shop2-buffer') return false
     
     // 2. Виключення за маркерами Shop 2
     const info = String(c.card_info || '')
@@ -954,6 +960,100 @@ export default function Shop1Terminal() {
       setIsProcessing(false)
       alert('Помилка перезмінки: ' + e.message)
     } finally { setIsProcessing(false) }
+  }
+
+  // ── ДІЯ 1.7: ПАУЗА / ЗУПИНКА (тільки Розкрій) ───────────────────────────
+  const handlePauseCard = async () => {
+    if (!currentCard || isProcessing) return
+    const reasonText = (pauseReason === 'Інша причина (введіть нижче)' ? customPauseReason : pauseReason) || 'Без причини'
+    setIsProcessing(true)
+    try {
+      const now = new Date().toISOString()
+      
+      // 1. Записуємо робочий інтервал в історію
+      await supabase.from('work_card_history').insert([{
+        card_id: currentCard.id,
+        nomenclature_id: currentCard.nomenclature_id,
+        stage_name: 'Розкрій',
+        operator_name: currentCard.operator_name || 'Не вказано',
+        qty_at_start: currentCard.quantity || 0,
+        qty_completed: currentCard.quantity || 0,
+        scrap_qty: 0,
+        started_at: currentCard.started_at || now,
+        completed_at: now,
+        shift_name: currentCard.shift_name || 'Без зміни',
+        manager_name: currentCard.manager_name || 'Не вказано',
+        machine_name: currentCard.machine || 'Не вказано',
+        card_info: `[PAUSED_WORK_LOG][REASON:${reasonText}]`
+      }])
+
+      // Збережемо початковий ORIGINAL_START, якщо його немає
+      const originalStart = currentCard.card_info?.match(/\[ORIGINAL_START:([^\]]+)\]/)?.[1] || currentCard.started_at || now;
+      let cleanCardInfo = (currentCard.card_info || '').replace(/\[ORIGINAL_START:[^\]]+\]/g, '').trim()
+      cleanCardInfo = cleanCardInfo.replace(/\[PAUSED:[^\]]+\]/g, '').replace(/\[PAUSED_AT:[^\]]+\]/g, '').trim()
+
+      const updatedCardInfo = `[PAUSED:${reasonText}][PAUSED_AT:${now}][ORIGINAL_START:${originalStart}] ${cleanCardInfo}`.trim()
+
+      // 2. Оновлюємо статус на paused
+      await supabase.from('work_cards').update({
+        status: 'paused',
+        card_info: updatedCardInfo
+      }).eq('id', currentCard.id)
+
+      setShowPauseModal(false)
+      setCustomPauseReason('')
+      fetchData(['work_cards', 'work_card_history']).catch(() => {})
+    } catch (e) {
+      alert('Помилка призупинення: ' + e.message)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleResumeCard = async () => {
+    if (!currentCard || isProcessing) return
+    setIsProcessing(true)
+    try {
+      const now = new Date().toISOString()
+      const pausedAtStr = currentCard.card_info?.match(/\[PAUSED_AT:([^\]]+)\]/)?.[1]
+      const reasonText = currentCard.card_info?.match(/\[PAUSED:([^\]]+)\]/)?.[1] || 'Без причини'
+      const pausedAt = pausedAtStr ? new Date(pausedAtStr).toISOString() : now
+
+      // 1. Записуємо паузу в історію
+      await supabase.from('work_card_history').insert([{
+        card_id: currentCard.id,
+        nomenclature_id: currentCard.nomenclature_id,
+        stage_name: 'Розкрій (зупинка)',
+        operator_name: currentCard.operator_name || 'Не вказано',
+        qty_at_start: currentCard.quantity || 0,
+        qty_completed: currentCard.quantity || 0,
+        scrap_qty: 0,
+        started_at: pausedAt,
+        completed_at: now,
+        shift_name: currentCard.shift_name || 'Без зміни',
+        manager_name: currentCard.manager_name || 'Не вказано',
+        machine_name: currentCard.machine || 'Не вказано',
+        card_info: `Причина зупинки: ${reasonText}`
+      }])
+
+      // 2. Оновлюємо статус на in-progress
+      let cleanCardInfo = (currentCard.card_info || '')
+        .replace(/\[PAUSED:[^\]]+\]/g, '')
+        .replace(/\[PAUSED_AT:[^\]]+\]/g, '')
+        .trim()
+
+      await supabase.from('work_cards').update({
+        status: 'in-progress',
+        started_at: now,
+        card_info: cleanCardInfo
+      }).eq('id', currentCard.id)
+
+      fetchData(['work_cards', 'work_card_history']).catch(() => {})
+    } catch (e) {
+      alert('Помилка відновлення роботи: ' + e.message)
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
   const handleCuttersInventoryDeduction = async (card, breakdown) => {
@@ -2101,45 +2201,67 @@ export default function Shop1Terminal() {
             )
           })()}
 
-          {/* ── СТАН: IN-PROGRESS (якщо вже в CHAIN) → Таймер + завершити ── */}
-          {status === 'in-progress' && CHAIN.includes(currentCard.operation) && (() => {
+          {/* ── СТАН: IN-PROGRESS або PAUSED (якщо вже в CHAIN) → Таймер + завершити ── */}
+          {((status === 'in-progress' || status === 'paused') && CHAIN.includes(currentCard.operation)) && (() => {
             const opName = currentCard.operation?.toUpperCase()
-            // Обчислюємо загальний час на етапі (з урахуванням ORIGINAL_START з метаданих або просто started_at)
+            const isPaused = status === 'paused'
             const originalStart = currentCard.card_info?.match(/\[ORIGINAL_START:([^\]]+)\]/)?.[1] || currentCard.started_at
             
+            const pausedAtStr = currentCard.card_info?.match(/\[PAUSED_AT:([^\]]+)\]/)?.[1]
+            const pauseReasonStr = currentCard.card_info?.match(/\[PAUSED:([^\]]+)\]/)?.[1] || 'Невідома причина'
+
             return (
               <div style={{ textAlign: 'center' }}>
                 {/* Єдина інфо-плашка: Кількість | Етап | Верстат */}
                 <div style={{ display: 'flex', alignItems: 'stretch', gap: '0', background: '#0f0f0f', border: '1px solid #222', borderRadius: '16px', marginBottom: '24px', overflow: 'hidden', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
                   {/* К-сть */}
                   <div style={{ padding: '10px 20px', textAlign: 'left', borderRight: '1px solid #222' }}>
-                    <div style={{ fontSize: '0.5rem', color: '#3b82f6', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}>У РОБОТІ</div>
+                    <div style={{ fontSize: '0.5rem', color: isPaused ? '#ef4444' : '#3b82f6', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                      {isPaused ? 'ЗУПИНЕНО' : 'У РОБОТІ'}
+                    </div>
                     <div style={{ fontSize: '1.4rem', fontWeight: 1000, lineHeight: 1.2 }}>{currentCard.quantity} <small style={{ fontSize: '0.6rem', opacity: 0.35 }}>шт</small></div>
                   </div>
                   {/* Етап */}
                   <div style={{ padding: '10px 20px', textAlign: 'left', borderRight: currentCard.machine ? '1px solid #222' : 'none' }}>
                     <div style={{ fontSize: '0.5rem', color: '#555', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}>ЕТАП</div>
-                    <div style={{ fontSize: '0.95rem', fontWeight: 900, color: '#3b82f6', lineHeight: 1.2, marginTop: '2px' }}>{opName}</div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 900, color: isPaused ? '#ef4444' : '#3b82f6', lineHeight: 1.2, marginTop: '2px' }}>{opName}</div>
                   </div>
                   {/* Верстат — тільки якщо є */}
                   {currentCard.machine && (
-                    <div style={{ padding: '10px 14px', textAlign: 'left', background: '#eab30808', flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '0.5rem', color: '#eab308', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}>⚙ ВЕРСТАТ</div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 900, color: '#eab308', lineHeight: 1.3, marginTop: '2px', whiteSpace: 'normal', wordBreak: 'break-word' }}>{currentCard.machine}</div>
+                    <div style={{ padding: '10px 14px', textAlign: 'left', background: isPaused ? 'rgba(239,68,68,0.03)' : '#eab30808', flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.5rem', color: isPaused ? '#ef4444' : '#eab308', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}>⚙ ВЕРСТАТ</div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 900, color: isPaused ? '#ef4444' : '#eab308', lineHeight: 1.3, marginTop: '2px', whiteSpace: 'normal', wordBreak: 'break-word' }}>{currentCard.machine}</div>
                     </div>
                   )}
                 </div>
 
-
-                {/* Великий ТАЙМЕР - Загальний час на етапі (Сума всіх попередніх змін + поточна) */}
-                <div>
-                  <div style={{ fontSize: '4.5rem', fontWeight: 1000, color: '#10b981', fontFamily: 'monospace', lineHeight: 1, letterSpacing: '-0.05em' }}>
-                    {formatSec(getCardTimeMetrics(currentCard).totalSec)}
+                {isPaused ? (
+                  // Пауза активна
+                  <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.18)', borderRadius: '20px', padding: '20px 24px', marginBottom: '24px' }}>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 950, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      ⚠️ ВЕРСТАТ ЗУПИНЕНО (ПАУЗА)
+                    </div>
+                    <div style={{ fontSize: '0.85rem', color: '#fff', fontWeight: 700, marginTop: '6px' }}>
+                      Причина: <span style={{ color: '#ef4444' }}>{pauseReasonStr}</span>
+                    </div>
+                    <div style={{ fontSize: '3rem', fontWeight: 1000, color: '#ef4444', fontFamily: 'monospace', marginTop: '10px', lineHeight: 1 }}>
+                      {formatTime(pausedAtStr)}
+                    </div>
+                    <div style={{ fontSize: '0.55rem', color: '#888', fontWeight: 800, textTransform: 'uppercase', marginTop: '4px' }}>
+                      ТРИВАЛІСТЬ ЗУПИНКИ
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.55rem', color: '#10b981', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '4px', opacity: 0.8 }}>
-                    ЗАГАЛЬНИЙ ЧАС НА ЕТАПІ
+                ) : (
+                  // Робочий хід
+                  <div>
+                    <div style={{ fontSize: '4.5rem', fontWeight: 1000, color: '#10b981', fontFamily: 'monospace', lineHeight: 1, letterSpacing: '-0.05em' }}>
+                      {formatSec(getCardTimeMetrics(currentCard).totalSec)}
+                    </div>
+                    <div style={{ fontSize: '0.55rem', color: '#10b981', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '4px', opacity: 0.8 }}>
+                      ЗАГАЛЬНИЙ ЧАС НА ЕТАПІ
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Поточний оператор та його особистий таймер */}
                 <div style={{ 
@@ -2158,9 +2280,11 @@ export default function Shop1Terminal() {
                     <div style={{ color: '#fff', fontSize: '0.85rem', fontWeight: 900, marginTop: '2px' }}>{currentCard.operator_name || '—'}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ color: '#555', fontSize: '0.55rem', fontWeight: 800, textTransform: 'uppercase' }}>ЧАС ЗМІНИ</div>
-                    <div style={{ color: '#eab308', fontSize: '1.1rem', fontWeight: 900, fontFamily: 'monospace', marginTop: '2px' }}>
-                      {formatTime(currentCard.started_at)}
+                    <div style={{ color: '#555', fontSize: '0.55rem', fontWeight: 800, textTransform: 'uppercase' }}>
+                      {isPaused ? 'АКТИВНИЙ ЧАС' : 'ЧАС ЗМІНИ'}
+                    </div>
+                    <div style={{ color: isPaused ? '#666' : '#eab308', fontSize: '1.1rem', fontWeight: 900, fontFamily: 'monospace', marginTop: '2px' }}>
+                      {isPaused ? formatSec(getCardTimeMetrics(currentCard).totalSec) : formatTime(currentCard.started_at)}
                     </div>
                   </div>
                 </div>
@@ -2225,52 +2349,107 @@ export default function Shop1Terminal() {
                   )}
                 </div>
 
-                {/* Кнопка ПЕРЕЗМІНКА — тільки для Розкрою */}
-                {currentCard.operation === 'Розкрій' && (
+                {isPaused ? (
+                  // Якщо верстат на паузі: тільки кнопка запуску
                   <button
-                    onClick={() => {
-                      setShiftChangeOperator('')
-                      setShiftChangeShift('')
-                      setShowShiftChangeModal(true)
-                    }}
+                    onClick={handleResumeCard}
+                    disabled={isProcessing}
                     style={{
-                      background: 'transparent',
-                      color: '#f59e0b',
-                      border: '2px solid #f59e0b40',
-                      padding: '14px',
+                      background: '#10b981',
+                      color: '#000',
+                      border: 'none',
+                      padding: '20px',
                       width: '100%',
-                      borderRadius: '14px',
-                      fontSize: '0.95rem',
-                      fontWeight: 900,
+                      borderRadius: '18px',
+                      fontSize: '1.25rem',
+                      fontWeight: 1000,
                       cursor: 'pointer',
-                      marginBottom: '12px',
-                      letterSpacing: '0.04em',
+                      boxShadow: '0 8px 24px rgba(16,185,129,0.25)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '8px',
-                      transition: 'all 0.2s'
+                      gap: '10px'
                     }}
                   >
-                    🔄 ПЕРЕЗМІНКА
+                    ▶️ ЗАПУСТИТИ ВЕРСТАТ (ПРОДОВЖИТИ)
                   </button>
-                )}
+                ) : (
+                  // Якщо верстат у роботі: Перезмінка, Зупинити верстат, Завершити розкрій
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      {currentCard.operation === 'Розкрій' && (
+                        <button
+                          onClick={() => {
+                            setShiftChangeOperator('')
+                            setShiftChangeShift('')
+                            setShowShiftChangeModal(true)
+                          }}
+                          style={{
+                            background: 'transparent',
+                            color: '#f59e0b',
+                            border: '2px solid #f59e0b40',
+                            padding: '14px',
+                            borderRadius: '14px',
+                            fontSize: '0.9rem',
+                            fontWeight: 900,
+                            cursor: 'pointer',
+                            letterSpacing: '0.04em',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '8px',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          🔄 ПЕРЕЗМІНКА
+                        </button>
+                      )}
+                      {currentCard.operation === 'Розкрій' && (
+                        <button
+                          onClick={() => {
+                            setPauseReason('Поломка верстата')
+                            setCustomPauseReason('')
+                            setShowPauseModal(true)
+                          }}
+                          style={{
+                            background: 'transparent',
+                            color: '#ef4444',
+                            border: '2px solid #ef444440',
+                            padding: '14px',
+                            borderRadius: '14px',
+                            fontSize: '0.9rem',
+                            fontWeight: 900,
+                            cursor: 'pointer',
+                            letterSpacing: '0.04em',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '8px',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          🛑 ЗУПИНИТИ ВЕРСТАТ (ПАУЗА)
+                        </button>
+                      )}
+                    </div>
 
-                <button onClick={() => {
-                  if (currentCard.operation === 'Сортування') {
-                    setScrapCount(0);
-                    setReworkCount(0);
-                    handleFinishSortingActive();
-                  } else {
-                    setScrapCount(0);
-                    setFinalOperator('');
-                    setCuttersUsed(0);
-                    setShowCompleteModal(true);
-                  }
-                }}
-                  style={{ background: '#ec4899', color: '#fff', border: 'none', padding: '22px', width: '100%', borderRadius: '18px', fontSize: '1.3rem', fontWeight: 1000, cursor: 'pointer', boxShadow: '0 10px 30px rgba(236,72,153,0.3)' }}>
-                  {currentCard.operation === 'Сортування' ? 'ЗАВЕРШИТИ СОРТУВАННЯ' : isFinal ? '✓ ПРИЙНЯТО' : `ЗАВЕРШИТИ ${opName}`}
-                </button>
+                    <button onClick={() => {
+                      if (currentCard.operation === 'Сортування') {
+                        setScrapCount(0);
+                        setReworkCount(0);
+                        handleFinishSortingActive();
+                      } else {
+                        setScrapCount(0);
+                        setFinalOperator('');
+                        setCuttersUsed(0);
+                        setShowCompleteModal(true);
+                      }
+                    }}
+                      style={{ background: '#ec4899', color: '#fff', border: 'none', padding: '22px', width: '100%', borderRadius: '18px', fontSize: '1.3rem', fontWeight: 1000, cursor: 'pointer', boxShadow: '0 10px 30px rgba(236,72,153,0.3)' }}>
+                      {currentCard.operation === 'Сортування' ? 'ЗАВЕРШИТИ СОРТУВАННЯ' : isFinal ? '✓ ПРИЙНЯТО' : `ЗАВЕРШИТИ ${opName}`}
+                    </button>
+                  </div>
+                )}
               </div>
             )
           })()}
@@ -3571,6 +3750,94 @@ export default function Shop1Terminal() {
               <div style={{ textAlign: 'center', fontSize: '0.6rem', color: '#333', fontWeight: 700 }}>
                 Картка залишається в роботі · Таймер скинеться на нового оператора
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Модалка ПАУЗА / ЗУПИНИТИ ВЕРСТАТ (тільки Розкрій) ──────────────── */}
+      {showPauseModal && currentCard && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 10030, padding: '40px 20px', overflowY: 'auto' }}>
+          <div style={{ background: '#111', width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid #ef444440', overflow: 'hidden', boxShadow: '0 20px 60px rgba(239,68,68,0.15)', margin: 'auto 0' }}>
+            {/* Header */}
+            <div style={{ padding: '20px 22px', background: '#161616', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ef444420' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 950, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  🛑 ЗУПИНИТИ ВЕРСТАТ (ПАУЗА)
+                </h3>
+                <div style={{ fontSize: '0.6rem', color: '#555', marginTop: '3px', fontWeight: 700 }}>
+                  Призупинити виконання картки розкрою
+                </div>
+              </div>
+              <button onClick={() => setShowPauseModal(false)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}><X size={22} /></button>
+            </div>
+
+            <div style={{ padding: '24px 22px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              {/* Деталь */}
+              <div style={{ background: '#0d0d0d', borderRadius: '12px', padding: '12px 16px', border: '1px solid #1e1e1e' }}>
+                <div style={{ fontSize: '0.55rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', marginBottom: '4px' }}>Поточна картка</div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#888' }}>{getNom(currentCard)?.name || 'Деталь'}</div>
+                <div style={{ fontSize: '0.6rem', color: '#333', marginTop: '2px' }}>{currentCard.machine || 'Верстат не вказано'}</div>
+              </div>
+
+              {/* Причина зупинки */}
+              <div>
+                <label style={labelStyle}>Причина зупинки верстата</label>
+                <select 
+                  value={pauseReason} 
+                  onChange={e => {
+                    setPauseReason(e.target.value)
+                    if (e.target.value !== 'Інша причина (введіть нижче)') {
+                      setCustomPauseReason('')
+                    }
+                  }} 
+                  style={selectStyle}
+                >
+                  <option value="Поломка верстата">Поломка верстата</option>
+                  <option value="Технічне обслуговування">Технічне обслуговування</option>
+                  <option value="Відсутність матеріалу">Відсутність матеріалу</option>
+                  <option value="Перерва / Обід">Перерва / Обід</option>
+                  <option value="Немає файлу розкрою / Програми">Немає файлу розкрою / Програми</option>
+                  <option value="Інша причина (введіть нижче)">Інша причина (введіть нижче)</option>
+                </select>
+              </div>
+
+              {/* Інша причина (текстове поле) */}
+              {pauseReason === 'Інша причина (введіть нижче)' && (
+                <div>
+                  <label style={labelStyle}>Опишіть іншу причину зупинки</label>
+                  <input
+                    type="text"
+                    placeholder="Введіть коментар..."
+                    value={customPauseReason}
+                    onChange={e => setCustomPauseReason(e.target.value)}
+                    style={{ ...selectStyle, background: '#000' }}
+                  />
+                </div>
+              )}
+
+              {/* Кнопка підтвердження */}
+              <button
+                onClick={handlePauseCard}
+                disabled={isProcessing || (pauseReason === 'Інша причина (введіть нижче)' && !customPauseReason.trim())}
+                style={{
+                  background: '#ef4444',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '18px',
+                  borderRadius: '16px',
+                  fontSize: '1rem',
+                  fontWeight: 950,
+                  cursor: isProcessing ? 'not-allowed' : 'pointer',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  boxShadow: '0 4px 12px rgba(239,68,68,0.2)',
+                  transition: 'all 0.2s',
+                  opacity: (isProcessing || (pauseReason === 'Інша причина (введіть нижче)' && !customPauseReason.trim())) ? 0.5 : 1
+                }}
+              >
+                {isProcessing ? 'ЗБЕРЕЖЕННЯ...' : '🛑 ПІДТВЕРДИТИ ЗУПИНКУ'}
+              </button>
             </div>
           </div>
         </div>
