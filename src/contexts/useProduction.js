@@ -870,7 +870,7 @@ export function createProductionActions({
     const idx = chain.findIndex(s => s.toLowerCase() === currentOp.toLowerCase())
     const nextStage = idx >= 0 && idx < chain.length - 1 ? chain[idx + 1] : null
     let cardUpdate = {}
-    if (isRework) cardUpdate = { status: 'completed', quantity: qtyCompleted }
+    if (isRework || (card.card_info || '').includes('[ADMIN_MANUAL]')) cardUpdate = { status: 'completed', quantity: qtyCompleted }
     else if (isShop2) cardUpdate = { status: 'at-buffer', quantity: qtyCompleted }
     else cardUpdate = nextStage
       ? { status: 'new', operation: nextStage, quantity: qtyCompleted, started_at: null, operator_name: null, machine: null, machine_id: null }
@@ -968,7 +968,7 @@ export function createProductionActions({
       }
     }
 
-    if (isRework) {
+    if (isRework || (card.card_info || '').includes('[ADMIN_MANUAL]')) {
       const nom = nomenclatures.find(n => n.id === card.nomenclature_id)
       if (nom && qtyCompleted > 0) {
         const { data: bzItem } = await supabase.from('inventory').select('*').eq('nomenclature_id', nom.id).eq('type', 'bz').limit(1).maybeSingle()

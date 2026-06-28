@@ -8,17 +8,10 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 })
 
 async function main() {
-  const taskId = 'a7f6ab43-9013-40d8-8e8e-8c371323695d'
-  const { data: cards } = await supabase.from('work_cards').select('id, card_info').eq('task_id', taskId)
-  const cardIds = cards.map(c => c.id)
-  
-  const { data: hist } = await supabase.from('work_card_history').select('*').in('card_id', cardIds)
-  console.log(`History for cards of task ${taskId}:`)
-  hist?.forEach(h => {
-    if (Number(h.scrap_qty) > 0) {
-      console.log(`- Card ID: ${h.card_id} | Scrap Qty: ${h.scrap_qty} | Completed At: ${h.completed_at}`)
-    }
-  })
+  const nomId = '5ecf63e5-802d-4f98-8291-aad9a52bfaa4'
+  const { data: inv } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomId)
+  console.log(`Inventory for nom ${nomId}:`)
+  console.log(inv)
 }
 
 main().catch(console.error)

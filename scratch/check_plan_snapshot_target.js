@@ -8,17 +8,9 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 })
 
 async function main() {
-  const taskId = 'a7f6ab43-9013-40d8-8e8e-8c371323695d'
-  const { data: cards } = await supabase.from('work_cards').select('id, card_info').eq('task_id', taskId)
-  const cardIds = cards.map(c => c.id)
-  
-  const { data: hist } = await supabase.from('work_card_history').select('*').in('card_id', cardIds)
-  console.log(`History for cards of task ${taskId}:`)
-  hist?.forEach(h => {
-    if (Number(h.scrap_qty) > 0) {
-      console.log(`- Card ID: ${h.card_id} | Scrap Qty: ${h.scrap_qty} | Completed At: ${h.completed_at}`)
-    }
-  })
+  const { data: task } = await supabase.from('tasks').select('*').eq('id', 'a7f6ab43-9013-40d8-8e8e-8c371323695d').single()
+  console.log('plan_snapshot keys and values for a7f6ab43-9013-40d8-8e8e-8c371323695d:')
+  console.log(JSON.stringify(task.plan_snapshot, null, 2))
 }
 
 main().catch(console.error)

@@ -225,6 +225,14 @@ const ForemanWorkplace = () => {
   })
   const [staticCompletedCards, setStaticCompletedCards] = useState([])
   const [staticHistory, setStaticHistory] = useState([])
+  // ── Instant-from-cache shortage map (no flicker on reload) ──
+  const SHORTAGE_CACHE_KEY = 'foreman_shortage_map_v1'
+  const [cachedShortageMap, setCachedShortageMap] = useState(() => {
+    try {
+      const raw = localStorage.getItem('foreman_shortage_map_v1')
+      return raw ? JSON.parse(raw) : {}
+    } catch { return {} }
+  })
 
   // Load foreman-specific data (workCards, inventory, requests) immediately on mount
   useEffect(() => { fetchModuleData('foreman') }, [])
@@ -287,9 +295,10 @@ const ForemanWorkplace = () => {
         setStaticCompletedCards(completedCards);
 
         // Fetch history for ALL cards (completed and active) to ensure scrap quantities are 100% accurate
+        // Chunk size 100 to avoid PostgREST URL length limits with large .in() arrays
         const cardIds = (cardsData || []).map(c => c.id);
         if (cardIds.length > 0) {
-          const chunkSize = 500;
+          const chunkSize = 100;
           const promises = [];
           for (let i = 0; i < cardIds.length; i += chunkSize) {
             const chunk = cardIds.slice(i, i + chunkSize);
@@ -298,6 +307,7 @@ const ForemanWorkplace = () => {
                 .from('work_card_history')
                 .select('id, card_id, nomenclature_id, scrap_qty')
                 .in('card_id', chunk)
+                .limit(5000)
             );
           }
           const results = await Promise.all(promises);
@@ -337,7 +347,21 @@ const ForemanWorkplace = () => {
 
     const activeTaskIds = new Set(tasks.filter(t => t.status !== 'completed').map(t => t.id));
     const activeCards = workCards.filter(c => activeTaskIds.has(c.task_id));
-    const allCards = [...activeCards, ...staticCompletedCards];
+
+    // Merge cached archive cards from taskDataCacheRef to prevent losing status on inactive tasks
+    const cachedArchiveCards = [];
+    if (taskDataCacheRef.current && taskDataCacheRef.current.archiveCards) {
+      Object.keys(taskDataCacheRef.current.archiveCards).forEach(tid => {
+        const list = taskDataCacheRef.current.archiveCards[tid] || [];
+        list.forEach(c => {
+          if (!activeCards.some(ac => ac.id === c.id) && !staticCompletedCards.some(sc => sc.id === c.id)) {
+            cachedArchiveCards.push(c);
+          }
+        });
+      });
+    }
+
+    const allCards = [...activeCards, ...staticCompletedCards, ...cachedArchiveCards];
 
     allCards.forEach(card => {
       const tid = card.task_id;
@@ -359,8 +383,24 @@ const ForemanWorkplace = () => {
     });
 
     const activeCardIds = new Set(activeCards.map(c => c.id));
+    // activeHistory: recent scrap from global workCardHistory (fallback before staticHistory loads)
     const activeHistory = workCardHistory.filter(h => h.card_id && activeCardIds.has(h.card_id));
-    const allHistory = [...staticHistory, ...activeHistory];
+
+    // Merge cached taskHistory from taskDataCacheRef
+    const cachedHistory = [];
+    if (taskDataCacheRef.current && taskDataCacheRef.current.taskHistory) {
+      Object.keys(taskDataCacheRef.current.taskHistory).forEach(tid => {
+        const list = taskDataCacheRef.current.taskHistory[tid] || [];
+        list.forEach(h => { cachedHistory.push(h); });
+      });
+    }
+
+    // Deduplicate by entry ID to prevent double-counting when staticHistory overlaps with activeHistory/cachedHistory
+    const historyMap = new Map();
+    [...staticHistory, ...activeHistory, ...cachedHistory].forEach(h => {
+      if (h && h.id && !historyMap.has(h.id)) historyMap.set(h.id, h);
+    });
+    const allHistory = Array.from(historyMap.values());
 
     allHistory.forEach(h => {
       if (h.card_id) {
@@ -382,7 +422,7 @@ const ForemanWorkplace = () => {
       allCardsCache: allCards,
       cardScrapCache: csCache
     };
-  }, [tasks, workCards, workCardHistory, staticCompletedCards, staticHistory]);
+  }, [tasks, workCards, workCardHistory, staticCompletedCards, staticHistory, archiveCards, taskHistory]);
 
   useEffect(() => {
     if (location.state?.taskId) {
@@ -404,10 +444,10 @@ const ForemanWorkplace = () => {
   // Підвантажуємо архівні картки та історію при зміні активного наряду
   useEffect(() => {
     if (activeTaskId) {
-      // Якщо глобальні workCards змінилися — скидаємо кеш
+      // Якщо глобальні workCards змінилися — скидаємо кеш ТІЛЬКИ для активного наряду, зберігаючи інші
       if (taskDataCacheRef.current.lastWorkCards !== workCards) {
-        taskDataCacheRef.current.archiveCards = {}
-        taskDataCacheRef.current.taskHistory = {}
+        delete taskDataCacheRef.current.archiveCards[activeTaskId]
+        delete taskDataCacheRef.current.taskHistory[activeTaskId]
         taskDataCacheRef.current.lastWorkCards = workCards
       }
 
@@ -664,19 +704,25 @@ const ForemanWorkplace = () => {
         const stockBZ = snap.stock || 0
         const unitsPerSheet = snap.units_per_sheet || 1
 
-        const activeCards = taskCards.filter(c => String(c.nomenclature_id) === String(nomIdStr))
-        const activeProductionCards = activeCards.filter(c => c.operation !== 'Склад БЗ')
-        if (activeProductionCards.length === 0) return
+        const nomCards = taskCards.filter(c => String(c.nomenclature_id) === String(nomIdStr))
+        const productionCards = nomCards.filter(c => c.operation !== 'Склад БЗ')
 
-        const totalSheets = activeCards.reduce((sum, c) => {
-          if (c.operation === 'Склад БЗ') return sum
+        // Якщо карток немає взагалі — пропускаємо (наряд ще не розпочато по цій позиції)
+        if (nomCards.length === 0) return
+
+        // Якщо є картки — рахуємо листи з урахуванням браку
+        const totalSheets = productionCards.reduce((sum, c) => {
           const cardScrap = cardScrapCache[c.id] || 0
           const originalQty = (Number(c.quantity) || 0) + cardScrap
           return sum + (c.actualSheets ? Number(c.actualSheets) : Math.ceil(originalQty / unitsPerSheet))
         }, 0)
 
         const plannedSheets = snap.sheets || 0
-        const totalSheetsMax = Math.max(plannedSheets, totalSheets)
+        // Якщо немає production cards (все вже завершено) — беремо plannedSheets як базу
+        const totalSheetsMax = productionCards.length > 0
+          ? Math.max(plannedSheets, totalSheets)
+          : plannedSheets
+
         const totalBZ = (totalSheetsMax * unitsPerSheet) + stockBZ - need
         const groupScrap = taskScrap[nomIdStr] || 0
         const shortage = (totalBZ - groupScrap) < 0 ? Math.abs(totalBZ - groupScrap) : 0
@@ -689,6 +735,17 @@ const ForemanWorkplace = () => {
     })
     return map
   }, [tasks, scrapCache, redoCache, nomenclatures, allCardsCache, cardScrapCache])
+
+  // ── Persist shortage map to localStorage once staticHistory is loaded ──
+  // This eliminates the red→yellow flicker on page reload
+  useEffect(() => {
+    if (staticHistory.length === 0) return // Don't overwrite cache with empty-state results
+    try {
+      const serialized = JSON.stringify(taskShortageMap)
+      localStorage.setItem(SHORTAGE_CACHE_KEY, serialized)
+      setCachedShortageMap(taskShortageMap)
+    } catch (e) {}
+  }, [taskShortageMap, staticHistory.length])
 
   // ── Точний override shortage для активного наряду (використовує повну taskHistory) ──
   // taskShortageMap може мати хибний false якщо записи браку не потрапили в ліміт workCardHistory.
@@ -778,9 +835,15 @@ const ForemanWorkplace = () => {
         // Ready for Shop 2 → top
         if (taskReadinessMap[a.id] && !taskReadinessMap[b.id]) return -1
         if (!taskReadinessMap[a.id] && taskReadinessMap[b.id]) return 1
-        // Needs ДОВИПУСК → second (для активного наряду — точний override)
-        const aShortage = a.id === activeTaskId ? activeTaskShortageOverride : taskShortageMap[a.id]
-        const bShortage = b.id === activeTaskId ? activeTaskShortageOverride : taskShortageMap[b.id]
+        // Needs ДОВИПУСК → second (для активного наряду — точний override; для решти — fallback з кешу поки staticHistory не завантажено)
+        const getShortage = (t) => {
+          if (t.id === activeTaskId) return activeTaskShortageOverride
+          const fromMap = taskShortageMap[t.id]
+          if (staticHistory.length > 0) return fromMap
+          return fromMap || cachedShortageMap[t.id]
+        }
+        const aShortage = getShortage(a)
+        const bShortage = getShortage(b)
         if (aShortage && !bShortage) return -1
         if (!aShortage && bShortage) return 1
         // New tasks (no cards) → third
@@ -796,7 +859,7 @@ const ForemanWorkplace = () => {
 
         return new Date(b.created_at) - new Date(a.created_at)
       })
-  }, [tasks, taskReadinessMap, taskShortageMap, taskCardsCountMap, activeTaskId, activeTaskShortageOverride])
+  }, [tasks, taskReadinessMap, taskShortageMap, cachedShortageMap, taskCardsCountMap, activeTaskId, activeTaskShortageOverride, staticHistory.length])
 
   const activeQueueCount = useMemo(() => {
     return relevantTasks.filter(t => t.status !== 'completed').length
@@ -1131,7 +1194,9 @@ const ForemanWorkplace = () => {
               const isActive = activeTaskId === task.id
               const isReady = taskReadinessMap[task.id]
               // Для активного наряду — використовуємо точний override з повною taskHistory
-              const isShortage = isActive ? activeTaskShortageOverride : taskShortageMap[task.id]
+              // Для неактивних: поки staticHistory ще не завантажено — використовуємо кешований результат з localStorage (без мерехтіння при оновленні)
+              const shortageFromMap = staticHistory.length > 0 ? taskShortageMap[task.id] : (taskShortageMap[task.id] || cachedShortageMap[task.id])
+              const isShortage = isActive ? activeTaskShortageOverride : shortageFromMap
               const isCompleted = task.status === 'completed'
               const taskCardsCount = taskCardsCountMap[task.id] || 0
               const isNew = !isCompleted && taskCardsCount === 0
@@ -1953,8 +2018,22 @@ const ForemanWorkplace = () => {
                       const qBzShop2 = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom?.id) && i.type === 'bz_shop2').reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
                       const qSgp = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom?.id) && (i.type === 'finished' || i.warehouse === 'sgp' || i.warehouse === 'SGP')).reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
 
-                      const sumVal = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriyCards + qSortAct + qSortCards + qMalWait + qMal + qMalBuf + qPres + qPresBuf + qDoop + qDoopBuf + qBz + qBzShop2 + qSgp
-                      const shortage = Math.max(0, need - sumVal)
+                      const unitsPerSheet = Number(nom?.units_per_sheet) || 1;
+                      const plannedSheets = snapshot?.sheets || 0;
+                      const stockBZ = snapshot?.stock || 0;
+
+                      const totalSheets = activeCards.reduce((sum, c) => {
+                        if (c.operation === 'Склад БЗ') return sum
+                        const cardScrap = groupHistory
+                          .filter(h => String(h.card_id) === String(c.id))
+                          .reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
+                        const originalQty = (Number(c.quantity) || 0) + cardScrap
+                        return sum + (c.actualSheets ? Number(c.actualSheets) : Math.ceil(originalQty / unitsPerSheet))
+                      }, 0)
+                      
+                      const totalSheetsMax = Math.max(plannedSheets, totalSheets)
+                      const totalBZ = (totalSheetsMax * unitsPerSheet) + stockBZ - need
+                      const shortage = (totalBZ - groupScrap) < 0 ? Math.abs(totalBZ - groupScrap) : 0
 
                       const stages = activeCards.reduce((acc, c) => {
                         if (c.status === 'new') acc.waiting++

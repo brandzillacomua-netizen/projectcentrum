@@ -8,16 +8,16 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 })
 
 async function main() {
-  const taskId = 'a7f6ab43-9013-40d8-8e8e-8c371323695d'
-  const { data: cards } = await supabase.from('work_cards').select('id, card_info').eq('task_id', taskId)
-  const cardIds = cards.map(c => c.id)
-  
-  const { data: hist } = await supabase.from('work_card_history').select('*').in('card_id', cardIds)
-  console.log(`History for cards of task ${taskId}:`)
-  hist?.forEach(h => {
-    if (Number(h.scrap_qty) > 0) {
-      console.log(`- Card ID: ${h.card_id} | Scrap Qty: ${h.scrap_qty} | Completed At: ${h.completed_at}`)
-    }
+  const cardIds = [
+    'faf610a7-61bb-4947-a2a0-9cafa7ea6edc',
+    '1fbd1792-9b3d-48d4-bc0f-c7fd1c091a29',
+    '0d15a9c2-d7c4-4ab4-9a2e-eb9367564c47',
+    'f374eeb0-3e34-4651-97db-f8c20420fd42'
+  ]
+  const { data: cards } = await supabase.from('work_cards').select('*, tasks(id, step)').in('id', cardIds)
+  console.log('Scrap Cards details:')
+  cards?.forEach(c => {
+    console.log(`- Card ID: ${c.id} | Status: "${c.status}" | Task ID: ${c.task_id} | Task Step: "${c.tasks?.step}" | Nomenclature: ${c.nomenclature_id}`)
   })
 }
 

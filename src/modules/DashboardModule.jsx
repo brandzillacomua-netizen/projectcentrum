@@ -186,17 +186,17 @@ const DashboardModule = () => {
     const bzRemaining = {}
     const bzShop2Remaining = {}
 
-    ;(inventory || []).forEach(i => {
-      const nomId = String(i.nomenclature_id)
-      const qty = Number(i.total_qty) || 0
-      if (i.type === 'finished' || i.warehouse === 'sgp' || i.warehouse === 'SGP') {
-        sgpRemaining[nomId] = (sgpRemaining[nomId] || 0) + qty
-      } else if (i.type === 'bz') {
-        bzRemaining[nomId] = (bzRemaining[nomId] || 0) + qty
-      } else if (i.type === 'bz_shop2') {
-        bzShop2Remaining[nomId] = (bzShop2Remaining[nomId] || 0) + qty
-      }
-    })
+      ; (inventory || []).forEach(i => {
+        const nomId = String(i.nomenclature_id)
+        const qty = Number(i.total_qty) || 0
+        if (i.type === 'finished' || i.warehouse === 'sgp' || i.warehouse === 'SGP') {
+          sgpRemaining[nomId] = (sgpRemaining[nomId] || 0) + qty
+        } else if (i.type === 'bz') {
+          bzRemaining[nomId] = (bzRemaining[nomId] || 0) + qty
+        } else if (i.type === 'bz_shop2') {
+          bzShop2Remaining[nomId] = (bzShop2Remaining[nomId] || 0) + qty
+        }
+      })
 
     const orderAllocatedSgp = {}
     const orderAllocatedBz = {}
@@ -322,7 +322,8 @@ const DashboardModule = () => {
       if (selectedOrderId && order.id !== selectedOrderId) return
 
       const orderTasks = tasks?.filter(t => t.order_id === order.id) || []
-      const taskWithSnapshot = orderTasks.find(t => t.plan_snapshot && Object.keys(t.plan_snapshot).some(k => !k.startsWith('_') && k !== 'materialSummary'))
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+      const taskWithSnapshot = orderTasks.find(t => t.plan_snapshot && Object.keys(t.plan_snapshot).some(k => uuidRegex.test(k)))
 
       if (taskWithSnapshot) {
         const plannedSets = Number(taskWithSnapshot.planned_sets) || 1
@@ -434,14 +435,20 @@ const DashboardModule = () => {
           qScrap = (workCardHistory || [])
             .filter(h => String(h.nomenclature_id) === String(nom.id) && h.task_id && orderTaskIds.includes(h.task_id))
             .reduce((sum, h) => sum + (Number(h.scrap_qty) || 0), 0)
+
+          const taskWithSnapshot = orderTasks.find(t => t.plan_snapshot && t.plan_snapshot[String(nom.id)])
+
+          if (taskWithSnapshot) {
+            // Беремо точну кількість, яку ми забронювали/перемістили з БЗ на СГП для цього наряду
+            qSgp = Number(taskWithSnapshot.plan_snapshot[String(nom.id)].stock) || 0
+            qBz = orderAllocatedBz[selectedOrderId]?.[nom.id] || 0
+          } else {
+            qSgp = orderAllocatedSgp[selectedOrderId]?.[nom.id] || 0
+            qBz = orderAllocatedBz[selectedOrderId]?.[nom.id] || 0
+          }
         } else {
           qScrap = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id) && String(i.type).startsWith('scrap')).reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
-        }
 
-        if (selectedOrderId) {
-          qSgp = orderAllocatedSgp[selectedOrderId]?.[nom.id] || 0
-          qBz = orderAllocatedBz[selectedOrderId]?.[nom.id] || 0
-        } else {
           const activeOrdersForParent = activeOrders.filter(o => {
             let pId = o.nomenclature_id
             if (!pId && o.order_items && o.order_items.length > 0) {
@@ -461,34 +468,35 @@ const DashboardModule = () => {
           }
         }
 
-        const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriyCards + qSortAct + qSortCards + qMalWait + qMal + qMalBuf + qPres + qPresBuf + qDoop + qDoopBuf + qSgp + qBz
+        // Sum = WIP на етапах + буферах + кількість на СГП для цього конкретного наряду
+        const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriyCards + qSortAct + qSortCards + qMalWait + qMal + qMalBuf + qPres + qPresBuf + qDoop + qDoopBuf + qSgp
 
         const row = {
           id: nom.id + (isOther ? '' : '_' + parentId),
           name: nom.name,
           code: nom.code || '',
           type: nom.type,
-          demand: Math.round(specificDemand / qtyPerProduct),
+          demand: specificDemand, // Реальна потреба в штуках
           qtyPerProduct,
-          qCutWait: Math.round(qCutWait / qtyPerProduct),
-          qCut: Math.round(qCut / qtyPerProduct),
-          qCutBuf: Math.round(qCutBuf / qtyPerProduct),
-          qGalt: Math.round(qGalt / qtyPerProduct),
-          qGaltBuf: Math.round(qGaltBuf / qtyPerProduct),
-          qPriy: Math.round(qPriyCards / qtyPerProduct),
-          qSortAct: Math.round(qSortAct / qtyPerProduct),
-          qSort: Math.round(qSortCards / qtyPerProduct),
-          qMalWait: Math.round(qMalWait / qtyPerProduct),
-          qMal: Math.round(qMal / qtyPerProduct),
-          qMalBuf: Math.round(qMalBuf / qtyPerProduct),
-          qPres: Math.round(qPres / qtyPerProduct),
-          qPresBuf: Math.round(qPresBuf / qtyPerProduct),
-          qDoop: Math.round(qDoop / qtyPerProduct),
-          qDoopBuf: Math.round(qDoopBuf / qtyPerProduct),
-          qSgp: Math.round(qSgp / qtyPerProduct),
-          qBz: Math.round(qBz / qtyPerProduct),
-          qScrap: Math.round(qScrap / qtyPerProduct),
-          sum: Math.round(sum / qtyPerProduct)
+          qCutWait,
+          qCut,
+          qCutBuf,
+          qGalt,
+          qGaltBuf,
+          qPriy: qPriyCards,
+          qSortAct,
+          qSort: qSortCards,
+          qMalWait,
+          qMal,
+          qMalBuf,
+          qPres,
+          qPresBuf,
+          qDoop,
+          qDoopBuf,
+          qSgp,
+          qBz,
+          qScrap,
+          sum
         }
 
         const matchesSearch = row.name.toLowerCase().includes(searchQuery.toLowerCase()) || row.code.toLowerCase().includes(searchQuery.toLowerCase())
@@ -1093,7 +1101,7 @@ const DashboardModule = () => {
           })()}
 
           {/* ========================================== */}
-          {/*        SPREADSHEET REPLICA (GROUPED)       */}
+          {/* SPREADSHEET REPLICA (GROUPED)       */}
           {/* ========================================== */}
           <div className="wip-table-container" style={{ borderRadius: '16px', border: '1px solid #27272a', background: '#09090b', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', padding: '1px' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'inherit', fontSize: '0.8rem', color: '#f4f4f5' }}>
@@ -1247,66 +1255,66 @@ const DashboardModule = () => {
 
       <style dangerouslySetInnerHTML={{
         __html: `
-        .anim-spin { animation: spin 1.2s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .wip-row {
-          background: #09090b;
-          border-bottom: 1px solid #27272a;
-          transition: all 0.2s ease;
-        }
-        .wip-row:hover {
-          background: #18181b !important;
-          box-shadow: inset 4px 0 0 0 #ff9000;
-        }
-        .wip-sticky-col {
-          min-width: 240px !important;
-          max-width: 240px !important;
-          width: 240px !important;
-          box-sizing: border-box;
-        }
-        .wip-sticky-sum {
-          position: sticky;
-          left: 240px !important;
-          min-width: 130px !important;
-          max-width: 130px !important;
-          width: 130px !important;
-          box-sizing: border-box;
-          padding-left: 4px !important;
-          padding-right: 4px !important;
-        }
-        .wip-table-container {
-          overflow: auto;
-          max-height: calc(100vh - 280px);
-        }
-        @media (max-width: 768px) {
+          .anim-spin { animation: spin 1.2s linear infinite; }
+          @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+          .wip-row {
+            background: #09090b;
+            border-bottom: 1px solid #27272a;
+            transition: all 0.2s ease;
+          }
+          .wip-row:hover {
+            background: #18181b !important;
+            box-shadow: inset 4px 0 0 0 #ff9000;
+          }
           .wip-sticky-col {
-            min-width: 140px !important;
-            max-width: 140px !important;
-            width: 140px !important;
-            font-size: 0.7rem !important;
-            padding-left: 12px !important;
-            padding-right: 8px !important;
+            min-width: 240px !important;
+            max-width: 240px !important;
+            width: 240px !important;
+            box-sizing: border-box;
           }
           .wip-sticky-sum {
-            left: 140px !important;
-            min-width: 105px !important;
-            max-width: 105px !important;
-            width: 105px !important;
-            font-size: 0.7rem !important;
-            padding-left: 2px !important;
-            padding-right: 2px !important;
+            position: sticky;
+            left: 240px !important;
+            min-width: 130px !important;
+            max-width: 130px !important;
+            width: 130px !important;
+            box-sizing: border-box;
+            padding-left: 4px !important;
+            padding-right: 4px !important;
           }
           .wip-table-container {
-            max-height: calc(100vh - 120px) !important;
+            overflow: auto;
+            max-height: calc(100vh - 280px);
           }
-        }
-        .wip-row:hover td.wip-sticky-col {
-          background: #18181b !important;
-        }
-        .wip-row:hover td.wip-sticky-sum {
-          background: #251c14 !important;
-        }
-      `}} />
+          @media (max-width: 768px) {
+            .wip-sticky-col {
+              min-width: 140px !important;
+              max-width: 140px !important;
+              width: 140px !important;
+              font-size: 0.7rem !important;
+              padding-left: 12px !important;
+              padding-right: 8px !important;
+            }
+            .wip-sticky-sum {
+              left: 140px !important;
+              min-width: 105px !important;
+              max-width: 105px !important;
+              width: 105px !important;
+              font-size: 0.7rem !important;
+              padding-left: 2px !important;
+              padding-right: 2px !important;
+            }
+            .wip-table-container {
+              max-height: calc(100vh - 120px) !important;
+            }
+          }
+          .wip-row:hover td.wip-sticky-col {
+            background: #18181b !important;
+          }
+          .wip-row:hover td.wip-sticky-sum {
+            background: #251c14 !important;
+          }
+        `}} />
     </div>
   )
 }

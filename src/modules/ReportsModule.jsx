@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
+import { supabase } from '../supabase'
 import { 
   ArrowLeft, 
   BarChart2, 
@@ -15,7 +16,11 @@ import {
   Search,
   X,
   Truck,
-  Scissors
+  Scissors,
+  Archive,
+  CheckCircle2,
+  Clock,
+  RefreshCw
 } from 'lucide-react'
 import { useMES } from '../MESContext'
 
@@ -56,6 +61,70 @@ const ReportsModule = () => {
   const [activeTab, setActiveTab] = useState('warehouse')
   const [searchQuery, setSearchQuery] = useState('')
   const [quickPeriod, setQuickPeriod] = useState('')
+
+  // ── Archive tab state ──
+  const [archiveLoaded, setArchiveLoaded] = useState(false)
+  const [archiveLoading, setArchiveLoading] = useState(false)
+  const [allArchiveTasks, setAllArchiveTasks] = useState([])
+  const [archiveSearch, setArchiveSearch] = useState('')
+  const [archiveStatusFilter, setArchiveStatusFilter] = useState('all')
+  const [archiveOrdersMap, setArchiveOrdersMap] = useState({})
+
+  const loadArchive = useCallback(async () => {
+    if (archiveLoaded) return
+    setArchiveLoading(true)
+    try {
+      const { data: allTasks } = await supabase
+        .from('tasks')
+        .select('id, order_id, step, status, planned_sets, batch_index, created_at, completed_at, plan_snapshot')
+        .order('created_at', { ascending: false })
+        .limit(500)
+
+      const taskList = allTasks || []
+      setAllArchiveTasks(taskList)
+
+      // Load orders for tasks that aren’t already in state
+      const missingOrderIds = [...new Set(
+        taskList.map(t => t.order_id).filter(id => id && !orders.find(o => String(o.id) === String(id)))
+      )]
+      if (missingOrderIds.length > 0) {
+        const chunks = []
+        for (let i = 0; i < missingOrderIds.length; i += 50) chunks.push(missingOrderIds.slice(i, i + 50))
+        const results = await Promise.all(
+          chunks.map(chunk => supabase.from('orders').select('id, order_num, customer').in('id', chunk))
+        )
+        const fetchedOrders = results.flatMap(r => r.data || [])
+        const map = {}
+        fetchedOrders.forEach(o => { map[o.id] = o })
+        setArchiveOrdersMap(map)
+      }
+      setArchiveLoaded(true)
+    } catch (e) { console.error(e) } finally {
+      setArchiveLoading(false)
+    }
+  }, [archiveLoaded, orders])
+
+  useEffect(() => {
+    if (activeTab === 'archive') loadArchive()
+  }, [activeTab, loadArchive])
+
+  const filteredArchiveTasks = useMemo(() => {
+    const orderMap = {}
+    orders.forEach(o => { orderMap[o.id] = o })
+    Object.assign(orderMap, archiveOrdersMap)
+
+    return allArchiveTasks
+      .map(t => ({ ...t, _order: orderMap[t.order_id] }))
+      .filter(t => {
+        if (archiveStatusFilter !== 'all' && t.status !== archiveStatusFilter) return false
+        if (!archiveSearch) return true
+        const q = archiveSearch.toLowerCase()
+        const orderNum = t._order?.order_num || ''
+        const customer = t._order?.customer || ''
+        const step = t.step || ''
+        return orderNum.toLowerCase().includes(q) || customer.toLowerCase().includes(q) || step.toLowerCase().includes(q)
+      })
+  }, [allArchiveTasks, archiveSearch, archiveStatusFilter, orders, archiveOrdersMap])
 
   const todayStr = new Date().toISOString().split('T')[0];
   const [startDate, setStartDate] = useState(todayStr)
@@ -1166,6 +1235,134 @@ const ReportsModule = () => {
             </div>
           </div>
         );
+
+      case 'archive': {
+        const statusLabel = { 'in-progress': 'В роботі', 'completed': 'Завершено', 'pending': 'Очікує', 'paused': 'Призупинено' }
+        const statusColor = { 'in-progress': '#eab308', 'completed': '#10b981', 'pending': '#3b82f6', 'paused': '#6b7280' }
+        const statusBg = { 'in-progress': 'rgba(234,179,8,0.12)', 'completed': 'rgba(16,185,129,0.12)', 'pending': 'rgba(59,130,246,0.12)', 'paused': 'rgba(107,114,128,0.12)' }
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/* Header + Controls */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 900, color: '#fff' }}>Архів нарядів</h2>
+                <div style={{ fontSize: '0.8rem', color: '#555', marginTop: '4px' }}>Усі партії у системі ({filteredArchiveTasks.length} з {allArchiveTasks.length})</div>
+              </div>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                {/* Search */}
+                <div style={{ position: 'relative' }}>
+                  <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#555' }} />
+                  <input
+                    value={archiveSearch}
+                    onChange={e => setArchiveSearch(e.target.value)}
+                    placeholder="Пошук за номером, клієнтом, кроком..."
+                    style={{ background: '#0a0a0a', border: '1px solid #222', color: '#fff', padding: '10px 15px 10px 35px', borderRadius: '10px', fontSize: '0.85rem', width: '280px', outline: 'none' }}
+                  />
+                  {archiveSearch && <X size={14} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#555', cursor: 'pointer' }} onClick={() => setArchiveSearch('')} />}
+                </div>
+                {/* Status Filter */}
+                <select
+                  value={archiveStatusFilter}
+                  onChange={e => setArchiveStatusFilter(e.target.value)}
+                  style={{ background: '#0a0a0a', border: '1px solid #222', color: '#fff', padding: '10px 15px', borderRadius: '10px', fontSize: '0.85rem', outline: 'none', cursor: 'pointer' }}
+                >
+                  <option value="all">-- Всі статуси --</option>
+                  <option value="in-progress">В роботі</option>
+                  <option value="completed">Завершено</option>
+                  <option value="pending">Очікує</option>
+                </select>
+                {/* Reload */}
+                <button
+                  onClick={() => { setArchiveLoaded(false); setAllArchiveTasks([]); setTimeout(() => loadArchive(), 100) }}
+                  disabled={archiveLoading}
+                  style={{ background: 'rgba(255,144,0,0.1)', border: '1px solid rgba(255,144,0,0.2)', color: '#ff9000', padding: '10px 16px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 800, fontSize: '0.75rem' }}
+                >
+                  <RefreshCw size={14} style={{ animation: archiveLoading ? 'spin 1s linear infinite' : 'none' }} />
+                  ОНОВИТИ
+                </button>
+              </div>
+            </div>
+
+            {/* Table */}
+            {archiveLoading ? (
+              <div style={{ textAlign: 'center', padding: '60px', color: '#555' }}>
+                <RefreshCw size={32} style={{ animation: 'spin 1s linear infinite', marginBottom: '16px', display: 'block', margin: '0 auto 16px' }} />
+                Завантаження архіву...
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto', borderRadius: '16px', border: '1px solid #1e1e1e', background: '#09090b' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr style={{ background: '#111', color: '#71717a', textAlign: 'left', borderBottom: '2px solid #1e1e1e' }}>
+                      <th style={{ padding: '16px 20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.7rem' }}>#</th>
+                      <th style={{ padding: '16px 20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.7rem' }}>Замовлення</th>
+                      <th style={{ padding: '16px 20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.7rem' }}>Клієнт</th>
+                      <th style={{ padding: '16px 20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.7rem' }}>Крок</th>
+                      <th style={{ padding: '16px 20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.7rem', textAlign: 'center' }}>Партія</th>
+                      <th style={{ padding: '16px 20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.7rem', textAlign: 'center' }}>Комплектів</th>
+                      <th style={{ padding: '16px 20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.7rem', textAlign: 'center' }}>Статус</th>
+                      <th style={{ padding: '16px 20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.7rem' }}>Створено</th>
+                      <th style={{ padding: '16px 20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.7rem' }}>Завершено</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredArchiveTasks.map((task, idx) => {
+                      const order = task._order
+                      const status = task.status || 'pending'
+                      const label = statusLabel[status] || status
+                      const color = statusColor[status] || '#71717a'
+                      const bg = statusBg[status] || 'rgba(107,114,128,0.1)'
+                      const createdDate = task.created_at ? new Date(task.created_at).toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'
+                      const completedDate = task.completed_at ? new Date(task.completed_at).toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'
+                      return (
+                        <tr
+                          key={task.id}
+                          style={{ borderBottom: '1px solid #111', transition: 'background 0.15s', background: 'transparent', cursor: 'default' }}
+                          onMouseEnter={e => e.currentTarget.style.background = '#111'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <td style={{ padding: '14px 20px', color: '#3f3f46', fontWeight: 700, fontSize: '0.75rem' }}>{idx + 1}</td>
+                          <td style={{ padding: '14px 20px' }}>
+                            <span style={{ fontWeight: 900, color: '#f4f4f5', fontSize: '0.95rem' }}>№ {order?.order_num || '—'}</span>
+                          </td>
+                          <td style={{ padding: '14px 20px', color: '#a1a1aa', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {order?.customer || <span style={{ color: '#3f3f46' }}>—</span>}
+                          </td>
+                          <td style={{ padding: '14px 20px', color: '#a1a1aa' }}>
+                            {task.step || <span style={{ color: '#3f3f46' }}>—</span>}
+                          </td>
+                          <td style={{ padding: '14px 20px', textAlign: 'center' }}>
+                            <span style={{ background: '#18181b', color: '#a1a1aa', padding: '3px 10px', borderRadius: '6px', fontWeight: 700, fontSize: '0.8rem' }}>#{task.batch_index || '1'}</span>
+                          </td>
+                          <td style={{ padding: '14px 20px', textAlign: 'center' }}>
+                            <span style={{ fontWeight: 900, color: '#ff9000' }}>{task.planned_sets || '—'}</span>
+                          </td>
+                          <td style={{ padding: '14px 20px', textAlign: 'center' }}>
+                            <span style={{ background: bg, color, padding: '4px 12px', borderRadius: '8px', fontWeight: 800, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                              {status === 'completed' ? <CheckCircle2 size={12} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} /> : <Clock size={12} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />}
+                              {label}
+                            </span>
+                          </td>
+                          <td style={{ padding: '14px 20px', color: '#71717a', fontSize: '0.8rem' }}>{createdDate}</td>
+                          <td style={{ padding: '14px 20px', color: status === 'completed' ? '#10b981' : '#3f3f46', fontSize: '0.8rem', fontWeight: status === 'completed' ? 700 : 400 }}>{completedDate}</td>
+                        </tr>
+                      )
+                    })}
+                    {filteredArchiveTasks.length === 0 && !archiveLoading && (
+                      <tr>
+                        <td colSpan={9} style={{ padding: '60px', textAlign: 'center', color: '#3f3f46' }}>
+                          <Archive size={40} style={{ display: 'block', margin: '0 auto 16px', opacity: 0.3 }} />
+                          Нарядів не знайдено
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      }
         
       default: return null;
     }
@@ -1216,6 +1413,9 @@ const ReportsModule = () => {
             </button>
             <button onClick={() => setActiveTab('analytics')} className={`report-tab ${activeTab === 'analytics' ? 'active' : ''}`} style={tabStyle(activeTab === 'analytics')}>
               <TrendingUp size={16} /> АНАЛІТИКА
+            </button>
+            <button onClick={() => setActiveTab('archive')} className={`report-tab ${activeTab === 'archive' ? 'active' : ''}`} style={tabStyle(activeTab === 'archive')}>
+              <Archive size={16} /> АРХІВ
             </button>
           </div>
 
@@ -1321,6 +1521,7 @@ const ReportsModule = () => {
         .report-tab { display: flex; align-items: center; gap: 8px; padding: 10px 20px; border: none; background: transparent; color: #555; border-radius: 8px; cursor: pointer; font-weight: 800; font-size: 0.75rem; transition: 0.2s; }
         .report-tab:hover:not(.active) { color: #fff; background: rgba(255,255,255,0.05); }
         .report-tab.active { background: #222; color: #ff9000; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}} />
     </div>
   )
