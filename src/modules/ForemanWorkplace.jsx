@@ -1999,6 +1999,20 @@ const ForemanWorkplace = () => {
                               <div style={{ fontSize: '0.7rem', color: groupScrap > 0 ? '#ef4444' : '#333', fontWeight: 950 }}>
                                 БРАК: {groupScrap}
                               </div>
+                              {activeCards.some(c => c.status === 'waiting-materials') && (
+                                <div style={{
+                                  padding: '3px 8px',
+                                  borderRadius: '6px',
+                                  background: 'rgba(255, 144, 0, 0.1)',
+                                  border: '1px solid rgba(255, 144, 0, 0.3)',
+                                  color: '#ff9000',
+                                  fontSize: '0.65rem',
+                                  fontWeight: 900,
+                                  letterSpacing: '0.5px'
+                                }}>
+                                  ОЧІКУЄ СКЛАД
+                                </div>
+                              )}
                               {shortage > 0 && task.status !== 'completed' && (
                                 <div onClick={(e) => e.stopPropagation()} style={{ padding: '4px 12px', borderRadius: '8px', background: '#ef444422', border: '1px solid #ef444444', display: 'flex', alignItems: 'center', gap: '12px' }}>
                                   <div style={{ color: '#ef4444', fontSize: '0.7rem', fontWeight: 950 }}>НЕСТАЧА: {shortage}</div>
