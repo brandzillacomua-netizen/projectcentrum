@@ -1027,69 +1027,86 @@ const WarehouseModuleV2 = () => {
                   <div key={key} style={{ minWidth: '300px', background: '#111', padding: '15px', borderRadius: '15px', border: '1px solid #222' }}>
                     <strong style={{ display: 'block', fontSize: '0.75rem', marginBottom: '10px' }}>НАРЯД #{displayNum}</strong>
                     <ul style={{ listStyle: 'none', padding: 0, marginBottom: '15px' }}>
-                      {reqList.map(r => {
-                        const parsedName = parseMaterialName(r.details)
-                        const nom = r.nomenclature_id ? (nomenclatures || []).find(n => String(n.id) === String(r.nomenclature_id)) : null
-                        const isConsumable = nom?.type === 'consumable' || (parsedName || '').toLowerCase().includes('фреза')
-                        const isEditing = editingQty.hasOwnProperty(r.id)
-                        const isSaving = savingQty.has(r.id)
-                        return (
-                          <li key={r.id} style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                            fontSize: '0.78rem', color: '#888', padding: '4px 0',
-                            borderBottom: '1px solid #1a1a1a'
-                          }}>
-                            <span style={{ flex: 1, marginRight: '8px' }}>
-                              {parsedName || r.details}
-                              {nom?.description && (
-                                <span style={{ color: '#06b6d4', fontSize: '0.72rem', marginLeft: '6px', fontWeight: 'bold' }}>
-                                  ({nom.description})
-                                </span>
-                              )}
-                            </span>
-                            {isEditing ? (
-                              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={editingQty[r.id]}
-                                  onChange={e => setEditingQty(prev => ({ ...prev, [r.id]: e.target.value }))}
-                                  onKeyDown={e => { if (e.key === 'Enter') handleSaveConsumableQty(r.id); if (e.key === 'Escape') setEditingQty(prev => { const n={...prev}; delete n[r.id]; return n }) }}
-                                  autoFocus
-                                  style={{
-                                    width: '60px', background: '#000', border: '1px solid #ff9000',
-                                    color: '#fff', borderRadius: '5px', padding: '3px 6px',
-                                    fontSize: '0.78rem', outline: 'none'
-                                  }}
-                                />
-                                <button
-                                  onClick={() => handleSaveConsumableQty(r.id)}
-                                  disabled={isSaving}
-                                  style={{ background: '#10b981', border: 'none', borderRadius: '4px', padding: '3px 6px', cursor: 'pointer', color: '#000', display: 'flex', alignItems: 'center' }}
-                                  title="Зберегти"
-                                >
-                                  {isSaving ? '...' : <Check size={12} />}
-                                </button>
-                              </span>
-                            ) : (
-                              <span style={{ display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
-                                <strong style={{ color: isConsumable ? '#f59e0b' : '#aaa' }}>{r.quantity} од.</strong>
-                                {isConsumable && currentUser?.position === 'Адмін' && (
-                                  <button
-                                    onClick={() => setEditingQty(prev => ({ ...prev, [r.id]: String(r.quantity) }))}
-                                    style={{ background: 'transparent', border: 'none', padding: '2px 4px', cursor: 'pointer', color: '#555', display: 'flex', alignItems: 'center', transition: '0.15s' }}
-                                    title="Редагувати кількість"
-                                    onMouseEnter={e => e.currentTarget.style.color = '#ff9000'}
-                                    onMouseLeave={e => e.currentTarget.style.color = '#555'}
-                                  >
-                                    <Pencil size={11} />
-                                  </button>
+                      {(() => {
+                        const displayedRequests = []
+                        reqList.forEach(r => {
+                          const parsedName = parseMaterialName(r.details)
+                          const key = r.nomenclature_id || parsedName
+                          const existing = displayedRequests.find(dr => 
+                            (dr.nomenclature_id && dr.nomenclature_id === r.nomenclature_id) || 
+                            parseMaterialName(dr.details) === parsedName
+                          )
+                          if (existing) {
+                            existing.quantity = (Number(existing.quantity) || 0) + (Number(r.quantity) || 0)
+                          } else {
+                            displayedRequests.push({ ...r })
+                          }
+                        })
+                        
+                        return displayedRequests.map(r => {
+                          const parsedName = parseMaterialName(r.details)
+                          const nom = r.nomenclature_id ? (nomenclatures || []).find(n => String(n.id) === String(r.nomenclature_id)) : null
+                          const isConsumable = nom?.type === 'consumable' || (parsedName || '').toLowerCase().includes('фреза')
+                          const isEditing = editingQty.hasOwnProperty(r.id)
+                          const isSaving = savingQty.has(r.id)
+                          return (
+                            <li key={r.id} style={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                              fontSize: '0.78rem', color: '#888', padding: '4px 0',
+                              borderBottom: '1px solid #1a1a1a'
+                            }}>
+                              <span style={{ flex: 1, marginRight: '8px' }}>
+                                {parsedName || r.details}
+                                {nom?.description && (
+                                  <span style={{ color: '#06b6d4', fontSize: '0.72rem', marginLeft: '6px', fontWeight: 'bold' }}>
+                                    ({nom.description})
+                                  </span>
                                 )}
                               </span>
-                            )}
-                          </li>
-                        )
-                      })}
+                              {isEditing ? (
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={editingQty[r.id]}
+                                    onChange={e => setEditingQty(prev => ({ ...prev, [r.id]: e.target.value }))}
+                                    onKeyDown={e => { if (e.key === 'Enter') handleSaveConsumableQty(r.id); if (e.key === 'Escape') setEditingQty(prev => { const n={...prev}; delete n[r.id]; return n }) }}
+                                    autoFocus
+                                    style={{
+                                      width: '60px', background: '#000', border: '1px solid #ff9000',
+                                      color: '#fff', borderRadius: '5px', padding: '3px 6px',
+                                      fontSize: '0.78rem', outline: 'none'
+                                    }}
+                                  />
+                                  <button
+                                    onClick={() => handleSaveConsumableQty(r.id)}
+                                    disabled={isSaving}
+                                    style={{ background: '#10b981', border: 'none', borderRadius: '4px', padding: '3px 6px', cursor: 'pointer', color: '#000', display: 'flex', alignItems: 'center' }}
+                                    title="Зберегти"
+                                  >
+                                    {isSaving ? '...' : <Check size={12} />}
+                                  </button>
+                                </span>
+                              ) : (
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
+                                  <strong style={{ color: isConsumable ? '#f59e0b' : '#aaa' }}>{r.quantity} од.</strong>
+                                  {isConsumable && currentUser?.position === 'Адмін' && (
+                                    <button
+                                      onClick={() => setEditingQty(prev => ({ ...prev, [r.id]: String(r.quantity) }))}
+                                      style={{ background: 'transparent', border: 'none', padding: '2px 4px', cursor: 'pointer', color: '#555', display: 'flex', alignItems: 'center', transition: '0.15s' }}
+                                      title="Редагувати кількість"
+                                      onMouseEnter={e => e.currentTarget.style.color = '#ff9000'}
+                                      onMouseLeave={e => e.currentTarget.style.color = '#555'}
+                                    >
+                                      <Pencil size={11} />
+                                    </button>
+                                  )}
+                                </span>
+                              )}
+                            </li>
+                          )
+                        })
+                      })()}
                     </ul>
                     <button
                       disabled={isAwaiting || processingTasks.has(taskId)}

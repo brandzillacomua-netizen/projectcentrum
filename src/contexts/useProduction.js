@@ -394,7 +394,7 @@ export function createProductionActions({
     refreshTable('orders')
   }
 
-  const createDovyпускMaterialRequests = async (taskId, orderId, partNom, sheets, quantity) => {
+  const createDovyпускMaterialRequests = async (taskId, orderId, partNom, sheets, quantity, selectedMachineName = null) => {
     try {
       const order = orders.find(o => String(o.id) === String(orderId))
 
@@ -520,18 +520,28 @@ export function createProductionActions({
         }
 
         // Consumables (фрези etc.)
-        let hasMachineSpecificCutters = false
         const task = tasks.find(t => String(t.id) === String(taskId))
-        const targetMachine = task?.machine_name || ''
+        const targetMachine = selectedMachineName || task?.machine_name || ''
         
-        const opData = machineOperations?.find(o => 
+        let opData = machineOperations?.find(o => 
           String(o.nomenclature_id) === String(partNom?.id) &&
-          (o.machine_type === targetMachine || o.machine_id === targetMachine)
+          (
+            String(o.machine_type).toLowerCase() === String(targetMachine).toLowerCase() || 
+            String(o.machine_id).toLowerCase() === String(targetMachine).toLowerCase() ||
+            (o.machine_type && String(targetMachine).toLowerCase().includes(String(o.machine_type).toLowerCase())) ||
+            (o.machine_id && String(targetMachine).toLowerCase().includes(String(o.machine_id).toLowerCase()))
+          )
         )
+
+        // Fallback to any machine operations for this part if not found for specific machine
+        if (!opData) {
+          opData = machineOperations?.find(o => String(o.nomenclature_id) === String(partNom?.id))
+        }
+        
+        const machineSpecificCutters = {}
         
         if (opData && opData.side2_cut_ops) {
           const cutterOps = opData.side2_cut_ops.filter(op => op.startsWith('__CUTTER__Reference:') || op.startsWith('__CUTTER__:'))
-          const machineSpecificCutters = {}
           cutterOps.forEach(op => {
             const parts = op.split(':')
             const cutterNomId = parts[1]
@@ -540,62 +550,84 @@ export function createProductionActions({
               const totalQty = Math.ceil(sheets * qtyPerSheet)
               const cutterNom = nomenclatures.find(n => String(n.id) === String(cutterNomId))
               if (cutterNom && cutterNom.name.trim().toLowerCase() !== 'фреза') {
-                hasMachineSpecificCutters = true
                 const cleanName = cutterNom.name.trim()
-                const key = cleanName.toLowerCase()
+                
+                let resolvedCutterNom = cutterNom
+                if (task?.plan_snapshot?.selectedCutters) {
+                  const invId = task.plan_snapshot.selectedCutters[cleanName] || task.plan_snapshot.selectedCutters[cleanName.toLowerCase()]
+                  if (invId) {
+                    const inv = (inventory || []).find(i => String(i.id) === String(invId))
+                    if (inv) {
+                      const specNom = nomenclatures.find(n => String(n.id) === String(inv.nomenclature_id))
+                      if (specNom) resolvedCutterNom = specNom
+                    }
+                  }
+                }
+
+                const resolvedName = resolvedCutterNom.name.trim()
+                const key = resolvedCutterNom.id.toString()
                 if (!machineSpecificCutters[key]) {
                   machineSpecificCutters[key] = {
-                    name: cleanName,
+                    name: resolvedName,
                     qty: 0,
-                    nomenclature_id: cutterNom.id
+                    nomenclature_id: resolvedCutterNom.id
                   }
                 }
                 machineSpecificCutters[key].qty += totalQty
               }
             }
           })
-
-          Object.values(machineSpecificCutters).forEach(item => {
-            const consInvItem = inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id) && i.warehouse === 'operational')
-              || inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id))
-            requestsToInsert.push({
-              order_id: orderId,
-              task_id: taskId,
-              quantity: item.qty,
-              status: 'pending',
-              inventory_id: consInvItem?.id || null,
-              nomenclature_id: item.nomenclature_id,
-              details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ДОВИПУСКУ ${order?.order_num || '???'}: ${item.name} — ${item.qty} од. (для ${partNom?.name || '???'})`
-            })
-          })
         }
 
-        const fallbackCons = {}
-        nomenclatures
-          .filter(n =>
-            n.type === 'consumable' &&
-            (Number(n.consumption_per_sheet) || 0) > 0 &&
-            n.name.trim().toLowerCase() !== 'фреза' &&
-            !n.name.toLowerCase().includes('лист')
-          )
-          .forEach(cons => {
-            if (hasMachineSpecificCutters && cons.name.toLowerCase().includes('фреза')) {
-              return
-            }
-            const cleanName = cons.name.trim()
-            const key = cleanName.toLowerCase()
-            const totalQty = Math.ceil(sheets * Number(cons.consumption_per_sheet))
-            if (!fallbackCons[key]) {
-              fallbackCons[key] = {
-                name: cleanName,
-                qty: 0,
-                nomenclature_id: cons.id
+        // If no cutters found in machineOperations, look at plan_snapshot (selectedCutters & consumables)
+        if (Object.keys(machineSpecificCutters).length === 0 && task && task.plan_snapshot) {
+          if (task.plan_snapshot.selectedCutters && typeof task.plan_snapshot.selectedCutters === 'object') {
+            Object.values(task.plan_snapshot.selectedCutters).forEach(invId => {
+              if (invId) {
+                const inv = (inventory || []).find(i => String(i.id) === String(invId))
+                if (inv) {
+                  const nom = nomenclatures?.find(n => String(n.id) === String(inv.nomenclature_id))
+                  const name = nom ? nom.name : inv.name
+                  if (name && name.toLowerCase().includes('фреза') && name.toLowerCase() !== 'фреза') {
+                    const cleanName = name.trim()
+                    const key = cleanName.toLowerCase()
+                    const qtyPerSheet = 1 // default fallback
+                    const totalQty = Math.ceil(sheets * qtyPerSheet)
+                    if (!machineSpecificCutters[key]) {
+                      machineSpecificCutters[key] = {
+                        name: cleanName,
+                        qty: totalQty,
+                        nomenclature_id: nom ? nom.id : inv.nomenclature_id
+                      }
+                    }
+                  }
+                }
               }
-            }
-            fallbackCons[key].qty += totalQty
-          })
+            })
+          }
+          
+          if (Array.isArray(task.plan_snapshot.consumables)) {
+            task.plan_snapshot.consumables.forEach(c => {
+              if (c.name && c.name.toLowerCase().includes('фреза') && c.name.toLowerCase() !== 'фреза') {
+                const cleanName = c.name.trim()
+                const key = cleanName.toLowerCase()
+                if (!machineSpecificCutters[key]) {
+                  const consNom = nomenclatures.find(n => n.name.trim().toLowerCase() === key)
+                  if (consNom) {
+                    const qtyPerSheet = Number(consNom.consumption_per_sheet) || 1
+                    machineSpecificCutters[key] = {
+                      name: cleanName,
+                      qty: Math.ceil(sheets * qtyPerSheet),
+                      nomenclature_id: consNom.id
+                    }
+                  }
+                }
+              }
+            })
+          }
+        }
 
-        Object.values(fallbackCons).forEach(item => {
+        Object.values(machineSpecificCutters).forEach(item => {
           const consInvItem = inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id) && i.warehouse === 'operational')
             || inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id))
           requestsToInsert.push({
@@ -605,7 +637,7 @@ export function createProductionActions({
             status: 'pending',
             inventory_id: consInvItem?.id || null,
             nomenclature_id: item.nomenclature_id,
-            details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ДОВИПУСКУ ${order?.order_num || '???'}: ${item.name} — ${item.qty} од.`
+            details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ДОВИПУСКУ ${order?.order_num || '???'}: ${item.name} — ${item.qty} од. (для ${partNom?.name || '???'})`
           })
         })
       }
@@ -632,7 +664,7 @@ export function createProductionActions({
       const partNom = nomenclatures.find(n => n.id === nomenclatureId)
       const unitsPerSheet = partNom?.units_per_sheet || 1
       const sheets = Math.ceil(Number(quantity) / unitsPerSheet)
-      await createDovyпускMaterialRequests(taskId, orderId, partNom, sheets, Number(quantity))
+      await createDovyпускMaterialRequests(taskId, orderId, partNom, sheets, Number(quantity), machine)
     }
 
     // Only refresh affected tables (work_cards + tasks), not everything

@@ -951,7 +951,7 @@ const ForemanWorkplace = () => {
 
       if (isRepair && sheets > 0) {
         const totalQty = finalCount * capacity * unitsPerSheet;
-        await createDovyпускMaterialRequests(task.id, task.order_id, part.nom, sheets, totalQty);
+        await createDovyпускMaterialRequests(task.id, task.order_id, part.nom, sheets, totalQty, selectedMachineName);
       }
 
       if (createdCards && createdCards.length > 0) {
