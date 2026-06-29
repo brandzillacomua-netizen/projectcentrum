@@ -500,7 +500,7 @@ export default function TumblingTerminal() {
 
           {/* Filter tabs */}
           <div style={{ padding: '18px 24px', background: 'rgba(255,255,255,0.01)', borderBottom: '1px solid rgba(255,255,255,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', maxWidth: '100%', paddingBottom: '6px', scrollbarWidth: 'none' }} className="hide-scrollbar">
               {[
                 { mode: 'all', label: 'Усі картки', count: waitingCards.length + inWorkCards.length, color: '#06b6d4' },
                 { mode: 'waiting', label: 'В очікуванні', count: waitingCards.length, color: '#f59e0b' },
@@ -514,7 +514,7 @@ export default function TumblingTerminal() {
                     background: filterMode === tab.mode ? `rgba(${tab.mode === 'in_work' ? '16,185,129' : tab.mode === 'waiting' ? '245,158,11' : '6,182,214'}, 0.12)` : '#121216',
                     color: filterMode === tab.mode ? tab.color : '#888',
                     border: `1px solid ${filterMode === tab.mode ? tab.color + '40' : 'rgba(255,255,255,0.04)'}`,
-                    padding: '8px 16px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s'
+                    padding: '8px 16px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s', flexShrink: 0
                   }}
                 >
                   {tab.label}
@@ -936,6 +936,9 @@ export default function TumblingTerminal() {
         }
         .btn-green:hover {
           background: rgba(16,185,129,0.2) !important;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+          display: none;
         }
       ` }} />
 

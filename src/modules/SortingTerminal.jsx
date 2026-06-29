@@ -555,7 +555,7 @@ export default function SortingTerminal() {
         <section style={{ flex: 1, background: '#0c0c10', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.03)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {/* Filter tabs */}
           <div style={{ padding: '18px 24px', background: 'rgba(255,255,255,0.01)', borderBottom: '1px solid rgba(255,255,255,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', maxWidth: '100%', paddingBottom: '6px', scrollbarWidth: 'none' }} className="hide-scrollbar">
               {[
                 { mode: 'all', label: 'Усі картки', count: waitingCards.length + inWorkCards.length, color: ACCENT },
                 { mode: 'waiting', label: 'Очікують на сортування', count: waitingCards.length, color: '#f59e0b' },
@@ -570,7 +570,7 @@ export default function SortingTerminal() {
                     color: filterMode === tab.mode ? tab.color : '#888',
                     border: `1px solid ${filterMode === tab.mode ? tab.color + '40' : 'rgba(255,255,255,0.04)'}`,
                     padding: '8px 16px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 800, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s'
+                    display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s', flexShrink: 0
                   }}
                 >
                   {tab.label}
@@ -821,6 +821,7 @@ export default function SortingTerminal() {
         .custom-scroll::-webkit-scrollbar-track { background: transparent; }
         .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 10px; }
         .custom-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.12); }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
       ` }} />
     </div>
   )
