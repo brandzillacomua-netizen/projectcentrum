@@ -140,8 +140,8 @@ export default function ReceptionTerminal() {
         return
       }
 
-      // ПРИЙОМКА очікує картки з at-buffer/Галтовка
-      const isWaiting = card.status === 'at-buffer' && card.operation === 'Галтовка'
+      // ПРИЙОМКА очікує картки з at-buffer/Галтовка або at-buffer/Прийомка
+      const isWaiting = card.status === 'at-buffer' && (card.operation === 'Галтовка' || card.operation === 'Прийомка')
       const isInWork = card.status === 'in-progress' && card.operation === 'Прийомка'
 
       if (isWaiting) {
@@ -170,11 +170,11 @@ export default function ReceptionTerminal() {
       const now = new Date().toISOString()
       const bufferStart = card.completed_at || card.started_at || now
 
-      // Запис в historical log про буфер Галтовки
+      // Запис в historical log про буфер Галтовки або Розкрою
       await supabase.from('work_card_history').insert([{
         card_id: card.id,
         nomenclature_id: card.nomenclature_id,
-        stage_name: 'Буфер Галтовки',
+        stage_name: card.operation === 'Галтовка' ? 'Буфер Галтовки' : 'Буфер Розкрій',
         operator_name: card.operator_name || 'Команда',
         qty_at_start: card.quantity || 0,
         qty_completed: card.quantity || 0,
@@ -303,10 +303,10 @@ export default function ReceptionTerminal() {
     return [h, m, s].map(v => String(v).padStart(2, '0')).join(':')
   }
 
-  // Картки в очікуванні: at-buffer/Галтовка
+  // Картки в очікуванні: at-buffer/Галтовка або at-buffer/Прийомка
   const waitingCards = useMemo(() => {
     return workCards
-      .filter(c => c.status === 'at-buffer' && c.operation === 'Галтовка')
+      .filter(c => c.status === 'at-buffer' && (c.operation === 'Галтовка' || c.operation === 'Прийомка'))
       .sort((a, b) => new Date(a.completed_at || 0) - new Date(b.completed_at || 0))
   }, [workCards])
 

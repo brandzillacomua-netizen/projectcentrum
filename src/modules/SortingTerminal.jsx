@@ -24,7 +24,7 @@ const ACCENT = '#34d399'
 const ACCENT_RGB = '52,211,153'
 
 export default function SortingTerminal() {
-  const { workCards, nomenclatures, getFilteredOperators, fetchData, currentUser } = useMES()
+  const { workCards, nomenclatures, getFilteredOperators, fetchData, currentUser, tasks, orders } = useMES()
 
   const [currentTime, setCurrentTime] = useState(new Date())
   const [selectedShift, setSelectedShift] = useState('')
@@ -40,6 +40,7 @@ export default function SortingTerminal() {
   const [showCompleteModal, setShowCompleteModal] = useState(false)
   const [activeCompletingCard, setActiveCompletingCard] = useState(null)
   const [scrapCount, setScrapCount] = useState(0)
+  const [reworkCount, setReworkCount] = useState(0)
   const [finishedCount, setFinishedCount] = useState(0)
 
   const [pendingStartCard, setPendingStartCard] = useState(null)
@@ -140,8 +141,8 @@ export default function SortingTerminal() {
         return
       }
 
-      // СОРТУВАННЯ очікує картки з at-buffer/Сортування
-      const isWaiting = card.status === 'at-buffer' && card.operation === 'Сортування'
+      // СОРТУВАННЯ очікує картки з at-buffer/Сортування або at-buffer/Прийомка
+      const isWaiting = card.status === 'at-buffer' && (card.operation === 'Сортування' || card.operation === 'Прийомка')
       const isInWork = card.status === 'in-progress' && card.operation === 'Сортування'
 
       if (isWaiting) {
@@ -170,11 +171,11 @@ export default function SortingTerminal() {
       const now = new Date().toISOString()
       const bufferStart = card.completed_at || card.started_at || now
 
-      // Запис в historical log про буфер Сортування
+      // Запис в historical log про буфер
       await supabase.from('work_card_history').insert([{
         card_id: card.id,
         nomenclature_id: card.nomenclature_id,
-        stage_name: 'Буфер Сортування',
+        stage_name: card.operation === 'Прийомка' ? 'Буфер Галтовки' : 'Буфер Сортування',
         operator_name: card.operator_name || 'Команда',
         qty_at_start: card.quantity || 0,
         qty_completed: card.quantity || 0,
@@ -209,52 +210,191 @@ export default function SortingTerminal() {
     setActiveCompletingCard(card)
     setFinishedCount(card.quantity || 0)
     setScrapCount(0)
+    setReworkCount(0)
     setShowCompleteModal(true)
   }
 
+  // Full Shop2 handoff — same logic as Shop1Terminal.handleSortToShop2
   const submitSortingComplete = async () => {
     if (!activeCompletingCard) return
     setIsProcessing(true)
     try {
       const now = new Date().toISOString()
-      const actualFinished = Math.max(0, finishedCount)
-      const actualScrap = Math.max(0, scrapCount)
+      const goodQty = Math.max(0, (activeCompletingCard.quantity || 0) - scrapCount - reworkCount)
+      const op = selectedOperator || activeCompletingCard.operator_name || 'Сортування'
+      const activeShift = selectedShift || activeCompletingCard.shift_name || 'Без зміни'
 
-      // Записуємо Сортування в history
-      await supabase.from('work_card_history').insert([{
-        card_id: activeCompletingCard.id,
-        nomenclature_id: activeCompletingCard.nomenclature_id,
-        stage_name: 'Сортування',
-        operator_name: activeCompletingCard.operator_name || selectedOperator || 'Команда',
-        qty_at_start: activeCompletingCard.quantity || 0,
-        qty_completed: actualFinished,
-        scrap_qty: actualScrap,
-        started_at: activeCompletingCard.started_at || now,
-        completed_at: now,
-        is_archived_scrap: true,
-        shift_name: activeCompletingCard.shift_name || selectedShift || 'Не вказано',
-        manager_name: activeCompletingCard.manager_name || 'Не вказано',
-        machine_name: activeCompletingCard.machine || 'Не вказано'
-      }])
-
-      // Кінець Цеху №1 — передаємо в буфер Цеху №2 (at-shop2-buffer)
-      await supabase.from('work_cards').update({
-        status: 'at-shop2-buffer',
-        operation: 'Сортування',
-        quantity: actualFinished,
-        completed_at: now
-      }).eq('id', activeCompletingCard.id)
-
-      // Брак в інвентар якщо є
-      if (actualScrap > 0) {
-        await updateInventoryStock(activeCompletingCard.nomenclature_id, actualScrap, 'scrap_ready')
+      const generateUUID = () => {
+        if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+          const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8)
+          return v.toString(16)
+        })
       }
+
+      // Parallel read: inventory, shop2 tasks, s1 task
+      const [existingInvResult, shop2TasksResult, s1TaskResult] = await Promise.all([
+        supabase.from('inventory').select('*').eq('nomenclature_id', activeCompletingCard.nomenclature_id).in('type', ['semi', 'wip_bz', 'bz', 'semi_shop2', 'bz_shop2', 'scrap_ready']),
+        supabase.from('tasks').select('*').eq('order_id', activeCompletingCard.order_id).ilike('step', '%ЦЕХ №2%').neq('status', 'completed'),
+        supabase.from('tasks').select('*').eq('id', activeCompletingCard.task_id).maybeSingle()
+      ])
+
+      const existingItems = existingInvResult.data || []
+      const shop2Tasks = shop2TasksResult.data || []
+      const s1TaskData = s1TaskResult.data
+      const findItem = (type) => existingItems.find(i => i.type === type)
+
+      const cardBz = Number(activeCompletingCard.buffer_qty) || Number((activeCompletingCard.card_info || '').match(/\[BZ:(\d+)\]/)?.[1]) || 0
+      const cardNeed = Number((activeCompletingCard.card_info || '').match(/\[REQ:(\d+)\]/)?.[1]) || Number((activeCompletingCard.card_info || '').match(/\[NEED:(\d+)\]/)?.[1]) || Math.max(0, Number(activeCompletingCard.quantity) - cardBz)
+      const actualNeed = Math.min(goodQty, cardNeed)
+      const actualBz = Math.max(0, goodQty - actualNeed)
+
+      const invUpdates = []
+      const invInserts = []
+      const nom = nomenclatures.find(n => n.id === activeCompletingCard.nomenclature_id)
+
+      // Decrease semi in shop1
+      if (actualNeed > 0) {
+        const s1Semi = findItem('semi')
+        if (s1Semi) invUpdates.push({ ...s1Semi, total_qty: Math.max(0, (Number(s1Semi.total_qty) || 0) - actualNeed) })
+      }
+      // Decrease wip_bz/bz in shop1
+      if (actualBz > 0) {
+        let rem = actualBz
+        const s1Wip = findItem('wip_bz')
+        if (s1Wip) { const take = Math.min(Number(s1Wip.total_qty) || 0, rem); invUpdates.push({ ...s1Wip, total_qty: Math.max(0, (Number(s1Wip.total_qty) || 0) - take) }); rem -= take }
+        if (rem > 0) { const s1Bz = findItem('bz'); if (s1Bz) { const take = Math.min(Number(s1Bz.total_qty) || 0, rem); invUpdates.push({ ...s1Bz, total_qty: Math.max(0, (Number(s1Bz.total_qty) || 0) - take) }) } }
+      }
+      // Increase semi_shop2
+      if (actualNeed > 0) {
+        const s2Semi = findItem('semi_shop2')
+        if (s2Semi) invUpdates.push({ ...s2Semi, total_qty: (Number(s2Semi.total_qty) || 0) + actualNeed })
+        else invInserts.push({ nomenclature_id: activeCompletingCard.nomenclature_id, name: nom?.name || 'Деталь', total_qty: actualNeed, reserved_qty: 0, type: 'semi_shop2', unit: nom?.unit || 'шт' })
+      }
+      // Increase bz_shop2
+      if (actualBz > 0) {
+        const s2Bz = findItem('bz_shop2')
+        if (s2Bz) invUpdates.push({ ...s2Bz, total_qty: (Number(s2Bz.total_qty) || 0) + actualBz })
+        else invInserts.push({ nomenclature_id: activeCompletingCard.nomenclature_id, name: nom?.name || 'Деталь', total_qty: actualBz, reserved_qty: 0, type: 'bz_shop2', unit: nom?.unit || 'шт' })
+      }
+      // Scrap
+      if (scrapCount > 0) {
+        const scrapItem = findItem('scrap_ready')
+        if (scrapItem) invUpdates.push({ ...scrapItem, total_qty: (Number(scrapItem.total_qty) || 0) + scrapCount, updated_at: now })
+        else invInserts.push({ name: nom?.name || 'Деталь', unit: nom?.unit || 'шт', total_qty: scrapCount, type: 'scrap_ready', nomenclature_id: activeCompletingCard.nomenclature_id })
+      }
+
+      // History
+      const historyRows = [
+        {
+          card_id: activeCompletingCard.id,
+          nomenclature_id: activeCompletingCard.nomenclature_id,
+          stage_name: 'Сортування',
+          operator_name: op,
+          qty_at_start: activeCompletingCard.quantity,
+          qty_completed: goodQty,
+          scrap_qty: scrapCount,
+          started_at: activeCompletingCard.started_at || now,
+          completed_at: activeCompletingCard.completed_at || now,
+          is_archived_scrap: scrapCount > 0,
+          shift_name: activeShift,
+          manager_name: activeCompletingCard.manager_name,
+          machine_name: activeCompletingCard.machine
+        },
+        {
+          card_id: activeCompletingCard.id,
+          nomenclature_id: activeCompletingCard.nomenclature_id,
+          stage_name: 'Буфер Сортування',
+          operator_name: op,
+          qty_at_start: goodQty,
+          qty_completed: goodQty,
+          scrap_qty: 0,
+          started_at: activeCompletingCard.completed_at || activeCompletingCard.started_at || now,
+          completed_at: now,
+          shift_name: activeShift,
+          manager_name: activeCompletingCard.manager_name,
+          machine_name: activeCompletingCard.machine
+        }
+      ]
+
+      // Task arrivals
+      let shop2TaskId = null
+      const writePromises = []
+
+      writePromises.push(
+        supabase.from('work_cards').update({
+          status: 'at-shop2-buffer',
+          operation: 'Сортування',
+          quantity: goodQty + reworkCount,
+          used_in_shop2_qty: reworkCount,
+          completed_at: now
+        }).eq('id', activeCompletingCard.id)
+      )
+
+      if (!shop2Tasks || shop2Tasks.length === 0) {
+        if (s1TaskData) {
+          shop2TaskId = generateUUID()
+          writePromises.push(
+            supabase.from('tasks').insert([{
+              id: shop2TaskId,
+              order_id: activeCompletingCard.order_id,
+              step: 'Пресування [ЦЕХ №2]',
+              status: 'in-progress',
+              planned_sets: s1TaskData.planned_sets || 0,
+              estimated_time: s1TaskData.estimated_time || 0,
+              engineer_conf: true,
+              warehouse_conf: true,
+              director_conf: true,
+              batch_index: s1TaskData.batch_index || null,
+              plan_snapshot: { ...(s1TaskData.plan_snapshot || {}), arrivals: [{ id: activeCompletingCard.nomenclature_id, name: nom?.name || 'Деталь', semi: actualNeed, bz: actualBz }] }
+            }])
+          )
+        }
+      } else {
+        shop2TaskId = shop2Tasks[0].id
+        const existingArrivals = shop2Tasks[0]?.plan_snapshot?.arrivals || []
+        const updatedArrivals = [...existingArrivals]
+        const matchIdx = updatedArrivals.findIndex(a => String(a.id) === String(activeCompletingCard.nomenclature_id))
+        if (matchIdx >= 0) {
+          updatedArrivals[matchIdx] = { ...updatedArrivals[matchIdx], semi: (Number(updatedArrivals[matchIdx].semi) || 0) + actualNeed, bz: (Number(updatedArrivals[matchIdx].bz) || 0) + actualBz }
+        } else {
+          updatedArrivals.push({ id: activeCompletingCard.nomenclature_id, name: nom?.name || 'Деталь', semi: actualNeed, bz: actualBz })
+        }
+        writePromises.push(
+          supabase.from('tasks').update({ status: 'in-progress', plan_snapshot: { ...(shop2Tasks[0].plan_snapshot || {}), arrivals: updatedArrivals } }).eq('id', shop2Tasks[0].id)
+        )
+      }
+
+      // Rework card
+      if (reworkCount > 0) {
+        writePromises.push(
+          supabase.from('work_cards').insert([{
+            task_id: shop2TaskId || activeCompletingCard.task_id,
+            order_id: activeCompletingCard.order_id,
+            nomenclature_id: activeCompletingCard.nomenclature_id,
+            operation: 'Доопрацювання',
+            quantity: reworkCount,
+            status: 'new',
+            card_info: '[ЦЕХ №2] Автоматично з Сортування'
+          }])
+        )
+      }
+
+      if (invUpdates.length > 0) writePromises.push(supabase.from('inventory').upsert(invUpdates))
+      if (invInserts.length > 0) writePromises.push(supabase.from('inventory').insert(invInserts))
+      writePromises.push(supabase.from('work_card_history').insert(historyRows))
+
+      const results = await Promise.all(writePromises)
+      for (const res of results) { if (res.error) throw res.error }
 
       setShowCompleteModal(false)
       setActiveCompletingCard(null)
       setManualId('')
       setScanError(null)
+      setScrapCount(0)
+      setReworkCount(0)
       fetchData(['work_cards', 'work_card_history', 'inventory']).catch(() => {})
+      alert(`✅ ${goodQty} шт відправлено в буфер Цеху №2!`)
     } catch (e) {
       setScanError('Помилка завершення сортування: ' + e.message)
     } finally {
@@ -303,10 +443,10 @@ export default function SortingTerminal() {
     return [h, m, s].map(v => String(v).padStart(2, '0')).join(':')
   }
 
-  // Картки в очікуванні: at-buffer/Сортування
+  // Картки в очікуванні: at-buffer/Сортування або at-buffer/Прийомка
   const waitingCards = useMemo(() => {
     return workCards
-      .filter(c => c.status === 'at-buffer' && c.operation === 'Сортування')
+      .filter(c => c.status === 'at-buffer' && (c.operation === 'Сортування' || c.operation === 'Прийомка'))
       .sort((a, b) => new Date(a.completed_at || 0) - new Date(b.completed_at || 0))
   }, [workCards])
 
@@ -418,7 +558,7 @@ export default function SortingTerminal() {
             <div style={{ display: 'flex', gap: '8px' }}>
               {[
                 { mode: 'all', label: 'Усі картки', count: waitingCards.length + inWorkCards.length, color: ACCENT },
-                { mode: 'waiting', label: 'Буфер Сортування', count: waitingCards.length, color: '#f59e0b' },
+                { mode: 'waiting', label: 'Очікують на сортування', count: waitingCards.length, color: '#f59e0b' },
                 { mode: 'in_work', label: 'На Сортуванні', count: inWorkCards.length, color: '#10b981' }
               ].map(tab => (
                 <button
@@ -581,28 +721,42 @@ export default function SortingTerminal() {
                 <div style={{ fontSize: '0.55rem', color: '#555', fontWeight: 900, textTransform: 'uppercase', marginBottom: '4px' }}>Деталь</div>
                 <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#fff' }}>{getNom(activeCompletingCard)?.name || 'Невказана деталь'}</div>
               </div>
+              {/* Rework counter */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.65rem', color: '#888', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>Відсортовано (шт)</label>
+                  <label style={{ display: 'block', fontSize: '0.65rem', color: '#888', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>В Цех №2 (OK)</label>
                   <input
-                    type="number" min="0" max={activeCompletingCard.quantity || 0}
+                    type="number" min="0" max={(activeCompletingCard.quantity || 0) - reworkCount}
                     value={finishedCount}
-                    onChange={e => { const val = Math.max(0, parseInt(e.target.value) || 0); setFinishedCount(val); setScrapCount(Math.max(0, (activeCompletingCard.quantity || 0) - val)) }}
+                    onChange={e => { const val = Math.max(0, parseInt(e.target.value) || 0); setFinishedCount(val); setScrapCount(Math.max(0, (activeCompletingCard.quantity || 0) - reworkCount - val)) }}
                     style={{ background: '#121216', border: '1px solid rgba(255,255,255,0.05)', color: '#fff', padding: '10px 14px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 800, outline: 'none', width: '100%', textAlign: 'center' }}
                   />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.65rem', color: '#ef4444', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>Брак (шт)</label>
                   <input
-                    type="number" min="0" max={activeCompletingCard.quantity || 0}
+                    type="number" min="0" max={(activeCompletingCard.quantity || 0) - reworkCount}
                     value={scrapCount}
-                    onChange={e => { const val = Math.max(0, parseInt(e.target.value) || 0); setScrapCount(val); setFinishedCount(Math.max(0, (activeCompletingCard.quantity || 0) - val)) }}
+                    onChange={e => { const val = Math.max(0, parseInt(e.target.value) || 0); setScrapCount(val); setFinishedCount(Math.max(0, (activeCompletingCard.quantity || 0) - reworkCount - val)) }}
                     style={{ background: '#121216', border: '1px solid rgba(255,255,255,0.05)', color: '#ef4444', padding: '10px 14px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 800, outline: 'none', width: '100%', textAlign: 'center' }}
                   />
                 </div>
               </div>
+              {/* Rework counter */}
+              <div style={{ background: '#0d0d0d', borderRadius: '12px', padding: '14px', border: '1px solid #f59e0b22' }}>
+                <label style={{ display: 'block', fontSize: '0.65rem', color: '#f59e0b', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px', textAlign: 'center' }}>НА ДООПРАЦЮВАННЯ (Цех №2)</label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+                  <button onClick={() => { const n = Math.max(0, reworkCount - 1); setReworkCount(n); setFinishedCount(Math.max(0, (activeCompletingCard.quantity || 0) - scrapCount - n)) }}
+                    style={{ width: '40px', height: '40px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '8px', fontSize: '1.2rem', cursor: 'pointer' }}>−</button>
+                  <input type="number" min={0} max={(activeCompletingCard.quantity || 0) - scrapCount} value={reworkCount === 0 ? '' : reworkCount} placeholder="0"
+                    onChange={e => { const val = Math.max(0, parseInt(e.target.value) || 0); setReworkCount(val); setFinishedCount(Math.max(0, (activeCompletingCard.quantity || 0) - scrapCount - val)) }}
+                    style={{ background: 'transparent', border: 'none', color: '#f59e0b', fontSize: '2.5rem', width: '80px', textAlign: 'center', fontWeight: 900 }} />
+                  <button onClick={() => { const n = Math.min((activeCompletingCard.quantity || 0) - scrapCount, reworkCount + 1); setReworkCount(n); setFinishedCount(Math.max(0, (activeCompletingCard.quantity || 0) - scrapCount - n)) }}
+                    style={{ width: '40px', height: '40px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: '8px', fontSize: '1.2rem', cursor: 'pointer' }}>+</button>
+                </div>
+              </div>
               <div style={{ background: `rgba(${ACCENT_RGB},0.06)`, border: `1px solid rgba(${ACCENT_RGB},0.15)`, borderRadius: '10px', padding: '10px 14px', fontSize: '0.72rem', color: ACCENT, fontWeight: 800, textAlign: 'center' }}>
-                ✅ Після підтвердження картка передається до Цеху №2
+                ✅ В Цех №2: <strong>{finishedCount}</strong> · Доопр: <strong style={{color:'#f59e0b'}}>{reworkCount}</strong> · Брак: <strong style={{color:'#ef4444'}}>{scrapCount}</strong> / {activeCompletingCard.quantity || 0} шт
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: '#6b7280', fontWeight: 800, borderTop: '1px solid rgba(255,255,255,0.02)', paddingTop: '12px' }}>
                 <span>Разом по картці:</span>
