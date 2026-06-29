@@ -57,6 +57,7 @@ const KanbanModule = lazy(() => import('./modules/KanbanModule'))
 const AccessModule = lazy(() => import('./modules/AccessModule'))
 const ReportsModule = lazy(() => import('./modules/ReportsModule'))
 const DashboardModule = lazy(() => import('./modules/DashboardModule'))
+const ForemanDashboardModule = lazy(() => import('./modules/ForemanDashboardModule'))
 const MachineCallModule = lazy(() => import('./modules/MachineCallModule'))
 const TumblingTerminal = lazy(() => import('./modules/TumblingTerminal'))
 const SimulatorModule = lazy(() => import('./modules/SimulatorModule'))
@@ -100,6 +101,7 @@ const getAllModules = (badgeCount = 0) => [
 
   // 4. Керування та Аналітика
   { id: 'dashboard', title: 'Дашборд WIP', icon: <LayoutDashboard />, path: '/dashboard', desc: 'Моніторинг незавершеного виробництва', color: '#ff9000' },
+  { id: 'foreman_dashboard', title: 'ДАШБОРД 2.0', icon: <LayoutDashboard />, path: '/foreman-dashboard', desc: 'Моніторинг нарядів Цеху №1', color: '#ff9000' },
   { id: 'manager', title: 'Менеджер', icon: <LayoutDashboard />, path: '/manager', desc: 'Замовлення та планування', color: '#ff9000' },
   { id: 'kanban', title: 'Задачі', icon: <KanbanSquare />, path: '/tasks', desc: 'Внутрішні доручення', color: '#8b5cf6', badge: badgeCount },
   { id: 'director', title: 'Директор Виробництва', icon: <ShieldCheck size={24} />, path: '/director', desc: 'Фінальне підтвердження', color: '#10b981' },
@@ -154,6 +156,7 @@ const CATEGORY_MAP = {
 
   // Керування та Аналітика
   dashboard: 'management_analytics',
+  foreman_dashboard: 'management_analytics',
   manager: 'management_analytics',
   kanban: 'management_analytics',
   director: 'management_analytics',
@@ -2570,6 +2573,7 @@ const AppContent = () => {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<Portal />} />
           <Route path="/dashboard" element={<PermissionGuard id="dashboard"><DashboardModule /></PermissionGuard>} />
+          <Route path="/foreman-dashboard" element={<PermissionGuard id="foreman_dashboard"><ForemanDashboardModule /></PermissionGuard>} />
           <Route path="/manager" element={<PermissionGuard id="manager"><ManagerModule /></PermissionGuard>} />
           <Route path="/warehouse" element={<PermissionGuard id="warehouse"><WarehouseModule /></PermissionGuard>} />
           <Route path="/master" element={<PermissionGuard id="master"><MasterModule /></PermissionGuard>} />

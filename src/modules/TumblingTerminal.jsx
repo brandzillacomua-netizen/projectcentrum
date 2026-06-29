@@ -43,6 +43,9 @@ export default function TumblingTerminal() {
 
   // Custom confirm modal (replaces window.confirm) for "start card" action
   const [pendingStartCard, setPendingStartCard] = useState(null)
+  
+  // Tab/filter selection for cards
+  const [filterMode, setFilterMode] = useState('all') // 'all', 'waiting', 'in_work'
 
   // 1. Tick clock
   useEffect(() => {
@@ -365,6 +368,31 @@ export default function TumblingTerminal() {
       .sort((a, b) => new Date(a.started_at || 0) - new Date(b.started_at || 0))
   }, [workCards])
 
+  // Filtered cards based on current tab selection
+  const displayedCards = useMemo(() => {
+    const list = []
+    if (filterMode === 'all' || filterMode === 'waiting') {
+      list.push(...waitingCards.map(c => ({ ...c, type: 'waiting' })))
+    }
+    if (filterMode === 'all' || filterMode === 'in_work') {
+      list.push(...inWorkCards.map(c => ({ ...c, type: 'in_work' })))
+    }
+    return list.sort((a, b) => {
+      // Show active running cards above queued ones
+      if (a.type === 'in_work' && b.type === 'waiting') return -1
+      if (a.type === 'waiting' && b.type === 'in_work') return 1
+
+      if (a.type === 'waiting') {
+        const aPri = a.galt_priority || 2
+        const bPri = b.galt_priority || 2
+        if (aPri !== bPri) return aPri - bPri
+        return new Date(a.completed_at || 0) - new Date(b.completed_at || 0)
+      } else {
+        return new Date(a.started_at || 0) - new Date(b.started_at || 0)
+      }
+    })
+  }, [filterMode, waitingCards, inWorkCards])
+
   // Priority color definitions
   const priorityMap = {
     1: { label: 'Високий', bg: 'rgba(239,68,68,0.15)', text: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' },
@@ -466,70 +494,100 @@ export default function TumblingTerminal() {
       </section>
 
       {/* DASHBOARD GRID */}
-      <main style={{ flex: 1, padding: '24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', overflow: 'hidden' }}>
+      <main style={{ flex: 1, padding: '24px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-        {/* COLUMN 1: QUEUED (В очікуванні) */}
-        <section style={{ background: '#0c0c10', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.03)', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }}>
+        <section style={{ flex: 1, background: '#0c0c10', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.03)', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }}>
 
-          {/* Header */}
-          <div style={{ padding: '18px 24px', background: 'rgba(255,255,255,0.01)', borderBottom: '1px solid rgba(255,255,255,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Layers size={16} color="#06b6d4" />
-              <h2 style={{ fontSize: '0.9rem', fontWeight: 950, textTransform: 'uppercase', margin: 0, letterSpacing: '0.5px' }}>В очікуванні галтовки</h2>
+          {/* Filter tabs */}
+          <div style={{ padding: '18px 24px', background: 'rgba(255,255,255,0.01)', borderBottom: '1px solid rgba(255,255,255,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {[
+                { mode: 'all', label: 'Усі картки', count: waitingCards.length + inWorkCards.length, color: '#06b6d4' },
+                { mode: 'waiting', label: 'В очікуванні', count: waitingCards.length, color: '#f59e0b' },
+                { mode: 'in_work', label: 'У роботі', count: inWorkCards.length, color: '#10b981' }
+              ].map(tab => (
+                <button
+                  key={tab.mode}
+                  type="button"
+                  onClick={() => setFilterMode(tab.mode)}
+                  style={{
+                    background: filterMode === tab.mode ? `rgba(${tab.mode === 'in_work' ? '16,185,129' : tab.mode === 'waiting' ? '245,158,11' : '6,182,214'}, 0.12)` : '#121216',
+                    color: filterMode === tab.mode ? tab.color : '#888',
+                    border: `1px solid ${filterMode === tab.mode ? tab.color + '40' : 'rgba(255,255,255,0.04)'}`,
+                    padding: '8px 16px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s'
+                  }}
+                >
+                  {tab.label}
+                  <span style={{
+                    background: filterMode === tab.mode ? tab.color : '#222',
+                    color: filterMode === tab.mode ? '#000' : '#888',
+                    borderRadius: '6px', padding: '1px 6px', fontSize: '0.68rem', fontWeight: 900
+                  }}>
+                    {tab.count}
+                  </span>
+                </button>
+              ))}
             </div>
-            <span style={{ background: 'rgba(6,182,212,0.12)', color: '#06b6d4', padding: '3px 10px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 900 }}>
-              {waitingCards.length} шт
-            </span>
+
+            <div style={{ fontSize: '0.72rem', color: '#555', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Картки на терміналі
+            </div>
           </div>
 
           {/* Cards List */}
           <div style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }} className="custom-scroll">
-            {waitingCards.length === 0 ? (
+            {displayedCards.length === 0 ? (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.15, padding: '50px 0' }}>
                 <Layers size={64} />
-                <h3 style={{ fontSize: '0.85rem', fontWeight: 800, marginTop: '12px' }}>Буфер розкрою порожній</h3>
+                <h3 style={{ fontSize: '0.85rem', fontWeight: 800, marginTop: '12px' }}>Картки відсутні</h3>
               </div>
             ) : (
-              waitingCards.map(card => {
+              displayedCards.map(card => {
                 const nom = getNom(card)
+                const isWaiting = card.type === 'waiting'
                 const pInfo = priorityMap[card.galt_priority || 2]
 
-                // Calculate waiting time
-                const waitTime = card.completed_at
-                  ? formatDuration(card.completed_at)
-                  : '—'
+                // Waiting/Work time
+                const timeStr = isWaiting
+                  ? (card.completed_at ? formatDuration(card.completed_at) : '—')
+                  : formatDuration(card.started_at)
 
                 return (
                   <div key={card.id} style={{ background: '#111116', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '18px', padding: '16px 18px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px', transition: '0.2s', position: 'relative' }} className="hover-lift">
 
-                    {/* Priority strip */}
-                    <div style={{ position: 'absolute', left: 0, top: '15px', bottom: '15px', width: '3px', background: pInfo.text, borderRadius: '0 3px 3px 0' }} />
+                    {/* Strip color */}
+                    <div style={{ position: 'absolute', left: 0, top: '15px', bottom: '15px', width: '3px', background: isWaiting ? pInfo.text : '#10b981', borderRadius: '0 3px 3px 0' }} />
 
                     {/* Card main info */}
-                    <div style={{ flex: '1 1 200px', paddingLeft: '6px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '0.62rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                            Картка #{card.id.slice(-8).toUpperCase()}
+                    <div style={{ flex: '1 1 300px', paddingLeft: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '0.62rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                          Картка #{card.id.slice(-8).toUpperCase()}
+                        </span>
+                        {(() => {
+                          const seqMatch = (card.card_info || '').match(/(\d+\/\d+)/)
+                          return seqMatch ? (
+                            <span style={{
+                              background: 'rgba(255, 144, 0, 0.15)',
+                              color: '#ff9000',
+                              border: '1px solid rgba(255, 144, 0, 0.3)',
+                              padding: '2px 6px', borderRadius: '6px',
+                              fontSize: '0.6rem', fontWeight: 950
+                            }}>
+                              {seqMatch[1]}
+                            </span>
+                          ) : null
+                        })()}
+                        
+                        {isWaiting ? (
+                          <span style={{ fontSize: '0.55rem', background: pInfo.bg, color: pInfo.text, border: pInfo.border, padding: '2px 8px', borderRadius: '6px', fontWeight: 900 }}>
+                            В очікуванні (Пріоритет: {pInfo.label})
                           </span>
-                          {(() => {
-                            const seqMatch = (card.card_info || '').match(/(\d+\/\d+)/)
-                            return seqMatch ? (
-                              <span style={{
-                                background: 'rgba(255, 144, 0, 0.15)',
-                                color: '#ff9000',
-                                border: '1px solid rgba(255, 144, 0, 0.3)',
-                                padding: '2px 6px', borderRadius: '6px',
-                                fontSize: '0.6rem', fontWeight: 950
-                              }}>
-                                {seqMatch[1]}
-                              </span>
-                            ) : null
-                          })()}
-                        </div>
-                        <span style={{ fontSize: '0.55rem', background: pInfo.bg, color: pInfo.text, border: pInfo.border, padding: '2px 8px', borderRadius: '6px', fontWeight: 900 }}>
-                          Пріорітет: {pInfo.label}
-                        </span>
+                        ) : (
+                          <span style={{ fontSize: '0.55rem', background: 'rgba(16,185,129,0.12)', color: '#10b981', border: '1px solid rgba(16,185,129,0.25)', padding: '2px 8px', borderRadius: '6px', fontWeight: 900 }}>
+                            У роботі (Галтовка)
+                          </span>
+                        )}
                       </div>
 
                       <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#fff', margin: '0 0 6px 0', lineHeight: 1.3 }}>
@@ -540,121 +598,52 @@ export default function TumblingTerminal() {
                         <span style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 700 }}>
                           К-сть: <strong style={{ color: '#fff' }}>{card.quantity} шт</strong>
                         </span>
-                        <span style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 700 }}>
-                          Майстер: <span style={{ color: '#aaa' }}>{(card.manager_name || 'Не вказано').split(' (')[0]}</span>
-                        </span>
-                        <span style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 700 }}>
-                          Верстат розкрою: <span style={{ color: '#aaa' }}>{card.machine || '—'}</span>
-                        </span>
+                        {isWaiting ? (
+                          <>
+                            <span style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 700 }}>
+                              Майстер: <span style={{ color: '#aaa' }}>{(card.manager_name || 'Не вказано').split(' (')[0]}</span>
+                            </span>
+                            <span style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 700 }}>
+                              Верстат розкрою: <span style={{ color: '#aaa' }}>{card.machine || '—'}</span>
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 700 }}>
+                              Виконавець: <span style={{ color: '#aaa' }}>{(card.operator_name || 'Не вказано').split(' (')[0]}</span>
+                            </span>
+                            <span style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 700 }}>
+                              Зміна: <span style={{ color: '#aaa' }}>{card.shift_name || '—'}</span>
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
 
-                    {/* Waiting Timer & Action */}
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', minWidth: '100px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#6b7280', fontSize: '0.62rem', fontWeight: 700 }}>
-                        <Clock size={11} /> {waitTime}
+                    {/* Timer & Action */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', minWidth: '120px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: isWaiting ? '#6b7280' : '#10b981', fontSize: '0.68rem', fontWeight: 900, fontFamily: 'monospace' }}>
+                        <Clock size={12} /> {timeStr}
                       </div>
-                      <button
-                        onClick={() => setPendingStartCard(card)}
-                        disabled={isProcessing}
-                        style={{ background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.2)', color: '#06b6d4', padding: '8px 12px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: '0.2s' }}
-                        className="btn-cyan"
-                      >
-                        <Play size={11} fill="currentColor" /> В РОБОТУ
-                      </button>
-                    </div>
-
-                  </div>
-                )
-              })
-            )}
-          </div>
-        </section>
-
-        {/* COLUMN 2: IN WORK (У роботі) */}
-        <section style={{ background: '#0c0c10', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.03)', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }}>
-
-          {/* Header */}
-          <div style={{ padding: '18px 24px', background: 'rgba(255,255,255,0.01)', borderBottom: '1px solid rgba(255,255,255,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Play size={15} color="#10b981" fill="currentColor" />
-              <h2 style={{ fontSize: '0.9rem', fontWeight: 950, textTransform: 'uppercase', margin: 0, letterSpacing: '0.5px' }}>У роботі (Галтовка)</h2>
-            </div>
-            <span style={{ background: 'rgba(16,185,129,0.12)', color: '#10b981', padding: '3px 10px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 900 }}>
-              {inWorkCards.length} шт
-            </span>
-          </div>
-
-          {/* Cards List */}
-          <div style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }} className="custom-scroll">
-            {inWorkCards.length === 0 ? (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.15, padding: '50px 0' }}>
-                <Play size={64} />
-                <h3 style={{ fontSize: '0.85rem', fontWeight: 800, marginTop: '12px' }}>Зараз нічого не галтується</h3>
-              </div>
-            ) : (
-              inWorkCards.map(card => {
-                const nom = getNom(card)
-                const workTime = formatDuration(card.started_at)
-
-                return (
-                  <div key={card.id} style={{ background: '#111116', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '18px', padding: '16px 18px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px', transition: '0.2s', position: 'relative' }}>
-
-                    {/* Active strip */}
-                    <div style={{ position: 'absolute', left: 0, top: '15px', bottom: '15px', width: '3px', background: '#10b981', borderRadius: '0 3px 3px 0' }} />
-
-                    {/* Card main info */}
-                    <div style={{ flex: '1 1 200px', paddingLeft: '6px' }}>
-                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                         <span style={{ fontSize: '0.62rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                           Картка #{card.id.slice(-8).toUpperCase()}
-                         </span>
-                         {(() => {
-                           const seqMatch = (card.card_info || '').match(/(\d+\/\d+)/)
-                           return seqMatch ? (
-                             <span style={{
-                               background: 'rgba(255, 144, 0, 0.15)',
-                               color: '#ff9000',
-                               border: '1px solid rgba(255, 144, 0, 0.3)',
-                               padding: '2px 6px', borderRadius: '6px',
-                               fontSize: '0.6rem', fontWeight: 950
-                             }}>
-                               {seqMatch[1]}
-                             </span>
-                           ) : null
-                         })()}
-                       </div>
-
-                      <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#fff', margin: '0 0 6px 0', lineHeight: 1.3 }}>
-                        {nom?.name || 'Невказана деталь'}
-                      </h4>
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 700 }}>
-                          К-сть: <strong style={{ color: '#fff' }}>{card.quantity} шт</strong>
-                        </span>
-                        <span style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 700 }}>
-                          Виконавець: <span style={{ color: '#aaa' }}>{(card.operator_name || 'Не вказано').split(' (')[0]}</span>
-                        </span>
-                        <span style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 700 }}>
-                          Зміна: <span style={{ color: '#aaa' }}>{card.shift_name || '—'}</span>
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Progress Timer & Action */}
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', minWidth: '100px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#10b981', fontSize: '0.68rem', fontWeight: 900, fontFamily: 'monospace' }}>
-                        <Clock size={12} /> {workTime}
-                      </div>
-                      <button
-                        onClick={() => openCompleteModal(card)}
-                        disabled={isProcessing}
-                        style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#10b981', padding: '8px 12px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: '0.2s' }}
-                        className="btn-green"
-                      >
-                        <CheckCircle size={11} /> ЗАВЕРШИТИ
-                      </button>
+                      {isWaiting ? (
+                        <button
+                          onClick={() => setPendingStartCard(card)}
+                          disabled={isProcessing}
+                          style={{ background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.2)', color: '#06b6d4', padding: '8px 12px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: '0.2s' }}
+                          className="btn-cyan"
+                        >
+                          <Play size={11} fill="currentColor" /> В РОБОТУ
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => openCompleteModal(card)}
+                          disabled={isProcessing}
+                          style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#10b981', padding: '8px 12px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: '0.2s' }}
+                          className="btn-green"
+                        >
+                          <CheckCircle size={11} /> ЗАВЕРШИТИ
+                        </button>
+                      )}
                     </div>
 
                   </div>
@@ -663,7 +652,6 @@ export default function TumblingTerminal() {
             )}
           </div>
         </section>
-
       </main>
 
       {/* ── КАСТОМНА МОДАЛКА ПІДТВЕРДЖЕННЯ ЗАПУСКУ ГАЛТОВКИ ────────────────── */}

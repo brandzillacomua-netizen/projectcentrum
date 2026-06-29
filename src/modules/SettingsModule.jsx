@@ -1315,7 +1315,7 @@ const SettingsModule = () => {
     department: companyStructure?.[0]?.name || 'Цех №1',
     shift: 'Без зміни',
     access_rights: {
-      dashboard: false, manager: false, master: false, warehouse: false, engineer: false, 
+      dashboard: false, foreman_dashboard: false, manager: false, master: false, warehouse: false, engineer: false, 
       director: false, foreman: false, operator: true, shipping: false, 
       supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, packaging: false, kanban: false, reports: false, tumbling_terminal: false
     }
@@ -1386,7 +1386,7 @@ const SettingsModule = () => {
     setUserForm({
       id: null, login: '', password: '', first_name: '', last_name: '', 
       position: companyPositions?.[0]?.name || 'Оператор', department: companyStructure?.[0]?.name || 'Цех №1', shift: 'Без зміни',
-      access_rights: { dashboard: false, manager: false, master: false, warehouse: false, engineer: false, director: false, foreman: false, operator: true, prep_terminal: false, shipping: false, supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, kanban: false, reports: false, tumbling_terminal: false }
+      access_rights: { dashboard: false, foreman_dashboard: false, manager: false, master: false, warehouse: false, engineer: false, director: false, foreman: false, operator: true, prep_terminal: false, shipping: false, supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, kanban: false, reports: false, tumbling_terminal: false }
     })
   }
 
@@ -1395,7 +1395,7 @@ const SettingsModule = () => {
       ...user, 
       password: '••••••••',
       access_rights: {
-        dashboard: false, manager: false, master: false, warehouse: false, engineer: false, 
+        dashboard: false, foreman_dashboard: false, manager: false, master: false, warehouse: false, engineer: false, 
         director: false, foreman: false, operator: false, prep_terminal: false, shipping: false, 
         supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, packaging: false, kanban: false, reports: false, tumbling_terminal: false,
         ...(user.access_rights || {})
@@ -1576,6 +1576,7 @@ const SettingsModule = () => {
 
   const moduleList = [
     { id: 'dashboard', label: 'Дашборд WIP' },
+    { id: 'foreman_dashboard', label: 'ДАШБОРД 2.0' },
     { id: 'kanban', label: 'Задачі (Внутрішні)' },
     { id: 'manager', label: 'Менеджер' },
     { id: 'master', label: 'Мастер (Цех)' },

@@ -15,6 +15,38 @@ const DashboardModule = () => {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [shippedQuantities, setShippedQuantities] = useState({})
   const [selectedOrderId, setSelectedOrderId] = useState(null)
+  const [orderAllCards, setOrderAllCards] = useState([])
+  const [isLoadingCards, setIsLoadingCards] = useState(false)
+
+  // Fetch ALL work cards (including completed) for the selected order's tasks
+  useEffect(() => {
+    if (!selectedOrderId || !tasks) {
+      setOrderAllCards([])
+      return
+    }
+    const orderTaskIds = tasks.filter(t => String(t.order_id) === String(selectedOrderId)).map(t => t.id)
+    if (orderTaskIds.length === 0) {
+      setOrderAllCards([])
+      return
+    }
+
+    setIsLoadingCards(true)
+    supabase
+      .from('work_cards')
+      .select('*')
+      .in('task_id', orderTaskIds)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Error fetching all cards for selected order:', error)
+          return
+        }
+        setOrderAllCards(data || [])
+      })
+      .finally(() => {
+        setIsLoadingCards(false)
+      })
+  }, [selectedOrderId, tasks, supabase])
+
 
   const activeOrders = useMemo(() => {
     if (!tasks || !orders) return []
@@ -436,15 +468,33 @@ const DashboardModule = () => {
             .filter(h => String(h.nomenclature_id) === String(nom.id) && h.task_id && orderTaskIds.includes(h.task_id))
             .reduce((sum, h) => sum + (Number(h.scrap_qty) || 0), 0)
 
+          const orderAllTaskCards = orderAllCards.filter(c => String(c.nomenclature_id) === String(nom.id))
+          
+          // Shop 2 completed cards go to SGP
+          const completedShop2Qty = orderAllTaskCards.filter(c => {
+            const op = (c.operation || '').toLowerCase()
+            const isShop2 = ['пресування', 'фарбування', 'малярка', 'доопрацювання'].some(o => op.includes(o))
+            return isShop2 && c.status === 'completed'
+          }).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+
+          // Shop 1 completed cards + Склад БЗ cards go to BZ stock
+          const completedShop1Qty = orderAllTaskCards.filter(c => {
+            const op = (c.operation || '').toLowerCase()
+            const isShop1 = ['розкрій', 'галтовка', 'прийомка', 'сортування'].some(o => op.includes(o))
+            const isSgpOrBzCard = c.operation === 'Склад БЗ'
+            const isCompleted = c.status === 'completed' || c.status === 'at-shop2-buffer'
+            return (isShop1 && isCompleted) || isSgpOrBzCard
+          }).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+
           const taskWithSnapshot = orderTasks.find(t => t.plan_snapshot && t.plan_snapshot[String(nom.id)])
 
           if (taskWithSnapshot) {
-            // Беремо точну кількість, яку ми забронювали/перемістили з БЗ на СГП для цього наряду
-            qSgp = Number(taskWithSnapshot.plan_snapshot[String(nom.id)].stock) || 0
-            qBz = orderAllocatedBz[selectedOrderId]?.[nom.id] || 0
+            const initialStock = Number(taskWithSnapshot.plan_snapshot[String(nom.id)].stock) || 0
+            qBz = completedShop1Qty || initialStock
+            qSgp = completedShop2Qty
           } else {
-            qSgp = orderAllocatedSgp[selectedOrderId]?.[nom.id] || 0
-            qBz = orderAllocatedBz[selectedOrderId]?.[nom.id] || 0
+            qBz = completedShop1Qty || orderAllocatedBz[selectedOrderId]?.[nom.id] || 0
+            qSgp = completedShop2Qty || orderAllocatedSgp[selectedOrderId]?.[nom.id] || 0
           }
         } else {
           qScrap = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id) && String(i.type).startsWith('scrap')).reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
@@ -468,8 +518,8 @@ const DashboardModule = () => {
           }
         }
 
-        // Sum = WIP на етапах + буферах + кількість на СГП для цього конкретного наряду
-        const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriyCards + qSortAct + qSortCards + qMalWait + qMal + qMalBuf + qPres + qPresBuf + qDoop + qDoopBuf + qSgp
+        // Sum = WIP на етапах + буферах + кількість на СГП + кількість на БЗ для цього конкретного наряду
+        const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriyCards + qSortAct + qSortCards + qMalWait + qMal + qMalBuf + qPres + qPresBuf + qDoop + qDoopBuf + qSgp + (selectedOrderId ? qBz : 0)
 
         const row = {
           id: nom.id + (isOther ? '' : '_' + parentId),
@@ -607,7 +657,28 @@ const DashboardModule = () => {
         const qBzShop2 = orderAllocatedBzShop2[order.id]?.[nom.id] || 0
         const qSgp = orderAllocatedSgp[order.id]?.[nom.id] || 0
 
-        const sumVal = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriyCards + qSortAct + qSortCards + qMalWait + qMal + qMalBuf + qPres + qPresBuf + qDoop + qDoopBuf + qBz + qBzShop2 + qSgp
+        let qSgpVal = qSgp
+        if (selectedOrderId && order.id === selectedOrderId) {
+          // For potential calculation: count ALL parts in system for this order
+          // = completed Пакування/СГП + all active WIP cards (not Склад БЗ)
+          const orderAllTaskCards = orderAllCards.filter(c => String(c.nomenclature_id) === String(nom.id))
+          const completedSgpQty = orderAllTaskCards
+            .filter(c => (c.operation === 'Пакування/СГП' || c.operation === 'Склад СГП') && c.status === 'completed')
+            .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+          const activeQty = orderAllTaskCards.filter(c => {
+            if (c.status === 'completed') return false
+            if (c.operation === 'Склад БЗ') return false
+            return true
+          }).reduce((sum, c) => {
+            if (c.status === 'at-shop2-buffer') {
+              return sum + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0))
+            }
+            return sum + (Number(c.quantity) || 0)
+          }, 0)
+          qSgpVal = completedSgpQty + activeQty
+        }
+
+        const sumVal = qSgpVal + (selectedOrderId && order.id === selectedOrderId ? 0 : qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriyCards + qSortAct + qSortCards + qMalWait + qMal + qMalBuf + qPres + qPresBuf + qDoop + qDoopBuf + qBz + qBzShop2)
 
         // WIP sets from active production cards
         const activeProductionCards = taskCards.filter(c => c.operation !== 'Склад БЗ')
@@ -642,10 +713,7 @@ const DashboardModule = () => {
           }
         }
 
-        // Розраховуємо дефіцит виробництва (shortage): Потреба - (WIP + СГП)
-        // БЗ не включається сюди, бо БЗ це складські залишки, які не є випущеними під цей наряд деталями
-        const productionAndSgpVal = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriyCards + qSortAct + qSortCards + qMalWait + qMal + qMalBuf + qPres + qPresBuf + qDoop + qDoopBuf + qSgp
-        const shortage = Math.max(0, need - productionAndSgpVal)
+        const shortage = Math.max(0, need - sumVal)
 
         // Calculate potential sets
         const potentialSetsForThisPart = Math.floor(sumVal / qtyPerProduct)
@@ -672,47 +740,110 @@ const DashboardModule = () => {
 
       if (minPotential === Infinity) minPotential = 0
 
-      let actualSgpSets = Infinity
-      let minWipSets = Infinity
-      
-      orderBoms.forEach(bomEntry => {
-        const nom = nomenclatures.find(n => String(n.id) === String(bomEntry.child_id))
-        if (!nom || nom.type !== 'part') return
-        const qtyPerProduct = Number(bomEntry.quantity_per_parent) || 1
-        
-        // SGP sets: allocated finished stock
-        const currentSgpQty = orderAllocatedSgp[order.id]?.[nom.id] || 0
-        const sgpSets = Math.floor(currentSgpQty / qtyPerProduct)
-        if (sgpSets < actualSgpSets) {
-          actualSgpSets = sgpSets
-        }
-
-        // Real WIP sets on production floor
-        const taskCards = orderTaskCards.filter(c => String(c.nomenclature_id) === String(nom.id))
-        const activeProductionCards = taskCards.filter(c => c.operation !== 'Склад БЗ')
-        const partWipQty = activeProductionCards.reduce((sum, c) => {
-          if (c.status === 'completed') return sum
-          if (c.status === 'at-shop2-buffer') {
-            return sum + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0))
-          }
-          return sum + (Number(c.quantity) || 0)
-        }, 0)
-        const partWipSets = Math.floor(partWipQty / qtyPerProduct)
-        if (partWipSets < minWipSets) {
-          minWipSets = partWipSets
+      // Calculate SGP inventory specific to this order
+      let bzReservedSets = Infinity
+      let hasSnapshot = false
+      orderTasks.forEach(t => {
+        if (t.plan_snapshot) {
+          hasSnapshot = true
+          orderBoms.forEach(bomEntry => {
+            const nom = nomenclatures.find(n => String(n.id) === String(bomEntry.child_id))
+            if (!nom || nom.type !== 'part') return
+            const qtyPerProduct = Number(bomEntry.quantity_per_parent) || 1
+            const entry = t.plan_snapshot[String(bomEntry.child_id)]
+            const stock = entry ? (Number(entry.stock) || 0) : 0
+            const sets = Math.floor(stock / qtyPerProduct)
+            if (sets < bzReservedSets) {
+              bzReservedSets = sets
+            }
+          })
         }
       })
-      
-      if (actualSgpSets === Infinity) actualSgpSets = 0
-      if (minWipSets === Infinity) minWipSets = 0
+      if (bzReservedSets === Infinity || !hasSnapshot) bzReservedSets = 0
+
+      const completedTasksSets = orderTasks
+        .filter(t => t.status === 'completed')
+        .reduce((sum, t) => sum + (Number(t.planned_sets) || 0), 0)
+
+      const sgpInventory = bzReservedSets + completedTasksSets
+
+      // Calculate actual COMPLETED sets on SGP (Пакування/СГП completed cards only)
+      // and WIP sets (active cards still in production)
+      let actualSgpSets = 0
+      let actualWipSets = 0
+
+      if (selectedOrderId && order.id === selectedOrderId) {
+        // For specific order: use real card data from orderAllCards
+        let minCompletedSets = Infinity
+        let minWipSets = Infinity
+
+        orderBoms.forEach(bomEntry => {
+          const nom = nomenclatures.find(n => String(n.id) === String(bomEntry.child_id))
+          if (!nom || nom.type !== 'part') return
+          const qtyPerProduct = Number(bomEntry.quantity_per_parent) || 1
+
+          const orderAllTaskCards = orderAllCards.filter(c => String(c.nomenclature_id) === String(bomEntry.child_id))
+
+          // НА СГП ЗАРАЗ = лише картки Пакування/СГП зі статусом completed (реально готова продукція)
+          const completedSgpQty = orderAllTaskCards
+            .filter(c => (c.operation === 'Пакування/СГП' || c.operation === 'Склад СГП') && c.status === 'completed')
+            .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+
+          // Загальна кількість прийнятих з БЗ деталей в наряд (Склад БЗ completed card)
+          const bzAcceptedQty = orderAllTaskCards
+            .filter(c => c.operation === 'Склад БЗ' && c.status === 'completed')
+            .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+
+          // Активний WIP в Shop 2 buffer (ще не використаний)
+          const shop2BufferQty = orderAllTaskCards
+            .filter(c => c.status === 'at-shop2-buffer' && c.operation !== 'Пакування/СГП' && c.operation !== 'Склад СГП')
+            .reduce((sum, c) => sum + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0)), 0)
+
+          // Інший активний WIP (at-buffer, in-progress, new, waiting-materials - не БЗ, не Пакування)
+          const otherWipQty = orderAllTaskCards.filter(c => {
+            if (c.status === 'completed') return false
+            if (c.operation === 'Склад БЗ') return false
+            if (c.operation === 'Пакування/СГП' || c.operation === 'Склад СГП') return false
+            if (c.status === 'at-shop2-buffer') return false // вже рахується вище
+            return true
+          }).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+
+          // В РОБОТІ = ще не готові деталі в системі наряду:
+          //   = (прийнято з БЗ - вже готово на СГП) + WIP картки поза БЗ-потоком
+          //   = решта БЗ в pipeline + буфер Цех2 + різання/галтовка тощо
+          const bzRemainingQty = Math.max(0, bzAcceptedQty - completedSgpQty)
+          const totalWipQty = bzRemainingQty + otherWipQty
+
+          const completedSets = qtyPerProduct > 0 ? Math.floor(completedSgpQty / qtyPerProduct) : 0
+          const wipSets = qtyPerProduct > 0 ? Math.floor(totalWipQty / qtyPerProduct) : 0
+
+          if (completedSets < minCompletedSets) minCompletedSets = completedSets
+          if (wipSets < minWipSets) minWipSets = wipSets
+        })
+
+        actualSgpSets = minCompletedSets === Infinity ? 0 : minCompletedSets
+        actualWipSets = minWipSets === Infinity ? 0 : minWipSets
+      } else {
+        // For general view: use allocated SGP stock
+        let minAllocatedSets = Infinity
+        orderBoms.forEach(bomEntry => {
+          const nom = nomenclatures.find(n => String(n.id) === String(bomEntry.child_id))
+          if (!nom || nom.type !== 'part') return
+          const qtyPerProduct = Number(bomEntry.quantity_per_parent) || 1
+          const currentSgpQty = orderAllocatedSgp[order.id]?.[nom.id] || 0
+          const sets = Math.floor(currentSgpQty / qtyPerProduct)
+          if (sets < minAllocatedSets) minAllocatedSets = sets
+        })
+        actualSgpSets = minAllocatedSets === Infinity ? 0 : minAllocatedSets
+        actualWipSets = Math.max(0, minPotential - actualSgpSets)
+      }
 
       const plannedTask = orderTasks.find(t => t.planned_sets) || orderTasks[0]
       const totalDemand = Number(plannedTask?.planned_sets) || Number(order.order_items?.[0]?.quantity) || Number(order.quantity) || 0
 
       bottlenecksList.sort((a, b) => a.shortage - b.shortage)
 
-      // WIP is the minimum completed sets moving through active shop tasks
-      const calculatedWip = minWipSets
+      const calculatedWip = actualWipSets
       const remainingDemand = Math.max(0, totalDemand - actualSgpSets - calculatedWip)
 
       trends[order.id] = {
@@ -738,7 +869,7 @@ const DashboardModule = () => {
     const finalGroups = Object.values(groups).filter(g => g.rows.length > 0)
 
     return { groupedDashboardData: finalGroups, totals: totalsAcc, productTrends: trends }
-  }, [nomenclatures, bomItems, orders, workCards, inventory, demandData, taskParentMap, searchQuery, wipOnly, shippedQuantities, activeOrders, workCardHistory])
+  }, [nomenclatures, bomItems, orders, workCards, inventory, demandData, taskParentMap, searchQuery, wipOnly, shippedQuantities, activeOrders, workCardHistory, orderAllCards])
 
   const getGroupTotals = (rows) => {
     const res = { qCutWait: 0, qCut: 0, qCutBuf: 0, qGalt: 0, qGaltBuf: 0, qPriy: 0, qSortAct: 0, qSort: 0, qMalWait: 0, qMal: 0, qMalBuf: 0, qPres: 0, qPresBuf: 0, qDoop: 0, qDoopBuf: 0, qSgp: 0, qBz: 0, qScrap: 0, sum: 0 }
