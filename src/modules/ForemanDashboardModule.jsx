@@ -294,7 +294,7 @@ const ForemanDashboardModule = () => {
         setAllTasksCards(cards)
         const cardIds = cards.map(c => c.id)
         if (cardIds.length > 0) {
-          const chunkSize = 200
+          const chunkSize = 100
           const promises = []
           for (let i = 0; i < cardIds.length; i += chunkSize) {
             const chunk = cardIds.slice(i, i + chunkSize)
@@ -303,6 +303,7 @@ const ForemanDashboardModule = () => {
                 .from('work_card_history')
                 .select('*')
                 .in('card_id', chunk)
+                .limit(5000)
             )
           }
           const results = await Promise.all(promises)
@@ -359,8 +360,8 @@ const ForemanDashboardModule = () => {
             .reduce((s, c) => s + (Number(c.quantity) || 0), 0)
         }
 
-        const qCutWait = getQ(['Розкрій'], ['new'])
-        const qCut = getQ(['Розкрій'], ['in-progress'])
+        const qCutWait = getQ(['Розкрій'], ['new', 'waiting-materials', 'waiting-machines'])
+        const qCut = getQ(['Розкрій'], ['in-progress', 'paused', 'hold'])
         const qCutBuf = getQ(['Розкрій'], ['at-buffer'])
         const qGalt = getQ(['Галтовка'], ['in-progress'])
         const qGaltBuf = getQ(['Галтовка'], ['at-buffer'])
@@ -575,8 +576,8 @@ const ForemanDashboardModule = () => {
           }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
         }
 
-        const qCutWait = getQ(['Розкрій'], ['new'])
-        const qCut = getQ(['Розкрій'], ['in-progress'])
+        const qCutWait = getQ(['Розкрій'], ['new', 'waiting-materials', 'waiting-machines'])
+        const qCut = getQ(['Розкрій'], ['in-progress', 'paused', 'hold'])
         const qCutBuf = getQ(['Розкрій'], ['at-buffer'])
         const qGalt = getQ(['Галтовка'], ['in-progress'])
         const qGaltBuf = getQ(['Галтовка'], ['at-buffer'])
@@ -629,8 +630,8 @@ const ForemanDashboardModule = () => {
           return c.operation === 'Склад БЗ'
         }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
 
-        // qBz is what is left from groupProduced that hasn't gone to Shop 2 and is not in qSort
-        const qBz = Math.max(0, groupProduced - qSort - totalShop2Qty)
+        // qBz is what is left from groupProduced that hasn't gone to Shop 2 and is not in qSort, plus BZ stock reserves
+        const qBz = Math.max(0, groupProduced - qSort - totalShop2Qty) + bzCardsQty
 
         // Scrap from task card history
         const cardIdsForThisPart = new Set(filteredCards.filter(c => {
@@ -1067,8 +1068,8 @@ const OrderDetailView = ({
           .reduce((s, c) => s + (Number(c.quantity) || 0), 0)
       }
 
-      const qCutWait = getQFromCards(['Розкрій'], ['new'])
-      const qCut = getQFromCards(['Розкрій'], ['in-progress'])
+      const qCutWait = getQFromCards(['Розкрій'], ['new', 'waiting-materials', 'waiting-machines'])
+      const qCut = getQFromCards(['Розкрій'], ['in-progress', 'paused', 'hold'])
       const qCutBuf = getQFromCards(['Розкрій'], ['at-buffer'])
       const qGalt = getQFromCards(['Галтовка'], ['in-progress'])
       const qGaltBuf = getQFromCards(['Галтовка'], ['at-buffer'])
@@ -1097,7 +1098,7 @@ const OrderDetailView = ({
 
       const bzCardsQty = nomCards.filter(c => c.operation === 'Склад БЗ').reduce((s, c) => s + (Number(c.quantity) || 0), 0)
 
-      const qBz = Math.max(0, groupProduced - qSort - totalShop2Qty)
+      const qBz = Math.max(0, groupProduced - qSort - totalShop2Qty) + bzCardsQty
       const qSgp = nomCards.filter(c => {
         const op = (c.operation || '').toLowerCase()
         const isShop2 = ['пресування', 'фарбування', 'малярка', 'доопрацювання', 'пакування', 'сгп'].some(o => op.includes(o))

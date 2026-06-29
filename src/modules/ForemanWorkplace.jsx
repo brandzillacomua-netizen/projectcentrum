@@ -471,11 +471,20 @@ const ForemanWorkplace = () => {
         const cardIds = allTaskCards.map(c => c.id)
         let histData = []
         if (cardIds.length > 0) {
-          const { data } = await supabase
-            .from('work_card_history')
-            .select('*')
-            .in('card_id', cardIds)
-          histData = data || []
+          const chunkSize = 100
+          const promises = []
+          for (let i = 0; i < cardIds.length; i += chunkSize) {
+            const chunk = cardIds.slice(i, i + chunkSize)
+            promises.push(
+              supabase
+                .from('work_card_history')
+                .select('*')
+                .in('card_id', chunk)
+                .limit(5000)
+            )
+          }
+          const results = await Promise.all(promises)
+          histData = results.flatMap(r => r.data || [])
           setTaskHistory(histData)
         } else {
           setTaskHistory([])
@@ -2025,16 +2034,16 @@ const ForemanWorkplace = () => {
                                       const cardsNeeded = Math.ceil(sheetsNeeded / capacity);
                                       setGenModal({ task, part: { nom }, total: cardsNeeded, targetTotal: cardsNeeded, requirement: shortage, created: 0, machineName, sheets: sheetsNeeded, isRepair: true, capacity })
                                     }}
-                                    disabled={activeCards.some(c => ['new', 'waiting-materials'].includes(c.status) && (c.card_info || '').includes('[REDO]'))}
+                                    disabled={shortage <= 0}
                                     style={{
-                                      background: activeCards.some(c => ['new', 'waiting-materials'].includes(c.status) && (c.card_info || '').includes('[REDO]')) ? '#444' : '#ef4444',
+                                      background: (shortage <= 0) ? '#444' : '#ef4444',
                                       color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '0.6rem', fontWeight: 900,
-                                      cursor: activeCards.some(c => ['new', 'waiting-materials'].includes(c.status) && (c.card_info || '').includes('[REDO]')) ? 'not-allowed' : 'pointer',
+                                      cursor: (shortage <= 0) ? 'not-allowed' : 'pointer',
                                       textTransform: 'uppercase',
-                                      opacity: activeCards.some(c => ['new', 'waiting-materials'].includes(c.status) && (c.card_info || '').includes('[REDO]')) ? 0.6 : 1
+                                      opacity: (shortage <= 0) ? 0.6 : 1
                                     }}
                                   >
-                                    {activeCards.some(c => ['new', 'waiting-materials'].includes(c.status) && (c.card_info || '').includes('[REDO]')) ? 'ВЖЕ ДОВИПУЩЕНО' : 'ДОВИПУСК'}
+                                    {activeCards.some(c => ['new', 'waiting-materials'].includes(c.status) && (c.card_info || '').includes('[REDO]')) ? 'ДОВИПУСТИТИ ЩЕ' : 'ДОВИПУСК'}
                                   </button>
                                 </div>
                               )}
