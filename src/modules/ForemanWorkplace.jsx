@@ -454,6 +454,16 @@ const ForemanWorkplace = () => {
         entry.splits = newSplits
       }
 
+      // Перераховуємо БЗ і план для цієї номенклатури з урахуванням pocket_owner (order_id)
+      const bzInv = (inventory || []).find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'bz' && String(i.pocket_owner) === String(task.order_id))
+      const stockBZ = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
+      entry.stock = stockBZ
+      entry.plan = Math.max(0, (entry.need || 0) - stockBZ)
+
+      const snapshotPartNom = nomenclatures.find(n => String(n.id) === String(nomId))
+      const unitsPerSheet = Number(entry.units_per_sheet || snapshotPartNom?.units_per_sheet) || 1
+      entry.sheets = Math.ceil(entry.plan / unitsPerSheet)
+
       const updatedSnapshot = {
         ...currentSnapshot,
         [sId]: entry
@@ -641,11 +651,25 @@ const ForemanWorkplace = () => {
 
       // 7. Оновлюємо сам наряд (task) з новим plan_snapshot
       updatedSnapshot.consumables = newConsumablesSnapshot
+      
+      let hasPlan = false
+      Object.keys(updatedSnapshot).forEach(k => {
+        if (!k.startsWith('_') && k !== 'materialSummary' && k !== 'selectedCutters' && k !== 'consumables') {
+          if ((Number(updatedSnapshot[k]?.plan) || 0) > 0) hasPlan = true
+        }
+      })
+
+      const updateFields = {
+        plan_snapshot: updatedSnapshot
+      }
+      if (hasPlan && task.status === 'completed') {
+        updateFields.status = 'in-progress'
+        updateFields.completed_at = null
+      }
+
       const { error: taskUpdErr } = await supabase
         .from('tasks')
-        .update({
-          plan_snapshot: updatedSnapshot
-        })
+        .update(updateFields)
         .eq('id', task.id)
 
       if (taskUpdErr) throw taskUpdErr

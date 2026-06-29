@@ -1161,7 +1161,7 @@ export function createProductionActions({
         displayParts.forEach(part => {
           if (!part.nom) return
           const totalNeeded = requestedQty * (Number(part.qtyPer) || 1)
-          const invItem = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'bz')
+          const invItem = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'bz' && String(i.pocket_owner) === String(orderId))
           const inStockQty = invItem ? Math.max(0, (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0)) : 0
           const usedFromStock = Math.min(totalNeeded, inStockQty)
           const totalToProduce = Math.max(0, totalNeeded - inStockQty)
