@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Factory, ListTodo, Loader2, X, Printer, LayoutDashboard, Layers, User, Clock, Package, Scan, CheckCircle2, AlertTriangle, Camera, Tablet, Menu, Shuffle } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Factory, ListTodo, Loader2, X, Printer, LayoutDashboard, Layers, User, Clock, Package, Scan, CheckCircle2, AlertTriangle, Camera, Tablet, Menu, Shuffle, RefreshCw } from 'lucide-react'
 import { useMES } from '../MESContext'
 import { QRCodeSVG } from 'qrcode.react'
 import { apiService } from '../services/apiDispatcher'
@@ -109,14 +109,14 @@ const ForemanWorkplace = () => {
   const [printNaryadQueue, setPrintNaryadQueue] = useState(null)
   const [naryadPrintLoading, setNaryadPrintLoading] = useState(false)
 
-  const handleOpenReport = async (task, order, taskCards) => {
+  const handleOpenReport = async (task, order, taskCards, forceRefresh = false) => {
     setReportTaskId(task.id)
     setShowReportModal(true)
     setReportStageFilter('All')
 
     // Check if we have a cached report snapshot in the plan_snapshot
     const cached = task?.plan_snapshot?._report_snapshot
-    if (cached) {
+    if (cached && !forceRefresh) {
       setReportData(cached)
       // If the task is completed, we don't need to refresh it at all! It's final.
       if (task.status === 'completed') {
@@ -126,7 +126,7 @@ const ForemanWorkplace = () => {
     }
 
     setReportLoading(true)
-    if (!cached) {
+    if (!cached || forceRefresh) {
       setReportData(null)
     }
 
@@ -144,6 +144,7 @@ const ForemanWorkplace = () => {
         .from('work_cards')
         .select('id')
         .eq('task_id', task.id)
+        .limit(10000)
 
       const stateCardIds = taskCards.map(c => c.id)
       const dbCardIds = (allTaskCardsDB || []).map(c => c.id)
@@ -158,14 +159,24 @@ const ForemanWorkplace = () => {
         return
       }
 
-      // 3. Fetch all work_card_history rows for ALL cards of this task
-      const { data: historyRows, error } = await supabase
-        .from('work_card_history')
-        .select('*')
-        .in('card_id', allCardIds)
-        .order('completed_at', { ascending: true })
+      // 3. Fetch all work_card_history rows for ALL cards of this task in chunks of 100 to avoid API limits
+      let historyRows = []
+      for (let i = 0; i < allCardIds.length; i += 100) {
+        const chunk = allCardIds.slice(i, i + 100)
+        const { data: histChunk, error: histErr } = await supabase
+          .from('work_card_history')
+          .select('*')
+          .in('card_id', chunk)
+          .limit(10000)
 
-      if (error) throw error
+        if (histErr) throw histErr
+        if (histChunk) {
+          historyRows = historyRows.concat(histChunk)
+        }
+      }
+
+      // Sort history rows by completed_at ascending
+      historyRows.sort((a, b) => new Date(a.completed_at || 0) - new Date(b.completed_at || 0))
 
       const finalData = { historyRows: historyRows || [], taskCards, materialRequests: materialRequests || [] }
       setReportData(finalData)
@@ -3341,15 +3352,31 @@ const ForemanWorkplace = () => {
                   .join(', ')
               }
 
-              return (
+               return (
                 <div>
                   <div style={{ borderBottom: '1px solid #1a1a1a', paddingBottom: '20px', marginBottom: '25px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#3b82f6', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '5px' }}>
-                      <Clock size={14} /> Звіт по виробництву цеху №1
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#3b82f6', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '5px' }}>
+                          <Clock size={14} /> Звіт по виробництву цеху №1
+                        </div>
+                        <h3 style={{ fontSize: '1.8rem', fontWeight: 950, margin: 0 }}>
+                          Наряд №{currentOrder?.order_num}{currentTask.batch_index ? `/${currentTask.batch_index}` : ''}
+                        </h3>
+                      </div>
+                      <button
+                        onClick={() => handleOpenReport(currentTask, currentOrder, reportData.taskCards, true)}
+                        disabled={reportLoading}
+                        style={{
+                          background: '#1a1a24', border: '1px solid #3b82f640', color: '#3b82f6',
+                          padding: '8px 14px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 900,
+                          cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+                          boxShadow: '0 4px 12px rgba(59,130,246,0.1)'
+                        }}
+                      >
+                        <RefreshCw size={12} className={reportLoading ? "animate-spin" : ""} /> ОНОВИТИ ДАНІ
+                      </button>
                     </div>
-                    <h3 style={{ fontSize: '1.8rem', fontWeight: 950, margin: 0 }}>
-                      Наряд №{currentOrder?.order_num}{currentTask.batch_index ? `/${currentTask.batch_index}` : ''}
-                    </h3>
                     <div style={{ color: '#aaa', fontSize: '0.9rem', marginTop: '6px', fontWeight: 700 }}>
                       Виріб: <strong style={{ color: '#ef4444' }} className="text-accent-red">{productNames || '—'}</strong>
                       {currentOrder?.customer && ` | Замовник: ${currentOrder.customer}`}
