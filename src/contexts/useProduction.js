@@ -971,9 +971,9 @@ export function createProductionActions({
     if (isRework || (card.card_info || '').includes('[ADMIN_MANUAL]')) {
       const nom = nomenclatures.find(n => n.id === card.nomenclature_id)
       if (nom && qtyCompleted > 0) {
-        const { data: bzItem } = await supabase.from('inventory').select('*').eq('nomenclature_id', nom.id).eq('type', 'bz').limit(1).maybeSingle()
+        const { data: bzItem } = await supabase.from('inventory').select('*').eq('nomenclature_id', nom.id).eq('type', 'bz').eq('pocket_owner', card.order_id).limit(1).maybeSingle()
         if (bzItem) await supabase.from('inventory').update({ total_qty: (Number(bzItem.total_qty) || 0) + qtyCompleted }).eq('id', bzItem.id)
-        else await supabase.from('inventory').insert([{ nomenclature_id: nom.id, name: nom.name, unit: nom.unit || 'шт', total_qty: qtyCompleted, reserved_qty: 0, type: 'bz' }])
+        else await supabase.from('inventory').insert([{ nomenclature_id: nom.id, name: nom.name, unit: nom.unit || 'шт', total_qty: qtyCompleted, reserved_qty: 0, type: 'bz', pocket_owner: card.order_id }])
       }
     } else if (!isShop2) {
       const nom = nomenclatures.find(n => n.id === card.nomenclature_id)
@@ -1769,9 +1769,9 @@ export function createProductionActions({
         let totalToMove = 0
         for (const s of shop2Stock) totalToMove += (Number(s.total_qty) || 0)
         if (totalToMove > 0) {
-          const { data: bzItem } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomId).eq('type', 'bz').limit(1).maybeSingle()
+          const { data: bzItem } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomId).eq('type', 'bz').eq('pocket_owner', task.order_id).limit(1).maybeSingle()
           if (bzItem) await supabase.from('inventory').update({ total_qty: (Number(bzItem.total_qty) || 0) + totalToMove }).eq('id', bzItem.id)
-          else { const nom = nomenclatures.find(n => n.id === nomId); await supabase.from('inventory').insert([{ nomenclature_id: nomId, name: nom?.name || 'BZ Item', unit: nom?.unit || 'шт', total_qty: totalToMove, reserved_qty: 0, type: 'bz' }]) }
+          else { const nom = nomenclatures.find(n => n.id === nomId); await supabase.from('inventory').insert([{ nomenclature_id: nomId, name: nom?.name || 'BZ Item', unit: nom?.unit || 'шт', total_qty: totalToMove, reserved_qty: 0, type: 'bz', pocket_owner: task.order_id }]) }
           for (const s of shop2Stock) { if (s.type === 'bz_shop2') await supabase.from('inventory').update({ total_qty: 0 }).eq('id', s.id); else await supabase.from('inventory').delete().eq('id', s.id) }
         }
         
@@ -1869,9 +1869,9 @@ export function createProductionActions({
         else await supabase.from('inventory').insert([{ nomenclature_id: nomenclatureId, name: nom.name, unit: nom.unit || 'шт', total_qty: finishedQty, reserved_qty: 0, type: 'finished' }])
       }
       if (actualBzQty > 0) {
-        const { data: bzItem } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomenclatureId).eq('type', 'bz').limit(1).maybeSingle()
+        const { data: bzItem } = await supabase.from('inventory').select('*').eq('nomenclature_id', nomenclatureId).eq('type', 'bz').eq('pocket_owner', task.order_id).limit(1).maybeSingle()
         if (bzItem) inventoryUpdates.push({ ...bzItem, total_qty: (Number(bzItem.total_qty) || 0) + actualBzQty })
-        else await supabase.from('inventory').insert([{ nomenclature_id: nomenclatureId, name: nom.name, unit: nom.unit || 'шт', total_qty: actualBzQty, reserved_qty: 0, type: 'bz' }])
+        else await supabase.from('inventory').insert([{ nomenclature_id: nomenclatureId, name: nom.name, unit: nom.unit || 'шт', total_qty: actualBzQty, reserved_qty: 0, type: 'bz', pocket_owner: task.order_id }])
       }
       if (inventoryUpdates.length > 0) await supabase.from('inventory').upsert(inventoryUpdates)
       await supabase.from('work_card_history').insert([{ card_id: card.id, nomenclature_id: nomenclatureId, stage_name: 'Пакування/СГП', operator_name: 'Система (ПРЯМА ПЕРЕДАЧА)', qty_at_start: totalQty, qty_completed: totalQty, scrap_qty: 0, completed_at: new Date().toISOString() }])
@@ -1985,12 +1985,12 @@ export function createProductionActions({
 
       // 4. Add to bz
       if (actualBzQty > 0) {
-        const bzItem = existingInv?.find(i => (nomId && String(i.nomenclature_id) === String(nomId) || i.name === nomName) && i.type === 'bz')
+        const bzItem = existingInv?.find(i => (nomId && String(i.nomenclature_id) === String(nomId) || i.name === nomName) && i.type === 'bz' && String(i.pocket_owner) === String(card.order_id))
         if (bzItem) {
           updates.push({ ...bzItem, total_qty: (Number(bzItem.total_qty) || 0) + actualBzQty })
         } else {
           const nom = nomenclatures.find(n => n.id === nomId)
-          inserts.push({ nomenclature_id: nomId, name: nom?.name || nomName || 'Запас БЗ', unit: nom?.unit || 'шт', total_qty: actualBzQty, reserved_qty: 0, type: 'bz' })
+          inserts.push({ nomenclature_id: nomId, name: nom?.name || nomName || 'Запас БЗ', unit: nom?.unit || 'шт', total_qty: actualBzQty, reserved_qty: 0, type: 'bz', pocket_owner: card.order_id })
         }
       }
 

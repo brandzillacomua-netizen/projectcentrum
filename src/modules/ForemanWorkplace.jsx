@@ -106,6 +106,18 @@ const ForemanWorkplace = () => {
   const [reportStageFilter, setReportStageFilter] = useState('All')
   const [reportDetailModal, setReportDetailModal] = useState(null) // 'accepted' | 'scrap' | null
 
+  // Зміна верстата
+  const [changeMachineTaskId, setChangeMachineTaskId] = useState(null)
+  const [selectedNewMachine, setSelectedNewMachine] = useState('')
+  const [isChangingMachine, setIsChangingMachine] = useState(false)
+  const [customAlert, setCustomAlert] = useState(null) // { title: '', message: '' }
+
+  // Зміна верстата для конкретної номенклатури
+  const [changeNomMachineTaskId, setChangeNomMachineTaskId] = useState(null)
+  const [changeNomMachineNomId, setChangeNomMachineNomId] = useState(null)
+  const [changeNomMachineName, setChangeNomMachineName] = useState('')
+  const [selectedNomNewMachine, setSelectedNomNewMachine] = useState('')
+
   const [printNaryadQueue, setPrintNaryadQueue] = useState(null)
   const [naryadPrintLoading, setNaryadPrintLoading] = useState(false)
 
@@ -219,6 +231,432 @@ const ForemanWorkplace = () => {
       alert('Помилка завантаження даних наряду: ' + e.message)
     } finally {
       setNaryadPrintLoading(false)
+    }
+  }
+
+  const handleChangeTaskMachine = async (taskId, newMachine) => {
+    const task = relevantTasks.find(t => t.id === taskId) || tasks.find(t => t.id === taskId)
+    if (!task || !newMachine) return
+
+    setIsChangingMachine(true)
+    try {
+      // 1. Отримуємо актуальні material_requests для наряду
+      const { data: matReqs, error: fetchReqsErr } = await supabase
+        .from('material_requests')
+        .select('*')
+        .eq('task_id', taskId)
+
+      if (fetchReqsErr) throw fetchReqsErr
+
+      // 2. Шукаємо старі запити на фрези, щоб зняти бронь
+      const cutterRequests = (matReqs || []).filter(r => {
+        if (!r.nomenclature_id) return false
+        const nom = nomenclatures.find(n => n.id === r.nomenclature_id)
+        return nom?.name?.toLowerCase()?.includes('фреза')
+      })
+
+      // Для кожної фрези, яка має статус 'issued' (вже зарезервована на складі), повертаємо її reserved_qty
+      const inventoryUpdates = []
+      for (const req of cutterRequests) {
+        if (req.inventory_id && req.status === 'issued') {
+          const { data: invItem } = await supabase
+            .from('inventory')
+            .select('*')
+            .eq('id', req.inventory_id)
+            .maybeSingle()
+
+          if (invItem) {
+            const newReserved = Math.max(0, (Number(invItem.reserved_qty) || 0) - Number(req.quantity))
+            inventoryUpdates.push(
+              supabase.from('inventory').update({ reserved_qty: newReserved }).eq('id', invItem.id)
+            )
+          }
+        }
+      }
+
+      if (inventoryUpdates.length > 0) {
+        await Promise.all(inventoryUpdates)
+      }
+
+      // 3. Видаляємо старі запити на фрези
+      const cutterRequestIds = cutterRequests.map(r => r.id)
+      if (cutterRequestIds.length > 0) {
+        const { error: delErr } = await supabase
+          .from('material_requests')
+          .delete()
+          .in('id', cutterRequestIds)
+        if (delErr) throw delErr
+      }
+
+      // 4. Розраховуємо нові фрези для нового типу верстата
+      const snapshot = { ...(task.plan_snapshot || {}) }
+      const newMachineSpecificCutters = {}
+      let hasMachineSpecificCutters = false
+      const partIds = Object.keys(snapshot).filter(k => !k.startsWith('_') && k !== 'materialSummary' && k !== 'selectedCutters' && k !== 'consumables')
+
+      partIds.forEach(partId => {
+        const partInfo = snapshot[partId]
+        const sheetsNeeded = Number(partInfo.sheets) || 0
+        if (sheetsNeeded <= 0) return
+
+        // override selected_machine for all parts to new machine
+        partInfo.selected_machine = newMachine
+
+        const opData = machineOperations?.find(o =>
+          String(o.nomenclature_id) === String(partId) &&
+          (o.machine_type === newMachine || o.machine_id === newMachine)
+        )
+
+        if (opData && opData.side2_cut_ops) {
+          const cutterOps = opData.side2_cut_ops.filter(op => op.startsWith('__CUTTER__Reference:') || op.startsWith('__CUTTER__:'))
+          cutterOps.forEach(op => {
+            const parts = op.split(':')
+            const cutterNomId = parts[1]
+            const qtyPerSheet = parseFloat(parts[2]) || 0
+            if (cutterNomId && qtyPerSheet > 0) {
+              hasMachineSpecificCutters = true
+              const totalQty = Math.ceil(sheetsNeeded * qtyPerSheet)
+              let cutterNom = nomenclatures.find(n => String(n.id) === String(cutterNomId))
+
+              if (cutterNom) {
+                const nl = cutterNom.name.toLowerCase()
+                const m1 = nl.match(/ф\s*([0-9,.]+)/)
+                const m2 = nl.match(/(?:кукурудза|двопера|однопера|спіральна|торцева|шарова|радіусна)?\s*([0-9][0-9,]*)(?:\s*[×xх×])/)
+                const d = m1 ? parseFloat(m1[1].replace(',', '.')) : (m2 ? parseFloat(m2[1].replace(',', '.')) : null)
+
+                if (partInfo.cutter_override !== '1.5' && d && Math.abs(d - 1.5) < 0.01) {
+                  return // skip
+                }
+                if (partInfo.cutter_override === '1.5' && d && Math.abs(d - 2) < 0.01) {
+                  cutterNom = { ...cutterNom, name: 'Фреза ф1.5', id: '__synthetic_f1.5__' }
+                }
+              }
+
+              if (cutterNom) {
+                const cleanName = cutterNom.name.trim()
+                const key = cleanName.toLowerCase()
+                if (!newMachineSpecificCutters[key]) {
+                  newMachineSpecificCutters[key] = { name: cleanName, qty: 0, nomenclature_id: cutterNom.id }
+                }
+                newMachineSpecificCutters[key].qty += totalQty
+              }
+            }
+          })
+        }
+      })
+
+      // 5. Створюємо нові запити на фрези (material_requests)
+      const requestsToInsert = []
+      const newConsumablesSnapshot = []
+
+      // Визначаємо статус нових запитів:
+      // Якщо наряд уже мав підтвердження (склад, інженер, директор), нові запити мають одразу статус 'issued' (і резервуються).
+      // Інакше вони у статусі 'pending'.
+      const shouldAutoReserve = task.warehouse_conf && task.engineer_conf && task.director_conf
+      const newStatus = 'pending'
+
+      const newInventoryReservations = []
+
+      for (const item of Object.values(newMachineSpecificCutters)) {
+        const isSynthetic = String(item.nomenclature_id).startsWith('__synthetic')
+        const invItem = isSynthetic ? null : (
+          inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id) && i.warehouse === 'operational') ||
+          inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id))
+        )
+
+        requestsToInsert.push({
+          order_id: task.order_id,
+          task_id: task.id,
+          quantity: item.qty,
+          status: newStatus,
+          inventory_id: invItem?.id || null,
+          nomenclature_id: isSynthetic ? null : item.nomenclature_id,
+          details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ${task.id}: ${item.name} — ${item.qty} од. (ПІСЛЯ ЗМІНИ ВЕРСТАТА)`
+        })
+
+        newConsumablesSnapshot.push({ name: item.name, total: item.qty })
+
+        // Якщо треба забронювати фрези, додаємо в список оновлення інвентаря
+        if (shouldAutoReserve && invItem) {
+          const currentReserved = Number(invItem.reserved_qty) || 0
+          newInventoryReservations.push(
+            supabase.from('inventory').update({ reserved_qty: currentReserved + item.qty }).eq('id', invItem.id)
+          )
+        }
+      }
+
+      // Зберігаємо також листи (вони не міняються, але consumables наряду оновлюються)
+      const totalSheets = Object.values(snapshot.materialSummary || {}).reduce((acc, m) => acc + (Number(m.sheets) || 0), 0)
+      if (totalSheets > 0) {
+        nomenclatures.filter(n => n.type === 'consumable' && (Number(n.consumption_per_sheet) || 0) > 0 && n.name.trim().toLowerCase() !== 'фреза' && (n.name.toLowerCase().startsWith('лист') || n.name.toLowerCase().includes('фреза'))).forEach(cons => {
+          if (hasMachineSpecificCutters && cons.name.toLowerCase().includes('фреза')) return
+          const neededQty = Math.ceil(totalSheets * Number(cons.consumption_per_sheet))
+          newConsumablesSnapshot.push({ name: cons.name.trim(), total: neededQty })
+        })
+      }
+
+      // Вставляємо нові material_requests
+      if (requestsToInsert.length > 0) {
+        const { error: insErr } = await supabase.from('material_requests').insert(requestsToInsert)
+        if (insErr) throw insErr
+      }
+
+      // Виконуємо бронювання інвентаря якщо треба
+      
+
+      // 6. Оновлюємо сам наряд (task)
+      snapshot.consumables = newConsumablesSnapshot
+      const { error: taskUpdErr } = await supabase
+        .from('tasks')
+        .update({
+          machine_name: newMachine,
+          plan_snapshot: snapshot
+        })
+        .eq('id', taskId)
+
+      if (taskUpdErr) throw taskUpdErr
+
+      // 7. Оновлюємо невиконані картки наряду (work_cards)
+      const { error: cardsUpdErr } = await supabase
+        .from('work_cards')
+        .update({ machine: newMachine })
+        .eq('task_id', taskId)
+        .neq('status', 'completed')
+
+      if (cardsUpdErr) throw cardsUpdErr
+
+      setCustomAlert({ title: 'Верстат наряду змінено', message: '✅ Верстат наряду успішно змінено. Бронь зі старих фрез знято. Надіслано новий запит на СО для видачі нових фрез!' })
+      setChangeMachineTaskId(null)
+      fetchData(['tasks', 'material_requests', 'inventory', 'work_cards']).catch(() => {})
+    } catch (e) {
+      console.error(e)
+      setCustomAlert({ title: 'Помилка', message: `Помилка при зміні верстата: ${e.message}` })
+    } finally {
+      setIsChangingMachine(false)
+    }
+  }
+
+  const handleUpdateNomenclatureMachineAndRecalculate = async (task, nomId, newMachineName, newSplits = null) => {
+    if (!task || !nomId) return
+    setIsChangingMachine(true)
+
+    try {
+      const sId = String(nomId)
+      const currentSnapshot = task.plan_snapshot || {}
+      const entry = { ...(currentSnapshot[sId] || {}) }
+
+      if (newMachineName !== null) {
+        entry.machine = newMachineName
+        entry.selected_machine = newMachineName
+        entry.splits = [] // clear splits if we chosen a single machine
+      }
+      if (newSplits !== null) {
+        entry.splits = newSplits
+      }
+
+      const updatedSnapshot = {
+        ...currentSnapshot,
+        [sId]: entry
+      }
+
+      // 1. Оновлюємо невиконані картки цієї номенклатури у наряді на новий верстат
+      const cardMachine = newMachineName !== null ? newMachineName : (newSplits && newSplits[0]?.machine ? newSplits[0].machine : task.machine_name)
+      await supabase
+        .from('work_cards')
+        .update({ machine: cardMachine })
+        .eq('task_id', task.id)
+        .eq('nomenclature_id', nomId)
+        .neq('status', 'completed')
+
+      // 2. Отримуємо актуальні material_requests для наряду
+      const { data: matReqs, error: fetchReqsErr } = await supabase
+        .from('material_requests')
+        .select('*')
+        .eq('task_id', task.id)
+
+      if (fetchReqsErr) throw fetchReqsErr
+
+      // 3. Шукаємо старі запити на фрези, щоб зняти бронь
+      const cutterRequests = (matReqs || []).filter(r => {
+        if (!r.nomenclature_id) return false
+        const nom = nomenclatures.find(n => n.id === r.nomenclature_id)
+        return nom?.name?.toLowerCase()?.includes('фреза')
+      })
+
+      // Повертаємо reserved_qty на склад
+      const inventoryUpdates = []
+      for (const req of cutterRequests) {
+        if (req.inventory_id && req.status === 'issued') {
+          const { data: invItem } = await supabase
+            .from('inventory')
+            .select('*')
+            .eq('id', req.inventory_id)
+            .maybeSingle()
+
+          if (invItem) {
+            const newReserved = Math.max(0, (Number(invItem.reserved_qty) || 0) - Number(req.quantity))
+            inventoryUpdates.push(
+              supabase.from('inventory').update({ reserved_qty: newReserved }).eq('id', invItem.id)
+            )
+          }
+        }
+      }
+
+      if (inventoryUpdates.length > 0) {
+        await Promise.all(inventoryUpdates)
+      }
+
+      // 4. Видаляємо старі запити на фрези
+      const cutterRequestIds = cutterRequests.map(r => r.id)
+      if (cutterRequestIds.length > 0) {
+        const { error: delErr } = await supabase
+          .from('material_requests')
+          .delete()
+          .in('id', cutterRequestIds)
+        if (delErr) throw delErr
+      }
+
+      // 5. Розраховуємо нові фрези для ВСІХ деталей наряду з урахуванням оновленого snapshot
+      const newMachineSpecificCutters = {}
+      let hasMachineSpecificCutters = false
+      const partIds = Object.keys(updatedSnapshot).filter(k => !k.startsWith('_') && k !== 'materialSummary' && k !== 'selectedCutters' && k !== 'consumables')
+
+      partIds.forEach(partId => {
+        const partInfo = updatedSnapshot[partId]
+        const sheetsNeeded = Number(partInfo.sheets) || 0
+        if (sheetsNeeded <= 0) return
+
+        const pSplits = partInfo.splits || []
+        const isPartSplit = pSplits.length > 0
+
+        const processCutterOps = (targetMach, sheetsForMachine) => {
+          const opData = machineOperations?.find(o =>
+            String(o.nomenclature_id) === String(partId) &&
+            (o.machine_type === targetMach || o.machine_id === targetMach)
+          )
+
+          if (opData && opData.side2_cut_ops) {
+            const cutterOps = opData.side2_cut_ops.filter(op => op.startsWith('__CUTTER__Reference:') || op.startsWith('__CUTTER__:'))
+            cutterOps.forEach(op => {
+              const parts = op.split(':')
+              const cutterNomId = parts[1]
+              const qtyPerSheet = parseFloat(parts[2]) || 0
+              if (cutterNomId && qtyPerSheet > 0) {
+                hasMachineSpecificCutters = true
+                const totalQty = Math.ceil(sheetsForMachine * qtyPerSheet)
+                let cutterNom = nomenclatures.find(n => String(n.id) === String(cutterNomId))
+
+                if (cutterNom) {
+                  const nl = cutterNom.name.toLowerCase()
+                  const m1 = nl.match(/ф\s*([0-9,.]+)/)
+                  const m2 = nl.match(/(?:кукурудза|двопера|однопера|спіральна|торцева|шарова|радіусна)?\s*([0-9][0-9,]*)(?:\s*[×xх×])/)
+                  const d = m1 ? parseFloat(m1[1].replace(',', '.')) : (m2 ? parseFloat(m2[1].replace(',', '.')) : null)
+
+                  if (partInfo.cutter_override !== '1.5' && d && Math.abs(d - 1.5) < 0.01) {
+                    return // skip
+                  }
+                  if (partInfo.cutter_override === '1.5' && d && Math.abs(d - 2) < 0.01) {
+                    cutterNom = { ...cutterNom, name: 'Фреза ф1.5', id: '__synthetic_f1.5__' }
+                  }
+                }
+
+                if (cutterNom) {
+                  const cleanName = cutterNom.name.trim()
+                  const key = cleanName.toLowerCase()
+                  if (!newMachineSpecificCutters[key]) {
+                    newMachineSpecificCutters[key] = { name: cleanName, qty: 0, nomenclature_id: cutterNom.id }
+                  }
+                  newMachineSpecificCutters[key].qty += totalQty
+                }
+              }
+            })
+          }
+        }
+
+        if (isPartSplit) {
+          pSplits.forEach(s => {
+            const sSheets = Number(s.sheets) || 0
+            if (sSheets > 0 && s.machine) {
+              processCutterOps(s.machine, sSheets)
+            }
+          })
+        } else {
+          const targetMach = partInfo.selected_machine || partInfo.machine || task.machine_name
+          processCutterOps(targetMach, sheetsNeeded)
+        }
+      })
+
+      // 6. Створюємо нові запити на фрези
+      const requestsToInsert = []
+      const newConsumablesSnapshot = []
+
+      const shouldAutoReserve = task.warehouse_conf && task.engineer_conf && task.director_conf
+      const newStatus = 'pending'
+
+      const newInventoryReservations = []
+
+      for (const item of Object.values(newMachineSpecificCutters)) {
+        const isSynthetic = String(item.nomenclature_id).startsWith('__synthetic')
+        const invItem = isSynthetic ? null : (
+          inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id) && i.warehouse === 'operational') ||
+          inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id))
+        )
+
+        requestsToInsert.push({
+          order_id: task.order_id,
+          task_id: task.id,
+          quantity: item.qty,
+          status: newStatus,
+          inventory_id: invItem?.id || null,
+          nomenclature_id: isSynthetic ? null : item.nomenclature_id,
+          details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ${task.id}: ${item.name} — ${item.qty} од. (ДЕТАЛЬНА ЗМІНА ВЕРСТАТА)`
+        })
+
+        newConsumablesSnapshot.push({ name: item.name, total: item.qty })
+
+        if (shouldAutoReserve && invItem) {
+          const currentReserved = Number(invItem.reserved_qty) || 0
+          newInventoryReservations.push(
+            supabase.from('inventory').update({ reserved_qty: currentReserved + item.qty }).eq('id', invItem.id)
+          )
+        }
+      }
+
+      // Зберігаємо також листи
+      const totalSheets = Object.values(updatedSnapshot.materialSummary || {}).reduce((acc, m) => acc + (Number(m.sheets) || 0), 0)
+      if (totalSheets > 0) {
+        nomenclatures.filter(n => n.type === 'consumable' && (Number(n.consumption_per_sheet) || 0) > 0 && n.name.trim().toLowerCase() !== 'фреза' && (n.name.toLowerCase().startsWith('лист') || n.name.toLowerCase().includes('фреза'))).forEach(cons => {
+          if (hasMachineSpecificCutters && cons.name.toLowerCase().includes('фреза')) return
+          const neededQty = Math.ceil(totalSheets * Number(cons.consumption_per_sheet))
+          newConsumablesSnapshot.push({ name: cons.name.trim(), total: neededQty })
+        })
+      }
+
+      if (requestsToInsert.length > 0) {
+        const { error: insErr } = await supabase.from('material_requests').insert(requestsToInsert)
+        if (insErr) throw insErr
+      }
+
+      
+
+      // 7. Оновлюємо сам наряд (task) з новим plan_snapshot
+      updatedSnapshot.consumables = newConsumablesSnapshot
+      const { error: taskUpdErr } = await supabase
+        .from('tasks')
+        .update({
+          plan_snapshot: updatedSnapshot
+        })
+        .eq('id', task.id)
+
+      if (taskUpdErr) throw taskUpdErr
+
+      setCustomAlert({ title: 'Верстат деталі змінено', message: '✅ Верстат/розподіл для деталі успішно змінено. Бронь зі старих фрез знято. Надіслано новий запит на СО для видачі нових фрез!' })
+      fetchData(['tasks', 'material_requests', 'inventory', 'work_cards']).catch(() => {})
+    } catch (e) {
+      console.error(e)
+      setCustomAlert({ title: 'Помилка', message: `Помилка при перерахунку фрез: ${e.message}` })
+    } finally {
+      setIsChangingMachine(false)
     }
   }
 
@@ -598,7 +1036,7 @@ const ForemanWorkplace = () => {
 
     if (found) {
       const result = { ...found }
-      const searchName = (result.name || '') + ' ' + (name || '')
+      const searchName = ((result.name || '') + ' ' + (name || '')).replace(/\d+\s*[xх\*×]\s*\d+/gi, '') // видаляємо розміри верстата на кшталт 1200x800 перед парсингом
       const match = searchName.match(/(\d+)\s*-\s*(\d+)\s*лист/i)
       if (match) {
         result.min_capacity = parseInt(match[1])
@@ -611,7 +1049,7 @@ const ForemanWorkplace = () => {
         } else {
           const bnl = searchName.toLowerCase()
           if (bnl.includes('12x8') || bnl.includes('1200x800') || bnl.includes('малий')) {
-            result.min_capacity = 4; result.max_capacity = 4;
+            result.min_capacity = 1; result.max_capacity = 4;
           } else if (bnl.includes('16x16') || bnl.includes('3050(16)') || bnl.includes('швидкісний') || bnl.includes('3050x1600') || bnl.includes('3050х1600') || bnl.includes('3050')) {
             result.min_capacity = 3; result.max_capacity = 12;
           } else if (bnl.includes('30x16') || bnl.includes('3060x1600') || bnl.includes('3060х1600') || bnl.includes('три головий') || bnl.includes('триголовий')) {
@@ -624,6 +1062,14 @@ const ForemanWorkplace = () => {
             result.min_capacity = result.sheet_capacity || 1
             result.max_capacity = result.sheet_capacity || 1
           }
+        }
+      }
+      // Додатковий фікс на випадок збою регулярки: якщо мін > макс або мін >= 100, коригуємо для Малого верстата
+      if (result.min_capacity > result.max_capacity || result.min_capacity >= 100) {
+        const bnl = searchName.toLowerCase()
+        if (bnl.includes('1200x800') || bnl.includes('малий') || bnl.includes('12x8')) {
+          result.min_capacity = 1;
+          result.max_capacity = 4;
         }
       }
       return result
@@ -1049,7 +1495,7 @@ const ForemanWorkplace = () => {
 
     // 3. Set new timeout to sync with DB
     saveTimeoutRef.current = setTimeout(() => {
-      handleUpdateMachineInSnapshot(task, nomId, null, newSplits)
+      handleUpdateNomenclatureMachineAndRecalculate(task, nomId, null, newSplits)
       saveTimeoutRef.current = null
     }, 1000) // 1 second debounce
   }
@@ -1484,13 +1930,34 @@ const ForemanWorkplace = () => {
                           ДРУК НАРЯДУ
                         </button>
                       </div>
-                      <div style={{ color: '#555', marginTop: '5px', fontSize: '1.1rem', fontWeight: 800 }}>
-                        ВИРІБ: <strong style={{ color: '#ef4444' }}>{productNames || '—'}</strong> | {order?.customer}
+                      <div style={{ color: '#555', marginTop: '5px', fontSize: '1.1rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
+                        <div>ВИРІБ: <strong style={{ color: '#ef4444' }}>{productNames || '—'}</strong> | {order?.customer}</div>
                         {task.batch_index && (
-                          <span style={{ marginLeft: '15px', background: '#eab308', color: '#000', padding: '2px 8px', borderRadius: '6px', fontSize: '0.9rem', fontWeight: 900 }}>
+                          <span style={{ background: '#eab308', color: '#000', padding: '2px 8px', borderRadius: '6px', fontSize: '0.9rem', fontWeight: 900 }}>
                             ПАРТІЯ №{task.batch_index}
                           </span>
                         )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ color: '#555' }}>ВЕРСТАТ:</span>
+                          <span style={{ color: '#fff', background: '#222', padding: '4px 10px', borderRadius: '8px', fontSize: '0.95rem' }}>{task.machine_name || 'Не вказано'}</span>
+                          {task.status !== 'completed' && (
+                            <button
+                              onClick={() => {
+                                setChangeMachineTaskId(task.id)
+                                setSelectedNewMachine(task.machine_name || MACHINE_TYPES[0])
+                              }}
+                              style={{
+                                background: 'transparent', border: '1px solid #3b82f660', color: '#3b82f6',
+                                padding: '4px 10px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 800,
+                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.2s'
+                              }}
+                              onMouseEnter={e => { e.currentTarget.style.background = '#3b82f615' }}
+                              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                            >
+                              ⚙️ ЗМІНИТИ ВЕРСТАТ
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                     {(isTaskComplete || task.status === 'completed') && (
@@ -1568,7 +2035,7 @@ const ForemanWorkplace = () => {
                                 sheets = snapshot.sheets
                               } else {
                                 need = (Number(item.quantity) || 0) * (Number(part.quantity_per_parent) || 1)
-                                const bzInv = (inventory || []).find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'bz')
+                                const bzInv = (inventory || []).find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'bz' && String(i.pocket_owner) === String(task?.order_id))
                                 stockBZ = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
                                 plan = Math.max(0, need - stockBZ)
                                 unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
@@ -1584,7 +2051,6 @@ const ForemanWorkplace = () => {
                               const rawRowMachineName = ((task.plan_snapshot || {})[String(nomId)]?.machine || (task.plan_snapshot || {})[String(nomId)]?.selected_machine || selectedMachines[rowId] || '')
                                 || (productionCards.length > 0 && productionCards[0].machine && productionCards[0].machine !== 'Не вказано' ? productionCards[0].machine : '')
                               const rowMachineName = getStandardMachineType(rawRowMachineName)
-                              console.log(`[NOM:${part.nom?.name}] rawRowMachineName: "${rawRowMachineName}", rowMachineName: "${rowMachineName}", productionCardsCount: ${productionCards.length}`)
 
                               // Use local state if it exists (for fluid typing), fallback to context
                               const splits = editingSplits[nomId] || (task.plan_snapshot || {})[String(nomId)]?.splits || []
@@ -1630,60 +2096,74 @@ const ForemanWorkplace = () => {
                                   <td style={{ padding: '10px 4px', textAlign: 'center', color: '#10b981', fontWeight: 1000, fontSize: '1.1rem' }}>{sheets}</td>
                                   <td style={{ padding: '10px 4px' }}>
                                     {!isSplitMode ? (
-                                      <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
-                                        <select
-                                          value={rowMachineName || ''}
-                                          disabled={productionCards.length > 0 || plan === 0}
-                                          onChange={(e) => {
-                                            const mName = e.target.value
-                                            setSelectedMachines(p => ({ ...p, [rowId]: mName }))
-                                            handleUpdateMachineInSnapshot(task, nomId, mName)
-                                          }}
-                                          style={{ flex: 1, background: '#000', border: rowMachineName || plan === 0 ? '1px solid #333' : '1px solid #ef4444', color: rowMachineName || plan === 0 ? '#fff' : '#ef4444', padding: '8px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700, opacity: plan === 0 ? 0.3 : 1 }}
-                                        >
-                                          <option value="">{plan === 0 ? 'Не потрібно' : 'Оберіть тип верстата'}</option>
-                                          {MACHINE_TYPES.map(t => {
-                                            const cap = findMachine(t)?.sheet_capacity || 1
-                                            return <option key={t} value={t}>{t} ({cap} л.)</option>
-                                          })}
-                                        </select>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', minWidth: '220px' }}>
+                                        {/* Ліва частина: верстат та кнопка */}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', flex: 1 }}>
+                                          <div style={{ fontSize: '0.75rem', fontWeight: 800, background: '#000', padding: '8px 10px', borderRadius: '8px', border: rowMachineName ? '1px solid #333' : '1px solid #ef4444', textAlign: 'center', color: rowMachineName ? '#fff' : '#ef4444' }}>
+                                            {rowMachineName || 'Оберіть тип верстата'}
+                                          </div>
+                                          {plan > 0 && (
+                                            <button
+                                              onClick={() => {
+                                                setChangeNomMachineTaskId(task.id)
+                                                setChangeNomMachineNomId(nomId)
+                                                setChangeNomMachineName(part.nom?.name || 'Деталь')
+                                                setSelectedNomNewMachine(rowMachineName || MACHINE_TYPES[0])
+                                              }}
+                                              style={{
+                                                background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.3)',
+                                                color: '#3b82f6', padding: '6px 10px', borderRadius: '8px', fontSize: '0.7rem',
+                                                fontWeight: 900, cursor: 'pointer', transition: 'all 0.2s', textTransform: 'uppercase', letterSpacing: '0.5px'
+                                              }}
+                                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)'}
+                                              onMouseLeave={e => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)'}
+                                            >
+                                              ⚙️ Змінити верстат
+                                            </button>
+                                          )}
+                                        </div>
+
+                                        {/* Права частина: кількість листів на завантаження */}
                                         {plan > 0 && rowMachineName && defaultCapacity !== maxCapacity && (
-                                          <input
-                                            type="number"
-                                            title={`Листів за завантаження (від ${defaultCapacity} до ${maxCapacity})`}
-                                            placeholder="Завант."
-                                            value={rowCapacities[rowId] !== undefined ? rowCapacities[rowId] : machineCapacity}
-                                            min={defaultCapacity}
-                                            max={maxCapacity}
-                                            readOnly={productionCards.length > 0 && productionCards.length >= totalTargetLoads}
-                                            onChange={(e) => {
-                                              if (productionCards.length > 0 && productionCards.length >= totalTargetLoads) return
-                                              const v = parseInt(e.target.value)
-                                              setRowCapacities(p => ({ ...p, [rowId]: isNaN(v) ? '' : v }))
-                                            }}
-                                            onBlur={(e) => {
-                                              if (productionCards.length > 0 && productionCards.length >= totalTargetLoads) return
-                                              let v = parseInt(e.target.value)
-                                              if (isNaN(v)) v = defaultCapacity;
-                                              else v = Math.min(maxCapacity, Math.max(defaultCapacity, v));
-                                              setRowCapacities(p => ({ ...p, [rowId]: v }));
-                                            }}
-                                            style={{
-                                              width: '60px',
-                                              background: '#000',
-                                              border: `1px solid ${productionCards.length > 0 && productionCards.length >= totalTargetLoads ? '#222' : '#ff9000'}`,
-                                              color: productionCards.length > 0 && productionCards.length >= totalTargetLoads ? '#444' : '#ff9000',
-                                              padding: '8px',
-                                              borderRadius: '8px',
-                                              fontSize: '0.75rem',
-                                              fontWeight: 700,
-                                              textAlign: 'center',
-                                              cursor: productionCards.length > 0 && productionCards.length >= totalTargetLoads ? 'default' : 'text'
-                                            }}
-                                          />
+                                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+                                            <label style={{ fontSize: '0.6rem', color: '#666', fontWeight: 900, textTransform: 'uppercase' }}>Листів</label>
+                                            <input
+                                              type="number"
+                                              title={`Листів за завантаження (від ${defaultCapacity} до ${maxCapacity})`}
+                                              placeholder="Завант."
+                                              value={rowCapacities[rowId] !== undefined ? rowCapacities[rowId] : machineCapacity}
+                                              min={defaultCapacity}
+                                              max={maxCapacity}
+                                              readOnly={productionCards.length > 0 && productionCards.length >= totalTargetLoads}
+                                              onChange={(e) => {
+                                                if (productionCards.length > 0 && productionCards.length >= totalTargetLoads) return
+                                                const v = parseInt(e.target.value)
+                                                setRowCapacities(p => ({ ...p, [rowId]: isNaN(v) ? '' : v }))
+                                              }}
+                                              onBlur={(e) => {
+                                                if (productionCards.length > 0 && productionCards.length >= totalTargetLoads) return
+                                                let v = parseInt(e.target.value)
+                                                if (isNaN(v)) v = defaultCapacity;
+                                                else v = Math.min(maxCapacity, Math.max(defaultCapacity, v));
+                                                setRowCapacities(p => ({ ...p, [rowId]: v }));
+                                              }}
+                                              style={{
+                                                width: '65px',
+                                                background: '#000',
+                                                border: `1px solid ${productionCards.length > 0 && productionCards.length >= totalTargetLoads ? '#222' : '#ff9000'}`,
+                                                color: productionCards.length > 0 && productionCards.length >= totalTargetLoads ? '#444' : '#ff9000',
+                                                padding: '10px 5px',
+                                                borderRadius: '8px',
+                                                fontSize: '0.9rem',
+                                                fontWeight: 950,
+                                                textAlign: 'center',
+                                                cursor: productionCards.length > 0 && productionCards.length >= totalTargetLoads ? 'default' : 'text',
+                                                outline: 'none'
+                                              }}
+                                            />
+                                          </div>
                                         )}
-                                      </div>
-                                    ) : (
+                                      </div>) : (
                                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                         {splits.map((s, sIdx) => {
                                           const cap = findMachine(s.machine)?.sheet_capacity || 1
@@ -1707,7 +2187,7 @@ const ForemanWorkplace = () => {
                                                   // Force sync on blur
                                                   if (saveTimeoutRef.current) {
                                                     clearTimeout(saveTimeoutRef.current)
-                                                    handleUpdateMachineInSnapshot(task, nomId, null, splits)
+                                                    handleUpdateNomenclatureMachineAndRecalculate(task, nomId, null, splits)
                                                     saveTimeoutRef.current = null
                                                   }
                                                 }}
@@ -1729,7 +2209,7 @@ const ForemanWorkplace = () => {
                                               <button
                                                 onClick={() => {
                                                   const newSplits = splits.filter((_, i) => i !== sIdx)
-                                                  handleUpdateMachineInSnapshot(task, nomId, null, newSplits.length === 0 ? null : newSplits)
+                                                  handleUpdateNomenclatureMachineAndRecalculate(task, nomId, null, newSplits.length === 0 ? null : newSplits)
                                                 }}
                                                 style={{ background: 'transparent', border: 'none', color: '#444', cursor: 'pointer' }}
                                               >
@@ -1744,14 +2224,14 @@ const ForemanWorkplace = () => {
                                               const currentSum = splits.reduce((a, b) => a + (Number(b.sheets) || (unitsPerSheet > 0 ? Math.ceil((Number(b.qty) || 0) / unitsPerSheet) : 0)), 0)
                                               const remaining = Math.max(0, totalSheetsNeeded - currentSum)
                                               const newSplits = [...splits, { machine: '', sheets: remaining, qty: remaining * unitsPerSheet }]
-                                              handleUpdateMachineInSnapshot(task, nomId, null, newSplits)
+                                              handleUpdateNomenclatureMachineAndRecalculate(task, nomId, null, newSplits)
                                             }}
                                             style={{ flex: 1, background: '#111', border: '1px solid #222', color: '#555', fontSize: '0.6rem', padding: '5px', borderRadius: '6px', cursor: 'pointer', fontWeight: 800 }}
                                           >
                                             + ДОДАТИ ВЕРСТАТ
                                           </button>
                                           <button
-                                            onClick={() => handleUpdateMachineInSnapshot(task, nomId, null, [])}
+                                            onClick={() => handleUpdateNomenclatureMachineAndRecalculate(task, nomId, null, [])}
                                             style={{ background: '#111', border: '1px solid #222', color: '#ef4444', padding: '5px', borderRadius: '6px', cursor: 'pointer' }}
                                           >
                                             <X size={12} />
@@ -1953,7 +2433,7 @@ const ForemanWorkplace = () => {
                       const qDoop = orderCards.filter(c => c.operation === 'Доопрацювання' && ['new', 'in-progress'].includes(c.status)).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
                       const qDoopBuf = orderCards.filter(c => c.operation === 'Доопрацювання' && c.status === 'at-buffer').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
-                      const qBz = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom?.id) && i.type === 'bz').reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
+                      const qBz = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom?.id) && i.type === 'bz' && String(i.pocket_owner) === String(task?.order_id)).reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
                       const qBzShop2 = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom?.id) && i.type === 'bz_shop2').reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
                       const qSgp = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom?.id) && (i.type === 'finished' || i.warehouse === 'sgp' || i.warehouse === 'SGP')).reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
 
@@ -2822,7 +3302,7 @@ const ForemanWorkplace = () => {
             rows.forEach((part, idx) => {
               const nomId = part.nom?.id
               const need = (Number(item.quantity) || 0) * (Number(part.quantity_per_parent) || 1)
-              const bzInv = (inventory || []).find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'bz')
+              const bzInv = (inventory || []).find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'bz' && String(i.pocket_owner) === String(task?.order_id))
               const stockBZ = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
               const plan = Math.max(0, need - stockBZ)
               const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
@@ -3167,7 +3647,7 @@ const ForemanWorkplace = () => {
                     const nomId = part.nom?.id
                     if (!nomId) return
                     const need = Number(item.quantity) * (Number(part.quantity_per_parent) || 1)
-                    const bzInv = (inventory || []).find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'bz')
+                    const bzInv = (inventory || []).find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'bz' && String(i.pocket_owner) === String(task?.order_id))
                     const stockBZ = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
                     const plan = Math.max(0, need - stockBZ)
                     const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
@@ -4006,6 +4486,157 @@ const ForemanWorkplace = () => {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ───── МОДАЛЬНЕ ВІКНО ЗМІНИ ВЕРСТАТА ДЕТАЛІ ───── */}
+      {changeNomMachineTaskId && changeNomMachineNomId && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(15px)', zIndex: 15500, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
+          <div style={{ background: '#111', width: '100%', maxWidth: '480px', borderRadius: '32px', border: '1px solid #222', padding: '40px', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+            <button
+              onClick={() => {
+                setChangeNomMachineTaskId(null)
+                setChangeNomMachineNomId(null)
+              }}
+              style={{ position: 'absolute', top: '25px', right: '25px', background: '#222', border: 'none', color: '#fff', cursor: 'pointer', width: '35px', height: '35px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <X size={20} />
+            </button>
+
+            <h2 style={{ fontSize: '1.3rem', fontWeight: 950, margin: '0 0 10px', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '1px', color: '#fff' }}>⚙️ Зміна верстата для деталі</h2>
+            <div style={{ color: '#ef4444', fontWeight: 900, textAlign: 'center', fontSize: '0.85rem', marginBottom: '20px', wordBreak: 'break-all', background: 'rgba(239, 68, 68, 0.05)', padding: '10px', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.1)' }}>
+              {changeNomMachineName}
+            </div>
+            
+            <p style={{ color: '#666', textAlign: 'center', fontSize: '0.8rem', marginBottom: '25px' }}>
+              При підтвердженні система автоматично перерахує фрези під новий верстат та оновить запити на складі (СО) із збереженням вашої броні.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '30px' }}>
+              <div>
+                <label style={{ display: 'block', color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>
+                  Оберіть новий верстат:
+                </label>
+                <select
+                  value={selectedNomNewMachine}
+                  onChange={(e) => setSelectedNomNewMachine(e.target.value)}
+                  style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '0.95rem', outline: 'none', fontWeight: 800 }}
+                >
+                  {MACHINE_TYPES.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <button
+              onClick={async () => {
+                const targetTask = relevantTasks.find(t => t.id === changeNomMachineTaskId) || tasks.find(t => t.id === changeNomMachineTaskId)
+                if (targetTask) {
+                  await handleUpdateNomenclatureMachineAndRecalculate(targetTask, changeNomMachineNomId, selectedNomNewMachine)
+                  setChangeNomMachineTaskId(null)
+                  setChangeNomMachineNomId(null)
+                }
+              }}
+              disabled={isChangingMachine}
+              style={{
+                width: '100%', background: '#3b82f6', color: '#fff', padding: '18px',
+                borderRadius: '16px', fontSize: '0.95rem', fontWeight: 950, cursor: 'pointer',
+                border: 'none', textTransform: 'uppercase', letterSpacing: '1px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                boxShadow: '0 10px 20px -5px rgba(59, 130, 246, 0.4)'
+              }}
+            >
+              {isChangingMachine ? <Loader2 size={16} className="animate-spin" /> : 'ПІДТВЕРДИТИ ЗМІНУ'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ───── МОДАЛЬНЕ ВІКНО ЗМІНИ ВЕРСТАТА ───── */}
+      {changeMachineTaskId && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(15px)', zIndex: 15000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
+          <div style={{ background: '#111', width: '100%', maxWidth: '440px', borderRadius: '32px', border: '1px solid #222', padding: '40px', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+            <button
+              onClick={() => setChangeMachineTaskId(null)}
+              style={{ position: 'absolute', top: '25px', right: '25px', background: '#222', border: 'none', color: '#fff', cursor: 'pointer', width: '35px', height: '35px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <X size={20} />
+            </button>
+
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 950, margin: '0 0 10px', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '1px' }}>⚙️ Зміна верстата</h2>
+            <p style={{ color: '#666', textAlign: 'center', fontSize: '0.82rem', marginBottom: '25px' }}>
+              При зміні верстата система автоматично перерахує фрези, оновити та перебронює запити на складі (СО).
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '30px' }}>
+              <div>
+                <label style={{ display: 'block', color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>
+                  Оберіть новий верстат:
+                </label>
+                <select
+                  value={selectedNewMachine}
+                  onChange={(e) => setSelectedNewMachine(e.target.value)}
+                  style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '0.95rem', outline: 'none', fontWeight: 800 }}
+                >
+                  {MACHINE_TYPES.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <button
+              onClick={() => handleChangeTaskMachine(changeMachineTaskId, selectedNewMachine)}
+              disabled={isChangingMachine}
+              style={{
+                width: '100%', background: '#3b82f6', color: '#fff', padding: '18px',
+                borderRadius: '16px', fontSize: '0.95rem', fontWeight: 950, cursor: 'pointer',
+                border: 'none', textTransform: 'uppercase', letterSpacing: '1px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                boxShadow: '0 10px 20px -5px rgba(59, 130, 246, 0.4)'
+              }}
+            >
+              {isChangingMachine ? <Loader2 size={16} className="animate-spin" /> : 'ПІДТВЕРДИТИ ЗАМІНУ'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ───── КАСТОМНЕ МОДАЛЬНЕ ВІКНО СПОВІЩЕННЯ ───── */}
+      {customAlert && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(15px)', zIndex: 30000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
+          <div style={{ background: '#111', width: '100%', maxWidth: '440px', borderRadius: '32px', border: '1px solid #222', padding: '40px', textAlign: 'center', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', color: '#10b981', marginBottom: '20px' }}>
+              <CheckCircle2 size={30} />
+            </div>
+
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 950, margin: '0 0 15px 0', textTransform: 'uppercase', letterSpacing: '1px', color: '#fff' }}>
+              {customAlert.title}
+            </h2>
+            <p style={{ color: '#aaa', fontSize: '0.9rem', lineHeight: '1.6', marginBottom: '30px', whiteSpace: 'pre-line' }}>
+              {customAlert.message}
+            </p>
+
+            <button
+              onClick={() => setCustomAlert(null)}
+              style={{
+                width: '100%', background: '#3b82f6', color: '#fff', padding: '15px 0',
+                borderRadius: '16px', fontSize: '0.95rem', fontWeight: 950, cursor: 'pointer',
+                border: 'none', textTransform: 'uppercase', letterSpacing: '1px',
+                boxShadow: '0 10px 20px -5px rgba(59, 130, 246, 0.4)'
+              }}
+            >
+              ЗРОЗУМІЛО
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isChangingMachine && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', zIndex: 20000, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '20px' }}>
+          <Loader2 size={60} color="#3b82f6" className="animate-spin" />
+          <h2 style={{ fontWeight: 900, textTransform: 'uppercase' }}>Перерахунок фрез та перебронювання...</h2>
         </div>
       )}
 
