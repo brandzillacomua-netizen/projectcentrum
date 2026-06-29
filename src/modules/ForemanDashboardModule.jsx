@@ -444,7 +444,9 @@ const ForemanDashboardModule = () => {
         if ((totalBZ - scrap) < 0) hasShortage = true
       })
 
-      if (allDone) map[task.id] = 'ready'
+      const hasActiveCards = taskCards.some(c => c.operation !== 'Склад БЗ' && !['completed', 'at-shop2-buffer'].includes(c.status))
+
+      if (allDone && !hasActiveCards) map[task.id] = 'ready'
       else if (hasShortage) map[task.id] = 'shortage'
       else map[task.id] = 'in_progress'
     })
