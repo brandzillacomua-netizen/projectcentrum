@@ -283,8 +283,14 @@ const ForemanDashboardModule = () => {
       setAllCardsHistory([])
       return
     }
-    const taskIds = taskList.map(t => t.id)
     try {
+      const orderIds = Array.from(new Set(taskList.map(t => t.order_id).filter(Boolean)))
+      const allTaskIdsForOrders = tasks
+        .filter(t => orderIds.includes(t.order_id))
+        .map(t => t.id)
+      
+      const taskIds = allTaskIdsForOrders.length > 0 ? allTaskIdsForOrders : taskList.map(t => t.id)
+
       const { data: cards, error } = await supabase
         .from('work_cards')
         .select('*')
@@ -493,7 +499,13 @@ const ForemanDashboardModule = () => {
   const buildWipGroups = (filterTaskIds) => {
     if (!nomenclatures || !bomItems || !orders) return []
 
-    const filterSet = new Set(filterTaskIds)
+    // For the given task IDs, find all tasks that belong to the same orders
+    const selectedTasks = tasks.filter(t => filterTaskIds.includes(t.id))
+    const orderIds = Array.from(new Set(selectedTasks.map(t => t.order_id).filter(Boolean)))
+    const allTasksForOrders = tasks.filter(t => orderIds.includes(t.order_id))
+    const allTaskIdsForOrders = allTasksForOrders.map(t => t.id)
+
+    const filterSet = new Set(allTaskIdsForOrders)
     const filteredCards = allTasksCards.filter(c => c.task_id && filterSet.has(c.task_id))
 
     // Build parent->children map from snapshots or static BOM
@@ -501,7 +513,7 @@ const ForemanDashboardModule = () => {
     const childToParents = {}
     const taskParentMap = {}
 
-    filterTaskIds.forEach(taskId => {
+    allTaskIdsForOrders.forEach(taskId => {
       const task = tasks.find(t => t.id === taskId)
       if (!task) return
       const order = ordersMap[task.order_id]
@@ -599,14 +611,27 @@ const ForemanDashboardModule = () => {
         const qDoop = getQ(['Доопрацювання'], ['new', 'in-progress'])
         const qDoopBuf = getQ(['Доопрацювання'], ['at-buffer'])
 
-        // Shop 2 completed cards go to SGP
-        const qSgp = filteredCards.filter(c => {
+        // Find booked BZ from plan snapshot (which is already ready/finished for this order), summing across all relevant orders
+        let initialStock = 0
+        const orderTasks = tasks.filter(t => t.order_id && orderIds.includes(t.order_id))
+        const ordersWithTasks = Array.from(new Set(orderTasks.map(t => t.order_id)))
+        ordersWithTasks.forEach(oid => {
+          const taskWithSnap = orderTasks.find(t => t.order_id === oid && t.plan_snapshot && t.plan_snapshot[String(nom.id)])
+          if (taskWithSnap) {
+            initialStock += Number(taskWithSnap.plan_snapshot[String(nom.id)].stock) || 0
+          }
+        })
+
+        // Shop 2 completed cards + booked BZ go to SGP
+        const completedShop2Qty = filteredCards.filter(c => {
           if (String(c.nomenclature_id) !== String(nom.id)) return false
           if (c.task_id && taskParentMap[c.task_id] && taskParentMap[c.task_id] !== parentId) return false
           const op = (c.operation || '').toLowerCase()
           const isShop2 = ['пресування', 'фарбування', 'малярка', 'доопрацювання', 'пакування', 'сгп'].some(o => op.includes(o))
           return isShop2 && c.status === 'completed'
         }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
+
+        const qSgp = completedShop2Qty + initialStock
 
         // Shop 1 completed or at-shop2-buffer cards count as total produced by Shop 1
         const groupProduced = filteredCards.filter(c => {
@@ -625,15 +650,8 @@ const ForemanDashboardModule = () => {
           return ['пресування', 'фарбування', 'малярка', 'доопрацювання', 'пакування', 'сгп'].some(o => op.includes(o))
         }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
 
-        // BZ cards specifically
-        const bzCardsQty = filteredCards.filter(c => {
-          if (String(c.nomenclature_id) !== String(nom.id)) return false
-          if (c.task_id && taskParentMap[c.task_id] && taskParentMap[c.task_id] !== parentId) return false
-          return c.operation === 'Склад БЗ'
-        }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
-
-        // qBz is what is left from groupProduced that hasn't gone to Shop 2 and is not in qSort, plus BZ stock reserves
-        const qBz = Math.max(0, groupProduced - qSort - totalShop2Qty) + bzCardsQty
+        // qBz is newly produced BZ (not yet in Shop 2)
+        const qBz = Math.max(0, groupProduced - qSort - totalShop2Qty)
 
         // Scrap from task card history
         const cardIdsForThisPart = new Set(filteredCards.filter(c => {
@@ -960,6 +978,7 @@ const ForemanDashboardModule = () => {
             ordersMap={ordersMap}
             tasks={tasks}
             workCards={workCards}
+            allTasksCards={allTasksCards}
             allCardsHistory={allCardsHistory}
             nomenclatures={nomenclatures}
             bomItems={bomItems}
@@ -994,7 +1013,7 @@ const ForemanDashboardModule = () => {
 // Order Detail View component
 // ─────────────────────────────────────────────────────────────
 const OrderDetailView = ({
-  task, order, tasks, workCards, allCardsHistory, nomenclatures, bomItems, inventory,
+  task, order, tasks, workCards, allTasksCards, allCardsHistory, nomenclatures, bomItems, inventory,
   productionCache, scrapCache, taskStatusMap, taskProgressMap,
   orderAllCards, isLoadingCards, wipGroups, searchQuery, setSearchQuery
 }) => {
@@ -1052,7 +1071,11 @@ const OrderDetailView = ({
   const partDetails = useMemo(() => {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     const snapshot = task.plan_snapshot || {}
-    const allTaskCards = orderAllCards
+    
+    // Get all task IDs for the same order
+    const orderTasks = tasks.filter(t => t.order_id === task.order_id)
+    const orderTaskIds = orderTasks.map(t => t.id)
+    const allTaskCards = allTasksCards.filter(c => c.task_id && orderTaskIds.includes(c.task_id))
 
     const parts = []
     Object.keys(snapshot).filter(k => uuidRegex.test(k)).forEach(nomIdStr => {
@@ -1098,14 +1121,18 @@ const OrderDetailView = ({
         return ['пресування', 'фарбування', 'малярка', 'доопрацювання', 'пакування', 'сгп'].some(o => op.includes(o))
       }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
 
-      const bzCardsQty = nomCards.filter(c => c.operation === 'Склад БЗ').reduce((s, c) => s + (Number(c.quantity) || 0), 0)
+      const initialStock = Number(snap.stock) || 0
 
-      const qBz = Math.max(0, groupProduced - qSort - totalShop2Qty) + bzCardsQty
-      const qSgp = nomCards.filter(c => {
+      // qBz is newly produced BZ
+      const qBz = Math.max(0, groupProduced - qSort - totalShop2Qty)
+
+      const completedShop2Qty = nomCards.filter(c => {
         const op = (c.operation || '').toLowerCase()
         const isShop2 = ['пресування', 'фарбування', 'малярка', 'доопрацювання', 'пакування', 'сгп'].some(o => op.includes(o))
         return isShop2 && c.status === 'completed'
       }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
+
+      const qSgp = completedShop2Qty + initialStock
 
       const cardIdsForThisPart = new Set(nomCards.map(c => c.id))
       const scrap = allCardsHistory.filter(h => h.card_id && cardIdsForThisPart.has(h.card_id)).reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)

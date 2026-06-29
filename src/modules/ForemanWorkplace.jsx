@@ -2059,7 +2059,7 @@ const ForemanWorkplace = () => {
                                 sheets = snapshot.sheets
                               } else {
                                 need = (Number(item.quantity) || 0) * (Number(part.quantity_per_parent) || 1)
-                                const bzInv = (inventory || []).find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'bz' && String(i.pocket_owner) === String(task?.order_id))
+                                const bzInv = (inventory || []).find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
                                 stockBZ = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
                                 plan = Math.max(0, need - stockBZ)
                                 unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
@@ -2457,7 +2457,7 @@ const ForemanWorkplace = () => {
                       const qDoop = orderCards.filter(c => c.operation === 'Доопрацювання' && ['new', 'in-progress'].includes(c.status)).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
                       const qDoopBuf = orderCards.filter(c => c.operation === 'Доопрацювання' && c.status === 'at-buffer').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
-                      const qBz = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom?.id) && i.type === 'bz' && String(i.pocket_owner) === String(task?.order_id)).reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
+                      const qBz = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom?.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано')).reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
                       const qBzShop2 = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom?.id) && i.type === 'bz_shop2').reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
                       const qSgp = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom?.id) && (i.type === 'finished' || i.warehouse === 'sgp' || i.warehouse === 'SGP')).reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
 
@@ -3326,7 +3326,7 @@ const ForemanWorkplace = () => {
             rows.forEach((part, idx) => {
               const nomId = part.nom?.id
               const need = (Number(item.quantity) || 0) * (Number(part.quantity_per_parent) || 1)
-              const bzInv = (inventory || []).find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'bz' && String(i.pocket_owner) === String(task?.order_id))
+              const bzInv = (inventory || []).find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
               const stockBZ = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
               const plan = Math.max(0, need - stockBZ)
               const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
@@ -3671,7 +3671,7 @@ const ForemanWorkplace = () => {
                     const nomId = part.nom?.id
                     if (!nomId) return
                     const need = Number(item.quantity) * (Number(part.quantity_per_parent) || 1)
-                    const bzInv = (inventory || []).find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'bz' && String(i.pocket_owner) === String(task?.order_id))
+                    const bzInv = (inventory || []).find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
                     const stockBZ = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
                     const plan = Math.max(0, need - stockBZ)
                     const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1

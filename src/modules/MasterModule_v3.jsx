@@ -823,7 +823,7 @@ const MasterModule = () => {
       displayParts.forEach(part => {
         const thisNaryadQty = naryadQtys[it.id] || 0
         const totalNeeded = thisNaryadQty * (Number(part.quantity_per_parent) || 1)
-        const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz' && String(i.pocket_owner) === String(activeNaryadOrder?.id))
+        const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
         const inStock = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
         const totalToProduce = Math.max(0, totalNeeded - inStock)
         totalPlanQuantity += totalToProduce
@@ -851,7 +851,7 @@ const MasterModule = () => {
           )
 
           if (prepNom) {
-            const bzInv = inventory.find(i => String(i.nomenclature_id) === String(prepNom.id) && (i.type === 'raw' || (i.type === 'bz' && String(i.pocket_owner) === String(activeNaryadOrder?.id))));
+            const bzInv = inventory.find(i => String(i.nomenclature_id) === String(prepNom.id) && (i.type === 'raw' || (i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))));
             const stock = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0;
 
             if (stock < requiredSheets) {
@@ -1108,7 +1108,7 @@ const MasterModule = () => {
         const snapshot = reprintTask?.plan_snapshot?.[String(part.nom.id)]
         const totalNeeded = snapshot ? snapshot.need : (currentQty * (Number(part.quantity_per_parent) || 1))
         const inStock = snapshot ? snapshot.stock : (() => {
-          const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'bz' && String(i.pocket_owner) === String(activeNaryadOrder?.id))
+          const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
           return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
         })()
         const totalToProduce = Math.max(0, totalNeeded - inStock)
@@ -1199,7 +1199,7 @@ const MasterModule = () => {
         const override = snapshot?.cutter_override || partCutterOverrides[part.nom.id] || '2'
         const totalNeeded = snapshot ? snapshot.need : (currentQty * (Number(part.quantity_per_parent) || 1))
         const inStock = snapshot ? snapshot.stock : (() => {
-          const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'bz' && String(i.pocket_owner) === String(activeNaryadOrder?.id))
+          const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
           return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
         })()
         const totalToProduce = snapshot ? snapshot.plan : (isReprintMode ? 0 : Math.max(0, totalNeeded - inStock))
@@ -1319,7 +1319,7 @@ const MasterModule = () => {
         const snapshot = reprintTask?.plan_snapshot?.[String(part.nom.id)]
         const totalNeeded = snapshot ? snapshot.need : (currentQty * (Number(part.quantity_per_parent) || 1))
         const inStock = snapshot ? snapshot.stock : (() => {
-          const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'bz' && String(i.pocket_owner) === String(activeNaryadOrder?.id))
+          const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
           return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
         })()
         const totalToProduce = snapshot ? snapshot.plan : (isReprintMode ? 0 : Math.max(0, totalNeeded - inStock))
@@ -2086,7 +2086,7 @@ const displayParts = getDisplayPartsForOrderItem(it)
                         // If reprint, use snapshot. Otherwise use thisNaryadQty
                         const totalNeeded = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1))
                         const inStock = snapshot ? snapshot.stock : (() => {
-                          const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz' && String(i.pocket_owner) === String(activeNaryadOrder?.id))
+                          const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
                           return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
                         })()
                         const totalToProduce = snapshot ? snapshot.plan : Math.max(0, totalNeeded - inStock)
@@ -2736,7 +2736,7 @@ const displayParts = getDisplayPartsForOrderItem(it)
                             const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)];
                             const need = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1));
                             const inStock = snapshot ? snapshot.stock : (() => {
-                              const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz' && String(i.pocket_owner) === String(activeNaryadOrder?.id));
+                              const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'));
                               return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0;
                             })();
                             const plan = snapshot ? snapshot.plan : Math.max(0, need - inStock);
@@ -2849,7 +2849,7 @@ const displayParts = getDisplayPartsForOrderItem(it)
 
                         const totalNeeded = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1))
                         const inStock = snapshot ? snapshot.stock : (() => {
-                          const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz' && String(i.pocket_owner) === String(activeNaryadOrder?.id))
+                          const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
                           return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
                         })()
                         const totalToProduce = snapshot ? snapshot.plan : Math.max(0, totalNeeded - inStock)
@@ -2928,7 +2928,7 @@ const displayParts = getDisplayPartsForOrderItem(it)
                             const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)];
                             const need = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1));
                             const inStock = snapshot ? snapshot.stock : (() => {
-                              const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz' && String(i.pocket_owner) === String(activeNaryadOrder?.id));
+                              const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'));
                               return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0;
                             })();
                             const plan = snapshot ? snapshot.plan : Math.max(0, need - inStock);
