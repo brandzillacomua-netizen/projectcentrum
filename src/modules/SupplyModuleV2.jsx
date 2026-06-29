@@ -11,7 +11,8 @@ import {
   Warehouse,
   CheckCircle,
   Pencil,
-  Check
+  Check,
+  Trash2
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
@@ -581,6 +582,155 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
     }
   }
 
+  const isSuperAdmin = currentUser?.login === 'admin@workshop.local' || currentUser?.position === 'Адмін' || currentUser?.access_rights?.director
+
+  const handleDeletePrepRequestGroup = async (group) => {
+    if (!window.confirm(`Ви впевнені, що хочете видалити запит на підготовку для наряду № ${group.taskId || '—'}?`)) {
+      return
+    }
+    setIsProcessing(true)
+    try {
+      const reqsToDelete = group.requests || []
+      const reqIds = reqsToDelete.map(r => r.id)
+      
+      const reservationReversals = []
+      reqsToDelete.forEach(req => {
+        if (req.status === 'issued' && req.inventory_id && Number(req.quantity) > 0) {
+          const invItem = (inventory || []).find(i => i.id === req.inventory_id)
+          if (invItem) {
+            reservationReversals.push(
+              supabase.from('inventory').update({
+                reserved_qty: Math.max(0, (Number(invItem.reserved_qty) || 0) - Number(req.quantity))
+              }).eq('id', invItem.id)
+            )
+          }
+        }
+      })
+      
+      if (reservationReversals.length > 0) {
+        await Promise.all(reservationReversals)
+      }
+      
+      const { error } = await supabase.from('material_requests').delete().in('id', reqIds)
+      if (error) throw error
+      
+      alert('Запит на підготовку успішно видалено з очищенням резервів!')
+      if (refreshTable) {
+        refreshTable('material_requests')
+        refreshTable('inventory')
+      }
+    } catch (err) {
+      alert('Помилка видалення: ' + err.message)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleDeletePurchaseRequest = async (pr) => {
+    if (!window.confirm(`Ви впевнені, що хочете видалити запит на закупівлю/дефіцит для наряду № ${pr.order_num || '—'}?`)) {
+      return
+    }
+    setIsProcessing(true)
+    try {
+      const items = pr.items || []
+      const reservationReversals = []
+      
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i]
+        const reservedQty = Number(it.reserved_from_stock) || 0
+        if (reservedQty <= 0) continue
+        
+        const name = resolveItemName(it, i)
+        const parsedName = parseMaterialName(name)
+        
+        const matchingItems = (inventory || []).filter(inv =>
+          inv.warehouse === 'production' &&
+          (
+            (it.nomenclature_id && String(inv.nomenclature_id) === String(it.nomenclature_id)) ||
+            (it.inventory_id && String(inv.id) === String(it.inventory_id)) ||
+            normalize(inv.name) === normalize(parsedName) ||
+            (inv.name && parsedName && normalize(inv.name).includes(normalize(parsedName)))
+          )
+        )
+        
+        if (matchingItems.length > 0) {
+          const firstInv = matchingItems[0]
+          reservationReversals.push(
+            supabase.from('inventory').update({
+              reserved_qty: Math.max(0, (Number(firstInv.reserved_qty) || 0) - reservedQty)
+            }).eq('id', firstInv.id)
+          )
+        }
+      }
+      
+      if (reservationReversals.length > 0) {
+        await Promise.all(reservationReversals)
+      }
+      
+      const queryKey = pr.task_id ? 'task_id' : 'order_id'
+      const queryVal = pr.task_id || pr.order_id
+      
+      if (queryVal) {
+        const { data: recDocs } = await supabase
+          .from('reception_docs')
+          .select('id, items, status, source_warehouse')
+          .eq(queryKey, queryVal)
+          .in('status', ['ordered', 'shipped'])
+        
+        if (recDocs && recDocs.length > 0) {
+          const docIds = recDocs.map(d => d.id)
+          const sourceReversals = []
+          
+          recDocs.forEach(d => {
+            if (d.source_warehouse) {
+              const docItems = d.items || []
+              docItems.forEach(it => {
+                const qty = Number(it.qty ?? it.quantity ?? it.reserved_from_stock ?? 0)
+                if (qty <= 0) return
+                
+                const matching = (inventory || []).filter(inv =>
+                  inv.warehouse === d.source_warehouse &&
+                  (
+                    (it.nomenclature_id && String(inv.nomenclature_id) === String(it.nomenclature_id)) ||
+                    normalize(inv.name) === normalize(it.name)
+                  )
+                )
+                if (matching.length > 0) {
+                  const best = matching[0]
+                  sourceReversals.push(
+                    supabase.from('inventory').update({
+                      reserved_qty: Math.max(0, (Number(best.reserved_qty) || 0) - qty)
+                    }).eq('id', best.id)
+                  )
+                }
+              })
+            }
+          })
+          
+          if (sourceReversals.length > 0) {
+            await Promise.all(sourceReversals)
+          }
+          
+          await supabase.from('reception_docs').delete().in('id', docIds)
+        }
+      }
+      
+      const { error } = await supabase.from('purchase_requests').delete().eq('id', pr.id)
+      if (error) throw error
+      
+      alert('Запит на закупівлю успішно видалено з очищенням резервів та прийомок!')
+      if (refreshTable) {
+        refreshTable('purchase_requests')
+        refreshTable('reception_docs')
+        refreshTable('inventory')
+      }
+    } catch (err) {
+      alert('Помилка видалення: ' + err.message)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
   // Resolve item name from any possible field structure
   const resolveItemName = (it, idx) => {
     // Case 1: directly has name
@@ -1075,7 +1225,30 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                         return (
                           <div key={group.taskId} style={{ background: '#0a0a0a', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '20px', borderRadius: '18px', display: 'flex', flexDirection: 'column', gap: '15px', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1c1c1c', paddingBottom: '12px' }}>
-                              <strong style={{ fontSize: '1rem', color: '#10b981' }}>НАРЯД № {prepNum}</strong>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <strong style={{ fontSize: '1rem', color: '#10b981' }}>НАРЯД № {prepNum}</strong>
+                                {isSuperAdmin && (
+                                  <button
+                                    onClick={() => handleDeletePrepRequestGroup(group)}
+                                    style={{
+                                      background: 'transparent',
+                                      border: 'none',
+                                      color: '#ef4444',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      padding: '2px',
+                                      borderRadius: '4px',
+                                      transition: 'background 0.2s'
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                    title="Видалити запит"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                )}
+                              </div>
                               <span style={{ fontSize: '0.7rem', color: '#888', background: 'rgba(16, 185, 129, 0.1)', padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>
                                 ПІДГОТОВКА СИРОВИНИ
                               </span>
@@ -1225,6 +1398,27 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                               <strong style={pr.status === 'accepted' ? { color: '#3b82f6', fontSize: '0.95rem' } : { color: '#ef4444', fontSize: '0.95rem' }}>
                                 НАРЯД #{pr.order_num}
                               </strong>
+                              {isSuperAdmin && (
+                                <button
+                                  onClick={() => handleDeletePurchaseRequest(pr)}
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: '#ef4444',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    padding: '2px',
+                                    borderRadius: '4px',
+                                    transition: 'background 0.2s'
+                                  }}
+                                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
+                                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                  title="Видалити запит"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
                               {relatedReception && (
                                 <span style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '3px 8px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase' }}>
                                   Відправлено на {relatedReception.target_warehouse === 'operational' ? 'СО' : 'СВ'}

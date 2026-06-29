@@ -30,13 +30,13 @@ const WarehouseModuleV2 = () => {
     nomenclatures, receptionDocs, confirmReception,
     orders, tasks, approveWarehouse, createPurchaseRequest,
     purchaseRequests, receiveInventory, currentUser, fetchModuleData,
-    fetchData, managers, refreshTable
+    fetchData, managers, refreshTable, machineOperations
   } = useMES()
 
   // Load warehouse-specific data on mount
   useEffect(() => { 
     if (typeof fetchData === 'function') {
-      fetchData(['inventory', 'material_requests', 'reception_docs', 'purchase_requests', 'tasks', 'work_cards', 'orders'])
+      fetchData(['inventory', 'material_requests', 'reception_docs', 'purchase_requests', 'tasks', 'work_cards', 'orders', 'machine_operations'])
     }
   }, [])
 
@@ -180,7 +180,7 @@ const WarehouseModuleV2 = () => {
       const { data: reqs, error: reqsErr } = await supabaseClient
         .from('material_requests')
         .select('*')
-        .eq('card_id', cardId)
+        .or(`card_id.eq.${cardId},and(task_id.eq.${card.task_id},card_id.is.null)`)
 
       if (reqsErr) {
         alert('Помилка завантаження матеріалів: ' + reqsErr.message)
@@ -192,8 +192,175 @@ const WarehouseModuleV2 = () => {
         return
       }
 
+      // Calculate sheets in this card
+      const nom = nomenclatures.find(n => String(n.id) === String(card.nomenclature_id))
+      const unitsPerSheet = Number(nom?.units_per_sheet) || 1
+      const cardSheets = Math.ceil(Number(card.quantity) / unitsPerSheet)
+
+      const normStr = str => str ? str.toLowerCase().replace(/[^a-z0-9а-яєіїґ]/g, '') : ''
+
+      const resolveMachineType = (machineName) => {
+        if (!machineName) return null
+        const normMac = machineName.toLowerCase()
+        if (normMac.includes('3050(16)x1600') || normMac.includes('3050(16)х1600') || normMac.includes('3050(16)') || normMac.includes('16x16') || normMac.includes('16х16') || normMac.includes('3050x1600') || normMac.includes('3050х1600') || normMac.includes('3050')) {
+          return 'CNC 3050(16)х16 - 3-12 листів (швидкісний)'
+        } else if (normMac.includes('дракон') || normMac.includes('60x20') || normMac.includes('6000x2000') || normMac.includes('6000х2000')) {
+          return 'CNC 6000x2000 - 4 - 96 листів (Дракон)'
+        } else if (normMac.includes('малий') || normMac.includes('12x8') || normMac.includes('1200x800') || normMac.includes('12х8') || normMac.includes('1200х800')) {
+          return 'CNC 1200x800 - 4 листи (Малий)'
+        } else if (normMac.includes('три головий') || normMac.includes('триголовий') || normMac.includes('3060') || normMac.includes('30x16') || normMac.includes('30х16')) {
+          return 'CNC 3060х1600 - 3-36 листів (Три Головий)'
+        } else if (normMac.includes('фея') || normMac.includes('ke xin')) {
+          return 'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
+        }
+        return machineName
+      }
+
+      const cardMac = card.machine || card.machine_name
+      const opType = resolveMachineType(cardMac)
+      const ops = (machineOperations || []).find(o => 
+        String(o.nomenclature_id) === String(card.nomenclature_id) && 
+        (normStr(o.machine_type) === normStr(opType) || String(o.machine_id) === String(cardMac))
+      )
+
+      const cuttersRates = {}
+      if (ops && Array.isArray(ops.side2_cut_ops)) {
+        ops.side2_cut_ops.forEach(op => {
+          if (op.startsWith('__CUTTER__Reference:')) return
+          if (op.startsWith('__CUTTER__:')) {
+            const parts = op.split(':')
+            const cNomId = parts[1]
+            const cQty = parseFloat(parts[2]) || 0
+            if (cNomId && cQty > 0) {
+              cuttersRates[cNomId] = cQty
+            }
+          }
+        })
+      }
+
+      const findCutterRate = (reqNomId, reqDetails) => {
+        const reqNom = nomenclatures.find(n => n.id === reqNomId)
+        const reqName = reqNom ? reqNom.name : (reqDetails || '')
+        
+        // Try strict ID match first
+        if (cuttersRates[reqNomId] !== undefined) {
+          return cuttersRates[reqNomId]
+        }
+        
+        // Otherwise try diameter matching to bypass generic vs stock duplicates
+        const getDiameter = (name) => {
+          const clean = name.toLowerCase().replace(/,/g, '.')
+          // Matches e.g. "ф2" -> "2", "3x3" -> "3", "1.5x" -> "1.5"
+          const match = clean.match(/(?:фреза|ф|d|d=|діаметр|діаметром)?\s*([0-9]+(?:[.,][0-9]+)?)/)
+          return match ? parseFloat(match[1]) : null
+        }
+        
+        const reqD = getDiameter(reqName)
+        if (reqD === null) return undefined
+        
+        for (const [rateNomId, rateQty] of Object.entries(cuttersRates)) {
+          const rateNom = nomenclatures.find(n => n.id === rateNomId)
+          if (!rateNom) continue
+          const rateD = getDiameter(rateNom.name)
+          if (rateD !== null && rateD === reqD) {
+            return rateQty
+          }
+        }
+        return undefined
+      }
+
+      const isSheetMatchingPart = (req, partNom) => {
+        if (!partNom) return false
+        
+        // 1. Check material_type match
+        if (partNom.material_type) {
+          const partMat = normStr(partNom.material_type)
+          const reqNom = nomenclatures.find(n => n.id === req.nomenclature_id)
+          const reqName = reqNom?.name || req.details || ''
+          if (normStr(reqName).includes(partMat)) {
+            return true
+          }
+        }
+        
+        // 2. Fallback: check if the request details explicitly mention the part name
+        const reqDetails = req.details || ''
+        if (normStr(reqDetails).includes(normStr(partNom.name))) {
+          return true
+        }
+        
+        return false
+      }
+
+      const matchedSheets = reqs.filter(req => !req.card_id && isSheetMatchingPart(req, nom)).map(req => ({
+        ...req,
+        displayQty: cardSheets,
+        isSheet: true
+      }))
+
+      let matchedCutters = []
+      if (ops && Object.keys(cuttersRates).length > 0) {
+        // Build cutter list strictly from tech operations
+        for (const [rateNomId, rateQty] of Object.entries(cuttersRates)) {
+          // Find if there is an existing DB request for this cutter
+          const existingCutterReq = reqs.find(req => {
+            if (!req.card_id) return false
+            
+            // strict or diameter matching
+            if (req.nomenclature_id === rateNomId) return true
+            
+            const reqNom = nomenclatures.find(n => n.id === req.nomenclature_id)
+            const reqName = reqNom ? reqNom.name : (req.details || '')
+            const rateNom = nomenclatures.find(n => n.id === rateNomId)
+            if (!rateNom) return false
+            
+            const getDiameter = (name) => {
+              const clean = name.toLowerCase().replace(/,/g, '.')
+              const match = clean.match(/(?:фреза|ф|d|d=|діаметр|діаметром)?\s*([0-9]+(?:[.,][0-9]+)?)/)
+              return match ? parseFloat(match[1]) : null
+            }
+            const reqD = getDiameter(reqName)
+            const rateD = getDiameter(rateNom.name)
+            return reqD !== null && rateD !== null && reqD === rateD
+          })
+
+          if (existingCutterReq) {
+            matchedCutters.push({
+              ...existingCutterReq,
+              displayQty: Math.ceil(rateQty * cardSheets),
+              isSheet: false,
+              isSynthetic: false
+            })
+          } else {
+            const rateNom = nomenclatures.find(n => n.id === rateNomId)
+            const cardLabel = card.card_info?.split(' ')[0] || `№${card.id.substring(0, 8)}`
+            matchedCutters.push({
+              id: `synthetic-${rateNomId}-${cardId}`,
+              nomenclature_id: rateNomId,
+              quantity: Math.ceil(rateQty * cardSheets),
+              displayQty: Math.ceil(rateQty * cardSheets),
+              status: 'pending',
+              details: `СКЛАД ОПЕРАТИВНИЙ (Картка ${cardLabel}) (ОБРАНО ВРУЧНУ): ${rateNom?.name || ''} — ${Math.ceil(rateQty * cardSheets)} шт.`,
+              card_id: cardId,
+              task_id: card.task_id,
+              order_id: card.order_id,
+              isSheet: false,
+              isSynthetic: true
+            })
+          }
+        }
+      } else {
+        // Fallback: use whatever cutter requests are in the database
+        matchedCutters = reqs.filter(req => req.card_id).map(req => ({
+          ...req,
+          displayQty: Number(req.quantity),
+          isSheet: false
+        }))
+      }
+
+      const processedReqs = [...matchedSheets, ...matchedCutters]
+
       setScannedCard(card)
-      setScannedRequests(reqs)
+      setScannedRequests(processedReqs)
     } catch (e) {
       alert('Помилка: ' + e.message)
     }
@@ -216,8 +383,9 @@ const WarehouseModuleV2 = () => {
         const invItem = (matchedInventory || []).find(i => i.warehouse === 'operational' || !i.warehouse) 
           || (matchedInventory || [])[0]
 
+        const qtyToDeduct = req.displayQty ?? Number(req.quantity) ?? 0
+
         if (invItem) {
-          const qtyToDeduct = Number(req.quantity) || 0
           // Decrement total_qty
           const nextTotal = Math.max(0, (Number(invItem.total_qty) || 0) - qtyToDeduct)
           // Decrement reserved_qty ONLY if request was already 'issued' (reserved)
@@ -235,10 +403,32 @@ const WarehouseModuleV2 = () => {
             .eq('id', invItem.id)
         }
 
-        // 2. Mark the request as completed immediately
-        await supabaseClient.from('material_requests')
-          .update({ status: 'completed' })
-          .eq('id', req.id)
+        // 2. Update the request in the database
+        if (req.isSheet) {
+          // Subtract the issued sheets from the task-level request
+          const nextQty = Math.max(0, (Number(req.quantity) || 0) - qtyToDeduct)
+          const nextStatus = nextQty === 0 ? 'completed' : req.status
+          await supabaseClient.from('material_requests')
+            .update({ quantity: nextQty, status: nextStatus })
+            .eq('id', req.id)
+        } else {
+          // For cutters, update quantity to displayQty (which is the actual issued count) and complete it
+          if (req.isSynthetic) {
+            await supabaseClient.from('material_requests').insert({
+              order_id: req.order_id,
+              task_id: req.task_id,
+              card_id: req.card_id,
+              nomenclature_id: req.nomenclature_id,
+              quantity: qtyToDeduct,
+              status: 'completed',
+              details: req.details
+            })
+          } else {
+            await supabaseClient.from('material_requests')
+              .update({ quantity: qtyToDeduct, status: 'completed' })
+              .eq('id', req.id)
+          }
+        }
       }
 
       alert('Матеріали успішно списано та видано!')
@@ -1812,7 +2002,7 @@ const WarehouseModuleV2 = () => {
                   <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #111' }}>
                     <div style={{ flex: 1, marginRight: '10px' }}>
                       <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#aaa' }}>{itemName}</div>
-                      <div style={{ fontSize: '0.65rem', color: '#555' }}>Потреба: {req.quantity} шт.</div>
+                      <div style={{ fontSize: '0.65rem', color: '#555' }}>Потреба: {req.displayQty || req.quantity} шт.</div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <span style={{ 
