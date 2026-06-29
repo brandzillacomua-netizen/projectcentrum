@@ -747,68 +747,6 @@ const ForemanWorkplace = () => {
     } catch (e) {}
   }, [taskShortageMap, staticHistory.length])
 
-  // ── Точний override shortage для активного наряду (використовує повну taskHistory) ──
-  // taskShortageMap може мати хибний false якщо записи браку не потрапили в ліміт workCardHistory.
-  // Цей мемо перераховує shortage для activeTaskId з повними даними що вже є в state.
-  const activeTaskShortageOverride = useMemo(() => {
-    if (!activeTaskId) return false
-    if (isLoadingHistory) {
-      return !!taskShortageMap[activeTaskId]
-    }
-    const task = tasks.find(t => t.id === activeTaskId)
-    if (!task || task.status === 'completed') return false
-
-    const snapshot = task.plan_snapshot || {}
-    const taskCards = [
-      ...workCards.filter(c => c.task_id === activeTaskId),
-      ...archiveCards
-    ]
-    const allHistory = taskHistory.length > 0 ? taskHistory : workCardHistory.filter(h => {
-      const cardId = taskCards.find(c => c.id === h.card_id)
-      return !!cardId
-    })
-
-    let hasShortage = false
-    Object.keys(snapshot).forEach(nomIdStr => {
-      if (hasShortage) return
-      const nom = nomenclatures.find(n => String(n.id) === String(nomIdStr))
-      if (nom?.type !== 'part') return
-      const snap = snapshot[nomIdStr]
-      if (!snap) return
-
-      const need = snap.need || 0
-      const stockBZ = snap.stock || 0
-      const unitsPerSheet = snap.units_per_sheet || 1
-
-      const nomCards = taskCards.filter(c => String(c.nomenclature_id) === String(nomIdStr))
-      const productionCards = nomCards.filter(c => c.operation !== 'Склад БЗ')
-      if (productionCards.length === 0) return
-
-      // Рахуємо groupScrap з повної taskHistory
-      const cardIds = new Set(nomCards.map(c => String(c.id)))
-      const groupScrap = allHistory
-        .filter(h => h.card_id && cardIds.has(String(h.card_id)))
-        .reduce((sum, h) => sum + (Number(h.scrap_qty) || 0), 0)
-
-      // Рахуємо totalSheets з кешу браку по картках
-      const totalSheets = productionCards.reduce((sum, c) => {
-        const cardScrap = allHistory
-          .filter(h => String(h.card_id) === String(c.id))
-          .reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
-        const originalQty = (Number(c.quantity) || 0) + cardScrap
-        return sum + (c.actualSheets ? Number(c.actualSheets) : Math.ceil(originalQty / unitsPerSheet))
-      }, 0)
-
-      const plannedSheets = snap.sheets || 0
-      const totalSheetsMax = Math.max(plannedSheets, totalSheets)
-      const totalBZ = (totalSheetsMax * unitsPerSheet) + stockBZ - need
-      const shortage = (totalBZ - groupScrap) < 0 ? Math.abs(totalBZ - groupScrap) : 0
-
-      if (shortage > 0) hasShortage = true
-    })
-    return hasShortage
-  }, [activeTaskId, tasks, workCards, archiveCards, taskHistory, workCardHistory, nomenclatures, isLoadingHistory, taskShortageMap])
-
   const relevantTasks = useMemo(() => {
     return tasks
       .filter(t => {
@@ -832,34 +770,17 @@ const ForemanWorkplace = () => {
         // Already transferred → bottom
         if (a.status === 'completed' && b.status !== 'completed') return 1
         if (a.status !== 'completed' && b.status === 'completed') return -1
-        // Ready for Shop 2 → top
-        if (taskReadinessMap[a.id] && !taskReadinessMap[b.id]) return -1
-        if (!taskReadinessMap[a.id] && taskReadinessMap[b.id]) return 1
-        // Needs ДОВИПУСК → second (для активного наряду — точний override; для решти — fallback з кешу поки staticHistory не завантажено)
-        const getShortage = (t) => {
-          if (t.id === activeTaskId) return activeTaskShortageOverride
-          const fromMap = taskShortageMap[t.id]
-          if (staticHistory.length > 0) return fromMap
-          return fromMap || cachedShortageMap[t.id]
-        }
-        const aShortage = getShortage(a)
-        const bShortage = getShortage(b)
+
+        // Needs DOVYPUSK → top
+        const aShortage = taskShortageMap[a.id] || cachedShortageMap[a.id] || false
+        const bShortage = taskShortageMap[b.id] || cachedShortageMap[b.id] || false
         if (aShortage && !bShortage) return -1
         if (!aShortage && bShortage) return 1
-        // New tasks (no cards) → third
-        const aNew = a.status !== 'completed' && (taskCardsCountMap[a.id] || 0) === 0
-        const bNew = b.status !== 'completed' && (taskCardsCountMap[b.id] || 0) === 0
-        if (aNew && !bNew) return -1
-        if (!aNew && bNew) return 1
-        // In Progress tasks → fourth
-        const aInProg = a.status !== 'completed' && (taskCardsCountMap[a.id] || 0) > 0 && !taskReadinessMap[a.id] && !aShortage
-        const bInProg = b.status !== 'completed' && (taskCardsCountMap[b.id] || 0) > 0 && !taskReadinessMap[b.id] && !bShortage
-        if (aInProg && !bInProg) return -1
-        if (!aInProg && bInProg) return 1
 
+        // Rest sorted by created_at desc (newer first)
         return new Date(b.created_at) - new Date(a.created_at)
       })
-  }, [tasks, taskReadinessMap, taskShortageMap, cachedShortageMap, taskCardsCountMap, activeTaskId, activeTaskShortageOverride, staticHistory.length])
+  }, [tasks, taskReadinessMap, taskShortageMap, cachedShortageMap, taskCardsCountMap, staticHistory.length])
 
   const activeQueueCount = useMemo(() => {
     return relevantTasks.filter(t => t.status !== 'completed').length
@@ -1193,10 +1114,8 @@ const ForemanWorkplace = () => {
               const order = task.orders || orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
               const isActive = activeTaskId === task.id
               const isReady = taskReadinessMap[task.id]
-              // Для активного наряду — використовуємо точний override з повною taskHistory
-              // Для неактивних: поки staticHistory ще не завантажено — використовуємо кешований результат з localStorage (без мерехтіння при оновленні)
               const shortageFromMap = staticHistory.length > 0 ? taskShortageMap[task.id] : (taskShortageMap[task.id] || cachedShortageMap[task.id])
-              const isShortage = isActive ? activeTaskShortageOverride : shortageFromMap
+              const isShortage = shortageFromMap
               const isCompleted = task.status === 'completed'
               const taskCardsCount = taskCardsCountMap[task.id] || 0
               const isNew = !isCompleted && taskCardsCount === 0
@@ -1431,7 +1350,7 @@ const ForemanWorkplace = () => {
 
               const isReady = taskReadinessMap[task.id]
               // Активний наряд — override з повною taskHistory
-              const isShortage = task.id === activeTaskId ? activeTaskShortageOverride : taskShortageMap[task.id]
+              const isShortage = taskShortageMap[task.id] || cachedShortageMap[task.id] || false
               const taskCardsCount = taskCardsCountMap[task.id] || 0
               const isNew = task.status !== 'completed' && taskCardsCount === 0
               const isInProgress = task.status !== 'completed' && taskCardsCount > 0 && !isReady && !isShortage
