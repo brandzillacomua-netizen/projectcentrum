@@ -642,7 +642,10 @@ const DashboardModule = () => {
           }
         }
 
-        const shortage = Math.max(0, need - sumVal)
+        // Розраховуємо дефіцит виробництва (shortage): Потреба - (WIP + СГП)
+        // БЗ не включається сюди, бо БЗ це складські залишки, які не є випущеними під цей наряд деталями
+        const productionAndSgpVal = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriyCards + qSortAct + qSortCards + qMalWait + qMal + qMalBuf + qPres + qPresBuf + qDoop + qDoopBuf + qSgp
+        const shortage = Math.max(0, need - productionAndSgpVal)
 
         // Calculate potential sets
         const potentialSetsForThisPart = Math.floor(sumVal / qtyPerProduct)
@@ -669,53 +672,47 @@ const DashboardModule = () => {
 
       if (minPotential === Infinity) minPotential = 0
 
-      // Calculate SGP inventory specific to this order
-      let bzReservedSets = Infinity
-      let hasSnapshot = false
-      orderTasks.forEach(t => {
-        if (t.plan_snapshot) {
-          hasSnapshot = true
-          orderBoms.forEach(bomEntry => {
-            const nom = nomenclatures.find(n => String(n.id) === String(bomEntry.child_id))
-            if (!nom || nom.type !== 'part') return
-            const qtyPerProduct = Number(bomEntry.quantity_per_parent) || 1
-            const entry = t.plan_snapshot[String(bomEntry.child_id)]
-            const stock = entry ? (Number(entry.stock) || 0) : 0
-            const sets = Math.floor(stock / qtyPerProduct)
-            if (sets < bzReservedSets) {
-              bzReservedSets = sets
-            }
-          })
-        }
-      })
-      if (bzReservedSets === Infinity || !hasSnapshot) bzReservedSets = 0
-
-      const completedTasksSets = orderTasks
-        .filter(t => t.status === 'completed')
-        .reduce((sum, t) => sum + (Number(t.planned_sets) || 0), 0)
-
-      const sgpInventory = bzReservedSets + completedTasksSets
-
-      // Calculate current actual sets on SGP dynamically from allocated child parts stock
       let actualSgpSets = Infinity
+      let minWipSets = Infinity
+      
       orderBoms.forEach(bomEntry => {
         const nom = nomenclatures.find(n => String(n.id) === String(bomEntry.child_id))
         if (!nom || nom.type !== 'part') return
         const qtyPerProduct = Number(bomEntry.quantity_per_parent) || 1
+        
+        // SGP sets: allocated finished stock
         const currentSgpQty = orderAllocatedSgp[order.id]?.[nom.id] || 0
-        const sets = Math.floor(currentSgpQty / qtyPerProduct)
-        if (sets < actualSgpSets) {
-          actualSgpSets = sets
+        const sgpSets = Math.floor(currentSgpQty / qtyPerProduct)
+        if (sgpSets < actualSgpSets) {
+          actualSgpSets = sgpSets
+        }
+
+        // Real WIP sets on production floor
+        const taskCards = orderTaskCards.filter(c => String(c.nomenclature_id) === String(nom.id))
+        const activeProductionCards = taskCards.filter(c => c.operation !== 'Склад БЗ')
+        const partWipQty = activeProductionCards.reduce((sum, c) => {
+          if (c.status === 'completed') return sum
+          if (c.status === 'at-shop2-buffer') {
+            return sum + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0))
+          }
+          return sum + (Number(c.quantity) || 0)
+        }, 0)
+        const partWipSets = Math.floor(partWipQty / qtyPerProduct)
+        if (partWipSets < minWipSets) {
+          minWipSets = partWipSets
         }
       })
+      
       if (actualSgpSets === Infinity) actualSgpSets = 0
+      if (minWipSets === Infinity) minWipSets = 0
 
       const plannedTask = orderTasks.find(t => t.planned_sets) || orderTasks[0]
       const totalDemand = Number(plannedTask?.planned_sets) || Number(order.order_items?.[0]?.quantity) || Number(order.quantity) || 0
 
       bottlenecksList.sort((a, b) => a.shortage - b.shortage)
 
-      const calculatedWip = Math.max(0, minPotential - actualSgpSets)
+      // WIP is the minimum completed sets moving through active shop tasks
+      const calculatedWip = minWipSets
       const remainingDemand = Math.max(0, totalDemand - actualSgpSets - calculatedWip)
 
       trends[order.id] = {
