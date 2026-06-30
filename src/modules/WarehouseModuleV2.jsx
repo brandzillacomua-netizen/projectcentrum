@@ -598,7 +598,7 @@ const WarehouseModuleV2 = () => {
   const cardsWithBoxes = useMemo(() => {
     const list = []
     const activeCards = (workCards || []).filter(c => 
-      c.status === 'new' && 
+      (c.status === 'new' || c.status === 'waiting-materials') && 
       (!c.operation || c.operation === 'Нова' || c.operation === 'Розкрій')
     )
     
