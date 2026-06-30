@@ -30,7 +30,7 @@ const WarehouseModuleV2 = () => {
     nomenclatures, receptionDocs, confirmReception,
     orders, tasks, approveWarehouse, createPurchaseRequest,
     purchaseRequests, receiveInventory, currentUser, fetchModuleData,
-    fetchData, managers, refreshTable, machineOperations
+    fetchData, managers, refreshTable, machineOperations, workCards
   } = useMES()
 
   // Load warehouse-specific data on mount
@@ -96,6 +96,100 @@ const WarehouseModuleV2 = () => {
   // editingQty: { [requestId]: inputValue }
   const [editingQty, setEditingQty] = useState({})
   const [savingQty, setSavingQty] = useState(new Set())
+
+  // Cutter box state
+  const [checkedCutters, setCheckedCutters] = useState({}) // { [cardId]: { [nomId]: boolean } }
+  const [expandedNaryads, setExpandedNaryads] = useState({}) // { [orderNum]: boolean }
+  const [expandedNomenclatures, setExpandedNomenclatures] = useState({}) // { [key]: boolean }
+
+  const handleToggleCutterCheck = (cardId, nomId) => {
+    setCheckedCutters(prev => {
+      const cardState = prev[cardId] || {}
+      return {
+        ...prev,
+        [cardId]: {
+          ...cardState,
+          [nomId]: !cardState[nomId]
+        }
+      }
+    })
+  }
+
+  const handlePrepareBox = async (boxItem) => {
+    setIsProcessing(true)
+    try {
+      const { card, cutters } = boxItem
+      
+      // For each cutter, deduct from operational inventory and insert/update material_requests
+      for (const cutter of cutters) {
+        // 1. Find matching inventory item
+        const { data: matchedInventory, error: invErr } = await supabaseClient
+          .from('inventory')
+          .select('*')
+          .eq('nomenclature_id', cutter.nomenclature_id)
+        
+        if (invErr) throw invErr
+
+        const invItem = (matchedInventory || []).find(i => i.warehouse === 'operational' || !i.warehouse) 
+          || (matchedInventory || [])[0]
+
+        const qtyToDeduct = cutter.qty
+
+        if (invItem) {
+          const nextTotal = Math.max(0, (Number(invItem.total_qty) || 0) - qtyToDeduct)
+          await supabaseClient.from('inventory')
+            .update({ 
+              total_qty: nextTotal, 
+              updated_at: new Date().toISOString() 
+            })
+            .eq('id', invItem.id)
+        }
+
+        // 2. Try to find if a request already exists for this cutter linked to this card
+        const { data: existingReq } = await supabaseClient
+          .from('material_requests')
+          .select('*')
+          .eq('card_id', card.id)
+          .eq('nomenclature_id', cutter.nomenclature_id)
+          .maybeSingle()
+
+        if (existingReq) {
+          await supabaseClient.from('material_requests')
+            .update({ quantity: qtyToDeduct, status: 'completed' })
+            .eq('id', existingReq.id)
+        } else {
+          const cardLabel = card.card_info?.split(' ')[0] || `№${card.id.substring(0, 8)}`
+          await supabaseClient.from('material_requests').insert({
+            order_id: card.order_id,
+            task_id: card.task_id,
+            card_id: card.id,
+            nomenclature_id: cutter.nomenclature_id,
+            quantity: qtyToDeduct,
+            status: 'completed',
+            details: `СКЛАД ОПЕРАТИВНИЙ (Картка ${cardLabel}) (ОБРАНО ВРУЧНУ): ${cutter.name} — ${qtyToDeduct} шт.`
+          })
+        }
+      }
+
+      // 3. Update card_info on work_cards to include [BOX_PREPARED:true]
+      const nextCardInfo = `${card.card_info || ''} [BOX_PREPARED:true]`.trim()
+      const { error: cardUpdateErr } = await supabaseClient
+        .from('work_cards')
+        .update({ card_info: nextCardInfo })
+        .eq('id', card.id)
+
+      if (cardUpdateErr) throw cardUpdateErr
+
+      alert('Бокс фрез успішно укомплектовано та списано!')
+      if (typeof fetchData === 'function') {
+        fetchData(['inventory', 'material_requests', 'work_cards'])
+      }
+    } catch (err) {
+      alert('Помилка підготовки боксу: ' + err.message)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
 
   // Super admin inventory editing state
   const [editingInvId, setEditingInvId] = useState(null)
@@ -501,6 +595,98 @@ const WarehouseModuleV2 = () => {
     return 'raw'
   }
 
+  const cardsWithBoxes = useMemo(() => {
+    const list = []
+    const activeCards = (workCards || []).filter(c => c.status !== 'completed' && c.status !== 'new')
+    
+    activeCards.forEach(card => {
+      const nom = nomenclatures.find(n => String(n.id) === String(card.nomenclature_id))
+      if (!nom) return
+
+      const task = (tasks || []).find(t => t.id === card.task_id)
+      if (!task) return
+
+      const cardMac = card.machine || card.machine_name
+      const resolveMachineType = (machineName) => {
+        if (!machineName) return null
+        const normMac = machineName.toLowerCase()
+        if (normMac.includes('3050(16)x1600') || normMac.includes('3050(16)х1600') || normMac.includes('3050(16)') || normMac.includes('16x16') || normMac.includes('16х16') || normMac.includes('3050x1600') || normMac.includes('3050х1600') || normMac.includes('3050')) {
+          return 'CNC 3050(16)х16 - 3-12 листів (швидкісний)'
+        } else if (normMac.includes('дракон') || normMac.includes('60x20') || normMac.includes('6000x2000') || normMac.includes('6000х2000')) {
+          return 'CNC 6000x2000 - 4 - 96 листів (Дракон)'
+        } else if (normMac.includes('малий') || normMac.includes('12x8') || normMac.includes('1200x800') || normMac.includes('12х8') || normMac.includes('1200х800')) {
+          return 'CNC 1200x800 - 4 листи (Малий)'
+        } else if (normMac.includes('три головий') || normMac.includes('триголовий') || normMac.includes('3060') || normMac.includes('30x16') || normMac.includes('30х16')) {
+          return 'CNC 3060х1600 - 3-36 листів (Три Головий)'
+        } else if (normMac.includes('фея') || normMac.includes('ke xin')) {
+          return 'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
+        }
+        return machineName
+      }
+      const opType = resolveMachineType(cardMac)
+      const ops = (machineOperations || []).find(o => 
+        String(o.nomenclature_id) === String(card.nomenclature_id) && 
+        (normalize(o.machine_type) === normalize(opType) || String(o.machine_id) === String(cardMac))
+      )
+
+      const cuttersRates = {}
+      if (ops && Array.isArray(ops.side2_cut_ops)) {
+        ops.side2_cut_ops.forEach(op => {
+          if (op.startsWith('__CUTTER__Reference:')) return
+          if (op.startsWith('__CUTTER__:')) {
+            const parts = op.split(':')
+            const cNomId = parts[1]
+            const cQty = parseFloat(parts[2]) || 0
+            if (cNomId && cQty > 0) {
+              cuttersRates[cNomId] = cQty
+            }
+          }
+        })
+      }
+
+      if (Object.keys(cuttersRates).length === 0) return
+
+      const unitsPerSheet = Number(nom.units_per_sheet) || 1
+      const cardSheets = Math.ceil(Number(card.quantity) / unitsPerSheet)
+      const getDisplayMaterial = (partNom, snapshot) => {
+        const baseMat = partNom?.material_type || '—'
+        if (!snapshot) return baseMat
+        const s300 = snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : 0
+        const s700 = snapshot.sheets_t700 !== undefined ? Number(snapshot.sheets_t700) : 0
+        if (snapshot.sheets_t300 !== undefined || snapshot.sheets_t700 !== undefined) {
+          if (s700 > 0 && s300 === 0) return baseMat.replace(/т300/gi, 'Т700').replace(/t300/gi, 'Т700')
+          if (s300 > 0 && s700 > 0) return baseMat.replace(/т300/gi, 'Т300+Т700').replace(/t300/gi, 'Т300+Т700')
+          if (s300 > 0 && s700 === 0) return baseMat.replace(/т700/gi, 'Т300').replace(/t700/gi, 'Т300')
+        }
+        return baseMat
+      }
+      const snapshotPart = task?.plan_snapshot?.[card.nomenclature_id]
+      const activeMaterialName = getDisplayMaterial(nom, snapshotPart)
+
+      const preparedCutters = []
+      for (const [cNomId, rate] of Object.entries(cuttersRates)) {
+        const cNom = nomenclatures.find(n => n.id === cNomId)
+        preparedCutters.push({
+          nomenclature_id: cNomId,
+          name: cNom?.name || 'Фреза',
+          qty: Math.ceil(rate * cardSheets)
+        })
+      }
+
+      list.push({
+        card,
+        nom,
+        task,
+        cardSheets,
+        activeMaterialName,
+        cutters: preparedCutters,
+        isPrepared: (card.card_info || '').includes('[BOX_PREPARED:true]')
+      })
+    })
+
+    return list
+  }, [workCards, tasks, nomenclatures, machineOperations])
+
   const tabs = useMemo(() => {
     const getCount = (tabId) => {
       const filtered = (requests || []).filter(r => {
@@ -524,6 +710,7 @@ const WarehouseModuleV2 = () => {
     }
     return [
       { id: 'raw', label: 'Оперативний', icon: <Package size={18} />, count: getCount('raw') },
+      { id: 'boxes', label: 'Бокси фрез', icon: <WarehouseIcon size={18} />, count: cardsWithBoxes.filter(c => !c.isPrepared).length },
       { id: 'pocket', label: 'Кишеня майстра', icon: <FolderOpen size={18} />, count: getCount('pocket') },
       { id: 'semi', label: 'Напівфабрикати', icon: <Layers size={18} />, count: getCount('semi') },
       { id: 'finished', label: 'Готова продукція', icon: <Archive size={18} />, count: getCount('finished') },
@@ -531,7 +718,7 @@ const WarehouseModuleV2 = () => {
       { id: 'bz', label: 'БЗ', icon: <CheckCircle2 size={18} />, count: getCount('bz') },
       { id: 'registry', label: 'Реєстр', icon: <History size={18} /> }
     ]
-  }, [requests, inventory, tasks, receptionDocs, nomenclatures])
+  }, [requests, inventory, tasks, receptionDocs, nomenclatures, cardsWithBoxes])
 
   const filteredInventory = (inventory || []).filter(i => {
     const normName = (i.name || '').toLowerCase().replace(/[^a-z0-9а-яіїєґ]/gi, '')
@@ -1565,7 +1752,7 @@ const WarehouseModuleV2 = () => {
           )}
 
           {/* DESKTOP TABLE */}
-          {activeTab !== 'registry' && (
+          {activeTab !== 'registry' && activeTab !== 'boxes' && (
             <>
               <div className="table-responsive-container hide-mobile">
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -1962,6 +2149,312 @@ const WarehouseModuleV2 = () => {
               </div>
             </>
           )}
+
+          {activeTab === 'boxes' && (
+            <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '25px' }}>
+              {(() => {
+                // Group boxes
+                const groups = {}
+                cardsWithBoxes.forEach(box => {
+                  const search = searchQuery.toLowerCase().trim()
+                  const cardNum = box.card.card_info?.split(' ')[0] || ''
+                  const partName = box.nom?.name || ''
+                  const parentOrder = (orders || []).find(o => String(o.id) === String(box.card.order_id || box.task?.order_id))
+                  const orderNum = parentOrder ? parentOrder.order_num : 'Інші'
+                  
+                  // Apply search filter
+                  if (search) {
+                    const matches = cardNum.toLowerCase().includes(search) || 
+                                    partName.toLowerCase().includes(search) || 
+                                    orderNum.toLowerCase().includes(search)
+                    if (!matches) return
+                  }
+
+                  if (!groups[orderNum]) {
+                    groups[orderNum] = {
+                      orderNum,
+                      orderId: parentOrder?.id,
+                      nomenclatures: {}
+                    }
+                  }
+                  
+                  const nomName = box.nom?.name || 'Без деталі'
+                  if (!groups[orderNum].nomenclatures[nomName]) {
+                    groups[orderNum].nomenclatures[nomName] = []
+                  }
+                  groups[orderNum].nomenclatures[nomName].push(box)
+                })
+
+                // Sort function for sequential cards
+                const parseCardIndex = (box) => {
+                  const firstWord = box.card.card_info?.split(' ')[0] || ''
+                  const match = firstWord.match(/^(\d+)\/(\d+)$/)
+                  return match ? parseInt(match[1]) : 999
+                }
+
+                // Sort cards inside nomenclatures
+                Object.values(groups).forEach(g => {
+                  Object.keys(g.nomenclatures).forEach(nomName => {
+                    g.nomenclatures[nomName].sort((a, b) => parseCardIndex(a) - parseCardIndex(b))
+                  })
+                })
+
+                const groupList = Object.values(groups)
+                if (groupList.length === 0) {
+                  return (
+                    <div style={{ textAlign: 'center', padding: '60px', color: '#555', fontSize: '0.85rem' }}>
+                      Не знайдено боксів для підготовки
+                    </div>
+                  )
+                }
+
+                return groupList.map(g => {
+                  // Collapsed by default
+                  const isExpanded = expandedNaryads[g.orderNum] === true
+
+                  // Total pending boxes count for this naryad
+                  const totalNaryadCards = Object.values(g.nomenclatures).reduce((acc, list) => acc + list.length, 0)
+                  const pendingNaryadCards = Object.values(g.nomenclatures).reduce((acc, list) => acc + list.filter(b => !b.isPrepared).length, 0)
+                  const preparedNaryadCards = totalNaryadCards - pendingNaryadCards
+
+                  return (
+                    <div 
+                      key={g.orderNum} 
+                      style={{ 
+                        background: '#0a0a0a', 
+                        borderRadius: '24px', 
+                        border: '1px solid #1a1a1a', 
+                        overflow: 'hidden',
+                        boxShadow: '0 4px 30px rgba(0,0,0,0.3)',
+                        marginBottom: '5px'
+                      }}
+                    >
+                      {/* Naryad Header (Accordion Toggle) */}
+                      <div 
+                        onClick={() => setExpandedNaryads(prev => ({ ...prev, [g.orderNum]: !isExpanded }))}
+                        style={{ 
+                          padding: '20px 25px', 
+                          background: '#111', 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center', 
+                          cursor: 'pointer',
+                          borderBottom: isExpanded ? '1px solid #1a1a1a' : 'none',
+                          transition: 'background 0.2s'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#151515'}
+                        onMouseLeave={e => e.currentTarget.style.background = '#111'}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                          <span style={{ fontSize: '1.2rem' }}>📦</span>
+                          <div>
+                            <div style={{ fontSize: '1.05rem', fontWeight: 900, color: '#fff' }}>НАРЯД #{g.orderNum}</div>
+                            <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '2px' }}>
+                              Зібрано фрез: <strong style={{ color: preparedNaryadCards === totalNaryadCards ? '#10b981' : '#ff9000' }}>{preparedNaryadCards} / {totalNaryadCards}</strong> боксів
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          {preparedNaryadCards === totalNaryadCards ? (
+                            <span style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '4px 10px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 900 }}>ГОТОВИЙ</span>
+                          ) : (
+                            <span style={{ background: 'rgba(255, 144, 0, 0.08)', color: '#ff9000', padding: '4px 10px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 900 }}>В РОБОТІ</span>
+                          )}
+                          <span style={{ fontSize: '0.8rem', color: '#ff9000', fontWeight: 900 }}>
+                            {isExpanded ? 'ЗГОРНУТИ' : 'РОЗГОРНУТИ'}
+                          </span>
+                          <span style={{ color: '#ff9000', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', display: 'inline-block' }}>▼</span>
+                        </div>
+                      </div>
+
+                      {/* Naryad Cards Content */}
+                      {isExpanded && (
+                        <div style={{ padding: '25px', display: 'flex', flexDirection: 'column', gap: '30px' }}>
+                          {Object.entries(g.nomenclatures).map(([nomName, boxList]) => {
+                            const totalNom = boxList.length
+                            const pendingNom = boxList.filter(b => !b.isPrepared).length
+                            const preparedNom = totalNom - pendingNom
+                            const nomKey = `${g.orderNum}-${nomName}`
+                            const isNomExpanded = expandedNomenclatures[nomKey] === true
+
+                            return (
+                              <div key={nomName} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                {/* Nomenclature Sub-Header Panel */}
+                                <div 
+                                  onClick={() => setExpandedNomenclatures(prev => ({ ...prev, [nomKey]: !isNomExpanded }))}
+                                  style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '4px',
+                                    background: 'rgba(59, 130, 246, 0.03)',
+                                    padding: '12px 18px',
+                                    borderRadius: '16px',
+                                    border: '1px solid rgba(59, 130, 246, 0.12)',
+                                    cursor: 'pointer',
+                                    transition: 'background 0.2s'
+                                  }}
+                                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.06)'}
+                                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.03)'}
+                                >
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ fontSize: '0.62rem', color: '#3b82f6', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                      Номенклатура (Деталь)
+                                    </div>
+                                    <span style={{ fontSize: '0.68rem', color: '#3b82f6', fontWeight: 900 }}>
+                                      {isNomExpanded ? 'ЗГОРНУТИ ДЕТАЛЬ ▲' : 'РОЗГОРНУТИ ДЕТАЛЬ ▼'}
+                                    </span>
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                                    <span style={{ fontSize: '0.92rem', color: '#fff', fontWeight: 800 }}>
+                                      {nomName}
+                                    </span>
+                                    <span style={{ 
+                                      fontSize: '0.72rem', 
+                                      color: preparedNom === totalNom ? '#10b981' : '#ff9000', 
+                                      background: preparedNom === totalNom ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255, 144, 0, 0.1)',
+                                      padding: '4px 10px',
+                                      borderRadius: '8px',
+                                      fontWeight: 800
+                                    }}>
+                                      Зібрано: {preparedNom} / {totalNom} боксів
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Cards Grid */}
+                                {isNomExpanded && (
+                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
+                                    {boxList.map(boxItem => {
+                                      const cardId = boxItem.card.id
+                                      const cardNum = boxItem.card.card_info?.split(' ')[0] || `№${cardId.substring(0, 8)}`
+                                      const isAllChecked = boxItem.cutters.every(c => checkedCutters[cardId]?.[c.nomenclature_id])
+
+                                      return (
+                                        <div 
+                                          key={cardId} 
+                                          style={{ 
+                                            background: boxItem.isPrepared ? 'rgba(16, 185, 129, 0.02)' : '#121212', 
+                                            padding: '20px', 
+                                            borderRadius: '20px', 
+                                            border: boxItem.isPrepared ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid #1e1e1e',
+                                            display: 'flex', 
+                                            flexDirection: 'column', 
+                                            gap: '15px',
+                                            boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
+                                            transition: 'all 0.2s'
+                                          }}
+                                        >
+                                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #1e1e1e', paddingBottom: '10px' }}>
+                                            <div>
+                                              <strong style={{ fontSize: '1.05rem', color: '#fff' }}>Картка {cardNum}</strong>
+                                            </div>
+                                            {boxItem.isPrepared ? (
+                                              <span style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '4px 10px', borderRadius: '8px', fontSize: '0.68rem', fontWeight: 900, textTransform: 'uppercase' }}>
+                                                ✓ Бокс Готовий
+                                              </span>
+                                            ) : (
+                                              <span style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', padding: '4px 10px', borderRadius: '8px', fontSize: '0.68rem', fontWeight: 900, textTransform: 'uppercase' }}>
+                                                Очікує збірки
+                                              </span>
+                                            )}
+                                          </div>
+
+                                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', background: '#090909', padding: '10px 15px', borderRadius: '14px', border: '1px solid #151515' }}>
+                                            <div>
+                                              <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 800 }}>ВЕРСТАТ</div>
+                                              <div style={{ fontSize: '0.75rem', color: '#aaa', fontWeight: 700 }}>{boxItem.card.machine || '—'}</div>
+                                            </div>
+                                            <div>
+                                              <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 800 }}>ЛИСТИ</div>
+                                              <div style={{ fontSize: '0.75rem', color: '#aaa', fontWeight: 700 }}>{boxItem.cardSheets} л. ({boxItem.activeMaterialName.replace(/лист\s*/gi, '')})</div>
+                                            </div>
+                                          </div>
+
+                                          <div>
+                                            <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800, marginBottom: '8px' }}>ФРЕЗИ В БОКС:</div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                              {boxItem.cutters.map(cutter => {
+                                                const isChecked = !!checkedCutters[cardId]?.[cutter.nomenclature_id] || boxItem.isPrepared
+                                                return (
+                                                  <div 
+                                                    key={cutter.nomenclature_id}
+                                                    onClick={() => !boxItem.isPrepared && handleToggleCutterCheck(cardId, cutter.nomenclature_id)}
+                                                    style={{ 
+                                                      display: 'flex', 
+                                                      alignItems: 'center', 
+                                                      justifyContent: 'space-between', 
+                                                      background: isChecked ? 'rgba(16, 185, 129, 0.04)' : '#0d0d0d', 
+                                                      padding: '8px 12px', 
+                                                      borderRadius: '10px', 
+                                                      border: isChecked ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid #1e1e1e',
+                                                      cursor: boxItem.isPrepared ? 'default' : 'pointer',
+                                                      transition: 'all 0.15s'
+                                                    }}
+                                                  >
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                      <input 
+                                                        type="checkbox" 
+                                                        checked={isChecked}
+                                                        disabled={boxItem.isPrepared}
+                                                        onChange={() => {}} 
+                                                        style={{ accentColor: '#10b981', cursor: boxItem.isPrepared ? 'default' : 'pointer' }}
+                                                      />
+                                                      <span style={{ fontSize: '0.76rem', color: isChecked ? '#aaa' : '#888', fontWeight: isChecked ? 700 : 500 }}>
+                                                        {cutter.name}
+                                                      </span>
+                                                    </div>
+                                                    <strong style={{ fontSize: '0.8rem', color: isChecked ? '#10b981' : '#fff' }}>
+                                                      {cutter.qty} шт
+                                                    </strong>
+                                                  </div>
+                                                )
+                                              })}
+                                            </div>
+                                          </div>
+
+                                          {!boxItem.isPrepared && (
+                                            <button
+                                              disabled={isProcessing || !isAllChecked}
+                                              onClick={() => handlePrepareBox(boxItem)}
+                                              style={{
+                                                marginTop: 'auto',
+                                                width: '100%',
+                                                padding: '12px',
+                                                background: isAllChecked ? '#10b981' : '#1a1a1a',
+                                                color: isAllChecked ? '#000' : '#444',
+                                                border: isAllChecked ? 'none' : '1px solid #222',
+                                                borderRadius: '12px',
+                                                fontWeight: 900,
+                                                fontSize: '0.8rem',
+                                                textTransform: 'uppercase',
+                                                cursor: (isProcessing || !isAllChecked) ? 'not-allowed' : 'pointer',
+                                                opacity: isProcessing ? 0.7 : 1,
+                                                transition: 'all 0.2s',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '6px'
+                                              }}
+                                            >
+                                              <Package size={16} /> {isAllChecked ? 'Зібрати бокс (Всі фрези є)' : 'Позначте фрези для збірки'}
+                                            </button>
+                                          )}
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })
+              })()}
+            </div>
+          )}
         </div>
       </div>
 
@@ -2010,68 +2503,102 @@ const WarehouseModuleV2 = () => {
         </div>
       )}
       {/* SCANNED CARD MODAL */}
-      {scannedCard && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ background: '#111', border: '1px solid #333', borderRadius: '24px', padding: '30px', width: '100%', maxWidth: '450px' }}>
-            <h3 style={{ color: '#ff9000', margin: '0 0 15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <QrCode size={24} /> ВИДАЧА ЗА КАРТКОЮ
-            </h3>
-            <p style={{ fontSize: '0.85rem', color: '#888', marginBottom: '15px' }}>
-              Картка: <strong style={{ color: '#fff' }}>{scannedCard.card_info || `№${scannedCard.id}`}</strong>
-            </p>
-            <p style={{ fontSize: '0.8rem', color: '#888', marginBottom: '20px' }}>
-              Операція: <strong style={{ color: '#fff' }}>{scannedCard.operation}</strong> | Кількість: <strong style={{ color: '#fff' }}>{scannedCard.quantity} шт.</strong>
-            </p>
+      {scannedCard && (() => {
+        const isBoxPrepared = (scannedCard.card_info || '').includes('[BOX_PREPARED:true]')
+        const scannedCardLabel = scannedCard.card_info?.split(' ')[0] || `№${scannedCard.id.substring(0, 8)}`
+        // Filter out completed/pending cutters if box is prepared, only show sheets to issue
+        const displayRequests = isBoxPrepared 
+          ? scannedRequests.filter(r => r.isSheet) 
+          : scannedRequests
 
-            <div style={{ background: '#000', padding: '15px', borderRadius: '12px', marginBottom: '25px', maxHeight: '250px', overflowY: 'auto' }}>
-              {scannedRequests.map((req, idx) => {
-                const nom = (nomenclatures || []).find(n => n.id === req.nomenclature_id)
-                const itemName = nom
-                  ? (nom.name + (nom.material_type ? ` (${nom.material_type})` : ''))
-                  : (req.details || `Матеріал #${idx + 1}`)
-                return (
-                  <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #111' }}>
-                    <div style={{ flex: 1, marginRight: '10px' }}>
-                      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#aaa' }}>{itemName}</div>
-                      <div style={{ fontSize: '0.65rem', color: '#555' }}>Потреба: {req.displayQty || req.quantity} шт.</div>
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+            <div style={{ background: '#111', border: '1px solid #333', borderRadius: '24px', padding: '30px', width: '100%', maxWidth: '450px' }}>
+              <h3 style={{ color: '#ff9000', margin: '0 0 15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <QrCode size={24} /> ВИДАЧА ЗА КАРТКОЮ
+              </h3>
+              <p style={{ fontSize: '0.85rem', color: '#888', marginBottom: '15px' }}>
+                Картка: <strong style={{ color: '#fff' }}>{scannedCard.card_info?.split(' [')[0] || scannedCard.card_info || `№${scannedCard.id}`}</strong>
+              </p>
+              <p style={{ fontSize: '0.8rem', color: '#888', marginBottom: '20px' }}>
+                Операція: <strong style={{ color: '#fff' }}>{scannedCard.operation}</strong> | Кількість: <strong style={{ color: '#fff' }}>{scannedCard.quantity} шт.</strong>
+              </p>
+
+              {isBoxPrepared && (
+                <div style={{ 
+                  background: 'rgba(16, 185, 129, 0.06)', 
+                  border: '1px solid rgba(16, 185, 129, 0.25)', 
+                  padding: '15px 20px', 
+                  borderRadius: '16px', 
+                  marginBottom: '20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px'
+                }}>
+                  <span style={{ fontSize: '1.8rem' }}>📦</span>
+                  <div>
+                    <div style={{ color: '#10b981', fontWeight: 900, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Бокс фрез готовий!
                     </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <span style={{ 
-                        fontSize: '0.65rem', fontWeight: 900, padding: '3px 8px', borderRadius: '4px',
-                        background: req.status === 'completed' ? 'rgba(16, 185, 129, 0.15)' : (req.status === 'issued' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255, 144, 0, 0.15)'),
-                        color: req.status === 'completed' ? '#10b981' : (req.status === 'issued' ? '#3b82f6' : '#ff9000')
-                      }}>
-                        {req.status === 'completed' ? 'ВИДАНО' : (req.status === 'issued' ? 'ЗАРЕЗЕРВОВАНО' : 'ОЧІКУЄ')}
-                      </span>
+                    <div style={{ color: '#aaa', fontSize: '0.78rem', marginTop: '3px', lineHeight: '1.4' }}>
+                      Візьміть готовий бокс фрез **«Картка {scannedCardLabel}»** з полиці СО.
                     </div>
                   </div>
-                )
-              })}
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                onClick={() => {
-                  setScannedCard(null)
-                  setScannedRequests([])
-                }}
-                style={{ flex: 1, padding: '12px', borderRadius: '10px', background: '#222', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 800 }}
-              >
-                Закрити
-              </button>
-              {scannedRequests.some(r => r.status === 'pending' || r.status === 'issued') && (
-                <button
-                  disabled={isIssuingCard}
-                  onClick={handleIssueCardMaterials}
-                  style={{ flex: 2, padding: '12px', borderRadius: '10px', background: '#ff9000', color: '#000', border: 'none', fontWeight: 900, cursor: isIssuingCard ? 'not-allowed' : 'pointer', opacity: isIssuingCard ? 0.5 : 1 }}
-                >
-                  {isIssuingCard ? 'ОБРОБКА...' : 'ВИДАТИ МАТЕРІАЛИ'}
-                </button>
+                </div>
               )}
+
+              {displayRequests.length > 0 && (
+                <div style={{ background: '#000', padding: '15px', borderRadius: '12px', marginBottom: '25px', maxHeight: '250px', overflowY: 'auto' }}>
+                  {displayRequests.map((req, idx) => {
+                    const nom = (nomenclatures || []).find(n => n.id === req.nomenclature_id)
+                    const itemName = nom
+                      ? (nom.name + (nom.material_type ? ` (${nom.material_type})` : ''))
+                      : (req.details || `Матеріал #${idx + 1}`)
+                    return (
+                      <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #111' }}>
+                        <div style={{ flex: 1, marginRight: '10px' }}>
+                          <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#aaa' }}>{itemName}</div>
+                          <div style={{ fontSize: '0.65rem', color: '#555' }}>Потреба: {req.displayQty || req.quantity} шт.</div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ 
+                            fontSize: '0.65rem', fontWeight: 900, padding: '3px 8px', borderRadius: '4px',
+                            background: req.status === 'completed' ? 'rgba(16, 185, 129, 0.15)' : (req.status === 'issued' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255, 144, 0, 0.15)'),
+                            color: req.status === 'completed' ? '#10b981' : (req.status === 'issued' ? '#3b82f6' : '#ff9000')
+                          }}>
+                            {req.status === 'completed' ? 'ВИДАНО' : (req.status === 'issued' ? 'ЗАРЕЗЕРВОВАНО' : 'ОЧІКУЄ')}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  onClick={() => {
+                    setScannedCard(null)
+                    setScannedRequests([])
+                  }}
+                  style={{ flex: 1, padding: '12px', borderRadius: '10px', background: '#222', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 800 }}
+                >
+                  Закрити
+                </button>
+                {displayRequests.some(r => r.status === 'pending' || r.status === 'issued') && (
+                  <button
+                    disabled={isIssuingCard}
+                    onClick={handleIssueCardMaterials}
+                    style={{ flex: 2, padding: '12px', borderRadius: '10px', background: '#ff9000', color: '#000', border: 'none', fontWeight: 900, cursor: isIssuingCard ? 'not-allowed' : 'pointer', opacity: isIssuingCard ? 0.5 : 1 }}
+                  >
+                    {isIssuingCard ? 'ОБРОБКА...' : 'ВИДАТИ МАТЕРІАЛИ'}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
     </div>
   )
 }
