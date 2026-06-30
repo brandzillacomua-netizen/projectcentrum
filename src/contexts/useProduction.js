@@ -404,7 +404,19 @@ export function createProductionActions({
         .replace(/\[\s*непідготовлений\s*\]/gi, '')
         .trim()
 
-      const matKeyBase = (partNom?.material_type || partNom?.name || 'Інше').trim()
+      const task = tasks.find(t => String(t.id) === String(taskId))
+      const snapshot = task?.plan_snapshot?.[partNom?.id]
+
+      let matKeyBase = (partNom?.material_type || partNom?.name || 'Інше').trim()
+      if (snapshot) {
+        const s300 = snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : 0
+        const s700 = snapshot.sheets_t700 !== undefined ? Number(snapshot.sheets_t700) : 0
+        if (s700 > 0 && s300 === 0) {
+          matKeyBase = matKeyBase.replace(/т300/gi, 'Т700').replace(/t300/gi, 'Т700')
+        } else if (s300 > 0 && s700 === 0) {
+          matKeyBase = matKeyBase.replace(/т700/gi, 'Т300').replace(/t700/gi, 'Т300')
+        }
+      }
       const normalizedBase = normalizeName(stripTags(matKeyBase))
 
       // [Підготовлений] nom — ALWAYS used for main warehouse request
