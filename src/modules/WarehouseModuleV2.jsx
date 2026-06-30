@@ -2262,7 +2262,7 @@ const WarehouseModuleV2 = () => {
                       <div 
                         onClick={() => setExpandedNaryads(prev => ({ ...prev, [g.orderNum]: !isExpanded }))}
                         style={{ 
-                          padding: '20px 25px', 
+                          padding: '16px 15px', 
                           background: '#111', 
                           display: 'flex', 
                           justifyContent: 'space-between', 
@@ -2298,7 +2298,7 @@ const WarehouseModuleV2 = () => {
 
                       {/* Naryad Cards Content */}
                       {isExpanded && (
-                        <div style={{ padding: '25px', display: 'flex', flexDirection: 'column', gap: '30px' }}>
+                        <div style={{ padding: '15px 10px', display: 'flex', flexDirection: 'column', gap: '25px' }}>
                           {Object.entries(g.nomenclatures).map(([nomName, boxList]) => {
                             const totalNom = boxList.length
                             const pendingNom = boxList.filter(b => !b.isPrepared).length
@@ -2363,46 +2363,53 @@ const WarehouseModuleV2 = () => {
                                   {/* Summarized Material & Cutters Demand for this Nomenclature */}
                                   <div style={{ 
                                     display: 'flex', 
-                                    gap: '10px 25px', 
-                                    marginTop: '10px', 
-                                    paddingTop: '10px', 
+                                    flexDirection: 'column',
+                                    gap: '10px', 
+                                    marginTop: '12px', 
+                                    paddingTop: '12px', 
                                     borderTop: '1px dashed rgba(59, 130, 246, 0.15)',
-                                    flexWrap: 'wrap',
                                     fontSize: '0.75rem'
                                   }}>
-                                    <div style={{ color: '#888', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                                      <span style={{ opacity: 0.8 }}>⚡</span> <span style={{ color: '#aaa' }}>Усього листів:</span>
-                                      {Object.entries(sheetsSummary).map(([mat, qty]) => (
-                                        <span key={mat} style={{ background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '6px', color: '#eee', fontWeight: 800 }}>
-                                          {qty} л. ({mat.replace(/лист\s*/gi, '')})
-                                        </span>
-                                      ))}
+                                    <div style={{ color: '#888', display: 'flex', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap' }}>
+                                      <span style={{ opacity: 0.8 }}>⚡</span> 
+                                      <span style={{ color: '#aaa', minWidth: '90px', fontWeight: 700 }}>Усього листів:</span>
+                                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                        {Object.entries(sheetsSummary).map(([mat, qty]) => (
+                                          <span key={mat} style={{ background: 'rgba(255,255,255,0.06)', padding: '3px 8px', borderRadius: '6px', color: '#eee', fontWeight: 800 }}>
+                                            {qty} л. ({mat.replace(/лист\s*/gi, '')})
+                                          </span>
+                                        ))}
+                                      </div>
                                     </div>
-                                    <div style={{ color: '#888', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                                      <span style={{ opacity: 0.8 }}>🛠️</span> <span style={{ color: '#aaa' }}>Усього фрез:</span>
-                                      {Object.entries(cuttersSummary).map(([cName, qty]) => (
-                                        <span key={cName} style={{ background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '6px', color: '#eee', fontWeight: 800 }}>
-                                          {qty} шт ({cName.replace(/фреза\s*/gi, '')})
-                                        </span>
-                                      ))}
+                                    <div style={{ color: '#888', display: 'flex', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap' }}>
+                                      <span style={{ opacity: 0.8 }}>🛠️</span> 
+                                      <span style={{ color: '#aaa', minWidth: '90px', fontWeight: 700 }}>Усього фрез:</span>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1, minWidth: '200px' }}>
+                                        {Object.entries(cuttersSummary).map(([cName, qty]) => (
+                                          <div key={cName} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', maxWidth: '400px' }}>
+                                            <span style={{ color: '#888', fontSize: '0.72rem', flex: 1, marginRight: '10px' }}>{cName.replace(/фреза\s*/gi, '')}</span>
+                                            <span style={{ color: '#10b981', fontWeight: 900, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{qty} шт</span>
+                                          </div>
+                                        ))}
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
-
+ 
                                 {/* Cards Grid */}
                                 {isNomExpanded && (
-                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
+                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: '15px' }}>
                                     {boxList.map(boxItem => {
                                       const cardId = boxItem.card.id
                                       const cardNum = boxItem.card.card_info?.split(' ')[0] || `№${cardId.substring(0, 8)}`
                                       const isAllChecked = boxItem.cutters.every(c => checkedCutters[cardId]?.[c.nomenclature_id])
-
+ 
                                       return (
                                         <div 
                                           key={cardId} 
                                           style={{ 
                                             background: boxItem.isPrepared ? 'rgba(16, 185, 129, 0.02)' : '#121212', 
-                                            padding: '20px', 
+                                            padding: '16px', 
                                             borderRadius: '20px', 
                                             border: boxItem.isPrepared ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid #1e1e1e',
                                             display: 'flex', 
@@ -2426,7 +2433,7 @@ const WarehouseModuleV2 = () => {
                                               </span>
                                             )}
                                           </div>
-
+ 
                                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', background: '#090909', padding: '10px 15px', borderRadius: '14px', border: '1px solid #151515' }}>
                                             <div>
                                               <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 800 }}>ВЕРСТАТ</div>
@@ -2437,7 +2444,7 @@ const WarehouseModuleV2 = () => {
                                               <div style={{ fontSize: '0.75rem', color: '#aaa', fontWeight: 700 }}>{boxItem.cardSheets} л. ({boxItem.activeMaterialName.replace(/лист\s*/gi, '')})</div>
                                             </div>
                                           </div>
-
+ 
                                           <div>
                                             <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800, marginBottom: '8px' }}>ФРЕЗИ В БОКС:</div>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -2449,29 +2456,29 @@ const WarehouseModuleV2 = () => {
                                                     onClick={() => !boxItem.isPrepared && handleToggleCutterCheck(cardId, cutter.nomenclature_id)}
                                                     style={{ 
                                                       display: 'flex', 
-                                                      alignItems: 'center', 
+                                                      alignItems: 'flex-start', 
                                                       justifyContent: 'space-between', 
                                                       background: isChecked ? 'rgba(16, 185, 129, 0.04)' : '#0d0d0d', 
-                                                      padding: '8px 12px', 
+                                                      padding: '10px 14px', 
                                                       borderRadius: '10px', 
                                                       border: isChecked ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid #1e1e1e',
                                                       cursor: boxItem.isPrepared ? 'default' : 'pointer',
                                                       transition: 'all 0.15s'
                                                     }}
                                                   >
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flex: 1, marginRight: '10px' }}>
                                                       <input 
                                                         type="checkbox" 
                                                         checked={isChecked}
                                                         disabled={boxItem.isPrepared}
                                                         onChange={() => {}} 
-                                                        style={{ accentColor: '#10b981', cursor: boxItem.isPrepared ? 'default' : 'pointer' }}
+                                                        style={{ accentColor: '#10b981', marginTop: '2px', cursor: boxItem.isPrepared ? 'default' : 'pointer' }}
                                                       />
-                                                      <span style={{ fontSize: '0.76rem', color: isChecked ? '#aaa' : '#888', fontWeight: isChecked ? 700 : 500 }}>
+                                                      <span style={{ fontSize: '0.76rem', color: isChecked ? '#aaa' : '#888', fontWeight: isChecked ? 700 : 500, lineHeight: '1.3' }}>
                                                         {cutter.name}
                                                       </span>
                                                     </div>
-                                                    <strong style={{ fontSize: '0.8rem', color: isChecked ? '#10b981' : '#fff' }}>
+                                                    <strong style={{ fontSize: '0.8rem', color: isChecked ? '#10b981' : '#fff', whiteSpace: 'nowrap', marginTop: '1px' }}>
                                                       {cutter.qty} шт
                                                     </strong>
                                                   </div>
