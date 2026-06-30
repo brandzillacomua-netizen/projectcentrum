@@ -77,8 +77,74 @@ const isOverdueTask = (task) =>
 
 const checklistProgress = (checklist = []) => {
   if (!checklist.length) return null
-  const done = checklist.filter(i => i.done).length
-  return { done, total: checklist.length, pct: Math.round((done / checklist.length) * 100) }
+  const parentIds = new Set()
+  checklist.forEach(item => {
+    if (item.parent_id) parentIds.add(String(item.parent_id))
+  })
+  const leaves = checklist.filter(item => !parentIds.has(String(item.id)))
+  if (!leaves.length) {
+    const done = checklist.filter(i => i.done).length
+    return { done, total: checklist.length, pct: Math.round((done / checklist.length) * 100) }
+  }
+  const done = leaves.filter(i => i.done).length
+  return { done, total: leaves.length, pct: Math.round((done / leaves.length) * 100) }
+}
+
+const toggleChecklistItem = (checklist, itemId) => {
+  const item = checklist.find(i => String(i.id) === String(itemId))
+  if (!item) return checklist
+  const nextDone = !item.done
+
+  const isParent = (id) => checklist.some(i => String(i.parent_id) === String(id))
+
+  const toggleDescendants = (list, parentId, doneVal) => {
+    return list.map(i => {
+      if (String(i.parent_id) === String(parentId)) {
+        const updated = { ...i, done: doneVal }
+        if (isParent(i.id)) {
+          return updated // Will be processed recursively or we do it inline:
+        }
+        return updated
+      }
+      return i
+    })
+  }
+
+  // Deep recursive check
+  const setAllChildren = (list, pId, val) => {
+    let nextList = list.map(i => String(i.parent_id) === String(pId) ? { ...i, done: val } : i)
+    list.forEach(i => {
+      if (String(i.parent_id) === String(pId)) {
+        nextList = setAllChildren(nextList, i.id, val)
+      }
+    })
+    return nextList
+  }
+
+  let list = checklist.map(i => String(i.id) === String(itemId) ? { ...i, done: nextDone } : i)
+  if (isParent(itemId)) {
+    list = setAllChildren(list, itemId, nextDone)
+  }
+
+  let changed = true
+  let iterations = 0
+  while (changed && iterations < 10) {
+    changed = false
+    list = list.map(i => {
+      const hasChildren = list.some(child => String(child.parent_id) === String(i.id))
+      if (hasChildren) {
+        const children = list.filter(child => String(child.parent_id) === String(i.id))
+        const allDone = children.every(child => child.done)
+        if (i.done !== allDone) {
+          changed = true
+          return { ...i, done: allDone }
+        }
+      }
+      return i
+    })
+    iterations++
+  }
+  return list
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
@@ -191,40 +257,146 @@ const AssigneeSelector = ({ value, onSelect, searchVal, setSearchVal, systemUser
 }
 
 // ─── ChecklistEditor (TOP-LEVEL) ────────────────────────────────────────────
-const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove, canEdit }) => (
-  <div className="checklist-editor">
-    {items.length > 0 && (
-      <div className="checklist-progress-row">
-        <div className="cl-track"><div className="cl-fill" style={{ width: `${checklistProgress(items)?.pct || 0}%`, background: checklistProgress(items)?.pct === 100 ? '#10b981' : '#3b82f6' }} /></div>
-        <span className="cl-pct">{checklistProgress(items)?.pct || 0}%</span>
-      </div>
-    )}
-    <div className="checklist-items">
-      {items.map(item => (
-        <div key={item.id} className={`checklist-item ${item.done ? 'done' : ''}`}>
+const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove, canEdit, onAddSubItem }) => {
+  const [activeAddId, setActiveAddId] = useState(null)
+  const [subText, setSubText] = useState('')
+
+  const roots = items.filter(item => !item.parent_id || !items.some(parent => String(parent.id) === String(item.parent_id)))
+  const getChildren = (parentId) => items.filter(item => String(item.parent_id) === String(parentId))
+
+  const renderItem = (item, isChild = false) => {
+    const children = getChildren(item.id)
+    const hasChildren = children.length > 0
+    const isChecked = item.done
+    const isAddingSub = activeAddId === item.id
+
+    return (
+      <div key={item.id} style={{ display: 'flex', flexDirection: 'column' }}>
+        <div 
+          className={`checklist-item ${isChecked ? 'done' : ''}`}
+          style={isChild ? { marginLeft: '24px', borderLeft: '2px solid rgba(255,255,255,0.08)', paddingLeft: '12px', background: 'rgba(255,255,255,0.01)' } : {}}
+        >
           <button type="button" className="check-toggle" onClick={() => onToggle && onToggle(item.id)}>
-            {item.done ? <CheckSquare size={16} color="#10b981" /> : <Square size={16} color="#555" />}
+            {isChecked ? <CheckSquare size={16} color="#10b981" /> : <Square size={16} color="#555" />}
           </button>
-          <span className="check-text">{item.text}</span>
-          {canEdit && <button type="button" className="check-remove" onClick={() => onRemove(item.id)}><X size={11}/></button>}
+          <span className="check-text" style={isChild ? { fontSize: '0.82rem', color: isChecked ? '#666' : '#bbb' } : { fontWeight: hasChildren ? 700 : 500 }}>
+            {item.text}
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
+            {canEdit && !isChild && (
+              <button 
+                type="button" 
+                title="Додати підпункт" 
+                onClick={() => {
+                  setActiveAddId(item.id)
+                  setSubText('')
+                }}
+                style={{ background: 'transparent', border: 'none', color: '#ff9000', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', opacity: 0.7 }}
+                onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                onMouseLeave={e => e.currentTarget.style.opacity = '0.7'}
+              >
+                <Plus size={14} />
+                <span style={{ fontSize: '0.68rem', marginLeft: '2px' }}>підпункт</span>
+              </button>
+            )}
+            {canEdit && (
+              <button type="button" className="check-remove" onClick={() => onRemove(item.id)}>
+                <X size={11}/>
+              </button>
+            )}
+          </div>
         </div>
-      ))}
-      {items.length === 0 && <div className="checklist-empty">Немає пунктів. {canEdit ? 'Додайте нижче.' : ''}</div>}
-    </div>
-    {canEdit && (
-      <div className="add-check-row">
-        <input
-          type="text"
-          placeholder="Новий пункт чеклисту..."
-          value={newItem}
-          onChange={e => setNewItem(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), onAdd())}
-        />
-        <button type="button" className="add-check-btn" onClick={onAdd}><Plus size={14}/></button>
+
+        {/* Inline subitem input */}
+        {isAddingSub && (
+          <div style={{ display: 'flex', gap: '8px', marginLeft: '24px', padding: '6px 10px', alignItems: 'center' }}>
+            <input 
+              autoFocus
+              type="text" 
+              placeholder="Введіть назву підпункту..."
+              value={subText}
+              onChange={e => setSubText(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  if (subText.trim()) {
+                    onAddSubItem && onAddSubItem(item.id, subText.trim())
+                  }
+                  setActiveAddId(null)
+                  setSubText('')
+                } else if (e.key === 'Escape') {
+                  setActiveAddId(null)
+                  setSubText('')
+                }
+              }}
+              style={{ 
+                background: '#0d0d0d', 
+                border: '1px solid #ff9000', 
+                borderRadius: '8px', 
+                padding: '6px 12px', 
+                color: '#fff', 
+                fontSize: '0.8rem', 
+                flex: 1 
+              }}
+            />
+            <button 
+              type="button" 
+              onClick={() => {
+                if (subText.trim()) {
+                  onAddSubItem && onAddSubItem(item.id, subText.trim())
+                }
+                setActiveAddId(null)
+                setSubText('')
+              }}
+              style={{ background: '#ff9000', border: 'none', color: '#000', borderRadius: '8px', padding: '6px 12px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}
+            >
+              Додати
+            </button>
+            <button 
+              type="button" 
+              onClick={() => {
+                setActiveAddId(null)
+                setSubText('')
+              }}
+              style={{ background: 'transparent', border: '1px solid #333', color: '#888', borderRadius: '8px', padding: '6px 12px', fontSize: '0.8rem', cursor: 'pointer' }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {children.map(child => renderItem(child, true))}
       </div>
-    )}
-  </div>
-)
+    )
+  }
+
+  return (
+    <div className="checklist-editor">
+      {items.length > 0 && (
+        <div className="checklist-progress-row">
+          <div className="cl-track"><div className="cl-fill" style={{ width: `${checklistProgress(items)?.pct || 0}%`, background: checklistProgress(items)?.pct === 100 ? '#10b981' : '#3b82f6' }} /></div>
+          <span className="cl-pct">{checklistProgress(items)?.pct || 0}%</span>
+        </div>
+      )}
+      <div className="checklist-items">
+        {roots.map(root => renderItem(root, false))}
+        {items.length === 0 && <div className="checklist-empty">Немає пунктів. {canEdit ? 'Додайте нижче.' : ''}</div>}
+      </div>
+      {canEdit && (
+        <div className="add-check-row">
+          <input
+            type="text"
+            placeholder="Новий пункт чеклисту..."
+            value={newItem}
+            onChange={e => setNewItem(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), onAdd())}
+          />
+          <button type="button" className="add-check-btn" onClick={onAdd}><Plus size={14}/></button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
 
@@ -466,7 +638,7 @@ const KanbanModule = () => {
   }
 
   const removeCheckItemFromForm = (id) => {
-    setForm(f => ({ ...f, checklist: f.checklist.filter(i => i.id !== id) }))
+    setForm(f => ({ ...f, checklist: f.checklist.filter(i => String(i.id) !== String(id) && String(i.parent_id) !== String(id)) }))
   }
 
   // ─── Edit Task ──────────────────────────────────────────────────────────
@@ -515,13 +687,13 @@ const KanbanModule = () => {
   }
 
   const removeCheckItemFromEdit = (id) => {
-    setEditForm(f => ({ ...f, checklist: f.checklist.filter(i => i.id !== id) }))
+    setEditForm(f => ({ ...f, checklist: f.checklist.filter(i => String(i.id) !== String(id) && String(i.parent_id) !== String(id)) }))
   }
 
   // ─── Toggle checklist item ──────────────────────────────────────────────
   const handleToggleCheckItem = async (task, itemId) => {
     const checklist = Array.isArray(task.checklist) ? task.checklist : []
-    const updated = checklist.map(i => i.id === itemId ? { ...i, done: !i.done } : i)
+    const updated = toggleChecklistItem(checklist, itemId)
     await updateManagementTask(task.id, { checklist: updated })
     if (selectedTask?.id === task.id) setSelectedTask(prev => ({ ...prev, checklist: updated }))
   }
@@ -1056,8 +1228,15 @@ const KanbanModule = () => {
                         setSelectedTask(prev => ({ ...prev, checklist: updated }))
                         setNewCheckItem('')
                       }}
+                      onAddSubItem={async (parentId, text) => {
+                        const updated = [...(Array.isArray(selectedTask.checklist) ? selectedTask.checklist : []), { id: genId(), text, done: false, parent_id: parentId }]
+                        await updateManagementTask(selectedTask.id, { checklist: updated })
+                        setSelectedTask(prev => ({ ...prev, checklist: updated }))
+                      }}
                       onRemove={async (itemId) => {
-                        const updated = (Array.isArray(selectedTask.checklist) ? selectedTask.checklist : []).filter(i => i.id !== itemId)
+                        const updated = (Array.isArray(selectedTask.checklist) ? selectedTask.checklist : []).filter(i => 
+                          String(i.id) !== String(itemId) && String(i.parent_id) !== String(itemId)
+                        )
                         await updateManagementTask(selectedTask.id, { checklist: updated })
                         setSelectedTask(prev => ({ ...prev, checklist: updated }))
                       }}
@@ -1158,20 +1337,17 @@ const KanbanModule = () => {
               {/* Checklist builder */}
               <div className="form-group">
                 <label><CheckSquare size={13}/> Чеклист (пункти)</label>
-                <div className="cl-builder">
-                  {form.checklist.map(item => (
-                    <div key={item.id} className="cl-build-item">
-                      <CheckSquare size={13} color="#555"/>
-                      <span>{item.text}</span>
-                      <button type="button" onClick={() => removeCheckItemFromForm(item.id)}><X size={11}/></button>
-                    </div>
-                  ))}
-                  <div className="add-check-row">
-                    <input type="text" placeholder="Додати пункт..." value={newCheckItem} onChange={e => setNewCheckItem(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addCheckItemToForm())} />
-                    <button type="button" className="add-check-btn" onClick={addCheckItemToForm}><Plus size={14}/></button>
-                  </div>
-                </div>
+                <ChecklistEditor
+                  items={form.checklist || []}
+                  newItem={newCheckItem}
+                  setNewItem={setNewCheckItem}
+                  onAdd={addCheckItemToForm}
+                  onAddSubItem={(parentId, text) => {
+                    setForm(f => ({ ...f, checklist: [...(f.checklist || []), { id: genId(), text, done: false, parent_id: parentId }] }))
+                  }}
+                  onRemove={removeCheckItemFromForm}
+                  canEdit={true}
+                />
               </div>
 
               <div className="modal-footer">
@@ -1259,22 +1435,20 @@ const KanbanModule = () => {
               {/* Checklist editor */}
               <div className="form-group">
                 <label><CheckSquare size={13}/> Чеклист</label>
-                <div className="cl-builder">
-                  {(editForm.checklist || []).map(item => (
-                    <div key={item.id} className={`cl-build-item ${item.done ? 'done' : ''}`}>
-                      <button type="button" onClick={() => setEditForm(f => ({ ...f, checklist: f.checklist.map(i => i.id === item.id ? { ...i, done: !i.done } : i) }))}>
-                        {item.done ? <CheckSquare size={13} color="#10b981"/> : <Square size={13} color="#555"/>}
-                      </button>
-                      <span>{item.text}</span>
-                      <button type="button" onClick={() => removeCheckItemFromEdit(item.id)}><X size={11}/></button>
-                    </div>
-                  ))}
-                  <div className="add-check-row">
-                    <input type="text" placeholder="Новий пункт..." value={editCheckItem} onChange={e => setEditCheckItem(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addCheckItemToEdit())} />
-                    <button type="button" className="add-check-btn" onClick={addCheckItemToEdit}><Plus size={14}/></button>
-                  </div>
-                </div>
+                <ChecklistEditor
+                  items={editForm.checklist || []}
+                  newItem={editCheckItem}
+                  setNewItem={setEditCheckItem}
+                  onAdd={addCheckItemToEdit}
+                  onToggle={(itemId) => {
+                    setEditForm(f => ({ ...f, checklist: toggleChecklistItem(f.checklist, itemId) }))
+                  }}
+                  onAddSubItem={(parentId, text) => {
+                    setEditForm(f => ({ ...f, checklist: [...(f.checklist || []), { id: genId(), text, done: false, parent_id: parentId }] }))
+                  }}
+                  onRemove={removeCheckItemFromEdit}
+                  canEdit={true}
+                />
               </div>
 
               <div className="modal-footer">
