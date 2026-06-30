@@ -269,29 +269,60 @@ const WarehouseModuleV2 = () => {
         return undefined
       }
 
-      const isSheetMatchingPart = (req, partNom) => {
-        if (!partNom) return false
+      const getDisplayMaterial = (partNom, snapshot) => {
+        const baseMat = partNom?.material_type || '—'
+        if (!snapshot) return baseMat
+        const s300 = snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : 0
+        const s700 = snapshot.sheets_t700 !== undefined ? Number(snapshot.sheets_t700) : 0
+
+        if (snapshot.sheets_t300 !== undefined || snapshot.sheets_t700 !== undefined) {
+          if (s700 > 0 && s300 === 0) {
+            return baseMat.replace(/т300/gi, 'Т700').replace(/t300/gi, 'Т700')
+          }
+          if (s300 > 0 && s700 > 0) {
+            return baseMat.replace(/т300/gi, 'Т300+Т700').replace(/t300/gi, 'Т300+Т700')
+          }
+          if (s300 > 0 && s700 === 0) {
+            return baseMat.replace(/т700/gi, 'Т300').replace(/t700/gi, 'Т300')
+          }
+        }
+        return baseMat
+      }
+
+      const task = (tasks || []).find(t => t.id === card.task_id)
+      const snapshotPart = task?.plan_snapshot?.[card.nomenclature_id]
+      const activeMaterial = getDisplayMaterial(nom, snapshotPart)
+
+      const isSheetMatchingPart = (req, activeMaterial, partNom) => {
+        if (!activeMaterial) return false
         
         // 1. Check material_type match
-        if (partNom.material_type) {
-          const partMat = normStr(partNom.material_type)
-          const reqNom = nomenclatures.find(n => n.id === req.nomenclature_id)
-          const reqName = reqNom?.name || req.details || ''
-          if (normStr(reqName).includes(partMat)) {
-            return true
-          }
+        const reqNom = nomenclatures.find(n => n.id === req.nomenclature_id)
+        const reqName = reqNom?.name || req.details || ''
+        const reqMatNorm = normStr(reqName)
+        const activeMaterials = activeMaterial.split('+').map(m => normStr(m.trim()))
+
+        if (activeMaterials.some(act => reqMatNorm.includes(act) || act.includes(reqMatNorm))) {
+          return true
         }
         
         // 2. Fallback: check if the request details explicitly mention the part name
         const reqDetails = req.details || ''
-        if (normStr(reqDetails).includes(normStr(partNom.name))) {
+        if (partNom && normStr(reqDetails).includes(normStr(partNom.name))) {
           return true
         }
         
         return false
       }
 
-      const matchedSheets = reqs.filter(req => !req.card_id && isSheetMatchingPart(req, nom)).map(req => ({
+      const isSheetRequest = (req) => {
+        const reqNom = nomenclatures.find(n => n.id === req.nomenclature_id)
+        const name = reqNom?.name || req.details || ''
+        const lowerName = name.toLowerCase()
+        return lowerName.includes('лист') || lowerName.includes('sheet')
+      }
+
+      const matchedSheets = reqs.filter(req => !req.card_id && isSheetRequest(req) && isSheetMatchingPart(req, activeMaterial, nom)).map(req => ({
         ...req,
         displayQty: cardSheets,
         isSheet: true

@@ -61,7 +61,7 @@ const MasterModule = () => {
     createNaryad, issueMaterials, approveWarehouse,
     fetchModuleData,
     machines,
-    machineCalls, currentUser, machineOperations
+    machineCalls, currentUser, machineOperations, requests
   } = useMES()
 
   // Load module-specific data on mount (inventory, work_cards, requests)
@@ -2983,12 +2983,39 @@ const displayParts = getDisplayPartsForOrderItem(it)
                 <div className="mat-summary-section" style={{ marginTop: '25px', padding: '20px 30px', borderRadius: '18px', border: '1px solid #222', background: '#070707' }}>
                   <h4 style={{ margin: '0 0 15px', fontSize: '0.75rem', fontWeight: 950, color: '#444', textTransform: 'uppercase' }}>ВІДОМІСТЬ МАТЕРІАЛІВ:</h4>
                   <div className="mat-flex-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '25px', overflowX: 'hidden' }}>
-                    {materialSummary.map((m, idx) => (
-                      <div key={idx} className="mat-card-p" style={{ flex: 1, padding: '0 0 5px 15px', borderLeft: '4px solid #ff9000', minWidth: 'min-content' }}>
-                        <div style={{ fontSize: '0.6rem', color: '#555', fontWeight: 800, marginBottom: '3px' }} className="print-subtxt">{m.name || '—'}</div>
-                        <div style={{ fontSize: '1.3rem', fontWeight: 950, color: '#fff' }} className="print-txt">{(Number(m.sheets) || 0).toString()} <small style={{ fontSize: '0.65rem', fontWeight: 400, color: '#444' }} className="print-subtxt">{m.unit || 'ЛИСТІВ'}</small></div>
-                      </div>
-                    ))}
+                    {materialSummary.map((m, idx) => {
+                      const totalSheets = Number(m.sheets) || 0
+                      let displayQtyText = `${totalSheets}`
+                      
+                      if (isReprintMode && reprintTask) {
+                        const normStrLocal = str => str ? str.toLowerCase().replace(/[^a-z0-9а-яєіїґ]/g, '') : ''
+                        const remaining = (requests || []).filter(r => 
+                          r.task_id === reprintTask.id && 
+                          r.status !== 'completed' && 
+                          (() => {
+                            const reqNom = nomenclatures.find(n => n.id === r.nomenclature_id)
+                            const name = reqNom?.name || r.details || ''
+                            const lowerName = name.toLowerCase()
+                            const isSheet = lowerName.includes('лист') || lowerName.includes('sheet')
+                            if (!isSheet) return false
+                            
+                            const rNameNorm = normStrLocal(name)
+                            const mNameNorm = normStrLocal(m.name)
+                            return rNameNorm.includes(mNameNorm) || mNameNorm.includes(rNameNorm)
+                          })()
+                        ).reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+                        
+                        const issued = Math.max(0, totalSheets - remaining)
+                        displayQtyText = `${issued}/${totalSheets}`
+                      }
+
+                      return (
+                        <div key={idx} className="mat-card-p" style={{ flex: 1, padding: '0 0 5px 15px', borderLeft: '4px solid #ff9000', minWidth: 'min-content' }}>
+                          <div style={{ fontSize: '0.6rem', color: '#555', fontWeight: 800, marginBottom: '3px' }} className="print-subtxt">{m.name || '—'}</div>
+                          <div style={{ fontSize: '1.3rem', fontWeight: 950, color: '#fff' }} className="print-txt">{displayQtyText} <small style={{ fontSize: '0.65rem', fontWeight: 400, color: '#444' }} className="print-subtxt">{m.unit || 'ЛИСТІВ'}</small></div>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )}
@@ -3051,6 +3078,35 @@ const displayParts = getDisplayPartsForOrderItem(it)
                         const currentF2Override = f2PartIds.length > 0 &&
                           f2PartIds.every(id => (partCutterOverrides[id] || '2') === '1.5') ? '1.5' : '2'
 
+                        const totalQty = Number(c.total) || 0
+                        let displayQtyText = `${totalQty}`
+
+                        if (isReprintMode && reprintTask) {
+                          const normStrLocal = str => str ? str.toLowerCase().replace(/[^a-z0-9а-яєіїґ]/g, '') : ''
+                          const getD = (name) => {
+                            const clean = name.toLowerCase().replace(/,/g, '.')
+                            const match = clean.match(/(?:фреза|ф|d|d=|діаметр|діаметром)?\s*([0-9]+(?:[.,][0-9]+)?)/)
+                            return match ? parseFloat(match[1]) : null
+                          }
+                          const targetD = getD(displayName)
+
+                          const issued = (requests || []).filter(r => 
+                            r.task_id === reprintTask.id && 
+                            r.status === 'completed' && 
+                            (() => {
+                              const reqNom = nomenclatures.find(n => n.id === r.nomenclature_id)
+                              const rName = (reqNom?.name || r.details || '').toLowerCase()
+                              const targetName = displayName.toLowerCase()
+                              if (normStrLocal(rName).includes(normStrLocal(targetName)) || normStrLocal(targetName).includes(normStrLocal(rName))) return true
+                              
+                              const reqD = getD(rName)
+                              return reqD !== null && targetD !== null && reqD === targetD
+                            })()
+                          ).reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+
+                          displayQtyText = `${issued}/${totalQty}`
+                        }
+
                         return (
                           <div key={idx} className="mat-card-p" style={{
                             padding: '10px 15px',
@@ -3064,7 +3120,7 @@ const displayParts = getDisplayPartsForOrderItem(it)
                               {displayName}
                             </div>
                             <div style={{ fontSize: '1.1rem', fontWeight: 950, color: '#fff' }} className="print-txt">
-                              {(Number(c.total) || 0).toString()} <small style={{ fontSize: '0.65rem', fontWeight: 400, color: '#444' }} className="print-subtxt">ОД.</small>
+                              {displayQtyText} <small style={{ fontSize: '0.65rem', fontWeight: 400, color: '#444' }} className="print-subtxt">ОД.</small>
                             </div>
                             {isSwitchableCard && f2PartIds.length > 0 && !isReprintMode && (
                               <div style={{ marginTop: '8px', display: 'flex', gap: '3px', background: '#0d0d0d', borderRadius: '7px', padding: '2px', width: 'fit-content' }}>
