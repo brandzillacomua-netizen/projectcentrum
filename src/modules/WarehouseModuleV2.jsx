@@ -666,9 +666,38 @@ const WarehouseModuleV2 = () => {
       const preparedCutters = []
       for (const [cNomId, rate] of Object.entries(cuttersRates)) {
         const cNom = nomenclatures.find(n => n.id === cNomId)
+        let cutterName = cNom?.name || 'Фреза'
+        let finalNomId = cNomId
+
+        const getDiameter = (name) => {
+          if (!name) return null
+          const clean = name.toLowerCase().replace(/,/g, '.')
+          const match = clean.match(/(?:фреза|ф|d|d=|діаметр|діаметром)?\s*([0-9]+(?:[.,][0-9]+)?)/)
+          return match ? parseFloat(match[1]) : null
+        }
+
+        const targetD = getDiameter(cNom?.name)
+        if (targetD !== null) {
+          const exactReq = (requests || []).find(r => {
+            if (String(r.task_id || r.order_id) !== String(card.task_id || card.order_id)) return false
+            const rNom = nomenclatures.find(n => n.id === r.nomenclature_id)
+            const rName = rNom ? rNom.name : (r.details || '')
+            const rD = getDiameter(rName)
+            return rD !== null && rD === targetD
+          })
+
+          if (exactReq) {
+            const exactNom = nomenclatures.find(n => n.id === exactReq.nomenclature_id)
+            if (exactNom) {
+              cutterName = exactNom.name
+              finalNomId = exactNom.id
+            }
+          }
+        }
+
         preparedCutters.push({
-          nomenclature_id: cNomId,
-          name: cNom?.name || 'Фреза',
+          nomenclature_id: finalNomId,
+          name: cutterName,
           qty: Math.ceil(rate * cardSheets)
         })
       }
@@ -685,7 +714,7 @@ const WarehouseModuleV2 = () => {
     })
 
     return list
-  }, [workCards, tasks, nomenclatures, machineOperations])
+  }, [workCards, tasks, nomenclatures, machineOperations, requests])
 
   const tabs = useMemo(() => {
     const getCount = (tabId) => {
@@ -2277,6 +2306,17 @@ const WarehouseModuleV2 = () => {
                             const nomKey = `${g.orderNum}-${nomName}`
                             const isNomExpanded = expandedNomenclatures[nomKey] === true
 
+                            // Calculate totals
+                            const sheetsSummary = {}
+                            const cuttersSummary = {}
+                            boxList.forEach(item => {
+                              const matName = item.activeMaterialName || 'Листи'
+                              sheetsSummary[matName] = (sheetsSummary[matName] || 0) + item.cardSheets
+                              item.cutters.forEach(c => {
+                                cuttersSummary[c.name] = (cuttersSummary[c.name] || 0) + c.qty
+                              })
+                            })
+
                             return (
                               <div key={nomName} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                                 {/* Nomenclature Sub-Header Panel */}
@@ -2318,6 +2358,34 @@ const WarehouseModuleV2 = () => {
                                     }}>
                                       Зібрано: {preparedNom} / {totalNom} боксів
                                     </span>
+                                  </div>
+
+                                  {/* Summarized Material & Cutters Demand for this Nomenclature */}
+                                  <div style={{ 
+                                    display: 'flex', 
+                                    gap: '10px 25px', 
+                                    marginTop: '10px', 
+                                    paddingTop: '10px', 
+                                    borderTop: '1px dashed rgba(59, 130, 246, 0.15)',
+                                    flexWrap: 'wrap',
+                                    fontSize: '0.75rem'
+                                  }}>
+                                    <div style={{ color: '#888', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                      <span style={{ opacity: 0.8 }}>⚡</span> <span style={{ color: '#aaa' }}>Усього листів:</span>
+                                      {Object.entries(sheetsSummary).map(([mat, qty]) => (
+                                        <span key={mat} style={{ background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '6px', color: '#eee', fontWeight: 800 }}>
+                                          {qty} л. ({mat.replace(/лист\s*/gi, '')})
+                                        </span>
+                                      ))}
+                                    </div>
+                                    <div style={{ color: '#888', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                      <span style={{ opacity: 0.8 }}>🛠️</span> <span style={{ color: '#aaa' }}>Усього фрез:</span>
+                                      {Object.entries(cuttersSummary).map(([cName, qty]) => (
+                                        <span key={cName} style={{ background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '6px', color: '#eee', fontWeight: 800 }}>
+                                          {qty} шт ({cName.replace(/фреза\s*/gi, '')})
+                                        </span>
+                                      ))}
+                                    </div>
                                   </div>
                                 </div>
 
