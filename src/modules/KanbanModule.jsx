@@ -31,18 +31,6 @@ const COLUMNS = [
   { id: 'done',        title: 'ВИКОНАНО',   color: '#10b981', glow: 'rgba(16,185,129,0.3)' },
 ]
 
-const DEPARTMENTS = [
-  { id: 'all',       label: 'Усі відділи'  },
-  { id: 'manager',   label: 'Менеджмент'   },
-  { id: 'shop1',     label: 'Цех №1'       },
-  { id: 'shop2',     label: 'Цех №2'       },
-  { id: 'packaging', label: 'Пакування'    },
-  { id: 'warehouse', label: 'Склад'        },
-  { id: 'supply',    label: 'Постачання'   },
-  { id: 'logistics', label: 'Логістика'    },
-  { id: 'qa',        label: 'ВКЯ'          },
-]
-
 const PRIORITY_CFG = {
   low:    { label: 'НИЗЬКИЙ',   color: '#34d399', bg: 'rgba(52,211,153,0.12)'  },
   medium: { label: 'СЕРЕДНІЙ', color: '#60a5fa', bg: 'rgba(96,165,250,0.12)'  },
@@ -50,9 +38,18 @@ const PRIORITY_CFG = {
   urgent: { label: 'НАГАЛЬНО', color: '#ef4444', bg: 'rgba(239,68,68,0.12)'   },
 }
 
-const getUserDeptId = (deptName) => {
+const getUserDeptId = (deptName, companyStructure) => {
   if (!deptName) return ''
-  const d = deptName.toLowerCase()
+  const d = deptName.toLowerCase().trim()
+
+  if (Array.isArray(companyStructure)) {
+    const match = companyStructure.find(item => {
+      const name = (item.name || item.label || '').toLowerCase().trim()
+      return name === d || d.includes(name) || name.includes(d)
+    })
+    if (match) return String(match.id)
+  }
+
   if (d.includes('цех №1') || d.includes('цех 1')) return 'shop1'
   if (d.includes('цех №2') || d.includes('цех 2')) return 'shop2'
   if (d.includes('пакув')) return 'packaging'
@@ -64,13 +61,13 @@ const getUserDeptId = (deptName) => {
   return ''
 }
 
-const getTaskDepartment = (task, systemUsers) => {
+const getTaskDepartment = (task, systemUsers, companyStructure) => {
   if (task.is_collective) {
     return task.department || 'all'
   }
   const assignee = (systemUsers || []).find(u => u.login === task.assigned_to)
   if (assignee) {
-    return getUserDeptId(assignee.department) || 'all'
+    return getUserDeptId(assignee.department, companyStructure) || 'all'
   }
   return 'all'
 }
@@ -232,7 +229,45 @@ const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove
 // ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
 
 const KanbanModule = () => {
-  const { managementTasks, systemUsers, addManagementTask, updateManagementTask, deleteManagementTask, currentUser, setManagementTasks } = useMES()
+  const { managementTasks, systemUsers, addManagementTask, updateManagementTask, deleteManagementTask, currentUser, setManagementTasks, companyStructure } = useMES()
+
+  const DEPARTMENTS = useMemo(() => {
+    const list = [{ id: 'all', label: 'Усі відділи' }]
+    const seenIds = new Set(['all'])
+    
+    if (Array.isArray(companyStructure)) {
+      companyStructure.forEach(item => {
+        const idStr = String(item.id)
+        if (seenIds.has(idStr)) return
+        seenIds.add(idStr)
+        list.push({
+          id: idStr,
+          label: item.name || item.label || ''
+        })
+      })
+    }
+
+    const staticDepts = [
+      { id: 'manager',   label: 'Менеджмент'   },
+      { id: 'shop1',     label: 'Цех №1'       },
+      { id: 'shop2',     label: 'Цех №2'       },
+      { id: 'packaging', label: 'Пакування'    },
+      { id: 'warehouse', label: 'Склад'        },
+      { id: 'supply',    label: 'Постачання'   },
+      { id: 'logistics', label: 'Логістика'    },
+      { id: 'qa',        label: 'ВКЯ'          },
+    ]
+
+    staticDepts.forEach(sd => {
+      const nameNorm = sd.label.toLowerCase()
+      const exists = list.some(item => (item.label || '').toLowerCase() === nameNorm || item.id === sd.id)
+      if (!exists) {
+        list.push(sd)
+      }
+    })
+
+    return list
+  }, [companyStructure])
 
   // ── Role detection ──────────────────────────────────────────────────────
   const isManager = useMemo(() => {
@@ -307,13 +342,13 @@ const KanbanModule = () => {
     if (filterMode === 'my') list = list.filter(t => t.assigned_to === currentUser?.login)
     else if (filterMode === 'assigned_by_me') list = list.filter(t => t.created_by === currentUser?.login && t.assigned_to !== currentUser?.login)
     else if (filterMode === 'department') {
-      const deptId = getUserDeptId(currentUser?.department)
+      const deptId = getUserDeptId(currentUser?.department, companyStructure)
       list = list.filter(t => t.is_collective && (t.department === deptId || t.department === 'all'))
     } else if (filterMode === 'unassigned') {
       list = list.filter(t => !t.assigned_to && !t.is_collective)
     }
     if (selectedDeptFilter !== 'all') {
-      list = list.filter(t => getTaskDepartment(t, systemUsers) === selectedDeptFilter)
+      list = list.filter(t => getTaskDepartment(t, systemUsers, companyStructure) === selectedDeptFilter)
     }
     if (statsFilter === 'in_progress') list = list.filter(t => t.status === 'in_progress')
     else if (statsFilter === 'overdue') list = list.filter(t => isOverdueTask(t))
@@ -323,7 +358,7 @@ const KanbanModule = () => {
       list = list.filter(t => (t.title || '').toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q))
     }
     return list
-  }, [managementTasks, isManager, filterMode, statsFilter, searchQuery, currentUser, selectedDeptFilter, systemUsers])
+  }, [managementTasks, isManager, filterMode, statsFilter, searchQuery, currentUser, selectedDeptFilter, systemUsers, companyStructure])
 
   // ─── Comments helpers ───────────────────────────────────────────────────
   const parseComments = (desc) => {
@@ -495,7 +530,7 @@ const KanbanModule = () => {
   const canAdvance = (task) => {
     if (task.status === 'done') return false
     const isAssignee = task.assigned_to === currentUser?.login
-    const isCollForDept = task.is_collective && (getUserDeptId(currentUser?.department) === task.department || task.department === 'all')
+    const isCollForDept = task.is_collective && (getUserDeptId(currentUser?.department, companyStructure) === task.department || task.department === 'all')
     return isAssignee || isCollForDept || isManager
   }
 
@@ -749,7 +784,7 @@ const KanbanModule = () => {
               // Calculate counts for this department
               const deptTasks = (managementTasks || []).filter(t => {
                 if (d.id === 'all') return true
-                return getTaskDepartment(t, systemUsers) === d.id
+                return getTaskDepartment(t, systemUsers, companyStructure) === d.id
               })
               
               const todoCnt = deptTasks.filter(t => t.status === 'todo').length
