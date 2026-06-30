@@ -605,6 +605,10 @@ const WarehouseModuleV2 = () => {
 
       const task = (tasks || []).find(t => t.id === card.task_id)
       if (!task) return
+      if (task.step !== 'Розкрій' && task.step !== 'Підготовка') return
+
+      const createdAt = card.created_at || task.created_at
+      if (createdAt && new Date(createdAt) < new Date('2026-06-28T00:00:00Z')) return
 
       const cardMac = card.machine || card.machine_name
       const resolveMachineType = (machineName) => {
