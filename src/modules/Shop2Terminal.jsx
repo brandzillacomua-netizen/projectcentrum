@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import {
   Tablet, ArrowLeft, Play, CheckCircle, Scan, Timer, AlertTriangle,
-  X, ClipboardList, Camera, Menu, RefreshCw, Box, Layers, Gauge, Package, Eye
+  X, ClipboardList, Camera, Menu, RefreshCw, Box, Layers, Gauge, Package, Eye, Search, QrCode
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
@@ -23,8 +23,59 @@ const translateCyrillic = (str) => {
 }
 
 const Shop2Terminal = () => {
+
+  const handleManualEntry = async (e) => {
+    if (e) e.preventDefault()
+    if (!manualId) return
+
+    const cleanInput = translateCyrillic(manualId.trim()).replace('CENTRUM_CARD_', '').replace('#', '').trim()
+
+    const isMachineQR = await handleMachineQRScan(cleanInput)
+    if (isMachineQR) {
+      setManualId('')
+      setIsScanning(false)
+      return
+    }
+
+    setIsProcessing(true)
+
+    let card = workCards.find(c => 
+      c.card_info?.includes('[ЦЕХ №2]') && (
+        String(c.id).trim() === cleanInput || 
+        String(c.id).toUpperCase().startsWith(cleanInput.toUpperCase()) ||
+        String(c.id).toUpperCase().endsWith(cleanInput.toUpperCase())
+      )
+    )
+    
+    if (!card) {
+      if (typeof fetchData === 'function') {
+        try { await fetchData(['work_cards']) } catch (e) { }
+      }
+      card = workCards.find(c => 
+        c.card_info?.includes('[ЦЕХ №2]') && (
+          String(c.id).trim() === cleanInput || 
+          String(c.id).toUpperCase().startsWith(cleanInput.toUpperCase()) ||
+          String(c.id).toUpperCase().endsWith(cleanInput.toUpperCase())
+        )
+      )
+    }
+
+    if (!card) {
+      setScanError(`Картку №${cleanInput} не знайдено в Цеху №2`)
+    } else {
+      setScannedCardIds(prev => prev.includes(card.id) ? prev : [...prev, card.id])
+      setSelectedCardId(card.id)
+      setManualId('')
+      setIsScanning(false)
+      setScanError(null)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+    setIsProcessing(false)
+  }
+
   const { workCards, orders, nomenclatures, inventory, startWorkCard, confirmBuffer, fetchData, refreshTable, operators, getFilteredOperators, getFilteredManagers, managers, workCardHistory, handoverToSGP, currentUser, systemUsers, tasks } = useMES()
   const [selectedCardId, setSelectedCardId] = useState(null)
+  const [manualId, setManualId] = useState('')
   const [selectedStage, setSelectedStage] = useState('')
   const [selectedOperator, setSelectedOperator] = useState('')
   const [selectedManager, setSelectedManager] = useState('')
@@ -675,6 +726,7 @@ const Shop2Terminal = () => {
           <div key={card.id} onClick={() => { setSelectedCardId(card.id); setIsDrawerOpen(false); setScanError(null); }} style={{ background: isActive ? '#8b5cf6' : '#1a1a1a', borderRadius: '12px', padding: '15px', marginBottom: '10px', cursor: 'pointer', border: '1px solid', borderColor: isActive ? '#8b5cf6' : '#333', transition: '0.2s', color: isActive ? '#fff' : '#fff' }}>
             <div style={{ marginBottom: '4px' }}>
               <strong style={{ display: 'block', fontSize: '0.9rem', fontWeight: 800 }}>{nom?.name || 'Без назви'}</strong>
+              <span style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 800 }}>#{card.id.slice(-8).toUpperCase()}</span>
               <div style={{ fontSize: '0.65rem', opacity: 0.7 }}>{card.quantity} шт | Етап: {card.status === 'at-buffer' ? `Буфер ${card.operation?.toLowerCase()}` : (card.operation || '—')}</div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
@@ -827,6 +879,7 @@ const Shop2Terminal = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Tablet size={20} color="#8b5cf6" />
           <h1 style={{ fontSize: '1rem', fontWeight: 800, margin: 0 }} className="hide-mobile">ТЕРМІНАЛ ЦЕХУ №2 (ОПЕРАТОР)</h1>
+
           <button
             onClick={() => setShowStorageExplorer(true)}
             style={{
@@ -861,6 +914,12 @@ const Shop2Terminal = () => {
             <ClipboardList size={16} /> ЧЕРГА ЦЕХ №2 ({queuedCards.length})
           </div>
           {renderQueue()}
+          <div style={{ padding: '15px', borderTop: '1px solid #1a1a1a' }}>
+            <button onClick={() => setIsScanning(true)}
+              style={{ width: '100%', background: '#8b5cf615', border: '1px solid #8b5cf630', color: '#8b5cf6', padding: '14px', borderRadius: '12px', fontWeight: 900, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              <Camera size={18} /> СКАНУВАТИ
+            </button>
+          </div>
         </div>
 
         {isDrawerOpen && <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 99999 }} onClick={() => setIsDrawerOpen(false)} />}
@@ -870,6 +929,12 @@ const Shop2Terminal = () => {
             <X size={20} onClick={() => setIsDrawerOpen(false)} style={{ cursor: 'pointer' }} />
           </div>
           {renderQueue()}
+          <div style={{ padding: '15px', borderTop: '1px solid #1a1a1a' }}>
+            <button onClick={() => setIsScanning(true)}
+              style={{ width: '100%', background: '#8b5cf615', border: '1px solid #8b5cf630', color: '#8b5cf6', padding: '14px', borderRadius: '12px', fontWeight: 900, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              <Camera size={18} /> СКАНУВАТИ
+            </button>
+          </div>
         </div>
 
         <div className="content-panel" style={{ flex: 1, padding: '20px 15px', background: '#0a0a0a', overflowY: 'auto', position: 'relative' }}>
@@ -896,7 +961,7 @@ const Shop2Terminal = () => {
                       <div style={{ background: '#3b82f6', color: 'white', padding: '4px 10px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 900 }}>У РОБОТІ</div>
                     )}
                     <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800 }}>
-                      ЗАМОВЛЕННЯ №{orders?.find(o => o.id === currentCard.order_id)?.order_num || '—'} | КАРТКА #{currentCard.id.slice(0, 8)}...
+                      ЗАМОВЛЕННЯ №{orders?.find(o => o.id === currentCard.order_id)?.order_num || '—'} · #{currentCard.id.slice(-8).toUpperCase()}
                     </div>
                   </div>
                   <h2 style={{ fontSize: '2.5rem', margin: 0, fontWeight: 950, letterSpacing: '-0.02em', lineHeight: 1 }}>
@@ -1073,7 +1138,6 @@ const Shop2Terminal = () => {
             <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
                 <h2 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 950 }}>МОНІТОРИНГ ЦЕХУ №2</h2>
-                <button onClick={() => setIsScanning(true)} style={{ background: '#8b5cf6', border: 'none', color: '#fff', padding: '15px 30px', borderRadius: '15px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}><Camera size={20} /> СКАНУВАТИ QR</button>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px', marginBottom: '50px' }}>
@@ -1226,7 +1290,7 @@ const Shop2Terminal = () => {
                           <div key={c.id} style={{ background: 'rgba(255,255,255,0.02)', padding: '15px 20px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #1a1a1a' }}>
                             <div>
                               <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>{nom?.name || 'Деталь'}</div>
-                              <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '4px' }}>Картка №{c.id.slice(0, 6)}</div>
+                              <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '4px' }}>Картка №{c.id.slice(-8).toUpperCase()}</div>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                               <div style={{ fontWeight: 1000, fontSize: '1.3rem', color: '#10b981' }}>{c.quantity} <small style={{ fontSize: '0.6rem', opacity: 0.3 }}>шт</small></div>
@@ -1276,6 +1340,90 @@ const Shop2Terminal = () => {
           </div>
         </div>
       )}
+
+      <style>{`
+        .floating-controls-container {
+          position: fixed;
+          bottom: 30px;
+          right: 30px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          z-index: 1000;
+          transition: all 0.3s ease;
+        }
+        @media (max-width: 600px) {
+          .floating-controls-container {
+            bottom: 0;
+            left: 0;
+            right: 0;
+            width: 100%;
+            background: rgba(10, 10, 12, 0.96) !important;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 14px 20px;
+            justify-content: space-between;
+            border-radius: 0;
+            box-shadow: 0 -10px 35px rgba(0,0,0,0.9);
+            backdrop-filter: blur(15px);
+          }
+          .floating-controls-container form {
+            flex: 1;
+            box-shadow: none !important;
+            background: #000 !important;
+            border: 1px solid #222 !important;
+          }
+        }
+      `}</style>
+
+      {/* Floating Controls (Search and Scan QR) */}
+      <div className="floating-controls-container">
+        {/* Floating Search Form */}
+        <form onSubmit={handleManualEntry} style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          background: 'rgba(10, 10, 10, 0.95)',
+          border: '1px solid #222',
+          padding: '10px 14px',
+          borderRadius: '24px',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(10px)'
+        }}>
+          <Search size={16} color="#6b7280" />
+          <input
+            type="text"
+            placeholder="Введіть системний номер..."
+            value={manualId}
+            onChange={e => setManualId(e.target.value)}
+            disabled={isProcessing}
+            style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '0.85rem', fontWeight: 700, outline: 'none', width: '100%' }}
+          />
+          <button type="submit" disabled={isProcessing} style={{ background: '#8b5cf6', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '16px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+            {isProcessing ? <RefreshCw size={12} className="anim-spin" /> : 'ЗНАЙТИ'}
+          </button>
+        </form>
+
+        {/* Floating Round QR Scan Button */}
+        <button onClick={() => setIsScanning(true)}
+          className="hover-lift"
+          style={{ 
+            background: '#8b5cf6', 
+            border: 'none', 
+            color: '#000', 
+            width: '64px',
+            height: '64px',
+            borderRadius: '50%', 
+            display: 'flex', 
+            justifyContent: 'center',
+            alignItems: 'center', 
+            cursor: 'pointer',
+            boxShadow: '0 10px 30px rgba(139,92,246,0.4)',
+            transition: 'all 0.2s',
+            flexShrink: 0
+          }}>
+          <QrCode size={32} />
+        </button>
+      </div>
 
       {machineCallModal && (
         <div style={{

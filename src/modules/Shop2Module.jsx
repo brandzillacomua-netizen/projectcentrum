@@ -1170,7 +1170,7 @@ const Shop2Module = () => {
                             <tbody>
                               {cards.map(c => (
                                 <tr key={c.id} style={{ borderBottom: '1px solid #161616' }}>
-                                  <td style={{ padding: '12px 20px', fontSize: '0.75rem', color: '#888', fontWeight: 700 }}>{String(c.id).slice(0, 8)}...</td>
+                                  <td style={{ padding: '12px 20px', fontSize: '0.75rem', color: '#888', fontWeight: 700 }}>#{String(c.id).slice(-8).toUpperCase()}</td>
                                   <td style={{ padding: '12px 20px', fontSize: '0.85rem', fontWeight: 900, color: '#fff' }}>{c.operation}</td>
                                   <td style={{ padding: '12px 20px', textAlign: 'center', fontSize: '0.9rem', fontWeight: 1000, color: '#8b5cf6' }}>{c.quantity} шт</td>
                                   <td style={{ padding: '12px 20px', textAlign: 'center' }}>
@@ -1250,7 +1250,7 @@ const Shop2Module = () => {
                           level="H"
                           includeMargin={true}
                         />
-                        <div style={{ marginTop: '5px', fontSize: '0.65rem', fontWeight: 900, color: '#000', letterSpacing: '0.1em' }}>ID: {card.cardId.slice(0, 8)}</div>
+                        <div style={{ marginTop: '5px', fontSize: '0.65rem', fontWeight: 900, color: '#000', letterSpacing: '0.1em' }}>ID: #{card.cardId.slice(-8).toUpperCase()}</div>
                       </div>
 
                       <div className="print-info-section" style={{ textAlign: 'left', flex: 1 }}>
@@ -1305,7 +1305,7 @@ const Shop2Module = () => {
                     level="H"
                     includeMargin={true}
                   />
-                  <div style={{ marginTop: '15px', fontSize: '0.8rem', fontWeight: 900, color: '#aaa', letterSpacing: '0.1em' }}>ID: {printModalData.cardId.slice(0, 8)}</div>
+                  <div style={{ marginTop: '15px', fontSize: '0.8rem', fontWeight: 900, color: '#aaa', letterSpacing: '0.1em' }}>ID: #{printModalData.cardId.slice(-8).toUpperCase()}</div>
                 </div>
 
                 <div className="print-info-section" style={{ textAlign: 'left' }}>
