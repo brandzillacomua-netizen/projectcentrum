@@ -1,0 +1,163 @@
+{
+  "id": "50e590b8-3c78-4504-9a88-43f657319f41",
+  "order_id": "e037c400-9797-421d-9c79-3e3651f30ac7",
+  "step": "Пресування [ЦЕХ №2]",
+  "operator_name": null,
+  "status": "in-progress",
+  "good_qty": 0,
+  "scrap_qty": 0,
+  "started_at": null,
+  "finished_at": null,
+  "created_at": "2026-06-30T18:57:58.825952+00:00",
+  "completed_at": null,
+  "estimated_time": 0,
+  "scrap_data": null,
+  "engineer_conf": true,
+  "warehouse_conf": true,
+  "machine_name": null,
+  "director_conf": true,
+  "plan_snapshot": {
+    "arrivals": [
+      {
+        "bz": 0,
+        "id": "ef976ad5-8c88-4f03-a53e-2b914f15d4ba",
+        "name": "KH-10(210)-П-7-62",
+        "semi": 3407
+      },
+      {
+        "bz": 0,
+        "id": "8300e002-0169-46ec-9cc6-39cef0971269",
+        "name": "KR-10(210)-Н-3-18",
+        "semi": 288
+      }
+    ],
+    "_metadata": {
+      "batch_index": null,
+      "planned_deadline": "2026-07-03"
+    },
+    "consumables": [
+      {
+        "name": "Фреза ф2",
+        "total": 2011
+      },
+      {
+        "name": "Фреза ф3",
+        "total": 465
+      }
+    ],
+    "materialSummary": {
+      "34f79eca-3fd9-4281-ab69-e123a2005379": {
+        "unit": "ЛИСТІВ",
+        "sheets": 49,
+        "matName": "Лист Т300 (4мм) [Підготовлений]",
+        "partType": "raw",
+        "components": [
+          "KH-10(210)-Х-4-109: 5400шт"
+        ],
+        "totalUnits": 5400,
+        "inventory_id": "a49b50f7-e35c-47c5-ad4c-30bc058e33d9",
+        "nomenclature_id": "34f79eca-3fd9-4281-ab69-e123a2005379"
+      },
+      "5794bab6-1bca-4785-86f8-b525e2b0be76": {
+        "unit": "ЛИСТІВ",
+        "sheets": 193,
+        "matName": "Лист Т300 (3мм) [Підготовлений]",
+        "partType": "raw",
+        "components": [
+          "KR-10(210)-Н-3-18: 3000шт",
+          "KR-Line-210-415-В-3-28: 713шт"
+        ],
+        "totalUnits": 3713,
+        "inventory_id": "24d03784-b80e-4850-a3a9-0ed80058d4c7",
+        "nomenclature_id": "5794bab6-1bca-4785-86f8-b525e2b0be76"
+      },
+      "9a048d33-d916-4b5c-8539-00006ab3e23d": {
+        "unit": "ЛИСТІВ",
+        "sheets": 194,
+        "matName": "Лист Т300 (7мм) [Підготовлений]",
+        "partType": "raw",
+        "components": [
+          "KH-10(210)-П-7-62: 12000шт"
+        ],
+        "totalUnits": 12000,
+        "inventory_id": "16f862ce-f054-49f0-8385-84c598cf24c6",
+        "nomenclature_id": "9a048d33-d916-4b5c-8539-00006ab3e23d"
+      }
+    },
+    "selectedCutters": {
+      "Фреза ф2": "0f8982c4-7640-4d93-9681-1403a4527a4a",
+      "Фреза ф3": "c448f726-f57a-400a-b62a-1c3b10a154d1"
+    },
+    "076ba504-b3f6-4ec8-8844-fe9515077d9c": {
+      "id": "076ba504-b3f6-4ec8-8844-fe9515077d9c",
+      "name": "KR-Line-210-415-В-3-28",
+      "need": 3000,
+      "plan": 713,
+      "stock": 2287,
+      "sheets": 26,
+      "splits": [],
+      "machine": "CNC KE XIN - 4 - 16 листів (ФЕЯ)",
+      "material": "Лист Т300 (3мм)",
+      "sheets_t300": 26,
+      "sheets_t700": 0,
+      "order_item_id": "11d974ed-6949-4410-9b4f-cc276f1f9ee8",
+      "cutter_override": "2",
+      "units_per_sheet": 28,
+      "selected_machine": "CNC KE XIN - 4 - 16 листів (ФЕЯ)"
+    },
+    "8300e002-0169-46ec-9cc6-39cef0971269": {
+      "id": "8300e002-0169-46ec-9cc6-39cef0971269",
+      "name": "KR-10(210)-Н-3-18",
+      "need": 3000,
+      "plan": 3000,
+      "stock": 0,
+      "sheets": 167,
+      "splits": [],
+      "machine": "CNC 1200x800 - 4 листи (Малий)",
+      "material": "Лист Т300 (3мм)",
+      "sheets_t300": 167,
+      "sheets_t700": 0,
+      "order_item_id": "11d974ed-6949-4410-9b4f-cc276f1f9ee8",
+      "cutter_override": "2",
+      "units_per_sheet": 18,
+      "selected_machine": "CNC 1200x800 - 4 листи (Малий)"
+    },
+    "dc154eb4-a568-4944-8608-9cb0dae1180e": {
+      "id": "dc154eb4-a568-4944-8608-9cb0dae1180e",
+      "name": "KH-10(210)-Х-4-109",
+      "need": 6000,
+      "plan": 5400,
+      "stock": 600,
+      "sheets": 49,
+      "splits": [],
+      "machine": "CNC KE XIN - 4 - 16 листів (ФЕЯ)",
+      "material": "Лист Т300 (4мм)",
+      "sheets_t300": 49,
+      "sheets_t700": 0,
+      "order_item_id": "11d974ed-6949-4410-9b4f-cc276f1f9ee8",
+      "cutter_override": "2",
+      "units_per_sheet": 112,
+      "selected_machine": "CNC KE XIN - 4 - 16 листів (ФЕЯ)"
+    },
+    "ef976ad5-8c88-4f03-a53e-2b914f15d4ba": {
+      "id": "ef976ad5-8c88-4f03-a53e-2b914f15d4ba",
+      "name": "KH-10(210)-П-7-62",
+      "need": 12000,
+      "plan": 12000,
+      "stock": 0,
+      "sheets": 194,
+      "splits": [],
+      "machine": "CNC KE XIN - 4 - 16 листів (ФЕЯ)",
+      "material": "Лист Т300 (7мм)",
+      "sheets_t300": 194,
+      "sheets_t700": 0,
+      "order_item_id": "11d974ed-6949-4410-9b4f-cc276f1f9ee8",
+      "cutter_override": "2",
+      "units_per_sheet": 62,
+      "selected_machine": "CNC KE XIN - 4 - 16 листів (ФЕЯ)"
+    }
+  },
+  "planned_deadline": null,
+  "batch_index": null,
+  "planned_sets": 3000
+}
