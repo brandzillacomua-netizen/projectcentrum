@@ -26,17 +26,17 @@ const getInitials = (user) => {
 }
 
 const COLUMNS = [
-  { id: 'todo',        title: 'В ЧЕРЗІ',    color: '#8b5cf6', glow: 'rgba(139,92,246,0.3)' },
-  { id: 'in_progress', title: 'В РОБОТІ',   color: '#3b82f6', glow: 'rgba(59,130,246,0.3)' },
-  { id: 'review',      title: 'ПЕРЕВІРКА',  color: '#f59e0b', glow: 'rgba(245,158,11,0.3)' },
-  { id: 'done',        title: 'ВИКОНАНО',   color: '#10b981', glow: 'rgba(16,185,129,0.3)' },
+  { id: 'todo', title: 'В ЧЕРЗІ', color: '#8b5cf6', glow: 'rgba(139,92,246,0.3)' },
+  { id: 'in_progress', title: 'В РОБОТІ', color: '#3b82f6', glow: 'rgba(59,130,246,0.3)' },
+  { id: 'review', title: 'ПЕРЕВІРКА', color: '#f59e0b', glow: 'rgba(245,158,11,0.3)' },
+  { id: 'done', title: 'ВИКОНАНО', color: '#10b981', glow: 'rgba(16,185,129,0.3)' },
 ]
 
 const PRIORITY_CFG = {
-  low:    { label: 'НИЗЬКИЙ',   color: '#34d399', bg: 'rgba(52,211,153,0.12)'  },
-  medium: { label: 'СЕРЕДНІЙ', color: '#60a5fa', bg: 'rgba(96,165,250,0.12)'  },
-  high:   { label: 'ВИСОКИЙ',  color: '#fbbf24', bg: 'rgba(251,191,36,0.12)'  },
-  urgent: { label: 'НАГАЛЬНО', color: '#ef4444', bg: 'rgba(239,68,68,0.12)'   },
+  low: { label: 'НИЗЬКИЙ', color: '#34d399', bg: 'rgba(52,211,153,0.12)' },
+  medium: { label: 'СЕРЕДНІЙ', color: '#60a5fa', bg: 'rgba(96,165,250,0.12)' },
+  high: { label: 'ВИСОКИЙ', color: '#fbbf24', bg: 'rgba(251,191,36,0.12)' },
+  urgent: { label: 'НАГАЛЬНО', color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
 }
 
 const getUserDeptId = (deptName, companyStructure) => {
@@ -225,7 +225,7 @@ const AssigneeSelector = ({ value, onSelect, searchVal, setSearchVal, systemUser
         {selected ? (
           <div className="selected-assignee">
             <UserAvatar user={selected} size={24} showName />
-            {canClear && <button type="button" className="clear-btn" onClick={() => onSelect('')}><X size={12}/></button>}
+            {canClear && <button type="button" className="clear-btn" onClick={() => onSelect('')}><X size={12} /></button>}
           </div>
         ) : (
           <div className="assignee-search-wrap">
@@ -262,10 +262,10 @@ const AssigneeSelector = ({ value, onSelect, searchVal, setSearchVal, systemUser
 const ChecklistAssigneeSelector = ({ value, onSelect, systemUsers }) => {
   const [open, setOpen] = React.useState(false)
   const selectedUser = (systemUsers || []).find(u => u.login === value)
-  
+
   return (
     <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-      <button 
+      <button
         type="button"
         onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
         style={{
@@ -283,7 +283,7 @@ const ChecklistAssigneeSelector = ({ value, onSelect, systemUsers }) => {
         }}
       >
         {selectedUser ? (
-          <div 
+          <div
             title={`Відповідальний: ${selectedUser.last_name} ${selectedUser.first_name}`}
             style={{
               width: '22px',
@@ -320,14 +320,14 @@ const ChecklistAssigneeSelector = ({ value, onSelect, systemUsers }) => {
             width: '180px',
             boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
           }}>
-            <div 
+            <div
               onClick={() => { onSelect(null); setOpen(false); }}
               style={{ padding: '8px 12px', fontSize: '0.75rem', color: '#ff9000', cursor: 'pointer', borderBottom: '1px solid #222', fontWeight: 800 }}
             >
               Не призначено
             </div>
             {(systemUsers || []).map(u => (
-              <div 
+              <div
                 key={u.login}
                 onClick={() => { onSelect(u.login); setOpen(false); }}
                 style={{ padding: '8px 12px', fontSize: '0.75rem', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
@@ -371,11 +371,9 @@ const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove
     const assigneeUser = (systemUsers || []).find(u => u.login === item.assignee)
 
     return (
-      <div key={item.id} style={{ display: 'flex', flexDirection: 'column' }}>
-        <div 
-          className={`checklist-item ${isChild ? 'child-item' : 'parent-item'} ${isChecked ? 'done' : ''}`}
-        >
-          <div 
+      <div key={item.id} style={{ display: "flex", flexDirection: "column" }}>
+        <div className={`checklist-item ${isChild ? 'child-item' : 'parent-item'} ${isChecked ? 'done' : ''}`}>
+          <div
             onClick={(e) => {
               if (!hasChildren) {
                 if (onToggle) onToggle(item.id)
@@ -399,9 +397,9 @@ const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove
             )}
           </div>
           {hasChildren && !isChild && (
-            <button 
-              type="button" 
-              onClick={toggleCollapse} 
+            <button
+              type="button"
+              onClick={toggleCollapse}
               style={{ background: 'rgba(255,144,0,0.05)', border: '1px solid rgba(255,144,0,0.1)', color: '#ff9000', cursor: 'pointer', padding: '3px 8px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', fontWeight: 800 }}
             >
               {isCollapsed ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
@@ -409,10 +407,9 @@ const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove
             </button>
           )}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
-            {/* Checklist item deadline picker & assignee picker */}
             {showEditControls ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <ChecklistAssigneeSelector 
+                <ChecklistAssigneeSelector
                   value={item.assignee}
                   onSelect={(val) => onUpdateAssignee && onUpdateAssignee(item.id, val)}
                   systemUsers={systemUsers}
@@ -425,7 +422,7 @@ const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove
                     const time = item.deadline && item.deadline.length > 10 ? item.deadline.slice(11, 16) : ''
                     onUpdateDeadline && onUpdateDeadline(item.id, date ? (time ? `${date}T${time}` : date) : '')
                   }}
-                  onClick={e => { try { e.target.showPicker() } catch(err){} }}
+                  onClick={e => { try { e.target.showPicker() } catch (err) { } }}
                   style={{
                     background: item.deadline ? 'rgba(255,144,0,0.06)' : 'rgba(255,255,255,0.02)',
                     border: item.deadline ? '1px solid rgba(255,144,0,0.15)' : '1px solid rgba(255,255,255,0.05)',
@@ -448,7 +445,7 @@ const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove
                       const date = item.deadline.slice(0, 10)
                       onUpdateDeadline && onUpdateDeadline(item.id, date ? (time ? `${date}T${time}` : date) : '')
                     }}
-                    onClick={e => { try { e.target.showPicker() } catch(err){} }}
+                    onClick={e => { try { e.target.showPicker() } catch (err) { } }}
                     style={{
                       background: 'rgba(255,255,255,0.02)',
                       border: '1px solid rgba(255,255,255,0.05)',
@@ -467,7 +464,7 @@ const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 {assigneeUser && (
-                  <div 
+                  <div
                     title={`Відповідальний: ${assigneeUser.last_name} ${assigneeUser.first_name}`}
                     style={{
                       width: '24px',
@@ -503,37 +500,35 @@ const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove
                 )}
               </div>
             )}
-
-            {showEditControls && !isChild && (
-              <button 
-                type="button" 
-                title="Додати підпункт" 
-                onClick={() => {
-                  setActiveAddId(item.id)
-                  setSubText('')
-                }}
-                style={{ background: 'transparent', border: 'none', color: '#ff9000', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', opacity: 0.7 }}
-                onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                onMouseLeave={e => e.currentTarget.style.opacity = '0.7'}
-              >
-                <Plus size={14} />
-                <span style={{ fontSize: '0.68rem', marginLeft: '2px' }}>підпункт</span>
-              </button>
-            )}
-            {showEditControls && (
-              <button type="button" className="check-remove" onClick={() => onRemove(item.id)}>
-                <X size={11}/>
-              </button>
-            )}
           </div>
+          {showEditControls && !isChild && (
+            <button
+              type="button"
+              title="Додати підпункт"
+              onClick={() => {
+                setActiveAddId(item.id)
+                setSubText('')
+              }}
+              style={{ background: 'transparent', border: 'none', color: '#ff9000', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', opacity: 0.7 }}
+              onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+              onMouseLeave={e => e.currentTarget.style.opacity = '0.7'}
+            >
+              <Plus size={14} />
+              <span style={{ fontSize: '0.68rem', marginLeft: '2px' }}>підпункт</span>
+            </button>
+          )}
+          {showEditControls && (
+            <button type="button" className="check-remove" onClick={() => onRemove(item.id)}>
+              <X size={11} />
+            </button>
+          )}
         </div>
 
-        {/* Inline subitem input */}
         {!isCollapsed && isAddingSub && (
           <div style={{ display: 'flex', gap: '8px', marginLeft: '24px', padding: '6px 10px', alignItems: 'center' }}>
-            <input 
+            <input
               autoFocus
-              type="text" 
+              type="text"
               placeholder="Введіть назву підпункту..."
               value={subText}
               onChange={e => setSubText(e.target.value)}
@@ -550,18 +545,18 @@ const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove
                   setSubText('')
                 }
               }}
-              style={{ 
-                background: '#0d0d0d', 
-                border: '1px solid #ff9000', 
-                borderRadius: '8px', 
-                padding: '6px 12px', 
-                color: '#fff', 
-                fontSize: '0.8rem', 
-                flex: 1 
+              style={{
+                background: '#0d0d0d',
+                border: '1px solid #ff9000',
+                borderRadius: '8px',
+                padding: '6px 12px',
+                color: '#fff',
+                fontSize: '0.8rem',
+                flex: 1
               }}
             />
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => {
                 if (subText.trim()) {
                   onAddSubItem && onAddSubItem(item.id, subText.trim())
@@ -573,8 +568,8 @@ const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove
             >
               Додати
             </button>
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => {
                 setActiveAddId(null)
                 setSubText('')
@@ -613,7 +608,7 @@ const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove
               transition: 'all 0.2s'
             }}
           >
-            {isEditing ? '✓ Готово' : '⚙ Редагувати структуру' }
+            {isEditing ? '✓ Готово' : '⚙ Редагувати структуру'}
           </button>
         </div>
       )}
@@ -636,7 +631,7 @@ const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove
             onChange={e => setNewItem(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), onAdd())}
           />
-          <button type="button" className="add-check-btn" onClick={onAdd}><Plus size={14}/></button>
+          <button type="button" className="add-check-btn" onClick={onAdd}><Plus size={14} /></button>
         </div>
       )}
     </div>
@@ -651,7 +646,7 @@ const KanbanModule = () => {
   const DEPARTMENTS = useMemo(() => {
     const list = [{ id: 'all', label: 'Усі відділи' }]
     const seenIds = new Set(['all'])
-    
+
     if (Array.isArray(companyStructure)) {
       companyStructure.forEach(item => {
         const idStr = String(item.id)
@@ -665,14 +660,14 @@ const KanbanModule = () => {
     }
 
     const staticDepts = [
-      { id: 'manager',   label: 'Менеджмент'   },
-      { id: 'shop1',     label: 'Цех №1'       },
-      { id: 'shop2',     label: 'Цех №2'       },
-      { id: 'packaging', label: 'Пакування'    },
-      { id: 'warehouse', label: 'Склад'        },
-      { id: 'supply',    label: 'Постачання'   },
-      { id: 'logistics', label: 'Логістика'    },
-      { id: 'qa',        label: 'ВКЯ'          },
+      { id: 'manager', label: 'Менеджмент' },
+      { id: 'shop1', label: 'Цех №1' },
+      { id: 'shop2', label: 'Цех №2' },
+      { id: 'packaging', label: 'Пакування' },
+      { id: 'warehouse', label: 'Склад' },
+      { id: 'supply', label: 'Постачання' },
+      { id: 'logistics', label: 'Логістика' },
+      { id: 'qa', label: 'ВКЯ' },
     ]
 
     staticDepts.forEach(sd => {
@@ -1027,12 +1022,12 @@ const KanbanModule = () => {
             </div>
           </div>
           {isManager && (
-            <div className="role-badge manager-badge"><Shield size={11}/> Менеджер</div>
+            <div className="role-badge manager-badge"><Shield size={11} /> Менеджер</div>
           )}
         </div>
         <div className="kb-nav-right">
           <div className={`kb-search-wrap ${showSearch ? 'open' : ''}`}>
-            <button className="icon-btn" onClick={() => setShowSearch(s => !s)}><Search size={16}/></button>
+            <button className="icon-btn" onClick={() => setShowSearch(s => !s)}><Search size={16} /></button>
             {showSearch && (
               <input autoFocus type="text" placeholder="Пошук задач..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="kb-search-input" />
             )}
@@ -1041,13 +1036,13 @@ const KanbanModule = () => {
           <div className="kb-filters">
             {isManager ? (
               <>
-                {[['all','УСІ'],['my','МОЇ'],['assigned_by_me','ДОРУЧЕНО'],['unassigned','БЕЗ ВИКОН.']].map(([id, lbl]) => (
+                {[['all', 'УСІ'], ['my', 'МОЇ'], ['assigned_by_me', 'ДОРУЧЕНО'], ['unassigned', 'БЕЗ ВИКОН.']].map(([id, lbl]) => (
                   <button key={id} className={`kf-btn ${filterMode === id ? 'active' : ''}`} onClick={() => { setFilterMode(id); setStatsFilter('all') }}>{lbl}</button>
                 ))}
               </>
             ) : (
               <>
-                {[['my','МОЇ ЗАДАЧІ'],['department','ВІДДІЛ'],['all','ДОСТУПНІ']].map(([id, lbl]) => (
+                {[['my', 'МОЇ ЗАДАЧІ'], ['department', 'ВІДДІЛ'], ['all', 'ДОСТУПНІ']].map(([id, lbl]) => (
                   <button key={id} className={`kf-btn ${filterMode === id ? 'active' : ''}`} onClick={() => { setFilterMode(id); setStatsFilter('all') }}>{lbl}</button>
                 ))}
               </>
@@ -1056,7 +1051,7 @@ const KanbanModule = () => {
 
           {isManager && (
             <button className="kb-add-btn" onClick={() => setCreateOpen(true)}>
-              <Plus size={16}/> НОВА ЗАДАЧА
+              <Plus size={16} /> НОВА ЗАДАЧА
             </button>
           )}
         </div>
@@ -1065,10 +1060,10 @@ const KanbanModule = () => {
       {/* ── STATS ───────────────────────────────────────────────────────── */}
       <div className="kb-stats">
         {[
-          { key: 'all',         icon: <Layers size={16}/>,       val: stats.total,      label: 'ВСЬОГО',         color: '#ff9000' },
-          { key: 'in_progress', icon: <TrendingUp size={16}/>,   val: stats.inProgress, label: 'В РОБОТІ',       color: '#3b82f6' },
-          { key: 'overdue',     icon: <AlertCircle size={16}/>,  val: stats.overdue,    label: 'ПРОСТРОЧЕНО',    color: '#ef4444' },
-          { key: 'done',        icon: <CheckCircle2 size={16}/>, val: stats.done,       label: 'ВИКОНАНО',       color: '#10b981' },
+          { key: 'all', icon: <Layers size={16} />, val: stats.total, label: 'ВСЬОГО', color: '#ff9000' },
+          { key: 'in_progress', icon: <TrendingUp size={16} />, val: stats.inProgress, label: 'В РОБОТІ', color: '#3b82f6' },
+          { key: 'overdue', icon: <AlertCircle size={16} />, val: stats.overdue, label: 'ПРОСТРОЧЕНО', color: '#ef4444' },
+          { key: 'done', icon: <CheckCircle2 size={16} />, val: stats.done, label: 'ВИКОНАНО', color: '#10b981' },
         ].map(s => (
           <div key={s.key} className={`stat-tile ${statsFilter === s.key ? 'active' : ''}`} style={{ '--sc': s.color }}
             onClick={() => setStatsFilter(prev => prev === s.key ? 'all' : s.key)}>
@@ -1099,262 +1094,262 @@ const KanbanModule = () => {
       {/* ── BOARD CONTAINER ─────────────────────────────────────────────── */}
       <div className="kb-body-container">
         <main className="kb-board">
-        {COLUMNS.map(column => {
-          const columnTasks = filteredTasks.filter(t => t.status === column.id)
-          return (
-            <div key={column.id} className={`kb-col ${activeMobileColumn === column.id ? 'mob-active' : ''}`}
-              onDragOver={handleDragOver} onDrop={e => handleDrop(e, column.id)}>
-              <div className="col-head" style={{ borderTopColor: column.color }}>
-                <div className="col-head-left">
-                  <h3 style={{ color: column.color }}>{column.title}</h3>
-                  <span className="col-cnt" style={{ background: `${column.color}15`, color: column.color }}>{columnTasks.length}</span>
+          {COLUMNS.map(column => {
+            const columnTasks = filteredTasks.filter(t => t.status === column.id)
+            return (
+              <div key={column.id} className={`kb-col ${activeMobileColumn === column.id ? 'mob-active' : ''}`}
+                onDragOver={handleDragOver} onDrop={e => handleDrop(e, column.id)}>
+                <div className="col-head" style={{ borderTopColor: column.color }}>
+                  <div className="col-head-left">
+                    <h3 style={{ color: column.color }}>{column.title}</h3>
+                    <span className="col-cnt" style={{ background: `${column.color}15`, color: column.color }}>{columnTasks.length}</span>
+                  </div>
+                  {isManager && column.id === 'todo' && (
+                    <button className="col-add-btn" onClick={() => setCreateOpen(true)} title="Нова задача">
+                      <Plus size={14} />
+                    </button>
+                  )}
                 </div>
-                {isManager && column.id === 'todo' && (
-                  <button className="col-add-btn" onClick={() => setCreateOpen(true)} title="Нова задача">
-                    <Plus size={14}/>
-                  </button>
-                )}
-              </div>
 
-              <div className="col-body">
-                {columnTasks.map(task => {
-                  const assignee = (systemUsers || []).find(u => u.login === task.assigned_to)
-                  const overdue = isOverdueTask(task)
-                  const checklist = Array.isArray(task.checklist) ? task.checklist : []
-                  const clp = checklistProgress(checklist)
-                  const pcfg = PRIORITY_CFG[task.priority] || PRIORITY_CFG.medium
+                <div className="col-body">
+                  {columnTasks.map(task => {
+                    const assignee = (systemUsers || []).find(u => u.login === task.assigned_to)
+                    const overdue = isOverdueTask(task)
+                    const checklist = Array.isArray(task.checklist) ? task.checklist : []
+                    const clp = checklistProgress(checklist)
+                    const pcfg = PRIORITY_CFG[task.priority] || PRIORITY_CFG.medium
 
-                  return (
-                    <div key={task.id} className={`kb-card ${overdue ? 'overdue' : ''}`}
-                      style={{ '--pb': pcfg.color }}
-                      draggable={isManager}
-                      onDragStart={e => handleDragStart(e, task.id)}
-                      onDragEnd={handleDragEnd}
-                      onClick={() => handleOpenTask(task)}>
+                    return (
+                      <div key={task.id} className={`kb-card ${overdue ? 'overdue' : ''}`}
+                        style={{ '--pb': pcfg.color }}
+                        draggable={isManager}
+                        onDragStart={e => handleDragStart(e, task.id)}
+                        onDragEnd={handleDragEnd}
+                        onClick={() => handleOpenTask(task)}>
 
-                      {/* Priority bar */}
-                      <div className="card-pbar" style={{ background: pcfg.color }} />
+                        {/* Priority bar */}
+                        <div className="card-pbar" style={{ background: pcfg.color }} />
 
-                      <div className="card-top">
-                        <PriorityBadge priority={task.priority} />
-                        {task.is_collective && (
-                          <span className="collective-badge">
-                            <Users size={10}/> {DEPARTMENTS.find(d => d.id === task.department)?.label || 'Колектив'}
-                          </span>
+                        <div className="card-top">
+                          <PriorityBadge priority={task.priority} />
+                          {task.is_collective && (
+                            <span className="collective-badge">
+                              <Users size={10} /> {DEPARTMENTS.find(d => d.id === task.department)?.label || 'Колектив'}
+                            </span>
+                          )}
+                          {overdue && <span className="overdue-badge pulse"><AlertCircle size={10} /> Прострочено</span>}
+                        </div>
+
+                        <h4 className="card-title">{task.title}</h4>
+
+                        {/* Checklist mini bar */}
+                        {clp && <ChecklistBar checklist={checklist} />}
+
+                        <div className="card-footer">
+                          <div className="card-meta">
+                            {task.deadline && (
+                              <span className="card-deadline" style={{ color: overdue ? '#ef4444' : '#555' }}>
+                                <Calendar size={11} />
+                                {(() => {
+                                  const d = new Date(task.deadline)
+                                  const options = { day: 'numeric', month: 'short' }
+                                  if (d.getHours() !== 0 || d.getMinutes() !== 0) {
+                                    options.hour = '2-digit'
+                                    options.minute = '2-digit'
+                                  }
+                                  return d.toLocaleString('uk-UA', options)
+                                })()}
+                              </span>
+                            )}
+                            {clp && (
+                              <span className="card-cl-count" style={{ color: clp.done === clp.total ? '#10b981' : '#555' }}>
+                                <CheckSquare size={11} /> {clp.done}/{clp.total}
+                              </span>
+                            )}
+                          </div>
+                          <div className="card-users">
+                            {!task.is_collective && assignee && <UserAvatar user={assignee} size={26} />}
+                            {!task.is_collective && !assignee && (
+                              <div className="ua-unassigned" title="Не призначено">?</div>
+                            )}
+                          </div>
+                        </div>
+
+                        <CardActions task={task} />
+
+                        {/* Manager controls */}
+                        {isManager && (
+                          <div className="card-mgr-btns" onClick={e => e.stopPropagation()}>
+                            <button className="mgr-btn edit-btn" onClick={e => handleOpenEdit(task, e)} title="Редагувати"><Edit3 size={12} /></button>
+                            <button className="mgr-btn del-btn" onClick={e => handleDelete(task.id, e)} title="Видалити"><Trash2 size={12} /></button>
+                          </div>
                         )}
-                        {overdue && <span className="overdue-badge pulse"><AlertCircle size={10}/> Прострочено</span>}
                       </div>
+                    )
+                  })}
+                  {columnTasks.length === 0 && (
+                    <div className="col-empty">
+                      <KanbanSquare size={24} color="#1a1a1a" />
+                      <span>Порожньо</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </main>
 
-                      <h4 className="card-title">{task.title}</h4>
+        {/* ══ RIGHT SIDEBAR ════════════════════════════════════════════════════ */}
+        <aside className="kb-sidebar">
 
-                      {/* Checklist mini bar */}
-                      {clp && <ChecklistBar checklist={checklist} />}
+          {/* ── DEPARTMENT TASKS ────────────────────────────────────────────── */}
+          <div className="sb-block">
+            <div className="sb-block-head">
+              <Briefcase size={13} />
+              <span>ЗАВДАННЯ ВІДДІЛІВ</span>
+            </div>
+            <div className="sb-dept-list">
+              {DEPARTMENTS.map(d => {
+                // Calculate counts for this department
+                const deptTasks = (managementTasks || []).filter(t => {
+                  if (d.id === 'all') return true
+                  return getTaskDepartment(t, systemUsers, companyStructure) === d.id
+                })
 
-                      <div className="card-footer">
-                        <div className="card-meta">
-                          {task.deadline && (
-                            <span className="card-deadline" style={{ color: overdue ? '#ef4444' : '#555' }}>
-                              <Calendar size={11}/>
-                              {(() => {
-                                const d = new Date(task.deadline)
-                                const options = { day: 'numeric', month: 'short' }
-                                if (d.getHours() !== 0 || d.getMinutes() !== 0) {
-                                  options.hour = '2-digit'
-                                  options.minute = '2-digit'
-                                }
-                                return d.toLocaleString('uk-UA', options)
-                              })()}
-                            </span>
-                          )}
-                          {clp && (
-                            <span className="card-cl-count" style={{ color: clp.done === clp.total ? '#10b981' : '#555' }}>
-                              <CheckSquare size={11}/> {clp.done}/{clp.total}
-                            </span>
-                          )}
+                const todoCnt = deptTasks.filter(t => t.status === 'todo').length
+                const progCnt = deptTasks.filter(t => t.status === 'in_progress').length
+                const reviewCnt = deptTasks.filter(t => t.status === 'review').length
+                const overdueCnt = deptTasks.filter(t => isOverdueTask(t)).length
+
+                const isSelected = selectedDeptFilter === d.id
+
+                return (
+                  <div key={d.id} className={`sb-dept-item ${isSelected ? 'active' : ''}`}
+                    onClick={() => setSelectedDeptFilter(isSelected ? 'all' : d.id)}>
+                    <span className="sb-dept-name">{d.label}</span>
+                    <div className="sb-dept-badges">
+                      {todoCnt > 0 && <span className="sb-dbadge sb-dbadge-todo" title="Нові">{todoCnt}</span>}
+                      {progCnt > 0 && <span className="sb-dbadge sb-dbadge-prog" title="В роботі">{progCnt}</span>}
+                      {reviewCnt > 0 && <span className="sb-dbadge sb-dbadge-rev" title="Перевірка">{reviewCnt}</span>}
+                      {overdueCnt > 0 && <span className="sb-dbadge sb-dbadge-over" title="Прострочено">{overdueCnt}</span>}
+                      {todoCnt === 0 && progCnt === 0 && reviewCnt === 0 && overdueCnt === 0 && (
+                        <span className="sb-dbadge sb-dbadge-empty">0</span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* ── UPCOMING DEADLINES ───────────────────────────────────────── */}
+          <div className="sb-block">
+            <div className="sb-block-head">
+              <Calendar size={13} />
+              <span>ДЕДЛАЙНИ</span>
+            </div>
+            <div className="sb-deadline-list">
+              {(() => {
+                const now = new Date()
+                const in7 = new Date(now.getTime() + 7 * 86400000)
+                const allTasks = managementTasks || []
+                // Tasks visible to current user
+                const visibleTasks = isManager ? allTasks : allTasks.filter(t =>
+                  t.assigned_to === currentUser?.login || t.is_collective
+                )
+                const upcoming = visibleTasks
+                  .filter(t => t.deadline && t.status !== 'done')
+                  .map(t => ({ ...t, _dl: new Date(t.deadline) }))
+                  .sort((a, b) => a._dl - b._dl)
+                  .slice(0, 6)
+
+                if (upcoming.length === 0) return (
+                  <div className="sb-empty">Немає наступних дедлайнів</div>
+                )
+                return upcoming.map(task => {
+                  const overdue = task._dl < now && task.status !== 'done'
+                  const isToday = task._dl.toDateString() === now.toDateString()
+                  const isSoon = task._dl <= in7 && !overdue
+                  const assignee = (systemUsers || []).find(u => u.login === task.assigned_to)
+                  const daysLeft = Math.ceil((task._dl - now) / 86400000)
+                  return (
+                    <div key={task.id} className={`sb-deadline-item ${overdue ? 'dl-overdue' : isSoon ? 'dl-soon' : ''}`}
+                      onClick={() => handleOpenTask(task)}>
+                      <div className="dl-left">
+                        <div className="dl-date" style={{ color: overdue ? '#ef4444' : isSoon ? '#f59e0b' : '#888' }}>
+                          {overdue ? `Простр. ${Math.abs(daysLeft)}д` : isToday ? 'Сьогодні' : `${daysLeft}д`}
                         </div>
-                        <div className="card-users">
-                          {!task.is_collective && assignee && <UserAvatar user={assignee} size={26} />}
-                          {!task.is_collective && !assignee && (
-                            <div className="ua-unassigned" title="Не призначено">?</div>
-                          )}
-                        </div>
+                        <div className="dl-title">{task.title}</div>
                       </div>
-
-                      <CardActions task={task} />
-
-                      {/* Manager controls */}
-                      {isManager && (
-                        <div className="card-mgr-btns" onClick={e => e.stopPropagation()}>
-                          <button className="mgr-btn edit-btn" onClick={e => handleOpenEdit(task, e)} title="Редагувати"><Edit3 size={12}/></button>
-                          <button className="mgr-btn del-btn" onClick={e => handleDelete(task.id, e)} title="Видалити"><Trash2 size={12}/></button>
-                        </div>
+                      {!task.is_collective && assignee && (
+                        <UserAvatar user={assignee} size={22} />
                       )}
                     </div>
                   )
-                })}
-                {columnTasks.length === 0 && (
-                  <div className="col-empty">
-                    <KanbanSquare size={24} color="#1a1a1a"/>
-                    <span>Порожньо</span>
-                  </div>
-                )}
-              </div>
+                })
+              })()}
             </div>
-          )
-        })}
-      </main>
-
-      {/* ══ RIGHT SIDEBAR ════════════════════════════════════════════════════ */}
-      <aside className="kb-sidebar">
-
-        {/* ── DEPARTMENT TASKS ────────────────────────────────────────────── */}
-        <div className="sb-block">
-          <div className="sb-block-head">
-            <Briefcase size={13}/>
-            <span>ЗАВДАННЯ ВІДДІЛІВ</span>
           </div>
-          <div className="sb-dept-list">
-            {DEPARTMENTS.map(d => {
-              // Calculate counts for this department
-              const deptTasks = (managementTasks || []).filter(t => {
-                if (d.id === 'all') return true
-                return getTaskDepartment(t, systemUsers, companyStructure) === d.id
-              })
-              
-              const todoCnt = deptTasks.filter(t => t.status === 'todo').length
-              const progCnt = deptTasks.filter(t => t.status === 'in_progress').length
-              const reviewCnt = deptTasks.filter(t => t.status === 'review').length
-              const overdueCnt = deptTasks.filter(t => isOverdueTask(t)).length
-              
-              const isSelected = selectedDeptFilter === d.id
-              
-              return (
-                <div key={d.id} className={`sb-dept-item ${isSelected ? 'active' : ''}`}
-                  onClick={() => setSelectedDeptFilter(isSelected ? 'all' : d.id)}>
-                  <span className="sb-dept-name">{d.label}</span>
-                  <div className="sb-dept-badges">
-                    {todoCnt > 0 && <span className="sb-dbadge sb-dbadge-todo" title="Нові">{todoCnt}</span>}
-                    {progCnt > 0 && <span className="sb-dbadge sb-dbadge-prog" title="В роботі">{progCnt}</span>}
-                    {reviewCnt > 0 && <span className="sb-dbadge sb-dbadge-rev" title="Перевірка">{reviewCnt}</span>}
-                    {overdueCnt > 0 && <span className="sb-dbadge sb-dbadge-over" title="Прострочено">{overdueCnt}</span>}
-                    {todoCnt === 0 && progCnt === 0 && reviewCnt === 0 && overdueCnt === 0 && (
-                      <span className="sb-dbadge sb-dbadge-empty">0</span>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
 
-        {/* ── UPCOMING DEADLINES ───────────────────────────────────────── */}
-        <div className="sb-block">
-          <div className="sb-block-head">
-            <Calendar size={13}/>
-            <span>ДЕДЛАЙНИ</span>
-          </div>
-          <div className="sb-deadline-list">
-            {(() => {
-              const now = new Date()
-              const in7 = new Date(now.getTime() + 7 * 86400000)
-              const allTasks = managementTasks || []
-              // Tasks visible to current user
-              const visibleTasks = isManager ? allTasks : allTasks.filter(t =>
-                t.assigned_to === currentUser?.login || t.is_collective
-              )
-              const upcoming = visibleTasks
-                .filter(t => t.deadline && t.status !== 'done')
-                .map(t => ({ ...t, _dl: new Date(t.deadline) }))
-                .sort((a, b) => a._dl - b._dl)
-                .slice(0, 6)
-
-              if (upcoming.length === 0) return (
-                <div className="sb-empty">Немає наступних дедлайнів</div>
-              )
-              return upcoming.map(task => {
-                const overdue = task._dl < now && task.status !== 'done'
-                const isToday = task._dl.toDateString() === now.toDateString()
-                const isSoon = task._dl <= in7 && !overdue
-                const assignee = (systemUsers || []).find(u => u.login === task.assigned_to)
-                const daysLeft = Math.ceil((task._dl - now) / 86400000)
-                return (
-                  <div key={task.id} className={`sb-deadline-item ${overdue ? 'dl-overdue' : isSoon ? 'dl-soon' : ''}`}
-                    onClick={() => handleOpenTask(task)}>
-                    <div className="dl-left">
-                      <div className="dl-date" style={{ color: overdue ? '#ef4444' : isSoon ? '#f59e0b' : '#888' }}>
-                        {overdue ? `Простр. ${Math.abs(daysLeft)}д` : isToday ? 'Сьогодні' : `${daysLeft}д`}
-                      </div>
-                      <div className="dl-title">{task.title}</div>
-                    </div>
-                    {!task.is_collective && assignee && (
-                      <UserAvatar user={assignee} size={22} />
-                    )}
-                  </div>
+          {/* ── RECENT ACTIVITY ─────────────────────────────────────────────── */}
+          <div className="sb-block">
+            <div className="sb-block-head">
+              <TrendingUp size={13} />
+              <span>СТАТИСТИКА</span>
+            </div>
+            <div className="sb-stats-grid">
+              {(() => {
+                const all = managementTasks || []
+                const visibleAll = isManager ? all : all.filter(t =>
+                  t.assigned_to === currentUser?.login || t.is_collective
                 )
-              })
-            })()}
-          </div>
-        </div>
-
-        {/* ── RECENT ACTIVITY ─────────────────────────────────────────────── */}
-        <div className="sb-block">
-          <div className="sb-block-head">
-            <TrendingUp size={13}/>
-            <span>СТАТИСТИКА</span>
-          </div>
-          <div className="sb-stats-grid">
-            {(() => {
-              const all = managementTasks || []
-              const visibleAll = isManager ? all : all.filter(t =>
-                t.assigned_to === currentUser?.login || t.is_collective
-              )
-              const byStatus = COLUMNS.map(col => ({
-                ...col,
-                count: visibleAll.filter(t => t.status === col.id).length,
-                pct: visibleAll.length ? Math.round(visibleAll.filter(t => t.status === col.id).length / visibleAll.length * 100) : 0
-              }))
-              const urgent = visibleAll.filter(t => t.priority === 'urgent' && t.status !== 'done').length
-              const withChecklist = visibleAll.filter(t => Array.isArray(t.checklist) && t.checklist.length > 0).length
-              const checklistDone = visibleAll.filter(t => {
-                if (!Array.isArray(t.checklist) || !t.checklist.length) return false
-                return t.checklist.every(i => i.done)
-              }).length
-              return (
-                <>
-                  {byStatus.map(col => (
-                    <div key={col.id} className="sb-stat-row">
-                      <div className="sb-stat-label" style={{ color: col.color }}>{col.title}</div>
-                      <div className="sb-stat-bar-wrap">
-                        <div className="sb-stat-bar">
-                          <div style={{ width: `${col.pct}%`, background: col.color, height: '100%', borderRadius: 2, transition: 'width 0.5s ease' }} />
+                const byStatus = COLUMNS.map(col => ({
+                  ...col,
+                  count: visibleAll.filter(t => t.status === col.id).length,
+                  pct: visibleAll.length ? Math.round(visibleAll.filter(t => t.status === col.id).length / visibleAll.length * 100) : 0
+                }))
+                const urgent = visibleAll.filter(t => t.priority === 'urgent' && t.status !== 'done').length
+                const withChecklist = visibleAll.filter(t => Array.isArray(t.checklist) && t.checklist.length > 0).length
+                const checklistDone = visibleAll.filter(t => {
+                  if (!Array.isArray(t.checklist) || !t.checklist.length) return false
+                  return t.checklist.every(i => i.done)
+                }).length
+                return (
+                  <>
+                    {byStatus.map(col => (
+                      <div key={col.id} className="sb-stat-row">
+                        <div className="sb-stat-label" style={{ color: col.color }}>{col.title}</div>
+                        <div className="sb-stat-bar-wrap">
+                          <div className="sb-stat-bar">
+                            <div style={{ width: `${col.pct}%`, background: col.color, height: '100%', borderRadius: 2, transition: 'width 0.5s ease' }} />
+                          </div>
+                          <span className="sb-stat-num" style={{ color: col.color }}>{col.count}</span>
                         </div>
-                        <span className="sb-stat-num" style={{ color: col.color }}>{col.count}</span>
+                      </div>
+                    ))}
+                    <div className="sb-divider" />
+                    <div className="sb-mini-stats">
+                      <div className="sb-mini-stat">
+                        <span className="sb-mini-label">Нагальних</span>
+                        <span className="sb-mini-val" style={{ color: urgent > 0 ? '#ef4444' : '#555' }}>{urgent}</span>
+                      </div>
+                      <div className="sb-mini-stat">
+                        <span className="sb-mini-label">З чеклістом</span>
+                        <span className="sb-mini-val" style={{ color: '#60a5fa' }}>{withChecklist}</span>
+                      </div>
+                      <div className="sb-mini-stat">
+                        <span className="sb-mini-label">Чекл. 100%</span>
+                        <span className="sb-mini-val" style={{ color: '#10b981' }}>{checklistDone}</span>
                       </div>
                     </div>
-                  ))}
-                  <div className="sb-divider" />
-                  <div className="sb-mini-stats">
-                    <div className="sb-mini-stat">
-                      <span className="sb-mini-label">Нагальних</span>
-                      <span className="sb-mini-val" style={{ color: urgent > 0 ? '#ef4444' : '#555' }}>{urgent}</span>
-                    </div>
-                    <div className="sb-mini-stat">
-                      <span className="sb-mini-label">З чеклістом</span>
-                      <span className="sb-mini-val" style={{ color: '#60a5fa' }}>{withChecklist}</span>
-                    </div>
-                    <div className="sb-mini-stat">
-                      <span className="sb-mini-label">Чекл. 100%</span>
-                      <span className="sb-mini-val" style={{ color: '#10b981' }}>{checklistDone}</span>
-                    </div>
-                  </div>
-                </>
-              )
-            })()}
+                  </>
+                )
+              })()}
+            </div>
           </div>
-        </div>
 
-      </aside>
-    </div>
+        </aside>
+      </div>
 
       {/* ══════════════════════════════════════════════════════════════════
           DETAIL MODAL
@@ -1371,11 +1366,11 @@ const KanbanModule = () => {
               <div className="modal-head-right">
                 {isManager && (
                   <>
-                    <button className="icon-btn" onClick={() => { setDetailOpen(false); handleOpenEdit(selectedTask) }} title="Редагувати"><Edit3 size={16}/></button>
-                    <button className="icon-btn danger" onClick={e => handleDelete(selectedTask.id, e)} title="Видалити"><Trash2 size={16}/></button>
+                    <button className="icon-btn" onClick={() => { setDetailOpen(false); handleOpenEdit(selectedTask) }} title="Редагувати"><Edit3 size={16} /></button>
+                    <button className="icon-btn danger" onClick={e => handleDelete(selectedTask.id, e)} title="Видалити"><Trash2 size={16} /></button>
                   </>
                 )}
-                <button className="icon-btn" onClick={() => setDetailOpen(false)}><X size={18}/></button>
+                <button className="icon-btn" onClick={() => setDetailOpen(false)}><X size={18} /></button>
               </div>
             </div>
 
@@ -1410,7 +1405,7 @@ const KanbanModule = () => {
                   <div className="side-block">
                     <label>ДЕДЛАЙН</label>
                     <div className="side-val" style={{ color: isOverdueTask(selectedTask) ? '#ef4444' : '#888' }}>
-                      <Calendar size={13}/>
+                      <Calendar size={13} />
                       {new Date(selectedTask.deadline).toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' })}
                     </div>
                   </div>
@@ -1457,9 +1452,9 @@ const KanbanModule = () => {
                 {/* Tabs */}
                 <div className="detail-tabs">
                   {[
-                    ['desc', 'Опис', <Eye size={13}/>],
-                    ['checklist', `Чеклист${Array.isArray(selectedTask.checklist) && selectedTask.checklist.length ? ` (${selectedTask.checklist.length})` : ''}`, <CheckSquare size={13}/>],
-                    ['comments', `Коментарі (${parsedSelectedTask.comments.length})`, <MessageSquare size={13}/>],
+                    ['desc', 'Опис', <Eye size={13} />],
+                    ['checklist', `Чеклист${Array.isArray(selectedTask.checklist) && selectedTask.checklist.length ? ` (${selectedTask.checklist.length})` : ''}`, <CheckSquare size={13} />],
+                    ['comments', `Коментарі (${parsedSelectedTask.comments.length})`, <MessageSquare size={13} />],
                   ].map(([id, lbl, icon]) => (
                     <button key={id} className={`dtab ${detailTab === id ? 'active' : ''}`} onClick={() => setDetailTab(id)}>
                       {icon} {lbl}
@@ -1496,7 +1491,7 @@ const KanbanModule = () => {
                         setSelectedTask(prev => ({ ...prev, checklist: updated }))
                       }}
                       onRemove={async (itemId) => {
-                        const updated = (Array.isArray(selectedTask.checklist) ? selectedTask.checklist : []).filter(i => 
+                        const updated = (Array.isArray(selectedTask.checklist) ? selectedTask.checklist : []).filter(i =>
                           String(i.id) !== String(itemId) && String(i.parent_id) !== String(itemId)
                         )
                         await updateManagementTask(selectedTask.id, { checklist: updated })
@@ -1535,7 +1530,7 @@ const KanbanModule = () => {
                         </div>
                       ))}
                       {parsedSelectedTask.comments.length === 0 && (
-                        <div className="comments-empty"><MessageSquare size={20}/><span>Немає коментарів</span></div>
+                        <div className="comments-empty"><MessageSquare size={20} /><span>Немає коментарів</span></div>
                       )}
                     </div>
                     <form className="comment-form" onSubmit={handleAddComment}>
@@ -1557,8 +1552,8 @@ const KanbanModule = () => {
         <div className="modal-overlay" onClick={() => setCreateOpen(false)}>
           <div className="modal-box create-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-head">
-              <h2><Plus size={18}/> Нова задача</h2>
-              <button className="icon-btn" onClick={() => setCreateOpen(false)}><X size={18}/></button>
+              <h2><Plus size={18} /> Нова задача</h2>
+              <button className="icon-btn" onClick={() => setCreateOpen(false)}><X size={18} /></button>
             </div>
             <form className="modal-form" onSubmit={handleCreateTask}>
               <div className="form-group">
@@ -1590,7 +1585,7 @@ const KanbanModule = () => {
                         const time = form.deadline && form.deadline.length > 10 ? form.deadline.slice(11, 16) : ''
                         setForm(f => ({ ...f, deadline: date ? (time ? `${date}T${time}` : date) : '' }))
                       }}
-                      onClick={e => { try { e.target.showPicker() } catch(err){} }}
+                      onClick={e => { try { e.target.showPicker() } catch (err) { } }}
                       style={{ flex: 1 }}
                     />
                     <input
@@ -1601,7 +1596,7 @@ const KanbanModule = () => {
                         const date = form.deadline ? form.deadline.slice(0, 10) : new Date().toISOString().slice(0, 10)
                         setForm(f => ({ ...f, deadline: date ? (time ? `${date}T${time}` : date) : '' }))
                       }}
-                      onClick={e => { try { e.target.showPicker() } catch(err){} }}
+                      onClick={e => { try { e.target.showPicker() } catch (err) { } }}
                       style={{ width: '110px' }}
                     />
                   </div>
@@ -1636,7 +1631,7 @@ const KanbanModule = () => {
 
               {/* Checklist builder */}
               <div className="form-group">
-                <label><CheckSquare size={13}/> Чеклист (пункти)</label>
+                <label><CheckSquare size={13} /> Чеклист (пункти)</label>
                 <ChecklistEditor
                   items={form.checklist || []}
                   newItem={newCheckItem}
@@ -1683,8 +1678,8 @@ const KanbanModule = () => {
         <div className="modal-overlay" onClick={() => setEditOpen(false)}>
           <div className="modal-box create-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-head">
-              <h2><Edit3 size={16}/> Редагувати задачу</h2>
-              <button className="icon-btn" onClick={() => setEditOpen(false)}><X size={18}/></button>
+              <h2><Edit3 size={16} /> Редагувати задачу</h2>
+              <button className="icon-btn" onClick={() => setEditOpen(false)}><X size={18} /></button>
             </div>
             <form className="modal-form" onSubmit={handleSaveEdit}>
               <div className="form-group">
@@ -1716,7 +1711,7 @@ const KanbanModule = () => {
                         const time = editForm.deadline && editForm.deadline.length > 10 ? editForm.deadline.slice(11, 16) : ''
                         setEditForm(f => ({ ...f, deadline: date ? (time ? `${date}T${time}` : date) : '' }))
                       }}
-                      onClick={e => { try { e.target.showPicker() } catch(err){} }}
+                      onClick={e => { try { e.target.showPicker() } catch (err) { } }}
                       style={{ flex: 1 }}
                     />
                     <input
@@ -1727,7 +1722,7 @@ const KanbanModule = () => {
                         const date = editForm.deadline ? editForm.deadline.slice(0, 10) : new Date().toISOString().slice(0, 10)
                         setEditForm(f => ({ ...f, deadline: date ? (time ? `${date}T${time}` : date) : '' }))
                       }}
-                      onClick={e => { try { e.target.showPicker() } catch(err){} }}
+                      onClick={e => { try { e.target.showPicker() } catch (err) { } }}
                       style={{ width: '110px' }}
                     />
                   </div>
@@ -1770,7 +1765,7 @@ const KanbanModule = () => {
 
               {/* Checklist editor */}
               <div className="form-group">
-                <label><CheckSquare size={13}/> Чеклист</label>
+                <label><CheckSquare size={13} /> Чеклист</label>
                 <ChecklistEditor
                   items={editForm.checklist || []}
                   newItem={editCheckItem}
@@ -1805,7 +1800,7 @@ const KanbanModule = () => {
                 <button type="submit" className="btn-primary-orange" disabled={isSubmitting}>
                   {isSubmitting ? (
                     <><span className="btn-spinner" />ЗБЕРЕЖЕННЯ...</>
-                  ) : <><Save size={14}/> ЗБЕРЕГТИ</>}
+                  ) : <><Save size={14} /> ЗБЕРЕГТИ</>}
                 </button>
               </div>
             </form>
@@ -1821,14 +1816,14 @@ const KanbanModule = () => {
             <h3 style={{ margin: '0 0 15px 0', fontSize: '1.1rem', color: '#fff', fontWeight: 900, letterSpacing: '0.5px' }}>Підтвердження дії</h3>
             <p style={{ margin: '0 0 25px 0', fontSize: '0.85rem', color: '#aaa', lineHeight: '1.4' }}>{confirmModal.message}</p>
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-              <button 
+              <button
                 type="button"
                 onClick={() => setConfirmModal(null)}
                 style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', padding: '10px 20px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 800, cursor: 'pointer' }}
               >
                 Скасувати
               </button>
-              <button 
+              <button
                 type="button"
                 onClick={() => {
                   confirmModal.onConfirm()
@@ -1844,7 +1839,8 @@ const KanbanModule = () => {
       )}
 
       {/* ─── STYLES ───────────────────────────────────────────────────────── */}
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
         * { box-sizing: border-box; }
 
@@ -1922,14 +1918,16 @@ const KanbanModule = () => {
           display: flex;
           flex-direction: row;
           flex: 1;
+          min-height: 0;
           overflow: hidden;
         }
 
         /* ── BOARD ── */
         .kb-board {
           display: flex; gap: 16px; padding: 20px 20px; overflow-x: auto; flex: 1;
+          align-items: stretch; min-height: 0;
           scrollbar-width: thin; scrollbar-color: #1a1a1a transparent;
-          min-width: 0; /* CRITICAL: prevents flex child from expanding beyond container width */
+          min-width: 0;
         }
         .kb-board::-webkit-scrollbar { height: 6px; }
         .kb-board::-webkit-scrollbar-track { background: transparent; }
@@ -2004,7 +2002,7 @@ const KanbanModule = () => {
         .kb-col {
           flex: 0 0 290px; display: flex; flex-direction: column;
           background: #070707; border: 1px solid #111; border-radius: 18px;
-          overflow: hidden;
+          overflow: hidden; min-height: 0;
         }
         .col-head {
           padding: 16px 18px 14px; border-top: 3px solid; border-bottom: 1px solid #111;
@@ -2016,13 +2014,14 @@ const KanbanModule = () => {
         .col-cnt { font-size: 0.75rem; font-weight: 900; padding: 3px 9px; border-radius: 20px; }
         .col-add-btn { width: 26px; height: 26px; border-radius: 7px; background: rgba(255,144,0,0.1); border: 1px solid rgba(255,144,0,0.2); color: #ff9000; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; }
         .col-add-btn:hover { background: #ff9000; color: #000; }
-        .col-body { padding: 14px 12px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; scrollbar-width: thin; scrollbar-color: #1a1a1a transparent; }
+        .col-body { padding: 14px 12px; flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; scrollbar-width: thin; scrollbar-color: #1a1a1a transparent; }
         .col-body::-webkit-scrollbar { width: 4px; }
         .col-body::-webkit-scrollbar-thumb { background: #1a1a1a; border-radius: 2px; }
         .col-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 30px 10px; border: 2px dashed #111; border-radius: 12px; color: #1d1d1d; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
 
         /* ── CARD ── */
         .kb-card {
+          flex-shrink: 0;
           background: #0d0d0d; border: 1px solid #1a1a1a; border-radius: 14px;
           padding: 14px; cursor: pointer; position: relative;
           transition: all 0.22s ease; overflow: hidden;
