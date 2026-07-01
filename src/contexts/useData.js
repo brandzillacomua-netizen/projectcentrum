@@ -797,7 +797,18 @@ export function useData() {
             return updated.sort((a, b) => (a.login || '').localeCompare(b.login || ''))
           })
         } else if (payload.eventType === 'UPDATE') {
-          setSystemUsers(prev => prev.map(u => u.id === payload.new.id ? { ...u, ...payload.new } : u))
+          setSystemUsers(prev => {
+            const existing = prev.find(u => u.id === payload.new.id)
+            if (existing) {
+              const keys = Object.keys(payload.new).filter(k => k !== 'last_seen')
+              const hasChanges = keys.some(k => String(existing[k]) !== String(payload.new[k]))
+              if (!hasChanges) {
+                existing.last_seen = payload.new.last_seen
+                return prev
+              }
+            }
+            return prev.map(u => u.id === payload.new.id ? { ...u, ...payload.new } : u)
+          })
         } else if (payload.eventType === 'DELETE') {
           setSystemUsers(prev => prev.filter(u => u.id !== payload.old.id))
         }

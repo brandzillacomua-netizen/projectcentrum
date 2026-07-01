@@ -1304,7 +1304,7 @@ const KanbanModule = () => {
                 </div>
                 <div className="form-group">
                   <label>Дедлайн</label>
-                  <input type="date" value={form.deadline} onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))} />
+                  <input type="date" value={form.deadline} onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))} onClick={e => { try { e.target.showPicker() } catch(err){} }} />
                 </div>
               </div>
 
@@ -1394,7 +1394,7 @@ const KanbanModule = () => {
                 </div>
                 <div className="form-group">
                   <label>Дедлайн</label>
-                  <input type="date" value={editForm.deadline} onChange={e => setEditForm(f => ({ ...f, deadline: e.target.value }))} />
+                  <input type="date" value={editForm.deadline} onChange={e => setEditForm(f => ({ ...f, deadline: e.target.value }))} onClick={e => { try { e.target.showPicker() } catch(err){} }} />
                 </div>
               </div>
               <div className="form-row-2">
@@ -1785,6 +1785,7 @@ const KanbanModule = () => {
         .form-group label { font-size: 0.65rem; font-weight: 900; color: #444; text-transform: uppercase; letter-spacing: 0.8px; display: flex; align-items: center; gap: 5px; }
         .form-group input, .form-group textarea, .form-group select { background: #0d0d0d; border: 1px solid #1a1a1a; color: #fff; padding: 11px 14px; border-radius: 10px; font-family: inherit; font-size: 0.88rem; outline: none; transition: border-color 0.2s; width: 100%; }
         .form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: #ff9000; }
+        .form-group input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
         .form-group textarea { resize: vertical; }
         .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
