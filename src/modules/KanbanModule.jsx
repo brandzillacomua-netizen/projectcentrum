@@ -257,7 +257,7 @@ const AssigneeSelector = ({ value, onSelect, searchVal, setSearchVal, systemUser
 }
 
 // ─── ChecklistEditor (TOP-LEVEL) ────────────────────────────────────────────
-const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove, canEdit, onAddSubItem }) => {
+const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove, canEdit, onAddSubItem, onUpdateDeadline }) => {
   const [activeAddId, setActiveAddId] = useState(null)
   const [subText, setSubText] = useState('')
 
@@ -283,6 +283,73 @@ const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove
             {item.text}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
+            {/* Checklist item deadline picker */}
+            {canEdit ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <input
+                  type="date"
+                  value={item.deadline ? item.deadline.slice(0, 10) : ''}
+                  onChange={(e) => {
+                    const date = e.target.value
+                    const time = item.deadline && item.deadline.length > 10 ? item.deadline.slice(11, 16) : ''
+                    onUpdateDeadline && onUpdateDeadline(item.id, date ? (time ? `${date}T${time}` : date) : '')
+                  }}
+                  onClick={e => { try { e.target.showPicker() } catch(err){} }}
+                  style={{
+                    background: item.deadline ? 'rgba(255,144,0,0.06)' : 'rgba(255,255,255,0.02)',
+                    border: item.deadline ? '1px solid rgba(255,144,0,0.15)' : '1px solid rgba(255,255,255,0.05)',
+                    color: item.deadline ? '#ff9000' : '#444',
+                    borderRadius: '6px',
+                    fontSize: '0.68rem',
+                    padding: '3px 5px',
+                    width: '95px',
+                    cursor: 'pointer',
+                    outline: 'none',
+                    fontFamily: 'inherit'
+                  }}
+                />
+                {item.deadline && (
+                  <input
+                    type="time"
+                    value={item.deadline.length > 10 ? item.deadline.slice(11, 16) : ''}
+                    onChange={(e) => {
+                      const time = e.target.value
+                      const date = item.deadline.slice(0, 10)
+                      onUpdateDeadline && onUpdateDeadline(item.id, date ? (time ? `${date}T${time}` : date) : '')
+                    }}
+                    onClick={e => { try { e.target.showPicker() } catch(err){} }}
+                    style={{
+                      background: 'rgba(255,255,255,0.02)',
+                      border: '1px solid rgba(255,255,255,0.05)',
+                      color: '#bbb',
+                      borderRadius: '6px',
+                      fontSize: '0.68rem',
+                      padding: '3px 4px',
+                      width: '60px',
+                      cursor: 'pointer',
+                      outline: 'none',
+                      fontFamily: 'inherit'
+                    }}
+                  />
+                )}
+              </div>
+            ) : (
+              item.deadline && (
+                <span style={{ fontSize: '0.68rem', color: '#ff9000', display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(255,144,0,0.05)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(255,144,0,0.1)' }}>
+                  <Calendar size={11} />
+                  {(() => {
+                    const d = new Date(item.deadline)
+                    const options = { day: 'numeric', month: 'short' }
+                    if (d.getHours() !== 0 || d.getMinutes() !== 0) {
+                      options.hour = '2-digit'
+                      options.minute = '2-digit'
+                    }
+                    return d.toLocaleString('uk-UA', options)
+                  })()}
+                </span>
+              )
+            )}
+
             {canEdit && !isChild && (
               <button 
                 type="button" 
@@ -653,7 +720,7 @@ const KanbanModule = () => {
       assigned_to: task.assigned_to || '',
       is_collective: task.is_collective || false,
       department: task.department || 'all',
-      deadline: task.deadline ? task.deadline.slice(0, 10) : '',
+      deadline: task.deadline ? task.deadline.slice(0, 16) : '',
       checklist: Array.isArray(task.checklist) ? [...task.checklist] : [],
     })
     setEditAssigneeSearch('')
@@ -901,7 +968,15 @@ const KanbanModule = () => {
                           {task.deadline && (
                             <span className="card-deadline" style={{ color: overdue ? '#ef4444' : '#555' }}>
                               <Calendar size={11}/>
-                              {new Date(task.deadline).toLocaleDateString('uk-UA', { day: 'numeric', month: 'short' })}
+                              {(() => {
+                                const d = new Date(task.deadline)
+                                const options = { day: 'numeric', month: 'short' }
+                                if (d.getHours() !== 0 || d.getMinutes() !== 0) {
+                                  options.hour = '2-digit'
+                                  options.minute = '2-digit'
+                                }
+                                return d.toLocaleString('uk-UA', options)
+                              })()}
                             </span>
                           )}
                           {clp && (
@@ -1241,6 +1316,13 @@ const KanbanModule = () => {
                         setSelectedTask(prev => ({ ...prev, checklist: updated }))
                       }}
                       canEdit={isManager}
+                      onUpdateDeadline={async (itemId, dateStr) => {
+                        const updated = (Array.isArray(selectedTask.checklist) ? selectedTask.checklist : []).map(i =>
+                          String(i.id) === String(itemId) ? { ...i, deadline: dateStr || null } : i
+                        )
+                        await updateManagementTask(selectedTask.id, { checklist: updated })
+                        setSelectedTask(prev => ({ ...prev, checklist: updated }))
+                      }}
                     />
                   </div>
                 )}
@@ -1304,7 +1386,30 @@ const KanbanModule = () => {
                 </div>
                 <div className="form-group">
                   <label>Дедлайн</label>
-                  <input type="date" value={form.deadline} onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))} onClick={e => { try { e.target.showPicker() } catch(err){} }} />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="date"
+                      value={form.deadline ? form.deadline.slice(0, 10) : ''}
+                      onChange={e => {
+                        const date = e.target.value
+                        const time = form.deadline && form.deadline.length > 10 ? form.deadline.slice(11, 16) : ''
+                        setForm(f => ({ ...f, deadline: date ? (time ? `${date}T${time}` : date) : '' }))
+                      }}
+                      onClick={e => { try { e.target.showPicker() } catch(err){} }}
+                      style={{ flex: 1 }}
+                    />
+                    <input
+                      type="time"
+                      value={form.deadline && form.deadline.length > 10 ? form.deadline.slice(11, 16) : ''}
+                      onChange={e => {
+                        const time = e.target.value
+                        const date = form.deadline ? form.deadline.slice(0, 10) : new Date().toISOString().slice(0, 10)
+                        setForm(f => ({ ...f, deadline: date ? (time ? `${date}T${time}` : date) : '' }))
+                      }}
+                      onClick={e => { try { e.target.showPicker() } catch(err){} }}
+                      style={{ width: '110px' }}
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -1347,6 +1452,12 @@ const KanbanModule = () => {
                   }}
                   onRemove={removeCheckItemFromForm}
                   canEdit={true}
+                  onUpdateDeadline={(itemId, dateStr) => {
+                    setForm(f => ({
+                      ...f,
+                      checklist: (f.checklist || []).map(i => String(i.id) === String(itemId) ? { ...i, deadline: dateStr || null } : i)
+                    }))
+                  }}
                 />
               </div>
 
@@ -1394,7 +1505,30 @@ const KanbanModule = () => {
                 </div>
                 <div className="form-group">
                   <label>Дедлайн</label>
-                  <input type="date" value={editForm.deadline} onChange={e => setEditForm(f => ({ ...f, deadline: e.target.value }))} onClick={e => { try { e.target.showPicker() } catch(err){} }} />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="date"
+                      value={editForm.deadline ? editForm.deadline.slice(0, 10) : ''}
+                      onChange={e => {
+                        const date = e.target.value
+                        const time = editForm.deadline && editForm.deadline.length > 10 ? editForm.deadline.slice(11, 16) : ''
+                        setEditForm(f => ({ ...f, deadline: date ? (time ? `${date}T${time}` : date) : '' }))
+                      }}
+                      onClick={e => { try { e.target.showPicker() } catch(err){} }}
+                      style={{ flex: 1 }}
+                    />
+                    <input
+                      type="time"
+                      value={editForm.deadline && editForm.deadline.length > 10 ? editForm.deadline.slice(11, 16) : ''}
+                      onChange={e => {
+                        const time = e.target.value
+                        const date = editForm.deadline ? editForm.deadline.slice(0, 10) : new Date().toISOString().slice(0, 10)
+                        setEditForm(f => ({ ...f, deadline: date ? (time ? `${date}T${time}` : date) : '' }))
+                      }}
+                      onClick={e => { try { e.target.showPicker() } catch(err){} }}
+                      style={{ width: '110px' }}
+                    />
+                  </div>
                 </div>
               </div>
               <div className="form-row-2">
@@ -1448,6 +1582,12 @@ const KanbanModule = () => {
                   }}
                   onRemove={removeCheckItemFromEdit}
                   canEdit={true}
+                  onUpdateDeadline={(itemId, dateStr) => {
+                    setEditForm(f => ({
+                      ...f,
+                      checklist: (f.checklist || []).map(i => String(i.id) === String(itemId) ? { ...i, deadline: dateStr || null } : i)
+                    }))
+                  }}
                 />
               </div>
 
@@ -1785,7 +1925,8 @@ const KanbanModule = () => {
         .form-group label { font-size: 0.65rem; font-weight: 900; color: #444; text-transform: uppercase; letter-spacing: 0.8px; display: flex; align-items: center; gap: 5px; }
         .form-group input, .form-group textarea, .form-group select { background: #0d0d0d; border: 1px solid #1a1a1a; color: #fff; padding: 11px 14px; border-radius: 10px; font-family: inherit; font-size: 0.88rem; outline: none; transition: border-color 0.2s; width: 100%; }
         .form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: #ff9000; }
-        .form-group input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
+        input[type="date"]::-webkit-calendar-picker-indicator,
+        input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
         .form-group textarea { resize: vertical; }
         .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
