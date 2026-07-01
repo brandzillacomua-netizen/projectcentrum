@@ -97,12 +97,10 @@ const combineOps = (f2Arr, f15Arr) => {
   for (let i = 0; i < maxLen; i++) {
     const valF2 = (f2Arr[i] || "").trim()
     const valF15 = (f15Arr[i] || "").trim()
-    if (valF2 && valF15 && valF2 !== valF15) {
+    if (valF15) {
       combined.push(`${valF2} | ${valF15}`)
     } else if (valF2) {
       combined.push(valF2)
-    } else if (valF15) {
-      combined.push(valF15)
     }
   }
   return combined.filter(Boolean)
@@ -131,10 +129,10 @@ const MachineOperationsTab = () => {
         setSide1Ops((existing.side1_ops || []).filter(op => !op.startsWith('__CUTTER__:')))
         const s2 = (existing.side2_ops || []).filter(op => !op.startsWith('__CUTTER__:'))
         setSide2OpsF2(s2.map(op => op.includes('|') ? op.split('|')[0].trim() : op))
-        setSide2OpsF15(s2.map(op => op.includes('|') ? op.split('|')[1].trim() : op))
+        setSide2OpsF15(s2.map(op => op.includes('|') ? op.split('|')[1].trim() : ''))
         const s2c = (existing.side2_cut_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:'))
         setSide2CutOpsF2(s2c.map(op => op.includes('|') ? op.split('|')[0].trim() : op))
-        setSide2CutOpsF15(s2c.map(op => op.includes('|') ? op.split('|')[1].trim() : op))
+        setSide2CutOpsF15(s2c.map(op => op.includes('|') ? op.split('|')[1].trim() : ''))
         
         const cutterOps = (existing.side2_cut_ops || []).filter(op => op.startsWith('__CUTTER__:'))
         const parsed = cutterOps.map(c => {
@@ -1272,7 +1270,7 @@ const BomRow = ({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, supabas
           onCreated={nom => {
             setQuery(nom.name)
             setShowDrop(false)
-            onUpdate(idx, { nomId: nom.id, nomName: nom.name, nomType: nom.type, nomUnit: nom.unit })
+            onUpdate(idx, { nomId: nom.id, nomName: nom.name, nomType: nom.type, nomUnit: nom.unit, group: autoClassify(nom) })
           }}
         />
       )}
@@ -1296,7 +1294,7 @@ const BomRow = ({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, supabas
                     onMouseDown={() => {
                       setQuery(n.name)
                       setShowDrop(false)
-                      onUpdate(idx, { nomId: n.id, nomName: n.name, nomType: n.type, nomUnit: n.unit })
+                      onUpdate(idx, { nomId: n.id, nomName: n.name, nomType: n.type, nomUnit: n.unit, group: autoClassify(n) })
                     }}
                     style={{ padding: '10px 14px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1a1a1a', transition: 'background 0.15s' }}
                     onMouseEnter={e => e.currentTarget.style.background = '#1a1a1a'}
@@ -1504,10 +1502,10 @@ const SpecBuilderTab = () => {
         setSide1Ops((existing.side1_ops || []).filter(op => !op.startsWith('__CUTTER__:')))
         const s2 = (existing.side2_ops || []).filter(op => !op.startsWith('__CUTTER__:'))
         setSide2OpsF2(s2.map(op => op.includes('|') ? op.split('|')[0].trim() : op))
-        setSide2OpsF15(s2.map(op => op.includes('|') ? op.split('|')[1].trim() : op))
+        setSide2OpsF15(s2.map(op => op.includes('|') ? op.split('|')[1].trim() : ''))
         const s2c = (existing.side2_cut_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:'))
         setSide2CutOpsF2(s2c.map(op => op.includes('|') ? op.split('|')[0].trim() : op))
-        setSide2CutOpsF15(s2c.map(op => op.includes('|') ? op.split('|')[1].trim() : op))
+        setSide2CutOpsF15(s2c.map(op => op.includes('|') ? op.split('|')[1].trim() : ''))
         
         const cutterOps = (existing.side2_cut_ops || []).filter(op => op.startsWith('__CUTTER__:'))
         const parsed = cutterOps.map(c => {
