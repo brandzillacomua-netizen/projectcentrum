@@ -45,7 +45,7 @@ const MACHINE_TYPES = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function Shop1Terminal() {
-  const { workCards, nomenclatures, operators, getFilteredOperators, getFilteredManagers, managers, workCardHistory, inventory, fetchData, createWorkCard, orders, bomItems, tasks, currentUser, machines, systemUsers, machineOperations, formatUserName } = useMES()
+  const { workCards, nomenclatures, operators, getFilteredOperators, getFilteredManagers, managers, workCardHistory, inventory, fetchData, createWorkCard, orders, bomItems, tasks, currentUser, machines, systemUsers, machineOperations, formatUserName, requests } = useMES()
 
   const [currentTime, setCurrentTime] = useState(getCurrentTime())
   const [selectedCardId, setSelectedCardId] = useState(null)
@@ -228,6 +228,25 @@ export default function Shop1Terminal() {
   useEffect(() => { localStorage.setItem('shop1_scanned', JSON.stringify(scannedIds)) }, [scannedIds])
   useEffect(() => { const t = setInterval(() => setCurrentTime(getCurrentTime()), 1000); return () => clearInterval(t) }, [])
 
+  const checkCardMaterials = (card) => {
+    if (!card) return false
+    const pendingReqs = (requests || []).filter(r => 
+      (String(r.card_id) === String(card.id) || String(r.task_id) === String(card.task_id)) && 
+      r.status === 'pending'
+    )
+    if (pendingReqs.length > 0) {
+      const materialList = pendingReqs.map((r, idx) => {
+        return `${idx + 1}. ${r.details || 'Матеріали'}`
+      }).join('\n')
+      showAlert(
+        `Дана картка очікує забезпечення матеріалами від складу:\n\n${materialList}\n\nБудь ласка, зверніться до працівника складу для підтвердження видачі перед початком роботи.`,
+        `⏳ Очікування забезпечення матеріалів`
+      )
+      return true
+    }
+    return false
+  }
+
   // ── QR-сканер (Зроблено "таким самим", як в інших терміналах) ──────────
   useEffect(() => {
     let html5QrCode = null
@@ -288,6 +307,7 @@ export default function Shop1Terminal() {
             setScannedIds(prev => prev.includes(card.id) ? prev : [...prev, card.id])
             setSelectedCardId(card.id)
             setScanError(null)
+            checkCardMaterials(card)
             window.scrollTo({ top: 0, behavior: 'smooth' })
           } else {
             // Check if it's a machine call QR code URL
@@ -357,6 +377,7 @@ export default function Shop1Terminal() {
                 setScannedIds(prev => prev.includes(card.id) ? prev : [...prev, card.id])
                 setSelectedCardId(card.id)
                 setScanError(null)
+                checkCardMaterials(card)
                 window.scrollTo({ top: 0, behavior: 'smooth' })
               }
             }
@@ -405,6 +426,7 @@ export default function Shop1Terminal() {
       setShowManualInput(false)
       setIsScanning(false)
       setScanError(null)
+      checkCardMaterials(card)
     }
     setIsProcessing(false)
   }

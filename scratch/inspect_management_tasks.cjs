@@ -8,8 +8,9 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 async function run() {
-  const { data } = await supabase.from('management_tasks').select('*').limit(1);
-  console.log("Record:", data?.[0]);
+  const { data: cards } = await supabase.from('work_cards').select('status');
+  const statuses = [...new Set(cards.map(c => c.status))];
+  console.log("ALL Work Card Statuses in DB:", statuses);
 }
 
 run().catch(console.error);
