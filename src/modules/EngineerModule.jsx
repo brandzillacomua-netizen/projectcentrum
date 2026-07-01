@@ -1341,8 +1341,8 @@ const BomRow = ({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, supabas
           </select>
           <input
             type="number"
-            min="0.001"
-            step="0.001"
+            min="1"
+            step="1"
             value={row.qty}
             onChange={e => onUpdate(idx, { qty: e.target.value })}
             style={{ padding: '8px 10px', background: '#111', border: '1px solid #2a2a2a', color: '#f59e0b', borderRadius: '8px', fontSize: '0.9rem', fontWeight: 700, textAlign: 'right' }}
@@ -1641,6 +1641,12 @@ const SpecBuilderTab = () => {
         if (parentErr) throw parentErr
         
         activeParentId = newParent.id
+      } else if (pendingParent && selectedParent && pendingParent.name.trim() !== selectedParent.name.trim()) {
+        const { error: renameErr } = await supabase
+          .from('nomenclatures')
+          .update({ name: pendingParent.name.trim() })
+          .eq('id', activeParentId)
+        if (renameErr) throw renameErr
       }
 
       // Aggregate duplicate child_ids
@@ -1715,7 +1721,7 @@ const SpecBuilderTab = () => {
   const groupedRows = useMemo(() => {
     const groups = {}
     rows.forEach((r, idx) => {
-      const g = r.group || 'Деталі'
+      const g = r.nomId ? (r.group || 'Деталі') : 'Нові рядки'
       if (!groups[g]) groups[g] = []
       groups[g].push({ ...r, _idx: idx })
     })
@@ -1885,35 +1891,27 @@ const SpecBuilderTab = () => {
           <div style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: '16px', padding: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
               <label style={{ fontSize: '0.75rem', color: '#888', fontWeight: 900, textTransform: 'uppercase', display: 'block' }}>Крок 1: Оберіть або Створіть виріб-батько</label>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  onClick={() => {
-                    setParentCreateType('product');
-                    setShowParentCreate(true);
-                  }}
-                  style={{ padding: '6px 12px', background: 'rgba(245,158,11,0.15)', border: '1px solid #f59e0b40', color: '#f59e0b', borderRadius: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
-                >
-                  + Створити Готовий Виріб (Раму)
-                </button>
-                <button
-                  onClick={() => {
-                    setParentCreateType('assembly');
-                    setShowParentCreate(true);
-                  }}
-                  style={{ padding: '6px 12px', background: 'rgba(167,139,250,0.15)', border: '1px solid #a78bfa40', color: '#a78bfa', borderRadius: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
-                >
-                  + Створити Вузол
-                </button>
-              </div>
             </div>
             <div style={{ position: 'relative', maxWidth: '600px' }}>
               <input
-                value={selectedParent ? selectedParent.name : parentSearch}
+                value={parentId ? (pendingParent ? pendingParent.name : (selectedParent ? selectedParent.name : "")) : parentSearch}
                 placeholder="Введіть назву або почніть пошук..."
-                readOnly={!!selectedParent}
-                onChange={e => { if (!selectedParent) { setParentSearch(e.target.value); setShowParentDrop(true) } }}
-                onFocus={() => { if (!selectedParent) setShowParentDrop(true) }}
-                onBlur={() => setTimeout(() => setShowParentDrop(false), 180)}
+                onChange={e => {
+                  const val = e.target.value
+                  if (parentId === 'temp-new') {
+                    setPendingParent(prev => ({ ...prev, name: val }))
+                  } else if (parentId) {
+                    if (!pendingParent && selectedParent) {
+                      setPendingParent({ ...selectedParent })
+                    }
+                    setPendingParent(prev => ({ ...prev, name: val }))
+                  } else {
+                    setParentSearch(val)
+                    setShowParentDrop(true)
+                  }
+                }}
+                onFocus={() => { if (!parentId) setShowParentDrop(true) }}
+                onBlur={() => { if (!parentId) setTimeout(() => setShowParentDrop(false), 180) }}
                 style={{ width: '100%', padding: '12px 16px', background: parentId ? '#0f1a2e' : '#111', border: `1px solid ${parentId ? '#1d4ed840' : '#2a2a2a'}`, color: '#fff', borderRadius: '10px', fontSize: '0.95rem', fontWeight: 600, boxSizing: 'border-box' }}
               />
               {selectedParent && (
@@ -1928,8 +1926,14 @@ const SpecBuilderTab = () => {
                         <button
                           onMouseDown={(e) => {
                             e.preventDefault();
-                            setParentCreateType('product');
-                            setShowParentCreate(true);
+                            setPendingParent({
+                              name: parentSearch.trim(),
+                              type: 'product',
+                              material_type: null
+                            });
+                            setParentId('temp-new');
+                            setParentSearch('');
+                            setRows([]);
                             setShowParentDrop(false);
                           }}
                           style={{ padding: '6px 12px', background: 'rgba(245,158,11,0.15)', border: '1px solid #f59e0b40', color: '#f59e0b', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
@@ -1939,8 +1943,14 @@ const SpecBuilderTab = () => {
                         <button
                           onMouseDown={(e) => {
                             e.preventDefault();
-                            setParentCreateType('assembly');
-                            setShowParentCreate(true);
+                            setPendingParent({
+                              name: parentSearch.trim(),
+                              type: 'assembly',
+                              material_type: null
+                            });
+                            setParentId('temp-new');
+                            setParentSearch('');
+                            setRows([]);
                             setShowParentDrop(false);
                           }}
                           style={{ padding: '6px 12px', background: 'rgba(167,139,250,0.15)', border: '1px solid #a78bfa40', color: '#a78bfa', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
@@ -1968,8 +1978,14 @@ const SpecBuilderTab = () => {
                         <button
                           onMouseDown={(e) => {
                             e.preventDefault();
-                            setParentCreateType('product');
-                            setShowParentCreate(true);
+                            setPendingParent({
+                              name: parentSearch.trim(),
+                              type: 'product',
+                              material_type: null
+                            });
+                            setParentId('temp-new');
+                            setParentSearch('');
+                            setRows([]);
                             setShowParentDrop(false);
                           }}
                           style={{ padding: '4px 10px', background: 'transparent', border: 'none', color: '#f59e0b', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
@@ -1982,11 +1998,61 @@ const SpecBuilderTab = () => {
                 </div>
               )}
             </div>
+
+            {/* Dropdown for quick creation of new items directly under the search field */}
+            {!selectedParent && parentSearch.trim().length > 0 && (
+              <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '0.8rem', color: '#888' }}>Створити нову номенклатуру:</span>
+                <select
+                  onChange={(e) => {
+                    const val = e.target.value
+                    if (val === 'product' || val === 'assembly') {
+                      setPendingParent({
+                        name: parentSearch.trim(),
+                        type: val,
+                        material_type: null
+                      })
+                      setParentId('temp-new')
+                      setParentSearch('')
+                      setRows([])
+                    }
+                  }}
+                  value=""
+                  style={{
+                    background: '#111',
+                    border: '1px solid #2a2a5a',
+                    color: '#a78bfa',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    outline: 'none'
+                  }}
+                >
+                  <option value="">— Оберіть тип (Виріб або Вузол) —</option>
+                  <option value="product">Готовий Виріб (Рама)</option>
+                  <option value="assembly">Вузол збірки</option>
+                </select>
+              </div>
+            )}
+
             {selectedParent && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
                 <Package size={14} color="#818cf8"/>
                 <span style={{ fontSize: '0.8rem', color: '#818cf8', fontWeight: 700 }}>{selectedParent.name}</span>
                 <span style={{ fontSize: '0.65rem', color: '#555' }}>ID: {selectedParent.id}</span>
+                <span style={{
+                  fontSize: '0.65rem',
+                  fontWeight: 900,
+                  textTransform: 'uppercase',
+                  background: selectedParent.type === 'product' ? 'rgba(245,158,11,0.15)' : 'rgba(167,139,250,0.15)',
+                  color: selectedParent.type === 'product' ? '#f59e0b' : '#a78bfa',
+                  padding: '2px 8px',
+                  borderRadius: '12px'
+                }}>
+                  {selectedParent.type === 'product' ? 'Готовий Виріб' : 'Вузол збірки'}
+                </span>
                 {bomItems.filter(b => String(b.parent_id) === String(parentId)).length > 0 && (
                   <span style={{ fontSize: '0.7rem', background: '#1a2a1a', color: '#34d399', padding: '2px 10px', borderRadius: '20px', fontWeight: 700 }}>
                     ✓ Вже має {bomItems.filter(b => String(b.parent_id) === String(parentId)).length} позицій (редагування)
@@ -2016,9 +2082,25 @@ const SpecBuilderTab = () => {
               </div>
             ) : (
               <div style={{ padding: '8px' }}>
-                {Object.entries(groupedRows).map(([groupName, groupRows]) => (
+                {Object.entries(groupedRows)
+                   .sort(([aName], [bName]) => {
+                     const order = ['Деталі', 'Метизи', 'Накладки', 'Гума/Пластик', '3D-друк', 'Фурнітура', 'Комплектуючі', 'Інше', 'Нові рядки']
+                     const aIdx = order.indexOf(aName)
+                     const bIdx = order.indexOf(bName)
+                     return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx)
+                   })
+                   .map(([groupName, groupRows]) => (
                   <div key={groupName} style={{ marginBottom: '12px' }}>
-                    <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 900, textTransform: 'uppercase', padding: '6px 10px', letterSpacing: '0.08em' }}>— {groupName} ({groupRows.length}) —</div>
+                    <div style={{
+                      fontSize: '0.65rem',
+                      color: groupName === 'Нові рядки' ? '#a78bfa' : '#555',
+                      fontWeight: 900,
+                      textTransform: 'uppercase',
+                      padding: '6px 10px',
+                      letterSpacing: '0.08em'
+                    }}>
+                      — {groupName} ({groupRows.length}) —
+                    </div>
                     {groupRows.map(r => (
                       <BomRow
                         key={r._idx}
@@ -2695,6 +2777,7 @@ const ImportSpecTab = () => {
 
 const EngineerModule = () => {
   const { tasks, orders, nomenclatures, approveEngineer, machineCalls, machines, currentUser, supabase } = useMES()
+  const isSuperAdmin = currentUser?.login === 'admin@workshop.local' || currentUser?.position === 'Адмін' || currentUser?.access_rights?.director
   const [activeTab, setActiveTab] = useState('tasks')
   
   const pendingTasks = tasks.filter(t => t.status === 'waiting' && !t.engineer_conf)
@@ -2778,13 +2861,15 @@ const EngineerModule = () => {
           >
             Черга ЧПК ({pendingTasks.length})
           </button>
-          <button 
-            onClick={() => setActiveTab('operations')}
-            style={{ padding: '10px 20px', background: activeTab === 'operations' ? '#3b82f6' : '#111', color: '#fff', border: '1px solid #222', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}
-          >
-            <Database size={16} style={{ display: 'inline', verticalAlign: 'text-bottom', marginRight: '5px' }} />
-            Операції станків
-          </button>
+          {isSuperAdmin && (
+            <button 
+              onClick={() => setActiveTab('operations')}
+              style={{ padding: '10px 20px', background: activeTab === 'operations' ? '#3b82f6' : '#111', color: '#fff', border: '1px solid #222', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}
+            >
+              <Database size={16} style={{ display: 'inline', verticalAlign: 'text-bottom', marginRight: '5px' }} />
+              Операції станків
+            </button>
+          )}
           <button 
             onClick={() => setActiveTab('spec')}
             style={{ padding: '10px 20px', background: activeTab === 'spec' ? 'linear-gradient(135deg,#4f46e5,#7c3aed)' : '#111', color: '#fff', border: `1px solid ${activeTab === 'spec' ? '#6366f1' : '#222'}`, borderRadius: '8px', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '7px' }}
@@ -2866,7 +2951,7 @@ const EngineerModule = () => {
            )}
           </div>
           </>
-        ) : activeTab === 'operations' ? (
+        ) : (activeTab === 'operations' && isSuperAdmin) ? (
           <MachineOperationsTab />
         ) : activeTab === 'import' ? (
           <ImportSpecTab />
