@@ -76,7 +76,7 @@ const LoginPage = () => {
               placeholder="ЛОГІН"
               style={inputStyle}
               value={formData.login}
-              onChange={e => setFormData({ ...formData, login: e.target.value })}
+              onChange={e => setFormData({ ...formData, login: e.target.value.replace(/\s/g, '') })}
               autoComplete="username"
               required
             />

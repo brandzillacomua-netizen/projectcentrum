@@ -3,7 +3,8 @@ import {
   KanbanSquare, ArrowLeft, Plus, Clock, User, Users, Search, CheckCircle2,
   AlertCircle, X, MessageSquare, CheckSquare, Square, Trash2, Edit3,
   ChevronRight, MoreHorizontal, Flag, Calendar, Tag, Layers, Filter,
-  TrendingUp, Zap, Shield, Eye, EyeOff, Save, RotateCcw, Briefcase
+  TrendingUp, Zap, Shield, Eye, EyeOff, Save, RotateCcw, Briefcase,
+  ChevronDown, ChevronUp,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
@@ -257,9 +258,101 @@ const AssigneeSelector = ({ value, onSelect, searchVal, setSearchVal, systemUser
 }
 
 // ─── ChecklistEditor (TOP-LEVEL) ────────────────────────────────────────────
-const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove, canEdit, onAddSubItem, onUpdateDeadline }) => {
+// ─── ChecklistAssigneeSelector ───────────────────────────────────────────────
+const ChecklistAssigneeSelector = ({ value, onSelect, systemUsers }) => {
+  const [open, setOpen] = React.useState(false)
+  const selectedUser = (systemUsers || []).find(u => u.login === value)
+  
+  return (
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+      <button 
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+        style={{
+          background: 'rgba(255,255,255,0.03)',
+          border: '1px solid rgba(255,255,255,0.06)',
+          borderRadius: '50%',
+          width: '26px',
+          height: '26px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          padding: 0,
+          color: '#ff9000'
+        }}
+      >
+        {selectedUser ? (
+          <div 
+            title={`Відповідальний: ${selectedUser.last_name} ${selectedUser.first_name}`}
+            style={{
+              width: '22px',
+              height: '22px',
+              borderRadius: '50%',
+              background: '#ff9000',
+              color: '#000',
+              fontSize: '0.6rem',
+              fontWeight: 900,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            {getInitials(selectedUser)}
+          </div>
+        ) : (
+          <User size={13} color="#555" title="Призначити відповідального" />
+        )}
+      </button>
+      {open && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 10000 }} onClick={() => setOpen(false)} />
+          <div style={{
+            position: 'absolute',
+            bottom: '30px',
+            right: 0,
+            background: '#111',
+            border: '1px solid #222',
+            borderRadius: '10px',
+            maxHeight: '180px',
+            overflowY: 'auto',
+            zIndex: 10001,
+            width: '180px',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
+          }}>
+            <div 
+              onClick={() => { onSelect(null); setOpen(false); }}
+              style={{ padding: '8px 12px', fontSize: '0.75rem', color: '#ff9000', cursor: 'pointer', borderBottom: '1px solid #222', fontWeight: 800 }}
+            >
+              Не призначено
+            </div>
+            {(systemUsers || []).map(u => (
+              <div 
+                key={u.login}
+                onClick={() => { onSelect(u.login); setOpen(false); }}
+                style={{ padding: '8px 12px', fontSize: '0.75rem', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#ff900015'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: '#ff9000', color: '#000', fontSize: '0.55rem', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {getInitials(u)}
+                </div>
+                <span>{u.last_name} {u.first_name[0]}.</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove, canEdit, onAddSubItem, onUpdateDeadline, onUpdateAssignee, systemUsers }) => {
   const [activeAddId, setActiveAddId] = useState(null)
   const [subText, setSubText] = useState('')
+  const [collapsedItems, setCollapsedItems] = useState({})
+  const [isEditing, setIsEditing] = useState(false)
+  const showEditControls = canEdit && isEditing
 
   const roots = items.filter(item => !item.parent_id || !items.some(parent => String(parent.id) === String(item.parent_id)))
   const getChildren = (parentId) => items.filter(item => String(item.parent_id) === String(parentId))
@@ -267,25 +360,63 @@ const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove
   const renderItem = (item, isChild = false) => {
     const children = getChildren(item.id)
     const hasChildren = children.length > 0
-    const isChecked = item.done
     const isAddingSub = activeAddId === item.id
+
+    const isCollapsed = !!collapsedItems[item.id]
+    const toggleCollapse = (e) => {
+      e.stopPropagation()
+      setCollapsedItems(prev => ({ ...prev, [item.id]: !prev[item.id] }))
+    }
+    const isChecked = hasChildren ? children.every(c => c.done) : item.done
+    const assigneeUser = (systemUsers || []).find(u => u.login === item.assignee)
 
     return (
       <div key={item.id} style={{ display: 'flex', flexDirection: 'column' }}>
         <div 
-          className={`checklist-item ${isChecked ? 'done' : ''}`}
-          style={isChild ? { marginLeft: '24px', borderLeft: '2px solid rgba(255,255,255,0.08)', paddingLeft: '12px', background: 'rgba(255,255,255,0.01)' } : {}}
+          className={`checklist-item ${isChild ? 'child-item' : 'parent-item'} ${isChecked ? 'done' : ''}`}
         >
-          <button type="button" className="check-toggle" onClick={() => onToggle && onToggle(item.id)}>
-            {isChecked ? <CheckSquare size={16} color="#10b981" /> : <Square size={16} color="#555" />}
-          </button>
-          <span className="check-text" style={isChild ? { fontSize: '0.82rem', color: isChecked ? '#666' : '#bbb' } : { fontWeight: hasChildren ? 700 : 500 }}>
-            {item.text}
-          </span>
+          <div 
+            onClick={(e) => {
+              if (!hasChildren) {
+                if (onToggle) onToggle(item.id)
+              } else {
+                toggleCollapse(e)
+              }
+            }}
+            className="check-click-area"
+            style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', flex: 1, minWidth: 0 }}
+          >
+            <button type="button" className="check-toggle" style={{ pointerEvents: 'none' }}>
+              {isChecked ? <CheckSquare size={18} color="#10b981" /> : <Square size={18} color="#555" />}
+            </button>
+            <span className="check-text" style={isChild ? { fontSize: '0.82rem', color: isChecked ? '#666' : '#bbb' } : { fontWeight: hasChildren ? 700 : 500 }}>
+              {item.text}
+            </span>
+            {hasChildren && !isChild && (
+              <span className="subtasks-badge" style={{ fontSize: '0.62rem', color: '#ff9000', marginLeft: '8px', background: 'rgba(255,144,0,0.08)', padding: '2px 6px', borderRadius: '6px', border: '1px solid rgba(255,144,0,0.15)', fontWeight: 800, whiteSpace: 'nowrap' }}>
+                містить {children.length} підзадач
+              </span>
+            )}
+          </div>
+          {hasChildren && !isChild && (
+            <button 
+              type="button" 
+              onClick={toggleCollapse} 
+              style={{ background: 'rgba(255,144,0,0.05)', border: '1px solid rgba(255,144,0,0.1)', color: '#ff9000', cursor: 'pointer', padding: '3px 8px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', fontWeight: 800 }}
+            >
+              {isCollapsed ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
+              <span>{isCollapsed ? 'Розгорнути' : 'Згорнути'}</span>
+            </button>
+          )}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
-            {/* Checklist item deadline picker */}
-            {canEdit ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            {/* Checklist item deadline picker & assignee picker */}
+            {showEditControls ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <ChecklistAssigneeSelector 
+                  value={item.assignee}
+                  onSelect={(val) => onUpdateAssignee && onUpdateAssignee(item.id, val)}
+                  systemUsers={systemUsers}
+                />
                 <input
                   type="date"
                   value={item.deadline ? item.deadline.slice(0, 10) : ''}
@@ -334,23 +465,46 @@ const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove
                 )}
               </div>
             ) : (
-              item.deadline && (
-                <span style={{ fontSize: '0.68rem', color: '#ff9000', display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(255,144,0,0.05)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(255,144,0,0.1)' }}>
-                  <Calendar size={11} />
-                  {(() => {
-                    const d = new Date(item.deadline)
-                    const options = { day: 'numeric', month: 'short' }
-                    if (d.getHours() !== 0 || d.getMinutes() !== 0) {
-                      options.hour = '2-digit'
-                      options.minute = '2-digit'
-                    }
-                    return d.toLocaleString('uk-UA', options)
-                  })()}
-                </span>
-              )
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {assigneeUser && (
+                  <div 
+                    title={`Відповідальний: ${assigneeUser.last_name} ${assigneeUser.first_name}`}
+                    style={{
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '50%',
+                      background: '#ff900018',
+                      border: '1px solid rgba(255,144,0,0.3)',
+                      color: '#ff9000',
+                      fontSize: '0.65rem',
+                      fontWeight: 900,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'default'
+                    }}
+                  >
+                    {getInitials(assigneeUser)}
+                  </div>
+                )}
+                {item.deadline && (
+                  <span style={{ fontSize: '0.68rem', color: '#ff9000', display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(255,144,0,0.05)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(255,144,0,0.1)' }}>
+                    <Calendar size={11} />
+                    {(() => {
+                      const d = new Date(item.deadline)
+                      const options = { day: 'numeric', month: 'short' }
+                      if (d.getHours() !== 0 || d.getMinutes() !== 0) {
+                        options.hour = '2-digit'
+                        options.minute = '2-digit'
+                      }
+                      return d.toLocaleString('uk-UA', options)
+                    })()}
+                  </span>
+                )}
+              </div>
             )}
 
-            {canEdit && !isChild && (
+            {showEditControls && !isChild && (
               <button 
                 type="button" 
                 title="Додати підпункт" 
@@ -366,7 +520,7 @@ const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove
                 <span style={{ fontSize: '0.68rem', marginLeft: '2px' }}>підпункт</span>
               </button>
             )}
-            {canEdit && (
+            {showEditControls && (
               <button type="button" className="check-remove" onClick={() => onRemove(item.id)}>
                 <X size={11}/>
               </button>
@@ -375,7 +529,7 @@ const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove
         </div>
 
         {/* Inline subitem input */}
-        {isAddingSub && (
+        {!isCollapsed && isAddingSub && (
           <div style={{ display: 'flex', gap: '8px', marginLeft: '24px', padding: '6px 10px', alignItems: 'center' }}>
             <input 
               autoFocus
@@ -432,13 +586,37 @@ const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove
           </div>
         )}
 
-        {children.map(child => renderItem(child, true))}
+        {!isCollapsed && children.map(child => renderItem(child, true))}
       </div>
     )
   }
 
   return (
     <div className="checklist-editor">
+      {canEdit && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
+          <button
+            type="button"
+            onClick={() => setIsEditing(!isEditing)}
+            style={{
+              background: isEditing ? '#ff9000' : 'rgba(255,255,255,0.05)',
+              border: isEditing ? 'none' : '1px solid rgba(255,255,255,0.1)',
+              color: isEditing ? '#000' : '#ff9000',
+              padding: '6px 14px',
+              borderRadius: '8px',
+              fontSize: '0.75rem',
+              fontWeight: 900,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s'
+            }}
+          >
+            {isEditing ? '✓ Готово' : '⚙ Редагувати структуру' }
+          </button>
+        </div>
+      )}
       {items.length > 0 && (
         <div className="checklist-progress-row">
           <div className="cl-track"><div className="cl-fill" style={{ width: `${checklistProgress(items)?.pct || 0}%`, background: checklistProgress(items)?.pct === 100 ? '#10b981' : '#3b82f6' }} /></div>
@@ -447,9 +625,9 @@ const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove
       )}
       <div className="checklist-items">
         {roots.map(root => renderItem(root, false))}
-        {items.length === 0 && <div className="checklist-empty">Немає пунктів. {canEdit ? 'Додайте нижче.' : ''}</div>}
+        {items.length === 0 && <div className="checklist-empty">Немає пунктів. {showEditControls ? 'Додайте нижче.' : ''}</div>}
       </div>
-      {canEdit && (
+      {showEditControls && (
         <div className="add-check-row">
           <input
             type="text"
@@ -528,6 +706,7 @@ const KanbanModule = () => {
   // ── Modals ──────────────────────────────────────────────────────────────
   const [createOpen, setCreateOpen] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
+  const [confirmModal, setConfirmModal] = useState(null)
   const [editOpen, setEditOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState(null)
   const [detailTab, setDetailTab] = useState('desc') // 'desc' | 'checklist' | 'comments'
@@ -760,9 +939,17 @@ const KanbanModule = () => {
   // ─── Toggle checklist item ──────────────────────────────────────────────
   const handleToggleCheckItem = async (task, itemId) => {
     const checklist = Array.isArray(task.checklist) ? task.checklist : []
-    const updated = toggleChecklistItem(checklist, itemId)
-    await updateManagementTask(task.id, { checklist: updated })
-    if (selectedTask?.id === task.id) setSelectedTask(prev => ({ ...prev, checklist: updated }))
+    const item = checklist.find(i => String(i.id) === String(itemId))
+    if (!item) return
+    const msg = item.done ? "Зняти відмітку про виконання для цього пункту?" : "Позначити цей пункт як виконаний?"
+    setConfirmModal({
+      message: msg,
+      onConfirm: async () => {
+        const updated = toggleChecklistItem(checklist, itemId)
+        await updateManagementTask(task.id, { checklist: updated })
+        if (selectedTask?.id === task.id) setSelectedTask(prev => ({ ...prev, checklist: updated }))
+      }
+    })
   }
 
   // ─── Status actions ─────────────────────────────────────────────────────
@@ -1315,7 +1502,15 @@ const KanbanModule = () => {
                         await updateManagementTask(selectedTask.id, { checklist: updated })
                         setSelectedTask(prev => ({ ...prev, checklist: updated }))
                       }}
-                      canEdit={isManager}
+                      canEdit={isManager || selectedTask?.created_by === currentUser?.login}
+                      systemUsers={systemUsers}
+                      onUpdateAssignee={async (itemId, assigneeLogin) => {
+                        const updated = (Array.isArray(selectedTask.checklist) ? selectedTask.checklist : []).map(i =>
+                          String(i.id) === String(itemId) ? { ...i, assignee: assigneeLogin || null } : i
+                        )
+                        await updateManagementTask(selectedTask.id, { checklist: updated })
+                        setSelectedTask(prev => ({ ...prev, checklist: updated }))
+                      }}
                       onUpdateDeadline={async (itemId, dateStr) => {
                         const updated = (Array.isArray(selectedTask.checklist) ? selectedTask.checklist : []).map(i =>
                           String(i.id) === String(itemId) ? { ...i, deadline: dateStr || null } : i
@@ -1452,6 +1647,13 @@ const KanbanModule = () => {
                   }}
                   onRemove={removeCheckItemFromForm}
                   canEdit={true}
+                  systemUsers={systemUsers}
+                  onUpdateAssignee={(itemId, assigneeLogin) => {
+                    setForm(f => ({
+                      ...f,
+                      checklist: (f.checklist || []).map(i => String(i.id) === String(itemId) ? { ...i, assignee: assigneeLogin || null } : i)
+                    }))
+                  }}
                   onUpdateDeadline={(itemId, dateStr) => {
                     setForm(f => ({
                       ...f,
@@ -1582,6 +1784,13 @@ const KanbanModule = () => {
                   }}
                   onRemove={removeCheckItemFromEdit}
                   canEdit={true}
+                  systemUsers={systemUsers}
+                  onUpdateAssignee={(itemId, assigneeLogin) => {
+                    setEditForm(f => ({
+                      ...f,
+                      checklist: (f.checklist || []).map(i => String(i.id) === String(itemId) ? { ...i, assignee: assigneeLogin || null } : i)
+                    }))
+                  }}
                   onUpdateDeadline={(itemId, dateStr) => {
                     setEditForm(f => ({
                       ...f,
@@ -1600,6 +1809,36 @@ const KanbanModule = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+
+      {/* ─── CONFIRMATION MODAL ─── */}
+      {confirmModal && (
+        <div className="modal-overlay" style={{ zIndex: 10050 }} onClick={() => setConfirmModal(null)}>
+          <div className="modal-box" style={{ maxWidth: '400px', padding: '30px', textAlign: 'center', background: '#111', border: '1px solid #222', borderRadius: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.6)' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 15px 0', fontSize: '1.1rem', color: '#fff', fontWeight: 900, letterSpacing: '0.5px' }}>Підтвердження дії</h3>
+            <p style={{ margin: '0 0 25px 0', fontSize: '0.85rem', color: '#aaa', lineHeight: '1.4' }}>{confirmModal.message}</p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <button 
+                type="button"
+                onClick={() => setConfirmModal(null)}
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', padding: '10px 20px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 800, cursor: 'pointer' }}
+              >
+                Скасувати
+              </button>
+              <button 
+                type="button"
+                onClick={() => {
+                  confirmModal.onConfirm()
+                  setConfirmModal(null)
+                }}
+                style={{ background: '#ff9000', border: 'none', color: '#000', padding: '10px 24px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 900, cursor: 'pointer' }}
+              >
+                Підтвердити
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1890,6 +2129,39 @@ const KanbanModule = () => {
         .cl-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
         .cl-pct { font-size: 0.75rem; font-weight: 900; color: #888; min-width: 32px; text-align: right; }
         .checklist-items { display: flex; flex-direction: column; gap: 6px; }
+        .check-click-area { transition: opacity 0.15s ease; }
+        .check-click-area:hover { opacity: 0.85; }
+        .check-click-area:active { opacity: 0.7; }
+        .checklist-item.parent-item {
+          background: #0d0d10 !important;
+          border: 1px solid rgba(255, 255, 255, 0.04) !important;
+          border-left: 3px solid #ff9000 !important;
+          border-radius: 12px !important;
+          padding: 12px 16px !important;
+          margin-top: 10px !important;
+          box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+        .checklist-item.child-item {
+          background: transparent !important;
+          border: none !important;
+          border-left: 2px solid rgba(255, 144, 0, 0.25) !important;
+          border-radius: 0 !important;
+          padding: 6px 12px 6px 16px !important;
+          margin-left: 28px !important;
+          margin-top: 2px !important;
+          margin-bottom: 2px !important;
+        }
+        .checklist-item.child-item:hover {
+          background: rgba(255, 255, 255, 0.02) !important;
+          border-left-color: #ff9000 !important;
+        }
+        .checklist-item.child-item .check-text {
+          font-size: 0.8rem !important;
+          color: #aaa;
+        }
+        .checklist-item.child-item.done .check-text {
+          color: #555 !important;
+        }
         .checklist-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; background: #090909; border: 1px solid #141414; border-radius: 9px; transition: all 0.2s; }
         .checklist-item.done .check-text { text-decoration: line-through; color: #444; }
         .checklist-item:hover { border-color: #1e1e1e; }
@@ -1994,9 +2266,35 @@ const KanbanModule = () => {
           .kb-col { display: none !important; width: 100% !important; height: auto !important; margin-bottom: 20px; }
           .kb-col.mob-active { display: block !important; }
           .col-body { display: block !important; height: auto !important; }
-          .detail-body { grid-template-columns: 1fr; }
-          .detail-side { border-right: none; border-bottom: 1px solid #111; }
-          .detail-modal { max-height: 95vh; }
+          .detail-body { display: block !important; overflow-y: auto !important; height: auto !important; max-height: calc(95vh - 60px); }
+          .detail-side { border-right: none; border-bottom: 1px solid #111; overflow: visible !important; height: auto !important; }
+          .detail-main { overflow: visible !important; height: auto !important; }
+          .detail-modal { max-height: 95vh; display: flex; flex-direction: column; overflow: hidden; }
+          
+          /* Checklist Mobile Improvements */
+          .checklist-item {
+            flex-wrap: wrap !important;
+            gap: 6px 10px !important;
+            align-items: flex-start !important;
+          }
+          .checklist-item .check-text {
+            flex: 1;
+            min-width: 180px;
+          }
+          .checklist-item > div {
+            width: 100% !important;
+            margin-left: 0 !important;
+            padding-left: 26px !important;
+            justify-content: flex-start !important;
+            gap: 12px !important;
+            flex-wrap: wrap;
+          }
+          .checklist-item > div input[type="date"] {
+            width: 110px !important;
+          }
+          .checklist-item > div input[type="time"] {
+            width: 70px !important;
+          }
           .kb-filters { overflow-x: auto; }
           .kf-btn { font-size: 0.6rem; padding: 5px 10px; }
         }
