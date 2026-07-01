@@ -46,6 +46,7 @@ export default function TumblingTerminal() {
   
   // Tab/filter selection for cards
   const [filterMode, setFilterMode] = useState('all') // 'all', 'waiting', 'in_work'
+  const [subStageFilter, setSubStageFilter] = useState('all') // 'all' | 'вибростил' | 'мийка' | 'галтовка' | 'сушка'
 
   // 1. Tick clock
   useEffect(() => {
@@ -167,8 +168,8 @@ export default function TumblingTerminal() {
       }
 
       // Check state
-      const isWaiting = card.status === 'at-buffer' && card.operation === 'Розкрій'
-      const isInWork = card.status === 'in-progress' && card.operation === 'Галтовка'
+      const isWaiting = card.status === 'at-buffer' && (card.operation === 'Розкрій' || card.operation === 'Галтовка (Вібростіл)' || card.operation === 'Галтовка (Мийка)' || card.operation === 'Галтовка (Галтовка)')
+      const isInWork = card.status === 'in-progress' && card.operation?.startsWith('Галтовка')
 
       if (isWaiting) {
         // Instead of window.confirm, show custom modal
@@ -187,6 +188,14 @@ export default function TumblingTerminal() {
     }
   }
 
+  const getNextTumblingOperation = (currentOp) => {
+    if (currentOp === 'Розкрій') return 'Галтовка (Вібростіл)'
+    if (currentOp === 'Галтовка (Вібростіл)') return 'Галтовка (Мийка)'
+    if (currentOp === 'Галтовка (Мийка)') return 'Галтовка (Галтовка)'
+    if (currentOp === 'Галтовка (Галтовка)') return 'Галтовка (Сушка)'
+    return 'Галтовка (Вібростіл)'
+  }
+
   // Action: Take card to work — called after custom confirm modal is accepted
   const startTumblingCard = async (card) => {
     if (!selectedShift) {
@@ -198,12 +207,13 @@ export default function TumblingTerminal() {
     try {
       const now = new Date().toISOString()
       const bufferStart = card.completed_at || card.started_at || now
+      const nextOp = getNextTumblingOperation(card.operation)
 
       // 1. Insert history log for waiting buffer
       await supabase.from('work_card_history').insert([{
         card_id: card.id,
         nomenclature_id: card.nomenclature_id,
-        stage_name: 'Буфер Розкрій',
+        stage_name: card.operation === 'Розкрій' ? 'Буфер Розкрій' : `Буфер ${card.operation}`,
         operator_name: 'Команда',
         qty_at_start: card.quantity || 0,
         qty_completed: card.quantity || 0,
@@ -218,7 +228,7 @@ export default function TumblingTerminal() {
       // 2. Update card state in DB
       await supabase.from('work_cards').update({
         status: 'in-progress',
-        operation: 'Галтовка',
+        operation: nextOp,
         started_at: now,
         operator_name: 'Команда',
         shift_name: selectedShift
@@ -257,7 +267,7 @@ export default function TumblingTerminal() {
       await supabase.from('work_card_history').insert([{
         card_id: activeCompletingCard.id,
         nomenclature_id: activeCompletingCard.nomenclature_id,
-        stage_name: 'Галтовка',
+        stage_name: activeCompletingCard.operation,
         operator_name: activeCompletingCard.operator_name || 'Команда',
         qty_at_start: totalQty,
         qty_completed: actualFinished,
@@ -273,7 +283,7 @@ export default function TumblingTerminal() {
       // 2. Update card to buffer of the current stage
       await supabase.from('work_cards').update({
         status: 'at-buffer',
-        operation: 'Галтовка',
+        operation: activeCompletingCard.operation,
         quantity: actualFinished,
         completed_at: now
       }).eq('id', activeCompletingCard.id)
@@ -348,11 +358,10 @@ export default function TumblingTerminal() {
     return getFilteredOperators('Цех №1', selectedShift, 'Галтовка')
   }, [selectedShift, getFilteredOperators])
 
-  // FILTERED CARDS FOR INTERFACE
-  // 1. Waiting cards: operation === 'Розкрій' && status === 'at-buffer'
+  // 1. Waiting cards: cards at buffer waiting for next tumbling sub-stage
   const waitingCards = useMemo(() => {
     return workCards
-      .filter(c => c.status === 'at-buffer' && c.operation === 'Розкрій')
+      .filter(c => c.status === 'at-buffer' && (c.operation === 'Розкрій' || c.operation === 'Галтовка (Вібростіл)' || c.operation === 'Галтовка (Мийка)' || c.operation === 'Галтовка (Галтовка)'))
       .sort((a, b) => {
         const aPri = a.galt_priority || 2
         const bPri = b.galt_priority || 2
@@ -361,22 +370,43 @@ export default function TumblingTerminal() {
       })
   }, [workCards])
 
-  // 2. In-work cards: operation === 'Галтовка' && status === 'in-progress'
+  // 2. In-work cards: cards in progress on any tumbling sub-stage
   const inWorkCards = useMemo(() => {
     return workCards
-      .filter(c => c.status === 'in-progress' && c.operation === 'Галтовка')
+      .filter(c => c.status === 'in-progress' && c.operation?.startsWith('Галтовка'))
       .sort((a, b) => new Date(a.started_at || 0) - new Date(b.started_at || 0))
   }, [workCards])
 
-  // Filtered cards based on current tab selection
+  // Filtered cards based on current tab selection and sub-stage selection
   const displayedCards = useMemo(() => {
-    const list = []
+    let list = []
     if (filterMode === 'all' || filterMode === 'waiting') {
       list.push(...waitingCards.map(c => ({ ...c, type: 'waiting' })))
     }
     if (filterMode === 'all' || filterMode === 'in_work') {
       list.push(...inWorkCards.map(c => ({ ...c, type: 'in_work' })))
     }
+
+    // Apply subStageFilter
+    if (subStageFilter !== 'all') {
+      list = list.filter(c => {
+        if (c.type === 'waiting') {
+          // Waiting cards: operation indicates the PREVIOUS stage
+          if (subStageFilter === 'вибростил') return c.operation === 'Розкрій'
+          if (subStageFilter === 'мийка') return c.operation === 'Галтовка (Вібростіл)'
+          if (subStageFilter === 'галтовка') return c.operation === 'Галтовка (Мийка)'
+          if (subStageFilter === 'сушка') return c.operation === 'Галтовка (Галтовка)'
+        } else {
+          // In-work cards: operation indicates the ACTIVE stage
+          if (subStageFilter === 'вибростил') return c.operation === 'Галтовка (Вібростіл)'
+          if (subStageFilter === 'мийка') return c.operation === 'Галтовка (Мийка)'
+          if (subStageFilter === 'галтовка') return c.operation === 'Галтовка (Галтовка)'
+          if (subStageFilter === 'сушка') return c.operation === 'Галтовка (Сушка)'
+        }
+        return false
+      })
+    }
+
     return list.sort((a, b) => {
       // Show active running cards above queued ones
       if (a.type === 'in_work' && b.type === 'waiting') return -1
@@ -391,7 +421,7 @@ export default function TumblingTerminal() {
         return new Date(a.started_at || 0) - new Date(b.started_at || 0)
       }
     })
-  }, [filterMode, waitingCards, inWorkCards])
+  }, [filterMode, subStageFilter, waitingCards, inWorkCards])
 
   // Priority color definitions
   const priorityMap = {
@@ -499,38 +529,72 @@ export default function TumblingTerminal() {
         <section style={{ flex: 1, background: '#0c0c10', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.03)', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }}>
 
           {/* Filter tabs */}
-          <div style={{ padding: '18px 24px', background: 'rgba(255,255,255,0.01)', borderBottom: '1px solid rgba(255,255,255,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
-            <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', maxWidth: '100%', paddingBottom: '6px', scrollbarWidth: 'none' }} className="hide-scrollbar">
+          <div style={{ padding: '18px 24px', background: 'rgba(255,255,255,0.01)', borderBottom: '1px solid rgba(255,255,255,0.03)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
+              <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', maxWidth: '100%', paddingBottom: '6px', scrollbarWidth: 'none' }} className="hide-scrollbar">
+                {[
+                  { mode: 'all', label: 'Усі картки', count: waitingCards.length + inWorkCards.length, color: '#06b6d4' },
+                  { mode: 'waiting', label: 'В очікуванні', count: waitingCards.length, color: '#f59e0b' },
+                  { mode: 'in_work', label: 'У роботі', count: inWorkCards.length, color: '#10b981' }
+                ].map(tab => (
+                  <button
+                    key={tab.mode}
+                    type="button"
+                    onClick={() => setFilterMode(tab.mode)}
+                    style={{
+                      background: filterMode === tab.mode ? `rgba(${tab.mode === 'in_work' ? '16,185,129' : tab.mode === 'waiting' ? '245,158,11' : '6,182,214'}, 0.12)` : '#121216',
+                      color: filterMode === tab.mode ? tab.color : '#888',
+                      border: `1px solid ${filterMode === tab.mode ? tab.color + '40' : 'rgba(255,255,255,0.04)'}`,
+                      padding: '8px 16px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s', flexShrink: 0
+                    }}
+                  >
+                    {tab.label}
+                    <span style={{
+                      background: filterMode === tab.mode ? tab.color : '#222',
+                      color: filterMode === tab.mode ? '#000' : '#888',
+                      borderRadius: '6px', padding: '1px 6px', fontSize: '0.68rem', fontWeight: 900
+                    }}>
+                      {tab.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ fontSize: '0.72rem', color: '#555', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Картки на терміналі
+              </div>
+            </div>
+
+            {/* Sub-stages filters */}
+            <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '4px', scrollbarWidth: 'none' }} className="hide-scrollbar">
               {[
-                { mode: 'all', label: 'Усі картки', count: waitingCards.length + inWorkCards.length, color: '#06b6d4' },
-                { mode: 'waiting', label: 'В очікуванні', count: waitingCards.length, color: '#f59e0b' },
-                { mode: 'in_work', label: 'У роботі', count: inWorkCards.length, color: '#10b981' }
-              ].map(tab => (
+                { id: 'all', label: 'Усі під-етапи', count: waitingCards.length + inWorkCards.length },
+                { id: 'вибростил', label: '1 - Вібростіл', count: waitingCards.filter(c => c.operation === 'Розкрій').length + inWorkCards.filter(c => c.operation === 'Галтовка (Вібростіл)').length },
+                { id: 'мийка', label: '2 - Мийка', count: waitingCards.filter(c => c.operation === 'Галтовка (Вібростіл)').length + inWorkCards.filter(c => c.operation === 'Галтовка (Мийка)').length },
+                { id: 'галтовка', label: '3 - Галтовка', count: waitingCards.filter(c => c.operation === 'Галтовка (Мийка)').length + inWorkCards.filter(c => c.operation === 'Галтовка (Галтовка)').length },
+                { id: 'сушка', label: '4 - Сушка', count: waitingCards.filter(c => c.operation === 'Галтовка (Галтовка)').length + inWorkCards.filter(c => c.operation === 'Галтовка (Сушка)').length }
+              ].map(sub => (
                 <button
-                  key={tab.mode}
+                  key={sub.id}
                   type="button"
-                  onClick={() => setFilterMode(tab.mode)}
+                  onClick={() => setSubStageFilter(sub.id)}
                   style={{
-                    background: filterMode === tab.mode ? `rgba(${tab.mode === 'in_work' ? '16,185,129' : tab.mode === 'waiting' ? '245,158,11' : '6,182,214'}, 0.12)` : '#121216',
-                    color: filterMode === tab.mode ? tab.color : '#888',
-                    border: `1px solid ${filterMode === tab.mode ? tab.color + '40' : 'rgba(255,255,255,0.04)'}`,
-                    padding: '8px 16px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s', flexShrink: 0
+                    background: subStageFilter === sub.id ? 'rgba(6,182,212,0.12)' : '#121216',
+                    color: subStageFilter === sub.id ? '#06b6d4' : '#888',
+                    border: `1px solid ${subStageFilter === sub.id ? 'rgba(6,182,212,0.4)' : 'rgba(255,255,255,0.04)'}`,
+                    padding: '6px 14px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.15s', flexShrink: 0
                   }}
                 >
-                  {tab.label}
+                  {sub.label}
                   <span style={{
-                    background: filterMode === tab.mode ? tab.color : '#222',
-                    color: filterMode === tab.mode ? '#000' : '#888',
-                    borderRadius: '6px', padding: '1px 6px', fontSize: '0.68rem', fontWeight: 900
+                    background: subStageFilter === sub.id ? '#06b6d4' : '#222',
+                    color: subStageFilter === sub.id ? '#000' : '#888',
+                    borderRadius: '5px', padding: '1px 5px', fontSize: '0.62rem', fontWeight: 900
                   }}>
-                    {tab.count}
+                    {sub.count}
                   </span>
                 </button>
               ))}
-            </div>
-
-            <div style={{ fontSize: '0.72rem', color: '#555', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Картки на терміналі
             </div>
           </div>
 
@@ -581,11 +645,11 @@ export default function TumblingTerminal() {
                         
                         {isWaiting ? (
                           <span style={{ fontSize: '0.55rem', background: pInfo.bg, color: pInfo.text, border: pInfo.border, padding: '2px 8px', borderRadius: '6px', fontWeight: 900 }}>
-                            В очікуванні (Пріоритет: {pInfo.label})
+                            Очікує: {getNextTumblingOperation(card.operation)}
                           </span>
                         ) : (
                           <span style={{ fontSize: '0.55rem', background: 'rgba(16,185,129,0.12)', color: '#10b981', border: '1px solid rgba(16,185,129,0.25)', padding: '2px 8px', borderRadius: '6px', fontWeight: 900 }}>
-                            У роботі (Галтовка)
+                            У роботі: {card.operation}
                           </span>
                         )}
                       </div>
@@ -662,7 +726,7 @@ export default function TumblingTerminal() {
             {/* Header */}
             <div style={{ padding: '20px 24px', background: 'rgba(6,182,212,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(6,182,212,0.1)' }}>
               <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 950, color: '#06b6d4', display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'uppercase' }}>
-                <Play size={16} fill="currentColor" /> Взяти в галтовку
+                <Play size={16} fill="currentColor" /> Взяти в {getNextTumblingOperation(pendingStartCard.operation)}
               </h3>
               <button
                 onClick={() => setPendingStartCard(null)}
@@ -699,7 +763,7 @@ export default function TumblingTerminal() {
               </div>
 
               <p style={{ margin: 0, fontSize: '0.82rem', color: '#9ca3af', fontWeight: 600, textAlign: 'center', lineHeight: 1.5 }}>
-                Підтвердіть що картка переходить у роботу на <strong style={{ color: '#fff' }}>Галтовку</strong>.
+                Підтвердіть що картка переходить у роботу на <strong style={{ color: '#fff' }}>{getNextTumblingOperation(pendingStartCard.operation)}</strong>.
               </p>
 
               {/* Buttons */}
@@ -734,7 +798,7 @@ export default function TumblingTerminal() {
             <div style={{ padding: '20px 24px', background: 'rgba(255,255,255,0.01)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 950, color: '#10b981', display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'uppercase' }}>
-                  <CheckCircle size={16} /> Завершити галтовку
+                  <CheckCircle size={16} /> Завершити: {activeCompletingCard.operation}
                 </h3>
                 <div style={{ fontSize: '0.62rem', color: '#555', marginTop: '2px', fontWeight: 800 }}>
                   Картка #{activeCompletingCard.id.slice(-8).toUpperCase()}

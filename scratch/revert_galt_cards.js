@@ -11,20 +11,26 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   }
 })
 
+const targetIds = [
+  '93d41862-bdc4-414c-861a-f73292bc7cd0',
+  '74ad4df5-55f2-4aa7-9439-aab7ac5df497',
+  'eccfd356-5e8a-4a39-9442-309d5ae97b63',
+  'd606748f-d10f-45be-8e4d-f0ebc3e9d389'
+]
+
 const run = async () => {
-  console.log('Fetching active cards...')
-  const { data: cards, error } = await supabase
+  console.log('Reverting target 4 cards back to "Галтовка (Галтовка)"...')
+  const { data, error } = await supabase
     .from('work_cards')
-    .select('*')
-    .neq('status', 'completed')
+    .update({ operation: 'Галтовка (Галтовка)' })
+    .in('id', targetIds)
+    .select()
     
   if (error) {
     console.error('Error:', error)
-    return
+  } else {
+    console.log('Successfully reverted cards:', data.map(c => ({ id: c.id, operation: c.operation, status: c.status })))
   }
-  
-  const matched = cards.filter(c => c.id.toUpperCase().endsWith('4390AD29'))
-  console.log('Matched cards:', matched)
 }
 
 run()

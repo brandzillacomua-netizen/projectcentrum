@@ -136,7 +136,7 @@ export const MESProvider = ({ children }) => {
 
       if (stageLower === 'розкрій') {
         list = list.filter(u => u.position && u.position.toLowerCase().includes('оператор'))
-      } else if (stageLower === 'галтовка') {
+      } else if (stageLower.includes('галтовка')) {
         list = list.filter(u => u.position && u.position.toLowerCase().includes('галтовщик'))
       } else if (stageLower === 'прийомка') {
         // Also include users from 'Прийомка' department (not only the filtered dept)

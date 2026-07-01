@@ -866,7 +866,7 @@ export function createProductionActions({
     })
   }
 
-  const CHAIN_SHOP1 = ['Розкрій', 'Галтовка', 'Прийомка']
+  const CHAIN_SHOP1 = ['Розкрій', 'Галтовка (Вібростіл)', 'Галтовка (Мийка)', 'Галтовка (Галтовка)', 'Галтовка (Сушка)', 'Прийомка']
   const CHAIN_GENERAL = ['Розкрій', 'Галтовка', 'Пресування', 'Фарбування', 'Паквання']
 
   const confirmBuffer = async (cardId, scrapData = {}, cuttersUsed = 0, cuttersBreakdown = null) => {

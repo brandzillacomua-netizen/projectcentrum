@@ -12,10 +12,9 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 })
 
 const run = async () => {
-  console.log('Fetching active cards...')
   const { data: cards, error } = await supabase
     .from('work_cards')
-    .select('*')
+    .select('id, operation, status, quantity, nomenclatures(name)')
     .neq('status', 'completed')
     
   if (error) {
@@ -23,8 +22,14 @@ const run = async () => {
     return
   }
   
-  const matched = cards.filter(c => c.id.toUpperCase().endsWith('4390AD29'))
-  console.log('Matched cards:', matched)
+  const galtCards = cards.filter(c => c.operation?.includes('Галтовка'))
+  console.log('Active Tumbling cards in DB:', galtCards.map(c => ({
+    id: c.id,
+    name: c.nomenclatures?.name,
+    operation: c.operation,
+    status: c.status,
+    qty: c.quantity
+  })))
 }
 
 run()

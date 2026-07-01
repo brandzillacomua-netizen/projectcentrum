@@ -4048,9 +4048,15 @@ const ForemanWorkplace = () => {
                         if (timeStats.stages[row.stage_name]) {
                           timeStats.stages[row.stage_name].total += sec
                           timeStats.stages[row.stage_name].count += 1
+                        } else if (row.stage_name?.startsWith('Галтовка')) {
+                          timeStats.stages['Галтовка'].total += sec
+                          timeStats.stages['Галтовка'].count += 1
                         } else if (timeStats.buffers[row.stage_name]) {
                           timeStats.buffers[row.stage_name].total += sec
                           timeStats.buffers[row.stage_name].count += 1
+                        } else if (row.stage_name?.startsWith('Буфер Галтовки')) {
+                          timeStats.buffers['Буфер Галтовки'].total += sec
+                          timeStats.buffers['Буфер Галтовки'].count += 1
                         }
                       }
                     })
@@ -4108,7 +4114,7 @@ const ForemanWorkplace = () => {
                                 const bufCards = workCards.filter(c =>
                                   String(c.task_id) === String(currentTask.id) &&
                                   c.status === 'at-buffer' &&
-                                  c.operation === stageName
+                                  (stageName === 'Галтовка' ? c.operation?.startsWith('Галтовка') : c.operation === stageName)
                                 )
                                 const totalQty = bufCards.reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
                                 const cardCount = bufCards.length

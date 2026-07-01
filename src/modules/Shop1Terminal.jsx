@@ -20,7 +20,15 @@ const translateCyrillic = (str) => {
 }
 
 // Ланцюжок Цеху №1
-const CHAIN = ['Розкрій', 'Галтовка', 'Прийомка', 'Сортування']
+const CHAIN = [
+  'Розкрій',
+  'Галтовка (Вібростіл)',
+  'Галтовка (Мийка)',
+  'Галтовка (Галтовка)',
+  'Галтовка (Сушка)',
+  'Прийомка',
+  'Сортування'
+]
 
 const MACHINE_TYPES = [
   'CNC 1200x800 - 4 листи (Малий)',
@@ -468,11 +476,19 @@ export default function Shop1Terminal() {
   const getCardTimeMetrics = (card) => {
     if (!card) return { totalSec: 0, currentSec: 0 }
     const nowMs = currentTime.getTime()
+    const isGaltCurrent = card.operation?.startsWith('Галтовка')
 
     // 1) Загальний час за всю історію картки (всі етапи та буфери)
     let totalHistorySec = 0
     if (workCardHistory && workCardHistory.length > 0) {
-      const cardHistory = workCardHistory.filter(h => String(h.card_id) === String(card.id))
+      const cardHistory = workCardHistory.filter(h => {
+        if (String(h.card_id) !== String(card.id)) return false
+        if (isGaltCurrent) {
+          return h.stage_name?.startsWith('Галтовка') || (h.stage_name?.startsWith('Буфер') && h.stage_name !== 'Буфер Розкрою')
+        } else {
+          return h.stage_name === 'Розкрій' || h.stage_name === 'Буфер Розкрою'
+        }
+      })
       cardHistory.forEach(h => {
         if (h.started_at && h.completed_at) {
           if (String(h.stage_name).includes('пауза') || String(h.stage_name).includes('зупинка')) return;
@@ -861,7 +877,7 @@ export default function Shop1Terminal() {
     if (queueSectionFilter === 'Розкрій') {
       matchesSection = c.status === 'new' && (c.operation === 'Розкрій' || !c.operation || c.operation === 'Нова')
     } else if (queueSectionFilter === 'Галтовка') {
-      matchesSection = c.status === 'at-buffer' && c.operation === 'Галтовка'
+      matchesSection = c.status === 'at-buffer' && (c.operation === 'Розкрій' || c.operation?.startsWith('Галтовка'))
     } else if (queueSectionFilter === 'Прийомка') {
       matchesSection = c.status === 'at-buffer' && c.operation === 'Прийомка'
     } else if (queueSectionFilter === 'Сортування') {
@@ -1336,10 +1352,10 @@ export default function Shop1Terminal() {
       return
     }
 
-    if (next !== 'Галтовка' && !selectedOperator) return
+    if (!next?.startsWith('Галтовка') && !selectedOperator) return
     setIsProcessing(true)
     try {
-      const op = next === 'Галтовка' ? 'Команда' : selectedOperator
+      const op = next?.startsWith('Галтовка') ? 'Команда' : selectedOperator
       const writes = []
 
       if (currentCard.status === 'at-buffer') {
@@ -1958,7 +1974,8 @@ export default function Shop1Terminal() {
       inWork: cards.filter(c => c.status === 'in-progress').reduce((a, c) => a + (c.quantity || 0), 0),
       inBuffer: cards.filter(c => c.status === 'at-buffer').reduce((a, c) => a + (c.quantity || 0), 0),
       scrap: workCardHistory.filter(h => {
-        if (h.stage_name !== stage || h.is_archived_scrap) return false
+        const matchStage = stage === 'Галтовка' ? h.stage_name?.startsWith('Галтовка') : h.stage_name === stage
+        if (!matchStage || h.is_archived_scrap) return false
         const nom = nomenclatures.find(n => n.id === h.nomenclature_id)
         return !nom || nom.type === 'part'
       }).reduce((a, h) => a + (Number(h.scrap_qty) || 0), 0),
@@ -1968,7 +1985,7 @@ export default function Shop1Terminal() {
 
   // ── ПЕРЕМІЩЕННЯ БРАКУ НА СКЛАД (Архівування з етапу) ────────────────────
   const handleArchiveStageScrap = async (stage, nomId) => {
-    const unarchivedScrap = workCardHistory.filter(h => h.stage_name === stage && String(h.nomenclature_id) === String(nomId) && !h.is_archived_scrap && Number(h.scrap_qty) > 0)
+    const unarchivedScrap = workCardHistory.filter(h => (stage === 'Галтовка' ? h.stage_name?.startsWith('Галтовка') : h.stage_name === stage) && String(h.nomenclature_id) === String(nomId) && !h.is_archived_scrap && Number(h.scrap_qty) > 0)
     const totalQty = unarchivedScrap.reduce((acc, h) => acc + Number(h.scrap_qty), 0)
 
     if (totalQty === 0) return
@@ -2715,7 +2732,7 @@ export default function Shop1Terminal() {
                       </select>
                     </div>
 
-                    {nextOp !== 'Галтовка' && (
+                     {!nextOp?.startsWith('Галтовка') && (
                       <div style={{ marginBottom: '20px' }}>
                         <label style={labelStyle}>Відповідальний за {nextOp}</label>
                         <select value={selectedOperator} onChange={e => setSelectedOperator(e.target.value)} disabled={!selectedShift} style={{ ...selectStyle, opacity: selectedShift ? 1 : 0.5, cursor: selectedShift ? 'pointer' : 'not-allowed' }}>
@@ -2725,10 +2742,10 @@ export default function Shop1Terminal() {
                       </div>
                     )}
 
-                    <button onClick={handleStartNext} disabled={((nextOp === 'Галтовка' ? !selectedShift : !selectedOperator) || isProcessing)}
+                    <button onClick={handleStartNext} disabled={((nextOp?.startsWith('Галтовка') ? !selectedShift : !selectedOperator) || isProcessing)}
                       style={{
                         ...btnGreen, width: '100%', height: '64px', fontSize: '1.2rem',
-                        opacity: ((nextOp === 'Галтовка' ? !selectedShift : !selectedOperator) || isProcessing) ? 0.5 : 1
+                        opacity: ((nextOp?.startsWith('Галтовка') ? !selectedShift : !selectedOperator) || isProcessing) ? 0.5 : 1
                       }}>
                       ▶ ВЗЯТИ В {nextOp?.toUpperCase()}
                     </button>
@@ -3296,10 +3313,10 @@ export default function Shop1Terminal() {
                   )
                 }
 
-                const grouped = {}
-                CHAIN.forEach(op => { grouped[op] = [] })
+                const grouped = { 'Розкрій': [], 'Галтовка': [], 'Прийомка': [], 'Сортування': [] }
                 activeCards.forEach(card => {
-                  if (grouped[card.operation]) grouped[card.operation].push(card)
+                  const groupKey = card.operation?.startsWith('Галтовка') ? 'Галтовка' : card.operation
+                  if (grouped[groupKey]) grouped[groupKey].push(card)
                 })
 
                 const rows = []
@@ -3391,7 +3408,8 @@ export default function Shop1Terminal() {
                   )
                 }
 
-                CHAIN.forEach(op => {
+                const DISPLAY_GROUPS = ['Розкрій', 'Галтовка', 'Прийомка', 'Сортування']
+                DISPLAY_GROUPS.forEach(op => {
                   if (grouped[op] && grouped[op].length > 0) {
                     const isCollapsed = collapsedGroups[op]
                     rows.push(
@@ -4236,7 +4254,8 @@ export default function Shop1Terminal() {
                 const agg = {}
                 if (detailTab === 'scrap') {
                   const scraps = workCardHistory.filter(h => {
-                    if (h.stage_name !== detailStage || h.is_archived_scrap || Number(h.scrap_qty) <= 0) return false
+                    const matchStage = detailStage === 'Галтовка' ? h.stage_name?.startsWith('Галтовка') : h.stage_name === detailStage
+                    if (!matchStage || h.is_archived_scrap || Number(h.scrap_qty) <= 0) return false
                     const nom = nomenclatures.find(n => String(n.id) === String(h.nomenclature_id))
                     return !nom || nom.type === 'part'
                   })
@@ -4249,15 +4268,18 @@ export default function Shop1Terminal() {
                   })
                 } else {
                   workCards.filter(c => {
-                    if (c.operation !== detailStage) return false
+                    const matchOp = detailStage === 'Галтовка' ? c.operation?.startsWith('Галтовка') : c.operation === detailStage
+                    if (!matchOp) return false
                     if (detailTab === 'work' ? c.status !== 'in-progress' : c.status !== 'at-buffer') return false
                     const nom = getNom(c)
                     return !nom || nom.type === 'part'
                   }).forEach(c => {
                     const nom = getNom(c)
                     const name = nom?.name || 'Деталь'
-                    if (!agg[name]) agg[name] = { name, qty: 0 }
-                    agg[name].qty += (c.quantity || 0)
+                    const op = c.operation || ''
+                    const key = `${name}_${op}`
+                    if (!agg[key]) agg[key] = { name, op, qty: 0 }
+                    agg[key].qty += (c.quantity || 0)
                   })
                 }
                 const items = Object.values(agg)
@@ -4268,6 +4290,11 @@ export default function Shop1Terminal() {
                       <div key={i} style={{ background: '#0d0d0d', padding: '12px 16px', borderRadius: '9px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
                           <div style={{ fontWeight: 800, fontSize: '0.85rem' }}>{item.name}</div>
+                          {item.op && (
+                            <div style={{ fontSize: '0.65rem', color: '#6b7280', marginTop: '3px', fontWeight: 700 }}>
+                              {item.op}
+                            </div>
+                          )}
                           {detailTab === 'scrap' && (
                             <button onClick={() => handleArchiveStageScrap(detailStage, item.nomId)} disabled={isProcessing}
                               style={{ marginTop: '5px', background: '#ef444415', border: '1px solid #ef444430', color: '#ef4444', fontSize: '0.55rem', fontWeight: 900, padding: '3px 8px', borderRadius: '5px', cursor: 'pointer', textTransform: 'uppercase' }}>
