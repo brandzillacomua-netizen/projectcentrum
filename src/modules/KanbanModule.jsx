@@ -496,89 +496,128 @@ const DeadlinePicker = ({ value, onChange, label = 'Дедлайн' }) => {
   )
 }
 
-// ─── ChecklistEditor (TOP-LEVEL) ────────────────────────────────────────────
-// ─── ChecklistAssigneeSelector ───────────────────────────────────────────────
-const ChecklistAssigneeSelector = ({ value, onSelect, systemUsers }) => {
-  const [open, setOpen] = React.useState(false)
-  const selectedUser = (systemUsers || []).find(u => u.login === value)
+// Сумісний зі старим item.assignee (string) і новим item.assignees (array)
+const getChecklistAssignees = (item) => {
+  if (Array.isArray(item?.assignees) && item.assignees.length > 0) return item.assignees
+  if (item?.assignee) return [item.assignee]
+  return []
+}
+
+// ─── ChecklistMultiAssigneeSelector ──────────────────────────────────────────
+const ChecklistMultiAssigneeSelector = ({ values = [], onChange, systemUsers }) => {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+
+  const filtered = React.useMemo(() => {
+    if (!search) return systemUsers || []
+    const lq = search.toLowerCase()
+    return (systemUsers || []).filter(u =>
+      (u.first_name || '').toLowerCase().includes(lq) ||
+      (u.last_name || '').toLowerCase().includes(lq) ||
+      (u.login || '').toLowerCase().includes(lq)
+    )
+  }, [search, systemUsers])
+
+  const selectedUsers = (systemUsers || []).filter(u => values.includes(u.login))
+
+  const toggle = (login) => {
+    onChange(values.includes(login) ? values.filter(l => l !== login) : [...values, login])
+  }
 
   return (
     <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
       <button
         type="button"
-        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+        onClick={e => { e.stopPropagation(); setOpen(o => !o) }}
         style={{
-          background: 'rgba(255,255,255,0.03)',
-          border: '1px solid rgba(255,255,255,0.06)',
-          borderRadius: '50%',
-          width: '26px',
+          background: selectedUsers.length > 0 ? 'rgba(255,144,0,0.1)' : 'rgba(255,255,255,0.03)',
+          border: selectedUsers.length > 0 ? '1px solid rgba(255,144,0,0.3)' : '1px solid rgba(255,255,255,0.06)',
+          borderRadius: '20px',
+          padding: selectedUsers.length > 0 ? '3px 8px 3px 4px' : '0',
+          width: selectedUsers.length > 0 ? 'auto' : '26px',
           height: '26px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          padding: 0,
-          color: '#ff9000'
+          display: 'flex', alignItems: 'center', gap: '3px',
+          cursor: 'pointer', color: '#ff9000',
+          fontSize: '0.62rem', fontWeight: 800,
         }}
       >
-        {selectedUser ? (
-          <div
-            title={`Відповідальний: ${selectedUser.last_name} ${selectedUser.first_name}`}
-            style={{
-              width: '22px',
-              height: '22px',
-              borderRadius: '50%',
-              background: '#ff9000',
-              color: '#000',
-              fontSize: '0.6rem',
-              fontWeight: 900,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          >
-            {getInitials(selectedUser)}
-          </div>
+        {selectedUsers.length > 0 ? (
+          <>
+            {selectedUsers.slice(0, 2).map((u, i) => (
+              <div key={u.login} style={{
+                width: '18px', height: '18px', borderRadius: '50%',
+                background: '#ff9000', color: '#000', fontSize: '0.55rem', fontWeight: 900,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                marginLeft: i > 0 ? '-4px' : 0, flexShrink: 0
+              }}>
+                {getInitials(u)}
+              </div>
+            ))}
+            {selectedUsers.length > 2 && <span style={{ marginLeft: '2px' }}>+{selectedUsers.length - 2}</span>}
+          </>
         ) : (
-          <User size={13} color="#555" title="Призначити відповідального" />
+          <User size={13} color="#555" title="Призначити виконавця" />
         )}
       </button>
       {open && (
         <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 10000 }} onClick={() => setOpen(false)} />
+          <div style={{ position: 'fixed', inset: 0, zIndex: 10000 }} onClick={() => { setOpen(false); setSearch('') }} />
           <div style={{
-            position: 'absolute',
-            bottom: '30px',
-            right: 0,
-            background: '#111',
-            border: '1px solid #222',
-            borderRadius: '10px',
-            maxHeight: '180px',
-            overflowY: 'auto',
-            zIndex: 10001,
-            width: '180px',
-            boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
+            position: 'absolute', bottom: '30px', right: 0,
+            background: '#111', border: '1px solid #222', borderRadius: '12px',
+            zIndex: 10001, width: '210px', boxShadow: '0 10px 30px rgba(0,0,0,0.6)', overflow: 'hidden'
           }}>
-            <div
-              onClick={() => { onSelect(null); setOpen(false); }}
-              style={{ padding: '8px 12px', fontSize: '0.75rem', color: '#ff9000', cursor: 'pointer', borderBottom: '1px solid #222', fontWeight: 800 }}
-            >
-              Не призначено
+            {/* Search */}
+            <div style={{ padding: '8px 10px', borderBottom: '1px solid #1a1a1a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Search size={12} color="#555" />
+              <input
+                autoFocus
+                type="text"
+                placeholder="Пошук..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                onClick={e => e.stopPropagation()}
+                style={{ background: 'transparent', border: 'none', outline: 'none', color: '#fff', fontSize: '0.78rem', flex: 1, fontFamily: 'inherit' }}
+              />
             </div>
-            {(systemUsers || []).map(u => (
+            {/* Clear all */}
+            {values.length > 0 && (
               <div
-                key={u.login}
-                onClick={() => { onSelect(u.login); setOpen(false); }}
-                style={{ padding: '8px 12px', fontSize: '0.75rem', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
-                onMouseEnter={e => e.currentTarget.style.background = '#ff900015'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                onClick={() => { onChange([]); setOpen(false); setSearch('') }}
+                style={{ padding: '6px 10px', fontSize: '0.7rem', color: '#ef4444', cursor: 'pointer', borderBottom: '1px solid #1a1a1a', fontWeight: 700 }}
               >
-                <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: '#ff9000', color: '#000', fontSize: '0.55rem', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {getInitials(u)}
-                </div>
-                <span>{u.last_name} {u.first_name[0]}.</span>
+                Зняти всіх
               </div>
-            ))}
+            )}
+            {/* User list */}
+            <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
+              {filtered.length === 0 && (
+                <div style={{ padding: '10px 12px', fontSize: '0.72rem', color: '#555', textAlign: 'center' }}>Нікого не знайдено</div>
+              )}
+              {filtered.map(u => {
+                const sel = values.includes(u.login)
+                return (
+                  <div
+                    key={u.login}
+                    onClick={e => { e.stopPropagation(); toggle(u.login) }}
+                    style={{
+                      padding: '7px 10px', fontSize: '0.75rem',
+                      color: sel ? '#ff9000' : '#fff',
+                      background: sel ? 'rgba(255,144,0,0.08)' : 'transparent',
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+                    }}
+                    onMouseEnter={e => { if (!sel) e.currentTarget.style.background = '#ff900010' }}
+                    onMouseLeave={e => { if (!sel) e.currentTarget.style.background = 'transparent' }}
+                  >
+                    <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: sel ? '#ff9000' : '#2a2a2a', color: sel ? '#000' : '#888', fontSize: '0.55rem', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {getInitials(u)}
+                    </div>
+                    <span style={{ flex: 1 }}>{u.last_name} {u.first_name}</span>
+                    {sel && <span style={{ fontSize: '11px', color: '#ff9000' }}>✓</span>}
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </>
       )}
@@ -607,7 +646,8 @@ const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove
       setCollapsedItems(prev => ({ ...prev, [item.id]: !prev[item.id] }))
     }
     const isChecked = hasChildren ? children.every(c => c.done) : item.done
-    const assigneeUser = (systemUsers || []).find(u => u.login === item.assignee)
+    const clAssignees = getChecklistAssignees(item)
+    const clAssigneeUsers = clAssignees.map(l => (systemUsers || []).find(u => u.login === l)).filter(Boolean)
 
     return (
       <div key={item.id} style={{ display: "flex", flexDirection: "column" }}>
@@ -648,9 +688,9 @@ const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
             {showEditControls ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <ChecklistAssigneeSelector
-                  value={item.assignee}
-                  onSelect={(val) => onUpdateAssignee && onUpdateAssignee(item.id, val)}
+                <ChecklistMultiAssigneeSelector
+                  values={clAssignees}
+                  onChange={(assignees) => onUpdateAssignee && onUpdateAssignee(item.id, assignees)}
                   systemUsers={systemUsers}
                 />
                 <input
@@ -702,25 +742,28 @@ const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove
               </div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                {assigneeUser && (
-                  <div
-                    title={`Відповідальний: ${assigneeUser.last_name} ${assigneeUser.first_name}`}
-                    style={{
-                      width: '24px',
-                      height: '24px',
-                      borderRadius: '50%',
-                      background: '#ff900018',
-                      border: '1px solid rgba(255,144,0,0.3)',
-                      color: '#ff9000',
-                      fontSize: '0.65rem',
-                      fontWeight: 900,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'default'
-                    }}
-                  >
-                    {getInitials(assigneeUser)}
+                {clAssigneeUsers.length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    {clAssigneeUsers.slice(0, 3).map((u, i) => (
+                      <div
+                        key={u.login}
+                        title={`${u.last_name} ${u.first_name}`}
+                        style={{
+                          width: '22px', height: '22px', borderRadius: '50%',
+                          background: '#ff900018', border: '1px solid rgba(255,144,0,0.3)',
+                          color: '#ff9000', fontSize: '0.6rem', fontWeight: 900,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          marginLeft: i > 0 ? '-6px' : 0, cursor: 'default', flexShrink: 0
+                        }}
+                      >
+                        {getInitials(u)}
+                      </div>
+                    ))}
+                    {clAssigneeUsers.length > 3 && (
+                      <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#1a1a1a', border: '1px solid #333', color: '#888', fontSize: '0.55rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: '-6px' }}>
+                        +{clAssigneeUsers.length - 3}
+                      </div>
+                    )}
                   </div>
                 )}
                 {item.deadline && (
@@ -1778,9 +1821,9 @@ const KanbanModule = () => {
                       }}
                       canEdit={isManager || selectedTask?.created_by === currentUser?.login}
                       systemUsers={systemUsers}
-                      onUpdateAssignee={async (itemId, assigneeLogin) => {
+                      onUpdateAssignee={async (itemId, assignees) => {
                         const updated = (Array.isArray(selectedTask.checklist) ? selectedTask.checklist : []).map(i =>
-                          String(i.id) === String(itemId) ? { ...i, assignee: assigneeLogin || null } : i
+                          String(i.id) === String(itemId) ? { ...i, assignees: assignees, assignee: assignees[0] || null } : i
                         )
                         await updateManagementTask(selectedTask.id, { checklist: updated })
                         setSelectedTask(prev => ({ ...prev, checklist: updated }))
@@ -1899,10 +1942,10 @@ const KanbanModule = () => {
                   onRemove={removeCheckItemFromForm}
                   canEdit={true}
                   systemUsers={systemUsers}
-                  onUpdateAssignee={(itemId, assigneeLogin) => {
+                  onUpdateAssignee={(itemId, assignees) => {
                     setForm(f => ({
                       ...f,
-                      checklist: (f.checklist || []).map(i => String(i.id) === String(itemId) ? { ...i, assignee: assigneeLogin || null } : i)
+                      checklist: (f.checklist || []).map(i => String(i.id) === String(itemId) ? { ...i, assignees: assignees, assignee: assignees[0] || null } : i)
                     }))
                   }}
                   onUpdateDeadline={(itemId, dateStr) => {
@@ -2013,10 +2056,10 @@ const KanbanModule = () => {
                   onRemove={removeCheckItemFromEdit}
                   canEdit={true}
                   systemUsers={systemUsers}
-                  onUpdateAssignee={(itemId, assigneeLogin) => {
+                  onUpdateAssignee={(itemId, assignees) => {
                     setEditForm(f => ({
                       ...f,
-                      checklist: (f.checklist || []).map(i => String(i.id) === String(itemId) ? { ...i, assignee: assigneeLogin || null } : i)
+                      checklist: (f.checklist || []).map(i => String(i.id) === String(itemId) ? { ...i, assignees: assignees, assignee: assignees[0] || null } : i)
                     }))
                   }}
                   onUpdateDeadline={(itemId, dateStr) => {
