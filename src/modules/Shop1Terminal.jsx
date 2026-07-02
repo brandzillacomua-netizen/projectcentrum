@@ -238,6 +238,9 @@ export default function Shop1Terminal() {
 
   const checkCardMaterials = (card) => {
     if (!card) return false
+    // Попередження лише якщо картка дійсно очікує матеріали
+    if (card.status !== 'waiting_material') return false
+
     const pendingReqs = (requests || []).filter(r => 
       (String(r.card_id) === String(card.id) || String(r.task_id) === String(card.task_id)) && 
       r.status === 'pending'
