@@ -10,7 +10,7 @@ if (urlMatch && keyMatch) {
   
   const check = async () => {
     const { data, error } = await supabase.from('bom_items').select('*').limit(5)
-    console.log("bom_items columns:", data ? Object.keys(data[0]) : null, error)
+    console.log("bom_items:", data, "error:", error)
   }
   
   check()

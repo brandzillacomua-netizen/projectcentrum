@@ -88,6 +88,8 @@ const NomenclatureV2 = () => {
   const [newGroup, setNewGroup] = useState({ name: '', code: '', parent_id: null });
   const [newType, setNewType] = useState({ name: '', description: '' });
   const [newItem, setNewItem] = useState({ base_code: '', name: '', group_id: '', unit: 'шт' });
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editItem, setEditItem] = useState(null);
 
   const [importLogs, setImportLogs] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -142,6 +144,28 @@ const NomenclatureV2 = () => {
       setNewItem({ base_code: '', name: '', group_id: '', unit: 'шт' });
       loadData();
     } catch (err) { alert(err.message); }
+  };
+
+  const handleEditItem = async (e) => {
+    e.preventDefault();
+    try {
+      const { error } = await supabase
+        .from('nomenclatures')
+        .update({
+          base_code: editItem.base_code ? Number(editItem.base_code) : null,
+          name: editItem.name.trim(),
+          group_id: editItem.group_id || null,
+          unit: editItem.unit
+        })
+        .eq('id', editItem.id);
+
+      if (error) throw error;
+      setIsEditModalOpen(false);
+      setEditItem(null);
+      loadData();
+    } catch (err) {
+      alert('Помилка оновлення: ' + err.message);
+    }
   };
 
   const handleSearch = async (e) => {
@@ -621,7 +645,21 @@ const NomenclatureV2 = () => {
                                       >
                                          <Activity size={18} />
                                       </button>
-                                      <button style={{ background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer' }}><Edit3 size={18} /></button>
+                                      <button 
+                                        onClick={() => {
+                                          setEditItem({
+                                            id: item.id,
+                                            base_code: item.base_code || '',
+                                            name: item.name || '',
+                                            group_id: item.group_id || '',
+                                            unit: item.unit || 'шт'
+                                          });
+                                          setIsEditModalOpen(true);
+                                        }}
+                                        style={{ background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer' }}
+                                      >
+                                        <Edit3 size={18} />
+                                      </button>
                                       <button 
                                          onClick={() => {
                                            if (window.confirm('Видалити цю позицію?')) {
@@ -799,6 +837,37 @@ const NomenclatureV2 = () => {
                </select>
             </div>
             <button type="submit" className="btn-primary" style={{ marginTop: '10px' }}>ЗБЕРЕГТИ ПОЗИЦІЮ</button>
+         </form>
+      </Modal>
+
+      <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Редагування номенклатури">
+         <form onSubmit={handleEditItem} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <div className="form-group">
+               <label>БАЗОВИЙ КОД (ID)</label>
+               <input type="number" value={editItem?.base_code || ''} onChange={e => setEditItem({...editItem, base_code: e.target.value})} required />
+            </div>
+            <div className="form-group">
+               <label>НАЗВА ПОЗИЦІЇ</label>
+               <input value={editItem?.name || ''} onChange={e => setEditItem({...editItem, name: e.target.value})} required />
+            </div>
+            <div className="form-group">
+               <label>ГРУПА</label>
+               <select value={editItem?.group_id || ''} onChange={e => setEditItem({...editItem, group_id: e.target.value})} required>
+                  <option value="">Оберіть групу...</option>
+                  {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+               </select>
+            </div>
+            <div className="form-group">
+               <label>ОДИНИЦЯ ВИМІРУ</label>
+               <select value={editItem?.unit || 'шт'} onChange={e => setEditItem({...editItem, unit: e.target.value})}>
+                  <option value="шт">Штуки (шт)</option>
+                  <option value="кг">Кілограми (кг)</option>
+                  <option value="м">Метри (м)</option>
+                  <option value="м2">Кв. метри (м2)</option>
+                  <option value="л">Літри (л)</option>
+               </select>
+            </div>
+            <button type="submit" className="btn-primary" style={{ marginTop: '10px' }}>ОНОВИТИ ПОЗИЦІЮ</button>
          </form>
       </Modal>
 
