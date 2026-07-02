@@ -422,22 +422,44 @@ export default function Shop1Terminal() {
 
     setIsProcessing(true)
 
-    let card = workCards.find(c => String(c.id).trim() === cleanInput || String(c.id).toUpperCase().endsWith(cleanInput.toUpperCase()))
-    if (!card) {
-      await fetchData('work_cards').catch(() => { })
-      card = workCards.find(c => String(c.id).trim() === cleanInput || String(c.id).toUpperCase().endsWith(cleanInput.toUpperCase()))
-    }
+    // Check if it's a system number (UUID or 8-char short hex ID)
+    const isSystemNumber = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanInput) || /^[0-9a-fA-F]{8}$/.test(cleanInput);
 
-    if (!card) {
-      setScanError(`Картку №${cleanInput} не знайдено`)
+    if (isSystemNumber) {
+      // First try exact ID or end of ID match
+      let matches = workCards.filter(c => {
+        const nom = getNom(c)
+        if (nom && nom.type && nom.type !== 'part') return false
+        return String(c.id).trim() === cleanInput || String(c.id).toUpperCase().endsWith(cleanInput.toUpperCase())
+      })
+
+      if (matches.length === 0) {
+        await fetchData('work_cards').catch(() => { })
+        matches = workCards.filter(c => {
+          const nom = getNom(c)
+          if (nom && nom.type && nom.type !== 'part') return false
+          return String(c.id).trim() === cleanInput || String(c.id).toUpperCase().endsWith(cleanInput.toUpperCase())
+        })
+      }
+
+      if (matches.length === 0) {
+        setScanError(`Картку №${cleanInput} не знайдено`)
+      } else if (matches.length === 1) {
+        const card = matches[0]
+        setScannedIds(prev => prev.includes(card.id) ? prev : [...prev, card.id])
+        setSelectedCardId(card.id)
+        setManualId('')
+        setShowManualInput(false)
+        setIsScanning(false)
+        setScanError(null)
+        checkCardMaterials(card)
+      } else {
+        setScanError(`Знайдено декілька карток (${matches.length}). Оберіть потрібну зі списку ліворуч.`)
+      }
     } else {
-      setScannedIds(prev => prev.includes(card.id) ? prev : [...prev, card.id])
-      setSelectedCardId(card.id)
-      setManualId('')
-      setShowManualInput(false)
-      setIsScanning(false)
+      // It's a sequence/ordinal number or text. Just clear any errors and let the list filter.
       setScanError(null)
-      checkCardMaterials(card)
+      setShowManualInput(false)
     }
     setIsProcessing(false)
   }
@@ -887,7 +909,29 @@ export default function Shop1Terminal() {
       matchesSection = c.status === 'at-buffer' && (c.operation === 'Сортування' || c.operation === 'Прийомка')
     }
 
-    return (isNewForShop1 || isInBufferForShop1 || isScanned) && matchesSection
+    let matchesSearch = true
+    if (manualId && manualId.trim()) {
+      const q = translateCyrillic(manualId.trim()).toLowerCase()
+      
+      const seqMatch = (c.card_info || '').match(/(\d+)\/(\d+)/)
+      const seqStr = seqMatch ? seqMatch[1] : ''
+      const seqFull = seqMatch ? `${seqMatch[1]}/${seqMatch[2]}` : ''
+      
+      if (/^\d{1,4}$/.test(q)) {
+        matchesSearch = seqStr === q
+      } else if (/^\d+\/\d*$/.test(q)) {
+        matchesSearch = seqFull.startsWith(q)
+      } else {
+        const info = String(c.card_info || '').toLowerCase()
+        const matchesId = c.id.toLowerCase().includes(q)
+        const matchesInfo = info.includes(q)
+        const matchesNom = getNom(c)?.name.toLowerCase().includes(q)
+        const matchesOrder = orders?.find(o => o.id === c.order_id)?.order_num?.toString().toLowerCase().includes(q)
+        matchesSearch = matchesId || matchesInfo || matchesNom || matchesOrder
+      }
+    }
+
+    return (isNewForShop1 || isInBufferForShop1 || isScanned) && matchesSection && matchesSearch
   }).sort((a, b) => {
     const aIsGaltBuf = a.status === 'at-buffer' && a.operation === 'Розкрій'
     const bIsGaltBuf = b.status === 'at-buffer' && b.operation === 'Розкрій'
@@ -2039,7 +2083,7 @@ export default function Shop1Terminal() {
 
         return (
           <div key={card.id}
-            onClick={() => { setSelectedCardId(card.id); setSelectedOperator(''); setIsDrawerOpen(false) }}
+            onClick={() => { setSelectedCardId(card.id); setSelectedOperator(''); setIsDrawerOpen(false); setManualId(''); }}
             style={{
               background: active ? '#eab308' : '#111',
               color: active ? '#000' : '#fff',
@@ -3315,6 +3359,32 @@ export default function Shop1Terminal() {
                   if (c.status !== 'in-progress' && c.status !== 'at-buffer') return false
                   if (activeTableFilter === 'in-progress' && c.status !== 'in-progress') return false
                   if (activeTableFilter === 'at-buffer' && c.status !== 'at-buffer') return false
+
+                  // Filter by manualId search query
+                  if (manualId && manualId.trim()) {
+                    const q = translateCyrillic(manualId.trim()).toLowerCase()
+                    
+                    const seqMatch = (c.card_info || '').match(/(\d+)\/(\d+)/)
+                    const seqStr = seqMatch ? seqMatch[1] : ''
+                    const seqFull = seqMatch ? `${seqMatch[1]}/${seqMatch[2]}` : ''
+                    
+                    let matchesSearch = true
+                    if (/^\d{1,4}$/.test(q)) {
+                      matchesSearch = seqStr === q
+                    } else if (/^\d+\/\d*$/.test(q)) {
+                      matchesSearch = seqFull.startsWith(q)
+                    } else {
+                      const info = String(c.card_info || '').toLowerCase()
+                      const matchesId = c.id.toLowerCase().includes(q)
+                      const matchesInfo = info.includes(q)
+                      const matchesNom = getNom(c)?.name.toLowerCase().includes(q)
+                      const matchesOrder = orders?.find(o => o.id === c.order_id)?.order_num?.toString().toLowerCase().includes(q)
+                      matchesSearch = matchesId || matchesInfo || matchesNom || matchesOrder
+                    }
+                    
+                    if (!matchesSearch) return false
+                  }
+
                   return true
                 }).sort((a, b) => getCardStartDate(b).getTime() - getCardStartDate(a).getTime())
 
@@ -4617,6 +4687,9 @@ export default function Shop1Terminal() {
             grid-template-areas: 
               "stage1 stage2"
               "storage storage";
+          }
+          .content-panel {
+            padding-bottom: 120px !important;
           }
         }
       `}</style>
