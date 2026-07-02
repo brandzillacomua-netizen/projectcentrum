@@ -362,8 +362,10 @@ const ForemanDashboardModule = () => {
         const nomCards = taskCards.filter(c => String(c.nomenclature_id) === nid)
         
         const getQ = (ops, statuses) => {
-          return nomCards.filter(c => ops.includes(c.operation) && statuses.includes(c.status))
-            .reduce((s, c) => s + (Number(c.quantity) || 0), 0)
+          return nomCards.filter(c => {
+            const isMatchOp = ops.some(op => op === 'Галтовка' ? (c.operation === 'Галтовка' || c.operation?.startsWith('Галтовка')) : c.operation === op)
+            return isMatchOp && statuses.includes(c.status)
+          }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
         }
 
         const qCutWait = getQ(['Розкрій'], ['new', 'waiting-materials', 'waiting-machines'])
@@ -586,7 +588,8 @@ const ForemanDashboardModule = () => {
           return filteredCards.filter(c => {
             if (String(c.nomenclature_id) !== String(nom.id)) return false
             if (c.task_id && taskParentMap[c.task_id] && taskParentMap[c.task_id] !== parentId) return false
-            return opArr.includes(c.operation) && stArr.includes(c.status)
+            const isMatchOp = opArr.some(op => op === 'Галтовка' ? (c.operation === 'Галтовка' || c.operation?.startsWith('Галтовка')) : c.operation === op)
+            return isMatchOp && stArr.includes(c.status)
           }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
         }
 
@@ -1091,8 +1094,10 @@ const OrderDetailView = ({
       const getQFromCards = (ops, statuses) => {
         const opArr = Array.isArray(ops) ? ops : [ops]
         const stArr = Array.isArray(statuses) ? statuses : [statuses]
-        return nomCards.filter(c => opArr.includes(c.operation) && stArr.includes(c.status))
-          .reduce((s, c) => s + (Number(c.quantity) || 0), 0)
+        return nomCards.filter(c => {
+          const isMatchOp = opArr.some(op => op === 'Галтовка' ? (c.operation === 'Галтовка' || c.operation?.startsWith('Галтовка')) : c.operation === op)
+          return isMatchOp && stArr.includes(c.status)
+        }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
       }
 
       const qCutWait = getQFromCards(['Розкрій'], ['new', 'waiting-materials', 'waiting-machines'])
