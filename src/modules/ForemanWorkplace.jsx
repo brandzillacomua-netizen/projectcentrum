@@ -104,6 +104,9 @@ const ForemanWorkplace = () => {
   const [reportLoading, setReportLoading] = useState(false)
   const [reportData, setReportData] = useState(null)
   const [reportStageFilter, setReportStageFilter] = useState('All')
+  const [reportNomFilter, setReportNomFilter] = useState('All')
+  const [reportSortBy, setReportSortBy] = useState('date') // 'date' | 'min-time' | 'max-time' | 'operator' | 'scrap'
+  const [reportOperatorFilter, setReportOperatorFilter] = useState('All')
   const [reportDetailModal, setReportDetailModal] = useState(null) // 'accepted' | 'scrap' | null
 
   // Зміна верстата
@@ -125,6 +128,9 @@ const ForemanWorkplace = () => {
     setReportTaskId(task.id)
     setShowReportModal(true)
     setReportStageFilter('All')
+    setReportNomFilter('All')
+    setReportSortBy('date')
+    setReportOperatorFilter('All')
 
     // Check if we have a cached report snapshot in the plan_snapshot
     const cached = task?.plan_snapshot?._report_snapshot
@@ -4164,7 +4170,10 @@ const ForemanWorkplace = () => {
                         return (
                           <button
                             key={stage}
-                            onClick={() => setReportStageFilter(stage)}
+                            onClick={() => {
+                              setReportStageFilter(stage);
+                              setReportOperatorFilter('All');
+                            }}
                             style={{
                               border: 'none', background: bg, color: isSelected ? (stage === 'All' ? '#fff' : '#000') : color,
                               padding: '5px 12px', borderRadius: '7px', fontSize: '0.65rem', fontWeight: 900, cursor: 'pointer', transition: 'all 0.15s ease', textTransform: 'uppercase',
@@ -4178,30 +4187,186 @@ const ForemanWorkplace = () => {
                     </div>
                   </div>
 
+                  {/* Контролі фільтрації за номенклатурою та сортування */}
+                  {(
+                    <div style={{ display: 'flex', gap: '15px', marginBottom: '15px', flexWrap: 'wrap', alignItems: 'center' }} className="no-print">
+                      {/* Вибір номенклатури */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '0.7rem', color: '#888', fontWeight: 800, textTransform: 'uppercase' }}>Деталь:</span>
+                        <select
+                          value={reportNomFilter}
+                          onChange={e => setReportNomFilter(e.target.value)}
+                          style={{
+                            background: '#111',
+                            border: '1px solid #333',
+                            color: '#fff',
+                            padding: '6px 12px',
+                            borderRadius: '8px',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <option value="All">Всі деталі</option>
+                          {(() => {
+                            const uniqueNoms = [];
+                            (reportData.historyRows || []).forEach(row => {
+                              if (row.nomenclature_id && !uniqueNoms.includes(row.nomenclature_id)) {
+                                uniqueNoms.push(row.nomenclature_id)
+                              }
+                            });
+                            return uniqueNoms.map(nomId => {
+                              const nom = nomenclatures.find(n => String(n.id) === String(nomId))
+                              return (
+                                <option key={nomId} value={nomId}>
+                                  {nom?.name || `ID: ${nomId}`}
+                                </option>
+                              )
+                            })
+                          })()}
+                        </select>
+                      </div>
+
+                      {/* Сортування */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '0.7rem', color: '#888', fontWeight: 800, textTransform: 'uppercase' }}>Сортування:</span>
+                        <select
+                          value={reportSortBy}
+                          onChange={e => {
+                            setReportSortBy(e.target.value);
+                            if (e.target.value !== 'operator') {
+                              setReportOperatorFilter('All');
+                            }
+                          }}
+                          style={{
+                            background: '#111',
+                            border: '1px solid #333',
+                            color: '#fff',
+                            padding: '6px 12px',
+                            borderRadius: '8px',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <option value="date">По даті (за замовчуванням)</option>
+                          <option value="min-time">Найменший час</option>
+                          <option value="max-time">Найбільший час</option>
+                          <option value="operator">По оператору</option>
+                          <option value="scrap">По кількості браку</option>
+                        </select>
+                      </div>
+
+                      {/* Вибір оператора (тільки коли сортуємо за оператором) */}
+                      {reportSortBy === 'operator' && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '0.7rem', color: '#888', fontWeight: 800, textTransform: 'uppercase' }}>Оператор:</span>
+                          <select
+                            value={reportOperatorFilter}
+                            onChange={e => setReportOperatorFilter(e.target.value)}
+                            style={{
+                              background: '#111',
+                              border: '1px solid #333',
+                              color: '#fff',
+                              padding: '6px 12px',
+                              borderRadius: '8px',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <option value="All">Всі оператори</option>
+                            {(() => {
+                              const uniqueOps = [];
+                              (reportData.historyRows || []).forEach(row => {
+                                let stageMatch = false
+                                if (reportStageFilter === 'All') stageMatch = true
+                                else if (reportStageFilter === 'Прийомка') {
+                                  stageMatch = row.stage_name === 'Прийомка' || row.stage_name === 'completed'
+                                } else {
+                                  stageMatch = row.stage_name === reportStageFilter
+                                }
+                                if (!stageMatch) return
+
+                                if (row.operator_name && !uniqueOps.includes(row.operator_name)) {
+                                  uniqueOps.push(row.operator_name)
+                                }
+                              });
+                              return uniqueOps.map(opName => (
+                                <option key={opName} value={opName}>
+                                  {opName}
+                                </option>
+                              ))
+                            })()}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {(() => {
-                    const filteredRows = (reportData.historyRows || []).filter(row => {
-                      if (reportStageFilter === 'All') return true
-                      if (reportStageFilter === 'Прийомка') {
-                        return row.stage_name === 'Прийомка' || row.stage_name === 'completed'
+                    let processedRows = (reportData.historyRows || []).filter(row => {
+                      // Stage filter
+                      let stageMatch = false
+                      if (reportStageFilter === 'All') stageMatch = true
+                      else if (reportStageFilter === 'Прийомка') {
+                        stageMatch = row.stage_name === 'Прийомка' || row.stage_name === 'completed'
+                      } else {
+                        stageMatch = row.stage_name === reportStageFilter
                       }
-                      return row.stage_name === reportStageFilter
+                      if (!stageMatch) return false
+
+                      // Nomenclature filter
+                      if (reportNomFilter !== 'All' && String(row.nomenclature_id) !== String(reportNomFilter)) {
+                        return false
+                      }
+
+                      // Operator filter
+                      if (reportSortBy === 'operator' && reportOperatorFilter !== 'All' && row.operator_name !== reportOperatorFilter) {
+                        return false
+                      }
+                      return true
                     })
 
-                    if (filteredRows.length === 0) {
+                    // Sorting logic
+                    processedRows.sort((a, b) => {
+                      if (reportSortBy === 'date') {
+                        return new Date(a.started_at || a.created_at) - new Date(b.started_at || b.created_at)
+                      }
+                      if (reportSortBy === 'min-time') {
+                        const durA = a.started_at && a.completed_at ? (new Date(a.completed_at) - new Date(a.started_at)) : 0
+                        const durB = b.started_at && b.completed_at ? (new Date(b.completed_at) - new Date(b.started_at)) : 0
+                        return durA - durB
+                      }
+                      if (reportSortBy === 'max-time') {
+                        const durA = a.started_at && a.completed_at ? (new Date(a.completed_at) - new Date(a.started_at)) : 0
+                        const durB = b.started_at && b.completed_at ? (new Date(b.completed_at) - new Date(b.started_at)) : 0
+                        return durB - durA
+                      }
+                      if (reportSortBy === 'operator') {
+                        return String(a.operator_name || '').localeCompare(String(b.operator_name || ''))
+                      }
+                      if (reportSortBy === 'scrap') {
+                        return (Number(b.scrap_qty) || 0) - (Number(a.scrap_qty) || 0)
+                      }
+                      return 0
+                    })
+
+                    if (processedRows.length === 0) {
                       return (
                         <div style={{ padding: '30px', textAlign: 'center', background: '#111', borderRadius: '16px', color: '#555', fontSize: '0.85rem' }}>
-                          Операцій на етапі "{reportStageFilter === 'All' ? 'Всі етапи' : reportStageFilter}" ще не проводилось.
+                          Операцій для обраних фільтрів ще не проводилось.
                         </div>
                       )
                     }
 
                     return (
-                      <div style={{ background: '#111', borderRadius: '18px', overflow: 'hidden', border: '1px solid #222' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
+                      <div style={{ background: '#111', borderRadius: '18px', overflowX: 'auto', border: '1px solid #222' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left', minWidth: '850px' }}>
                           <thead>
                             <tr style={{ background: '#161616', color: '#888', textTransform: 'uppercase', fontSize: '0.6rem', fontWeight: 900, borderBottom: '1px solid #222' }}>
-                              <th style={{ padding: '12px 15px' }}>Час початку</th>
-                              <th style={{ padding: '12px 15px' }}>Час завершення</th>
+                              <th style={{ padding: '12px 15px' }}>Деталь / Картка</th>
+                              <th style={{ padding: '12px 15px' }}>Час (початок / завершення)</th>
                               <th style={{ padding: '12px 15px', textAlign: 'center' }}>План. час</th>
                               <th style={{ padding: '12px 15px', textAlign: 'center' }}>Факт. час</th>
                               <th style={{ padding: '12px 15px' }}>Етап</th>
@@ -4212,7 +4377,7 @@ const ForemanWorkplace = () => {
                             </tr>
                           </thead>
                           <tbody>
-                            {filteredRows.map((row, idx) => {
+                            {processedRows.map((row, idx) => {
                               const startTime = row.started_at
                                 ? new Date(row.started_at).toLocaleString('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit' })
                                 : '—'
@@ -4231,10 +4396,20 @@ const ForemanWorkplace = () => {
                               }
                               const factStr = actualSeconds > 0 ? formatDurationHMS(actualSeconds) : '—'
 
+                              const nom = nomenclatures.find(n => n.id === row.nomenclature_id)
+                              const seqMatch = (row.card_info || card?.card_info || '').match(/(\d+\/\d+)/)
+                              const seqStr = seqMatch ? seqMatch[1] : `ID: #${row.card_id?.slice(-8).toUpperCase()}`
+
                               return (
-                                <tr key={row.id || idx} style={{ borderBottom: idx < filteredRows.length - 1 ? '1px solid #222' : 'none' }}>
-                                  <td style={{ padding: '12px 15px', color: '#888', fontWeight: 600 }}>{startTime}</td>
-                                  <td style={{ padding: '12px 15px', color: '#aaa', fontWeight: 700 }}>{completedTime}</td>
+                                <tr key={row.id || idx} style={{ borderBottom: idx < processedRows.length - 1 ? '1px solid #222' : 'none' }}>
+                                  <td style={{ padding: '12px 15px' }}>
+                                    <div style={{ fontWeight: 800, color: '#fff' }}>{nom?.name || '—'}</div>
+                                    <div style={{ fontSize: '0.65rem', color: '#888', marginTop: '2px' }}>Картка {seqStr}</div>
+                                  </td>
+                                  <td style={{ padding: '12px 15px' }}>
+                                    <div style={{ color: '#888', fontWeight: 600 }}>{startTime}</div>
+                                    <div style={{ color: '#aaa', fontWeight: 700, marginTop: '2px' }}>{completedTime}</div>
+                                  </td>
                                   <td style={{ padding: '12px 15px', textAlign: 'center', color: '#fff', fontWeight: 700 }}>{planStr}</td>
                                   <td style={{ padding: '12px 15px', textAlign: 'center', color: '#3b82f6', fontWeight: 700 }}>{factStr}</td>
                                   <td style={{ padding: '12px 15px' }}>
@@ -4243,7 +4418,7 @@ const ForemanWorkplace = () => {
                                         row.stage_name === 'Розкрій' ? 'cutting' :
                                           row.stage_name === 'Галтовка' ? 'tumbling' :
                                             (row.stage_name === 'Прийомка' || row.stage_name === 'completed') ? 'reception' : 'sorting'
-                                        }`}
+                                          }`}
                                       style={{
                                         background: row.stage_name.startsWith('Буфер') ? '#a78bfa1e' : row.stage_name === 'Розкрій' ? '#3b82f61a' : row.stage_name === 'Галтовка' ? '#eab3081a' : row.stage_name === 'Прийомка' || row.stage_name === 'completed' ? '#10b9811a' : '#14b8a61a',
                                         color: row.stage_name.startsWith('Буфер') ? '#a78bfa' : row.stage_name === 'Розкрій' ? '#3b82f6' : row.stage_name === 'Галтовка' ? '#eab308' : row.stage_name === 'Прийомка' || row.stage_name === 'completed' ? '#10b981' : '#14b8a6',
@@ -4278,7 +4453,7 @@ const ForemanWorkplace = () => {
                                   <td style={{ padding: '12px 15px', textAlign: 'center' }}>
                                     <strong style={{ color: '#10b981' }}>{row.qty_completed} шт</strong>
                                     {Number(row.scrap_qty) > 0 && (
-                                      <span style={{ color: '#ef4444', marginLeft: '5px' }}>(брак: {row.scrap_qty})</span>
+                                      <div style={{ color: '#ef4444', fontSize: '0.7rem', marginTop: '2px', fontWeight: 700 }}>брак: {row.scrap_qty} шт</div>
                                     )}
                                   </td>
                                   <td style={{ padding: '12px 15px', textAlign: 'center', color: row.cutters_used > 0 ? '#eab308' : '#444', fontWeight: 900 }}>
