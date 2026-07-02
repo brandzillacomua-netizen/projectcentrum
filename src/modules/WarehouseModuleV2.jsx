@@ -16,7 +16,8 @@ import {
   Check,
   X,
   FolderOpen,
-  QrCode
+  QrCode,
+  Trash2
 } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useMES } from '../MESContext'
@@ -980,6 +981,43 @@ const WarehouseModuleV2 = () => {
     }
   }
 
+  const handleDeleteRequest = async (reqId) => {
+    if (!window.confirm('Ви впевнені, що хочете повністю видалити цей запит з бази даних?')) return
+    try {
+      const { error } = await supabaseClient
+        .from('material_requests')
+        .delete()
+        .eq('id', reqId)
+      if (error) throw error
+      alert('Запит успішно видалено!')
+      if (typeof fetchData === 'function') {
+        fetchData(['material_requests'])
+      }
+    } catch (e) {
+      console.error(e)
+      alert('Помилка видалення запиту: ' + e.message)
+    }
+  }
+
+  const handleDeleteEntireRequest = async (reqList, displayNum) => {
+    if (!window.confirm(`Ви впевнені, що хочете повністю видалити весь запит для НАРЯДУ #${displayNum} з бази даних? (${reqList.length} позицій)`)) return
+    try {
+      const ids = reqList.map(r => r.id)
+      const { error } = await supabaseClient
+        .from('material_requests')
+        .delete()
+        .in('id', ids)
+      if (error) throw error
+      alert('Запит для наряду успішно видалено!')
+      if (typeof fetchData === 'function') {
+        fetchData(['material_requests'])
+      }
+    } catch (e) {
+      console.error(e)
+      alert('Помилка видалення запиту: ' + e.message)
+    }
+  }
+
   const handleSaveInventoryQty = async (itemId) => {
     const totalVal = parseFloat(editingInvTotal)
     const reservedVal = parseFloat(editingInvReserved)
@@ -1466,7 +1504,21 @@ const WarehouseModuleV2 = () => {
 
                 return (
                   <div key={key} style={{ minWidth: '300px', background: '#111', padding: '15px', borderRadius: '15px', border: '1px solid #222' }}>
-                    <strong style={{ display: 'block', fontSize: '0.75rem', marginBottom: '10px' }}>НАРЯД #{displayNum}</strong>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <strong style={{ fontSize: '0.75rem' }}>НАРЯД #{displayNum}</strong>
+                      {currentUser?.login === 'admin@workshop.local' && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteEntireRequest(reqList, displayNum)}
+                          style={{ background: 'transparent', border: 'none', padding: '2px 4px', cursor: 'pointer', color: '#888', display: 'flex', alignItems: 'center', transition: '0.15s' }}
+                          title="Видалити весь запит для наряду"
+                          onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                          onMouseLeave={e => e.currentTarget.style.color = '#888'}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
                     <ul style={{ listStyle: 'none', padding: 0, marginBottom: '15px' }}>
                       {(() => {
                         const displayedRequests = []
@@ -1540,6 +1592,17 @@ const WarehouseModuleV2 = () => {
                                       onMouseLeave={e => e.currentTarget.style.color = '#555'}
                                     >
                                       <Pencil size={11} />
+                                    </button>
+                                  )}
+                                  {currentUser?.login === 'admin@workshop.local' && (
+                                    <button
+                                      onClick={() => handleDeleteRequest(r.id)}
+                                      style={{ background: 'transparent', border: 'none', padding: '2px 4px', cursor: 'pointer', color: '#888', display: 'flex', alignItems: 'center', transition: '0.15s' }}
+                                      title="Видалити запит"
+                                      onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                                      onMouseLeave={e => e.currentTarget.style.color = '#888'}
+                                    >
+                                      <Trash2 size={11} />
                                     </button>
                                   )}
                                 </span>
