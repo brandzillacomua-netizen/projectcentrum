@@ -1525,44 +1525,55 @@ const KanbanModule = () => {
         <aside className="kb-sidebar">
 
           {/* ── DEPARTMENT TASKS ────────────────────────────────────────────── */}
-          <div className="sb-block">
-            <div className="sb-block-head">
-              <Briefcase size={13} />
-              <span>ЗАВДАННЯ ВІДДІЛІВ</span>
-            </div>
-            <div className="sb-dept-list">
-              {DEPARTMENTS.map(d => {
-                // Calculate counts for this department
-                const deptTasks = (managementTasks || []).filter(t => {
-                  if (d.id === 'all') return true
-                  return getTaskDepartment(t, systemUsers, companyStructure) === d.id
-                })
+          {(() => {
+            const pos = (currentUser?.position || '').toLowerCase()
+            const rights = currentUser?.access_rights || {}
+            const isSuperOrProdDirector = rights.director || rights.master || rights.foreman ||
+              pos.includes('адмін') || pos.includes('директор') || pos.includes('керівник')
 
-                const todoCnt = deptTasks.filter(t => t.status === 'todo').length
-                const progCnt = deptTasks.filter(t => t.status === 'in_progress').length
-                const reviewCnt = deptTasks.filter(t => t.status === 'review').length
-                const overdueCnt = deptTasks.filter(t => isOverdueTask(t)).length
+            if (!isSuperOrProdDirector) return null
 
-                const isSelected = selectedDeptFilter === d.id
+            return (
+              <div className="sb-block">
+                <div className="sb-block-head">
+                  <Briefcase size={13} />
+                  <span>ЗАВДАННЯ ВІДДІЛІВ</span>
+                </div>
+                <div className="sb-dept-list">
+                  {DEPARTMENTS.map(d => {
+                    // Calculate counts for this department
+                    const deptTasks = (managementTasks || []).filter(t => {
+                      if (d.id === 'all') return true
+                      return getTaskDepartment(t, systemUsers, companyStructure) === d.id
+                    })
 
-                return (
-                  <div key={d.id} className={`sb-dept-item ${isSelected ? 'active' : ''}`}
-                    onClick={() => setSelectedDeptFilter(isSelected ? 'all' : d.id)}>
-                    <span className="sb-dept-name">{d.label}</span>
-                    <div className="sb-dept-badges">
-                      {todoCnt > 0 && <span className="sb-dbadge sb-dbadge-todo" title="Нові">{todoCnt}</span>}
-                      {progCnt > 0 && <span className="sb-dbadge sb-dbadge-prog" title="В роботі">{progCnt}</span>}
-                      {reviewCnt > 0 && <span className="sb-dbadge sb-dbadge-rev" title="Перевірка">{reviewCnt}</span>}
-                      {overdueCnt > 0 && <span className="sb-dbadge sb-dbadge-over" title="Прострочено">{overdueCnt}</span>}
-                      {todoCnt === 0 && progCnt === 0 && reviewCnt === 0 && overdueCnt === 0 && (
-                        <span className="sb-dbadge sb-dbadge-empty">0</span>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+                    const todoCnt = deptTasks.filter(t => t.status === 'todo').length
+                    const progCnt = deptTasks.filter(t => t.status === 'in_progress').length
+                    const reviewCnt = deptTasks.filter(t => t.status === 'review').length
+                    const overdueCnt = deptTasks.filter(t => isOverdueTask(t)).length
+
+                    const isSelected = selectedDeptFilter === d.id
+
+                    return (
+                      <div key={d.id} className={`sb-dept-item ${isSelected ? 'active' : ''}`}
+                        onClick={() => setSelectedDeptFilter(isSelected ? 'all' : d.id)}>
+                        <span className="sb-dept-name">{d.label}</span>
+                        <div className="sb-dept-badges">
+                          {todoCnt > 0 && <span className="sb-dbadge sb-dbadge-todo" title="Нові">{todoCnt}</span>}
+                          {progCnt > 0 && <span className="sb-dbadge sb-dbadge-prog" title="В роботі">{progCnt}</span>}
+                          {reviewCnt > 0 && <span className="sb-dbadge sb-dbadge-rev" title="Перевірка">{reviewCnt}</span>}
+                          {overdueCnt > 0 && <span className="sb-dbadge sb-dbadge-over" title="Прострочено">{overdueCnt}</span>}
+                          {todoCnt === 0 && progCnt === 0 && reviewCnt === 0 && overdueCnt === 0 && (
+                            <span className="sb-dbadge sb-dbadge-empty">0</span>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })()}
 
           {/* ── UPCOMING DEADLINES ───────────────────────────────────────── */}
           <div className="sb-block">
