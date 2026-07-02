@@ -278,13 +278,19 @@ const GlobalUserNav = () => {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // Sync profile form states when panel is opened
+  const wasOpenedRef = useRef(false);
   useEffect(() => {
-    if (activeSubPanel === 'notif_settings' && currentUser) {
-      setProfileFirstName(currentUser.first_name || '');
-      setProfileLastName(currentUser.last_name || '');
-      setProfilePassword(currentUser.password || '');
-      setProfileAvatar(currentUser.avatar || currentUser.notification_settings?.avatar || '');
-      setSettingsTab('notif');
+    if (activeSubPanel === 'notif_settings') {
+      if (!wasOpenedRef.current && currentUser) {
+        setProfileFirstName(currentUser.first_name || '');
+        setProfileLastName(currentUser.last_name || '');
+        setProfilePassword(currentUser.password || '');
+        setProfileAvatar(currentUser.avatar || currentUser.notification_settings?.avatar || '');
+        setSettingsTab('notif');
+        wasOpenedRef.current = true;
+      }
+    } else {
+      wasOpenedRef.current = false;
     }
   }, [activeSubPanel, currentUser]);
 

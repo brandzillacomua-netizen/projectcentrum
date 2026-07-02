@@ -893,7 +893,14 @@ export function useData() {
   useEffect(() => {
     if (currentUser?.id && systemUsers.length > 0) {
       const fresh = systemUsers.find(u => u.id === currentUser.id)
-      if (fresh) setCurrentUser(prev => ({ ...fresh, token: prev?.token }))
+      if (fresh) {
+        // Compare all key fields (excluding last_seen / token) to avoid updating object reference on presence-only ticks
+        const fields = ['login', 'password', 'first_name', 'last_name', 'position', 'department', 'shift', 'access_rights', 'avatar', 'notification_settings']
+        const hasDiff = fields.some(k => JSON.stringify(currentUser[k]) !== JSON.stringify(fresh[k]))
+        if (hasDiff) {
+          setCurrentUser(prev => ({ ...fresh, token: prev?.token }))
+        }
+      }
     }
   }, [systemUsers])
 

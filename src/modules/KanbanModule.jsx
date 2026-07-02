@@ -1347,11 +1347,9 @@ const KanbanModule = () => {
             )}
           </div>
 
-          {isManager && (
-            <button className="kb-add-btn" onClick={() => setCreateOpen(true)}>
-              <Plus size={16} /> НОВА ЗАДАЧА
-            </button>
-          )}
+          <button className="kb-add-btn" onClick={() => setCreateOpen(true)}>
+            <Plus size={16} /> НОВА ЗАДАЧА
+          </button>
         </div>
       </nav>
 
@@ -1402,7 +1400,7 @@ const KanbanModule = () => {
                     <h3 style={{ color: column.color }}>{column.title}</h3>
                     <span className="col-cnt" style={{ background: `${column.color}15`, color: column.color }}>{columnTasks.length}</span>
                   </div>
-                  {isManager && column.id === 'todo' && (
+                  {column.id === 'todo' && (
                     <button className="col-add-btn" onClick={() => setCreateOpen(true)} title="Нова задача">
                       <Plus size={14} />
                     </button>
@@ -1870,7 +1868,7 @@ const KanbanModule = () => {
       {/* ══════════════════════════════════════════════════════════════════
           CREATE MODAL
       ══════════════════════════════════════════════════════════════════ */}
-      {createOpen && isManager && (
+      {createOpen && (
         <div className="modal-overlay" onClick={() => setCreateOpen(false)}>
           <div className="modal-box create-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-head">
