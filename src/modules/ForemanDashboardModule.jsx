@@ -622,7 +622,7 @@ const ForemanDashboardModule = () => {
           }
         })
 
-        // Shop 2 completed cards + booked BZ go to SGP
+        // Shop 2 completed cards + booked BZ go to SGP (capped at demand)
         const completedShop2Qty = filteredCards.filter(c => {
           if (String(c.nomenclature_id) !== String(nom.id)) return false
           if (c.task_id && taskParentMap[c.task_id] && taskParentMap[c.task_id] !== parentId) return false
@@ -631,7 +631,8 @@ const ForemanDashboardModule = () => {
           return isShop2 && c.status === 'completed'
         }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
 
-        const qSgp = completedShop2Qty + initialStock
+        const totalPotentialSgp = completedShop2Qty + initialStock
+        const qSgp = Math.min(demandForParent, totalPotentialSgp)
 
         // Shop 1 completed or at-shop2-buffer cards count as total produced by Shop 1
         const groupProduced = filteredCards.filter(c => {
@@ -650,8 +651,9 @@ const ForemanDashboardModule = () => {
           return ['пресування', 'фарбування', 'малярка', 'доопрацювання', 'пакування', 'сгп'].some(o => op.includes(o))
         }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
 
-        // qBz is newly produced BZ (not yet in Shop 2)
-        const qBz = Math.max(0, groupProduced - qSort - totalShop2Qty)
+        // qBz is newly produced BZ (not yet in Shop 2) + excess SGP
+        const bzExcess = Math.max(0, totalPotentialSgp - demandForParent)
+        const qBz = Math.max(0, groupProduced - qSort - totalShop2Qty) + bzExcess
 
         // Scrap from task card history
         const cardIdsForThisPart = new Set(filteredCards.filter(c => {
@@ -1121,18 +1123,19 @@ const OrderDetailView = ({
         return ['пресування', 'фарбування', 'малярка', 'доопрацювання', 'пакування', 'сгп'].some(o => op.includes(o))
       }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
 
-      const initialStock = Number(snap.stock) || 0
-
-      // qBz is newly produced BZ
-      const qBz = Math.max(0, groupProduced - qSort - totalShop2Qty)
-
       const completedShop2Qty = nomCards.filter(c => {
         const op = (c.operation || '').toLowerCase()
         const isShop2 = ['пресування', 'фарбування', 'малярка', 'доопрацювання', 'пакування', 'сгп'].some(o => op.includes(o))
         return isShop2 && c.status === 'completed'
       }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
 
-      const qSgp = completedShop2Qty + initialStock
+      const initialStock = Number(snap.stock) || 0
+      const totalPotentialSgp = completedShop2Qty + initialStock
+      const qSgp = Math.min(snap.need || 0, totalPotentialSgp)
+
+      // qBz is newly produced BZ + excess SGP
+      const bzExcess = Math.max(0, totalPotentialSgp - (snap.need || 0))
+      const qBz = Math.max(0, groupProduced - qSort - totalShop2Qty) + bzExcess
 
       const cardIdsForThisPart = new Set(nomCards.map(c => c.id))
       const scrap = allCardsHistory.filter(h => h.card_id && cardIdsForThisPart.has(h.card_id)).reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)

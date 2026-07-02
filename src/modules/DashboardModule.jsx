@@ -470,12 +470,18 @@ const DashboardModule = () => {
 
           const orderAllTaskCards = orderAllCards.filter(c => String(c.nomenclature_id) === String(nom.id))
           
-          // Shop 2 completed cards go to SGP
+          // Shop 2 completed cards go to SGP (capped at specificDemand)
           const completedShop2Qty = orderAllTaskCards.filter(c => {
             const op = (c.operation || '').toLowerCase()
             const isShop2 = ['пресування', 'фарбування', 'малярка', 'доопрацювання'].some(o => op.includes(o))
             return isShop2 && c.status === 'completed'
           }).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+
+          const taskWithSnapshot = orderTasks.find(t => t.plan_snapshot && t.plan_snapshot[String(nom.id)])
+          const initialStock = taskWithSnapshot ? (Number(taskWithSnapshot.plan_snapshot[String(nom.id)].stock) || 0) : 0
+
+          const totalPotentialSgp = completedShop2Qty + initialStock
+          qSgp = Math.min(specificDemand, totalPotentialSgp)
 
           // Shop 1 completed cards + Склад БЗ cards go to BZ stock
           const completedShop1Qty = orderAllTaskCards.filter(c => {
@@ -486,16 +492,15 @@ const DashboardModule = () => {
             return (isShop1 && isCompleted) || isSgpOrBzCard
           }).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
-          const taskWithSnapshot = orderTasks.find(t => t.plan_snapshot && t.plan_snapshot[String(nom.id)])
+          // All Shop 2 cards for this task
+          const totalShop2Qty = orderAllTaskCards.filter(c => {
+            const op = (c.operation || '').toLowerCase()
+            return ['пресування', 'фарбування', 'малярка', 'доопрацювання'].some(o => op.includes(o))
+          }).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
-          if (taskWithSnapshot) {
-            const initialStock = Number(taskWithSnapshot.plan_snapshot[String(nom.id)].stock) || 0
-            qBz = completedShop1Qty || initialStock
-            qSgp = completedShop2Qty
-          } else {
-            qBz = completedShop1Qty || orderAllocatedBz[selectedOrderId]?.[nom.id] || 0
-            qSgp = completedShop2Qty || orderAllocatedSgp[selectedOrderId]?.[nom.id] || 0
-          }
+          // qBz is newly produced BZ (not yet in Shop 2) + excess SGP
+          const bzExcess = Math.max(0, totalPotentialSgp - specificDemand)
+          qBz = Math.max(0, completedShop1Qty - qSortCards - totalShop2Qty) + bzExcess
         } else {
           qScrap = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id) && String(i.type).startsWith('scrap')).reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
 
