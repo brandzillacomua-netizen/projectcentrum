@@ -434,48 +434,28 @@ export default function TumblingTerminal() {
     <div style={{ background: '#070709', minHeight: '100vh', color: '#fff', fontFamily: "'Outfit', 'Inter', sans-serif", display: 'flex', flexDirection: 'column' }}>
 
       {/* HEADER SECTION */}
-      <header style={{ flexShrink: 0, background: 'rgba(12,12,15,0.85)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.04)', padding: '0 24px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 10 }}>
+      <header style={{ flexShrink: 0, background: 'rgba(12,12,15,0.85)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.04)', zIndex: 10 }}>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <Link to="/" style={{ color: '#888', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: 700, transition: '0.2s' }}>
-            <ArrowLeft size={16} /> На головну
-          </Link>
-          <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.08)' }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ background: 'rgba(6,182,212,0.1)', padding: '8px', borderRadius: '12px' }}>
-              <Tablet size={20} color="#06b6d4" />
-            </div>
-            <div>
-              <h1 style={{ fontSize: '1.05rem', fontWeight: 950, letterSpacing: '0.5px', textTransform: 'uppercase', margin: 0 }}>ЕКРАН ГАЛТОВКИ</h1>
-              <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '2px', fontWeight: 700 }}>ТЕРМІНАЛ ОБРОБКИ ДЕТАЛЕЙ</div>
+        {/* Row 1: Back + Title */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px 0 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <Link to="/" style={{ color: '#888', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 700, flexShrink: 0 }}>
+              <ArrowLeft size={15} /> На головну
+            </Link>
+            <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.08)', flexShrink: 0 }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+              <div style={{ background: 'rgba(6,182,212,0.1)', padding: '6px', borderRadius: '10px', flexShrink: 0 }}>
+                <Tablet size={18} color="#06b6d4" />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <h1 style={{ fontSize: '0.95rem', fontWeight: 950, letterSpacing: '0.3px', textTransform: 'uppercase', margin: 0, whiteSpace: 'nowrap' }}>ЕКРАН ГАЛТОВКИ</h1>
+                <div style={{ fontSize: '0.6rem', color: '#555', marginTop: '1px', fontWeight: 700 }}>ТЕРМІНАЛ ОБРОБКИ ДЕТАЛЕЙ</div>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* WORKER AND SHIFT SELECTORS */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-
-          {/* Shift Selection */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <span style={{ fontSize: '0.55rem', color: '#555', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Зміна</span>
-            <select
-              value={selectedShift}
-              onChange={e => setSelectedShift(e.target.value)}
-              style={{ background: '#121216', border: '1px solid rgba(255,255,255,0.05)', color: '#fff', padding: '8px 12px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer', outline: 'none', width: '120px' }}
-            >
-              <option value="">— Оберіть —</option>
-              <option value="Зміна 1">Зміна 1</option>
-              <option value="Зміна 2">Зміна 2</option>
-              <option value="Зміна 3">Зміна 3</option>
-              <option value="Зміна 4">Зміна 4</option>
-              <option value="Без зміни">Без зміни</option>
-            </select>
-          </div>
-
-          <div style={{ width: '1px', height: '32px', background: 'rgba(255,255,255,0.08)' }} />
-
-          {/* Live Clock */}
-          <div style={{ textAlign: 'right', minWidth: '80px' }}>
+          {/* Live Clock — always top-right */}
+          <div style={{ textAlign: 'right', flexShrink: 0 }}>
             <div style={{ color: '#fff', fontSize: '1rem', fontWeight: 900, fontFamily: 'monospace' }}>
               {currentTime.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
             </div>
@@ -483,7 +463,23 @@ export default function TumblingTerminal() {
               {currentTime.toLocaleDateString('uk-UA', { day: '2-digit', month: 'short' })}
             </div>
           </div>
+        </div>
 
+        {/* Row 2: Shift selector */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 20px 12px 20px' }}>
+          <span style={{ fontSize: '0.6rem', color: '#555', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 }}>ЗМІНА</span>
+          <select
+            value={selectedShift}
+            onChange={e => setSelectedShift(e.target.value)}
+            style={{ background: '#121216', border: '1px solid rgba(255,255,255,0.07)', color: '#fff', padding: '7px 12px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer', outline: 'none', flex: '0 0 auto' }}
+          >
+            <option value="">— Оберіть —</option>
+            <option value="Зміна 1">Зміна 1</option>
+            <option value="Зміна 2">Зміна 2</option>
+            <option value="Зміна 3">Зміна 3</option>
+            <option value="Зміна 4">Зміна 4</option>
+            <option value="Без зміни">Без зміни</option>
+          </select>
         </div>
       </header>
 
