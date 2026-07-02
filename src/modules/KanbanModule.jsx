@@ -76,6 +76,14 @@ const getTaskDepartment = (task, systemUsers, companyStructure) => {
 const isOverdueTask = (task) =>
   task.deadline && new Date(task.deadline) < new Date() && task.status !== 'done'
 
+// Сумісний з одиночним assigned_to та масивом assignees
+const getAssignees = (task) => {
+  if (Array.isArray(task?.assignees) && task.assignees.length > 0) return task.assignees
+  if (task?.assigned_to) return [task.assigned_to]
+  return []
+}
+
+
 const checklistProgress = (checklist = []) => {
   if (!checklist.length) return null
   const parentIds = new Set()
@@ -253,6 +261,237 @@ const AssigneeSelector = ({ value, onSelect, searchVal, setSearchVal, systemUser
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+// ─── Card Color Picker ─────────────────────────────────────────────────────
+const CARD_COLORS = [
+  { id: '', label: 'Авто (від пріоритету)' },
+  { id: '#ef4444', label: 'Червоний' },
+  { id: '#f97316', label: 'Помаранчевий' },
+  { id: '#eab308', label: 'Жовтий' },
+  { id: '#22c55e', label: 'Зелений' },
+  { id: '#06b6d4', label: 'Блакитний' },
+  { id: '#3b82f6', label: 'Синій' },
+  { id: '#8b5cf6', label: 'Фіолетовий' },
+  { id: '#ec4899', label: 'Рожевий' },
+  { id: '#6b7280', label: 'Сірий' },
+]
+
+const ColorPicker = ({ value, onChange }) => (
+  <div className="form-group">
+    <label>Колір плашки (ліва смужка картки)</label>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px', alignItems: 'center' }}>
+      {CARD_COLORS.map(c => (
+        <button
+          key={c.id}
+          type="button"
+          title={c.label}
+          onClick={() => onChange(c.id)}
+          style={{
+            width: c.id ? '28px' : 'auto',
+            height: '28px',
+            padding: c.id ? 0 : '0 12px',
+            borderRadius: c.id ? '50%' : '8px',
+            background: c.id || '#1a1a1a',
+            border: value === c.id ? '2.5px solid #fff' : '2px solid transparent',
+            outline: value === c.id ? '2px solid rgba(255,255,255,0.2)' : 'none',
+            outlineOffset: '2px',
+            cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '0.65rem', color: '#888', fontWeight: 800,
+            boxShadow: value === c.id && c.id ? `0 0 10px ${c.id}66` : 'none',
+            transition: 'all 0.15s',
+          }}
+        >
+          {value === c.id && c.id && <span style={{ color: '#000', fontSize: '11px', fontWeight: 900 }}>✓</span>}
+          {!c.id && (value === c.id ? '✓ Авто' : 'Авто')}
+        </button>
+      ))}
+    </div>
+  </div>
+)
+
+// ─── MultiAssigneeSelector ────────────────────────────────────────────────────
+const MultiAssigneeSelector = ({ values = [], onAdd, onRemove, systemUsers }) => {
+  const [search, setSearch] = useState('')
+  const results = React.useMemo(() => {
+    if (!search) return []
+    const lq = search.toLowerCase()
+    return (systemUsers || [])
+      .filter(u => !values.includes(u.login))
+      .filter(u =>
+        (u.first_name || '').toLowerCase().includes(lq) ||
+        (u.last_name || '').toLowerCase().includes(lq) ||
+        (u.login || '').toLowerCase().includes(lq)
+      ).slice(0, 6)
+  }, [search, values, systemUsers])
+
+  const selectedUsers = (systemUsers || []).filter(u => values.includes(u.login))
+
+  return (
+    <div className="form-group">
+      <label>
+        <Users size={12} style={{ display: 'inline', marginRight: '4px' }} />
+        Виконавці {selectedUsers.length > 0 && <span style={{ color: '#ff9000', fontWeight: 900 }}>({selectedUsers.length})</span>}
+      </label>
+      {selectedUsers.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+          {selectedUsers.map(u => (
+            <div key={u.login} style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(255,144,0,0.08)', border: '1px solid rgba(255,144,0,0.2)', borderRadius: '20px', padding: '3px 8px 3px 4px' }}>
+              <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#ff9000', color: '#000', fontSize: '0.6rem', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                {getInitials(u)}
+              </div>
+              <span style={{ fontSize: '0.73rem', color: '#ddd', fontWeight: 600 }}>{u.last_name} {u.first_name}</span>
+              <button type="button" onClick={() => onRemove(u.login)} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', marginLeft: '2px' }}>
+                <X size={11} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="assignee-selector">
+        <div className="assignee-search-wrap">
+          <Search size={13} />
+          <input
+            type="text"
+            placeholder="Пошук за прізвищем..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            autoComplete="off"
+          />
+          {search && <button type="button" onClick={() => setSearch('')} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', padding: 0, display: 'flex' }}><X size={12} /></button>}
+        </div>
+        {search.length > 0 && (
+          <div className="assignee-dropdown">
+            {results.length > 0 ? results.map(u => (
+              <div key={u.login} className="assignee-option" onMouseDown={e => e.preventDefault()} onClick={() => { onAdd(u.login); setSearch('') }}>
+                <div className="opt-avatar">{getInitials(u)}</div>
+                <div className="opt-info">
+                  <span className="opt-name">{u.last_name} {u.first_name}</span>
+                  <span className="opt-pos">{u.position || u.department || ''}</span>
+                </div>
+              </div>
+            )) : <div className="no-results">Нікого не знайдено</div>}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── DeadlinePicker ───────────────────────────────────────────────────────────
+const DeadlinePicker = ({ value, onChange, label = 'Дедлайн' }) => {
+  const [open, setOpen] = useState(false)
+  const [localDate, setLocalDate] = useState(value ? value.slice(0, 10) : '')
+  const [localTime, setLocalTime] = useState(value && value.length > 10 ? value.slice(11, 16) : '09:00')
+
+  React.useEffect(() => {
+    setLocalDate(value ? value.slice(0, 10) : '')
+    setLocalTime(value && value.length > 10 ? value.slice(11, 16) : '09:00')
+  }, [value])
+
+  const apply = (date, time) => {
+    if (date) onChange(`${date}T${time || '09:00'}`)
+    else onChange('')
+  }
+
+  const quickSet = (daysFromNow) => {
+    const d = new Date()
+    d.setDate(d.getDate() + daysFromNow)
+    const date = d.toISOString().slice(0, 10)
+    setLocalDate(date)
+    apply(date, localTime || '09:00')
+    setOpen(false)
+  }
+
+  const display = value
+    ? new Date(value).toLocaleString('uk-UA', {
+        day: 'numeric', month: 'short',
+        ...(value.length > 10 ? { hour: '2-digit', minute: '2-digit' } : {})
+      })
+    : 'Не вказано'
+
+  return (
+    <div className="form-group" style={{ position: 'relative' }}>
+      <label>{label}</label>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: '8px',
+          background: value ? 'rgba(255,144,0,0.07)' : '#0d0d0d',
+          border: value ? '1px solid rgba(255,144,0,0.25)' : '1px solid #1a1a1a',
+          color: value ? '#ff9000' : '#444',
+          padding: '9px 14px', borderRadius: '10px', cursor: 'pointer',
+          fontSize: '0.82rem', fontWeight: 700, fontFamily: 'inherit', textAlign: 'left'
+        }}
+      >
+        <Calendar size={14} />
+        {display}
+        {value && (
+          <span
+            onClick={e => { e.stopPropagation(); onChange(''); setLocalDate('') }}
+            style={{ marginLeft: 'auto', color: '#555', cursor: 'pointer', lineHeight: 1, display: 'flex' }}
+          >
+            <X size={13} />
+          </span>
+        )}
+      </button>
+      {open && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={() => setOpen(false)} />
+          <div style={{
+            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 9999,
+            background: '#0f0f0f', border: '1px solid #222', borderRadius: '14px',
+            padding: '14px', boxShadow: '0 16px 50px rgba(0,0,0,0.7)'
+          }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
+              {[['Сьогодні', 0], ['Завтра', 1], ['+3 дні', 3], ['+7 днів', 7], ['+30 днів', 30]].map(([lbl, days]) => (
+                <button
+                  key={days}
+                  type="button"
+                  onClick={() => quickSet(days)}
+                  style={{ background: 'rgba(255,144,0,0.08)', border: '1px solid rgba(255,144,0,0.2)', color: '#ff9000', padding: '5px 12px', borderRadius: '8px', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer' }}
+                >
+                  {lbl}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+              <input
+                type="date"
+                value={localDate}
+                onChange={e => setLocalDate(e.target.value)}
+                style={{ flex: 1, background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', padding: '8px 10px', borderRadius: '8px', fontSize: '0.8rem', outline: 'none', fontFamily: 'inherit' }}
+              />
+              <input
+                type="time"
+                value={localTime}
+                onChange={e => setLocalTime(e.target.value)}
+                style={{ width: '100px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', padding: '8px 10px', borderRadius: '8px', fontSize: '0.8rem', outline: 'none', fontFamily: 'inherit' }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => { apply(localDate, localTime); setOpen(false) }}
+                style={{ flex: 1, background: '#ff9000', border: 'none', color: '#000', padding: '8px', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 900, cursor: 'pointer' }}
+              >
+                Зберегти
+              </button>
+              <button
+                type="button"
+                onClick={() => { onChange(''); setLocalDate(''); setOpen(false) }}
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid #2a2a2a', color: '#888', padding: '8px 14px', borderRadius: '8px', fontSize: '0.8rem', cursor: 'pointer' }}
+              >
+                Очистити
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -707,7 +946,7 @@ const KanbanModule = () => {
   const [detailTab, setDetailTab] = useState('desc') // 'desc' | 'checklist' | 'comments'
 
   // ── Create form ─────────────────────────────────────────────────────────
-  const blankForm = { title: '', description: '', priority: 'medium', assigned_to: '', is_collective: false, department: 'all', deadline: '', checklist: [] }
+  const blankForm = { title: '', description: '', priority: 'medium', color: '', assigned_to: '', assignees: [], is_collective: false, department: 'all', deadline: '', checklist: [] }
   const [form, setForm] = useState(blankForm)
   const [newCheckItem, setNewCheckItem] = useState('')
   const [assigneeSearch, setAssigneeSearch] = useState('')
@@ -729,7 +968,7 @@ const KanbanModule = () => {
     let list = managementTasks || []
     if (!isManager) {
       list = list.filter(t =>
-        t.assigned_to === currentUser?.login ||
+        getAssignees(t).includes(currentUser?.login) ||
         t.created_by === currentUser?.login ||
         t.is_collective
       )
@@ -747,18 +986,18 @@ const KanbanModule = () => {
     let list = managementTasks || []
     if (!isManager) {
       list = list.filter(t =>
-        t.assigned_to === currentUser?.login ||
+        getAssignees(t).includes(currentUser?.login) ||
         t.created_by === currentUser?.login ||
         t.is_collective
       )
     }
-    if (filterMode === 'my') list = list.filter(t => t.assigned_to === currentUser?.login)
-    else if (filterMode === 'assigned_by_me') list = list.filter(t => t.created_by === currentUser?.login && t.assigned_to !== currentUser?.login)
+    if (filterMode === 'my') list = list.filter(t => getAssignees(t).includes(currentUser?.login))
+    else if (filterMode === 'assigned_by_me') list = list.filter(t => t.created_by === currentUser?.login && !getAssignees(t).includes(currentUser?.login))
     else if (filterMode === 'department') {
       const deptId = getUserDeptId(currentUser?.department, companyStructure)
       list = list.filter(t => t.is_collective && (t.department === deptId || t.department === 'all'))
     } else if (filterMode === 'unassigned') {
-      list = list.filter(t => !t.assigned_to && !t.is_collective)
+      list = list.filter(t => getAssignees(t).length === 0 && !t.is_collective)
     }
     if (selectedDeptFilter !== 'all') {
       list = list.filter(t => getTaskDepartment(t, systemUsers, companyStructure) === selectedDeptFilter)
@@ -844,6 +1083,9 @@ const KanbanModule = () => {
     const tempId = '__temp_' + genId()
     const tempTask = {
       ...form,
+      color: form.color || '',
+      assignees: form.assignees || [],
+      assigned_to: (form.assignees || [])[0] || form.assigned_to || '',
       id: tempId,
       status: 'todo',
       created_by: currentUser?.login || 'system',
@@ -859,7 +1101,14 @@ const KanbanModule = () => {
 
     // ─ Background save to DB ─────────────────────────────────────────
     try {
-      const { data: saved, error } = await addManagementTask({ ...form, status: 'todo' })
+      const payload = {
+        ...form,
+        color: form.color || '',
+        assignees: form.assignees || [],
+        assigned_to: (form.assignees || [])[0] || form.assigned_to || '',
+        status: 'todo'
+      }
+      const { data: saved, error } = await addManagementTask(payload)
       if (error) {
         // rollback temp on error
         setManagementTasks(prev => prev.filter(t => t.id !== tempId))
@@ -891,7 +1140,9 @@ const KanbanModule = () => {
       title: task.title || '',
       description,
       priority: task.priority || 'medium',
+      color: task.color || '',
       assigned_to: task.assigned_to || '',
+      assignees: getAssignees(task),
       is_collective: task.is_collective || false,
       department: task.department || 'all',
       deadline: task.deadline ? task.deadline.slice(0, 16) : '',
@@ -908,6 +1159,10 @@ const KanbanModule = () => {
     setIsSubmitting(true)
     try {
       const { id, ...payload } = editForm
+      // Sync assigned_to з першим у масиві assignees
+      payload.assigned_to = (editForm.assignees || [])[0] || editForm.assigned_to || ''
+      payload.assignees = editForm.assignees || []
+      payload.color = editForm.color || ''
       // Rebuild description (keep old comments)
       const orig = managementTasks?.find(t => t.id === id)
       const { comments } = parseComments(orig?.description)
@@ -950,7 +1205,7 @@ const KanbanModule = () => {
   // ─── Status actions ─────────────────────────────────────────────────────
   const canAdvance = (task) => {
     if (task.status === 'done') return false
-    const isAssignee = task.assigned_to === currentUser?.login
+    const isAssignee = getAssignees(task).includes(currentUser?.login)
     const isCollForDept = task.is_collective && (getUserDeptId(currentUser?.department, companyStructure) === task.department || task.department === 'all')
     return isAssignee || isCollForDept || isManager
   }
@@ -1113,22 +1368,23 @@ const KanbanModule = () => {
 
                 <div className="col-body">
                   {columnTasks.map(task => {
-                    const assignee = (systemUsers || []).find(u => u.login === task.assigned_to)
+                    const taskAssignees = getAssignees(task).map(login => (systemUsers || []).find(u => u.login === login)).filter(Boolean)
                     const overdue = isOverdueTask(task)
                     const checklist = Array.isArray(task.checklist) ? task.checklist : []
                     const clp = checklistProgress(checklist)
                     const pcfg = PRIORITY_CFG[task.priority] || PRIORITY_CFG.medium
+                    const accentColor = task.color || pcfg.color
 
                     return (
                       <div key={task.id} className={`kb-card ${overdue ? 'overdue' : ''}`}
-                        style={{ '--pb': pcfg.color }}
+                        style={{ '--pb': accentColor }}
                         draggable={isManager}
                         onDragStart={e => handleDragStart(e, task.id)}
                         onDragEnd={handleDragEnd}
                         onClick={() => handleOpenTask(task)}>
 
-                        {/* Priority bar */}
-                        <div className="card-pbar" style={{ background: pcfg.color }} />
+                        {/* Priority bar — color set by task.color or priority */}
+                        <div className="card-pbar" style={{ background: accentColor }} />
 
                         <div className="card-top">
                           <PriorityBadge priority={task.priority} />
@@ -1168,8 +1424,21 @@ const KanbanModule = () => {
                             )}
                           </div>
                           <div className="card-users">
-                            {!task.is_collective && assignee && <UserAvatar user={assignee} size={26} />}
-                            {!task.is_collective && !assignee && (
+                            {!task.is_collective && taskAssignees.length > 0 && (
+                              <div style={{ display: 'flex', alignItems: 'center' }}>
+                                {taskAssignees.slice(0, 3).map((u, i) => (
+                                  <div key={u.login} style={{ marginLeft: i > 0 ? '-8px' : 0, zIndex: 3 - i, position: 'relative' }}>
+                                    <UserAvatar user={u} size={26} />
+                                  </div>
+                                ))}
+                                {taskAssignees.length > 3 && (
+                                  <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#1a1a1a', border: '1px solid #333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', color: '#888', marginLeft: '-8px', fontWeight: 800 }}>
+                                    +{taskAssignees.length - 3}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {!task.is_collective && taskAssignees.length === 0 && (
                               <div className="ua-unassigned" title="Не призначено">?</div>
                             )}
                           </div>
@@ -1392,11 +1661,21 @@ const KanbanModule = () => {
                   )}
                 </div>
 
-                {/* Assignee */}
+                {/* Assignees */}
                 <div className="side-block">
-                  <label>ВИКОНАВЕЦЬ</label>
-                  <div className="side-val">
-                    <UserAvatar user={(systemUsers || []).find(u => u.login === selectedTask.assigned_to)} size={22} showName />
+                  <label>ВИКОНАВЦІ</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {getAssignees(selectedTask).length > 0
+                      ? getAssignees(selectedTask).map(login => {
+                          const u = (systemUsers || []).find(u => u.login === login)
+                          return u ? (
+                            <div key={login} className="side-val">
+                              <UserAvatar user={u} size={22} showName />
+                            </div>
+                          ) : null
+                        })
+                      : <div className="side-val"><UserAvatar user={null} size={22} showName /></div>
+                    }
                   </div>
                 </div>
 
@@ -1574,34 +1853,13 @@ const KanbanModule = () => {
                     <option value="urgent">НАГАЛЬНО!</option>
                   </select>
                 </div>
-                <div className="form-group">
-                  <label>Дедлайн</label>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <input
-                      type="date"
-                      value={form.deadline ? form.deadline.slice(0, 10) : ''}
-                      onChange={e => {
-                        const date = e.target.value
-                        const time = form.deadline && form.deadline.length > 10 ? form.deadline.slice(11, 16) : ''
-                        setForm(f => ({ ...f, deadline: date ? (time ? `${date}T${time}` : date) : '' }))
-                      }}
-                      onClick={e => { try { e.target.showPicker() } catch (err) { } }}
-                      style={{ flex: 1 }}
-                    />
-                    <input
-                      type="time"
-                      value={form.deadline && form.deadline.length > 10 ? form.deadline.slice(11, 16) : ''}
-                      onChange={e => {
-                        const time = e.target.value
-                        const date = form.deadline ? form.deadline.slice(0, 10) : new Date().toISOString().slice(0, 10)
-                        setForm(f => ({ ...f, deadline: date ? (time ? `${date}T${time}` : date) : '' }))
-                      }}
-                      onClick={e => { try { e.target.showPicker() } catch (err) { } }}
-                      style={{ width: '110px' }}
-                    />
-                  </div>
-                </div>
+                <DeadlinePicker
+                  value={form.deadline}
+                  onChange={dl => setForm(f => ({ ...f, deadline: dl }))}
+                />
               </div>
+
+              <ColorPicker value={form.color} onChange={c => setForm(f => ({ ...f, color: c }))} />
 
               <div className="collective-toggle">
                 <label className="toggle-wrap">
@@ -1612,13 +1870,11 @@ const KanbanModule = () => {
               </div>
 
               {!form.is_collective ? (
-                <AssigneeSelector
-                  value={form.assigned_to}
-                  onSelect={v => setForm(f => ({ ...f, assigned_to: v }))}
-                  searchVal={assigneeSearch}
-                  setSearchVal={setAssigneeSearch}
+                <MultiAssigneeSelector
+                  values={form.assignees || []}
+                  onAdd={login => setForm(f => ({ ...f, assignees: [...(f.assignees || []), login] }))}
+                  onRemove={login => setForm(f => ({ ...f, assignees: (f.assignees || []).filter(l => l !== login) }))}
                   systemUsers={systemUsers}
-                  canClear={true}
                 />
               ) : (
                 <div className="form-group">
@@ -1700,33 +1956,10 @@ const KanbanModule = () => {
                     <option value="urgent">НАГАЛЬНО!</option>
                   </select>
                 </div>
-                <div className="form-group">
-                  <label>Дедлайн</label>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <input
-                      type="date"
-                      value={editForm.deadline ? editForm.deadline.slice(0, 10) : ''}
-                      onChange={e => {
-                        const date = e.target.value
-                        const time = editForm.deadline && editForm.deadline.length > 10 ? editForm.deadline.slice(11, 16) : ''
-                        setEditForm(f => ({ ...f, deadline: date ? (time ? `${date}T${time}` : date) : '' }))
-                      }}
-                      onClick={e => { try { e.target.showPicker() } catch (err) { } }}
-                      style={{ flex: 1 }}
-                    />
-                    <input
-                      type="time"
-                      value={editForm.deadline && editForm.deadline.length > 10 ? editForm.deadline.slice(11, 16) : ''}
-                      onChange={e => {
-                        const time = e.target.value
-                        const date = editForm.deadline ? editForm.deadline.slice(0, 10) : new Date().toISOString().slice(0, 10)
-                        setEditForm(f => ({ ...f, deadline: date ? (time ? `${date}T${time}` : date) : '' }))
-                      }}
-                      onClick={e => { try { e.target.showPicker() } catch (err) { } }}
-                      style={{ width: '110px' }}
-                    />
-                  </div>
-                </div>
+                <DeadlinePicker
+                  value={editForm.deadline}
+                  onChange={dl => setEditForm(f => ({ ...f, deadline: dl }))}
+                />
               </div>
               <div className="form-row-2">
                 <div className="form-group">
@@ -1737,6 +1970,8 @@ const KanbanModule = () => {
                 </div>
               </div>
 
+              <ColorPicker value={editForm.color || ''} onChange={c => setEditForm(f => ({ ...f, color: c }))} />
+
               <div className="collective-toggle">
                 <label className="toggle-wrap">
                   <input type="checkbox" checked={editForm.is_collective} onChange={e => setEditForm(f => ({ ...f, is_collective: e.target.checked, assigned_to: e.target.checked ? '' : f.assigned_to }))} />
@@ -1746,13 +1981,11 @@ const KanbanModule = () => {
               </div>
 
               {!editForm.is_collective ? (
-                <AssigneeSelector
-                  value={editForm.assigned_to}
-                  onSelect={v => setEditForm(f => ({ ...f, assigned_to: v }))}
-                  searchVal={editAssigneeSearch}
-                  setSearchVal={setEditAssigneeSearch}
+                <MultiAssigneeSelector
+                  values={editForm.assignees || []}
+                  onAdd={login => setEditForm(f => ({ ...f, assignees: [...(f.assignees || []), login] }))}
+                  onRemove={login => setEditForm(f => ({ ...f, assignees: (f.assignees || []).filter(l => l !== login) }))}
                   systemUsers={systemUsers}
-                  canClear={true}
                 />
               ) : (
                 <div className="form-group">
