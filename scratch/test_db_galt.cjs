@@ -15,6 +15,7 @@ async function run() {
   const { data, error } = await supabase.from('work_cards')
     .select('id, status, operation, started_at, completed_at')
     .eq('status', 'in-progress')
+    .like('operation', 'Галтовка%')
     .limit(5);
   
   if (error) {

@@ -12,10 +12,11 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 async function run() {
-  const { data, error } = await supabase.from('work_cards')
-    .select('id, status, operation, started_at, completed_at')
-    .eq('status', 'in-progress')
-    .limit(5);
+  const cardId = '4e7a81cd-c4c1-41ce-8bf8-3b1ef01b5929';
+  const { data, error } = await supabase.from('work_card_history')
+    .select('*')
+    .eq('card_id', cardId)
+    .order('started_at', { ascending: true });
   
   if (error) {
     console.error(error);

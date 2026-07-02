@@ -12,16 +12,10 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 async function run() {
-  const { data, error } = await supabase.from('work_cards')
-    .select('id, status, operation, started_at, completed_at')
-    .eq('status', 'in-progress')
-    .limit(5);
-  
-  if (error) {
-    console.error(error);
-  } else {
-    console.log(data);
-  }
+  // Let's run a query to get current timezone or server time by doing a select on pg_settings or similar via RPC
+  // Wait, is there a way to run raw SQL? Since we can't run raw SQL easily via JS without rpc, let's see if we can do it via a rpc call
+  // Or wait, does Supabase JS client have raw SQL? No.
+  // But wait, is there an RPC we can use, or we can check the database settings in another way?
+  // Let's look at the database schema or any other logs.
 }
-
 run();

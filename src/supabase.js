@@ -44,6 +44,58 @@ window.getCurrentTime = getCurrentTime;
 
 // Sync time immediately on load and every 5 minutes
 async function syncTimeDrift() {
+  // 1. Try same-origin first (highly reliable in browser, bypasses cross-origin CORS limitations)
+  if (typeof window !== 'undefined' && window.location && window.location.origin) {
+    try {
+      const start = OriginalDate.now();
+      const response = await fetch(window.location.origin + '/?t=' + OriginalDate.now(), {
+        method: 'HEAD',
+        cache: 'no-store'
+      });
+      const serverDate = response.headers.get('date');
+      if (serverDate) {
+        const serverTimeMs = new OriginalDate(serverDate).getTime();
+        const latency = (OriginalDate.now() - start) / 2;
+        window.timeDrift = (serverTimeMs + latency) - OriginalDate.now();
+        console.log('[Time Sync] Server drift synchronized via same-origin header:', window.timeDrift, 'ms');
+        return;
+      }
+    } catch (e) {
+      console.warn('[Time Sync] Same-origin sync failed:', e);
+    }
+  }
+
+  // 2. Fallback: Try UTC-based time APIs (parse strictly as UTC to avoid local timezone offset shifts)
+  const apis = [
+    {
+      url: 'https://worldtimeapi.org/api/timezone/Etc/UTC',
+      parse: (json) => json.unixtime * 1000
+    },
+    {
+      url: 'https://timeapi.io/api/Time/current/zone?timeZone=UTC',
+      parse: (json) => new OriginalDate(json.dateTime + 'Z').getTime()
+    }
+  ];
+
+  for (const api of apis) {
+    try {
+      const start = OriginalDate.now();
+      const response = await fetch(api.url);
+      if (!response.ok) continue;
+      const json = await response.json();
+      const serverTimeMs = api.parse(json);
+      if (serverTimeMs) {
+        const latency = (OriginalDate.now() - start) / 2;
+        window.timeDrift = (serverTimeMs + latency) - OriginalDate.now();
+        console.log('[Time Sync] Server drift synchronized via UTC API:', window.timeDrift, 'ms');
+        return;
+      }
+    } catch (e) {
+      console.warn('[Time Sync] API sync failed:', api.url, e);
+    }
+  }
+
+  // 3. Fallback: Try Supabase date header (last resort)
   try {
     const start = OriginalDate.now();
     const response = await fetch(`${supabaseUrl}/rest/v1/`, {

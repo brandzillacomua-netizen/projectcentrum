@@ -586,7 +586,9 @@ export default function Shop1Terminal() {
     return 0
   }
   const nextStageFor = card => {
-    const i = CHAIN.indexOf(card?.operation || '')
+    const op = card?.operation || ''
+    if (op === 'Галтовка') return 'Прийомка'
+    const i = CHAIN.indexOf(op)
     return i >= 0 && i < CHAIN.length - 1 ? CHAIN[i + 1] : null
   }
   const formatMachine = (name) => {
@@ -2013,7 +2015,10 @@ export default function Shop1Terminal() {
   // ── Статистика по кожному етапу ─────────────────────────────────────────
   const stageStats = stage => {
     const cards = workCards.filter(c => {
-      if (c.operation !== stage || !CHAIN.includes(c.operation)) return false
+      const matchStage = stage === 'Галтовка'
+        ? (c.operation?.startsWith('Галтовка') || c.operation === 'Галтовка')
+        : c.operation === stage
+      if (!matchStage) return false
       const nom = getNom(c)
       return !nom || nom.type === 'part'
     })

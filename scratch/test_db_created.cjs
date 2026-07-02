@@ -13,8 +13,8 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 
 async function run() {
   const { data, error } = await supabase.from('work_cards')
-    .select('id, status, operation, started_at, completed_at')
-    .eq('status', 'in-progress')
+    .select('id, created_at, started_at')
+    .order('created_at', { ascending: false })
     .limit(5);
   
   if (error) {

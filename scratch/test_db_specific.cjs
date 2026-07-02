@@ -12,10 +12,16 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 async function run() {
+  const ids = [
+    '4e7a81cd-c4c1-41ce-8bf8-3b1ef01b5929',
+    'cfc03fb2-89d0-49bb-a1db-08cadb554c1c',
+    'd23c9d7a-b46f-4e55-b372-57316a304dfc',
+    '149fa7bc-1f2d-451c-af7f-923412c84fc8',
+    '238e60b2-d749-4b8f-b367-c0bf7b63ef9b'
+  ];
   const { data, error } = await supabase.from('work_cards')
-    .select('id, status, operation, started_at, completed_at')
-    .eq('status', 'in-progress')
-    .limit(5);
+    .select('id, created_at, started_at, completed_at')
+    .in('id', ids);
   
   if (error) {
     console.error(error);

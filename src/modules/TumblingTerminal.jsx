@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { ArrowLeft, Tablet, Search, Users, RefreshCw, Play, CheckCircle, AlertTriangle, X, Clock, Layers, Camera, QrCode } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
-import { supabase } from '../supabase'
+import { supabase, getCurrentTime } from '../supabase'
 
 // Map Cyrillic keyboard characters to English QWERTY for barcode scanners under Ukrainian/Russian layout
 const cyrillicToLatinMap = {
@@ -22,7 +22,7 @@ const translateCyrillic = (str) => {
 export default function TumblingTerminal() {
   const { workCards, nomenclatures, getFilteredOperators, fetchData, currentUser } = useMES()
 
-  const [currentTime, setCurrentTime] = useState(new Date())
+  const [currentTime, setCurrentTime] = useState(getCurrentTime())
   const [selectedShift, setSelectedShift] = useState('')
   const [selectedOperator, setSelectedOperator] = useState('')
 
@@ -50,7 +50,7 @@ export default function TumblingTerminal() {
 
   // 1. Tick clock
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000)
+    const timer = setInterval(() => setCurrentTime(getCurrentTime()), 1000)
     return () => clearInterval(timer)
   }, [])
 
@@ -283,7 +283,7 @@ export default function TumblingTerminal() {
       // 2. Update card to buffer of the current stage
       await supabase.from('work_cards').update({
         status: 'at-buffer',
-        operation: activeCompletingCard.operation,
+        operation: activeCompletingCard.operation === 'Галтовка (Сушка)' ? 'Галтовка' : activeCompletingCard.operation,
         quantity: actualFinished,
         completed_at: now
       }).eq('id', activeCompletingCard.id)
@@ -587,7 +587,7 @@ export default function TumblingTerminal() {
                   : formatDuration(card.started_at)
 
                 return (
-                  <div key={card.id} style={{ background: '#111116', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '18px', padding: '16px 18px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px', transition: '0.2s', position: 'relative' }} className="hover-lift">
+                  <div key={card.id} style={{ background: '#111116', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '18px', padding: '16px 18px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px', transition: '0.2s', position: 'relative' }} className="hover-lift tumbling-card">
 
                     {/* Strip color */}
                     <div style={{ position: 'absolute', left: 0, top: '15px', bottom: '15px', width: '3px', background: isWaiting ? pInfo.text : '#10b981', borderRadius: '0 3px 3px 0' }} />
@@ -595,18 +595,20 @@ export default function TumblingTerminal() {
                     {/* Card main info */}
                     <div style={{ flex: '1 1 300px', paddingLeft: '6px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '0.62rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        <span className="card-code" style={{ fontSize: '0.8rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                           Картка #{card.id.slice(-8).toUpperCase()}
                         </span>
+                        
                         {(() => {
                           const seqMatch = (card.card_info || '').match(/(\d+\/\d+)/)
                           return seqMatch ? (
-                            <span style={{
+                            <span className="card-seq-badge" style={{
                               background: 'rgba(255, 144, 0, 0.15)',
                               color: '#ff9000',
                               border: '1px solid rgba(255, 144, 0, 0.3)',
                               padding: '2px 6px', borderRadius: '6px',
-                              fontSize: '0.6rem', fontWeight: 950
+                              fontSize: '0.6rem', fontWeight: 950,
+                              zIndex: 1
                             }}>
                               {seqMatch[1]}
                             </span>
@@ -614,21 +616,21 @@ export default function TumblingTerminal() {
                         })()}
                         
                         {isWaiting ? (
-                          <span style={{ fontSize: '0.55rem', background: pInfo.bg, color: pInfo.text, border: pInfo.border, padding: '2px 8px', borderRadius: '6px', fontWeight: 900 }}>
+                          <span className="card-stage" style={{ fontSize: '0.55rem', background: pInfo.bg, color: pInfo.text, border: pInfo.border, padding: '2px 8px', borderRadius: '6px', fontWeight: 900 }}>
                             Очікує: {getNextTumblingOperation(card.operation)}
                           </span>
                         ) : (
-                          <span style={{ fontSize: '0.55rem', background: 'rgba(16,185,129,0.12)', color: '#10b981', border: '1px solid rgba(16,185,129,0.25)', padding: '2px 8px', borderRadius: '6px', fontWeight: 900 }}>
+                          <span className="card-stage" style={{ fontSize: '0.55rem', background: 'rgba(16,185,129,0.12)', color: '#10b981', border: '1px solid rgba(16,185,129,0.25)', padding: '2px 8px', borderRadius: '6px', fontWeight: 900 }}>
                             У роботі: {card.operation}
                           </span>
                         )}
                       </div>
 
-                      <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#fff', margin: '0 0 6px 0', lineHeight: 1.3 }}>
+                      <h4 className="card-title" style={{ fontSize: '0.85rem', fontWeight: 800, color: '#fff', margin: '0 0 6px 0', lineHeight: 1.3 }}>
                         {nom?.name || 'Невказана деталь'}
                       </h4>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                      <div className="card-details" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                         <span style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 700 }}>
                           К-сть: <strong style={{ color: '#fff' }}>{card.quantity} шт</strong>
                         </span>
@@ -655,8 +657,8 @@ export default function TumblingTerminal() {
                     </div>
 
                     {/* Timer & Action */}
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', minWidth: '120px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: isWaiting ? '#6b7280' : '#10b981', fontSize: '0.68rem', fontWeight: 900, fontFamily: 'monospace' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', minWidth: '120px' }} className="card-action-container">
+                      <div className="card-timer" style={{ display: 'flex', alignItems: 'center', gap: '4px', color: isWaiting ? '#6b7280' : '#10b981', fontSize: '0.68rem', fontWeight: 900, fontFamily: 'monospace' }}>
                         <Clock size={12} /> {timeStr}
                       </div>
                       {isWaiting ? (
@@ -664,7 +666,7 @@ export default function TumblingTerminal() {
                           onClick={() => setPendingStartCard(card)}
                           disabled={isProcessing}
                           style={{ background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.2)', color: '#06b6d4', padding: '8px 12px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: '0.2s' }}
-                          className="btn-cyan"
+                          className="btn-cyan card-action-btn"
                         >
                           <Play size={11} fill="currentColor" /> В РОБОТУ
                         </button>
@@ -673,7 +675,7 @@ export default function TumblingTerminal() {
                           onClick={() => openCompleteModal(card)}
                           disabled={isProcessing}
                           style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#10b981', padding: '8px 12px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: '0.2s' }}
-                          className="btn-green"
+                          className="btn-green card-action-btn"
                         >
                           <CheckCircle size={11} /> ЗАВЕРШИТИ
                         </button>
@@ -1000,6 +1002,50 @@ export default function TumblingTerminal() {
             box-shadow: none !important;
             background: #000 !important;
             border: 1px solid #222 !important;
+          }
+          /* Larger fonts for tumbling cards on mobile devices */
+          .tumbling-card .card-code {
+            font-size: 0.85rem !important;
+          }
+          .tumbling-card .card-stage {
+            font-size: 0.8rem !important;
+            padding: 4px 10px !important;
+          }
+          .tumbling-card .card-title {
+            font-size: 1.15rem !important;
+            font-weight: 900 !important;
+            margin: 10px 0 !important;
+            line-height: 1.4 !important;
+          }
+          .tumbling-card .card-details span {
+            font-size: 0.9rem !important;
+            font-weight: 800 !important;
+          }
+          .tumbling-card .card-details span strong {
+            font-weight: 1000 !important;
+          }
+          .tumbling-card .card-timer {
+            font-size: 0.95rem !important;
+            font-weight: 1000 !important;
+          }
+          .tumbling-card .card-action-btn {
+            font-size: 0.85rem !important;
+            padding: 10px 18px !important;
+            border-radius: 12px !important;
+          }
+          .tumbling-card .card-seq-badge {
+            top: 14px !important;
+            right: 14px !important;
+            background: #ff9000 !important;
+            color: #000 !important;
+            border: none !important;
+            padding: 6px 14px !important;
+            border-radius: 10px !important;
+            font-size: 1.15rem !important;
+            box-shadow: 0 4px 12px rgba(255, 144, 0, 0.3) !important;
+          }
+          .tumbling-card .card-action-container {
+            margin-top: 36px !important;
           }
         }
       ` }} />
