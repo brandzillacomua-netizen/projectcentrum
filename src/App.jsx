@@ -244,6 +244,17 @@ const GlobalUserNav = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
+  const [swRegistration, setSwRegistration] = useState(null);
+  
+  const handleUpdateApp = () => {
+    if (swRegistration && swRegistration.waiting) {
+      swRegistration.waiting.postMessage('SKIP_WAITING');
+    } else {
+      window.location.reload();
+    }
+  };
+
   const [activeSubPanel, setActiveSubPanel] = useState(null); // 'notifications', 'notif_settings' or null
   const [notifSettings, setNotifSettings] = useState({
     new_order: true,
@@ -1207,9 +1218,39 @@ const GlobalUserNav = () => {
     navigator.serviceWorker.register('/sw.js')
       .then(reg => {
         console.log('[SW] Registered:', reg.scope);
+        setSwRegistration(reg);
+
+        // Якщо сервіс-воркер вже чекає (наприклад, після перезавантаження вкладки)
+        if (reg.waiting) {
+          setShowUpdatePrompt(true);
+        }
+
+        // Слухаємо появу нових оновлень у черзі
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                // Оновлення завантажилось і чекає на активацію
+                setShowUpdatePrompt(true);
+              }
+            });
+          }
+        });
+
+        // Періодично перевіряємо оновлення
         reg.update();
       })
       .catch(err => console.error('[SW] Registration failed:', err));
+
+    // Автоматично оновлюємо сторінку після активації нового SW
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing) {
+        refreshing = true;
+        window.location.reload();
+      }
+    });
   }, []);
 
   // Підписуємо пристрій на Web Push кожного разу при вході з нового пристрою
@@ -2425,8 +2466,47 @@ const GlobalUserNav = () => {
             )}
           </div>
         </div>
-
       </div>
+
+      {showUpdatePrompt && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'rgba(10, 10, 15, 0.95)',
+          border: '1px solid #ff9000',
+          boxShadow: '0 0 25px rgba(255, 144, 0, 0.25)',
+          borderRadius: '16px',
+          padding: '16px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '20px',
+          zIndex: 999999,
+          backdropFilter: 'blur(15px)',
+          animation: 'slideInDown 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
+        }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#fff' }}>Доступна нова версія додатка</span>
+            <span style={{ fontSize: '0.7rem', color: '#888' }}>Оновіть додаток для стабільної роботи та отримання нових функцій.</span>
+          </div>
+          <button onClick={handleUpdateApp} style={{
+            background: '#ff9000',
+            color: '#000',
+            border: 'none',
+            padding: '8px 18px',
+            borderRadius: '10px',
+            fontSize: '0.75rem',
+            fontWeight: 900,
+            cursor: 'pointer',
+            boxShadow: '0 4px 15px rgba(255, 144, 0, 0.3)',
+            transition: 'all 0.2s',
+            whiteSpace: 'nowrap'
+          }}>
+            ОНОВИТИ
+          </button>
+        </div>
+      )}
     </>
   );
 };

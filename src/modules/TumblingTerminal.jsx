@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { ArrowLeft, Tablet, Search, Users, RefreshCw, Play, CheckCircle, AlertTriangle, X, Clock, Layers, Camera } from 'lucide-react'
+import { ArrowLeft, Tablet, Search, Users, RefreshCw, Play, CheckCircle, AlertTriangle, X, Clock, Layers, Camera, QrCode } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { supabase } from '../supabase'
@@ -487,41 +487,15 @@ export default function TumblingTerminal() {
         </div>
       </header>
 
-      {/* SEARCH / SCANNER BAR */}
-      <section style={{ padding: '20px 24px 0 24px', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', maxWidth: '600px', margin: '0 auto' }}>
-
-          <button
-            onClick={() => setIsScanning(true)}
-            style={{ background: '#06b6d4', color: '#000', border: 'none', padding: '14px', borderRadius: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 32px rgba(6,182,212,0.2)', transition: '0.2s' }}
-          >
-            <Camera size={20} />
-          </button>
-
-          <form onSubmit={handleManualSubmit} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '10px', background: '#0e0e12', border: '1px solid rgba(255,255,255,0.03)', padding: '12px 18px', borderRadius: '18px', boxShadow: '0 8px 32px rgba(0,0,0,0.15)' }}>
-            <Search size={18} color="#6b7280" />
-            <input
-              type="text"
-              placeholder="Скануйте штрих-код або введіть ID..."
-              value={manualId}
-              onChange={e => setManualId(e.target.value)}
-              disabled={isProcessing}
-              style={{ flex: 1, background: 'transparent', border: 'none', color: '#fff', fontSize: '0.85rem', fontWeight: 700, outline: 'none', padding: '2px 0' }}
-            />
-            <button type="submit" disabled={isProcessing} style={{ background: '#06b6d4', color: '#000', border: 'none', padding: '6px 14px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', transition: '0.2s' }}>
-              {isProcessing ? <RefreshCw size={12} className="anim-spin" /> : 'ВВЕСТИ'}
-            </button>
-          </form>
-        </div>
-
-        {scanError && (
-          <div style={{ maxWidth: '600px', margin: '12px auto 0', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444', padding: '10px 16px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 15px rgba(239,68,68,0.1)' }}>
+      {scanError && (
+        <div style={{ padding: '0 24px' }}>
+          <div style={{ maxWidth: '600px', margin: '20px auto 0', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444', padding: '10px 16px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 15px rgba(239,68,68,0.1)' }}>
             <AlertTriangle size={14} />
             <span style={{ flex: 1 }}>{scanError}</span>
             <button onClick={() => setScanError(null)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 0 }}><X size={16} /></button>
           </div>
-        )}
-      </section>
+        </div>
+      )}
 
       {/* DASHBOARD GRID */}
       <main style={{ flex: 1, padding: '24px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -1001,10 +975,88 @@ export default function TumblingTerminal() {
         .btn-green:hover {
           background: rgba(16,185,129,0.2) !important;
         }
-        .hide-scrollbar::-webkit-scrollbar {
-          display: none;
+        .floating-controls-container {
+          position: fixed;
+          bottom: 30px;
+          right: 30px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          z-index: 1000;
+          transition: all 0.3s ease;
+        }
+        @media (max-width: 600px) {
+          .floating-controls-container {
+            bottom: 0;
+            left: 0;
+            right: 0;
+            width: 100%;
+            background: rgba(10, 10, 12, 0.96) !important;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 14px 20px;
+            justify-content: space-between;
+            border-radius: 0;
+            box-shadow: 0 -10px 35px rgba(0,0,0,0.9);
+            backdrop-filter: blur(15px);
+          }
+          .floating-controls-container form {
+            flex: 1;
+            box-shadow: none !important;
+            background: #000 !important;
+            border: 1px solid #222 !important;
+          }
         }
       ` }} />
+
+      {/* Floating Controls (Search and Scan QR) */}
+      <div className="floating-controls-container">
+        {/* Floating Search Form */}
+        <form onSubmit={handleManualSubmit} style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          background: 'rgba(10, 10, 10, 0.95)',
+          border: '1px solid #222',
+          padding: '10px 14px',
+          borderRadius: '24px',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(10px)'
+        }}>
+          <Search size={16} color="#6b7280" />
+          <input
+            type="text"
+            placeholder="Введіть системний номер..."
+            value={manualId}
+            onChange={e => setManualId(e.target.value)}
+            disabled={isProcessing}
+            style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '0.85rem', fontWeight: 700, outline: 'none', width: '100%' }}
+          />
+          <button type="submit" disabled={isProcessing} style={{ background: '#06b6d4', color: '#000', border: 'none', padding: '6px 14px', borderRadius: '16px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+            {isProcessing ? <RefreshCw size={12} className="anim-spin" /> : 'ЗНАЙТИ'}
+          </button>
+        </form>
+
+        {/* Floating Round QR Scan Button */}
+        <button onClick={() => setIsScanning(true)}
+          className="hover-lift"
+          style={{ 
+            background: '#06b6d4', 
+            border: 'none', 
+            color: '#000', 
+            width: '64px',
+            height: '64px',
+            borderRadius: '50%', 
+            display: 'flex', 
+            justifyContent: 'center',
+            alignItems: 'center', 
+            cursor: 'pointer',
+            boxShadow: '0 10px 30px rgba(6,182,212,0.4)',
+            transition: 'all 0.2s',
+            flexShrink: 0
+          }}>
+          <QrCode size={32} />
+        </button>
+      </div>
 
     </div>
   )

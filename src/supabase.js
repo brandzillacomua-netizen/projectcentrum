@@ -44,35 +44,6 @@ window.getCurrentTime = getCurrentTime;
 
 // Sync time immediately on load and every 5 minutes
 async function syncTimeDrift() {
-  const apis = [
-    {
-      url: 'https://worldtimeapi.org/api/timezone/Europe/Kyiv',
-      parse: (json) => json.unixtime * 1000
-    },
-    {
-      url: 'https://timeapi.io/api/Time/current/zone?timeZone=UTC',
-      parse: (json) => new OriginalDate(json.dateTime + 'Z').getTime()
-    }
-  ];
-
-  for (const api of apis) {
-    try {
-      const start = OriginalDate.now();
-      const response = await fetch(api.url);
-      if (!response.ok) continue;
-      const json = await response.json();
-      const serverTimeMs = api.parse(json);
-      if (serverTimeMs) {
-        const latency = (OriginalDate.now() - start) / 2;
-        window.timeDrift = (serverTimeMs + latency) - OriginalDate.now();
-        console.log('[Time Sync] Server drift synchronized via API:', window.timeDrift, 'ms');
-        return;
-      }
-    } catch (e) {
-      console.warn('[Time Sync] API fetch failed:', api.url, e);
-    }
-  }
-
   try {
     const start = OriginalDate.now();
     const response = await fetch(`${supabaseUrl}/rest/v1/`, {
