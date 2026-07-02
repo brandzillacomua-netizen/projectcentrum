@@ -144,7 +144,7 @@ function wrapQueryBuilder(builder, tableName) {
     
     // Лише для таблиць з текстовими/UUID ідентифікаторами генеруємо UUID (work_cards, tasks тощо).
     // Для system_users, company_structure, company_positions ідентифікатори числові (bigint)
-    const numericIdTables = ['system_users', 'company_structure', 'company_positions', 'machines']
+    const numericIdTables = ['system_users', 'company_structure', 'company_positions', 'machines', 'material_requests']
     const isNumericTable = numericIdTables.includes(tableName)
 
     for (const r of records) {
