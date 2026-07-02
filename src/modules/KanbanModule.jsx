@@ -1034,7 +1034,13 @@ const KanbanModule = () => {
         t.is_collective
       )
     }
-    if (filterMode === 'my') list = list.filter(t => getAssignees(t).includes(currentUser?.login))
+    if (filterMode === 'my') {
+      const deptId = getUserDeptId(currentUser?.department, companyStructure)
+      list = list.filter(t => 
+        getAssignees(t).includes(currentUser?.login) || 
+        (!isManager && t.is_collective && (t.department === deptId || t.department === 'all'))
+      )
+    }
     else if (filterMode === 'assigned_by_me') list = list.filter(t => t.created_by === currentUser?.login && !getAssignees(t).includes(currentUser?.login))
     else if (filterMode === 'department') {
       const deptId = getUserDeptId(currentUser?.department, companyStructure)
@@ -1285,10 +1291,16 @@ const KanbanModule = () => {
             await updateManagementTask(task.id, { status: 'review' })
           }}>⚙ На перевірку</button>
         )}
-        {task.status === 'review' && isManager && (
+        {task.status === 'review' && (
           <div className="ca-row">
-            <button className="ca-btn ca-approve" onClick={async () => updateManagementTask(task.id, { status: 'done' })}>✓ Прийняти</button>
-            <button className="ca-btn ca-reject" onClick={async () => updateManagementTask(task.id, { status: 'in_progress' })}>✕ Відхилити</button>
+            {isManager ? (
+              <>
+                <button className="ca-btn ca-approve" onClick={async () => updateManagementTask(task.id, { status: 'done' })}>✓ Прийняти</button>
+                <button className="ca-btn ca-reject" onClick={async () => updateManagementTask(task.id, { status: 'in_progress' })}>✕ Відхилити</button>
+              </>
+            ) : (
+              <button className="ca-btn ca-reject" style={{ background: 'rgba(255,255,255,0.05)', color: '#888', border: '1px solid rgba(255,255,255,0.1)' }} onClick={async () => updateManagementTask(task.id, { status: 'in_progress' })}>↩ Скасувати перевірку</button>
+            )}
           </div>
         )}
       </div>
@@ -1756,10 +1768,16 @@ const KanbanModule = () => {
                       {selectedTask.status === 'in_progress' && (
                         <button className="sa-btn sa-review" onClick={() => handleStatusChange('review')}>⚙ На перевірку</button>
                       )}
-                      {selectedTask.status === 'review' && isManager && (
+                      {selectedTask.status === 'review' && (
                         <>
-                          <button className="sa-btn sa-approve" onClick={() => handleStatusChange('done')}>✓ Прийняти</button>
-                          <button className="sa-btn sa-reject" onClick={() => handleStatusChange('in_progress')}>✕ Відхилити</button>
+                          {isManager ? (
+                            <>
+                              <button className="sa-btn sa-approve" onClick={() => handleStatusChange('done')}>✓ Прийняти</button>
+                              <button className="sa-btn sa-reject" onClick={() => handleStatusChange('in_progress')}>✕ Відхилити</button>
+                            </>
+                          ) : (
+                            <button className="sa-btn sa-reject" style={{ background: 'rgba(255,255,255,0.05)', color: '#ccc', border: '1px solid rgba(255,255,255,0.1)' }} onClick={() => handleStatusChange('in_progress')}>↩ Скасувати перевірку</button>
+                          )}
                         </>
                       )}
                     </div>
