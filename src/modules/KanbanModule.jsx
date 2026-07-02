@@ -4,7 +4,7 @@ import {
   AlertCircle, X, MessageSquare, CheckSquare, Square, Trash2, Edit3,
   ChevronRight, MoreHorizontal, Flag, Calendar, Tag, Layers, Filter,
   TrendingUp, Zap, Shield, Eye, EyeOff, Save, RotateCcw, Briefcase,
-  ChevronDown, ChevronUp,
+  ChevronDown, ChevronUp, ChevronLeft,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
@@ -979,6 +979,7 @@ const KanbanModule = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [activeMobileColumn, setActiveMobileColumn] = useState('todo')
   const [showSearch, setShowSearch] = useState(false)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 
   // ── Modals ──────────────────────────────────────────────────────────────
   const [createOpen, setCreateOpen] = useState(false)
@@ -1359,9 +1360,6 @@ const KanbanModule = () => {
             )}
           </div>
 
-          <button className="kb-add-btn" onClick={() => setCreateOpen(true)}>
-            <Plus size={16} /> НОВА ЗАДАЧА
-          </button>
         </div>
       </nav>
 
@@ -1399,8 +1397,7 @@ const KanbanModule = () => {
         })}
       </div>
 
-      {/* ── BOARD CONTAINER ─────────────────────────────────────────────── */}
-      <div className="kb-body-container">
+      <div className={`kb-body-container ${isSidebarOpen ? 'sidebar-open' : ''}`}>
         <main className="kb-board">
           {COLUMNS.map(column => {
             const columnTasks = filteredTasks.filter(t => t.status === column.id)
@@ -1522,7 +1519,14 @@ const KanbanModule = () => {
         </main>
 
         {/* ══ RIGHT SIDEBAR ════════════════════════════════════════════════════ */}
-        <aside className="kb-sidebar">
+        <aside className={`kb-sidebar ${isSidebarOpen ? 'open' : ''}`}>
+          <button className="kb-sidebar-toggle-tab" onClick={() => setIsSidebarOpen(!isSidebarOpen)} title={isSidebarOpen ? "Сховати панель" : "Показати аналітику"}>
+            <div className="tab-arrow-icon">
+              {isSidebarOpen ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
+            </div>
+            <span className="tab-text">ІНФО</span>
+            <div className="tab-indicator-dots" />
+          </button>
 
           {/* ── DEPARTMENT TASKS ────────────────────────────────────────────── */}
           {(() => {
@@ -1683,6 +1687,11 @@ const KanbanModule = () => {
 
         </aside>
       </div>
+
+      {/* Floating Chat-like Action Button for New Task */}
+      <button className="kb-floating-add-btn" onClick={() => setCreateOpen(true)} title="Створити нову задачу">
+        <Plus size={24} />
+      </button>
 
       {/* ══════════════════════════════════════════════════════════════════
           DETAIL MODAL
@@ -2186,8 +2195,47 @@ const KanbanModule = () => {
         .kf-btn { background: transparent; border: none; color: #444; padding: 5px 14px; border-radius: 7px; font-weight: 800; font-size: 0.68rem; cursor: pointer; transition: all 0.2s; white-space: nowrap; letter-spacing: 0.5px; }
         .kf-btn.active { background: #1a1a1a; color: #fff; }
         .kf-btn:hover:not(.active) { color: #888; }
-        .kb-add-btn { display: flex; align-items: center; gap: 7px; background: #ff9000; color: #000; border: none; padding: 8px 18px; border-radius: 10px; font-weight: 900; font-size: 0.75rem; cursor: pointer; transition: all 0.2s; letter-spacing: 0.5px; }
-        .kb-add-btn:hover { background: #ffaa33; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(255,144,0,0.3); }
+        /* ── FLOATING ADD TASK BUTTON ── */
+        .kb-floating-add-btn {
+          position: fixed;
+          bottom: 32px;
+          right: 32px;
+          width: 56px;
+          height: 56px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #ff9000 0%, #ff5500 100%);
+          border: none;
+          color: #000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          box-shadow: 0 8px 24px rgba(255, 144, 0, 0.4), inset 0 2px 4px rgba(255, 255, 255, 0.2);
+          z-index: 99999;
+          transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          animation: float-btn-bounce 3s ease-in-out infinite;
+        }
+        .kb-floating-add-btn:hover {
+          transform: scale(1.1) translateY(-3px);
+          box-shadow: 0 12px 30px rgba(255, 144, 0, 0.6);
+          background: linear-gradient(135deg, #ffaa33 0%, #ff6622 100%);
+        }
+        .kb-floating-add-btn:active {
+          transform: scale(0.95);
+        }
+        @keyframes float-btn-bounce {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-6px); }
+        }
+
+        @media (max-width: 768px) {
+          .kb-floating-add-btn {
+            bottom: 24px;
+            right: 24px;
+            width: 50px;
+            height: 50px;
+          }
+        }
 
         /* ── STATS ── */
         .kb-stats {
@@ -2238,17 +2286,99 @@ const KanbanModule = () => {
 
         /* ── SIDEBAR ── */
         .kb-sidebar {
-          width: 256px; min-width: 256px; max-width: 256px;
-          height: 100%; max-height: 100%;
-          background: #060606; border-left: 1px solid #0f0f0f;
-          overflow-y: auto; padding: 12px 10px;
-          display: flex; flex-direction: column; gap: 10px;
-          flex-shrink: 0;
+          position: fixed;
+          top: 73px;
+          right: 0;
+          bottom: 0;
+          width: 280px; min-width: 280px; max-width: 280px;
+          height: calc(100% - 73px);
+          background: #060606; border-left: 1px solid #141414;
+          overflow: visible; padding: 16px 14px;
+          display: flex; flex-direction: column; gap: 12px;
+          z-index: 9999;
+          transform: translateX(100%);
+          transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           scrollbar-width: thin; scrollbar-color: rgba(255, 144, 0, 0.2) transparent;
+        }
+        .kb-sidebar.open {
+          transform: translateX(0);
+          box-shadow: -10px 0 30px rgba(0,0,0,0.8);
         }
         .kb-sidebar::-webkit-scrollbar { width: 6px; }
         .kb-sidebar::-webkit-scrollbar-thumb { background: rgba(255, 144, 0, 0.2); border-radius: 3px; }
         .kb-sidebar::-webkit-scrollbar-thumb:hover { background: rgba(255, 144, 0, 0.4); }
+
+        /* Sticky toggle tab pinned on the edge of the board screen */
+        .kb-sidebar-toggle-tab {
+          position: absolute;
+          left: -32px;
+          top: 180px;
+          width: 32px;
+          height: 120px;
+          background: linear-gradient(180deg, #161616 0%, #0c0c0c 100%);
+          border: 1px solid #ff900033;
+          border-right: none;
+          border-radius: 10px 0 0 10px;
+          color: #ff9000;
+          cursor: pointer;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+          box-shadow: -8px 0 20px rgba(0,0,0,0.7);
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          z-index: 10000;
+          padding: 8px 0;
+        }
+        .kb-sidebar-toggle-tab:hover {
+          background: linear-gradient(180deg, #ff9000 0%, #ff5500 100%);
+          color: #000;
+          border-color: transparent;
+          width: 36px;
+          left: -36px;
+        }
+        .kb-sidebar-toggle-tab:hover .tab-text {
+          color: #000;
+          text-shadow: none;
+        }
+        .kb-sidebar-toggle-tab:hover .tab-arrow-icon {
+          color: #000;
+        }
+        .kb-sidebar-toggle-tab:hover .tab-indicator-dots {
+          background: #000;
+        }
+        .tab-arrow-icon {
+          color: #ff9000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: transform 0.2s;
+        }
+        .tab-text {
+          writing-mode: vertical-rl;
+          text-orient: mixed;
+          transform: rotate(180deg);
+          font-size: 0.62rem;
+          font-weight: 900;
+          letter-spacing: 2px;
+          color: #fff;
+          text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+          user-select: none;
+          transition: color 0.2s;
+        }
+        .tab-indicator-dots {
+          width: 4px;
+          height: 4px;
+          background: #ff9000;
+          border-radius: 50%;
+          box-shadow: 0 0 8px #ff9000;
+          animation: pulse-tab-dot 2s ease infinite;
+        }
+        @keyframes pulse-tab-dot {
+          0%, 100% { transform: scale(1); opacity: 0.7; }
+          50% { transform: scale(1.3); opacity: 1; }
+        }
 
         .sb-block { flex-shrink: 0; background: #080808; border: 1px solid #111; border-radius: 14px; overflow: hidden; }
         .sb-block-head { display: flex; align-items: center; gap: 7px; padding: 8px 12px; border-bottom: 1px solid #111; font-size: 0.6rem; font-weight: 900; color: #333; letter-spacing: 1.5px; text-transform: uppercase; }
@@ -2559,7 +2689,62 @@ const KanbanModule = () => {
         }
         @media (max-width: 768px) {
           .kb-body-container { display: block !important; overflow-y: auto; }
-          .kb-sidebar { display: block !important; width: 100% !important; min-width: 100% !important; max-width: 100% !important; border-left: none !important; border-top: 1px solid #111 !important; height: auto !important; padding: 16px 0 !important; }
+          .kb-sidebar {
+            position: fixed !important;
+            top: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 100% !important;
+            min-width: 100% !important;
+            max-width: 100% !important;
+            height: 100% !important;
+            z-index: 999999 !important;
+            border-left: none !important;
+            transform: translateX(100%) !important;
+            transition: transform 0.3s ease !important;
+            overflow-y: auto !important;
+            padding: 24px 20px !important;
+            background: #030303 !important;
+          }
+          .kb-sidebar.open {
+            transform: translateX(0) !important;
+          }
+          .kb-sidebar-toggle-tab {
+            left: -36px !important;
+            top: 250px !important;
+            width: 36px !important;
+            height: 120px !important;
+            border-radius: 10px 0 0 10px !important;
+            box-shadow: -6px 0 15px rgba(0,0,0,0.8) !important;
+            z-index: 1000000 !important;
+          }
+          /* Compact Statistics Block for mobile */
+          .kb-stats {
+            grid-template-columns: repeat(4, 1fr) !important;
+            padding: 8px 10px !important;
+            gap: 6px !important;
+          }
+          .stat-tile {
+            padding: 6px 8px !important;
+            gap: 6px !important;
+            border-radius: 8px !important;
+          }
+          .st-icon {
+            width: 20px !important;
+            height: 20px !important;
+            border-radius: 5px !important;
+          }
+          .st-icon svg {
+            width: 11px !important;
+            height: 11px !important;
+          }
+          .st-num {
+            font-size: 0.9rem !important;
+          }
+          .st-label {
+            font-size: 0.5rem !important;
+            margin-top: 0px !important;
+          }
           .kb-mobile-tabs { display: flex; background: #060606; border-bottom: 1px solid #111; overflow-x: auto; padding: 6px 12px; gap: 6px; flex-shrink: 0; }
           .mob-tab { display: flex; align-items: center; gap: 6px; background: transparent; border: none; border-bottom: 2px solid transparent; padding: 8px 12px; color: #444; font-weight: 800; font-size: 0.7rem; cursor: pointer; white-space: nowrap; transition: all 0.2s; letter-spacing: 0.5px; }
           .mob-tab.active { color: #fff; border-bottom-color: var(--cc); }

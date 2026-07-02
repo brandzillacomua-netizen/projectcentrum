@@ -3831,7 +3831,7 @@ const ForemanWorkplace = () => {
                 : reportData.historyRows.reduce((sum, row) => sum + (Number(row.cutters_used) || 0), 0)
 
               const totalActualMs = reportData.historyRows.reduce((sum, row) => {
-                if (row.started_at && row.completed_at) {
+                if (row.started_at && row.completed_at && (row.stage_name === 'Розкрій' || row.stage_name === 'Розкрій (перезмінка)')) {
                   const diff = new Date(row.completed_at) - new Date(row.started_at)
                   return sum + (diff > 0 ? diff : 0)
                 }
@@ -3889,6 +3889,7 @@ const ForemanWorkplace = () => {
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '15px', marginBottom: '30px' }}>
 
+                    {/*
                     <div style={{ background: '#111', border: '1px solid #222', borderRadius: '16px', padding: '15px' }}>
                       <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>Час виконання</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -3896,6 +3897,7 @@ const ForemanWorkplace = () => {
                         <div>Факт: <strong style={{ color: '#3b82f6' }} className="text-accent-blue">{formatDurationHMS(totalActualSeconds)}</strong></div>
                       </div>
                     </div>
+                    */}
 
                     <div style={{ background: '#111', border: '1px solid #222', borderRadius: '16px', padding: '15px' }}>
                       <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>Фрези (Розкрій)</div>

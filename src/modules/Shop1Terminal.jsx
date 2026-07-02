@@ -489,7 +489,7 @@ export default function Shop1Terminal() {
         if (isGaltCurrent) {
           return h.stage_name?.startsWith('Галтовка') || (h.stage_name?.startsWith('Буфер') && h.stage_name !== 'Буфер Розкрою')
         } else {
-          return h.stage_name === 'Розкрій' || h.stage_name === 'Буфер Розкрою'
+          return h.stage_name === 'Розкрій' || h.stage_name === 'Буфер Розкрою' || h.stage_name === 'Розкрій (перезмінка)'
         }
       })
       cardHistory.forEach(h => {
@@ -2656,6 +2656,14 @@ export default function Shop1Terminal() {
                   </div>
                   <div style={{ fontSize: '3.5rem', fontWeight: 1000, color: '#fff', lineHeight: 1 }}>
                     {currentCard.quantity} <small style={{ fontSize: '1.2rem', opacity: 0.3 }}>шт</small>
+                  </div>
+                  <div style={{ marginTop: '14px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px' }}>
+                    <div style={{ fontSize: '1.8rem', fontWeight: 1000, color: (isLastBeforeReception || currentCard.operation === 'Прийомка') ? '#10b981' : '#f59e0b', fontFamily: 'monospace', lineHeight: 1 }}>
+                      {formatTime(currentCard.completed_at || currentCard.started_at)}
+                    </div>
+                    <div style={{ fontSize: '0.55rem', color: '#666', fontWeight: 800, textTransform: 'uppercase', marginTop: '4px', letterSpacing: '0.05em' }}>
+                      ЧАС У БУФЕРІ
+                    </div>
                   </div>
                 </div>
 
