@@ -1,8 +1,12 @@
 // ─── Centrum Service Worker ───────────────────────────────────────────────────
-const CACHE_NAME = 'centrum-v1';
+const CACHE_NAME = 'centrum-v2';
 
 self.addEventListener('install', function(event) {
-  self.skipWaiting();
+  // НЕ викликаємо skipWaiting() тут — нова версія
+  // буде чекати в стані 'waiting', поки користувач
+  // не натисне кнопку "ОНОВИТИ" в інтерфейсі.
+  // Це дозволяє UI-сповіщенню коректно з'явитися.
+  event.waitUntil(Promise.resolve());
 });
 
 self.addEventListener('activate', function(event) {
