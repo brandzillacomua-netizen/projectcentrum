@@ -1003,7 +1003,7 @@ const KanbanModule = () => {
 
   // ── Default filter by role ──────────────────────────────────────────────
   useEffect(() => {
-    setFilterMode(isManager ? 'all' : 'my')
+    setFilterMode('all')
   }, [isManager])
 
   // ── Stats ───────────────────────────────────────────────────────────────
@@ -1352,7 +1352,7 @@ const KanbanModule = () => {
               </>
             ) : (
               <>
-                {[['my', 'МОЇ ЗАДАЧІ'], ['department', 'ВІДДІЛ'], ['all', 'ДОСТУПНІ']].map(([id, lbl]) => (
+                {[['my', 'ПЕРСОНАЛЬНІ'], ['department', 'ВІДДІЛ'], ['all', 'ДОСТУПНІ']].map(([id, lbl]) => (
                   <button key={id} className={`kf-btn ${filterMode === id ? 'active' : ''}`} onClick={() => { setFilterMode(id); setStatsFilter('all') }}>{lbl}</button>
                 ))}
               </>
