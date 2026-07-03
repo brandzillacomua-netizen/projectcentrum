@@ -1,4 +1,10 @@
 import { supabase } from '../supabase'
+const getRequestQty = (r) => {
+  if (r.quantity !== null && r.quantity !== undefined) return Number(r.quantity);
+  const match = (r.details || '').match(/—\s*(\d+)/);
+  return match ? Number(match[1]) : 0;
+};
+
 
 const normalizeName = (s) => {
   if (!s) return '';
@@ -236,7 +242,7 @@ export function createProductionActions({
       // A. Revert Material Request Reserves and Used Stocks
       if (matRequests) {
         for (const req of matRequests) {
-          const qty = Number(req.quantity) || 0
+          const qty = getRequestQty(req)
           if (qty <= 0) continue
 
           if (req.status === 'issued') {
@@ -789,14 +795,14 @@ export function createProductionActions({
               if (isSheetForThisCard) {
                 cardQty = cardSheets
               } else if (isGeneralConsumable) {
-                let originalCutterQty = Number(req.quantity)
+                let originalCutterQty = getRequestQty(req)
                 const consumablesList = snapshot.consumables || []
                 const foundCons = consumablesList.find(c => {
                   const nameLower = (c.name || '').toLowerCase()
                   return normDetails.includes(normalize(nameLower))
                 })
                 if (foundCons) {
-                  originalCutterQty = Number(foundCons.total) || Number(req.quantity)
+                  originalCutterQty = Number(foundCons.total) || getRequestQty(req)
                 }
                 cardQty = Math.round(originalCutterQty * (cardSheets / totalTaskSheets))
               }
@@ -823,7 +829,7 @@ export function createProductionActions({
               }
             })
 
-            const nextReqQty = Math.max(0, (Number(req.quantity) || 0) - totalDeduction)
+            const nextReqQty = Math.max(0, getRequestQty(req) - totalDeduction)
             if (nextReqQty <= 0) {
               deletes.push(req.id)
             } else {
