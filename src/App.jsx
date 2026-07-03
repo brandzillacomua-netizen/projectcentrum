@@ -1096,52 +1096,37 @@ const GlobalUserNav = () => {
         const filteredParts = itemsToCheck.filter(item => item.nom?.type === 'part');
         if (filteredParts.length === 0) return;
 
-        const isAllDone = filteredParts.every(item => {
-          const nomId = item.nom?.id;
-          if (!nomId) return false;
+        const s1Task = tasks.find(t =>
+          String(t.order_id) === String(task.order_id) &&
+          t.batch_index === task.batch_index &&
+          !(t.step?.includes('Пресування') || t.step?.includes('ЦЕХ №2') || t.step?.includes('Доопрацювання'))
+        );
 
-          const s1Task = tasks.find(t =>
-            String(t.order_id) === String(task.order_id) &&
-            t.batch_index === task.batch_index &&
-            !(t.step?.includes('Пресування') || t.step?.includes('ЦЕХ №2') || t.step?.includes('Доопрацювання'))
-          );
-          const s1TaskId = s1Task?.id;
+        let isAllDone = false;
+        if (s1Task && s1Task.status === 'completed') {
+          // Check if there are any uncompleted work cards in Shop 2 for this task
+          const taskCards = (workCards || []).filter(wc => String(wc.task_id) === String(task.id));
+          const hasUncompleted = taskCards.some(wc => wc.status !== 'completed');
 
-          // 1. Calculate remaining buffer in Shop 2
-          const bufSrcCards = (workCards || []).filter(c =>
-            String(c.task_id) === String(s1TaskId) &&
-            String(c.nomenclature_id) === String(nomId) &&
-            c.status === 'at-shop2-buffer'
-          );
-          const bufTotal = bufSrcCards.reduce((s, c) => s + (Number(c.quantity) || 0), 0);
-          const bufUsed = bufSrcCards.reduce((s, c) => s + (Number(c.used_in_shop2_qty) || 0), 0);
-          const total2 = bufTotal - bufUsed;
+          if (!hasUncompleted) {
+            isAllDone = filteredParts.every(item => {
+              const nomId = item.nom?.id;
+              if (!nomId) return true;
 
-          if (total2 > 0) return false;
+              // Calculate remaining buffer in Shop 2
+              const bufSrcCards = (workCards || []).filter(c =>
+                String(c.task_id) === String(s1Task.id) &&
+                String(c.nomenclature_id) === String(nomId) &&
+                c.status === 'at-shop2-buffer'
+              );
+              const bufTotal = bufSrcCards.reduce((s, c) => s + (Number(c.quantity) || 0), 0);
+              const bufUsed = bufSrcCards.reduce((s, c) => s + (Number(c.used_in_shop2_qty) || 0), 0);
+              const total2 = bufTotal - bufUsed;
 
-          // 2. Active work cards in Shop 2
-          const nomCards = (workCards || []).filter(wc =>
-            String(wc.task_id) === String(task.id) &&
-            String(wc.nomenclature_id) === String(nomId)
-          );
-
-          if (nomCards.length === 0 && bufTotal === 0) return false;
-
-          const hasUncompleted = nomCards.some(wc => wc.status !== 'completed');
-          if (hasUncompleted) return false;
-
-          // 3. Must have completed cards
-          const hasCompleted = [
-            ...(workCards || []),
-            ...(completedCards || []).filter(sc => String(sc.task_id) === String(task.id))
-          ].some(wc =>
-            String(wc.task_id) === String(task.id) &&
-            String(wc.nomenclature_id) === String(nomId) &&
-            wc.status === 'completed'
-          );
-
-          return hasCompleted;
-        });
+              return total2 <= 0;
+            });
+          }
+        }
 
         if (isAllDone) {
           const orderNum = orderObj.order_num || '???';

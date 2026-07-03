@@ -57,8 +57,9 @@ export default function TumblingDashboard() {
 
     const op = card.operation || ''
     if (op === 'Галтовка' && card.status === 'at-buffer') return true
+    if (op === 'Склад БЗ') return true
 
-    const subsequentStages = ['Прийомка', 'completed', 'Пресування', 'Фарбування', 'Паквання', 'Сортування']
+    const subsequentStages = ['Прийомка', 'completed', 'Пресування', 'Фарбування', 'Паквання', 'Пакування', 'Сортування', 'Склад СГП', 'Доопрацювання']
     return subsequentStages.some(stage => op.includes(stage))
   }
 
@@ -119,7 +120,11 @@ export default function TumblingDashboard() {
           nameLower.includes('клей') ||
           nameLower.includes('втулк')
         
-        if (isExcluded) return false
+        // 1b. Exclude by nomenclature type if it is set and is NOT a fabricated 'part'
+        const typeLower = (childNom.type || '').toLowerCase()
+        const isExcludedType = typeLower && typeLower !== 'part'
+        
+        if (isExcluded || isExcludedType) return false
 
         // 2. Crucial check: Only keep if it has active work cards for this order OR has ever had a work card in history
         const hasActiveCard = workCards.some(c => c.nomenclature_id === b.child_id && String(c.order_id) === String(orderId))
@@ -138,28 +143,57 @@ export default function TumblingDashboard() {
         const qtyPerParent = Number(bom.quantity_per_parent) || 1
         const totalNeeded = targetQty * qtyPerParent
 
-        // Filter cards for this specific component
-        const compCards = orderCards.filter(c => c.nomenclature_id === bom.child_id)
+         // Filter cards for this specific component
+         const compCards = orderCards.filter(c => c.nomenclature_id === bom.child_id)
 
-        // Sum quantities of cards that have passed tumbling
-        const passedQty = compCards.filter(hasPassedTumbling).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+         // Separate BZ stock from actual produced parts
+         const bzCards = compCards.filter(c => c.operation === 'Склад БЗ')
+         const producedCards = compCards.filter(c => c.operation !== 'Склад БЗ' && hasPassedTumbling(c))
 
-        // Completed kits ratio
-        const completedKits = passedQty / qtyPerParent
-        const kitRatio = targetQty > 0 ? completedKits / targetQty : 0
+         const bzQty = bzCards.reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+         const producedQty = producedCards.reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+         const passedQty = bzQty + producedQty
 
-        return {
-          id: bom.child_id,
-          name: childNom?.name || 'Компонент',
-          qtyPerParent,
-          totalNeeded,
-          passedQty,
-          completedKits,
-          kitRatio,
-          // Store raw cards for sorting reference
-          cards: compCards
-        }
-      })
+         // Completed kits ratio
+         const completedKits = passedQty / qtyPerParent
+         const kitRatio = targetQty > 0 ? completedKits / targetQty : 0
+
+         // Derive component status pill
+         let statusText = '⚙️ В черзі'
+         let statusColor = '#06b6d4'
+         if (compCards.length === 0) {
+           statusText = '🔴 Не згенеровано карток'
+           statusColor = '#ef4444'
+         } else if (kitRatio >= 1) {
+           statusText = '✅ Готово'
+           statusColor = '#10b981'
+         } else if (compCards.some(c => c.status === 'in-progress' && c.operation?.startsWith('Галтовка'))) {
+           statusText = '⚡ У роботі'
+           statusColor = '#10b981'
+         } else if (compCards.some(c => c.status === 'at-buffer' && (c.operation === 'Розкрій' || c.operation === 'Галтовка (Вібростіл)' || c.operation === 'Галтовка (Мийка)' || c.operation === 'Галтовка (Галтовка)'))) {
+           statusText = '⚙️ В черзі'
+           statusColor = '#06b6d4'
+         } else {
+           statusText = '⏳ Чекає розкрою'
+           statusColor = '#f59e0b'
+         }
+
+         return {
+           id: bom.child_id,
+           name: childNom?.name || 'Компонент',
+           qtyPerParent,
+           totalNeeded,
+           passedQty,
+           bzQty,
+           producedQty,
+           completedKits,
+           kitRatio,
+           statusText,
+           statusColor,
+           // Store raw cards for sorting reference
+           cards: compCards
+         }
+       })
 
       // Identify the bottleneck component (lowest kit ratio)
       let bottleneckId = null
@@ -188,6 +222,27 @@ export default function TumblingDashboard() {
       }
     }).filter(Boolean)
   }, [workCards, orders, bomItems, tasks, nomenclatures])
+
+  // 1b. Urgent Deficit for the Shift (Top 3 most bottlenecked components across all active orders)
+  const shiftDeficits = useMemo(() => {
+    const list = []
+    orderKits.forEach(kit => {
+      kit.components.forEach(comp => {
+        if (comp.kitRatio < 1.0) {
+          list.push({
+            orderNum: kit.orderNum,
+            nomenclatureId: comp.id,
+            name: comp.name,
+            kitRatio: comp.kitRatio,
+            percent: Math.min(100, Math.round(comp.kitRatio * 100))
+          })
+        }
+      })
+    })
+    // Sort by kitRatio ascending (lowest completion first)
+    list.sort((a, b) => a.kitRatio - b.kitRatio)
+    return list.slice(0, 3)
+  }, [orderKits])
 
   // Pagination & auto-rotation for active orders in Column 1 to make it TV-friendly
   const [orderPage, setOrderPage] = useState(0)
@@ -344,6 +399,49 @@ export default function TumblingDashboard() {
           </div>
         </div>
 
+        {/* Shift Deficits Widget */}
+        {shiftDeficits.length > 0 && (
+          <div className="hide-mobile" style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            background: 'rgba(239, 68, 68, 0.05)',
+            border: '1px solid rgba(239, 68, 68, 0.15)',
+            borderRadius: '12px',
+            padding: '6px 14px',
+            maxWidth: '520px'
+          }}>
+            <div style={{
+              background: '#ef4444',
+              color: '#000',
+              fontSize: '0.6rem',
+              fontWeight: 950,
+              padding: '3px 8px',
+              borderRadius: '6px',
+              textTransform: 'uppercase',
+              animation: 'pulse 1.5s infinite',
+              lineHeight: 1
+            }}>
+              Дефіцит зміни
+            </div>
+            <div style={{ display: 'flex', gap: '16px' }}>
+              {shiftDeficits.map(def => (
+                <div key={`${def.orderNum}-${def.nomenclatureId}`} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#fff', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: '100px' }} title={def.name}>
+                    {def.name}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ width: '40px', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
+                      <div style={{ width: `${def.percent}%`, height: '100%', background: '#ef4444' }} />
+                    </div>
+                    <span style={{ fontSize: '0.62rem', color: '#ef4444', fontWeight: 800 }}>{def.percent}%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Right side widgets */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           {/* Controls */}
@@ -477,6 +575,8 @@ export default function TumblingDashboard() {
                     {kit.components.map(comp => {
                       const isBottleneck = comp.id === kit.bottleneckId
                       const percent = Math.min(100, Math.round(comp.kitRatio * 100))
+                      const bzPercent = Math.min(100, Math.round((comp.bzQty / comp.totalNeeded) * 100))
+                      const producedPercent = Math.min(100, Math.round((comp.producedQty / comp.totalNeeded) * 100))
 
                       return (
                         <div key={comp.id} style={{
@@ -485,10 +585,24 @@ export default function TumblingDashboard() {
                           border: isBottleneck ? '1px solid rgba(239, 68, 68, 0.25)' : '1px solid rgba(255,255,255,0.03)',
                           borderRadius: '12px'
                         }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: isBottleneck ? '#ef4444' : '#eee' }}>
-                              {comp.name}
-                            </span>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <span style={{ fontSize: '0.85rem', fontWeight: 800, color: isBottleneck ? '#ef4444' : '#eee' }}>
+                                {comp.name}
+                              </span>
+                              <span style={{
+                                background: `${comp.statusColor}12`,
+                                color: comp.statusColor,
+                                border: `1px solid ${comp.statusColor}25`,
+                                fontSize: '0.6rem',
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                                fontWeight: 800,
+                                textTransform: 'uppercase'
+                              }}>
+                                {comp.statusText}
+                              </span>
+                            </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                               {isBottleneck && (
                                 <span style={{
@@ -510,15 +624,25 @@ export default function TumblingDashboard() {
                             </div>
                           </div>
 
-                          {/* Progress bar */}
-                          <div style={{ height: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden' }}>
+                          {/* Double-segmented progress bar */}
+                          <div style={{ height: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden', display: 'flex' }}>
                             <div style={{
-                              width: `${percent}%`,
+                              width: `${bzPercent}%`,
+                              height: '100%',
+                              background: 'linear-gradient(90deg, #f59e0b, #d97706)',
+                              transition: 'width 0.4s'
+                            }} title={`Запас з БЗ: ${bzPercent}%`} />
+                            <div style={{
+                              width: `${producedPercent}%`,
                               height: '100%',
                               background: isBottleneck ? 'linear-gradient(90deg, #ef4444, #f97316)' : 'linear-gradient(90deg, #3b82f6, #06b6d4)',
-                              borderRadius: '4px',
                               transition: 'width 0.4s'
-                            }} />
+                            }} title={`Випущено цехом: ${producedPercent}%`} />
+                          </div>
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', fontSize: '0.65rem', color: '#666', fontWeight: 700 }}>
+                            <span>БЗ: {Math.round(comp.bzQty)} шт ({Math.round(comp.bzQty / comp.qtyPerParent)} компл)</span>
+                            <span>Випущено: {Math.round(comp.producedQty)} шт ({Math.round(comp.producedQty / comp.qtyPerParent)} компл)</span>
                           </div>
                         </div>
                       )

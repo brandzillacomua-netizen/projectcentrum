@@ -27,8 +27,7 @@ const Shop2Module = () => {
   const [printModalData, setPrintModalData] = useState(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [selectedStages, setSelectedStages] = useState({})
-  const [archiveCards, setArchiveCards] = useState([])
-  const [staticCompletedCards, setStaticCompletedCards] = useState([])
+  const [completedCards, setCompletedCards] = useState([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [showVictory, setShowVictory] = useState(false)
   const itemsPerPage = 8
@@ -57,19 +56,6 @@ const Shop2Module = () => {
     }
   }, [location.state])
 
-  // Завантажуємо завершені карти при зміні наряду
-  useEffect(() => {
-    if (activeTaskId) {
-      const loadArchive = async () => {
-        const cards = await fetchTaskArchiveCards(activeTaskId)
-        setArchiveCards(cards)
-      }
-      loadArchive()
-    } else {
-      setArchiveCards([])
-    }
-  }, [activeTaskId, workCards])
-
   // Фільтруємо наряди для Цеху №2 (Пресування/ЦЕХ №2)
   const relevantTasks = useMemo(() => {
     return tasks
@@ -93,21 +79,21 @@ const Shop2Module = () => {
     return relevantTasks.filter(t => t.status !== 'completed').length
   }, [relevantTasks])
 
-  // Завантажуємо завершені карти для всіх активних нарядів Цеху №2 для коректного розрахунку статусу готово в списку черги
+  // Завантажуємо завершені карти для всіх нарядів Цеху №2
   useEffect(() => {
-    const activeTaskIds = relevantTasks.filter(t => t.status !== 'completed').map(t => t.id)
-    if (activeTaskIds.length === 0) {
-      setStaticCompletedCards([])
+    const taskIds = relevantTasks.map(t => t.id)
+    if (taskIds.length === 0) {
+      setCompletedCards([])
       return
     }
 
     supabase.from('work_cards')
       .select('id, task_id, nomenclature_id, quantity, operation, status, card_info')
-      .in('task_id', activeTaskIds)
+      .in('task_id', taskIds)
       .eq('status', 'completed')
       .then(({ data, error }) => {
         if (!error && data) {
-          setStaticCompletedCards(data)
+          setCompletedCards(data)
         }
       })
   }, [relevantTasks, workCards])
@@ -192,23 +178,34 @@ const Shop2Module = () => {
     if (!taskObj) return false
     if (taskObj.status === 'completed') return true
 
+    // Find the corresponding Shop 1 task
+    const s1Task = tasks.find(t =>
+      String(t.order_id) === String(taskObj.order_id) &&
+      t.batch_index === taskObj.batch_index &&
+      !(t.step?.includes('Пресування') || t.step?.includes('ЦЕХ №2') || t.step?.includes('Доопрацювання'))
+    )
+
+    // If Shop 1 task is not completed, we cannot close Shop 2 yet
+    if (!s1Task || s1Task.status !== 'completed') {
+      return false
+    }
+
     const itemsToCheck = getTaskDisplayItems(taskObj, orderObj)
     if (itemsToCheck.length === 0) return false
 
-    return itemsToCheck.every(item => {
+    // If there are any uncompleted work cards in Shop 2 for this task, it's not done
+    const taskCards = (workCards || []).filter(wc => String(wc.task_id) === String(taskObj.id))
+    const hasUncompleted = taskCards.some(wc => wc.status !== 'completed')
+    if (hasUncompleted) return false
+
+    // We must ensure for every item that there is no remaining buffer
+    for (const item of itemsToCheck) {
       const nomId = item.nom?.id
-      if (!nomId) return false
+      if (!nomId) continue
 
-      const s1Task = tasks.find(t =>
-        String(t.order_id) === String(taskObj.order_id) &&
-        t.batch_index === taskObj.batch_index &&
-        !(t.step?.includes('Пресування') || t.step?.includes('ЦЕХ №2') || t.step?.includes('Доопрацювання'))
-      )
-      const s1TaskId = s1Task?.id
-
-      // 1. Calculate remaining buffer in Shop 2
+      // Calculate remaining buffer in Shop 2
       const bufSrcCards = (workCards || []).filter(c =>
-        String(c.task_id) === String(s1TaskId) &&
+        String(c.task_id) === String(s1Task.id) &&
         String(c.nomenclature_id) === String(nomId) &&
         c.status === 'at-shop2-buffer'
       )
@@ -216,49 +213,12 @@ const Shop2Module = () => {
       const bufUsed = bufSrcCards.reduce((s, c) => s + (Number(c.used_in_shop2_qty) || 0), 0)
       const total2 = bufTotal - bufUsed
 
-      // 2. Active work cards in Shop 2 for this task and nomenclature
-      const allCards = [
-        ...(workCards || []),
-        ...(archiveCards || []).filter(ac => !(workCards || []).some(wc => wc.id === ac.id)),
-        ...(staticCompletedCards || []).filter(sc => String(sc.task_id) === String(taskObj.id) && !(workCards || []).some(wc => wc.id === sc.id))
-      ]
-      const nomCards = allCards.filter(wc =>
-        String(wc.task_id) === String(taskObj.id) &&
-        String(wc.nomenclature_id) === String(nomId)
-      )
-      const activeNomCards = (workCards || []).filter(wc =>
-        String(wc.task_id) === String(taskObj.id) &&
-        String(wc.nomenclature_id) === String(nomId)
-      )
-
-      // If there are no work cards in progress/buffer AND no parts have arrived yet, it's waiting for Shop 1
-      if (activeNomCards.length === 0 && bufTotal === 0) return false
-
-      // If there are active cards that are not completed, it's not done
-      const hasUncompleted = activeNomCards.some(wc => wc.status !== 'completed')
-      if (hasUncompleted) return false
-
-      // 3. Check if completed Shop2 cards cover the planned need
-      const plannedNeed = Number(taskObj.plan_snapshot?.[String(nomId)]?.need) || Number(item.need) || 0
-      const completedQty = nomCards
-        .filter(wc => wc.status === 'completed')
-        .reduce((s, wc) => s + (Number(wc.quantity) || 0), 0)
-
-      // If completed cards cover the planned need, surplus buffer is acceptable (it's BZ from dovypusk)
-      if (completedQty >= plannedNeed && plannedNeed > 0) {
-        return true
+      if (total2 > 0) {
+        return false // Still has parts in buffer waiting to be taken into work
       }
+    }
 
-      // If there are still unallocated parts in the buffer needed to meet demand, it's not done
-      if (total2 > 0) return false
-
-      // 4. Must have at least one completed card for this nomenclature
-      const hasCompleted = nomCards.some(wc =>
-        wc.status === 'completed'
-      )
-
-      return hasCompleted
-    })
+    return true
   }
 
 
@@ -511,17 +471,48 @@ const Shop2Module = () => {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ fontWeight: 800, fontSize: '1rem', color: isCompleted ? '#444' : (task.status === 'waiting' && !hasBufferParts(task)) ? '#555' : '#fff' }}>№ {order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      {isCompleted ? (
-                        <CheckCircle2 size={14} color="#10b981" />
-                      ) : (task.status === 'waiting' && !hasBufferParts(task)) ? (
-                        <div style={{ background: '#333', color: '#666', padding: '3px 8px', borderRadius: '8px', fontSize: '0.6rem', fontWeight: 950 }}>ОЧІКУЄ</div>
-                      ) : (() => {
-                        const isAllDone = checkIfTaskIsAllDone(task, order)
+                      {(() => {
+                        if (isCompleted) {
+                          return <div style={{ background: '#10b981', color: '#fff', padding: '3px 8px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 950, boxShadow: '0 0 10px rgba(16, 185, 129, 0.4)' }}>ВИКОНАНО</div>
+                        }
 
+                        const isAllDone = checkIfTaskIsAllDone(task, order)
                         if (isAllDone) {
                           return <div style={{ background: '#10b981', color: '#fff', padding: '3px 8px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 950, boxShadow: '0 0 10px rgba(16, 185, 129, 0.4)' }}>ГОТОВО</div>
                         }
-                        return null
+
+                        // Check if in progress
+                        const s2ActiveCards = (workCards || []).filter(c => String(c.task_id) === String(task.id) && c.status !== 'completed')
+                        const hasActiveCards = s2ActiveCards.length > 0
+
+                        // Check if has new parts in buffer
+                        const s1Task = tasks.find(t =>
+                          String(t.order_id) === String(task.order_id) &&
+                          t.batch_index === task.batch_index &&
+                          !(t.step?.includes('Пресування') || t.step?.includes('ЦЕХ №2') || t.step?.includes('Доопрацювання'))
+                        )
+                        const s1TaskId = s1Task?.id
+                        const shop2BufferCards = (workCards || []).filter(c =>
+                          String(c.task_id) === String(s1TaskId) &&
+                          c.status === 'at-shop2-buffer'
+                        )
+                        const hasNewBufferParts = shop2BufferCards.some(c => (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0) > 0)
+
+                        if (hasNewBufferParts || hasActiveCards) {
+                          return (
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                              {hasNewBufferParts && (
+                                <div style={{ background: '#8b5cf6', color: '#fff', padding: '3px 8px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 950, boxShadow: '0 0 10px rgba(139, 92, 246, 0.4)' }}>НОВІ ДЕТАЛІ</div>
+                              )}
+                              {hasActiveCards && (
+                                <div style={{ background: '#3b82f6', color: '#fff', padding: '3px 8px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 950, boxShadow: '0 0 10px rgba(59, 130, 246, 0.4)' }}>В РОБОТІ</div>
+                              )}
+                            </div>
+                          )
+                        }
+
+                        // Fallback / Waiting
+                        return <div style={{ background: '#d97706', color: '#fff', padding: '3px 8px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 950, boxShadow: '0 0 10px rgba(217, 119, 6, 0.4)' }}>ОЧІКУЄ</div>
                       })()}
                     </div>
                   </div>
@@ -677,7 +668,7 @@ const Shop2Module = () => {
 
                         return (displayItems || []).map((item, idx) => {
                           const stage = selectedStages[String(item.nom?.id)] || task.plan_snapshot?.[String(item.nom?.id)]?.shop2_stage
-                          const allCardsForCheck = [...(workCards || []), ...(archiveCards || []).filter(ac => !(workCards || []).some(wc => wc.id === ac.id))]
+                          const allCardsForCheck = [...(workCards || []), ...(completedCards || []).filter(ac => !(workCards || []).some(wc => wc.id === ac.id))]
                           const existingCard = allCardsForCheck.find(wc => {
                             const idMatch = String(wc.task_id) === String(task.id) && String(wc.nomenclature_id) === String(item.nom?.id)
                             const opMatch = String(wc.operation || '').toLowerCase().trim() === String(stage || '').toLowerCase().trim()
@@ -713,7 +704,7 @@ const Shop2Module = () => {
                           const displayTotal = displayNeed + displayBz
 
                           // Загальна кількість деталей, яка вже пішла в процес (згенеровані робочі карти в Цеху №2)
-                          const allShop2CardsForNom = [...(workCards || []), ...(archiveCards || []).filter(ac => !(workCards || []).some(wc => wc.id === ac.id))].filter(c =>
+                          const allShop2CardsForNom = [...(workCards || []), ...(completedCards || []).filter(ac => !(workCards || []).some(wc => wc.id === ac.id))].filter(c =>
                             String(c.task_id) === String(task.id) && String(c.nomenclature_id) === String(item.nom?.id)
                           )
                           const totalInProcess = allShop2CardsForNom.reduce((s, c) => s + (Number(c.quantity) || 0), 0)
@@ -780,7 +771,7 @@ const Shop2Module = () => {
                                   const stage = selectedStages[String(item.nom?.id)] || task.plan_snapshot?.[String(item.nom?.id)]?.shop2_stage
 
                                   // Обчислюємо, чи вже була згенерована картка (з активних або архівних)
-                                  const allCardsForCheck = [...(workCards || []), ...(archiveCards || []).filter(ac => !(workCards || []).some(wc => wc.id === ac.id))]
+                                  const allCardsForCheck = [...(workCards || []), ...(completedCards || []).filter(ac => !(workCards || []).some(wc => wc.id === ac.id))]
                                   const existingCard = allCardsForCheck.find(wc => {
                                     const idMatch = String(wc.task_id) === String(task.id) && String(wc.nomenclature_id) === String(item.nom?.id)
                                     const opMatch = String(wc.operation || '').toLowerCase().trim() === String(stage || '').toLowerCase().trim()
@@ -788,7 +779,7 @@ const Shop2Module = () => {
                                   })
 
                                   // Перевіряємо чи завершені картки покривають потребу (для довипуску)
-                                  const allS2CardsForRow = [...(workCards || []), ...(archiveCards || []).filter(ac => !(workCards || []).some(wc => wc.id === ac.id))].filter(c =>
+                                  const allS2CardsForRow = [...(workCards || []), ...(completedCards || []).filter(ac => !(workCards || []).some(wc => wc.id === ac.id))].filter(c =>
                                     String(c.task_id) === String(task.id) && String(c.nomenclature_id) === String(item.nom?.id)
                                   )
                                   const completedS2Qty = allS2CardsForRow.filter(c => c.status === 'completed').reduce((s, c) => s + (Number(c.quantity) || 0), 0)
@@ -1002,7 +993,7 @@ const Shop2Module = () => {
                         return activeEntries.map(([nomId, data]) => {
                           const nom = (nomenclatures || []).find(n => String(n?.id) === nomId)
                           const remaining = data.totalArrived - data.totalUsed
-                          const shop2Cards = [...(workCards || []), ...(archiveCards || []).filter(ac => !(workCards || []).some(wc => wc.id === ac.id))].filter(c =>
+                          const shop2Cards = [...(workCards || []), ...(completedCards || []).filter(ac => !(workCards || []).some(wc => wc.id === ac.id))].filter(c =>
                             String(c.task_id) === String(task.id) && String(c.nomenclature_id) === nomId
                           )
                           const inWork = shop2Cards.reduce((s, c) => s + (Number(c.quantity) || 0), 0)
@@ -1056,7 +1047,7 @@ const Shop2Module = () => {
                     // Об'єднуємо АКТИВНІ (з глобального стейту) та ЗАВЕРШЕНІ (локально завантажені) карти
                     // Використовуємо Map для гарантованої унікальності за ID
                     const uniqueCardsMap = new Map();
-                    [...(workCards || []), ...(archiveCards || [])].forEach(c => {
+                    [...(workCards || []), ...(completedCards || [])].forEach(c => {
                       if (c?.id) uniqueCardsMap.set(c.id, c);
                     });
 

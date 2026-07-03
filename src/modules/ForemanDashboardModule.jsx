@@ -247,7 +247,15 @@ const ForemanDashboardModule = () => {
     return tasks.filter(t => {
       const stepName = (t.step || '').toLowerCase()
       const isLaser = stepName.includes('розкрій') || stepName.includes('різка')
-      if (t.status !== 'completed') {
+      
+      const hasActiveShop2Task = tasks.some(s2 =>
+        String(s2.order_id) === String(t.order_id) &&
+        s2.batch_index === t.batch_index &&
+        (s2.step?.includes('Пресування') || s2.step?.includes('ЦЕХ №2') || s2.step?.includes('Доопрацювання')) &&
+        s2.status !== 'completed'
+      )
+
+      if (t.status !== 'completed' || hasActiveShop2Task) {
         return t.warehouse_conf && t.engineer_conf && t.director_conf && isLaser
       }
       // Show recently completed (last 3 days)
@@ -263,7 +271,18 @@ const ForemanDashboardModule = () => {
   }, [tasks])
 
   // ── Active (non-completed) tasks ──
-  const activeTasks = useMemo(() => relevantTasks.filter(t => t.status !== 'completed'), [relevantTasks])
+  const activeTasks = useMemo(() => {
+    return relevantTasks.filter(t => {
+      if (t.status !== 'completed') return true
+      const hasActiveShop2Task = tasks.some(s2 =>
+        String(s2.order_id) === String(t.order_id) &&
+        s2.batch_index === t.batch_index &&
+        (s2.step?.includes('Пресування') || s2.step?.includes('ЦЕХ №2') || s2.step?.includes('Доопрацювання')) &&
+        s2.status !== 'completed'
+      )
+      return hasActiveShop2Task
+    })
+  }, [relevantTasks, tasks])
 
   // ── Orders map ──
   const ordersMap = useMemo(() => {
@@ -423,9 +442,16 @@ const ForemanDashboardModule = () => {
   const taskStatusMap = useMemo(() => {
     const map = {}
     relevantTasks.forEach(task => {
-      if (task.status === 'completed') { map[task.id] = 'completed'; return }
+      const hasActiveShop2Task = tasks.some(s2 =>
+        String(s2.order_id) === String(task.order_id) &&
+        s2.batch_index === task.batch_index &&
+        (s2.step?.includes('Пресування') || s2.step?.includes('ЦЕХ №2') || s2.step?.includes('Доопрацювання')) &&
+        s2.status !== 'completed'
+      )
+
+      if (task.status === 'completed' && !hasActiveShop2Task) { map[task.id] = 'completed'; return }
       const taskCards = allTasksCards.filter(c => c.task_id === task.id && c.operation !== 'Склад БЗ')
-      if (taskCards.length === 0) { map[task.id] = 'new'; return }
+      if (taskCards.length === 0 && task.status !== 'completed') { map[task.id] = 'new'; return }
 
       const snapshot = task.plan_snapshot || {}
       const taskProd = productionCache[task.id] || {}
@@ -454,12 +480,13 @@ const ForemanDashboardModule = () => {
 
       const hasActiveCards = taskCards.some(c => c.operation !== 'Склад БЗ' && !['completed', 'at-shop2-buffer'].includes(c.status))
 
-      if (allDone && !hasActiveCards) map[task.id] = 'ready'
-      else if (hasShortage) map[task.id] = 'shortage'
+      if (hasShortage) map[task.id] = 'shortage'
+      else if (hasActiveShop2Task) map[task.id] = 'in_progress'
+      else if (allDone && !hasActiveCards) map[task.id] = 'ready'
       else map[task.id] = 'in_progress'
     })
     return map
-  }, [relevantTasks, allTasksCards, productionCache, scrapCache])
+  }, [relevantTasks, allTasksCards, productionCache, scrapCache, tasks])
 
   // ── Per-task progress (actual / demand sets) ──
   const taskProgressMap = useMemo(() => {
