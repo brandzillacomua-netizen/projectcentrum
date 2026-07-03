@@ -38,7 +38,9 @@ const MACHINE_TYPES = [
 ]
 
 const renderCutterListEditorShared = (cutters, setCutters, nomenclatures) => {
-  const cutterNoms = nomenclatures.filter(n => n.name.toLowerCase().includes('фреза') || n.type === 'consumable')
+  const cutterNoms = nomenclatures.filter(n => {
+    return n.name.toLowerCase().match(/^фреза\s+[фf][0-9]/)
+  })
   return (
     <div style={{ flex: 1, minWidth: '280px', background: '#111', padding: '15px', borderRadius: '12px', border: '1px solid #222' }}>
       <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '6px' }}>

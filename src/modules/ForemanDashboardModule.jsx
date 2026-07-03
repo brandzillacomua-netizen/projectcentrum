@@ -40,7 +40,7 @@ const renderVal = (val = 0, type = 'normal', demand = 0) => {
   const displayVal = type === 'sum' && demand > 0 ? `${val} / ${demand}` : val
 
   return (
-    <span style={{
+    <span className={type === 'sum' ? 'wip-sum-badge' : ''} style={{
       fontWeight: 'bold', color, background: bg, border, padding: '2px 6px',
       borderRadius: '4px', display: 'inline-block', minWidth: '24px',
       textAlign: 'center', whiteSpace: 'nowrap'
@@ -69,8 +69,8 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem', color: '#f4f4f5', minWidth: '800px' }}>
         <thead>
           <tr style={{ background: '#18181b', color: '#a1a1aa', textAlign: 'center', borderBottom: '2px solid #27272a' }}>
-            <th style={TH_STICKY}>Номенклатура</th>
-            <th style={TH_SUM}>Сума</th>
+            <th className="wip-col-nomenclature" style={TH_STICKY}>Номенклатура</th>
+            <th className="wip-col-sum" style={TH_SUM}>Сума</th>
             <th style={TH}>Очік. Розкрій</th>
             <th style={TH}>Розкрій</th>
             <th style={TH}>Буфер Розкр.</th>
@@ -124,11 +124,11 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
                     <tr key={row.id} style={{ background: '#09090b', borderBottom: '1px solid #1f1f22', transition: 'background 0.15s' }}
                       onMouseEnter={e => e.currentTarget.style.background = '#18181b'}
                       onMouseLeave={e => e.currentTarget.style.background = '#09090b'}>
-                      <td style={{ ...TD_STICKY, paddingLeft: '28px' }}>
+                      <td className="wip-col-nomenclature" style={{ ...TD_STICKY, paddingLeft: '28px' }}>
                         {row.name}
                         {row.code && <span style={{ display: 'block', fontSize: '0.68rem', color: '#52525b', marginTop: '1px' }}>Код: {row.code}</span>}
                       </td>
-                      <td style={TD_SUM}>{renderVal(row.sum, 'sum', row.demand)}</td>
+                      <td className="wip-col-sum" style={TD_SUM}>{renderVal(row.sum, 'sum', row.demand)}</td>
                       <td style={TD}>{renderVal(row.qCutWait)}</td>
                       <td style={TD}>{renderVal(row.qCut)}</td>
                       <td style={TD}>{renderVal(row.qCutBuf)}</td>
@@ -154,8 +154,8 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
 
                   {/* Subtotals */}
                   <tr style={{ background: '#141416', fontWeight: 'bold', borderTop: '1px solid #27272a', borderBottom: '1px solid #27272a', color: '#a1a1aa', fontSize: '0.76rem' }}>
-                    <td style={{ ...TD_STICKY, fontStyle: 'italic', paddingLeft: '28px', color: '#52525b' }}>Підсумок по виробу:</td>
-                    <td style={{ ...TD_SUM, background: '#251a12' }}>{renderVal(gt.sum, 'sum')}</td>
+                    <td className="wip-col-nomenclature" style={{ ...TD_STICKY, fontStyle: 'italic', paddingLeft: '28px', color: '#52525b' }}>Підсумок по виробу:</td>
+                    <td className="wip-col-sum" style={{ ...TD_SUM, background: '#251a12' }}>{renderVal(gt.sum, 'sum')}</td>
                     <td style={TD}>{renderVal(gt.qCutWait)}</td>
                     <td style={TD}>{renderVal(gt.qCut)}</td>
                     <td style={TD}>{renderVal(gt.qCutBuf)}</td>
@@ -188,8 +188,8 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
             const gt = getGroupTotals(allRows)
             return (
               <tr style={{ background: '#18181b', fontWeight: 'bold', borderTop: '2px solid #ff9000', color: '#fff', fontSize: '0.8rem' }}>
-                <td style={{ ...TD_STICKY, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.72rem' }}>ЗАГАЛЬНИЙ WIP РАЗОМ:</td>
-                <td style={{ ...TD_SUM, background: '#2e2014', color: '#ff9000' }}>{renderVal(gt.sum, 'sum')}</td>
+                <td className="wip-col-nomenclature" style={{ ...TD_STICKY, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.72rem' }}>ЗАГАЛЬНИЙ WIP РАЗОМ:</td>
+                <td className="wip-col-sum" style={{ ...TD_SUM, background: '#2e2014', color: '#ff9000' }}>{renderVal(gt.sum, 'sum')}</td>
                 <td style={TD}>{renderVal(gt.qCutWait)}</td>
                 <td style={TD}>{renderVal(gt.qCut)}</td>
                 <td style={TD}>{renderVal(gt.qCutBuf)}</td>
@@ -1181,6 +1181,48 @@ const ForemanDashboardModule = () => {
           /* General page container padding */
           div[style*="padding: '24px'"] {
             padding: 12px !important;
+          }
+
+          /* Compact table styles for mobile screens */
+          table {
+            font-size: 0.62rem !important;
+            min-width: 700px !important;
+          }
+          th, td {
+            padding: 5px 6px !important;
+          }
+          /* Override sticky Nomenclature column on mobile */
+          .wip-col-nomenclature {
+            position: sticky !important;
+            left: 0 !important;
+            min-width: 110px !important;
+            max-width: 110px !important;
+            width: 110px !important;
+            font-size: 0.6rem !important;
+            z-index: 2 !important;
+          }
+          th.wip-col-nomenclature {
+            z-index: 40 !important;
+          }
+
+          /* Override sticky Sum column on mobile */
+          .wip-col-sum {
+            position: sticky !important;
+            left: 110px !important;
+            min-width: 70px !important;
+            max-width: 70px !important;
+            width: 70px !important;
+            z-index: 2 !important;
+          }
+          th.wip-col-sum {
+            z-index: 40 !important;
+          }
+
+          /* Compact orange sum badge sizing to fit the sum column bounds on mobile */
+          .wip-sum-badge {
+            font-size: 0.5rem !important;
+            padding: 1px 3px !important;
+            letter-spacing: -0.2px !important;
           }
         }
       `}</style>

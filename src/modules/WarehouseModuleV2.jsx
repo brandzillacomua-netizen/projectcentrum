@@ -904,18 +904,37 @@ const WarehouseModuleV2 = () => {
       }
     })
 
-    if (missingItems.length > 0) {
-      setShortages({ orderId, orderNum, taskId, items: missingItems, reqList })
-    } else {
-      setProcessingTasks(prev => new Set(prev).add(taskId))
-      apiService.submitReserveBatch(orderId, reqList, taskId, issueMaterialsBatch).then(() => {
-        setProcessingTasks(prev => {
-          const next = new Set(prev)
-          next.delete(taskId)
-          return next
-        })
+    // Завжди спочатку запускаємо резервування наявного матеріалу
+    setProcessingTasks(prev => new Set(prev).add(taskId))
+    apiService.submitReserveBatch(orderId, reqList, taskId, issueMaterialsBatch).then(() => {
+      setProcessingTasks(prev => {
+        const next = new Set(prev)
+        next.delete(taskId)
+        return next
       })
-    }
+      
+      // Якщо після часткового резервування виявився дефіцит — відкриваємо діалог для PR
+      // АЛЕ: підготовлені листи не відправляємо на СВ — вони чекають від підготовки
+      const nonPreparedMissing = missingItems.filter(item => {
+        const nameLower = (item.name || item.reqDetails || '').toLowerCase()
+        return !(nameLower.includes('лист') && nameLower.includes('підготовлений'))
+      })
+      if (nonPreparedMissing.length > 0) {
+        setShortages({ orderId, orderNum, taskId, items: nonPreparedMissing, reqList })
+      } else if (missingItems.length > 0) {
+        // Тільки підготовлені листи в дефіциті — не відкриваємо модалку PR, просто чекаємо
+        // warehouse_conf вже встановлено в 'partial' через issueMaterialsBatch
+      } else {
+        alert('Наряд повністю зарезервовано та погоджено!')
+      }
+    }).catch(err => {
+      setProcessingTasks(prev => {
+        const next = new Set(prev)
+        next.delete(taskId)
+        return next
+      })
+      alert('Помилка резервування: ' + err.message)
+    })
   }
 
   const sendPurchaseRequest = async () => {
@@ -1465,9 +1484,20 @@ const WarehouseModuleV2 = () => {
                 })
 
                 const isAllIssued = reqList.every(r => r.status === 'issued')
+                // ВАЖЛИВО: після часткової видачі видані запити зникають з reqList
+                // (фільтруються pendingRequests якщо task.warehouse_conf = 'partial')
+                // тому перевіряємо task.warehouse_conf === 'partial' а не hasAnyIssued
+                const isPartiallyIssued = task?.warehouse_conf === 'partial'
 
-                const hasMissingSheets = missingItems.some(req => {
-                  const nameLower = parseMaterialName(req.details).toLowerCase()
+                // Перевіряємо чи ВСІ запити що залишились pending — це підготовлені листи
+                const allRemainingArePreparedSheets = reqList.length > 0 && reqList.every(r => {
+                  const nameLower = (parseMaterialName(r.details) || '').toLowerCase()
+                  return nameLower.includes('лист') && nameLower.includes('підготовлений')
+                })
+
+                // Перевіряємо чи всі дефіцитні позиції — це підготовлені листи
+                const allMissingArePreparedSheets = missingItems.length > 0 && missingItems.every(item => {
+                  const nameLower = (item.name || item.reqDetails || '').toLowerCase()
                   return nameLower.includes('лист') && nameLower.includes('підготовлений')
                 })
 
@@ -1475,13 +1505,14 @@ const WarehouseModuleV2 = () => {
                 let btnLabel = ''
                 let isAwaiting = false
 
-                if (hasMissingSheets) {
-                  btnLabel = 'ОЧІКУЄМ ЛИСТИ'
-                  isAwaiting = true
-                } else if (missingItems.length === 0) {
+                if (missingItems.length === 0) {
                   // Якщо товару достатньо - завжди показуємо кнопку видачі
                   btnLabel = isAllIssued ? 'ПІДТВЕРДИТИ ВИДАЧУ' : 'ВИДАТИ'
                   isAwaiting = false 
+                } else if ((isPartiallyIssued || allRemainingArePreparedSheets) && allMissingArePreparedSheets) {
+                  // Частково видано або залишились лише підготовлені листи — чекаємо від підготовки
+                  btnLabel = 'ОЧІКУЄМО ЛИСТИ'
+                  isAwaiting = true
                 } else if (activePR) {
                   btnLabel = 'ЗАПИТ НАДІСЛАНО'
                   isAwaiting = true

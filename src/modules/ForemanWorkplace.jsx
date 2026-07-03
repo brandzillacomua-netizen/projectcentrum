@@ -35,7 +35,7 @@ const getDisplayMaterial = (partNom, snapshot) => {
 const ForemanWorkplace = () => {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { tasks, orders, workCards, createWorkCard, createWorkCardsBatch, inventory, completeTaskByMaster, nomenclatures, bomItems, machines, machineOperations, workCardHistory, confirmBuffer, fetchData, reserveBZForTask, fetchTaskArchiveCards, fetchModuleData, machineCalls, currentUser, createDovyпускMaterialRequests } = useMES()
+  const { tasks, orders, workCards, createWorkCard, createWorkCardsBatch, inventory, completeTaskByMaster, nomenclatures, bomItems, machines, machineOperations, workCardHistory, confirmBuffer, fetchData, reserveBZForTask, fetchTaskArchiveCards, fetchModuleData, machineCalls, currentUser, createDovyпускMaterialRequests, materialRequests } = useMES()
 
   const countAsProduced = (card) => {
     if (card.status === 'completed') return true
@@ -1251,7 +1251,7 @@ const ForemanWorkplace = () => {
 
         // Якщо наряд АКТИВНИЙ (не завершений)
         if (t.status !== 'completed') {
-          return t.warehouse_conf && t.engineer_conf && t.director_conf && isLaser
+          return (t.warehouse_conf === true || t.warehouse_conf === 'partial') && t.engineer_conf && t.director_conf && isLaser
         }
 
         // Якщо наряд ЗАВЕРШЕНИЙ (Архів)
@@ -2754,13 +2754,46 @@ const ForemanWorkplace = () => {
                       currentGlobalSheets += cardSheets
                     })
 
+                    // Функція для підрахунку виданих та дефіцитних листів
+                    const getKittingSheets = (taskObj, partNom) => {
+                      const baseMat = partNom?.material_type || ''
+                      const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(taskObj.id))
+                      const sheetReqs = taskReqs.filter(r => {
+                        const rNom = nomenclatures.find(n => n.id === r.nomenclature_id)
+                        const rName = rNom?.name || r.details || ''
+                        const lowerName = rName.toLowerCase()
+                        
+                        const isSheet = lowerName.includes('лист') || lowerName.includes('sheet')
+                        if (!isSheet) return false
+                        
+                        const activeMaterials = baseMat.split('+').map(m => m.trim().toLowerCase())
+                        return activeMaterials.some(act => lowerName.includes(act) || act.includes(lowerName))
+                      })
+                      
+                      const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
+                        .reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+                        
+                      const pending = sheetReqs.filter(r => r.status === 'pending')
+                        .reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+                        
+                      return { issuedSheets: issued, pendingSheets: pending }
+                    }
+
+                    const { issuedSheets, pendingSheets } = getKittingSheets(genModal.task, genModal.part.nom)
                     const generatedCount = cardsBelongingToThisSplitCount
                     const isGenerated = sheetsUsedInThisSplit >= splitSheets
                     const remainingCount = Math.max(0, splitLoadings - generatedCount)
 
+                    // Розраховуємо ліміт карт на основі виданих листів
+                    const hasKittingReqs = (materialRequests || []).some(r => String(r.task_id) === String(genModal.task.id))
+                    const maxAllowedToGen = hasKittingReqs 
+                      ? Math.min(remainingCount, Math.floor(Math.max(0, issuedSheets - sheetsUsedInThisSplit) / currentCapacity))
+                      : remainingCount
+                    const isKittingBlocked = hasKittingReqs && maxAllowedToGen <= 0
+
                     const splitGlobalOffsetForThisMachine = currentGlobalOffset
                     currentGlobalOffset += splitLoadings
-                    const toGen = partialCounts[`${genModal.part.nom?.id}_${sIdx}`] ?? remainingCount
+                    const toGen = Math.min(maxAllowedToGen, partialCounts[`${genModal.part.nom?.id}_${sIdx}`] ?? remainingCount)
 
                     return (
                       <div key={sIdx} style={{ background: '#080808', padding: '15px', borderRadius: '16px', border: isGenerated ? '1px solid #10b98133' : '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: isGenerated ? 0.8 : 1 }}>
@@ -2774,7 +2807,31 @@ const ForemanWorkplace = () => {
                           <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '4px' }}>
                             Листів: {splitSheets} | Деталей: {splitQty}
                           </div>
-                          {isGenerated && <div style={{ fontSize: '0.55rem', color: '#444', marginTop: '2px' }}>Всі карти згенеровано ✅</div>}
+                          {(() => {
+                            if (isGenerated) {
+                              return <div style={{ fontSize: '0.55rem', color: '#10b981', marginTop: '2px', fontWeight: 900 }}>Всі карти згенеровано ✅</div>
+                            }
+                            if (!hasKittingReqs) return null;
+                            if (issuedSheets === 0) {
+                              return (
+                                <div style={{ fontSize: '0.6rem', color: '#ef4444', fontWeight: 900, marginTop: '4px', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', padding: '2px 6px', borderRadius: '4px', display: 'inline-block' }}>
+                                  ⚠️ Очікуємо погодження складу (немає листів)
+                                </div>
+                              )
+                            }
+                            if (pendingSheets > 0) {
+                              return (
+                                <div style={{ fontSize: '0.6rem', color: '#eab308', fontWeight: 900, marginTop: '4px', background: 'rgba(234,179,8,0.06)', border: '1px solid rgba(234,179,8,0.15)', padding: '2px 6px', borderRadius: '4px', display: 'inline-block' }}>
+                                  ⏳ Видано: {issuedSheets} л. | Очікуємо видачу {pendingSheets} листів з СО
+                                </div>
+                              )
+                            }
+                            return (
+                              <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 900, marginTop: '4px', background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)', padding: '2px 6px', borderRadius: '4px', display: 'inline-block' }}>
+                                ✅ ГОТОВО ДО ЗАПУСКУ ({issuedSheets} л. видано)
+                              </div>
+                            )
+                          })()}
                         </div>
 
                         {!isGenerated && (
@@ -2809,7 +2866,7 @@ const ForemanWorkplace = () => {
                               />
                             </div>
                             <button
-                              disabled={isGenerating}
+                              disabled={isGenerating || isKittingBlocked}
                               onClick={() => {
                                 const finalToGen = Math.min(toGen, remainingCount)
                                 if (finalToGen <= 0) return
@@ -2828,11 +2885,23 @@ const ForemanWorkplace = () => {
                                   currentCapacity
                                 )
                               }}
-                              style={{ background: isGenerating ? '#333' : '#10b981', color: '#fff', border: 'none', padding: '10px 15px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 950, cursor: isGenerating ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '5px', pointerEvents: isGenerating ? 'none' : 'auto' }}
+                              style={{ 
+                                background: isGenerating ? '#333' : (isKittingBlocked ? '#1e1b18' : '#10b981'), 
+                                color: isKittingBlocked ? '#7f1d1d' : '#fff', 
+                                border: isKittingBlocked ? '1px solid rgba(239,68,68,0.2)' : 'none',
+                                padding: '10px 15px', 
+                                borderRadius: '10px', 
+                                fontSize: '0.7rem', 
+                                fontWeight: 950, 
+                                cursor: (isGenerating || isKittingBlocked) ? 'not-allowed' : 'pointer', 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '5px', 
+                                pointerEvents: (isGenerating || isKittingBlocked) ? 'none' : 'auto' 
+                              }}
                             >
                               {isGenerating ? <Loader2 size={12} className="animate-spin" /> : <Printer size={12} />}
-                              {isGenerating ? 'ОБРОБКА...' : 'ГЕНЕРУВАТИ'}
-                            </button>
+                              {isGenerating ? 'ОБРОБКА...' : (isKittingBlocked ? 'НЕМАЄ ЛИСТІВ' : 'ГЕНЕРУВАТИ')}</button>
                           </div>
                         )}
                         {isGenerated && (
