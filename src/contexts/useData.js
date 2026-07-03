@@ -173,8 +173,8 @@ export function useData() {
         supabase.from('customers').select('id,name,official_name').limit(50).order('name'),
         // Latest orders WITH order_items — needed by Master, Foreman, Director for naryad creation
         supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).range(0, 99),
-        // Active tasks WITHOUT nested order JOIN — order data is already in orders state (excluding big plan_snapshot)
-        supabase.from('tasks').select('id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,batch_index,planned_deadline,machine_name,created_at,completed_at').or(`status.neq.completed,completed_at.gte.${threeDaysAgoTasks}`).order('created_at', { ascending: false }),
+        // Active tasks WITHOUT nested order JOIN — order data is already in orders state
+        supabase.from('tasks').select('id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,batch_index,planned_deadline,machine_name,created_at,completed_at,plan_snapshot').or(`status.neq.completed,completed_at.gte.${threeDaysAgoTasks}`).order('created_at', { ascending: false }),
         // Nomenclatures & BOM needed for naryad creation
         supabase.from('nomenclatures').select('*').limit(2000),
         supabase.from('bom_items').select('*').limit(4000),
@@ -275,8 +275,8 @@ export function useData() {
         { data: mCalls }
       ] = await Promise.all([
         supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).range(0, 99),
-        // tasks WITHOUT nested JOIN — avoids the orders(order_items(*)) waterfall (excluding big plan_snapshot)
-        supabase.from('tasks').select('id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,batch_index,planned_deadline,machine_name,created_at,completed_at').or(`status.neq.completed,completed_at.gte.${threeDaysAgoTasks}`).order('created_at', { ascending: false }),
+        // tasks WITHOUT nested JOIN — avoids the orders(order_items(*)) waterfall
+        supabase.from('tasks').select('id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,batch_index,planned_deadline,machine_name,created_at,completed_at,plan_snapshot').or(`status.neq.completed,completed_at.gte.${threeDaysAgoTasks}`).order('created_at', { ascending: false }),
         needNomenclatures ? supabase.from('nomenclatures').select('*').limit(2000) : Promise.resolve({ data: null }),
         needBOM ? supabase.from('bom_items').select('*').limit(4000) : Promise.resolve({ data: null }),
         needMachines ? supabase.from('machines').select('*').order('name') : Promise.resolve({ data: null }),
@@ -395,8 +395,8 @@ export function useData() {
         if (data) setInventory(data)
       } else if (tableName === 'tasks') {
         const threeDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-        // No nested JOIN — tasks reference orders via order_id already in state (excluding big plan_snapshot)
-        const { data } = await supabase.from('tasks').select('id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,batch_index,planned_deadline,machine_name,created_at,completed_at').or(`status.neq.completed,completed_at.gte.${threeDaysAgo}`).order('created_at', { ascending: false })
+        // No nested JOIN — tasks reference orders via order_id already in state
+        const { data } = await supabase.from('tasks').select('id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,batch_index,planned_deadline,machine_name,created_at,completed_at,plan_snapshot').or(`status.neq.completed,completed_at.gte.${threeDaysAgo}`).order('created_at', { ascending: false })
         if (data) {
           setTasks(prev => {
             const cachedMap = new Map(prev.map(item => [item.id, item.plan_snapshot]))

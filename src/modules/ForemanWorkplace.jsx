@@ -5,6 +5,12 @@ import { useMES } from '../MESContext'
 import { QRCodeSVG } from 'qrcode.react'
 import { apiService } from '../services/apiDispatcher'
 import { supabase } from '../supabase'
+const getRequestQty = (r) => {
+  if (r.quantity !== null && r.quantity !== undefined) return Number(r.quantity);
+  const match = (r.details || '').match(/—\s*(\d+)/);
+  return match ? Number(match[1]) : 0;
+};
+
 
 const getDisplayMaterial = (partNom, snapshot) => {
   const baseMat = partNom?.material_type || '—'
@@ -2337,7 +2343,7 @@ const ForemanWorkplace = () => {
                                           {(productionCards.length === 0 || productionCards.length < totalTargetLoads) && (
                                             <button
                                               disabled={!(rowMachineName || isSplitMode) || (() => {
-                                                const baseMat = (part.nom?.material_type || '').toLowerCase()
+                                                const snapMat = (task.plan_snapshot || {})[String(part.nom?.id)]?.material; const baseMat = (snapMat || part.nom?.material_type || '').toLowerCase()
                                                 const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(task.id))
                                                 const extractThickness = (str) => {
                                                   const match = str.match(/(\d+(?:\.\d+)?)\s*мм/)
@@ -2357,12 +2363,12 @@ const ForemanWorkplace = () => {
                                                   return activeMaterials.some(act => rName.includes(act) || act.includes(rName))
                                                 })
                                                 const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
-                                                  .reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
-                                                const hasKittingReqs = (materialRequests || []).some(r => String(r.task_id) === String(task.id))
+                                                  .reduce((sum, r) => sum + getRequestQty(r), 0)
+                                                const hasKittingReqs = sheetReqs.length > 0
                                                 return hasKittingReqs && issued <= 0
                                               })()}
                                               onClick={() => {
-                                                const baseMat = (part.nom?.material_type || '').toLowerCase()
+                                                const snapMat = (task.plan_snapshot || {})[String(part.nom?.id)]?.material; const baseMat = (snapMat || part.nom?.material_type || '').toLowerCase()
                                                 const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(task.id))
                                                 const extractThickness = (str) => {
                                                   const match = str.match(/(\d+(?:\.\d+)?)\s*мм/)
@@ -2382,8 +2388,8 @@ const ForemanWorkplace = () => {
                                                   return activeMaterials.some(act => rName.includes(act) || act.includes(rName))
                                                 })
                                                 const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
-                                                  .reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
-                                                const hasKittingReqs = (materialRequests || []).some(r => String(r.task_id) === String(task.id))
+                                                  .reduce((sum, r) => sum + getRequestQty(r), 0)
+                                                const hasKittingReqs = sheetReqs.length > 0
                                                 if (hasKittingReqs && issued <= 0) return;
 
                                                 const currentSumSheets = splits.reduce((a, b) => a + (Number(b.sheets) || (unitsPerSheet > 0 ? Math.ceil((Number(b.qty) || 0) / unitsPerSheet) : 0)), 0);
@@ -2405,7 +2411,7 @@ const ForemanWorkplace = () => {
                                               }}
                                               style={{
                                                 background: (() => {
-                                                  const baseMat = (part.nom?.material_type || '').toLowerCase()
+                                                  const snapMat = (task.plan_snapshot || {})[String(part.nom?.id)]?.material; const baseMat = (snapMat || part.nom?.material_type || '').toLowerCase()
                                                   const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(task.id))
                                                   const extractThickness = (str) => {
                                                     const match = str.match(/(\d+(?:\.\d+)?)\s*мм/)
@@ -2425,13 +2431,13 @@ const ForemanWorkplace = () => {
                                                     return activeMaterials.some(act => rName.includes(act) || act.includes(rName))
                                                   })
                                                   const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
-                                                    .reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
-                                                  const hasKittingReqs = (materialRequests || []).some(r => String(r.task_id) === String(task.id))
+                                                    .reduce((sum, r) => sum + getRequestQty(r), 0)
+                                                  const hasKittingReqs = sheetReqs.length > 0
                                                   if (hasKittingReqs && issued <= 0) return '#1e1b18';
                                                   return (rowMachineName || isSplitMode) ? '#ff9000' : '#222';
                                                 })(),
                                                 color: (() => {
-                                                  const baseMat = (part.nom?.material_type || '').toLowerCase()
+                                                  const snapMat = (task.plan_snapshot || {})[String(part.nom?.id)]?.material; const baseMat = (snapMat || part.nom?.material_type || '').toLowerCase()
                                                   const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(task.id))
                                                   const extractThickness = (str) => {
                                                     const match = str.match(/(\d+(?:\.\d+)?)\s*мм/)
@@ -2451,13 +2457,13 @@ const ForemanWorkplace = () => {
                                                     return activeMaterials.some(act => rName.includes(act) || act.includes(rName))
                                                   })
                                                   const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
-                                                    .reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
-                                                  const hasKittingReqs = (materialRequests || []).some(r => String(r.task_id) === String(task.id))
+                                                    .reduce((sum, r) => sum + getRequestQty(r), 0)
+                                                  const hasKittingReqs = sheetReqs.length > 0
                                                   if (hasKittingReqs && issued <= 0) return '#7f1d1d';
                                                   return (rowMachineName || isSplitMode) ? '#000' : '#444';
                                                 })(),
                                                 border: (() => {
-                                                  const baseMat = (part.nom?.material_type || '').toLowerCase()
+                                                  const snapMat = (task.plan_snapshot || {})[String(part.nom?.id)]?.material; const baseMat = (snapMat || part.nom?.material_type || '').toLowerCase()
                                                   const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(task.id))
                                                   const extractThickness = (str) => {
                                                     const match = str.match(/(\d+(?:\.\d+)?)\s*мм/)
@@ -2477,8 +2483,8 @@ const ForemanWorkplace = () => {
                                                     return activeMaterials.some(act => rName.includes(act) || act.includes(rName))
                                                   })
                                                   const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
-                                                    .reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
-                                                  const hasKittingReqs = (materialRequests || []).some(r => String(r.task_id) === String(task.id))
+                                                    .reduce((sum, r) => sum + getRequestQty(r), 0)
+                                                  const hasKittingReqs = sheetReqs.length > 0
                                                   if (hasKittingReqs && issued <= 0) return '1px solid rgba(239,68,68,0.2)';
                                                   return 'none';
                                                 })(),
@@ -2487,7 +2493,7 @@ const ForemanWorkplace = () => {
                                                 fontSize: '0.65rem',
                                                 fontWeight: 900,
                                                 cursor: (() => {
-                                                  const baseMat = (part.nom?.material_type || '').toLowerCase()
+                                                  const snapMat = (task.plan_snapshot || {})[String(part.nom?.id)]?.material; const baseMat = (snapMat || part.nom?.material_type || '').toLowerCase()
                                                   const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(task.id))
                                                   const extractThickness = (str) => {
                                                     const match = str.match(/(\d+(?:\.\d+)?)\s*мм/)
@@ -2507,8 +2513,8 @@ const ForemanWorkplace = () => {
                                                     return activeMaterials.some(act => rName.includes(act) || act.includes(rName))
                                                   })
                                                   const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
-                                                    .reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
-                                                  const hasKittingReqs = (materialRequests || []).some(r => String(r.task_id) === String(task.id))
+                                                    .reduce((sum, r) => sum + getRequestQty(r), 0)
+                                                  const hasKittingReqs = sheetReqs.length > 0
                                                   if (hasKittingReqs && issued <= 0) return 'not-allowed';
                                                   return (rowMachineName || isSplitMode) ? 'pointer' : 'not-allowed';
                                                 })(),
@@ -2517,7 +2523,7 @@ const ForemanWorkplace = () => {
                                               }}
                                             >
                                               {(() => {
-                                                const baseMat = (part.nom?.material_type || '').toLowerCase()
+                                                const snapMat = (task.plan_snapshot || {})[String(part.nom?.id)]?.material; const baseMat = (snapMat || part.nom?.material_type || '').toLowerCase()
                                                 const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(task.id))
                                                 const extractThickness = (str) => {
                                                   const match = str.match(/(\d+(?:\.\d+)?)\s*мм/)
@@ -2537,8 +2543,8 @@ const ForemanWorkplace = () => {
                                                   return activeMaterials.some(act => rName.includes(act) || act.includes(rName))
                                                 })
                                                 const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
-                                                  .reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
-                                                const hasKittingReqs = (materialRequests || []).some(r => String(r.task_id) === String(task.id))
+                                                  .reduce((sum, r) => sum + getRequestQty(r), 0)
+                                                const hasKittingReqs = sheetReqs.length > 0
                                                 return (hasKittingReqs && issued <= 0) ? 'НЕМАЄ ЛИСТІВ' : 'Генерувати';
                                               })()}
                                             </button>
@@ -2932,10 +2938,15 @@ const ForemanWorkplace = () => {
                       currentGlobalSheets += cardSheets
                     })
 
-                    // Функція для підрахунку виданих та дефіцитних листів
                     const getKittingSheets = (taskObj, partNom) => {
-                      const baseMat = partNom?.material_type || ''
+                      const snapMat = (taskObj.plan_snapshot || {})[String(partNom?.id)]?.material;
+                      const baseMat = snapMat || partNom?.material_type || ''
                       const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(taskObj.id))
+                      const extractThickness = (str) => {
+                        const match = str.match(/(\d+(?:\.\d+)?)\s*мм/)
+                        return match ? match[1] + 'мм' : null
+                      }
+                      const baseThickness = extractThickness(baseMat)
                       const sheetReqs = taskReqs.filter(r => {
                         const rNom = nomenclatures.find(n => n.id === r.nomenclature_id)
                         const rName = rNom?.name || r.details || ''
@@ -2944,26 +2955,31 @@ const ForemanWorkplace = () => {
                         const isSheet = lowerName.includes('лист') || lowerName.includes('sheet')
                         if (!isSheet) return false
                         
+                        const reqThickness = extractThickness(lowerName)
+                        if (baseThickness && reqThickness) {
+                          return baseThickness === reqThickness
+                        }
+                        
                         const activeMaterials = baseMat.split('+').map(m => m.trim().toLowerCase())
                         return activeMaterials.some(act => lowerName.includes(act) || act.includes(lowerName))
                       })
                       
                       const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
-                        .reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+                        .reduce((sum, r) => sum + getRequestQty(r), 0)
                         
                       const pending = sheetReqs.filter(r => r.status === 'pending')
-                        .reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+                        .reduce((sum, r) => sum + getRequestQty(r), 0)
                         
-                      return { issuedSheets: issued, pendingSheets: pending }
+                      return { issuedSheets: issued, pendingSheets: pending, hasKittingReqs: sheetReqs.length > 0 }
                     }
 
-                    const { issuedSheets, pendingSheets } = getKittingSheets(genModal.task, genModal.part.nom)
+                    const { issuedSheets, pendingSheets, hasKittingReqs } = getKittingSheets(genModal.task, genModal.part.nom)
                     const generatedCount = cardsBelongingToThisSplitCount
                     const isGenerated = sheetsUsedInThisSplit >= splitSheets
                     const remainingCount = Math.max(0, splitLoadings - generatedCount)
 
                     // Розраховуємо ліміт карт на основі виданих листів
-                    const hasKittingReqs = (materialRequests || []).some(r => String(r.task_id) === String(genModal.task.id))
+                    
                     const maxAllowedToGen = hasKittingReqs 
                       ? Math.min(remainingCount, Math.floor(Math.max(0, issuedSheets - sheetsUsedInThisSplit) / currentCapacity))
                       : remainingCount
@@ -3633,7 +3649,7 @@ const ForemanWorkplace = () => {
             displayName = match ? match[1].trim() : r.details
           }
           if (displayName.toLowerCase().includes('фреза')) {
-            cuttersSummary[displayName] = (cuttersSummary[displayName] || 0) + (Number(r.quantity) || 0)
+            cuttersSummary[displayName] = (cuttersSummary[displayName] || 0) + getRequestQty(r)
           }
         })
 
@@ -4021,13 +4037,13 @@ const ForemanWorkplace = () => {
                 return nomName.includes('фреза') || detailsStr.includes('фреза')
               })
               const totalPlannedCutters = cutterRequests.length > 0
-                ? cutterRequests.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+                ? cutterRequests.reduce((sum, r) => sum + getRequestQty(r), 0)
                 : 0
 
               const plannedCuttersBreakdown = {}
               cutterRequests.forEach(r => {
                 const name = r.nomenclature?.name || 'Фреза'
-                plannedCuttersBreakdown[name] = (plannedCuttersBreakdown[name] || 0) + (Number(r.quantity) || 0)
+                plannedCuttersBreakdown[name] = (plannedCuttersBreakdown[name] || 0) + getRequestQty(r)
               })
 
               const actualCuttersBreakdown = {}

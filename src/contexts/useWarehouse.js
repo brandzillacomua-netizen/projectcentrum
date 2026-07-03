@@ -590,12 +590,13 @@ export function createWarehouseActions({
       const reqPromises = []
       if (requestUpdateList.length > 0) {
         reqPromises.push(supabase.from('material_requests').upsert(requestUpdateList.map(upd => {
+          const originalReq = relevantRequests.find(r => r.id === upd.id)
           const res = {
             id: upd.id,
             status: upd.status,
-            inventory_id: upd.inventory_id
+            inventory_id: upd.inventory_id,
+            quantity: upd.quantity !== undefined ? upd.quantity : (originalReq ? originalReq.quantity : null)
           }
-          if (upd.quantity !== undefined) res.quantity = upd.quantity
           return res
         })))
       }
