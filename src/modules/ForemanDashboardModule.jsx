@@ -51,7 +51,7 @@ const renderVal = (val = 0, type = 'normal', demand = 0) => {
 }
 
 const getGroupTotals = (rows) => {
-  const r = { qCutWait: 0, qCut: 0, qCutBuf: 0, qGalt: 0, qGaltBuf: 0, qPriy: 0, qSortAct: 0, qSort: 0, qMalWait: 0, qMal: 0, qMalBuf: 0, qPres: 0, qPresBuf: 0, qDoop: 0, qDoopBuf: 0, qSgp: 0, qBz: 0, qScrap: 0, sum: 0 }
+  const r = { qCutWait: 0, qCut: 0, qCutBuf: 0, qGalt: 0, qGaltBuf: 0, qPriy: 0, qSortAct: 0, qSort: 0, qMalWait: 0, qMal: 0, qMalBuf: 0, qPresWait: 0, qPres: 0, qPresBuf: 0, qDoopWait: 0, qDoop: 0, qDoopBuf: 0, qSgp: 0, qBz: 0, qScrap: 0, sum: 0 }
   rows.forEach(row => {
     Object.keys(r).forEach(k => { r[k] += row[k] || 0 })
   })
@@ -79,8 +79,10 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
           <th style={TH}>Очік. Малярка</th>
           <th style={TH}>Малярка</th>
           <th style={TH}>Буфер Мал.</th>
+          <th style={TH}>Очік. Прес.</th>
           <th style={TH}>Пресування</th>
           <th style={TH}>Буфер Прес.</th>
+          <th style={TH}>Очік. Доопр.</th>
           <th style={TH}>Доопрац.</th>
           <th style={TH}>Буфер Доопр.</th>
           <th style={{ ...TH, color: '#10b981', background: '#12251e' }}>СГП</th>
@@ -135,8 +137,10 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
                     <td style={TD}>{renderVal(row.qMalWait)}</td>
                     <td style={TD}>{renderVal(row.qMal)}</td>
                     <td style={TD}>{renderVal(row.qMalBuf)}</td>
+                    <td style={TD}>{renderVal(row.qPresWait)}</td>
                     <td style={TD}>{renderVal(row.qPres)}</td>
                     <td style={TD}>{renderVal(row.qPresBuf)}</td>
+                    <td style={TD}>{renderVal(row.qDoopWait)}</td>
                     <td style={TD}>{renderVal(row.qDoop)}</td>
                     <td style={TD}>{renderVal(row.qDoopBuf)}</td>
                     <td style={{ ...TD, background: 'rgba(16,185,129,0.03)' }}>{renderVal(row.qSgp, 'sgp')}</td>
@@ -160,8 +164,10 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
                   <td style={TD}>{renderVal(gt.qMalWait)}</td>
                   <td style={TD}>{renderVal(gt.qMal)}</td>
                   <td style={TD}>{renderVal(gt.qMalBuf)}</td>
+                  <td style={TD}>{renderVal(gt.qPresWait)}</td>
                   <td style={TD}>{renderVal(gt.qPres)}</td>
                   <td style={TD}>{renderVal(gt.qPresBuf)}</td>
+                  <td style={TD}>{renderVal(gt.qDoopWait)}</td>
                   <td style={TD}>{renderVal(gt.qDoop)}</td>
                   <td style={TD}>{renderVal(gt.qDoopBuf)}</td>
                   <td style={{ ...TD, background: 'rgba(16,185,129,0.08)' }}>{renderVal(gt.qSgp, 'sgp')}</td>
@@ -192,8 +198,10 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
               <td style={TD}>{renderVal(gt.qMalWait)}</td>
               <td style={TD}>{renderVal(gt.qMal)}</td>
               <td style={TD}>{renderVal(gt.qMalBuf)}</td>
+              <td style={TD}>{renderVal(gt.qPresWait)}</td>
               <td style={TD}>{renderVal(gt.qPres)}</td>
               <td style={TD}>{renderVal(gt.qPresBuf)}</td>
+              <td style={TD}>{renderVal(gt.qDoopWait)}</td>
               <td style={TD}>{renderVal(gt.qDoop)}</td>
               <td style={TD}>{renderVal(gt.qDoopBuf)}</td>
               <td style={{ ...TD, background: 'rgba(16,185,129,0.12)' }}>{renderVal(gt.qSgp, 'sgp')}</td>
@@ -442,12 +450,21 @@ const ForemanDashboardModule = () => {
   const taskStatusMap = useMemo(() => {
     const map = {}
     relevantTasks.forEach(task => {
-      const hasActiveShop2Task = tasks.some(s2 =>
+      const shop2Tasks = tasks.filter(s2 =>
         String(s2.order_id) === String(task.order_id) &&
         s2.batch_index === task.batch_index &&
-        (s2.step?.includes('Пресування') || s2.step?.includes('ЦЕХ №2') || s2.step?.includes('Доопрацювання')) &&
-        s2.status !== 'completed'
+        (s2.step?.includes('Пресування') || s2.step?.includes('ЦЕХ №2') || s2.step?.includes('Доопрацювання'))
       )
+      // Shop 2 is considered "active" only if it has non-completed cards
+      // If all cards are done (or no cards but task not yet closed), check actual card state
+      const hasActiveShop2Task = shop2Tasks.some(s2 => {
+        if (s2.status === 'completed') return false
+        const s2Cards = allTasksCards.filter(c => c.task_id === s2.id && c.operation !== 'Склад БЗ')
+        // If no cards in Shop 2 task yet → it's still waiting/active
+        if (s2Cards.length === 0) return s2.status === 'waiting' || s2.status === 'in-progress'
+        // If all Shop 2 cards are completed → treat as done
+        return s2Cards.some(c => c.status !== 'completed')
+      })
 
       if (task.status === 'completed' && !hasActiveShop2Task) { map[task.id] = 'completed'; return }
       const taskCards = allTasksCards.filter(c => c.task_id === task.id && c.operation !== 'Склад БЗ')
@@ -468,21 +485,35 @@ const ForemanDashboardModule = () => {
         const produced = taskProd[nomIdStr] || 0
         if (produced < snap.need) allDone = false
 
-        // Shortage check
+        // Shortage check — only flag if actual production is still below need
+        // If produced >= need, never show shortage regardless of scrap math
         const need = snap.need || 0
         const stock = snap.stock || 0
         const sheets = snap.sheets || 0
         const units = snap.units_per_sheet || 1
         const scrap = taskScrap[nomIdStr] || 0
         const totalBZ = (sheets * units) + stock - need
-        if ((totalBZ - scrap) < 0) hasShortage = true
+        if (produced < need && (totalBZ - scrap) < 0) hasShortage = true
       })
 
-      const hasActiveCards = taskCards.some(c => c.operation !== 'Склад БЗ' && !['completed', 'at-shop2-buffer'].includes(c.status))
+      // Cards still actively being processed in Shop 1 pipeline (not yet sorted/transferred)
+      const hasActivePipelineCards = taskCards.some(c =>
+        c.operation !== 'Склад БЗ' &&
+        c.status !== 'completed' &&
+        c.status !== 'at-shop2-buffer'
+      )
+      // Cards in Shop 2 buffer — only relevant if we haven't yet produced enough
+      const hasBufferCards = taskCards.some(c => c.status === 'at-shop2-buffer')
 
-      if (hasShortage) map[task.id] = 'shortage'
-      else if (hasActiveShop2Task) map[task.id] = 'in_progress'
-      else if (allDone && !hasActiveCards) map[task.id] = 'ready'
+      // Ready: all produced AND no cards still in Shop 1 pipeline
+      // at-shop2-buffer cards are OK to ignore when allDone=true because their output is already in SGP
+      const hasActiveCards = hasActivePipelineCards || (hasBufferCards && !allDone)
+
+      // Ready: all produced AND no cards in pipeline AND no active Shop 2 work
+      // hasActiveShop2Task is smart: true only when Shop2 has non-completed cards OR has no cards but is still in-progress/waiting
+      if (allDone && !hasActiveCards && !hasActiveShop2Task) map[task.id] = 'ready'
+      else if (hasShortage) map[task.id] = 'shortage'
+      else if (hasActiveShop2Task || hasActiveCards) map[task.id] = 'in_progress'
       else map[task.id] = 'in_progress'
     })
     return map
@@ -636,9 +667,11 @@ const ForemanDashboardModule = () => {
         const qMalWait = getQ(['Фарбування', 'Малярка'], ['new'])
         const qMal = getQ(['Фарбування', 'Малярка'], ['in-progress'])
         const qMalBuf = getQ(['Фарбування', 'Малярка'], ['at-buffer'])
-        const qPres = getQ(['Пресування'], ['new', 'in-progress'])
+        const qPresWait = getQ(['Пресування'], ['new'])
+        const qPres = getQ(['Пресування'], ['in-progress'])
         const qPresBuf = getQ(['Пресування'], ['at-buffer'])
-        const qDoop = getQ(['Доопрацювання'], ['new', 'in-progress'])
+        const qDoopWait = getQ(['Доопрацювання'], ['new'])
+        const qDoop = getQ(['Доопрацювання'], ['in-progress'])
         const qDoopBuf = getQ(['Доопрацювання'], ['at-buffer'])
 
         // Find booked BZ from plan snapshot (which is already ready/finished for this order), summing across all relevant orders
@@ -693,7 +726,7 @@ const ForemanDashboardModule = () => {
         }).map(c => c.id))
         const qScrap = allCardsHistory.filter(h => h.card_id && cardIdsForThisPart.has(h.card_id)).reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
 
-        const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qMalWait + qMal + qMalBuf + qPres + qPresBuf + qDoop + qDoopBuf + qSgp + qBz
+        const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf + qSgp + qBz
 
         const matchSearch = !searchQuery ||
           nom.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -707,8 +740,8 @@ const ForemanDashboardModule = () => {
             demand: demandForParent,
             qtyPerProduct,
             qCutWait, qCut, qCutBuf, qGalt, qGaltBuf, qPriy,
-            qSortAct, qSort, qMalWait, qMal, qMalBuf, qPres,
-            qPresBuf, qDoop, qDoopBuf, qSgp, qBz, qScrap, sum
+            qSortAct, qSort, qMalWait, qMal, qMalBuf, qPresWait, qPres,
+            qPresBuf, qDoopWait, qDoop, qDoopBuf, qSgp, qBz, qScrap, sum
           })
         }
       })
@@ -1139,9 +1172,11 @@ const OrderDetailView = ({
       const qMalWait = getQFromCards(['Фарбування', 'Малярка'], ['new'])
       const qMal = getQFromCards(['Фарбування', 'Малярка'], ['in-progress'])
       const qMalBuf = getQFromCards(['Фарбування', 'Малярка'], ['at-buffer'])
-      const qPres = getQFromCards(['Пресування'], ['new', 'in-progress'])
+      const qPresWait = getQFromCards(['Пресування'], ['new'])
+      const qPres = getQFromCards(['Пресування'], ['in-progress'])
       const qPresBuf = getQFromCards(['Пресування'], ['at-buffer'])
-      const qDoop = getQFromCards(['Доопрацювання'], ['new', 'in-progress'])
+      const qDoopWait = getQFromCards(['Доопрацювання'], ['new'])
+      const qDoop = getQFromCards(['Доопрацювання'], ['in-progress'])
       const qDoopBuf = getQFromCards(['Доопрацювання'], ['at-buffer'])
 
       const groupProduced = nomCards.filter(c => {
@@ -1172,7 +1207,7 @@ const OrderDetailView = ({
       const cardIdsForThisPart = new Set(nomCards.map(c => c.id))
       const scrap = allCardsHistory.filter(h => h.card_id && cardIdsForThisPart.has(h.card_id)).reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
 
-      const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qMalWait + qMal + qMalBuf + qPres + qPresBuf + qDoop + qDoopBuf + qBz + qSgp
+      const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf + qBz + qSgp
 
       const matchSearch = !searchQuery ||
         nom.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -1183,8 +1218,8 @@ const OrderDetailView = ({
           id: nomIdStr, name: nom.name, code: nom.code || '',
           demand: snap.need || 0,
           qCutWait, qCut, qCutBuf, qGalt, qGaltBuf, qPriy,
-          qSortAct, qSort, qMalWait, qMal, qMalBuf, qPres,
-          qPresBuf, qDoop, qDoopBuf, qBz, qSgp, qScrap: scrap, sum
+          qSortAct, qSort, qMalWait, qMal, qMalBuf, qPresWait, qPres,
+          qPresBuf, qDoopWait, qDoop, qDoopBuf, qBz, qSgp, qScrap: scrap, sum
         })
       }
     })

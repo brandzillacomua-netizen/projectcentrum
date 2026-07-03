@@ -34,7 +34,19 @@ export function createProductionActions({
   const approveDirector = async (taskId) => {
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, director_conf: true } : t))
     await supabase.from('tasks').update({ director_conf: true }).eq('id', taskId);
-    const targetTask = tasks.find(t => String(t.id) === String(taskId))
+    
+    // Fetch fresh task from Supabase to guarantee we copy the absolute latest database plan_snapshot
+    const { data: targetTask, error: fetchErr } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('id', taskId)
+      .single();
+
+    if (fetchErr || !targetTask) {
+      console.error('Failed to fetch fresh task for Shop 2 initialization:', fetchErr);
+      return;
+    }
+
     if (targetTask && targetTask.order_id) {
       const existingShop2 = tasks.find(t =>
         String(t.order_id) === String(targetTask.order_id) &&

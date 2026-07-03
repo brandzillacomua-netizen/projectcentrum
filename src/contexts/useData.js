@@ -143,7 +143,7 @@ export function useData() {
   // ── LEVEL 1: Critical data only — loads in ~300ms, shows portal immediately ──
   const fetchCritical = async () => {
     try {
-      const threeDaysAgoTasks = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+      const threeDaysAgoTasks = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
       const [
         { data: su },
         { data: mc },
@@ -238,7 +238,7 @@ export function useData() {
     if (!force && Date.now() - lastFetchTime < 1000) return
     try {
       setLastFetchTime(Date.now())
-      const threeDaysAgoTasks = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+      const threeDaysAgoTasks = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
       const needNomenclatures = nomenclatures.length === 0
       const needBOM = bomItems.length === 0
@@ -356,7 +356,7 @@ export function useData() {
         const { data } = await supabase.from('inventory').select('*').order('name')
         if (data) setInventory(data)
       } else if (tableName === 'tasks') {
-        const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+        const threeDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
         // No nested JOIN — tasks reference orders via order_id already in state
         const { data } = await supabase.from('tasks').select('id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,plan_snapshot,batch_index,planned_deadline,machine_name,created_at,completed_at').or(`status.neq.completed,completed_at.gte.${threeDaysAgo}`).order('created_at', { ascending: false })
         if (data) setTasks(data)
@@ -453,7 +453,7 @@ export function useData() {
 
   // --- REAL-TIME ---
   useEffect(() => {
-    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
+    const threeDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
     const channel = supabase.channel('mes-global-updates')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'work_cards' }, (payload) => {
         if (payload.eventType === 'UPDATE') {

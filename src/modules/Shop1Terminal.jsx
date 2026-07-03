@@ -135,6 +135,12 @@ export default function Shop1Terminal() {
   // Фільтр таблиці "В роботі та буфері"
   const [activeTableFilter, setActiveTableFilter] = useState('all') // 'all' | 'in-progress' | 'at-buffer'
   const [queueFilter, setQueueFilter] = useState('all') // 'all' | 'new' | 'at-buffer'
+  const [selectedTaskFilter, setSelectedTaskFilter] = useState('all')
+  const [selectedNomFilter, setSelectedNomFilter] = useState('all')
+
+  useEffect(() => {
+    setSelectedNomFilter('all')
+  }, [selectedTaskFilter])
 
   // Emergency Machine Call Modal state
   const [machineCallModal, setMachineCallModal] = useState(null)
@@ -869,6 +875,83 @@ export default function Shop1Terminal() {
     } catch (e) { console.warn(`Stock update failed for type ${type}:`, e) }
   }
 
+  const queueTasksOptions = React.useMemo(() => {
+    const list = []
+    const seen = new Set()
+    workCards.forEach(c => {
+      if (c.status === 'completed' || c.status === 'in-progress' || c.status === 'paused' || c.status === 'at-shop2-buffer') return
+      const info = String(c.card_info || '')
+      if (info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')) return
+      
+      const nom = nomenclatures?.find(n => n.id === c.nomenclature_id)
+      if (nom && nom.type && nom.type !== 'part') return
+
+      const parentTask = tasks.find(t => String(t.id) === String(c.task_id))
+      if (parentTask) {
+        if (parentTask.status === 'completed') return
+        if (String(parentTask.step || '').includes('[ЦЕХ №2]')) return
+      }
+
+      const isNewForShop1 = c.status === 'new' && (CHAIN.includes(c.operation) || !c.operation || c.operation === 'Нова' || c.operation === 'Розкрій')
+      const isInBufferForShop1 = c.status === 'at-buffer' && CHAIN.includes(c.operation)
+      const isScanned = scannedIds.includes(c.id)
+
+      if (isNewForShop1 || isInBufferForShop1 || isScanned) {
+        const order = orders?.find(o => o.id === c.order_id)
+        const orderNum = order?.order_num || ''
+        const batchSuffix = parentTask?.batch_index ? `/${parentTask.batch_index}` : ''
+        const displayLabel = `Наряд №${orderNum}${batchSuffix}`
+        const valueKey = c.task_id ? String(c.task_id) : `order-${c.order_id}`
+        
+        if (valueKey && !seen.has(valueKey)) {
+          seen.add(valueKey)
+          list.push({ value: valueKey, label: displayLabel, orderNum })
+        }
+      }
+    })
+    return list.sort((a, b) => String(a.orderNum).localeCompare(String(b.orderNum)))
+  }, [workCards, nomenclatures, tasks, orders, scannedIds])
+
+  const queueNomOptions = React.useMemo(() => {
+    const list = []
+    const seen = new Set()
+    workCards.forEach(c => {
+      if (c.status === 'completed' || c.status === 'in-progress' || c.status === 'paused' || c.status === 'at-shop2-buffer') return
+      const info = String(c.card_info || '')
+      if (info.includes('[ЦЕХ №2]') || info.includes('[ЦЕХ 2]')) return
+      
+      const nom = nomenclatures?.find(n => n.id === c.nomenclature_id)
+      if (nom && nom.type && nom.type !== 'part') return
+
+      const parentTask = tasks.find(t => String(t.id) === String(c.task_id))
+      if (parentTask) {
+        if (parentTask.status === 'completed') return
+        if (String(parentTask.step || '').includes('[ЦЕХ №2]')) return
+      }
+
+      if (selectedTaskFilter !== 'all') {
+        if (selectedTaskFilter.startsWith('order-')) {
+          const orderId = selectedTaskFilter.replace('order-', '')
+          if (String(c.order_id) !== orderId) return
+        } else {
+          if (String(c.task_id) !== selectedTaskFilter) return
+        }
+      }
+
+      const isNewForShop1 = c.status === 'new' && (CHAIN.includes(c.operation) || !c.operation || c.operation === 'Нова' || c.operation === 'Розкрій')
+      const isInBufferForShop1 = c.status === 'at-buffer' && CHAIN.includes(c.operation)
+      const isScanned = scannedIds.includes(c.id)
+
+      if (isNewForShop1 || isInBufferForShop1 || isScanned) {
+        if (nom && !seen.has(nom.id)) {
+          seen.add(nom.id)
+          list.push(nom)
+        }
+      }
+    })
+    return list.sort((a, b) => String(a.name).localeCompare(String(b.name)))
+  }, [workCards, nomenclatures, tasks, selectedTaskFilter, scannedIds])
+
   // Картки для черги зліва:
   // - нові картки (ще не взяті в роботу) — показуємо ВСІХ нових незалежно від operation
   //   бо оператор сам призначить першу операцію (Розкрій)
@@ -933,7 +1016,22 @@ export default function Shop1Terminal() {
       }
     }
 
-    return (isNewForShop1 || isInBufferForShop1 || isScanned) && matchesSection && matchesSearch
+    let matchesTask = true
+    if (selectedTaskFilter !== 'all') {
+      if (selectedTaskFilter.startsWith('order-')) {
+        const orderId = selectedTaskFilter.replace('order-', '')
+        matchesTask = String(c.order_id) === orderId
+      } else {
+        matchesTask = String(c.task_id) === selectedTaskFilter
+      }
+    }
+
+    let matchesNom = true
+    if (selectedNomFilter !== 'all') {
+      matchesNom = String(c.nomenclature_id) === selectedNomFilter
+    }
+
+    return (isNewForShop1 || isInBufferForShop1 || isScanned) && matchesSection && matchesSearch && matchesTask && matchesNom
   }).sort((a, b) => {
     const aIsGaltBuf = a.status === 'at-buffer' && a.operation === 'Розкрій'
     const bIsGaltBuf = b.status === 'at-buffer' && b.operation === 'Розкрій'
@@ -3595,6 +3693,42 @@ export default function Shop1Terminal() {
               </select>
             </div>
 
+            {/* Фільтр по наряду */}
+            <div>
+              <select
+                value={selectedTaskFilter}
+                onChange={e => setSelectedTaskFilter(e.target.value)}
+                style={{
+                  width: '100%', background: '#18181f', border: '1px solid #2a2a35', color: '#fff',
+                  padding: '8px 10px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 800,
+                  outline: 'none', cursor: 'pointer'
+                }}
+              >
+                <option value="all">📋 УСІ НАРЯДИ</option>
+                {queueTasksOptions.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Фільтр по деталі */}
+            <div>
+              <select
+                value={selectedNomFilter}
+                onChange={e => setSelectedNomFilter(e.target.value)}
+                style={{
+                  width: '100%', background: '#18181f', border: '1px solid #2a2a35', color: '#fff',
+                  padding: '8px 10px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 800,
+                  outline: 'none', cursor: 'pointer'
+                }}
+              >
+                <option value="all">🔍 УСІ ДЕТАЛІ</option>
+                {queueNomOptions.map(nom => (
+                  <option key={nom.id} value={nom.id}>{nom.name}</option>
+                ))}
+              </select>
+            </div>
+
             <div style={{ display: 'flex', gap: '4px' }}>
               {[['all', 'ВСІ'], ['new', 'НОВІ'], ['at-buffer', 'БУФЕР']].map(([val, label]) => (
                 <button key={val} onClick={() => setQueueFilter(val)} style={{
@@ -3646,6 +3780,42 @@ export default function Shop1Terminal() {
                 <option value="Галтовка">🌀 ГАЛТОВКА (БУФЕР)</option>
                 <option value="Прийомка">📦 ПРИЙОМКА (БУФЕР)</option>
                 <option value="Сортування">🔍 СОРТУВАННЯ (БУФЕР)</option>
+              </select>
+            </div>
+
+            {/* Фільтр по наряду (Мобільний) */}
+            <div>
+              <select
+                value={selectedTaskFilter}
+                onChange={e => setSelectedTaskFilter(e.target.value)}
+                style={{
+                  width: '100%', background: '#18181f', border: '1px solid #2a2a35', color: '#fff',
+                  padding: '8px 10px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 800,
+                  outline: 'none', cursor: 'pointer'
+                }}
+              >
+                <option value="all">📋 УСІ НАРЯДИ</option>
+                {queueTasksOptions.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Фільтр по деталі (Мобільний) */}
+            <div>
+              <select
+                value={selectedNomFilter}
+                onChange={e => setSelectedNomFilter(e.target.value)}
+                style={{
+                  width: '100%', background: '#18181f', border: '1px solid #2a2a35', color: '#fff',
+                  padding: '8px 10px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 800,
+                  outline: 'none', cursor: 'pointer'
+                }}
+              >
+                <option value="all">🔍 УСІ ДЕТАЛІ</option>
+                {queueNomOptions.map(nom => (
+                  <option key={nom.id} value={nom.id}>{nom.name}</option>
+                ))}
               </select>
             </div>
 

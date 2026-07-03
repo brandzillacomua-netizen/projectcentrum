@@ -12,36 +12,24 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 async function main() {
-  const { data: orderData, error: orderErr } = await supabase
+  const { data: orderData } = await supabase
     .from('orders')
-    .select('*, order_items(*)')
+    .select('*')
     .eq('order_num', '27062026-01')
     .single();
 
-  if (orderErr) {
-    console.error('Order err:', orderErr);
-    return;
-  }
-
-  console.log('ORDER DETAILS:');
-  console.log('Order ID:', orderData.id);
-  console.log('Quantity:', orderData.quantity);
-  console.log('Order Items:', orderData.order_items);
-
-  const { data: tasksData, error: tasksErr } = await supabase
+  const { data: tasksData } = await supabase
     .from('tasks')
-    .select('*')
+    .select('id, step, status, created_at, completed_at')
     .eq('order_id', orderData.id);
 
-  if (tasksErr) {
-    console.error('Tasks err:', tasksErr);
-    return;
-  }
-
-  console.log('\nTASKS DETAILS:');
+  console.log('TASKS CREATION TIMESTAMPS:');
   tasksData.forEach(t => {
-    console.log('--- Task ID:', t.id, 'Step:', t.step, 'Status:', t.status);
-    console.log('Plan Snapshot:', JSON.stringify(t.plan_snapshot, null, 2));
+    console.log(`Task: ${t.step}`);
+    console.log(`  ID: ${t.id}`);
+    console.log(`  Created: ${t.created_at}`);
+    console.log(`  Completed: ${t.completed_at}`);
+    console.log(`  Status: ${t.status}`);
   });
 }
 
