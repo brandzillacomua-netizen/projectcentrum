@@ -521,7 +521,39 @@ const Shop2Module = () => {
                       })()}
                     </div>
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: isCompleted ? '#222' : '#555', marginTop: '4px' }}>{order?.customer}</div>
+                  {(() => {
+                    const snap = task.plan_snapshot || {}
+                    // Визначаємо назву виробу
+                    const prodName = (order?.order_items || [])
+                      .map(it => (nomenclatures || []).find(n => n.id === it.nomenclature_id)?.name)
+                      .filter(Boolean)
+                      .join(', ') || '—'
+                    
+                    // Сумуємо потребу деталей
+                    const totalQty = Object.values(snap)
+                      .filter(v => v && typeof v === 'object' && v.need)
+                      .reduce((s, v) => s + (Number(v.need) || 0), 0)
+
+                    return (
+                      <div style={{ marginTop: '6px', borderTop: '1px dashed #222', paddingTop: '6px' }}>
+                        {order?.customer && (
+                          <div style={{ fontSize: '0.75rem', color: isCompleted ? '#333' : '#a1a1aa', fontWeight: 700 }}>
+                            {order.customer}
+                          </div>
+                        )}
+                        {prodName !== '—' && (
+                          <div style={{ fontSize: '0.72rem', color: isCompleted ? '#2a2a2a' : '#71717a', marginTop: '2px', fontWeight: 600 }}>
+                            Виріб: <span style={{ color: isCompleted ? '#444' : '#fff' }}>{prodName}</span>
+                          </div>
+                        )}
+                        {totalQty > 0 && (
+                          <div style={{ fontSize: '0.72rem', color: isCompleted ? '#2a2a2a' : '#71717a', marginTop: '2px', fontWeight: 600 }}>
+                            Кількість: <span style={{ color: '#8b5cf6', fontWeight: 900 }}>{totalQty} шт</span>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
                   {task.status === 'waiting' && !hasBufferParts(task) && (
                     <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 900, marginTop: '8px' }}>ЧЕК. ДЕТАЛІ З ЦЕХ №1</div>
                   )}
@@ -690,11 +722,11 @@ const Shop2Module = () => {
                           )
                           const s1TaskId = s1Task?.id
 
-                          // Реально прийшло в буфер Цеху №2 з сортування
+                          // Реально прийшло в буфер Цеху №2 з сортування (як ті що лежать в буфері, так і виконані в Цеху 1)
                           const s2CardsForNom = (workCards || []).filter(c =>
                             String(c.task_id) === String(s1TaskId) &&
                             String(c.nomenclature_id) === String(item.nom?.id) &&
-                            c.status === 'at-shop2-buffer'
+                            (c.status === 'at-shop2-buffer' || c.status === 'completed')
                           )
                           const totalArrived = s2CardsForNom.reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
@@ -705,8 +737,23 @@ const Shop2Module = () => {
                           const actualArrived = Math.max(totalArrived, arrival ? (Number(arrival.semi) || 0) + (Number(arrival.bz) || 0) : 0)
 
                           const displayNeed = plannedNeed
-                          const displayBz = Math.max(arrival ? (Number(arrival.bz) || 0) : 0, totalArrived > plannedNeed ? totalArrived - plannedNeed : 0)
-                          const displayTotal = displayNeed + displayBz
+                           const plannedBz = arrival ? (Number(arrival.bz) || 0) : 0
+                           const snapEntry = snap[String(item.nom?.id)] || {}
+                           const unitsPerSheet = Number(snapEntry.units_per_sheet) || 1
+                           
+                           let displayTotal = plannedNeed + plannedBz
+                           let displayBz = plannedBz
+                           
+                           if (actualArrived < plannedNeed) {
+                             const shortage = plannedNeed - actualArrived
+                             const sheetsNeeded = Math.ceil(shortage / unitsPerSheet)
+                             const reissueQty = sheetsNeeded * unitsPerSheet
+                             displayTotal = actualArrived + reissueQty
+                             displayBz = displayTotal - plannedNeed
+                          } else {
+                            displayTotal = actualArrived
+                            displayBz = actualArrived - plannedNeed
+                          }
 
                           // Загальна кількість деталей, яка вже пішла в процес (згенеровані робочі карти в Цеху №2)
                           const allShop2CardsForNom = [...(workCards || []), ...(completedCards || []).filter(ac => !(workCards || []).some(wc => wc.id === ac.id))].filter(c =>
@@ -724,7 +771,24 @@ const Shop2Module = () => {
                                 <div style={{ color: '#666', fontSize: '0.85rem', fontWeight: 700 }}>{item.nom?.material_type || '—'}</div>
                               </td>
                               <td style={{ padding: '20px', textAlign: 'center', color: '#fff', fontSize: '1.2rem', fontWeight: 600 }}>
-                                {displayNeed}
+                                {(() => {
+                                  const snapEntry = snap[String(item.nom?.id)] || {}
+                                  const bzStock = Number(snapEntry.stock) || 0
+                                  const totalNeed = Number(snapEntry.need) || displayNeed
+                                  const planToProduce = snapEntry.plan !== undefined ? Number(snapEntry.plan) : (totalNeed - bzStock)
+                                  
+                                  if (bzStock > 0) {
+                                    return (
+                                      <div>
+                                        <div style={{ fontSize: '1.15rem' }}>{totalNeed}</div>
+                                        <div style={{ fontSize: '0.68rem', color: '#a1a1aa', fontWeight: 600, marginTop: '4px', background: 'rgba(234,179,8,0.06)', border: '1px solid rgba(234,179,8,0.15)', padding: '2px 6px', borderRadius: '6px', display: 'inline-block' }}>
+                                          БЗ - {bzStock} / Виробити {planToProduce} шт
+                                        </div>
+                                      </div>
+                                    )
+                                  }
+                                  return displayNeed
+                                })()}
                               </td>
                               {!isReworkOrder && (
                                 <>
@@ -1072,7 +1136,7 @@ const Shop2Module = () => {
                         const s2CardsForNom = (workCards || []).filter(c =>
                           String(c.task_id) === String(s1TaskId) &&
                           String(c.nomenclature_id) === nomId &&
-                          c.status === 'at-shop2-buffer'
+                          (c.status === 'at-shop2-buffer' || c.status === 'completed')
                         )
                         const totalArrived = s2CardsForNom.reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
@@ -1081,10 +1145,21 @@ const Shop2Module = () => {
                         const actualArrived = Math.max(totalArrived, arrival ? (Number(arrival.semi) || 0) + (Number(arrival.bz) || 0) : 0)
 
                         const plannedNeed = Number(item.need) || 0
-                        const displayBz = Math.max(arrival ? (Number(arrival.bz) || 0) : 0, totalArrived > plannedNeed ? totalArrived - plannedNeed : 0)
-                        const displayTotal = plannedNeed + displayBz
-
-                        const waitingQty = displayTotal - actualArrived
+                        const plannedBz = arrival ? (Number(arrival.bz) || 0) : 0
+                        const snapEntry = snap[nomId] || {}
+                        const unitsPerSheet = Number(snapEntry.units_per_sheet) || 1
+                        
+                        let displayTotal = plannedNeed + plannedBz
+                        if (actualArrived < plannedNeed) {
+                          const shortage = plannedNeed - actualArrived
+                          const sheetsNeeded = Math.ceil(shortage / unitsPerSheet)
+                          const reissueQty = sheetsNeeded * unitsPerSheet
+                          displayTotal = actualArrived + reissueQty
+                        } else {
+                          displayTotal = actualArrived
+                        }
+                        
+                        const waitingQty = actualArrived < plannedNeed ? (displayTotal - actualArrived) : 0
                         return {
                           nom: item.nom,
                           code: item.code,

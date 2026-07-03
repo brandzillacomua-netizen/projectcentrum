@@ -61,159 +61,197 @@ const getGroupTotals = (rows) => {
 // ─────────────────────────────────────────────────────────────
 // WIP Table component (reusable for overview & per-order)
 // ─────────────────────────────────────────────────────────────
-const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 'Немає даних' }) => (
-  <div style={{ borderRadius: '16px', border: '1px solid #27272a', background: '#09090b', overflow: 'auto', maxHeight }}>
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem', color: '#f4f4f5' }}>
-      <thead>
-        <tr style={{ background: '#18181b', color: '#a1a1aa', textAlign: 'center', borderBottom: '2px solid #27272a' }}>
-          <th style={TH_STICKY}>Номенклатура</th>
-          <th style={TH_SUM}>Сума</th>
-          <th style={TH}>Очік. Розкрій</th>
-          <th style={TH}>Розкрій</th>
-          <th style={TH}>Буфер Розкр.</th>
-          <th style={TH}>Галтовка</th>
-          <th style={TH}>Буфер Галт.</th>
-          <th style={TH}>Прийомка</th>
-          <th style={TH}>Сортування</th>
-          <th style={TH}>Буфер Цех2</th>
-          <th style={TH}>Очік. Малярка</th>
-          <th style={TH}>Малярка</th>
-          <th style={TH}>Буфер Мал.</th>
-          <th style={TH}>Очік. Прес.</th>
-          <th style={TH}>Пресування</th>
-          <th style={TH}>Буфер Прес.</th>
-          <th style={TH}>Очік. Доопр.</th>
-          <th style={TH}>Доопрац.</th>
-          <th style={TH}>Буфер Доопр.</th>
-          <th style={{ ...TH, color: '#10b981', background: '#12251e' }}>СГП</th>
-          <th style={{ ...TH, color: '#10b981', background: '#12251e' }}>БЗ</th>
-          <th style={{ ...TH, color: '#ef4444', background: '#221414', borderRight: 'none' }}>Брак</th>
-        </tr>
-      </thead>
-      <tbody>
-        {groupedData.length === 0 ? (
-          <tr>
-            <td colSpan={20} style={{ padding: '40px', textAlign: 'center', color: '#52525b', fontStyle: 'italic' }}>
-              {emptyText}
-            </td>
+const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 'Немає даних' }) => {
+  const [isFull, setIsFull] = React.useState(false)
+
+  const renderTable = (scrollMaxHeight) => (
+    <div style={{ borderRadius: '16px', border: '1px solid #27272a', background: '#09090b', overflow: 'auto', maxHeight: scrollMaxHeight, width: '100%' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem', color: '#f4f4f5', minWidth: '800px' }}>
+        <thead>
+          <tr style={{ background: '#18181b', color: '#a1a1aa', textAlign: 'center', borderBottom: '2px solid #27272a' }}>
+            <th style={TH_STICKY}>Номенклатура</th>
+            <th style={TH_SUM}>Сума</th>
+            <th style={TH}>Очік. Розкрій</th>
+            <th style={TH}>Розкрій</th>
+            <th style={TH}>Буфер Розкр.</th>
+            <th style={TH}>Галтовка</th>
+            <th style={TH}>Буфер Галт.</th>
+            <th style={TH}>Прийомка</th>
+            <th style={TH}>Сортування</th>
+            <th style={TH}>Буфер Цех2</th>
+            <th style={TH}>Очік. Малярка</th>
+            <th style={TH}>Малярка</th>
+            <th style={TH}>Буфер Мал.</th>
+            <th style={TH}>Очік. Прес.</th>
+            <th style={TH}>Пресування</th>
+            <th style={TH}>Буфер Прес.</th>
+            <th style={TH}>Очік. Доопр.</th>
+            <th style={TH}>Доопрац.</th>
+            <th style={TH}>Буфер Доопр.</th>
+            <th style={{ ...TH, color: '#10b981', background: '#12251e' }}>СГП</th>
+            <th style={{ ...TH, color: '#10b981', background: '#12251e' }}>БЗ</th>
+            <th style={{ ...TH, color: '#ef4444', background: '#221414', borderRight: 'none' }}>Брак</th>
           </tr>
-        ) : (
-          groupedData.map(group => {
-            const gt = getGroupTotals(group.rows)
-            return (
-              <React.Fragment key={group.id}>
-                {/* Group header */}
-                <tr style={{ background: '#1c1917', borderBottom: '2px solid #27272a' }}>
-                  <td colSpan={20} style={{ padding: '12px 16px', fontWeight: 'bold', color: '#fff', position: 'sticky', left: 0, background: '#1c1917', zIndex: 2 }}>
-                    <span style={{ color: '#ff9000', marginRight: '8px' }}>📦</span>
-                    {group.name}{group.code ? ` (${group.code})` : ''}
-                    {group.trend && (
-                      <span style={{ color: '#a1a1aa', fontSize: '0.75rem', fontWeight: 'normal', marginLeft: '12px' }}>
-                        Потенційний тренд: <strong style={{ color: '#fff' }}>{group.trend.potential}</strong> / {group.trend.demand || 0} компл.
-                        {' '}| На СГП: <strong style={{ color: '#10b981' }}>{group.trend.actual} компл.</strong>
-                      </span>
-                    )}
-                  </td>
-                </tr>
-
-                {/* Rows */}
-                {group.rows.map(row => (
-                  <tr key={row.id} style={{ background: '#09090b', borderBottom: '1px solid #1f1f22', transition: 'background 0.15s' }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#18181b'}
-                    onMouseLeave={e => e.currentTarget.style.background = '#09090b'}>
-                    <td style={{ ...TD_STICKY, paddingLeft: '28px' }}>
-                      {row.name}
-                      {row.code && <span style={{ display: 'block', fontSize: '0.68rem', color: '#52525b', marginTop: '1px' }}>Код: {row.code}</span>}
-                    </td>
-                    <td style={TD_SUM}>{renderVal(row.sum, 'sum', row.demand)}</td>
-                    <td style={TD}>{renderVal(row.qCutWait)}</td>
-                    <td style={TD}>{renderVal(row.qCut)}</td>
-                    <td style={TD}>{renderVal(row.qCutBuf)}</td>
-                    <td style={TD}>{renderVal(row.qGalt)}</td>
-                    <td style={TD}>{renderVal(row.qGaltBuf)}</td>
-                    <td style={TD}>{renderVal(row.qPriy)}</td>
-                    <td style={TD}>{renderVal(row.qSortAct)}</td>
-                    <td style={TD}>{renderVal(row.qSort)}</td>
-                    <td style={TD}>{renderVal(row.qMalWait)}</td>
-                    <td style={TD}>{renderVal(row.qMal)}</td>
-                    <td style={TD}>{renderVal(row.qMalBuf)}</td>
-                    <td style={TD}>{renderVal(row.qPresWait)}</td>
-                    <td style={TD}>{renderVal(row.qPres)}</td>
-                    <td style={TD}>{renderVal(row.qPresBuf)}</td>
-                    <td style={TD}>{renderVal(row.qDoopWait)}</td>
-                    <td style={TD}>{renderVal(row.qDoop)}</td>
-                    <td style={TD}>{renderVal(row.qDoopBuf)}</td>
-                    <td style={{ ...TD, background: 'rgba(16,185,129,0.03)' }}>{renderVal(row.qSgp, 'sgp')}</td>
-                    <td style={{ ...TD, background: 'rgba(16,185,129,0.03)' }}>{renderVal(row.qBz, 'bz')}</td>
-                    <td style={{ ...TD, background: 'rgba(239,68,68,0.03)', borderRight: 'none' }}>{renderVal(row.qScrap, 'scrap')}</td>
-                  </tr>
-                ))}
-
-                {/* Subtotals */}
-                <tr style={{ background: '#141416', fontWeight: 'bold', borderTop: '1px solid #27272a', borderBottom: '1px solid #27272a', color: '#a1a1aa', fontSize: '0.76rem' }}>
-                  <td style={{ ...TD_STICKY, fontStyle: 'italic', paddingLeft: '28px', color: '#52525b' }}>Підсумок по виробу:</td>
-                  <td style={{ ...TD_SUM, background: '#251a12' }}>{renderVal(gt.sum, 'sum')}</td>
-                  <td style={TD}>{renderVal(gt.qCutWait)}</td>
-                  <td style={TD}>{renderVal(gt.qCut)}</td>
-                  <td style={TD}>{renderVal(gt.qCutBuf)}</td>
-                  <td style={TD}>{renderVal(gt.qGalt)}</td>
-                  <td style={TD}>{renderVal(gt.qGaltBuf)}</td>
-                  <td style={TD}>{renderVal(gt.qPriy)}</td>
-                  <td style={TD}>{renderVal(gt.qSortAct)}</td>
-                  <td style={TD}>{renderVal(gt.qSort)}</td>
-                  <td style={TD}>{renderVal(gt.qMalWait)}</td>
-                  <td style={TD}>{renderVal(gt.qMal)}</td>
-                  <td style={TD}>{renderVal(gt.qMalBuf)}</td>
-                  <td style={TD}>{renderVal(gt.qPresWait)}</td>
-                  <td style={TD}>{renderVal(gt.qPres)}</td>
-                  <td style={TD}>{renderVal(gt.qPresBuf)}</td>
-                  <td style={TD}>{renderVal(gt.qDoopWait)}</td>
-                  <td style={TD}>{renderVal(gt.qDoop)}</td>
-                  <td style={TD}>{renderVal(gt.qDoopBuf)}</td>
-                  <td style={{ ...TD, background: 'rgba(16,185,129,0.08)' }}>{renderVal(gt.qSgp, 'sgp')}</td>
-                  <td style={{ ...TD, background: 'rgba(16,185,129,0.08)' }}>{renderVal(gt.qBz, 'bz')}</td>
-                  <td style={{ ...TD, background: 'rgba(239,68,68,0.08)', borderRight: 'none' }}>{renderVal(gt.qScrap, 'scrap')}</td>
-                </tr>
-              </React.Fragment>
-            )
-          })
-        )}
-
-        {/* Grand total */}
-        {groupedData.length > 1 && (() => {
-          const allRows = groupedData.flatMap(g => g.rows)
-          const gt = getGroupTotals(allRows)
-          return (
-            <tr style={{ background: '#18181b', fontWeight: 'bold', borderTop: '2px solid #ff9000', color: '#fff', fontSize: '0.8rem' }}>
-              <td style={{ ...TD_STICKY, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.72rem' }}>ЗАГАЛЬНИЙ WIP РАЗОМ:</td>
-              <td style={{ ...TD_SUM, background: '#2e2014', color: '#ff9000' }}>{renderVal(gt.sum, 'sum')}</td>
-              <td style={TD}>{renderVal(gt.qCutWait)}</td>
-              <td style={TD}>{renderVal(gt.qCut)}</td>
-              <td style={TD}>{renderVal(gt.qCutBuf)}</td>
-              <td style={TD}>{renderVal(gt.qGalt)}</td>
-              <td style={TD}>{renderVal(gt.qGaltBuf)}</td>
-              <td style={TD}>{renderVal(gt.qPriy)}</td>
-              <td style={TD}>{renderVal(gt.qSortAct)}</td>
-              <td style={TD}>{renderVal(gt.qSort)}</td>
-              <td style={TD}>{renderVal(gt.qMalWait)}</td>
-              <td style={TD}>{renderVal(gt.qMal)}</td>
-              <td style={TD}>{renderVal(gt.qMalBuf)}</td>
-              <td style={TD}>{renderVal(gt.qPresWait)}</td>
-              <td style={TD}>{renderVal(gt.qPres)}</td>
-              <td style={TD}>{renderVal(gt.qPresBuf)}</td>
-              <td style={TD}>{renderVal(gt.qDoopWait)}</td>
-              <td style={TD}>{renderVal(gt.qDoop)}</td>
-              <td style={TD}>{renderVal(gt.qDoopBuf)}</td>
-              <td style={{ ...TD, background: 'rgba(16,185,129,0.12)' }}>{renderVal(gt.qSgp, 'sgp')}</td>
-              <td style={{ ...TD, background: 'rgba(16,185,129,0.12)' }}>{renderVal(gt.qBz, 'bz')}</td>
-              <td style={{ ...TD, background: 'rgba(239,68,68,0.12)', borderRight: 'none' }}>{renderVal(gt.qScrap, 'scrap')}</td>
+        </thead>
+        <tbody>
+          {groupedData.length === 0 ? (
+            <tr>
+              <td colSpan={22} style={{ padding: '40px', textAlign: 'center', color: '#52525b', fontStyle: 'italic' }}>
+                {emptyText}
+              </td>
             </tr>
-          )
-        })()}
-      </tbody>
-    </table>
-  </div>
-)
+          ) : (
+            groupedData.map(group => {
+              const gt = getGroupTotals(group.rows)
+              return (
+                <React.Fragment key={group.id}>
+                  {/* Group header */}
+                  <tr style={{ background: '#1c1917', borderBottom: '2px solid #27272a' }}>
+                    <td colSpan={22} style={{ padding: '12px 16px', fontWeight: 'bold', color: '#fff', position: 'sticky', left: 0, background: '#1c1917', zIndex: 2 }}>
+                      <span style={{ color: '#ff9000', marginRight: '8px' }}>📦</span>
+                      {group.name}{group.code ? ` (${group.code})` : ''}
+                      {group.trend && (
+                        <span style={{ color: '#a1a1aa', fontSize: '0.75rem', fontWeight: 'normal', marginLeft: '12px' }}>
+                          Потенційний тренд: <strong style={{ color: '#fff' }}>{group.trend.potential}</strong> / {group.trend.demand || 0} компл.
+                          {' '}| На СГП: <strong style={{ color: '#10b981' }}>{group.trend.actual} компл.</strong>
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+
+                  {/* Rows */}
+                  {group.rows.map(row => (
+                    <tr key={row.id} style={{ background: '#09090b', borderBottom: '1px solid #1f1f22', transition: 'background 0.15s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#18181b'}
+                      onMouseLeave={e => e.currentTarget.style.background = '#09090b'}>
+                      <td style={{ ...TD_STICKY, paddingLeft: '28px' }}>
+                        {row.name}
+                        {row.code && <span style={{ display: 'block', fontSize: '0.68rem', color: '#52525b', marginTop: '1px' }}>Код: {row.code}</span>}
+                      </td>
+                      <td style={TD_SUM}>{renderVal(row.sum, 'sum', row.demand)}</td>
+                      <td style={TD}>{renderVal(row.qCutWait)}</td>
+                      <td style={TD}>{renderVal(row.qCut)}</td>
+                      <td style={TD}>{renderVal(row.qCutBuf)}</td>
+                      <td style={TD}>{renderVal(row.qGalt)}</td>
+                      <td style={TD}>{renderVal(row.qGaltBuf)}</td>
+                      <td style={TD}>{renderVal(row.qPriy)}</td>
+                      <td style={TD}>{renderVal(row.qSortAct)}</td>
+                      <td style={TD}>{renderVal(row.qSort)}</td>
+                      <td style={TD}>{renderVal(row.qMalWait)}</td>
+                      <td style={TD}>{renderVal(row.qMal)}</td>
+                      <td style={TD}>{renderVal(row.qMalBuf)}</td>
+                      <td style={TD}>{renderVal(row.qPresWait)}</td>
+                      <td style={TD}>{renderVal(row.qPres)}</td>
+                      <td style={TD}>{renderVal(row.qPresBuf)}</td>
+                      <td style={TD}>{renderVal(row.qDoopWait)}</td>
+                      <td style={TD}>{renderVal(row.qDoop)}</td>
+                      <td style={TD}>{renderVal(row.qDoopBuf)}</td>
+                      <td style={{ ...TD, background: 'rgba(16,185,129,0.03)' }}>{renderVal(row.qSgp, 'sgp')}</td>
+                      <td style={{ ...TD, background: 'rgba(16,185,129,0.03)' }}>{renderVal(row.qBz, 'bz')}</td>
+                      <td style={{ ...TD, background: 'rgba(239,68,68,0.03)', borderRight: 'none' }}>{renderVal(row.qScrap, 'scrap')}</td>
+                    </tr>
+                  ))}
+
+                  {/* Subtotals */}
+                  <tr style={{ background: '#141416', fontWeight: 'bold', borderTop: '1px solid #27272a', borderBottom: '1px solid #27272a', color: '#a1a1aa', fontSize: '0.76rem' }}>
+                    <td style={{ ...TD_STICKY, fontStyle: 'italic', paddingLeft: '28px', color: '#52525b' }}>Підсумок по виробу:</td>
+                    <td style={{ ...TD_SUM, background: '#251a12' }}>{renderVal(gt.sum, 'sum')}</td>
+                    <td style={TD}>{renderVal(gt.qCutWait)}</td>
+                    <td style={TD}>{renderVal(gt.qCut)}</td>
+                    <td style={TD}>{renderVal(gt.qCutBuf)}</td>
+                    <td style={TD}>{renderVal(gt.qGalt)}</td>
+                    <td style={TD}>{renderVal(gt.qGaltBuf)}</td>
+                    <td style={TD}>{renderVal(gt.qPriy)}</td>
+                    <td style={TD}>{renderVal(gt.qSortAct)}</td>
+                    <td style={TD}>{renderVal(gt.qSort)}</td>
+                    <td style={TD}>{renderVal(gt.qMalWait)}</td>
+                    <td style={TD}>{renderVal(gt.qMal)}</td>
+                    <td style={TD}>{renderVal(gt.qMalBuf)}</td>
+                    <td style={TD}>{renderVal(gt.qPresWait)}</td>
+                    <td style={TD}>{renderVal(gt.qPres)}</td>
+                    <td style={TD}>{renderVal(gt.qPresBuf)}</td>
+                    <td style={TD}>{renderVal(gt.qDoopWait)}</td>
+                    <td style={TD}>{renderVal(gt.qDoop)}</td>
+                    <td style={TD}>{renderVal(gt.qDoopBuf)}</td>
+                    <td style={{ ...TD, background: 'rgba(16,185,129,0.08)' }}>{renderVal(gt.qSgp, 'sgp')}</td>
+                    <td style={{ ...TD, background: 'rgba(16,185,129,0.08)' }}>{renderVal(gt.qBz, 'bz')}</td>
+                    <td style={{ ...TD, background: 'rgba(239,68,68,0.08)', borderRight: 'none' }}>{renderVal(gt.qScrap, 'scrap')}</td>
+                  </tr>
+                </React.Fragment>
+              )
+            })
+          )}
+
+          {/* Grand total */}
+          {groupedData.length > 1 && (() => {
+            const allRows = groupedData.flatMap(g => g.rows)
+            const gt = getGroupTotals(allRows)
+            return (
+              <tr style={{ background: '#18181b', fontWeight: 'bold', borderTop: '2px solid #ff9000', color: '#fff', fontSize: '0.8rem' }}>
+                <td style={{ ...TD_STICKY, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.72rem' }}>ЗАГАЛЬНИЙ WIP РАЗОМ:</td>
+                <td style={{ ...TD_SUM, background: '#2e2014', color: '#ff9000' }}>{renderVal(gt.sum, 'sum')}</td>
+                <td style={TD}>{renderVal(gt.qCutWait)}</td>
+                <td style={TD}>{renderVal(gt.qCut)}</td>
+                <td style={TD}>{renderVal(gt.qCutBuf)}</td>
+                <td style={TD}>{renderVal(gt.qGalt)}</td>
+                <td style={TD}>{renderVal(gt.qGaltBuf)}</td>
+                <td style={TD}>{renderVal(gt.qPriy)}</td>
+                <td style={TD}>{renderVal(gt.qSortAct)}</td>
+                <td style={TD}>{renderVal(gt.qSort)}</td>
+                <td style={TD}>{renderVal(gt.qMalWait)}</td>
+                <td style={TD}>{renderVal(gt.qMal)}</td>
+                <td style={TD}>{renderVal(gt.qMalBuf)}</td>
+                <td style={TD}>{renderVal(gt.qPresWait)}</td>
+                <td style={TD}>{renderVal(gt.qPres)}</td>
+                <td style={TD}>{renderVal(gt.qPresBuf)}</td>
+                <td style={TD}>{renderVal(gt.qDoopWait)}</td>
+                <td style={TD}>{renderVal(gt.qDoop)}</td>
+                <td style={TD}>{renderVal(gt.qDoopBuf)}</td>
+                <td style={{ ...TD, background: 'rgba(16,185,129,0.12)' }}>{renderVal(gt.qSgp, 'sgp')}</td>
+                <td style={{ ...TD, background: 'rgba(16,185,129,0.12)' }}>{renderVal(gt.qBz, 'bz')}</td>
+                <td style={{ ...TD, background: 'rgba(239,68,68,0.12)', borderRight: 'none' }}>{renderVal(gt.qScrap, 'scrap')}</td>
+              </tr>
+            )
+          })()}
+        </tbody>
+      </table>
+    </div>
+  )
+
+  return (
+    <div style={{ position: 'relative' }}>
+      {/* Mobile-only toggle full screen button */}
+      <div className="mobile-fullscreen-btn-container" style={{ display: 'none', marginBottom: '8px', justifyContent: 'flex-end' }}>
+        <button
+          onClick={() => setIsFull(true)}
+          style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+        >
+          <span>🖥️</span> На весь екран
+        </button>
+      </div>
+
+      {renderTable(maxHeight)}
+
+      {/* Full screen modal */}
+      {isFull && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: '#09090b', zIndex: 99999, padding: '16px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: 900, textTransform: 'uppercase', color: '#ff9000' }}>WIP Таблиця (Повноекранний аналіз)</span>
+            <button
+              onClick={() => setIsFull(false)}
+              style={{ background: '#27272a', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 800, cursor: 'pointer' }}
+            >
+              Закрити ✕
+            </button>
+          </div>
+          <div style={{ flex: 1, overflow: 'auto' }}>
+            {renderTable('100%')}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 // Table cell style constants
 const TH = { padding: '11px 10px', fontWeight: 600, borderRight: '1px solid #27272a', position: 'sticky', top: 0, background: '#18181b', zIndex: 10, whiteSpace: 'nowrap', fontSize: '0.72rem' }
@@ -246,7 +284,9 @@ const ForemanDashboardModule = () => {
   useEffect(() => {
     fetchModuleData('foreman')
     if (typeof fetchData === 'function') {
-      fetchData(['orders', 'tasks', 'inventory', 'work_cards', 'nomenclatures', 'bom_items', 'work_card_history'])
+      // Don't fetch work_cards/work_card_history globally — they are loaded
+      // per-task via loadAllTasksCards to avoid pulling the entire table
+      fetchData(['orders', 'tasks', 'inventory', 'nomenclatures', 'bom_items'])
     }
   }, [])
 
@@ -320,7 +360,7 @@ const ForemanDashboardModule = () => {
 
       const { data: cards, error } = await supabase
         .from('work_cards')
-        .select('*')
+        .select('id, task_id, nomenclature_id, status, quantity, operation, used_in_shop2_qty, card_info')
         .in('task_id', taskIds)
       
       if (!error && cards) {
@@ -334,9 +374,8 @@ const ForemanDashboardModule = () => {
             promises.push(
               supabase
                 .from('work_card_history')
-                .select('*')
+                .select('card_id, scrap_qty')
                 .in('card_id', chunk)
-                .limit(5000)
             )
           }
           const results = await Promise.all(promises)
@@ -376,13 +415,23 @@ const ForemanDashboardModule = () => {
       })
   }, [selectedTaskId])
 
+  // ── Index cards by task_id for O(1) lookups (instead of O(n) filter everywhere) ──
+  const cardsByTaskId = useMemo(() => {
+    const map = {}
+    allTasksCards.forEach(c => {
+      if (!map[c.task_id]) map[c.task_id] = []
+      map[c.task_id].push(c)
+    })
+    return map
+  }, [allTasksCards])
+
   // ── Production cache: task_id -> nom_id -> produced qty ──
   const productionCache = useMemo(() => {
     const cache = {}
     
     relevantTasks.forEach(task => {
       cache[task.id] = {}
-      const taskCards = allTasksCards.filter(c => String(c.task_id) === String(task.id))
+      const taskCards = cardsByTaskId[task.id] || []
       const snapshot = task.plan_snapshot || {}
       
       Object.keys(snapshot).forEach(nid => {
@@ -426,7 +475,7 @@ const ForemanDashboardModule = () => {
       })
     })
     return cache
-  }, [allTasksCards, relevantTasks])
+  }, [cardsByTaskId, relevantTasks])
 
   // ── Scrap cache ──
   const scrapCache = useMemo(() => {
@@ -459,7 +508,7 @@ const ForemanDashboardModule = () => {
       // If all cards are done (or no cards but task not yet closed), check actual card state
       const hasActiveShop2Task = shop2Tasks.some(s2 => {
         if (s2.status === 'completed') return false
-        const s2Cards = allTasksCards.filter(c => c.task_id === s2.id && c.operation !== 'Склад БЗ')
+        const s2Cards = (cardsByTaskId[s2.id] || []).filter(c => c.operation !== 'Склад БЗ')
         // If no cards in Shop 2 task yet → it's still waiting/active
         if (s2Cards.length === 0) return s2.status === 'waiting' || s2.status === 'in-progress'
         // If all Shop 2 cards are completed → treat as done
@@ -467,7 +516,7 @@ const ForemanDashboardModule = () => {
       })
 
       if (task.status === 'completed' && !hasActiveShop2Task) { map[task.id] = 'completed'; return }
-      const taskCards = allTasksCards.filter(c => c.task_id === task.id && c.operation !== 'Склад БЗ')
+      const taskCards = (cardsByTaskId[task.id] || []).filter(c => c.operation !== 'Склад БЗ')
       if (taskCards.length === 0 && task.status !== 'completed') { map[task.id] = 'new'; return }
 
       const snapshot = task.plan_snapshot || {}
@@ -517,7 +566,7 @@ const ForemanDashboardModule = () => {
       else map[task.id] = 'in_progress'
     })
     return map
-  }, [relevantTasks, allTasksCards, productionCache, scrapCache, tasks])
+  }, [relevantTasks, cardsByTaskId, productionCache, scrapCache, tasks])
 
   // ── Per-task progress (actual / demand sets) ──
   const taskProgressMap = useMemo(() => {
@@ -1044,6 +1093,7 @@ const ForemanDashboardModule = () => {
             tasks={tasks}
             workCards={workCards}
             allTasksCards={allTasksCards}
+            cardsByTaskId={cardsByTaskId}
             allCardsHistory={allCardsHistory}
             nomenclatures={nomenclatures}
             bomItems={bomItems}
@@ -1069,6 +1119,70 @@ const ForemanDashboardModule = () => {
         ::-webkit-scrollbar-track { background: #0a0a0d; }
         ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+
+        /* Mobile specific overrides */
+        @media (max-width: 768px) {
+          .mobile-fullscreen-btn-container {
+            display: flex !important;
+          }
+          nav {
+            padding: 0 12px !important;
+            height: auto !important;
+            min-height: 60px;
+            flex-direction: column;
+            gap: 10px;
+            align-items: stretch !important;
+            justify-content: center;
+            padding-top: 10px !important;
+            padding-bottom: 10px !important;
+          }
+          nav > div {
+            justify-content: space-between;
+            width: 100%;
+          }
+          nav button {
+            padding: 6px 10px !important;
+            font-size: 0.75rem !important;
+          }
+          /* Hide user name on small devices to free up screen real estate */
+          nav > div:last-child > div:last-child {
+            display: none !important;
+          }
+          
+          /* Make stats and cards grid layout fit mobile viewports */
+          div[style*="gridTemplateColumns"] {
+            grid-template-columns: 1fr !important;
+          }
+          
+          /* Scale down padding and text sizes of order preview cards */
+          div[style*="borderRadius: '18px'"] {
+            border-radius: 12px !important;
+          }
+          div[style*="padding: '16px 18px'"] {
+            padding: 10px 12px !important;
+          }
+          div[style*="fontSize: '1.1rem'"] {
+            font-size: 0.95rem !important;
+          }
+          div[style*="fontSize: '0.8rem'"] {
+            font-size: 0.72rem !important;
+          }
+          
+          /* Compact tabs navigation bar */
+          div[style*="padding: '14px 24px'"] {
+            padding: 8px 12px !important;
+            gap: 4px !important;
+          }
+          div[style*="padding: '14px 24px'"] button {
+            padding: 6px 12px !important;
+            font-size: 0.72rem !important;
+          }
+          
+          /* General page container padding */
+          div[style*="padding: '24px'"] {
+            padding: 12px !important;
+          }
+        }
       `}</style>
     </div>
   )
@@ -1078,7 +1192,7 @@ const ForemanDashboardModule = () => {
 // Order Detail View component
 // ─────────────────────────────────────────────────────────────
 const OrderDetailView = ({
-  task, order, tasks, workCards, allTasksCards, allCardsHistory, nomenclatures, bomItems, inventory,
+  task, order, tasks, workCards, allTasksCards, cardsByTaskId, allCardsHistory, nomenclatures, bomItems, inventory,
   productionCache, scrapCache, taskStatusMap, taskProgressMap,
   orderAllCards, isLoadingCards, wipGroups, searchQuery, setSearchQuery
 }) => {
@@ -1139,8 +1253,8 @@ const OrderDetailView = ({
     
     // Get all task IDs for the same order
     const orderTasks = tasks.filter(t => t.order_id === task.order_id)
-    const orderTaskIds = orderTasks.map(t => t.id)
-    const allTaskCards = allTasksCards.filter(c => c.task_id && orderTaskIds.includes(c.task_id))
+    const orderTaskIdSet = new Set(orderTasks.map(t => t.id))
+    const allTaskCards = orderTasks.flatMap(t => cardsByTaskId[t.id] || [])
 
     const parts = []
     Object.keys(snapshot).filter(k => uuidRegex.test(k)).forEach(nomIdStr => {

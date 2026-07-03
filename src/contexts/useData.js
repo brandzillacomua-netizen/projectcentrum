@@ -425,28 +425,31 @@ export function useData() {
     cacheTimerRef.current = setTimeout(() => {
       try {
         const dataToCache = {
-          orders: orders.slice(0, 100),
+          orders: orders.slice(0, 50),
           customers,
-          tasks,
+          tasks: tasks.slice(0, 100),
           managementTasks,
           requests,
-          nomenclatures,
-          bomItems,
+          nomenclatures: nomenclatures.slice(0, 200), // Slice heavy tables
+          bomItems: bomItems.slice(0, 100),
           machines,
           systemUsers,
           machineOperations,
           machineCalls,
           companyStructure,
           companyPositions,
-          workCards: workCards.slice(0, 300),
-          inventory: inventory.slice(0, 2000),
-          receptionDocs: receptionDocs.slice(0, 100),
-          purchaseRequests: purchaseRequests.slice(0, 100),
-          workCardHistory: workCardHistory.slice(0, 200)
+          workCards: workCards.slice(0, 100),
+          inventory: inventory.slice(0, 200), // Limit extremely large inventory array
+          receptionDocs: receptionDocs.slice(0, 50),
+          purchaseRequests: purchaseRequests.slice(0, 50),
+          workCardHistory: workCardHistory.slice(0, 50)
         }
         localStorage.setItem(CACHE_KEY, JSON.stringify(dataToCache))
       } catch (e) {
-        console.warn('Cache write failed (quota?):', e)
+        console.warn('Cache write failed (quota?), clearing old cache...', e)
+        try {
+          localStorage.removeItem(CACHE_KEY) // Fallback: clear to prevent loop
+        } catch (innerErr) {}
       }
     }, 2000) // Затримка 2с після останньої зміни
   }, [orders, customers, tasks, managementTasks, requests, nomenclatures, bomItems, machines, systemUsers, machineOperations, machineCalls, companyStructure, companyPositions, workCards, inventory, receptionDocs, purchaseRequests, workCardHistory])
