@@ -227,23 +227,29 @@ export default function TumblingDashboard() {
     return kit?.deadlineDate || null
   }
 
-  // 2. Waiting queue: cards in at-buffer waiting for next sub-stage
   const waitingQueue = useMemo(() => {
     return workCards
       .filter(c => c.status === 'at-buffer' && (c.operation === 'Розкрій' || c.operation === 'Галтовка (Вібростіл)' || c.operation === 'Галтовка (Мийка)' || c.operation === 'Галтовка (Галтовка)'))
       .map(card => {
         const isBottleneck = bottleneckNomenclaturesMap[card.nomenclature_id] || false
+        
+        // Find the kit ratio for this card's nomenclature in its order
+        const kit = orderKits.find(k => String(k.orderId) === String(card.order_id))
+        const comp = kit?.components?.find(co => co.id === card.nomenclature_id)
+        const kitRatio = comp ? comp.kitRatio : 1.0 // fallback if not in BOM
+        
         const deadline = getCardDeadline(card)
         return {
           ...card,
           isBottleneck,
+          kitRatio,
           deadline
         }
       })
       .sort((a, b) => {
-        // Tier 1: Bottleneck first
-        if (a.isBottleneck !== b.isBottleneck) {
-          return a.isBottleneck ? -1 : 1
+        // Tier 1: Kit completion ratio (lowest first, which handles absolute and next bottlenecks dynamically)
+        if (a.kitRatio !== b.kitRatio) {
+          return a.kitRatio - b.kitRatio
         }
         // Tier 2: Deadline (earlier first)
         if (a.deadline && b.deadline) {
