@@ -14,7 +14,7 @@ const MasterWorkplace = () => {
   const machines = ['LXS-1', 'B-200', 'W-Point 1', 'МК-1', 'Збірна лінія', 'Склад СГП']
 
   // Master only sees tasks that are fully ready for production but not entirely completed
-  const readyTasks = tasks.filter(t => t.warehouse_conf && t.engineer_conf && t.status !== 'completed')
+  const readyTasks = tasks.filter(t => (t.warehouse_conf === 'true' || t.warehouse_conf === 'partial') && t.engineer_conf && t.status !== 'completed')
 
   const handleCreateCard = async (e) => {
     e.preventDefault()

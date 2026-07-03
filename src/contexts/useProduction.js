@@ -24,8 +24,8 @@ export function createProductionActions({
 }) {
 
   const approveWarehouse = async (taskId) => {
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, warehouse_conf: true } : t))
-    await supabase.from('tasks').update({ warehouse_conf: true }).eq('id', taskId)
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, warehouse_conf: 'true' } : t))
+    await supabase.from('tasks').update({ warehouse_conf: 'true' }).eq('id', taskId)
   }
   const approveEngineer = async (taskId) => {
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, engineer_conf: true } : t))
@@ -61,7 +61,7 @@ export function createProductionActions({
           planned_sets: targetTask.planned_sets || 0,
           estimated_time: targetTask.estimated_time || 0,
           engineer_conf: true,
-          warehouse_conf: true,
+          warehouse_conf: 'true',
           director_conf: true,
           batch_index: targetTask.batch_index || null,
           plan_snapshot: { ...(targetTask.plan_snapshot || {}), arrivals: [] }
@@ -1399,7 +1399,7 @@ export function createProductionActions({
         machine_name: machineName || 'Не вказано',
         estimated_time: Math.round(totalMin),
         engineer_conf: isAllFromBZ ? true : false,
-        warehouse_conf: isAllFromBZ ? true : false,
+        warehouse_conf: isAllFromBZ ? 'true' : 'false',
         director_conf: isAllFromBZ ? true : false,
         plan_snapshot: plan_snapshot,
         planned_sets: thisNaryadTotalSets,
@@ -1419,7 +1419,7 @@ export function createProductionActions({
           machine_name: machineName || 'Не вказано',
           estimated_time: 0,
           engineer_conf: true,
-          warehouse_conf: true,
+          warehouse_conf: 'true',
           director_conf: true,
           plan_snapshot: { ...(plan_snapshot || {}), arrivals: [] },
           planned_sets: thisNaryadTotalSets,
@@ -1721,7 +1721,7 @@ export function createProductionActions({
             planned_sets: task.planned_sets || 0,
             estimated_time: task.estimated_time || 0,
             engineer_conf: true,
-            warehouse_conf: true,
+            warehouse_conf: 'true',
             director_conf: true,
             batch_index: task.batch_index || null,
             plan_snapshot: { ...task.plan_snapshot, arrival_doc_id: moveDoc?.id || null, arrivals }
@@ -2169,7 +2169,7 @@ export function createProductionActions({
         machine_name: 'Доопрацювання',
         estimated_time: 0,
         engineer_conf: true,
-        warehouse_conf: true,
+        warehouse_conf: 'true',
         director_conf: true,
         plan_snapshot: plan_snapshot,
         planned_sets: 0

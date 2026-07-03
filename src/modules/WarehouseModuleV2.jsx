@@ -727,7 +727,7 @@ const WarehouseModuleV2 = () => {
         if (r.status !== 'pending' && r.status !== 'issued') return false
         if (r.status === 'issued') {
           const task = tasks.find(t => t.id === r.task_id)
-          if (!task || task.warehouse_conf) return false
+          if (!task || task.warehouse_conf === 'true') return false
         }
         if (isPrepRequest(r)) return false
         return getMaterialType(r) === tabId
@@ -806,7 +806,9 @@ const WarehouseModuleV2 = () => {
     if (r.status !== 'pending' && r.status !== 'issued') return false
     if (r.status === 'issued') {
       const task = tasks.find(t => t.id === r.task_id)
-      if (!task || task.warehouse_conf) return false
+      // Якщо склад погоджено повністю ('true') або частково ('partial'),
+      // то вже видані матеріали не мають знову показуватись у списку комплектації!
+      if (!task || task.warehouse_conf === 'true' || task.warehouse_conf === 'partial') return false
     }
     if (isPrepRequest(r)) return false
     return getMaterialType(r) === activeTab
@@ -1497,7 +1499,8 @@ const WarehouseModuleV2 = () => {
 
                 // Перевіряємо чи всі дефіцитні позиції — це підготовлені листи
                 const allMissingArePreparedSheets = missingItems.length > 0 && missingItems.every(item => {
-                  const nameLower = (item.name || item.reqDetails || '').toLowerCase()
+                  const parsedName = parseMaterialName(item.details)
+                  const nameLower = (parsedName || '').toLowerCase()
                   return nameLower.includes('лист') && nameLower.includes('підготовлений')
                 })
 

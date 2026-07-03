@@ -308,7 +308,7 @@ const SimulatorModule = () => {
             machine_name: 'CNC 1200x800 - 4 листи (Малий)',
             estimated_time: Math.round(totalMin) || 120,
             engineer_conf: false,
-            warehouse_conf: false,
+            warehouse_conf: 'false',
             director_conf: false,
             plan_snapshot: plan_snapshot,
             planned_sets: sim.quantity,
@@ -588,7 +588,7 @@ const SimulatorModule = () => {
             planned_sets: sim.quantity,
             estimated_time: sim.quantity * 1,
             engineer_conf: true,
-            warehouse_conf: true,
+            warehouse_conf: 'true',
             director_conf: true,
             plan_snapshot: { arrival_doc_id: moveDoc?.id || null, arrivals }
           }])
@@ -658,7 +658,7 @@ const SimulatorModule = () => {
                 machine_name: 'CNC 1200x800 - 4 листи (Малий)',
                 estimated_time: qcScrapQty * 2,
                 engineer_conf: false,
-                warehouse_conf: false,
+                warehouse_conf: 'false',
                 director_conf: false,
                 plan_snapshot: plan_snapshot,
                 planned_sets: qcScrapQty,

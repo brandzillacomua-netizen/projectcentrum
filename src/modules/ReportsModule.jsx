@@ -612,7 +612,7 @@ const ReportsModule = () => {
           Object.values(snapshot).forEach(item => {
             const bName = getBaseName(item.name || item.nom_name || '');
             if (stats[bName]) {
-              if (t.status !== 'completed' && t.warehouse_conf === true) {
+              if (t.status !== 'completed' && t.warehouse_conf === 'true') {
                 stats[bName].in_prep += Number(item.plan || item.qty || item.quantity || item.need || 0);
               }
               stats[bName].scrap += Number(item.total_scrap || item.actual_scrap || 0);

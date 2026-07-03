@@ -116,7 +116,7 @@ export const requestBuilder = {
     return {
       task_id: parseValue(taskId),
       approved_at: new Date().toISOString(),
-      warehouse_conf: true
+      warehouse_conf: 'true'
     };
   },
 
@@ -165,7 +165,7 @@ export const requestBuilder = {
       status: 'pending',
       step: 'Очікує підтвердження',
       engineer_conf: false,
-      warehouse_conf: false,
+      warehouse_conf: 'false',
       director_conf: false
     };
   },

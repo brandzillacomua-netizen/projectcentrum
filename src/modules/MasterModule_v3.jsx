@@ -1744,7 +1744,7 @@ const MasterModule = () => {
                     .join(', ') || 'Виріб...'
                 }
 
-                const isSkladConfirmed = task.warehouse_conf === true
+                const isSkladConfirmed = task.warehouse_conf === 'true'
                 const isTechConfirmed = task.engineer_conf === true
                 const isDirConfirmed = task.director_conf === true
 
@@ -1795,11 +1795,11 @@ const MasterModule = () => {
                         fontSize: '0.65rem',
                         padding: '5px 12px',
                         borderRadius: '8px',
-                        background: isSkladConfirmed ? '#064e3b' : '#1a1a1a',
-                        color: isSkladConfirmed ? '#10b981' : '#333',
+                        background: task.warehouse_conf === 'true' ? '#064e3b' : (task.warehouse_conf === 'partial' ? '#78350f' : '#1a1a1a'),
+                        color: task.warehouse_conf === 'true' ? '#10b981' : (task.warehouse_conf === 'partial' ? '#fbbf24' : '#333'),
                         fontWeight: 1000,
-                        border: isSkladConfirmed ? '1px solid #10b981' : '1px solid #222'
-                      }}>СКЛАД</div>
+                        border: task.warehouse_conf === 'true' ? '1px solid #10b981' : (task.warehouse_conf === 'partial' ? '1px solid #d97706' : '1px solid #222')
+                      }}>{task.warehouse_conf === 'partial' ? 'ЧАСТК. СКЛАД' : 'СКЛАД'}</div>
                       {task.step !== 'Підготовка' && (
                         <>
                           <div style={{

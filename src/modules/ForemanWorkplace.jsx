@@ -35,7 +35,7 @@ const getDisplayMaterial = (partNom, snapshot) => {
 const ForemanWorkplace = () => {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { tasks, orders, workCards, createWorkCard, createWorkCardsBatch, inventory, completeTaskByMaster, nomenclatures, bomItems, machines, machineOperations, workCardHistory, confirmBuffer, fetchData, reserveBZForTask, fetchTaskArchiveCards, fetchModuleData, machineCalls, currentUser, createDovyпускMaterialRequests, materialRequests } = useMES()
+  const { tasks, orders, workCards, createWorkCard, createWorkCardsBatch, inventory, completeTaskByMaster, nomenclatures, bomItems, machines, machineOperations, workCardHistory, confirmBuffer, fetchData, reserveBZForTask, fetchTaskArchiveCards, fetchModuleData, machineCalls, currentUser, createDovyпускMaterialRequests, requests: materialRequests } = useMES()
 
   const countAsProduced = (card) => {
     if (card.status === 'completed') return true
@@ -1251,7 +1251,7 @@ const ForemanWorkplace = () => {
 
         // Якщо наряд АКТИВНИЙ (не завершений)
         if (t.status !== 'completed') {
-          return (t.warehouse_conf === true || t.warehouse_conf === 'partial') && t.engineer_conf && t.director_conf && isLaser
+          return (t.warehouse_conf === 'true' || t.warehouse_conf === 'partial') && t.engineer_conf && t.director_conf && isLaser
         }
 
         // Якщо наряд ЗАВЕРШЕНИЙ (Архів)
@@ -2331,7 +2331,56 @@ const ForemanWorkplace = () => {
                                           )}
                                           {(productionCards.length === 0 || productionCards.length < totalTargetLoads) && (
                                             <button
+                                              disabled={!(rowMachineName || isSplitMode) || (() => {
+                                                const baseMat = (part.nom?.material_type || '').toLowerCase()
+                                                const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(task.id))
+                                                const extractThickness = (str) => {
+                                                  const match = str.match(/(\d+(?:\.\d+)?)\s*мм/)
+                                                  return match ? match[1] + 'мм' : null
+                                                }
+                                                const baseThickness = extractThickness(baseMat)
+                                                const sheetReqs = taskReqs.filter(r => {
+                                                  const rNom = nomenclatures.find(n => n.id === r.nomenclature_id)
+                                                  const rName = (rNom?.name || r.details || '').toLowerCase()
+                                                  const isSheet = rName.includes('лист') || rName.includes('sheet')
+                                                  if (!isSheet) return false
+                                                  const reqThickness = extractThickness(rName)
+                                                  if (baseThickness && reqThickness) {
+                                                    return baseThickness === reqThickness
+                                                  }
+                                                  const activeMaterials = baseMat.split('+').map(m => m.trim())
+                                                  return activeMaterials.some(act => rName.includes(act) || act.includes(rName))
+                                                })
+                                                const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
+                                                  .reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+                                                const hasKittingReqs = (materialRequests || []).some(r => String(r.task_id) === String(task.id))
+                                                return hasKittingReqs && issued <= 0
+                                              })()}
                                               onClick={() => {
+                                                const baseMat = (part.nom?.material_type || '').toLowerCase()
+                                                const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(task.id))
+                                                const extractThickness = (str) => {
+                                                  const match = str.match(/(\d+(?:\.\d+)?)\s*мм/)
+                                                  return match ? match[1] + 'мм' : null
+                                                }
+                                                const baseThickness = extractThickness(baseMat)
+                                                const sheetReqs = taskReqs.filter(r => {
+                                                  const rNom = nomenclatures.find(n => n.id === r.nomenclature_id)
+                                                  const rName = (rNom?.name || r.details || '').toLowerCase()
+                                                  const isSheet = rName.includes('лист') || rName.includes('sheet')
+                                                  if (!isSheet) return false
+                                                  const reqThickness = extractThickness(rName)
+                                                  if (baseThickness && reqThickness) {
+                                                    return baseThickness === reqThickness
+                                                  }
+                                                  const activeMaterials = baseMat.split('+').map(m => m.trim())
+                                                  return activeMaterials.some(act => rName.includes(act) || act.includes(rName))
+                                                })
+                                                const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
+                                                  .reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+                                                const hasKittingReqs = (materialRequests || []).some(r => String(r.task_id) === String(task.id))
+                                                if (hasKittingReqs && issued <= 0) return;
+
                                                 const currentSumSheets = splits.reduce((a, b) => a + (Number(b.sheets) || (unitsPerSheet > 0 ? Math.ceil((Number(b.qty) || 0) / unitsPerSheet) : 0)), 0);
                                                 if (isSplitMode && currentSumSheets > totalSheetsNeeded) {
                                                   alert(`Помилка: Ви запланували ${currentSumSheets} листів, що більше за план (${totalSheetsNeeded} л.). Виправте кількість перед генерацією.`);
@@ -2350,19 +2399,143 @@ const ForemanWorkplace = () => {
                                                 }
                                               }}
                                               style={{
-                                                background: (rowMachineName || isSplitMode) ? '#ff9000' : '#222',
-                                                color: (rowMachineName || isSplitMode) ? '#000' : '#444',
-                                                border: 'none',
+                                                background: (() => {
+                                                  const baseMat = (part.nom?.material_type || '').toLowerCase()
+                                                  const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(task.id))
+                                                  const extractThickness = (str) => {
+                                                    const match = str.match(/(\d+(?:\.\d+)?)\s*мм/)
+                                                    return match ? match[1] + 'мм' : null
+                                                  }
+                                                  const baseThickness = extractThickness(baseMat)
+                                                  const sheetReqs = taskReqs.filter(r => {
+                                                    const rNom = nomenclatures.find(n => n.id === r.nomenclature_id)
+                                                    const rName = (rNom?.name || r.details || '').toLowerCase()
+                                                    const isSheet = rName.includes('лист') || rName.includes('sheet')
+                                                    if (!isSheet) return false
+                                                    const reqThickness = extractThickness(rName)
+                                                    if (baseThickness && reqThickness) {
+                                                      return baseThickness === reqThickness
+                                                    }
+                                                    const activeMaterials = baseMat.split('+').map(m => m.trim())
+                                                    return activeMaterials.some(act => rName.includes(act) || act.includes(rName))
+                                                  })
+                                                  const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
+                                                    .reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+                                                  const hasKittingReqs = (materialRequests || []).some(r => String(r.task_id) === String(task.id))
+                                                  if (hasKittingReqs && issued <= 0) return '#1e1b18';
+                                                  return (rowMachineName || isSplitMode) ? '#ff9000' : '#222';
+                                                })(),
+                                                color: (() => {
+                                                  const baseMat = (part.nom?.material_type || '').toLowerCase()
+                                                  const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(task.id))
+                                                  const extractThickness = (str) => {
+                                                    const match = str.match(/(\d+(?:\.\d+)?)\s*мм/)
+                                                    return match ? match[1] + 'мм' : null
+                                                  }
+                                                  const baseThickness = extractThickness(baseMat)
+                                                  const sheetReqs = taskReqs.filter(r => {
+                                                    const rNom = nomenclatures.find(n => n.id === r.nomenclature_id)
+                                                    const rName = (rNom?.name || r.details || '').toLowerCase()
+                                                    const isSheet = rName.includes('лист') || rName.includes('sheet')
+                                                    if (!isSheet) return false
+                                                    const reqThickness = extractThickness(rName)
+                                                    if (baseThickness && reqThickness) {
+                                                      return baseThickness === reqThickness
+                                                    }
+                                                    const activeMaterials = baseMat.split('+').map(m => m.trim())
+                                                    return activeMaterials.some(act => rName.includes(act) || act.includes(rName))
+                                                  })
+                                                  const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
+                                                    .reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+                                                  const hasKittingReqs = (materialRequests || []).some(r => String(r.task_id) === String(task.id))
+                                                  if (hasKittingReqs && issued <= 0) return '#7f1d1d';
+                                                  return (rowMachineName || isSplitMode) ? '#000' : '#444';
+                                                })(),
+                                                border: (() => {
+                                                  const baseMat = (part.nom?.material_type || '').toLowerCase()
+                                                  const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(task.id))
+                                                  const extractThickness = (str) => {
+                                                    const match = str.match(/(\d+(?:\.\d+)?)\s*мм/)
+                                                    return match ? match[1] + 'мм' : null
+                                                  }
+                                                  const baseThickness = extractThickness(baseMat)
+                                                  const sheetReqs = taskReqs.filter(r => {
+                                                    const rNom = nomenclatures.find(n => n.id === r.nomenclature_id)
+                                                    const rName = (rNom?.name || r.details || '').toLowerCase()
+                                                    const isSheet = rName.includes('лист') || rName.includes('sheet')
+                                                    if (!isSheet) return false
+                                                    const reqThickness = extractThickness(rName)
+                                                    if (baseThickness && reqThickness) {
+                                                      return baseThickness === reqThickness
+                                                    }
+                                                    const activeMaterials = baseMat.split('+').map(m => m.trim())
+                                                    return activeMaterials.some(act => rName.includes(act) || act.includes(rName))
+                                                  })
+                                                  const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
+                                                    .reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+                                                  const hasKittingReqs = (materialRequests || []).some(r => String(r.task_id) === String(task.id))
+                                                  if (hasKittingReqs && issued <= 0) return '1px solid rgba(239,68,68,0.2)';
+                                                  return 'none';
+                                                })(),
                                                 padding: '8px 15px',
                                                 borderRadius: '8px',
                                                 fontSize: '0.65rem',
                                                 fontWeight: 900,
-                                                cursor: (rowMachineName || isSplitMode) ? 'pointer' : 'not-allowed',
+                                                cursor: (() => {
+                                                  const baseMat = (part.nom?.material_type || '').toLowerCase()
+                                                  const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(task.id))
+                                                  const extractThickness = (str) => {
+                                                    const match = str.match(/(\d+(?:\.\d+)?)\s*мм/)
+                                                    return match ? match[1] + 'мм' : null
+                                                  }
+                                                  const baseThickness = extractThickness(baseMat)
+                                                  const sheetReqs = taskReqs.filter(r => {
+                                                    const rNom = nomenclatures.find(n => n.id === r.nomenclature_id)
+                                                    const rName = (rNom?.name || r.details || '').toLowerCase()
+                                                    const isSheet = rName.includes('лист') || rName.includes('sheet')
+                                                    if (!isSheet) return false
+                                                    const reqThickness = extractThickness(rName)
+                                                    if (baseThickness && reqThickness) {
+                                                      return baseThickness === reqThickness
+                                                    }
+                                                    const activeMaterials = baseMat.split('+').map(m => m.trim())
+                                                    return activeMaterials.some(act => rName.includes(act) || act.includes(rName))
+                                                  })
+                                                  const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
+                                                    .reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+                                                  const hasKittingReqs = (materialRequests || []).some(r => String(r.task_id) === String(task.id))
+                                                  if (hasKittingReqs && issued <= 0) return 'not-allowed';
+                                                  return (rowMachineName || isSplitMode) ? 'pointer' : 'not-allowed';
+                                                })(),
                                                 textTransform: 'uppercase',
                                                 opacity: (isSplitMode && splits.reduce((a, b) => a + (Number(b.sheets) || (unitsPerSheet > 0 ? Math.ceil((Number(b.qty) || 0) / unitsPerSheet) : 0)), 0) > totalSheetsNeeded) ? 0.3 : 1
                                               }}
                                             >
-                                              Генерувати
+                                              {(() => {
+                                                const baseMat = (part.nom?.material_type || '').toLowerCase()
+                                                const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(task.id))
+                                                const extractThickness = (str) => {
+                                                  const match = str.match(/(\d+(?:\.\d+)?)\s*мм/)
+                                                  return match ? match[1] + 'мм' : null
+                                                }
+                                                const baseThickness = extractThickness(baseMat)
+                                                const sheetReqs = taskReqs.filter(r => {
+                                                  const rNom = nomenclatures.find(n => n.id === r.nomenclature_id)
+                                                  const rName = (rNom?.name || r.details || '').toLowerCase()
+                                                  const isSheet = rName.includes('лист') || rName.includes('sheet')
+                                                  if (!isSheet) return false
+                                                  const reqThickness = extractThickness(rName)
+                                                  if (baseThickness && reqThickness) {
+                                                    return baseThickness === reqThickness
+                                                  }
+                                                  const activeMaterials = baseMat.split('+').map(m => m.trim())
+                                                  return activeMaterials.some(act => rName.includes(act) || act.includes(rName))
+                                                })
+                                                const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
+                                                  .reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+                                                const hasKittingReqs = (materialRequests || []).some(r => String(r.task_id) === String(task.id))
+                                                return (hasKittingReqs && issued <= 0) ? 'НЕМАЄ ЛИСТІВ' : 'Генерувати';
+                                              })()}
                                             </button>
                                           )}
                                         </div>

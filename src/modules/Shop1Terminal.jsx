@@ -1876,7 +1876,7 @@ export default function Shop1Terminal() {
               planned_sets: s1TaskData.planned_sets || 0,
               estimated_time: s1TaskData.estimated_time || 0,
               engineer_conf: true,
-              warehouse_conf: true,
+              warehouse_conf: 'true',
               director_conf: true,
               batch_index: s1TaskData.batch_index || null,
               plan_snapshot: { ...(s1TaskData.plan_snapshot || {}), arrivals: updatedArrivals }

@@ -169,7 +169,7 @@ const MasterModule = () => {
                     .join(', ') || 'Виріб...'
 
                   // Real confirmation binding from task object
-                  const isSkladConfirmed = task.warehouse_conf === true
+                  const isSkladConfirmed = task.warehouse_conf === 'true'
                   const isTechConfirmed = task.engineer_conf === true
                   
                   return (

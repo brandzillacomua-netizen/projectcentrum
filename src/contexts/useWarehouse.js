@@ -642,7 +642,7 @@ export function createWarehouseActions({
         const allCompletedOrIssued = reqList.length > 0 && reqList.every(r => r.status === 'issued' || r.status === 'completed')
         const someIssued = reqList.some(r => r.status === 'issued' || r.status === 'completed')
         
-        const nextWhConf = allCompletedOrIssued ? true : (someIssued ? 'partial' : false)
+        const nextWhConf = allCompletedOrIssued ? 'true' : (someIssued ? 'partial' : 'false')
         
         await supabase.from('tasks').update({ warehouse_conf: nextWhConf }).eq('id', taskId)
         setTasks(prev => prev.map(t => t.id === taskId ? { ...t, warehouse_conf: nextWhConf } : t))

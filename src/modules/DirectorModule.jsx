@@ -71,7 +71,7 @@ const DirectorModule = () => {
   // 1. Pending Approvals Data (Only trigger when it's Director's turn)
   const pendingTasks = tasks.filter(t => 
     t.status === 'waiting' && 
-    (t.warehouse_conf === true || t.warehouse_conf === 'partial') && 
+    (t.warehouse_conf === 'true' || t.warehouse_conf === 'partial') && 
     t.engineer_conf === true && 
     !t.director_conf
   )
@@ -437,7 +437,7 @@ const DirectorModule = () => {
             <div className="drawer-body">
               {pendingTasks.map(task => {
                 const order = orders.find(o => o.id === task.order_id)
-                const isSkladOk = task.warehouse_conf === true || task.warehouse_conf === 'partial'
+                const isSkladOk = task.warehouse_conf === 'true' || task.warehouse_conf === 'partial'
                 const isEngOk = task.engineer_conf === true
 
                 return (
@@ -454,10 +454,10 @@ const DirectorModule = () => {
                     </div>
 
                     <div className="checks-grid">
-                      <div className={`check-item ${task.warehouse_conf === true ? 'ok' : (task.warehouse_conf === 'partial' ? 'partial' : 'pending')}`} style={task.warehouse_conf === 'partial' ? { background: 'rgba(234,179,8,0.1)', color: '#eab308', border: '1px solid rgba(234,179,8,0.2)' } : {}}>
+                      <div className={`check-item ${task.warehouse_conf === 'true' ? 'ok' : (task.warehouse_conf === 'partial' ? 'partial' : 'pending')}`} style={task.warehouse_conf === 'partial' ? { background: 'rgba(234,179,8,0.1)', color: '#eab308', border: '1px solid rgba(234,179,8,0.2)' } : {}}>
                         <Warehouse size={18} />
                         <span>{task.warehouse_conf === 'partial' ? 'ЧАСТК. СКЛАД' : 'СКЛАД'}</span>
-                        {(task.warehouse_conf === true || task.warehouse_conf === 'partial') && <CheckCircle2 size={12} />}
+                        {(task.warehouse_conf === 'true' || task.warehouse_conf === 'partial') && <CheckCircle2 size={12} />}
                       </div>
                       <div className={`check-item ${isEngOk ? 'ok' : 'pending'}`}>
                         <FileCode size={18} />

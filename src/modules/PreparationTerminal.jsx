@@ -49,7 +49,7 @@ const PreparationTerminal = () => {
   tasks.filter(t => 
     t.step === 'Підготовка' && 
     t.status !== 'completed' && 
-    (t.warehouse_conf === true || Object.values(t.plan_snapshot || {}).some(item => item.status === 'in-progress' || item.status === 'completed'))
+    (t.warehouse_conf === 'true' || Object.values(t.plan_snapshot || {}).some(item => item.status === 'in-progress' || item.status === 'completed'))
   ).forEach(t => {
     if (t.plan_snapshot) {
       Object.entries(t.plan_snapshot).forEach(([nomId, item]) => {
@@ -221,7 +221,7 @@ const PreparationTerminal = () => {
         good_qty: totalProduced,
         scrap_qty: totalScrap,
         plan_snapshot: updatedSnapshot,
-        warehouse_conf: scrapQty > 0 ? false : parentTask.warehouse_conf
+        warehouse_conf: scrapQty > 0 ? 'false' : parentTask.warehouse_conf
       }).eq('id', parentTask.id))
 
       // Get requests locally from real-time state
@@ -306,7 +306,7 @@ const PreparationTerminal = () => {
         good_qty: totalProduced,
         scrap_qty: totalScrap,
         plan_snapshot: updatedSnapshot,
-        warehouse_conf: scrapQty > 0 ? false : parentTask.warehouse_conf
+        warehouse_conf: scrapQty > 0 ? 'false' : parentTask.warehouse_conf
       } : t))
 
       setShowCompleteModal(false)

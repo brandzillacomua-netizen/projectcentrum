@@ -304,7 +304,7 @@ const ForemanDashboardModule = () => {
       )
 
       if (t.status !== 'completed' || hasActiveShop2Task) {
-        return t.warehouse_conf && t.engineer_conf && t.director_conf && isLaser
+        return (t.warehouse_conf === 'true' || t.warehouse_conf === 'partial') && t.engineer_conf && t.director_conf && isLaser
       }
       // Show recently completed (last 3 days)
       const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
