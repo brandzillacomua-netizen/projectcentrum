@@ -1937,6 +1937,11 @@ const WarehouseModuleV2 = () => {
                                     type="number"
                                     value={editingInvTotal}
                                     onChange={e => setEditingInvTotal(e.target.value)}
+                                    onKeyDown={e => {
+                                      if (e.key === 'Enter') {
+                                        handleSaveInventoryQty(item.id)
+                                      }
+                                    }}
                                     style={{ width: '80px', background: '#000', border: '1px solid #ff9000', color: '#fff', textAlign: 'center', borderRadius: '6px', padding: '4px' }}
                                   />
                                 ) : (
@@ -1956,6 +1961,11 @@ const WarehouseModuleV2 = () => {
                                       type="number"
                                       value={editingInvReserved}
                                       onChange={e => setEditingInvReserved(e.target.value)}
+                                      onKeyDown={e => {
+                                        if (e.key === 'Enter') {
+                                          handleSaveInventoryQty(item.id)
+                                        }
+                                      }}
                                       style={{ width: '80px', background: '#000', border: '1px solid #3b82f6', color: '#fff', textAlign: 'center', borderRadius: '6px', padding: '4px' }}
                                     />
                                     <button
@@ -2035,6 +2045,11 @@ const WarehouseModuleV2 = () => {
                                 type="number"
                                 value={editingInvTotal}
                                 onChange={e => setEditingInvTotal(e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') {
+                                    handleSaveInventoryQty(item.id)
+                                  }
+                                }}
                                 style={{ width: '80px', background: '#000', border: '1px solid #ff9000', color: '#fff', textAlign: 'center', borderRadius: '6px', padding: '4px' }}
                               />
                             ) : (
@@ -2054,6 +2069,11 @@ const WarehouseModuleV2 = () => {
                                   type="number"
                                   value={editingInvReserved}
                                   onChange={e => setEditingInvReserved(e.target.value)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') {
+                                      handleSaveInventoryQty(item.id)
+                                    }
+                                  }}
                                   style={{ width: '80px', background: '#000', border: '1px solid #3b82f6', color: '#fff', textAlign: 'center', borderRadius: '6px', padding: '4px' }}
                                 />
                                 <button
