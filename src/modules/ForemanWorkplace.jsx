@@ -35,7 +35,7 @@ const getDisplayMaterial = (partNom, snapshot) => {
 const ForemanWorkplace = () => {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { tasks, orders, workCards, createWorkCard, createWorkCardsBatch, inventory, completeTaskByMaster, nomenclatures, bomItems, machines, machineOperations, workCardHistory, confirmBuffer, fetchData, reserveBZForTask, fetchTaskArchiveCards, fetchModuleData, machineCalls, currentUser, createDovyпускMaterialRequests, requests: materialRequests } = useMES()
+  const { tasks, orders, workCards, createWorkCard, createWorkCardsBatch, inventory, completeTaskByMaster, nomenclatures, bomItems, machines, machineOperations, workCardHistory, confirmBuffer, fetchData, reserveBZForTask, fetchTaskArchiveCards, fetchModuleData, fetchTaskPlanSnapshot, machineCalls, currentUser, createDovyпускMaterialRequests, requests: materialRequests } = useMES()
 
   const countAsProduced = (card) => {
     if (card.status === 'completed') return true
@@ -930,6 +930,11 @@ const ForemanWorkplace = () => {
         taskDataCacheRef.current.lastWorkCards = workCards
       }
 
+      // Lazy load the big plan_snapshot on active task change
+      if (typeof fetchTaskPlanSnapshot === 'function') {
+        fetchTaskPlanSnapshot(activeTaskId).catch(() => {})
+      }
+
       // Перевіряємо чи є дані в кеші для цього наряду
       const cachedCards = taskDataCacheRef.current.archiveCards[activeTaskId]
       const cachedHistory = taskDataCacheRef.current.taskHistory[activeTaskId]
@@ -981,7 +986,7 @@ const ForemanWorkplace = () => {
       setTaskHistory([])
       setIsLoadingHistory(false)
     }
-  }, [activeTaskId, workCards]) // workCards — тригер після будь-якого оновлення
+  }, [activeTaskId, workCards, fetchTaskPlanSnapshot]) // workCards — тригер після будь-якого оновлення
 
   const getBOMParts = (nomenclatureId) => {
     return bomItems

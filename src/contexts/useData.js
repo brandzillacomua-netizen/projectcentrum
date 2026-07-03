@@ -173,8 +173,8 @@ export function useData() {
         supabase.from('customers').select('id,name,official_name').limit(50).order('name'),
         // Latest orders WITH order_items — needed by Master, Foreman, Director for naryad creation
         supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).range(0, 99),
-        // Active tasks WITHOUT nested order JOIN — order data is already in orders state
-        supabase.from('tasks').select('id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,plan_snapshot,batch_index,planned_deadline,machine_name,created_at,completed_at').or(`status.neq.completed,completed_at.gte.${threeDaysAgoTasks}`).order('created_at', { ascending: false }),
+        // Active tasks WITHOUT nested order JOIN — order data is already in orders state (excluding big plan_snapshot)
+        supabase.from('tasks').select('id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,batch_index,planned_deadline,machine_name,created_at,completed_at').or(`status.neq.completed,completed_at.gte.${threeDaysAgoTasks}`).order('created_at', { ascending: false }),
         // Nomenclatures & BOM needed for naryad creation
         supabase.from('nomenclatures').select('*').limit(2000),
         supabase.from('bom_items').select('*').limit(4000),
@@ -197,7 +197,16 @@ export function useData() {
       if (mt) setManagementTasks(mt)
       if (c) setCustomers(c)
       if (!oErr && latest) setOrders(latest)
-      if (t) setTasks(t)
+      if (t) {
+        // Keep plan_snapshot from already cached tasks if present
+        setTasks(prev => {
+          const cachedMap = new Map(prev.map(item => [item.id, item.plan_snapshot]))
+          return t.map(item => ({
+            ...item,
+            plan_snapshot: item.plan_snapshot || cachedMap.get(item.id) || null
+          }))
+        })
+      }
       if (n) setNomenclatures(n)
       if (b) setBomItems(b)
       if (wc) setWorkCards(wc)
@@ -266,8 +275,8 @@ export function useData() {
         { data: mCalls }
       ] = await Promise.all([
         supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).range(0, 99),
-        // tasks WITHOUT nested JOIN — avoids the orders(order_items(*)) waterfall
-        supabase.from('tasks').select('id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,plan_snapshot,batch_index,planned_deadline,machine_name,created_at,completed_at').or(`status.neq.completed,completed_at.gte.${threeDaysAgoTasks}`).order('created_at', { ascending: false }),
+        // tasks WITHOUT nested JOIN — avoids the orders(order_items(*)) waterfall (excluding big plan_snapshot)
+        supabase.from('tasks').select('id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,batch_index,planned_deadline,machine_name,created_at,completed_at').or(`status.neq.completed,completed_at.gte.${threeDaysAgoTasks}`).order('created_at', { ascending: false }),
         needNomenclatures ? supabase.from('nomenclatures').select('*').limit(2000) : Promise.resolve({ data: null }),
         needBOM ? supabase.from('bom_items').select('*').limit(4000) : Promise.resolve({ data: null }),
         needMachines ? supabase.from('machines').select('*').order('name') : Promise.resolve({ data: null }),
@@ -297,7 +306,16 @@ export function useData() {
         })
       }
 
-      if (t) setTasks(t)
+      if (t) {
+        // Keep plan_snapshot from already cached tasks if present
+        setTasks(prev => {
+          const cachedMap = new Map(prev.map(item => [item.id, item.plan_snapshot]))
+          return t.map(item => ({
+            ...item,
+            plan_snapshot: item.plan_snapshot || cachedMap.get(item.id) || null
+          }))
+        })
+      }
       if (needNomenclatures && n) setNomenclatures(n)
       if (needBOM && b) setBomItems(b)
       if (needMachines && mc) setMachines(mc)
@@ -318,6 +336,26 @@ export function useData() {
     } catch (e) {
       console.error('fetchData error:', e)
     }
+  }
+
+  // ── On-demand loader for the big plan_snapshot data ─────────────────────────
+  const fetchTaskPlanSnapshot = async (taskId) => {
+    if (!taskId) return null
+    try {
+      // Find cached plan_snapshot first
+      const cached = tasks.find(t => t.id === taskId)
+      if (cached && cached.plan_snapshot) return cached.plan_snapshot
+
+      const { data, error } = await supabase.from('tasks').select('plan_snapshot').eq('id', taskId).maybeSingle()
+      if (error) throw error
+      if (data && data.plan_snapshot) {
+        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, plan_snapshot: data.plan_snapshot } : t))
+        return data.plan_snapshot
+      }
+    } catch (e) {
+      console.error('Failed to fetch plan_snapshot for task:', taskId, e)
+    }
+    return null
   }
 
   // ── Module-specific lazy loaders (called on module mount) ─────────────────
@@ -357,9 +395,17 @@ export function useData() {
         if (data) setInventory(data)
       } else if (tableName === 'tasks') {
         const threeDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-        // No nested JOIN — tasks reference orders via order_id already in state
-        const { data } = await supabase.from('tasks').select('id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,plan_snapshot,batch_index,planned_deadline,machine_name,created_at,completed_at').or(`status.neq.completed,completed_at.gte.${threeDaysAgo}`).order('created_at', { ascending: false })
-        if (data) setTasks(data)
+        // No nested JOIN — tasks reference orders via order_id already in state (excluding big plan_snapshot)
+        const { data } = await supabase.from('tasks').select('id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,batch_index,planned_deadline,machine_name,created_at,completed_at').or(`status.neq.completed,completed_at.gte.${threeDaysAgo}`).order('created_at', { ascending: false })
+        if (data) {
+          setTasks(prev => {
+            const cachedMap = new Map(prev.map(item => [item.id, item.plan_snapshot]))
+            return data.map(item => ({
+              ...item,
+              plan_snapshot: item.plan_snapshot || cachedMap.get(item.id) || null
+            }))
+          })
+        }
       } else if (tableName === 'orders') {
         // Include order_items so modules that need quantities work correctly
         const { data } = await supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).range(0, 50)
@@ -1128,7 +1174,7 @@ export function useData() {
     sessionLoading, setSessionLoading,
     loading, setLoading,
     hasMoreOrders, setHasMoreOrders,
-    normalize, fetchOrders, fetchData, fetchCritical, fetchModuleData, fetchHistoryRange, fetchTaskArchiveCards, refreshTable, clearAllData,
+    normalize, fetchOrders, fetchData, fetchCritical, fetchModuleData, fetchTaskPlanSnapshot, fetchHistoryRange, fetchTaskArchiveCards, refreshTable, clearAllData,
     productionData,
     companyStructure, setCompanyStructure, upsertCompanyStructure, deleteCompanyStructure,
     companyPositions, setCompanyPositions, upsertCompanyPosition, deleteCompanyPosition

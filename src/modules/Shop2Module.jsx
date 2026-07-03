@@ -18,6 +18,7 @@ const Shop2Module = () => {
     completeTaskShop2,
     directHandoverToSGP,
     fetchTaskArchiveCards,
+    fetchTaskPlanSnapshot,
     workCardHistory
   } = useMES()
 
@@ -55,6 +56,12 @@ const Shop2Module = () => {
       setActiveTaskId(location.state.highlightTaskId)
     }
   }, [location.state])
+
+  useEffect(() => {
+    if (activeTaskId && typeof fetchTaskPlanSnapshot === 'function') {
+      fetchTaskPlanSnapshot(activeTaskId).catch(() => {})
+    }
+  }, [activeTaskId, fetchTaskPlanSnapshot])
 
   // Фільтруємо наряди для Цеху №2 (Пресування/ЦЕХ №2)
   const relevantTasks = useMemo(() => {

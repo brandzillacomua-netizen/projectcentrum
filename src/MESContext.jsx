@@ -272,6 +272,7 @@ export const MESProvider = ({ children }) => {
       machineCalls: data.machineCalls,
       setMachineCalls: data.setMachineCalls,
       fetchModuleData: data.fetchModuleData,
+      fetchTaskPlanSnapshot: data.fetchTaskPlanSnapshot,
       formatUserName,
       supabase
     }}>
