@@ -60,6 +60,7 @@ const DashboardModule = lazy(() => import('./modules/DashboardModule'))
 const ForemanDashboardModule = lazy(() => import('./modules/ForemanDashboardModule'))
 const MachineCallModule = lazy(() => import('./modules/MachineCallModule'))
 const TumblingTerminal = lazy(() => import('./modules/TumblingTerminal'))
+const TumblingDashboard = lazy(() => import('./modules/TumblingDashboard'))
 const ReceptionTerminal = lazy(() => import('./modules/ReceptionTerminal'))
 const SortingTerminal = lazy(() => import('./modules/SortingTerminal'))
 const SimulatorModule = lazy(() => import('./modules/SimulatorModule'))
@@ -88,6 +89,7 @@ const getAllModules = (badgeCount = 0) => [
   { id: 'foreman', title: 'ЦЕХ №1 – Створення РК', icon: <Users />, path: '/foreman', desc: 'Розподіл нарядів', color: '#f59e0b' },
   { id: 'shop1', title: 'Цех №1 · Термінал', icon: <Tablet />, path: '/shop1', desc: 'Розкрій → Галтовка → Прийомка', color: '#eab308' },
   { id: 'tumbling_terminal', title: 'Екран Галтовки', icon: <Tablet />, path: '/tumbling-terminal', desc: 'Дільниця галтовки', color: '#06b6d4' },
+  { id: 'tumbling_dashboard', title: 'Дашборд Галтовки (TV)', icon: <LayoutDashboard />, path: '/tumbling-dashboard', desc: 'Монітор черги та комплектів', color: '#ff9000' },
   { id: 'reception_terminal', title: 'Екран Прийомки', icon: <Tablet />, path: '/reception-terminal', desc: 'Дільниця прийомки', color: '#a78bfa' },
   { id: 'sorting_terminal', title: 'Екран Сортування', icon: <Tablet />, path: '/sorting-terminal', desc: 'Дільниця сортування', color: '#34d399' },
   { id: 'operator', title: 'Термінал', icon: <Tablet />, path: '/operator', desc: 'Робоче місце', color: '#ef4444' },
@@ -132,7 +134,7 @@ const getAvailableModules = (currentUser, badgeCount) => {
     if (m.id === 'brak') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.director || currentUser?.access_rights?.brak;
     if (m.id === 'reports') return currentUser?.access_rights?.director || currentUser?.access_rights?.reports || currentUser?.position === 'Адмін';
     if (m.id === 'prep_terminal') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.position?.toLowerCase()?.includes('вп') || currentUser?.position?.toLowerCase()?.includes('підготов');
-    if (m.id === 'tumbling_terminal') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.tumbling_terminal;
+    if (m.id === 'tumbling_terminal' || m.id === 'tumbling_dashboard') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.tumbling_terminal;
     if (m.id === 'reception_terminal') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.reception_terminal;
     if (m.id === 'sorting_terminal') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.sorting_terminal;
     if (m.id === 'simulator') return currentUser?.position === 'Адмін' || currentUser?.role === 'admin';
@@ -147,6 +149,7 @@ const CATEGORY_MAP = {
   shop1: 'shop1',
   prep_terminal: 'shop1',
   tumbling_terminal: 'shop1',
+  tumbling_dashboard: 'shop1',
   reception_terminal: 'shop1',
   sorting_terminal: 'shop1',
   operator: 'shop1',
@@ -2676,6 +2679,7 @@ const AppContent = () => {
           <Route path="/prep-terminal" element={<PermissionGuard id="prep_terminal"><PreparationTerminal /></PermissionGuard>} />
           <Route path="/shop1" element={<PermissionGuard id="shop1"><Shop1Terminal /></PermissionGuard>} />
           <Route path="/tumbling-terminal" element={<PermissionGuard id="tumbling_terminal"><TumblingTerminal /></PermissionGuard>} />
+          <Route path="/tumbling-dashboard" element={<PermissionGuard id="tumbling_dashboard"><TumblingDashboard /></PermissionGuard>} />
           <Route path="/reception-terminal" element={<PermissionGuard id="reception_terminal"><ReceptionTerminal /></PermissionGuard>} />
           <Route path="/sorting-terminal" element={<PermissionGuard id="sorting_terminal"><SortingTerminal /></PermissionGuard>} />
           <Route path="/shop2" element={<PermissionGuard id="shop2"><Shop2Module /></PermissionGuard>} />
