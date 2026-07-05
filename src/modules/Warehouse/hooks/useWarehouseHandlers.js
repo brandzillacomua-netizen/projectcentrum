@@ -63,6 +63,37 @@ export const useWarehouseHandlers = ({
     setIsProcessing(true)
     try {
       const { card, cutters } = boxItem
+      const targetBox = boxNumber ? String(boxNumber).trim() : (card.box_number ? String(card.box_number).trim() : null)
+
+      if (targetBox) {
+        // Check for active duplicates (only those currently in Cutting/Prep phase and not in buffer)
+        const { data: duplicates, error: dupErr } = await supabaseClient
+          .from('work_cards')
+          .select('id, card_info, nomenclature_id')
+          .eq('box_number', targetBox)
+          .neq('id', card.id)
+          .neq('status', 'completed')
+          .neq('status', 'at-buffer')
+          .in('operation', ['Розкрій', 'Підготовка'])
+          .limit(1)
+
+        if (dupErr) throw dupErr
+
+        if (duplicates && duplicates.length > 0) {
+          const dup = duplicates[0]
+          let dupName = 'Деталь'
+          if (nomenclatures && nomenclatures.length > 0) {
+            const foundNom = nomenclatures.find(n => String(n.id) === String(dup.nomenclature_id))
+            if (foundNom) dupName = foundNom.name
+          }
+          const dupLabel = dup.card_info?.split(' ')[0] || `картці #${dup.id.substring(0, 8)}`
+          
+          alert(`⚠️ Помилка: Бокс №${targetBox} вже присвоєно іншій активній картці ${dupLabel} (${dupName})!\nБудь ласка, оберіть інший вільний бокс.`)
+          setIsProcessing(false)
+          return false
+        }
+      }
+
       for (const cutter of cutters) {
         const { data: matchedInventory, error: invErr } = await supabaseClient
           .from('inventory')
