@@ -169,9 +169,50 @@ const ReportsModule = () => {
       endIso = d.toISOString()
     }
     
-    const data = await fetchHistoryRange(startIso, endIso)
-    setWorkCardHistory(data)
-    setIsSyncing(false)
+    try {
+      // 1. Fetch general history (up to page limit)
+      let queryGen = supabase.from('work_card_history').select('*')
+      if (startIso) queryGen = queryGen.gte('completed_at', startIso)
+      if (endIso) queryGen = queryGen.lte('completed_at', endIso)
+      const genPromise = queryGen.order('created_at', { ascending: false }).limit(1000)
+
+      // 2. Fetch all scrap records for the period
+      let queryScrap = supabase.from('work_card_history').select('*').gt('scrap_qty', 0)
+      if (startIso) queryScrap = queryScrap.gte('completed_at', startIso)
+      if (endIso) queryScrap = queryScrap.lte('completed_at', endIso)
+      const scrapPromise = queryScrap.order('created_at', { ascending: false })
+
+      // 3. Fetch all cutter records for the period
+      let queryCutters = supabase.from('work_card_history').select('*').like('card_info', '%[CUTTERS_BREAKDOWN:%')
+      if (startIso) queryCutters = queryCutters.gte('completed_at', startIso)
+      if (endIso) queryCutters = queryCutters.lte('completed_at', endIso)
+      const cuttersPromise = queryCutters.order('created_at', { ascending: false })
+
+      const [resGen, resScrap, resCutters] = await Promise.all([
+        genPromise,
+        scrapPromise,
+        cuttersPromise
+      ])
+
+      const merged = [
+        ...(resGen.data || []),
+        ...(resScrap.data || []),
+        ...(resCutters.data || [])
+      ]
+
+      // Remove duplicates by ID
+      const uniqueMap = new Map()
+      merged.forEach(item => {
+        if (item && item.id) uniqueMap.set(item.id, item)
+      })
+
+      const finalData = Array.from(uniqueMap.values()).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      setWorkCardHistory(finalData)
+    } catch (err) {
+      console.error("Failed to sync history range:", err)
+    } finally {
+      setIsSyncing(false)
+    }
   }
 
   // Слідкуємо за зміною періоду

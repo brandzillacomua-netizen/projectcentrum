@@ -12,15 +12,25 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 async function run() {
-  const { data, error } = await supabase.from('work_cards')
-    .select('id, status, operation, started_at, completed_at')
-    .eq('status', 'in-progress')
-    .limit(5);
-  
+  console.log('Fetching rows with scrap_qty > 0...');
+  const { data: scrapRows, error } = await supabase
+    .from('work_card_history')
+    .select('*')
+    .gt('scrap_qty', 0)
+    .order('created_at', { ascending: false });
+
   if (error) {
-    console.error(error);
-  } else {
-    console.log(data);
+    console.error('Error fetching scrap:', error);
+    return;
+  }
+
+  console.log(`Total scrap rows found in DB: ${scrapRows.length}`);
+  
+  if (scrapRows.length > 0) {
+    console.log('\nFirst 10 scrap rows:');
+    scrapRows.slice(0, 10).forEach(r => {
+      console.log(`ID: ${r.id} | completed_at: ${r.completed_at} | scrap_qty: ${r.scrap_qty} | stage: ${r.stage_name} | operator: ${r.operator_name}`);
+    });
   }
 }
 
