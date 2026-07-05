@@ -25,18 +25,26 @@ const getDisplayMaterial = (partNom, snapshot) => {
   const s300 = snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : 0
   const s700 = snapshot.sheets_t700 !== undefined ? Number(snapshot.sheets_t700) : 0
 
-  const isDefaultT700 = (baseMat || '').toLowerCase().includes('т700') || (baseMat || '').toLowerCase().includes('t700')
+  const hasT300 = (baseMat || '').toLowerCase().includes('т300') || (baseMat || '').toLowerCase().includes('t300')
+  const hasT700 = (baseMat || '').toLowerCase().includes('т700') || (baseMat || '').toLowerCase().includes('t700')
+  const isDefaultT700 = hasT700
 
   // If we have custom sheets in snapshot
   if (snapshot.sheets_t300 !== undefined || snapshot.sheets_t700 !== undefined) {
     if (s700 > 0 && s300 === 0) {
-      return baseMat.replace(/т300/gi, 'Т700').replace(/t300/gi, 'Т700')
+      if (hasT300) return baseMat.replace(/т300/gi, 'Т700').replace(/t300/gi, 'Т700')
+      if (!hasT700) return 'Т700 ' + baseMat
+      return baseMat
     }
     if (s300 > 0 && s700 > 0) {
-      return baseMat.replace(/т300/gi, 'Т300+Т700').replace(/t300/gi, 'Т300+Т700')
+      if (hasT300) return baseMat.replace(/т300/gi, 'Т300+Т700').replace(/t300/gi, 'Т300+Т700')
+      if (hasT700) return baseMat.replace(/т700/gi, 'Т300+Т700').replace(/t700/gi, 'Т300+Т700')
+      return 'Т300+Т700 ' + baseMat
     }
     if (s300 > 0 && s700 === 0) {
-      return baseMat.replace(/т700/gi, 'Т300').replace(/t700/gi, 'Т300')
+      if (hasT700) return baseMat.replace(/т700/gi, 'Т300').replace(/t700/gi, 'Т300')
+      if (!hasT300) return 'Т300 ' + baseMat
+      return baseMat
     }
   } else if (isDefaultT700) {
     return baseMat.replace(/т300/gi, 'Т700').replace(/t300/gi, 'Т700')
