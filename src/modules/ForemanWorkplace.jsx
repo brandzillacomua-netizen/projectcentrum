@@ -5,6 +5,13 @@ import { useMES } from '../MESContext'
 import { QRCodeSVG } from 'qrcode.react'
 import { apiService } from '../services/apiDispatcher'
 import { supabase } from '../supabase'
+import { useForemanData } from './Foreman/hooks/useForemanData'
+import { useForemanComputed } from './Foreman/hooks/useForemanComputed'
+import { useForemanHandlers } from './Foreman/hooks/useForemanHandlers'
+import ForemanTaskQueue from './Foreman/components/ForemanTaskQueue'
+import ForemanPrintQueue from './Foreman/components/ForemanPrintQueue'
+import ForemanPrintNaryadQueue from './Foreman/components/ForemanPrintNaryadQueue'
+import { getDisplayPartsForOrderItem as getDisplayPartsForOrderItemHelper, getStandardMachineType, findMachineByName } from './Foreman/utils/foremanHelpers'
 const getRequestQty = (r) => {
   if (r.quantity !== null && r.quantity !== undefined) return Number(r.quantity);
   const match = (r.details || '').match(/—\s*(\d+)/);
@@ -55,27 +62,56 @@ const ForemanWorkplace = () => {
     (!c.called_employee_id || c.called_employee_id === currentUser?.id)
   )
 
-  const handleResolveCall = async (callId) => {
-    const resolverName = currentUser ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() : 'Майстер зміни'
-    const { error } = await supabase
-      .from('machine_calls')
-      .update({
-        status: 'resolved',
-        resolved_at: new Date().toISOString(),
-        resolved_by: resolverName
-      })
-      .eq('id', callId)
-    if (error) {
-      alert('Помилка при вирішенні виклику: ' + error.message)
-    }
-  }
-
   const [activeTaskId, setActiveTaskId] = useState(() => {
     return location.state?.taskId || localStorage.getItem('foreman_active_task_id') || null
   })
-  const [activeView, setActiveView] = useState(() => {
-    return localStorage.getItem('foreman_active_view') || 'worksheet'
-  })
+  const {
+    activeView, setActiveView,
+    selectedMachines, setSelectedMachines,
+    rowCapacities, setRowCapacities,
+    editingSplits, setEditingSplits,
+    saveTimeoutRef,
+    genModal, setGenModal,
+    printQueue, setPrintQueue,
+    partialCounts, setPartialCounts,
+    isGenerating, setIsGenerating,
+    generatingLockRef,
+    isCompletingTask, setIsCompletingTask,
+    isDrawerOpen, setIsDrawerOpen,
+    currentPage, setCurrentPage,
+    expandedGroups, setExpandedGroups,
+    showReportModal, setShowReportModal,
+    reportTaskId, setReportTaskId,
+    reportLoading, setReportLoading,
+    reportData, setReportData,
+    reportStageFilter, setReportStageFilter,
+    reportNomFilter, setReportNomFilter,
+    reportSortBy, setReportSortBy,
+    reportOperatorFilter, setReportOperatorFilter,
+    reportDetailModal, setReportDetailModal,
+    changeMachineTaskId, setChangeMachineTaskId,
+    selectedNewMachine, setSelectedNewMachine,
+    isChangingMachine, setIsChangingMachine,
+    customAlert, setCustomAlert,
+    changeNomMachineTaskId, setChangeNomMachineTaskId,
+    changeNomMachineNomId, setChangeNomMachineNomId,
+    changeNomMachineName, setChangeNomMachineName,
+    selectedNomNewMachine, setSelectedNomNewMachine,
+    printNaryadQueue, setPrintNaryadQueue,
+    naryadPrintLoading, setNaryadPrintLoading,
+    isBufferScanning, setIsBufferScanning,
+    bufferScrapModal, setBufferScrapModal,
+    bufferScrapCounts, setBufferScrapCounts,
+    archiveCards, setArchiveCards,
+    allOrdersMap, setAllOrdersMap,
+    taskHistory, setTaskHistory,
+    isLoadingHistory, setIsLoadingHistory,
+    taskDataCacheRef,
+    staticCompletedCards, setStaticCompletedCards,
+    staticHistory, setStaticHistory,
+    cachedShortageMap, setCachedShortageMap,
+    customLoadingCapacities, setCustomLoadingCapacities
+  } = useForemanData()
 
   useEffect(() => {
     if (activeTaskId) {
@@ -88,636 +124,8 @@ const ForemanWorkplace = () => {
   useEffect(() => {
     localStorage.setItem('foreman_active_view', activeView)
   }, [activeView])
-  const [selectedMachines, setSelectedMachines] = useState({})
-  const [rowCapacities, setRowCapacities] = useState({})
-  const [editingSplits, setEditingSplits] = useState({}) // { nomId: [{machine, qty}] }
-  const saveTimeoutRef = useRef(null)
-  const [genModal, setGenModal] = useState(null)
-  const [printQueue, setPrintQueue] = useState(null)
-  const [partialCounts, setPartialCounts] = useState({}) // For partial generation in modal
-  const [isGenerating, setIsGenerating] = useState(false)
-  const generatingLockRef = useRef(false)
-  const [isCompletingTask, setIsCompletingTask] = useState(false) // Захист від подвійного кліку "ВИКОНАНО"
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
-  const [currentPage, setCurrentPage] = useState(1)
+
   const itemsPerPage = 8
-
-  const [expandedGroups, setExpandedGroups] = useState({})
-
-  // Звіти по наряду
-  const [showReportModal, setShowReportModal] = useState(false)
-  const [reportTaskId, setReportTaskId] = useState(null)
-  const [reportLoading, setReportLoading] = useState(false)
-  const [reportData, setReportData] = useState(null)
-  const [reportStageFilter, setReportStageFilter] = useState('All')
-  const [reportNomFilter, setReportNomFilter] = useState('All')
-  const [reportSortBy, setReportSortBy] = useState('date') // 'date' | 'min-time' | 'max-time' | 'operator' | 'scrap'
-  const [reportOperatorFilter, setReportOperatorFilter] = useState('All')
-  const [reportDetailModal, setReportDetailModal] = useState(null) // 'accepted' | 'scrap' | null
-
-  // Зміна верстата
-  const [changeMachineTaskId, setChangeMachineTaskId] = useState(null)
-  const [selectedNewMachine, setSelectedNewMachine] = useState('')
-  const [isChangingMachine, setIsChangingMachine] = useState(false)
-  const [customAlert, setCustomAlert] = useState(null) // { title: '', message: '' }
-
-  // Зміна верстата для конкретної номенклатури
-  const [changeNomMachineTaskId, setChangeNomMachineTaskId] = useState(null)
-  const [changeNomMachineNomId, setChangeNomMachineNomId] = useState(null)
-  const [changeNomMachineName, setChangeNomMachineName] = useState('')
-  const [selectedNomNewMachine, setSelectedNomNewMachine] = useState('')
-
-  const [printNaryadQueue, setPrintNaryadQueue] = useState(null)
-  const [naryadPrintLoading, setNaryadPrintLoading] = useState(false)
-
-  const handleOpenReport = async (task, order, taskCards, forceRefresh = false) => {
-    setReportTaskId(task.id)
-    setShowReportModal(true)
-    setReportStageFilter('All')
-    setReportNomFilter('All')
-    setReportSortBy('date')
-    setReportOperatorFilter('All')
-
-    // Check if we have a cached report snapshot in the plan_snapshot
-    const cached = task?.plan_snapshot?._report_snapshot
-    if (cached && !forceRefresh) {
-      setReportData(cached)
-      // If the task is completed, we don't need to refresh it at all! It's final.
-      if (task.status === 'completed') {
-        setReportLoading(false)
-        return
-      }
-    }
-
-    setReportLoading(true)
-    if (!cached || forceRefresh) {
-      setReportData(null)
-    }
-
-    try {
-      // 1. Fetch material requests for this task to determine planned cutters/consumables
-      const { data: materialRequests, error: reqError } = await supabase
-        .from('material_requests')
-        .select('*, nomenclature:nomenclatures(*)')
-        .eq('task_id', task.id)
-
-      if (reqError) console.warn('Error fetching material requests:', reqError.message)
-
-      // 2. Fetch ALL card IDs for this task directly from DB
-      const { data: allTaskCardsDB } = await supabase
-        .from('work_cards')
-        .select('id')
-        .eq('task_id', task.id)
-        .limit(10000)
-
-      const stateCardIds = taskCards.map(c => c.id)
-      const dbCardIds = (allTaskCardsDB || []).map(c => c.id)
-      const allCardIds = [...new Set([...stateCardIds, ...dbCardIds])]
-
-      console.log('[Report] task:', task.id, '| stateCards:', stateCardIds.length, '| dbCards:', dbCardIds.length, '| total:', allCardIds.length)
-
-      if (allCardIds.length === 0) {
-        const finalData = { historyRows: [], taskCards, materialRequests: materialRequests || [] }
-        setReportData(finalData)
-        setReportLoading(false)
-        return
-      }
-
-      // 3. Fetch all work_card_history rows for ALL cards of this task in chunks of 100 to avoid API limits
-      let historyRows = []
-      for (let i = 0; i < allCardIds.length; i += 100) {
-        const chunk = allCardIds.slice(i, i + 100)
-        const { data: histChunk, error: histErr } = await supabase
-          .from('work_card_history')
-          .select('*')
-          .in('card_id', chunk)
-          .limit(10000)
-
-        if (histErr) throw histErr
-        if (histChunk) {
-          historyRows = historyRows.concat(histChunk)
-        }
-      }
-
-      // Sort history rows by completed_at ascending
-      historyRows.sort((a, b) => new Date(a.completed_at || 0) - new Date(b.completed_at || 0))
-
-      const finalData = { historyRows: historyRows || [], taskCards, materialRequests: materialRequests || [] }
-      setReportData(finalData)
-
-      // Save to cache in the database
-      const updatedSnapshot = {
-        ...(task.plan_snapshot || {}),
-        _report_snapshot: finalData
-      }
-
-      await supabase.from('tasks').update({ plan_snapshot: updatedSnapshot }).eq('id', task.id)
-    } catch (e) {
-      console.error(e)
-      if (!cached) {
-        alert('Помилка завантаження звіту: ' + e.message)
-      }
-    } finally {
-      setReportLoading(false)
-    }
-  }
-
-  const handleOpenNaryadPrint = async (task, order) => {
-    setNaryadPrintLoading(true)
-    try {
-      // Fetch material requests for this task to determine planned cutters/consumables
-      const { data: materialRequests, error: reqError } = await supabase
-        .from('material_requests')
-        .select('*, nomenclature:nomenclatures(*)')
-        .eq('task_id', task.id)
-
-      if (reqError) console.warn('Error fetching material requests:', reqError.message)
-
-      setPrintNaryadQueue({
-        task,
-        order,
-        materialRequests: materialRequests || []
-      })
-    } catch (e) {
-      console.error(e)
-      alert('Помилка завантаження даних наряду: ' + e.message)
-    } finally {
-      setNaryadPrintLoading(false)
-    }
-  }
-
-  const handleChangeTaskMachine = async (taskId, newMachine) => {
-    const task = relevantTasks.find(t => t.id === taskId) || tasks.find(t => t.id === taskId)
-    if (!task || !newMachine) return
-
-    setIsChangingMachine(true)
-    try {
-      // 1. Отримуємо актуальні material_requests для наряду
-      const { data: matReqs, error: fetchReqsErr } = await supabase
-        .from('material_requests')
-        .select('*')
-        .eq('task_id', taskId)
-
-      if (fetchReqsErr) throw fetchReqsErr
-
-      // 2. Шукаємо старі запити на фрези, щоб зняти бронь
-      const cutterRequests = (matReqs || []).filter(r => {
-        if (!r.nomenclature_id) return false
-        const nom = nomenclatures.find(n => n.id === r.nomenclature_id)
-        return nom?.name?.toLowerCase()?.includes('фреза')
-      })
-
-      // Для кожної фрези, яка має статус 'issued' (вже зарезервована на складі), повертаємо її reserved_qty
-      const inventoryUpdates = []
-      for (const req of cutterRequests) {
-        if (req.inventory_id && req.status === 'issued') {
-          const { data: invItem } = await supabase
-            .from('inventory')
-            .select('*')
-            .eq('id', req.inventory_id)
-            .maybeSingle()
-
-          if (invItem) {
-            const newReserved = Math.max(0, (Number(invItem.reserved_qty) || 0) - Number(req.quantity))
-            inventoryUpdates.push(
-              supabase.from('inventory').update({ reserved_qty: newReserved }).eq('id', invItem.id)
-            )
-          }
-        }
-      }
-
-      if (inventoryUpdates.length > 0) {
-        await Promise.all(inventoryUpdates)
-      }
-
-      // 3. Видаляємо старі запити на фрези
-      const cutterRequestIds = cutterRequests.map(r => r.id)
-      if (cutterRequestIds.length > 0) {
-        const { error: delErr } = await supabase
-          .from('material_requests')
-          .delete()
-          .in('id', cutterRequestIds)
-        if (delErr) throw delErr
-      }
-
-      // 4. Розраховуємо нові фрези для нового типу верстата
-      const snapshot = { ...(task.plan_snapshot || {}) }
-      const newMachineSpecificCutters = {}
-      let hasMachineSpecificCutters = false
-      const partIds = Object.keys(snapshot).filter(k => !k.startsWith('_') && k !== 'materialSummary' && k !== 'selectedCutters' && k !== 'consumables')
-
-      partIds.forEach(partId => {
-        const partInfo = snapshot[partId]
-        const sheetsNeeded = Number(partInfo.sheets) || 0
-        if (sheetsNeeded <= 0) return
-
-        // override selected_machine for all parts to new machine
-        partInfo.selected_machine = newMachine
-
-        const opData = machineOperations?.find(o =>
-          String(o.nomenclature_id) === String(partId) &&
-          (o.machine_type === newMachine || o.machine_id === newMachine)
-        )
-
-        if (opData && opData.side2_cut_ops) {
-          const cutterOps = opData.side2_cut_ops.filter(op => op.startsWith('__CUTTER__Reference:') || op.startsWith('__CUTTER__:'))
-          cutterOps.forEach(op => {
-            const parts = op.split(':')
-            const cutterNomId = parts[1]
-            const qtyPerSheet = parseFloat(parts[2]) || 0
-            if (cutterNomId && qtyPerSheet > 0) {
-              hasMachineSpecificCutters = true
-              const totalQty = Math.ceil(sheetsNeeded * qtyPerSheet)
-              let cutterNom = nomenclatures.find(n => String(n.id) === String(cutterNomId))
-
-              if (cutterNom) {
-                const nl = cutterNom.name.toLowerCase()
-                const m1 = nl.match(/ф\s*([0-9,.]+)/)
-                const m2 = nl.match(/(?:кукурудза|двопера|однопера|спіральна|торцева|шарова|радіусна)?\s*([0-9][0-9,]*)(?:\s*[×xх×])/)
-                const d = m1 ? parseFloat(m1[1].replace(',', '.')) : (m2 ? parseFloat(m2[1].replace(',', '.')) : null)
-
-                if (partInfo.cutter_override !== '1.5' && d && Math.abs(d - 1.5) < 0.01) {
-                  return // skip
-                }
-                if (partInfo.cutter_override === '1.5' && d && Math.abs(d - 2) < 0.01) {
-                  cutterNom = { ...cutterNom, name: 'Фреза ф1.5', id: '__synthetic_f1.5__' }
-                }
-              }
-
-              if (cutterNom) {
-                const cleanName = cutterNom.name.trim()
-                const key = cleanName.toLowerCase()
-                if (!newMachineSpecificCutters[key]) {
-                  newMachineSpecificCutters[key] = { name: cleanName, qty: 0, nomenclature_id: cutterNom.id }
-                }
-                newMachineSpecificCutters[key].qty += totalQty
-              }
-            }
-          })
-        }
-      })
-
-      // 5. Створюємо нові запити на фрези (material_requests)
-      const requestsToInsert = []
-      const newConsumablesSnapshot = []
-
-      // Визначаємо статус нових запитів:
-      // Якщо наряд уже мав підтвердження (склад, інженер, директор), нові запити мають одразу статус 'issued' (і резервуються).
-      // Інакше вони у статусі 'pending'.
-      const shouldAutoReserve = task.warehouse_conf && task.engineer_conf && task.director_conf
-      const newStatus = 'pending'
-
-      const newInventoryReservations = []
-
-      for (const item of Object.values(newMachineSpecificCutters)) {
-        const isSynthetic = String(item.nomenclature_id).startsWith('__synthetic')
-        const invItem = isSynthetic ? null : (
-          inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id) && i.warehouse === 'operational') ||
-          inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id))
-        )
-
-        requestsToInsert.push({
-          order_id: task.order_id,
-          task_id: task.id,
-          quantity: item.qty,
-          status: newStatus,
-          inventory_id: invItem?.id || null,
-          nomenclature_id: isSynthetic ? null : item.nomenclature_id,
-          details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ${task.id}: ${item.name} — ${item.qty} од. (ПІСЛЯ ЗМІНИ ВЕРСТАТА)`
-        })
-
-        newConsumablesSnapshot.push({ name: item.name, total: item.qty })
-
-        // Якщо треба забронювати фрези, додаємо в список оновлення інвентаря
-        if (shouldAutoReserve && invItem) {
-          const currentReserved = Number(invItem.reserved_qty) || 0
-          newInventoryReservations.push(
-            supabase.from('inventory').update({ reserved_qty: currentReserved + item.qty }).eq('id', invItem.id)
-          )
-        }
-      }
-
-      // Зберігаємо також листи (вони не міняються, але consumables наряду оновлюються)
-      const totalSheets = Object.values(snapshot.materialSummary || {}).reduce((acc, m) => acc + (Number(m.sheets) || 0), 0)
-      if (totalSheets > 0) {
-        nomenclatures.filter(n => n.type === 'consumable' && (Number(n.consumption_per_sheet) || 0) > 0 && n.name.trim().toLowerCase() !== 'фреза' && (n.name.toLowerCase().startsWith('лист') || n.name.toLowerCase().includes('фреза'))).forEach(cons => {
-          if (hasMachineSpecificCutters && cons.name.toLowerCase().includes('фреза')) return
-          const neededQty = Math.ceil(totalSheets * Number(cons.consumption_per_sheet))
-          newConsumablesSnapshot.push({ name: cons.name.trim(), total: neededQty })
-        })
-      }
-
-      // Вставляємо нові material_requests
-      if (requestsToInsert.length > 0) {
-        const { error: insErr } = await supabase.from('material_requests').insert(requestsToInsert)
-        if (insErr) throw insErr
-      }
-
-      // Виконуємо бронювання інвентаря якщо треба
-      
-
-      // 6. Оновлюємо сам наряд (task)
-      snapshot.consumables = newConsumablesSnapshot
-      const { error: taskUpdErr } = await supabase
-        .from('tasks')
-        .update({
-          machine_name: newMachine,
-          plan_snapshot: snapshot
-        })
-        .eq('id', taskId)
-
-      if (taskUpdErr) throw taskUpdErr
-
-      // 7. Оновлюємо невиконані картки наряду (work_cards)
-      const { error: cardsUpdErr } = await supabase
-        .from('work_cards')
-        .update({ machine: newMachine })
-        .eq('task_id', taskId)
-        .neq('status', 'completed')
-
-      if (cardsUpdErr) throw cardsUpdErr
-
-      setCustomAlert({ title: 'Верстат наряду змінено', message: '✅ Верстат наряду успішно змінено. Бронь зі старих фрез знято. Надіслано новий запит на СО для видачі нових фрез!' })
-      setChangeMachineTaskId(null)
-      fetchData(['tasks', 'material_requests', 'inventory', 'work_cards']).catch(() => {})
-    } catch (e) {
-      console.error(e)
-      setCustomAlert({ title: 'Помилка', message: `Помилка при зміні верстата: ${e.message}` })
-    } finally {
-      setIsChangingMachine(false)
-    }
-  }
-
-  const handleUpdateNomenclatureMachineAndRecalculate = async (task, nomId, newMachineName, newSplits = null) => {
-    if (!task || !nomId) return
-    setIsChangingMachine(true)
-
-    try {
-      const sId = String(nomId)
-      const currentSnapshot = task.plan_snapshot || {}
-      const entry = { ...(currentSnapshot[sId] || {}) }
-
-      if (newMachineName !== null) {
-        entry.machine = newMachineName
-        entry.selected_machine = newMachineName
-        entry.splits = [] // clear splits if we chosen a single machine
-      }
-      if (newSplits !== null) {
-        entry.splits = newSplits
-      }
-
-      // Перераховуємо БЗ і план для цієї номенклатури з урахуванням pocket_owner (order_id)
-      const bzInv = (inventory || []).find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'bz' && String(i.pocket_owner) === String(task.order_id))
-      const stockBZ = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
-      entry.stock = stockBZ
-      entry.plan = Math.max(0, (entry.need || 0) - stockBZ)
-
-      const snapshotPartNom = nomenclatures.find(n => String(n.id) === String(nomId))
-      const unitsPerSheet = Number(entry.units_per_sheet || snapshotPartNom?.units_per_sheet) || 1
-      entry.sheets = Math.ceil(entry.plan / unitsPerSheet)
-
-      const updatedSnapshot = {
-        ...currentSnapshot,
-        [sId]: entry
-      }
-
-      // 1. Оновлюємо невиконані картки цієї номенклатури у наряді на новий верстат
-      const cardMachine = newMachineName !== null ? newMachineName : (newSplits && newSplits[0]?.machine ? newSplits[0].machine : task.machine_name)
-      await supabase
-        .from('work_cards')
-        .update({ machine: cardMachine })
-        .eq('task_id', task.id)
-        .eq('nomenclature_id', nomId)
-        .neq('status', 'completed')
-
-      // 2. Отримуємо актуальні material_requests для наряду
-      const { data: matReqs, error: fetchReqsErr } = await supabase
-        .from('material_requests')
-        .select('*')
-        .eq('task_id', task.id)
-
-      if (fetchReqsErr) throw fetchReqsErr
-
-      // 3. Шукаємо старі запити на фрези, щоб зняти бронь
-      const cutterRequests = (matReqs || []).filter(r => {
-        if (!r.nomenclature_id) return false
-        const nom = nomenclatures.find(n => n.id === r.nomenclature_id)
-        return nom?.name?.toLowerCase()?.includes('фреза')
-      })
-
-      // Повертаємо reserved_qty на склад
-      const inventoryUpdates = []
-      for (const req of cutterRequests) {
-        if (req.inventory_id && req.status === 'issued') {
-          const { data: invItem } = await supabase
-            .from('inventory')
-            .select('*')
-            .eq('id', req.inventory_id)
-            .maybeSingle()
-
-          if (invItem) {
-            const newReserved = Math.max(0, (Number(invItem.reserved_qty) || 0) - Number(req.quantity))
-            inventoryUpdates.push(
-              supabase.from('inventory').update({ reserved_qty: newReserved }).eq('id', invItem.id)
-            )
-          }
-        }
-      }
-
-      if (inventoryUpdates.length > 0) {
-        await Promise.all(inventoryUpdates)
-      }
-
-      // 4. Видаляємо старі запити на фрези
-      const cutterRequestIds = cutterRequests.map(r => r.id)
-      if (cutterRequestIds.length > 0) {
-        const { error: delErr } = await supabase
-          .from('material_requests')
-          .delete()
-          .in('id', cutterRequestIds)
-        if (delErr) throw delErr
-      }
-
-      // 5. Розраховуємо нові фрези для ВСІХ деталей наряду з урахуванням оновленого snapshot
-      const newMachineSpecificCutters = {}
-      let hasMachineSpecificCutters = false
-      const partIds = Object.keys(updatedSnapshot).filter(k => !k.startsWith('_') && k !== 'materialSummary' && k !== 'selectedCutters' && k !== 'consumables')
-
-      partIds.forEach(partId => {
-        const partInfo = updatedSnapshot[partId]
-        const sheetsNeeded = Number(partInfo.sheets) || 0
-        if (sheetsNeeded <= 0) return
-
-        const pSplits = partInfo.splits || []
-        const isPartSplit = pSplits.length > 0
-
-        const processCutterOps = (targetMach, sheetsForMachine) => {
-          const opData = machineOperations?.find(o =>
-            String(o.nomenclature_id) === String(partId) &&
-            (o.machine_type === targetMach || o.machine_id === targetMach)
-          )
-
-          if (opData && opData.side2_cut_ops) {
-            const cutterOps = opData.side2_cut_ops.filter(op => op.startsWith('__CUTTER__Reference:') || op.startsWith('__CUTTER__:'))
-            cutterOps.forEach(op => {
-              const parts = op.split(':')
-              const cutterNomId = parts[1]
-              const qtyPerSheet = parseFloat(parts[2]) || 0
-              if (cutterNomId && qtyPerSheet > 0) {
-                hasMachineSpecificCutters = true
-                const totalQty = Math.ceil(sheetsForMachine * qtyPerSheet)
-                let cutterNom = nomenclatures.find(n => String(n.id) === String(cutterNomId))
-
-                if (cutterNom) {
-                  const nl = cutterNom.name.toLowerCase()
-                  const m1 = nl.match(/ф\s*([0-9,.]+)/)
-                  const m2 = nl.match(/(?:кукурудза|двопера|однопера|спіральна|торцева|шарова|радіусна)?\s*([0-9][0-9,]*)(?:\s*[×xх×])/)
-                  const d = m1 ? parseFloat(m1[1].replace(',', '.')) : (m2 ? parseFloat(m2[1].replace(',', '.')) : null)
-
-                  if (partInfo.cutter_override !== '1.5' && d && Math.abs(d - 1.5) < 0.01) {
-                    return // skip
-                  }
-                  if (partInfo.cutter_override === '1.5' && d && Math.abs(d - 2) < 0.01) {
-                    cutterNom = { ...cutterNom, name: 'Фреза ф1.5', id: '__synthetic_f1.5__' }
-                  }
-                }
-
-                if (cutterNom) {
-                  const cleanName = cutterNom.name.trim()
-                  const key = cleanName.toLowerCase()
-                  if (!newMachineSpecificCutters[key]) {
-                    newMachineSpecificCutters[key] = { name: cleanName, qty: 0, nomenclature_id: cutterNom.id }
-                  }
-                  newMachineSpecificCutters[key].qty += totalQty
-                }
-              }
-            })
-          }
-        }
-
-        if (isPartSplit) {
-          pSplits.forEach(s => {
-            const sSheets = Number(s.sheets) || 0
-            if (sSheets > 0 && s.machine) {
-              processCutterOps(s.machine, sSheets)
-            }
-          })
-        } else {
-          const targetMach = partInfo.selected_machine || partInfo.machine || task.machine_name
-          processCutterOps(targetMach, sheetsNeeded)
-        }
-      })
-
-      // 6. Створюємо нові запити на фрези
-      const requestsToInsert = []
-      const newConsumablesSnapshot = []
-
-      const shouldAutoReserve = task.warehouse_conf && task.engineer_conf && task.director_conf
-      const newStatus = 'pending'
-
-      const newInventoryReservations = []
-
-      for (const item of Object.values(newMachineSpecificCutters)) {
-        const isSynthetic = String(item.nomenclature_id).startsWith('__synthetic')
-        const invItem = isSynthetic ? null : (
-          inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id) && i.warehouse === 'operational') ||
-          inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id))
-        )
-
-        requestsToInsert.push({
-          order_id: task.order_id,
-          task_id: task.id,
-          quantity: item.qty,
-          status: newStatus,
-          inventory_id: invItem?.id || null,
-          nomenclature_id: isSynthetic ? null : item.nomenclature_id,
-          details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ${task.id}: ${item.name} — ${item.qty} од. (ДЕТАЛЬНА ЗМІНА ВЕРСТАТА)`
-        })
-
-        newConsumablesSnapshot.push({ name: item.name, total: item.qty })
-
-        if (shouldAutoReserve && invItem) {
-          const currentReserved = Number(invItem.reserved_qty) || 0
-          newInventoryReservations.push(
-            supabase.from('inventory').update({ reserved_qty: currentReserved + item.qty }).eq('id', invItem.id)
-          )
-        }
-      }
-
-      // Зберігаємо також листи
-      const totalSheets = Object.values(updatedSnapshot.materialSummary || {}).reduce((acc, m) => acc + (Number(m.sheets) || 0), 0)
-      if (totalSheets > 0) {
-        nomenclatures.filter(n => n.type === 'consumable' && (Number(n.consumption_per_sheet) || 0) > 0 && n.name.trim().toLowerCase() !== 'фреза' && (n.name.toLowerCase().startsWith('лист') || n.name.toLowerCase().includes('фреза'))).forEach(cons => {
-          if (hasMachineSpecificCutters && cons.name.toLowerCase().includes('фреза')) return
-          const neededQty = Math.ceil(totalSheets * Number(cons.consumption_per_sheet))
-          newConsumablesSnapshot.push({ name: cons.name.trim(), total: neededQty })
-        })
-      }
-
-      if (requestsToInsert.length > 0) {
-        const { error: insErr } = await supabase.from('material_requests').insert(requestsToInsert)
-        if (insErr) throw insErr
-      }
-
-      
-
-      // 7. Оновлюємо сам наряд (task) з новим plan_snapshot
-      updatedSnapshot.consumables = newConsumablesSnapshot
-      
-      let hasPlan = false
-      Object.keys(updatedSnapshot).forEach(k => {
-        if (!k.startsWith('_') && k !== 'materialSummary' && k !== 'selectedCutters' && k !== 'consumables') {
-          if ((Number(updatedSnapshot[k]?.plan) || 0) > 0) hasPlan = true
-        }
-      })
-
-      const updateFields = {
-        plan_snapshot: updatedSnapshot
-      }
-      if (hasPlan && task.status === 'completed') {
-        updateFields.status = 'in-progress'
-        updateFields.completed_at = null
-      }
-
-      const { error: taskUpdErr } = await supabase
-        .from('tasks')
-        .update(updateFields)
-        .eq('id', task.id)
-
-      if (taskUpdErr) throw taskUpdErr
-
-      setCustomAlert({ title: 'Верстат деталі змінено', message: '✅ Верстат/розподіл для деталі успішно змінено. Бронь зі старих фрез знято. Надіслано новий запит на СО для видачі нових фрез!' })
-      fetchData(['tasks', 'material_requests', 'inventory', 'work_cards']).catch(() => {})
-    } catch (e) {
-      console.error(e)
-      setCustomAlert({ title: 'Помилка', message: `Помилка при перерахунку фрез: ${e.message}` })
-    } finally {
-      setIsChangingMachine(false)
-    }
-  }
-
-  const [isBufferScanning, setIsBufferScanning] = useState(false)
-  const [bufferScrapModal, setBufferScrapModal] = useState(null)
-  const [bufferScrapCounts, setBufferScrapCounts] = useState({})
-  const [archiveCards, setArchiveCards] = useState([]) // Завершені картки (статус completed) для поточного наряду
-  const [allOrdersMap, setAllOrdersMap] = useState({})
-  const [taskHistory, setTaskHistory] = useState([])
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
-  const taskDataCacheRef = useRef({
-    archiveCards: {},
-    taskHistory: {},
-    lastWorkCards: null
-  })
-  const [staticCompletedCards, setStaticCompletedCards] = useState([])
-  const [staticHistory, setStaticHistory] = useState([])
-  // ── Instant-from-cache shortage map (no flicker on reload) ──
-  const SHORTAGE_CACHE_KEY = 'foreman_shortage_map_v1'
-  const [cachedShortageMap, setCachedShortageMap] = useState(() => {
-    try {
-      const raw = localStorage.getItem('foreman_shortage_map_v1')
-      return raw ? JSON.parse(raw) : {}
-    } catch { return {} }
-  })
 
   // Load foreman-specific data (workCards, inventory, requests) immediately on mount
   useEffect(() => { fetchModuleData('foreman') }, [])
@@ -823,475 +231,46 @@ const ForemanWorkplace = () => {
 
 
 
-  // ── Compute production, scrap, and redo caches in memory ──────────────
-  const { productionCache, scrapCache, redoCache, allCardsCache, cardScrapCache } = useMemo(() => {
-    const prodCache = {};
-    const sCache = {};
-    const rCache = {};
-    const csCache = {};
 
-    const activeTaskIds = new Set(tasks.filter(t => t.status !== 'completed').map(t => t.id));
-    const activeCards = workCards.filter(c => activeTaskIds.has(c.task_id));
+  const {
+    productionCache, scrapCache, redoCache, allCardsCache, cardScrapCache,
+    taskCardsCountMap, taskReadinessMap,
+    taskShortageMap,
+    relevantTasks, activeQueueCount
+  } = useForemanComputed({
+    tasks, orders, allOrdersMap, workCards, workCardHistory,
+    staticCompletedCards, staticHistory, archiveCards, taskHistory,
+    nomenclatures, bomItems, taskDataCacheRef,
+    cachedShortageMap,
+    staticHistoryLength: staticHistory.length
+  })
 
-    // Merge cached archive cards from taskDataCacheRef to prevent losing status on inactive tasks
-    const cachedArchiveCards = [];
-    if (taskDataCacheRef.current && taskDataCacheRef.current.archiveCards) {
-      Object.keys(taskDataCacheRef.current.archiveCards).forEach(tid => {
-        const list = taskDataCacheRef.current.archiveCards[tid] || [];
-        list.forEach(c => {
-          if (!activeCards.some(ac => ac.id === c.id) && !staticCompletedCards.some(sc => sc.id === c.id)) {
-            cachedArchiveCards.push(c);
-          }
-        });
-      });
-    }
+  const {
+    handleResolveCall: handleResolveCallRaw,
+    handleOpenReport,
+    handleOpenNaryadPrint,
+    handleChangeTaskMachine,
+    handleUpdateNomenclatureMachineAndRecalculate,
+    handleGenerateFromWorksheet,
+    handleBufferReception,
+    submitBufferReception,
+    handleReserveBZ,
+    handleUpdateMachineInSnapshot,
+    debouncedUpdateSplits
+  } = useForemanHandlers({
+    createWorkCard, createWorkCardsBatch, completeTaskByMaster, confirmBuffer, reserveBZForTask, createDovyпускMaterialRequests,
+    tasks, orders, workCards, inventory, nomenclatures, bomItems, machines, machineOperations, workCardHistory,
+    relevantTasks, allOrdersMap, setAllOrdersMap,
+    setReportTaskId, setShowReportModal, setReportStageFilter, setReportNomFilter, setReportSortBy, setReportOperatorFilter, setReportData, setReportLoading,
+    setPrintNaryadQueue, setNaryadPrintLoading, setIsChangingMachine, setCustomAlert, setChangeMachineTaskId,
+    setIsGenerating, setGenModal, setPrintQueue, setBufferScrapModal, setBufferScrapCounts, bufferScrapModal, bufferScrapCounts,
+    saveTimeoutRef, setEditingSplits,
+    generatingLockRef, cardScrapCache,
+    supabase, apiService,
+    fetchData, fetchModuleData
+  })
 
-    const allCards = [...activeCards, ...staticCompletedCards, ...cachedArchiveCards];
-
-    allCards.forEach(card => {
-      const tid = card.task_id;
-      const nid = String(card.nomenclature_id);
-
-      if (!prodCache[tid]) prodCache[tid] = {};
-      if (!sCache[tid]) sCache[tid] = {};
-      if (!rCache[tid]) rCache[tid] = {};
-
-      if (countAsProduced(card)) {
-        prodCache[tid][nid] = (prodCache[tid][nid] || 0) + (Number(card.quantity) || 0);
-      }
-
-      const isRedo = (card.card_info || '').includes('[REDO]');
-      const isActive = !countAsProduced(card);
-      if (isRedo && isActive) {
-        rCache[tid][nid] = true;
-      }
-    });
-
-    const activeCardIds = new Set(activeCards.map(c => c.id));
-    // activeHistory: recent scrap from global workCardHistory (fallback before staticHistory loads)
-    const activeHistory = workCardHistory.filter(h => h.card_id && activeCardIds.has(h.card_id));
-
-    // Merge cached taskHistory from taskDataCacheRef
-    const cachedHistory = [];
-    if (taskDataCacheRef.current && taskDataCacheRef.current.taskHistory) {
-      Object.keys(taskDataCacheRef.current.taskHistory).forEach(tid => {
-        const list = taskDataCacheRef.current.taskHistory[tid] || [];
-        list.forEach(h => { cachedHistory.push(h); });
-      });
-    }
-
-    // Deduplicate by entry ID to prevent double-counting when staticHistory overlaps with activeHistory/cachedHistory
-    const historyMap = new Map();
-    [...staticHistory, ...activeHistory, ...cachedHistory].forEach(h => {
-      if (h && h.id && !historyMap.has(h.id)) historyMap.set(h.id, h);
-    });
-    const allHistory = Array.from(historyMap.values());
-
-    allHistory.forEach(h => {
-      if (h.card_id) {
-        csCache[h.card_id] = (csCache[h.card_id] || 0) + (Number(h.scrap_qty) || 0);
-      }
-      const card = allCards.find(c => c.id === h.card_id);
-      if (card) {
-        const tid = card.task_id;
-        const nid = String(card.nomenclature_id);
-        if (!sCache[tid]) sCache[tid] = {};
-        sCache[tid][nid] = (sCache[tid][nid] || 0) + (Number(h.scrap_qty) || 0);
-      }
-    });
-
-    return {
-      productionCache: prodCache,
-      scrapCache: sCache,
-      redoCache: rCache,
-      allCardsCache: allCards,
-      cardScrapCache: csCache
-    };
-  }, [tasks, workCards, workCardHistory, staticCompletedCards, staticHistory, archiveCards, taskHistory]);
-
-  useEffect(() => {
-    if (location.state?.taskId) {
-      setActiveTaskId(location.state.taskId)
-      setActiveView('worksheet')
-    } else if (location.state?.highlightTaskId) {
-      setActiveTaskId(location.state.highlightTaskId)
-      setActiveView('worksheet')
-    } else {
-      const tParam = searchParams.get('task')
-      if (tParam) {
-        setActiveTaskId(tParam)
-        setActiveView('worksheet')
-      }
-    }
-  }, [location.state, searchParams])
-
-
-  // Підвантажуємо архівні картки та історію при зміні активного наряду
-  useEffect(() => {
-    if (activeTaskId) {
-      // Якщо глобальні workCards змінилися — скидаємо кеш ТІЛЬКИ для активного наряду, зберігаючи інші
-      if (taskDataCacheRef.current.lastWorkCards !== workCards) {
-        delete taskDataCacheRef.current.archiveCards[activeTaskId]
-        delete taskDataCacheRef.current.taskHistory[activeTaskId]
-        taskDataCacheRef.current.lastWorkCards = workCards
-      }
-
-      // Lazy load the big plan_snapshot on active task change
-      if (typeof fetchTaskPlanSnapshot === 'function') {
-        fetchTaskPlanSnapshot(activeTaskId).catch(() => {})
-      }
-
-      // Перевіряємо чи є дані в кеші для цього наряду
-      const cachedCards = taskDataCacheRef.current.archiveCards[activeTaskId]
-      const cachedHistory = taskDataCacheRef.current.taskHistory[activeTaskId]
-
-      if (cachedCards && cachedHistory) {
-        setArchiveCards(cachedCards)
-        setTaskHistory(cachedHistory)
-        setIsLoadingHistory(false)
-        return
-      }
-
-      setIsLoadingHistory(true)
-      fetchTaskArchiveCards(activeTaskId).then(async (cards) => {
-        setArchiveCards(cards || [])
-
-        const activeTaskCards = workCards.filter(c => c.task_id === activeTaskId)
-        const allTaskCards = [...activeTaskCards, ...(cards || [])]
-        const cardIds = allTaskCards.map(c => c.id)
-        let histData = []
-        if (cardIds.length > 0) {
-          const chunkSize = 100
-          const promises = []
-          for (let i = 0; i < cardIds.length; i += chunkSize) {
-            const chunk = cardIds.slice(i, i + chunkSize)
-            promises.push(
-              supabase
-                .from('work_card_history')
-                .select('*')
-                .in('card_id', chunk)
-                .limit(5000)
-            )
-          }
-          const results = await Promise.all(promises)
-          histData = results.flatMap(r => r.data || [])
-          setTaskHistory(histData)
-        } else {
-          setTaskHistory([])
-        }
-
-        // Записуємо в кеш
-        taskDataCacheRef.current.archiveCards[activeTaskId] = cards || []
-        taskDataCacheRef.current.taskHistory[activeTaskId] = histData
-        setIsLoadingHistory(false)
-      }).catch(() => {
-        setIsLoadingHistory(false)
-      })
-    } else {
-      setArchiveCards([])
-      setTaskHistory([])
-      setIsLoadingHistory(false)
-    }
-  }, [activeTaskId, workCards, fetchTaskPlanSnapshot]) // workCards — тригер після будь-якого оновлення
-
-  const getBOMParts = (nomenclatureId) => {
-    return bomItems
-      .filter(b => b.parent_id === nomenclatureId)
-      .map(b => ({
-        ...b,
-        nom: nomenclatures.find(n => n.id === b.child_id)
-      }))
-  }
-
-  const getDisplayPartsForOrderItem = (task, it) => {
-    if (task?.plan_snapshot) {
-      const partsFromSnapshot = Object.values(task.plan_snapshot)
-        .filter(p => p && String(p.order_item_id) === String(it.id))
-        .map(p => {
-          const nom = nomenclatures.find(n => String(n.id) === String(p.id))
-          return {
-            nom: nom || { id: p.id, name: p.name, nomenclature_code: p.code, material_type: p.material, type: 'part' },
-            quantity_per_parent: p.need / (Number(it.quantity) || 1)
-          }
-        });
-      if (partsFromSnapshot.length > 0) return partsFromSnapshot;
-    }
-    const parts = getBOMParts(it.nomenclature_id)
-    return parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === it.nomenclature_id), quantity_per_parent: 1 }]
-  }
-
-  const MACHINE_TYPES = [
-    'CNC 1200x800 - 4 листи (Малий)',
-    'CNC 3050(16)х16 - 3-12 листів (швидкісний)',
-    'CNC 3060х1600 - 3-36 листів (Три Головий)',
-    'CNC 6000x2000 - 4 - 96 листів (Дракон)',
-    'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
-  ]
-
-  const getStandardMachineType = (name) => {
-    if (!name || name === 'Не вказано') return ''
-    const normName = name.toLowerCase()
-    const directMatch = MACHINE_TYPES.find(t => t.toLowerCase() === normName)
-    if (directMatch) return directMatch
-    if (normName.includes('12x8') || normName.includes('1200x800') || normName.includes('малий')) {
-      return 'CNC 1200x800 - 4 листи (Малий)'
-    }
-    if (normName.includes('16x16') || normName.includes('3050(16)') || normName.includes('швидкісний') || normName.includes('3050x1600') || normName.includes('3050х1600') || normName.includes('3050')) {
-      return 'CNC 3050(16)х16 - 3-12 листів (швидкісний)'
-    }
-    if (normName.includes('30x16') || normName.includes('3060x1600') || normName.includes('3060х1600') || normName.includes('три головий') || normName.includes('триголовий')) {
-      return 'CNC 3060х1600 - 3-36 листів (Три Головий)'
-    }
-    if (normName.includes('60x20') || normName.includes('6000x2000') || normName.includes('дракон')) {
-      return 'CNC 6000x2000 - 4 - 96 листів (Дракон)'
-    }
-    if (normName.includes('ke xin') || normName.includes('фея')) {
-      return 'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
-    }
-    const partial = MACHINE_TYPES.find(t => t.toLowerCase().includes(normName) || normName.includes(t.toLowerCase()))
-    if (partial) return partial
-    return ''
-  }
-
-  const findMachine = (name) => {
-    if (!name || name === 'Не вказано') return null
-    const baseName = name.split(' №')[0].trim()
-    let found = machines.find(m => m.name === baseName)
-      || machines.find(m => m.name === name)
-      || machines.find(m => m.type === baseName)
-      || machines.find(m => m.type === name)
-    if (!found) {
-      const baseNameLower = baseName.toLowerCase()
-      if (baseNameLower.includes('12x8') || baseNameLower.includes('1200x800') || baseNameLower.includes('малий')) {
-        found = { sheet_capacity: 4, name: 'CNC 1200x800 - 4 листи (Малий)' }
-      } else if (baseNameLower.includes('16x16') || baseNameLower.includes('3050(16)') || baseNameLower.includes('швидкісний') || baseNameLower.includes('3050x1600') || baseNameLower.includes('3050х1600') || baseNameLower.includes('3050')) {
-        found = { sheet_capacity: 12, name: 'CNC 3050(16)х16 - 3-12 листів (швидкісний)' }
-      } else if (baseNameLower.includes('30x16') || baseNameLower.includes('3060x1600') || baseNameLower.includes('3060х1600') || baseNameLower.includes('три головий') || baseNameLower.includes('триголовий')) {
-        found = { sheet_capacity: 36, name: 'CNC 3060х1600 - 3-36 листів (Три Головий)' }
-      } else if (baseNameLower.includes('60x20') || baseNameLower.includes('6000x2000') || baseNameLower.includes('дракон')) {
-        found = { sheet_capacity: 96, name: 'CNC 6000x2000 - 4 - 96 листів (Дракон)' }
-      } else if (baseNameLower.includes('ke xin') || baseNameLower.includes('фея')) {
-        found = { sheet_capacity: 16, name: 'CNC KE XIN - 4 - 16 листів (ФЕЯ)' }
-      }
-    }
-
-    if (found) {
-      const result = { ...found }
-      const searchName = ((result.name || '') + ' ' + (name || '')).replace(/\d+\s*[xх\*×]\s*\d+/gi, '') // видаляємо розміри верстата на кшталт 1200x800 перед парсингом
-      const match = searchName.match(/(\d+)\s*-\s*(\d+)\s*лист/i)
-      if (match) {
-        result.min_capacity = parseInt(match[1])
-        result.max_capacity = parseInt(match[2])
-      } else {
-        const matchSingle = searchName.match(/(\d+)\s*лист/i)
-        if (matchSingle) {
-          result.min_capacity = parseInt(matchSingle[1])
-          result.max_capacity = parseInt(matchSingle[1])
-        } else {
-          const bnl = searchName.toLowerCase()
-          if (bnl.includes('12x8') || bnl.includes('1200x800') || bnl.includes('малий')) {
-            result.min_capacity = 1; result.max_capacity = 4;
-          } else if (bnl.includes('16x16') || bnl.includes('3050(16)') || bnl.includes('швидкісний') || bnl.includes('3050x1600') || bnl.includes('3050х1600') || bnl.includes('3050')) {
-            result.min_capacity = 3; result.max_capacity = 12;
-          } else if (bnl.includes('30x16') || bnl.includes('3060x1600') || bnl.includes('3060х1600') || bnl.includes('три головий') || bnl.includes('триголовий')) {
-            result.min_capacity = 3; result.max_capacity = 36;
-          } else if (bnl.includes('60x20') || bnl.includes('6000x2000') || bnl.includes('дракон')) {
-            result.min_capacity = 4; result.max_capacity = 96;
-          } else if (bnl.includes('ke xin') || bnl.includes('фея')) {
-            result.min_capacity = 4; result.max_capacity = 16;
-          } else {
-            result.min_capacity = result.sheet_capacity || 1
-            result.max_capacity = result.sheet_capacity || 1
-          }
-        }
-      }
-      // Додатковий фікс на випадок збою регулярки: якщо мін > макс або мін >= 100, коригуємо для Малого верстата
-      if (result.min_capacity > result.max_capacity || result.min_capacity >= 100) {
-        const bnl = searchName.toLowerCase()
-        if (bnl.includes('1200x800') || bnl.includes('малий') || bnl.includes('12x8')) {
-          result.min_capacity = 1;
-          result.max_capacity = 4;
-        }
-      }
-      return result
-    }
-    return null
-  }
-
-
-  const handleCloseNaryad = async (taskId) => {
-    if (!window.confirm("Ви впевнені, що хочете закрити цей наряд?")) return
-    try {
-      await completeTaskByMaster(taskId)
-      setActiveTaskId(null)
-      fetchData(['tasks', 'orders', 'work_cards'])
-    } catch (err) {
-      alert("Помилка: " + err.message)
-    }
-  }
-
-  const handleCompleteShop1Task = async (taskId) => {
-    if (isCompletingTask) return
-    if (!window.confirm('Підтвердити завершення наряду Цеху №1? Сировину буде списано.')) return
-    setIsCompletingTask(true)
-    try {
-      await completeTaskByMaster(taskId)
-      setActiveTaskId(null)
-    } catch (err) {
-      alert('Помилка: ' + err.message)
-    } finally {
-      setIsCompletingTask(false)
-    }
-  }
-
-  // 0. Per-task readiness: all Shop-1 cards produced >= need
-  // Картка вважається "виробленою" ЛИШЕ після формальної ПРИЙОМКИ на склад Цеху №1
-  // Ланцюжок: Розкрій → at-buffer(Розкрій) → Галтовка → at-buffer(Галтовка) → ПРИЙОМКА → completed
-  // Будь-який проміжний стан (at-buffer, in-progress) — ще НЕ вироблено
-
-
-
-  const taskCardsCountMap = useMemo(() => {
-    const map = {}
-    tasks.forEach(task => {
-      map[task.id] = workCards.filter(c => c.task_id === task.id && c.operation !== 'Склад БЗ').length
-    })
-    return map
-  }, [tasks, workCards])
-
-  const taskReadinessMap = useMemo(() => {
-    const map = {}
-    tasks.forEach(task => {
-      if (task.status === 'completed') { map[task.id] = false; return }
-      const order = task.orders || orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
-
-      const taskCache = productionCache[task.id] || {}
-
-      const isReady = order?.order_items?.every(item => {
-        const rows = getDisplayPartsForOrderItem(task, item)
-        const shop1Parts = rows.filter(r => r.nom?.type === 'part')
-        if (shop1Parts.length === 0) return true
-        return shop1Parts.every(part => {
-          const nomId = String(part.nom?.id)
-          const snapshot = task.plan_snapshot?.[nomId]
-          const need = snapshot
-            ? snapshot.need
-            : (Number(item.quantity) * (Number(part.quantity_per_parent) || 1))
-          if (need === 0) return true
-
-          const produced = taskCache[nomId] || 0
-          return produced >= need
-        })
-      })
-      const taskCards = allCardsCache.filter(c => c.task_id === task.id)
-      const hasActiveInProgressCards = taskCards.some(c => !countAsProduced(c))
-      map[task.id] = Boolean(isReady) && !hasActiveInProgressCards
-    })
-    return map
-  }, [tasks, orders, allOrdersMap, nomenclatures, bomItems, productionCache, allCardsCache, scrapCache])
-
-  const taskShortageMap = useMemo(() => {
-    const map = {}
-    tasks.forEach(task => {
-      if (task.status === 'completed') { map[task.id] = false; return }
-      const snapshot = task.plan_snapshot || {}
-      const taskScrap = scrapCache[task.id] || {}
-      const taskRedo = redoCache[task.id] || {}
-      const taskCards = allCardsCache.filter(c => c.task_id === task.id)
-
-      let hasShortage = false
-      Object.keys(snapshot).forEach(nomIdStr => {
-        if (hasShortage) return
-        const nom = nomenclatures.find(n => String(n.id) === String(nomIdStr))
-        if (nom?.type !== 'part') return
-        const snap = snapshot[nomIdStr]
-        if (!snap) return
-
-        const need = snap.need || 0
-        const stockBZ = snap.stock || 0
-        const unitsPerSheet = snap.units_per_sheet || 1
-
-        const nomCards = taskCards.filter(c => String(c.nomenclature_id) === String(nomIdStr))
-        const productionCards = nomCards.filter(c => c.operation !== 'Склад БЗ')
-
-        // Якщо карток немає взагалі — пропускаємо (наряд ще не розпочато по цій позиції)
-        if (nomCards.length === 0) return
-
-        // Якщо є картки — рахуємо листи з урахуванням браку
-        const totalSheets = productionCards.reduce((sum, c) => {
-          const cardScrap = cardScrapCache[c.id] || 0
-          const originalQty = (Number(c.quantity) || 0) + cardScrap
-          return sum + (c.actualSheets ? Number(c.actualSheets) : Math.ceil(originalQty / unitsPerSheet))
-        }, 0)
-
-        const plannedSheets = snap.sheets || 0
-        // Якщо немає production cards (все вже завершено) — беремо plannedSheets як базу
-        const totalSheetsMax = productionCards.length > 0
-          ? Math.max(plannedSheets, totalSheets)
-          : plannedSheets
-
-        const totalBZ = (totalSheetsMax * unitsPerSheet) + stockBZ - need
-        const groupScrap = taskScrap[nomIdStr] || 0
-        const shortage = (totalBZ - groupScrap) < 0 ? Math.abs(totalBZ - groupScrap) : 0
-
-        if (shortage > 0) {
-          hasShortage = true
-        }
-      })
-      map[task.id] = hasShortage
-    })
-    return map
-  }, [tasks, scrapCache, redoCache, nomenclatures, allCardsCache, cardScrapCache])
-
-  // ── Persist shortage map to localStorage once staticHistory is loaded ──
-  // This eliminates the red→yellow flicker on page reload
-  useEffect(() => {
-    if (staticHistory.length === 0) return // Don't overwrite cache with empty-state results
-    try {
-      const serialized = JSON.stringify(taskShortageMap)
-      localStorage.setItem(SHORTAGE_CACHE_KEY, serialized)
-      setCachedShortageMap(taskShortageMap)
-    } catch (e) {}
-  }, [taskShortageMap, staticHistory.length])
-
-  const relevantTasks = useMemo(() => {
-    return tasks
-      .filter(t => {
-        const stepName = (t.step || '').toLowerCase()
-        const isLaser = stepName.includes('розкрій') || stepName.includes('різка')
-
-        // Якщо наряд АКТИВНИЙ (не завершений)
-        if (t.status !== 'completed') {
-          return (t.warehouse_conf === 'true' || t.warehouse_conf === 'partial') && t.engineer_conf && t.director_conf && isLaser
-        }
-
-        // Якщо наряд ЗАВЕРШЕНИЙ (Архів)
-        const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
-        const isRecent = (t.completed_at && new Date(t.completed_at) > threeDaysAgo) || (t.updated_at && new Date(t.updated_at) > threeDaysAgo)
-
-        // Для архіву Цеху №1 показуємо будь-який нещодавній наряд, який був розкрійним/різкою
-        // (Або взагалі будь-який завершений нещодавно, щоб нічого не зникло)
-        return isRecent && (isLaser || !t.step)
-      })
-      .sort((a, b) => {
-        // Already transferred → bottom
-        if (a.status === 'completed' && b.status !== 'completed') return 1
-        if (a.status !== 'completed' && b.status === 'completed') return -1
-
-        // Needs DOVYPUSK → top
-        const aShortage = taskShortageMap[a.id] || cachedShortageMap[a.id] || false
-        const bShortage = taskShortageMap[b.id] || cachedShortageMap[b.id] || false
-        if (aShortage && !bShortage) return -1
-        if (!aShortage && bShortage) return 1
-
-        // Rest sorted by created_at desc (newer first)
-        return new Date(b.created_at) - new Date(a.created_at)
-      })
-  }, [tasks, taskReadinessMap, taskShortageMap, cachedShortageMap, taskCardsCountMap, staticHistory.length])
-
-  const activeQueueCount = useMemo(() => {
-    return relevantTasks.filter(t => t.status !== 'completed').length
-  }, [relevantTasks])
+  const handleResolveCall = (callId) => handleResolveCallRaw(callId, currentUser)
 
   // ── Dynamic document title for PDF printouts ──────────────
   useEffect(() => {
@@ -1323,223 +302,6 @@ const ForemanWorkplace = () => {
     }
   }, [printQueue, printNaryadQueue, showReportModal, reportTaskId, orders, allOrdersMap, nomenclatures, tasks, relevantTasks])
 
-  const handleGenerateFromWorksheet = async (task, part, sheets, selectedMachineName, count, localGeneratedCount = 0, totalToReach = 0, isRepair = false, globalTotalCards = null, globalSeqOffset = 0, customCapacity = null) => {
-    if (generatingLockRef.current) {
-      console.warn("Generation already in progress, ignoring duplicate call.");
-      return
-    }
-    generatingLockRef.current = true
-
-    const machineObj = findMachine(selectedMachineName)
-    const capacity = customCapacity !== null ? Number(customCapacity) : (Number(machineObj?.sheet_capacity) || 1)
-    const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
-
-    const maxCardsForThisSplit = Math.ceil(sheets / capacity)
-    const displayTotal = globalTotalCards || maxCardsForThisSplit
-
-    // CLAMP: Don't allow generating more than planned for this specific machine split
-    let finalCount = Math.min(count, maxCardsForThisSplit - localGeneratedCount)
-    if (finalCount <= 0) {
-      generatingLockRef.current = false
-      return
-    }
-
-    if (!isRepair) {
-      // Query the database to get the absolute up-to-date count of existing cards
-      let dbCardsCount = 0
-      try {
-        const { data, error } = await supabase
-          .from('work_cards')
-          .select('id, is_rework, operation')
-          .eq('task_id', task.id)
-          .eq('nomenclature_id', part.nom?.id)
-        if (!error && data) {
-          // Exclude BZ buffer cards — they are not production cutting cards
-          dbCardsCount = data.filter(c => !c.is_rework && c.operation !== 'Склад БЗ').length
-        }
-      } catch (err) {
-        console.error("Error fetching dbCardsCount:", err)
-      }
-
-      finalCount = Math.min(finalCount, displayTotal - dbCardsCount)
-    }
-
-    if (finalCount <= 0) {
-      generatingLockRef.current = false
-      return
-    }
-
-    // DYNAMIC NUMBERING: Find absolute max sequence across ALL machines for this nomenclature
-    const existingNomenclatureCards = (workCards || []).filter(wc =>
-      String(wc.task_id) === String(task.id) &&
-      String(wc.nomenclature_id) === String(part.nom?.id)
-    )
-
-    let maxExistingSeq = 0
-    existingNomenclatureCards.forEach(wc => {
-      const match = (wc.card_info || '').match(/(\d+)\/(\d+)/)
-      if (match) {
-        const seq = parseInt(match[1])
-        if (seq > maxExistingSeq) maxExistingSeq = seq
-      }
-    })
-
-    const startSeqForThisBatch = maxExistingSeq + 1
-
-    setIsGenerating(true)
-    try {
-      const cardsBatch = []
-
-      // PRECISE PROGRESS TRACKING: Check how many sheets of THIS NOMENCLATURE are already accounted for
-      const globalSheetsMadeTotal = existingNomenclatureCards.reduce((sum, wc) => {
-        if (wc.actualSheets) return sum + Number(wc.actualSheets)
-        const cardScrap = cardScrapCache[wc.id] || 0
-        const originalQty = (Number(wc.quantity) || 0) + cardScrap
-        return sum + Math.ceil(originalQty / unitsPerSheet)
-      }, 0)
-
-      // Start calculating for THIS SPLIT
-      // localIdx tracks where we are in CURRENT machine split
-      let sheetsRemainingForThisSplit = sheets - (localGeneratedCount * capacity)
-
-      // FIX: Use the Snapshot's NEED (e.g. 1000) not just the Plan (e.g. 775)
-      // for the purpose of the REQ/BZ labels on the card.
-      const snapshotEntry = task.plan_snapshot?.[String(part.nom?.id)]
-      const originalNeed = snapshotEntry?.need || totalToReach || 0
-
-      let reqRemainingForThisSplit = originalNeed - (localGeneratedCount * capacity * unitsPerSheet)
-      if (reqRemainingForThisSplit < 0) reqRemainingForThisSplit = 0
-
-      for (let i = 1; i <= finalCount; i++) {
-        // Sequential numbering
-        const currentSeq = startSeqForThisBatch + (i - 1)
-
-        // Use EXACT MIN logic to ensure we don't exceed the split or nomenclature capacity
-        const sheetsInThisLoading = Math.min(sheetsRemainingForThisSplit, capacity)
-        const qtyInThisLoading = Math.ceil(sheetsInThisLoading * unitsPerSheet)
-        const reqInThisLoading = Math.min(qtyInThisLoading, reqRemainingForThisSplit)
-        const bzInThisLoading = Math.max(0, qtyInThisLoading - reqInThisLoading)
-
-        const prefix = isRepair ? '[REDO] ' : ''
-        cardsBatch.push({
-          operation: 'Розкрій',
-          machine: selectedMachineName || 'Не вказано',
-          estimatedTime: (Number(part.nom?.time_per_unit) || 0) * reqInThisLoading * 60,
-          cardInfo: `${prefix}${currentSeq}/${displayTotal}${originalNeed > 0 ? ` [NEED:${originalNeed}]` : ''} [REQ:${reqInThisLoading}] [BZ:${bzInThisLoading}]`,
-          quantity: qtyInThisLoading,
-          bufferQty: bzInThisLoading,
-          actualSheets: sheetsInThisLoading,
-          status: isRepair ? 'waiting-materials' : 'new',
-          is_rework: isRepair
-        })
-
-        sheetsRemainingForThisSplit -= sheetsInThisLoading
-        reqRemainingForThisSplit -= reqInThisLoading
-        if (reqRemainingForThisSplit < 0) reqRemainingForThisSplit = 0
-      }
-
-      const createdCards = await apiService.submitCreateWorkCardsBatch(task.id, task.order_id, part.nom.id, cardsBatch, createWorkCardsBatch)
-
-      if (isRepair && sheets > 0) {
-        const totalQty = finalCount * capacity * unitsPerSheet;
-        await createDovyпускMaterialRequests(task.id, task.order_id, part.nom, sheets, totalQty, selectedMachineName);
-      }
-
-      if (createdCards && createdCards.length > 0) {
-        setPrintQueue({
-          task,
-          part,
-          total: displayTotal,
-          created: startSeqForThisBatch,
-          metadata: createdCards.map((c, idx) => {
-            const batchItem = cardsBatch[idx]
-            return {
-              id: c.id,
-              loading: c.card_info,
-              qty: batchItem ? batchItem.quantity : 0,
-              estimatedTime: (Number(part.nom?.time_per_unit) || 0) * (batchItem ? batchItem.quantity : 0) * 60,
-              totalLoadings: displayTotal,
-              sheetsPerLoading: batchItem ? batchItem.actualSheets : capacity, // Use ACTUAL sheets
-              machine: selectedMachineName
-            }
-          })
-        })
-      }
-    } catch (err) {
-      alert('Помилка: ' + err.message)
-    } finally {
-      setTimeout(() => {
-        setIsGenerating(false)
-        setGenModal(null)
-        generatingLockRef.current = false
-      }, 500)
-    }
-  }
-
-  const handleBufferReception = async (cardId) => {
-    const card = workCards.find(c => String(c.id) === String(cardId))
-    if (!card) { alert("Картку не знайдено!"); return; }
-    setBufferScrapModal({ cardId: card.id, nomenclature_id: card.nomenclature_id })
-    setBufferScrapCounts({ [card.nomenclature_id]: 0 })
-  }
-
-  const submitBufferReception = async () => {
-    if (!bufferScrapModal) return
-    const scrap = bufferScrapCounts[bufferScrapModal.nomenclature_id] || 0
-    try {
-      await confirmBuffer(bufferScrapModal.cardId, scrap)
-      setBufferScrapModal(null)
-      fetchData(['work_cards', 'work_card_history', 'inventory', 'tasks'])
-    } catch (err) {
-      alert("Помилка: " + err.message)
-    }
-  }
-
-  const handleReserveBZ = async (taskId, orderId, nomId, qty) => {
-    if (!window.confirm(`Забронювати ${qty} шт. зі складу БЗ?`)) return
-    try {
-      await reserveBZForTask(taskId, orderId, nomId, qty)
-      alert("Деталі заброньовано!")
-    } catch (err) {
-      alert("Помилка: " + err.message)
-    }
-  }
-
-  const handleUpdateMachineInSnapshot = async (task, nomId, machineName = null, splits = null) => {
-    if (!task || !nomId) return
-    const sId = String(nomId)
-    const currentSnapshot = task.plan_snapshot || {}
-
-    // Construct updated entry
-    const entry = { ...(currentSnapshot[sId] || {}) }
-    if (machineName !== null) entry.machine = machineName
-    if (splits !== null) entry.splits = splits
-
-    const updatedSnapshot = {
-      ...currentSnapshot,
-      [sId]: entry
-    }
-    try {
-      const { error } = await supabase.from('tasks').update({ plan_snapshot: updatedSnapshot }).eq('id', task.id)
-      if (error) throw error
-      // Only fetchData if we are NOT in the middle of a local edit update to avoid flicker
-      if (!saveTimeoutRef.current) fetchData('tasks')
-    } catch (err) { console.error("Snapshot error:", err) }
-  }
-
-  const debouncedUpdateSplits = (task, nomId, newSplits) => {
-    // 1. Update local state immediately for UI response
-    setEditingSplits(prev => ({ ...prev, [nomId]: newSplits }))
-
-    // 2. Clear old timeout
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
-
-    // 3. Set new timeout to sync with DB
-    saveTimeoutRef.current = setTimeout(() => {
-      handleUpdateNomenclatureMachineAndRecalculate(task, nomId, null, newSplits)
-      saveTimeoutRef.current = null
-    }, 1000) // 1 second debounce
-  }
 
   React.useEffect(() => {
     let html5QrCode = null
@@ -1558,6 +320,23 @@ const ForemanWorkplace = () => {
     }
     return () => { if (html5QrCode && html5QrCode.isScanning) html5QrCode.stop().catch(() => { }) }
   }, [isBufferScanning])
+
+  const getBOMPartsLocal = (nomenclatureId) => {
+    return bomItems
+      .filter(b => b.parent_id === nomenclatureId)
+      .map(b => ({
+        ...b,
+        nom: nomenclatures.find(n => n.id === b.child_id)
+      }))
+  }
+
+  const getDisplayPartsForOrderItem = (task, item) => {
+    return getDisplayPartsForOrderItemHelper(task, item, bomItems, nomenclatures)
+  }
+
+  const findMachine = (name) => {
+    return findMachineByName(name, machines)
+  }
 
   return (
     <div className="foreman-module" style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
@@ -1604,166 +383,28 @@ const ForemanWorkplace = () => {
       )}
 
       <div className="master-grid no-print">
-        <div
-          className={`side-panel no-print ${isDrawerOpen ? 'drawer-open' : ''}`}
-          style={{ display: 'flex', flexDirection: 'column', background: '#121212', borderRight: '1px solid #222', transition: '0.3s transform' }}
-        >
-          <div style={{ padding: '20px', color: '#444', fontWeight: 800, fontSize: '0.65rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            ЧЕРГА НАРЯДІВ ({relevantTasks.length})
-            {isDrawerOpen && (
-              <button onClick={() => setIsDrawerOpen(false)} style={{ background: 'transparent', border: 'none', color: '#555' }}>
-                <X size={18} />
-              </button>
-            )}
-          </div>
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {relevantTasks.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(task => {
-              const order = task.orders || orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
-              const isActive = activeTaskId === task.id
-              const isReady = taskReadinessMap[task.id]
-              const shortageFromMap = staticHistory.length > 0 ? taskShortageMap[task.id] : (taskShortageMap[task.id] || cachedShortageMap[task.id])
-              const isShortage = shortageFromMap
-              const isCompleted = task.status === 'completed'
-              const taskCardsCount = taskCardsCountMap[task.id] || 0
-              const isNew = !isCompleted && taskCardsCount === 0
-              const isInProgress = !isCompleted && taskCardsCount > 0 && !isReady && !isShortage
-
-              const borderColor = isReady && !isCompleted
-                ? '#10b981'
-                : isShortage && !isCompleted
-                  ? '#ef4444'
-                  : isNew
-                    ? '#3b82f6'
-                    : isInProgress
-                      ? '#eab308'
-                      : isActive
-                        ? '#fff'
-                        : 'transparent'
-
-              const borderSize = isActive ? '6px' : '4px'
-
-              const bgColor = isActive
-                ? 'rgba(255,255,255,0.08)'
-                : isReady && !isCompleted
-                  ? 'rgba(16, 185, 129, 0.08)'
-                  : isShortage && !isCompleted
-                    ? 'rgba(239, 68, 68, 0.08)'
-                    : isNew
-                      ? 'rgba(59, 130, 246, 0.08)'
-                      : isInProgress
-                        ? 'rgba(234, 179, 8, 0.08)'
-                        : 'transparent'
-
-              return (
-                <div
-                  onClick={() => {
-                    setActiveTaskId(task.id);
-                    setIsDrawerOpen(false);
-                    setSearchParams({ task: task.id });
-                  }}
-                  style={{
-                    padding: '18px 15px',
-                    borderLeft: `${borderSize} solid ${borderColor}`,
-                    background: bgColor,
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    marginBottom: '1px',
-                    position: 'relative'
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontWeight: 800, fontSize: '0.9rem', color: isCompleted ? '#555' : '#fff' }}>
-                      № {order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      {isCompleted && <CheckCircle2 size={14} color="#10b981" />}
-                      {isReady && !isCompleted && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#10b981', borderRadius: '6px', padding: '3px 8px', boxShadow: '0 4px 10px rgba(16,185,129,0.3)' }}>
-                          <ArrowRight size={10} color="#fff" />
-                          <span style={{ fontSize: '0.6rem', fontWeight: 950, color: '#fff', letterSpacing: '0.5px' }}>ГОТОВО</span>
-                        </div>
-                      )}
-                      {isShortage && !isCompleted && !isReady && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#ef4444', borderRadius: '6px', padding: '3px 8px', boxShadow: '0 4px 10px rgba(239,68,68,0.3)' }}>
-                          <AlertTriangle size={10} color="#fff" />
-                          <span style={{ fontSize: '0.6rem', fontWeight: 950, color: '#fff', letterSpacing: '0.5px' }}>НЕСТАЧА</span>
-                        </div>
-                      )}
-                      {isNew && (
-                        <div className="anim-pulse-blue" style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#3b82f6', borderRadius: '6px', padding: '3px 8px', boxShadow: '0 4px 10px rgba(59,130,246,0.3)' }}>
-                          <Clock size={10} color="#fff" />
-                          <span style={{ fontSize: '0.6rem', fontWeight: 950, color: '#fff', letterSpacing: '0.5px' }}>НОВИЙ</span>
-                        </div>
-                      )}
-                      {isInProgress && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#eab308', borderRadius: '6px', padding: '3px 8px', boxShadow: '0 4px 10px rgba(234,179,8,0.3)' }}>
-                          <Layers size={10} color="#000" />
-                          <span style={{ fontSize: '0.6rem', fontWeight: 950, color: '#000', letterSpacing: '0.5px' }}>В РОБОТІ</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  {(() => {
-                    const prodId = order?.nomenclature_id || order?.order_items?.[0]?.nomenclature_id
-                    const prod = nomenclatures?.find(n => String(n.id) === String(prodId))
-                    const qty = task.planned_sets || order?.quantity || 0
-                    return (
-                      <div style={{ fontSize: '0.85rem', color: isCompleted ? '#555' : '#eaeaea', fontWeight: 900, margin: '4px 0' }}>
-                        {prod ? prod.name : '—'} • <span style={{ color: isCompleted ? '#777' : '#ff9000' }}>{qty} шт.</span>
-                      </div>
-                    )
-                  })()}
-                  <div style={{ fontSize: '0.7rem', color: isCompleted ? '#333' : '#555' }}>{order?.customer}</div>
-                  {isCompleted && <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 900, marginTop: '4px' }}>ВИКОНАНО</div>}
-                  {isReady && !isCompleted && (
-                    <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 900, marginTop: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <CheckCircle2 size={10} />
-                      ВСІ КАРТКИ ГОТОВІ — ЗАВЕРШИТИ
-                    </div>
-                  )}
-                  {isShortage && !isCompleted && !isReady && (
-                    <div style={{ fontSize: '0.6rem', color: '#ef4444', fontWeight: 900, marginTop: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <AlertTriangle size={10} />
-                      ПОТРІБЕН ДОВИПУСК
-                    </div>
-                  )}
-                  {isNew && (
-                    <div style={{ fontSize: '0.6rem', color: '#3b82f6', fontWeight: 900, marginTop: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Clock size={10} />
-                      КАРТКИ ЩЕ НЕ ЗГЕНЕРОВАНО
-                    </div>
-                  )}
-                  {isInProgress && (
-                    <div style={{ fontSize: '0.6rem', color: '#eab308', fontWeight: 900, marginTop: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Layers size={10} />
-                      У ПРОЦЕСІ ВИРОБНИЦТВА
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-            {relevantTasks.length === 0 && (
-              <div style={{ padding: '20px', color: '#333', fontSize: '0.8rem' }}>Немає нарядів</div>
-            )}
-          </div>
-          {relevantTasks.length > itemsPerPage && (
-            <div style={{ padding: '15px', borderTop: '1px solid #222', display: 'flex', justifyContent: 'center', gap: '10px' }}>
-              <button
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(p => p - 1)}
-                style={{ background: '#222', border: 'none', color: '#fff', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', opacity: currentPage === 1 ? 0.3 : 1 }}
-              >Назад</button>
-              <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800, display: 'flex', alignItems: 'center' }}>
-                {currentPage} / {Math.ceil(relevantTasks.length / itemsPerPage)}
-              </div>
-              <button
-                disabled={currentPage === Math.ceil(relevantTasks.length / itemsPerPage)}
-                onClick={() => setCurrentPage(p => p + 1)}
-                style={{ background: '#222', border: 'none', color: '#fff', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', opacity: currentPage === Math.ceil(relevantTasks.length / itemsPerPage) ? 0.3 : 1 }}
-              >Вперед</button>
-            </div>
-          )}
-        </div>
+        <ForemanTaskQueue
+          relevantTasks={relevantTasks}
+          activeTaskId={activeTaskId}
+          orders={orders}
+          allOrdersMap={allOrdersMap}
+          nomenclatures={nomenclatures}
+          taskReadinessMap={taskReadinessMap}
+          taskShortageMap={taskShortageMap}
+          cachedShortageMap={cachedShortageMap}
+          staticHistory={staticHistory}
+          taskCardsCountMap={taskCardsCountMap}
+          currentPage={currentPage}
+          setCurrentPage={setCurrentPage}
+          itemsPerPage={itemsPerPage}
+          isDrawerOpen={isDrawerOpen}
+          setIsDrawerOpen={setIsDrawerOpen}
+          onSelectTask={(taskId) => {
+            setActiveTaskId(taskId)
+            setIsDrawerOpen(false)
+            setSearchParams({ task: taskId })
+          }}
+        />
 
         <div className="content-panel" style={{ flex: 1, background: '#0a0a0a' }}>
           {/* Active Machine Calls Widget */}
@@ -3271,593 +1912,26 @@ const ForemanWorkplace = () => {
           <h2 style={{ fontWeight: 900, textTransform: 'uppercase' }}>Генерація карток...</h2>
         </div>
       )}
+      <ForemanPrintQueue
+        printQueue={printQueue}
+        setPrintQueue={setPrintQueue}
+        orders={orders}
+        allOrdersMap={allOrdersMap}
+        nomenclatures={nomenclatures}
+        machines={machines}
+        machineOperations={machineOperations}
+        getDisplayMaterial={getDisplayMaterial}
+      />
 
-      {/* ───── ДРУК ───── */}
-      {printQueue && (
-        <div className="print-overlay" style={{ position: 'fixed', inset: 0, background: '#111', color: '#000', zIndex: 10000, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 0' }}>
-          <div className="no-print" style={{ position: 'sticky', top: 0, width: '100%', padding: '15px 30px', background: '#111', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #222', zIndex: 100 }}>
-            <h3>Друк: {printQueue.part.nom?.name}</h3>
-            <div style={{ display: 'flex', gap: '15px' }}>
-              <button onClick={() => window.print()} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer' }}>ДРУКУВАТИ</button>
-              <button onClick={() => setPrintQueue(null)} style={{ color: '#fff', background: 'none', border: 'none', cursor: 'pointer' }}><X size={24} /></button>
-            </div>
-          </div>
-
-          {printQueue.metadata.map((m, i) => {
-            const order = orders.find(o => o.id === printQueue.task.order_id) || allOrdersMap[printQueue.task.order_id]
-            const nomenclature = nomenclatures.find(n => n.id === (printQueue.part.nomenclature_id || printQueue.part.nom?.id))
-            const currentDate = new Date().toLocaleDateString('uk-UA')
-            const finishedProduct = order?.order_items?.[0] ? nomenclatures.find(n => n.id === order.order_items[0].nomenclature_id) : null
-            const formatTime = (seconds) => {
-              const h = Math.floor(seconds / 3600)
-              const min = Math.floor((seconds % 3600) / 60)
-              if (h > 0) return `${h}год ${min}хв`
-              return `${min}хв`
-            }
-
-            // Dynamically resolve operations
-            const mac = machines.find(mac => mac.name === m.machine)
-            const opData = machineOperations?.find(o =>
-              o.nomenclature_id === nomenclature?.id &&
-              (o.machine_type === m.machine || (mac && o.machine_id === mac.id))
-            )
-            let s1Ops = (opData?.side1_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:'))
-            let s2Ops = (opData?.side2_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:'))
-            let s2CutOps = (opData?.side2_cut_ops || []).filter(op => !op.startsWith('__CUTTER__:') && !op.startsWith('__CUTTER__Reference:'))
-
-            const snapshotPart = printQueue.task.plan_snapshot?.[String(nomenclature?.id)]
-            const isCutter1_5 = snapshotPart?.cutter_override === '1.5'
-
-            if (isCutter1_5) {
-              const replacer = (op) => {
-                if (op.includes('|')) return op.split('|')[1].trim()
-                return op.replace(/[фФ]2(?![0-9.])/g, match => match[0] === 'ф' ? 'ф1.5' : 'Ф1.5')
-              }
-              s1Ops = s1Ops.map(replacer)
-              s2Ops = s2Ops.map(replacer)
-            } else {
-              const replacer = (op) => {
-                if (op.includes('|')) return op.split('|')[0].trim()
-                return op
-              }
-              s1Ops = s1Ops.map(replacer)
-              s2Ops = s2Ops.map(replacer)
-            }
-
-            const s2CutOpsF2 = s2CutOps.map(op => {
-              if (op.includes('|')) return op.split('|')[0].trim()
-              return op.replace(/[фФ]1\.5(?![0-9.])/g, match => match[0] === 'ф' ? 'ф2' : 'Ф2')
-            })
-            const s2CutOpsF15 = s2CutOps.map(op => {
-              if (op.includes('|')) return op.split('|')[1].trim()
-              return op.replace(/[фФ]2(?![0-9.])/g, match => match[0] === 'ф' ? 'ф1.5' : 'Ф1.5')
-            })
-
-            const maxOps = Math.max(10, s1Ops.length, s2Ops.length, s2CutOpsF2.length, s2CutOpsF15.length)
-            const opRows = Array.from({ length: maxOps }).map((_, i) => ({
-              s1: s1Ops[i] || '',
-              s2: s2Ops[i] || '',
-              s2cF2: s2CutOpsF2[i] || '',
-              s2cF15: s2CutOpsF15[i] || ''
-            }))
-
-            return (
-              <div key={i} className="a4-page" style={{ width: '210mm', height: '297mm', background: '#fff', padding: '10mm', margin: '0 auto 40px auto', pageBreakAfter: i === printQueue.metadata.length - 1 ? 'avoid' : 'always', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>
-                <div style={{ height: '100%', display: 'flex', flexDirection: 'column', border: '1.5px solid #000' }}>
-                  {[1, 2].map(blockIdx => (
-                    <div key={blockIdx} style={{ borderBottom: '1.5px solid #000', marginBottom: blockIdx === 1 ? '20px' : '0' }}>
-                      <div style={{ borderTop: blockIdx === 2 ? '1.5px solid #000' : 'none' }}>
-                        <div style={{ display: 'flex', height: '18px', borderBottom: '1px solid #000', textAlign: 'center', background: '#fff' }}>
-                          <div style={{ width: '25%', borderRight: '1px solid #000', fontSize: '6pt', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Замовник</div>
-                          <div style={{ width: '25%', borderRight: '1px solid #000', fontSize: '6pt', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Номер замовлення</div>
-                          <div style={{ width: '35%', borderRight: '1px solid #000', fontSize: '6pt', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Планова дата відвантаження</div>
-                          <div style={{ width: '15%', fontSize: '6pt', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Дата</div>
-                        </div>
-                        <div style={{ display: 'flex', height: '24px', borderBottom: '1.5px solid #000', textAlign: 'center', alignItems: 'center' }}>
-                          <div style={{ width: '25%', borderRight: '1px solid #000', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10pt', fontWeight: 950 }}>{order?.customer || '—'}</div>
-                          <div style={{ width: '25%', borderRight: '1px solid #000', fontSize: '11pt', fontWeight: 950 }}>{order?.order_num || '—'}</div>
-                          <div style={{ width: '35%', borderRight: '1px solid #000', fontSize: '10pt', fontWeight: 950 }}>{order?.deadline ? new Date(order.deadline).toLocaleDateString('uk-UA') : '—'}</div>
-                          <div style={{ width: '15%', fontSize: '11pt', fontWeight: 950 }}>{currentDate}</div>
-                        </div>
-                        <div style={{ display: 'flex', height: '18px', borderBottom: '1px solid #000', textAlign: 'center', background: '#fff' }}>
-                          <div style={{ width: '30%', borderRight: '1px solid #000', fontSize: '6pt', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Назва проєкту</div>
-                          <div style={{ width: '10%', borderRight: '1px solid #000', fontSize: '6pt', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>К-сть листів</div>
-                          <div style={{ width: '12%', borderRight: '1px solid #000', fontSize: '6pt', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Товщина, мм</div>
-                          <div style={{ width: '15%', borderRight: '1px solid #000', fontSize: '6pt', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Тип станку</div>
-                          <div style={{ width: '15%', borderRight: '1px solid #000', fontSize: '6pt', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>№ картки</div>
-                          <div style={{ width: '18%', fontSize: '6pt', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Системний номер</div>
-                        </div>
-                        <div style={{ display: 'flex', height: '26px', borderBottom: '1.5px solid #000', textAlign: 'center', alignItems: 'center' }}>
-                          <div style={{ width: '30%', borderRight: '1px solid #000', fontSize: '9pt', fontWeight: 1000 }}>{finishedProduct?.name || '—'}</div>
-                          <div style={{ width: '10%', borderRight: '1px solid #000', fontSize: '13pt', fontWeight: 1000 }}>
-                            {Math.ceil(m.qty / (nomenclature?.units_per_sheet || 1))}
-                          </div>
-                          <div style={{ width: '12%', borderRight: '1px solid #000', fontSize: '8pt', fontWeight: 1000, lineHeight: 1.1 }}>{getDisplayMaterial(nomenclature, snapshotPart)}</div>
-                          <div style={{ width: '15%', borderRight: '1px solid #000', fontSize: '7.5pt', fontWeight: 1000, padding: '0 2px' }}>{m.machine}</div>
-                          <div style={{ width: '15%', borderRight: '1px solid #000', fontSize: '11pt', fontWeight: 1000 }}>{m.loading?.split(' [')[0]}</div>
-                          <div style={{ width: '18%', fontSize: '11pt', fontWeight: 1000 }}>#{m.id.slice(-8).toUpperCase()}</div>
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', height: '125px' }}>
-                        <div style={{ width: '75%', borderRight: '1.5px solid #000', display: 'flex' }}>
-                          <div style={{ width: '68%', borderRight: '1.5px solid #000', display: 'flex', flexDirection: 'column' }}>
-                            <div style={{ display: 'flex', height: '18px', borderBottom: '1px solid #000', textAlign: 'center' }}>
-                              <div style={{ width: '50%', borderRight: '1px solid #000', fontSize: '6.5pt', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Основна номенклатура</div>
-                              <div style={{ width: '30%', borderRight: '1px solid #000', fontSize: '6.5pt', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Планова к-сть, шт</div>
-                              <div style={{ width: '20%', fontSize: '6.5pt', fontWeight: 900, textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>ЧПУ №</div>
-                            </div>
-                            <div style={{ display: 'flex', height: '28px', borderBottom: '1px solid #000', textAlign: 'center', alignItems: 'center' }}>
-                              <div style={{ width: '50%', borderRight: '1px solid #000', fontSize: '8pt', fontWeight: 1000, padding: '0 4px', lineHeight: 1.1 }}>{nomenclature?.name}</div>
-                              <div style={{ width: '30%', borderRight: '1px solid #000', fontSize: '20pt', fontWeight: 1000 }}>{m.qty}</div>
-                              <div style={{ width: '20%', fontSize: '11pt', fontWeight: 1000 }}></div>
-                            </div>
-                            <div style={{ display: 'flex', height: '30px', borderBottom: '1px solid #000' }}>
-                              <div style={{ width: '50%', borderRight: '1px solid #000', display: 'flex', flexDirection: 'column', padding: '1px 2px' }}><span style={{ fontSize: '6pt', fontWeight: 900 }}>ПІБ працівника</span><div style={{ flex: 1 }}></div></div>
-                              <div style={{ width: '50%', display: 'flex', flexDirection: 'column', padding: '1px 2px' }}><span style={{ fontSize: '6pt', fontWeight: 900 }}>ПІБ працівника</span><div style={{ flex: 1 }}></div></div>
-                            </div>
-                            <div style={{ display: 'flex', height: '49px' }}>
-                              <div style={{ width: '50%', borderRight: '1px solid #000', display: 'flex', flexDirection: 'column', padding: '1px 2px' }}><span style={{ fontSize: '6pt', fontWeight: 950 }}>Дата початку / Час початку</span><div style={{ flex: 1 }}></div></div>
-                              <div style={{ width: '50%', display: 'flex', flexDirection: 'column', padding: '1px 2px' }}><span style={{ fontSize: '6pt', fontWeight: 950 }}>Дата завершення / Час завершення</span><div style={{ flex: 1 }}></div></div>
-                            </div>
-                          </div>
-                          <div style={{ width: '32%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2px' }}>
-                            <QRCodeSVG value={`CENTRUM_CARD_${m.id}`} size={105} />
-                          </div>
-                        </div>
-                        <div style={{ width: '25%', display: 'flex', flexDirection: 'column' }}>
-                          <table style={{ width: '100%', height: '100%', borderCollapse: 'collapse', fontSize: '6pt' }}>
-                            <tbody>
-                              {[1, 2, 3].map(idx => (
-                                <tr key={idx} style={{ height: '28px', borderBottom: '1px solid #000' }}>
-                                  <td style={{ borderRight: '1px solid #000', width: '70%', background: '#fff' }}></td>
-                                  <td style={{ textAlign: 'center', width: '30%' }}>
-                                    <div style={{ fontSize: '5pt', fontWeight: 900, borderBottom: '1px solid #eee', textTransform: 'uppercase' }}>К-сть, шт</div>
-                                    <div style={{ fontSize: '9pt', fontWeight: 1000 }}>0</div>
-                                  </td>
-                                </tr>
-                              ))}
-                              <tr style={{ flex: 1, background: '#fff' }}>
-                                <td colSpan="2" style={{ padding: '2px', textAlign: 'center' }}>
-                                  <span style={{ fontSize: '6pt', fontWeight: 900, display: 'block', textTransform: 'uppercase', marginBottom: '1px' }}>План. час виконання</span>
-                                  <span style={{ fontSize: '11pt', fontWeight: 1000 }}>{formatTime(m.estimatedTime || 0)}</span>
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '28px', margin: '4px 0' }}>
-                    <div style={{ display: 'flex', border: '1.5px solid #000', height: '100%' }}>
-                      <div style={{ padding: '0 15px', borderRight: '1.5px solid #000', display: 'flex', alignItems: 'center', fontSize: '10pt', fontWeight: 900 }}>Листи відповідають</div>
-                      <div style={{ padding: '0 15px', borderRight: '1.5px solid #000', display: 'flex', alignItems: 'center', fontSize: '10pt', fontWeight: 900 }}>{nomenclature?.material_type || '—'}</div>
-                      <div style={{ padding: '0 15px', display: 'flex', alignItems: 'center', fontSize: '14pt', fontWeight: 900 }}>☐</div>
-                    </div>
-                  </div>
-                  <div style={{ marginTop: '2px' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '6.5pt' }}>
-                      <thead>
-                        <tr style={{ background: '#fff', textAlign: 'center', fontWeight: 'bold' }}>
-                          <td style={{ border: '1.5px solid #000', width: '22%', height: '36px' }}>Операція (1 сторона)</td>
-                          <td style={{ border: '1.5px solid #000', width: '11%', fontSize: '5.5pt', lineHeight: 1.2 }}>
-                            Статус<br />виконання ☑<br />
-                            <div style={{ borderTop: '1px solid #000', borderBottom: '1px solid #000', margin: '2px 0', padding: '2px 0' }}>Лист | Лист</div>
-                            1, 2 | 3, 4
-                          </td>
-                          <td style={{ border: '1.5px solid #000', width: '22%' }}>Операція (2 сторона)</td>
-                          <td style={{ border: '1.5px solid #000', width: '11%', fontSize: '5.5pt', lineHeight: 1.2 }}>
-                            Статус<br />виконання ☑<br />
-                            <div style={{ borderTop: '1px solid #000', borderBottom: '1px solid #000', margin: '2px 0', padding: '2px 0' }}>Лист | Лист</div>
-                            1, 2 | 3, 4
-                          </td>
-                          {!isCutter1_5 ? (
-                            <td style={{ border: '1.5px solid #000', width: '26%', fontSize: '6.5pt', fontWeight: 'bold' }}>Операція (2 сторона вирізка)<br />Ф2мм</td>
-                          ) : (
-                            <td style={{ border: '1.5px solid #000', width: '26%', fontSize: '6.5pt', fontWeight: 'bold' }}>Операція (2 сторона вирізка)<br />Ф1.5мм</td>
-                          )}
-                          <td style={{ border: '1.5px solid #000', width: '8%', fontSize: '5.5pt', lineHeight: 1 }}>Статус<br />виконання<br />☑</td>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {opRows.map((row, idx) => (
-                          <tr key={idx} style={{ height: '22px' }}>
-                            <td style={{ border: '1.5px solid #000', paddingLeft: '4px' }}>{row.s1}</td>
-                            <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt', letterSpacing: '2px' }}>☐ | ☐</td>
-                            <td style={{ border: '1.5px solid #000', paddingLeft: '4px' }}>{row.s2}</td>
-                            <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt', letterSpacing: '2px' }}>☐ | ☐</td>
-                            {!isCutter1_5 ? (
-                              <td style={{ border: '1.5px solid #000', paddingLeft: '4px' }}>{row.s2cF2}</td>
-                            ) : (
-                              <td style={{ border: '1.5px solid #000', paddingLeft: '4px' }}>{row.s2cF15}</td>
-                            )}
-                            <td style={{ border: '1.5px solid #000', textAlign: 'center', fontSize: '10pt' }}>☐</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div style={{ border: '1.5px solid #000', borderTop: 'none', display: 'flex', height: '35px' }}>
-                    <div style={{ width: '130px', borderRight: '1.5px solid #000', background: '#fff', fontWeight: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8pt' }}>Коментар</div>
-                    <div style={{ flex: 1 }}></div>
-                  </div>
-                  <div style={{ border: '1.5px solid #000', marginTop: '4px', display: 'flex', flexDirection: 'column', fontSize: '7.5pt' }}>
-                    <div style={{ display: 'flex', borderBottom: '1.5px solid #000', background: '#f5f5f5', fontWeight: 900, textAlign: 'center' }}>
-                      <div style={{ width: '70%', padding: '4px', borderRight: '1.5px solid #000' }}>Кількість використаних фрез</div>
-                      <div style={{ width: '30%', padding: '4px' }}>Загалом використано фрез</div>
-                    </div>
-                    <div style={{ display: 'flex' }}>
-                      <div style={{ width: '70%', borderRight: '1.5px solid #000', display: 'flex' }}>
-                        <div style={{ width: '50%', borderRight: '1.5px solid #000', display: 'flex', flexDirection: 'column' }}>
-                          <div style={{ display: 'flex', borderBottom: '1.5px solid #000', height: '24px' }}>
-                            <div style={{ width: '40%', borderRight: '1.5px solid #000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>1,5мм</div>
-                            <div style={{ width: '60%' }}></div>
-                          </div>
-                          <div style={{ display: 'flex', borderBottom: '1.5px solid #000', height: '24px' }}>
-                            <div style={{ width: '40%', borderRight: '1.5px solid #000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>2мм</div>
-                            <div style={{ width: '60%' }}></div>
-                          </div>
-                          <div style={{ display: 'flex', height: '24px' }}>
-                            <div style={{ width: '40%', borderRight: '1.5px solid #000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>3мм</div>
-                            <div style={{ width: '60%' }}></div>
-                          </div>
-                        </div>
-                        <div style={{ width: '50%', display: 'flex', flexDirection: 'column' }}>
-                          <div style={{ display: 'flex', borderBottom: '1.5px solid #000', height: '36px' }}>
-                            <div style={{ width: '40%', borderRight: '1.5px solid #000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>4мм</div>
-                            <div style={{ width: '60%' }}></div>
-                          </div>
-                          <div style={{ display: 'flex', height: '36px' }}>
-                            <div style={{ width: '40%', borderRight: '1.5px solid #000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>6мм</div>
-                            <div style={{ width: '60%' }}></div>
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{ width: '30%', display: 'flex', flexDirection: 'column', fontWeight: 900, padding: '4px 8px', justifyContent: 'space-between' }}>
-                        <div>1,5мм - </div>
-                        <div>2мм - </div>
-                        <div>3мм - </div>
-                        <div>4мм - </div>
-                        <div>6мм - </div>
-                      </div>
-                    </div>
-                    <div style={{ marginTop: '2px', border: '1.5px solid #000', display: 'flex', fontSize: '7.5pt', height: '60px' }}>
-                      <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
-                        <div style={{ width: '110px', padding: '2px', fontWeight: 1000, textAlign: 'center' }}>Причина браку:</div>
-                        <div style={{ flex: 1, padding: '2px', fontSize: '5.5pt', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px' }}>
-                          <div>☐ Биття цанги</div>
-                          <div>☐ Помилка програми</div>
-                          <div>☐ Збій станка</div>
-                          <div>☐ Кривизна листа</div>
-                          <div>☐ Поломка флешки</div>
-                          <div>☐ Прив'язка</div>
-                          <div>☐ Помилка оператора</div>
-                          <div>☐ Інше (коментар)</div>
-                        </div>
-                      </div>
-                      <div style={{ width: '120px', borderLeft: '1.5px solid #000', textAlign: 'center', display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ borderBottom: '1px solid #000', padding: '2px', fontWeight: 1000 }}>Кількість браку</div>
-                        <div style={{ flex: 1 }}></div>
-                      </div>
-                      <div style={{ width: '140px', borderLeft: '1.5px solid #000', display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ borderBottom: '1px solid #000', padding: '2px', textAlign: 'center', fontWeight: 1000, fontSize: '6pt' }}>Корекція перегортання</div>
-                        <div style={{ flex: 1, display: 'flex' }}>
-                          <div style={{ flex: 1, borderRight: '1px solid #000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                            <span style={{ fontSize: '7pt', fontWeight: 900 }}>X</span>
-                            <div style={{ flex: 1 }}></div>
-                          </div>
-                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                            <span style={{ fontSize: '7pt', fontWeight: 900 }}>Y</span>
-                            <div style={{ flex: 1 }}></div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* ───── ДРУК НАРЯДУ ───── */}
-      {printNaryadQueue && (() => {
-        const { task, order, materialRequests } = printNaryadQueue
-
-        let productNames = order?.order_items?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ')
-        if (!productNames && task.plan_snapshot) {
-          productNames = Object.values(task.plan_snapshot)
-            .map(s => nomenclatures.find(n => String(n.id) === String(s.id))?.name || s.name)
-            .filter(Boolean)
-            .join(', ')
-        }
-
-        const isReworkOrder = order?.order_num?.startsWith('ВБ')
-
-        const tableRows = []
-        let totalNeed = 0
-        let totalPlan = 0
-        let totalSheets = 0
-
-        const snapshot = task.plan_snapshot
-        const hasSnapshot = snapshot && Object.keys(snapshot).filter(k => !k.startsWith('_') && !['materialSummary', 'arrivals', 'arrival_doc_id', 'arrival_doc', 'nomenclatures'].includes(k)).length > 0
-
-        if (hasSnapshot) {
-          const keys = Object.keys(snapshot).filter(k => !k.startsWith('_') && !['materialSummary', 'arrivals', 'arrival_doc_id', 'arrival_doc', 'nomenclatures'].includes(k))
-          keys.forEach(nomId => {
-            const snapEntry = snapshot[nomId]
-            if (!snapEntry) return
-
-            const need = Number(snapEntry.need) || 0
-            const plan = Number(snapEntry.plan) || 0
-            const sheets = Number(snapEntry.sheets) || 0
-            const stockBZ = Number(snapEntry.stock) || 0
-            const unitsPerSheet = Number(snapEntry.units_per_sheet) || 1
-            const name = snapEntry.name || nomenclatures.find(n => String(n.id) === String(nomId))?.name || '—'
-            const code = snapEntry.code || nomenclatures.find(n => String(n.id) === String(nomId))?.nomenclature_code || 'БЕЗ КОДУ'
-            const material = snapEntry.material || nomenclatures.find(n => String(n.id) === String(nomId))?.material_type || '—'
-
-            totalNeed += need
-            totalPlan += plan
-            totalSheets += sheets
-
-            tableRows.push({
-              name,
-              code,
-              need,
-              stockBZ,
-              plan,
-              material,
-              unitsPerSheet,
-              sheets
-            })
-          })
-        } else {
-          order?.order_items?.forEach(item => {
-            const parts = getBOMParts(item.nomenclature_id)
-            const initialRows = parts.length > 0 ? parts : [{ nom: nomenclatures.find(n => n.id === item.nomenclature_id), quantity_per_parent: 1 }]
-            const rows = initialRows.filter(r => r.nom?.type === 'part')
-
-            rows.forEach((part, idx) => {
-              const nomId = part.nom?.id
-              const need = (Number(item.quantity) || 0) * (Number(part.quantity_per_parent) || 1)
-              const bzInv = (inventory || []).find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
-              const stockBZ = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
-              const plan = Math.max(0, need - stockBZ)
-              const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
-              const sheets = Math.ceil(plan / unitsPerSheet)
-
-              totalNeed += need
-              totalPlan += plan
-              totalSheets += sheets
-
-              tableRows.push({
-                name: part.nom?.name || '—',
-                code: part.nom?.nomenclature_code || 'БЕЗ КОДУ',
-                need,
-                stockBZ,
-                plan,
-                material: part.nom?.material_type || '—',
-                unitsPerSheet,
-                sheets
-              })
-            })
-          })
-        }
-
-        // Materials summary — prefer plan_snapshot.materialSummary for correct Т700/Т300 names
-        const materialsSummary = {}
-        const snapshotMaterials = task?.plan_snapshot?.materialSummary
-        if (snapshotMaterials && Object.keys(snapshotMaterials).length > 0) {
-          // Use the saved materialSummary which has exact sheet type names (Лист Т700, Лист Т300 etc.)
-          Object.values(snapshotMaterials).forEach(mat => {
-            const name = mat.matName || mat.name || ''
-            const qty = Number(mat.sheets) || 0
-            if (name && qty > 0) {
-              materialsSummary[name] = (materialsSummary[name] || 0) + qty
-            }
-          })
-        } else {
-          // Fallback: build from tableRows.material (less precise, no Т700/Т300 distinction)
-          tableRows.forEach(row => {
-            if (row.material && row.material !== '—' && row.sheets > 0) {
-              materialsSummary[row.material] = (materialsSummary[row.material] || 0) + row.sheets
-            }
-          })
-        }
-
-        // Consumables summary
-        const cuttersSummary = {}
-        materialRequests.forEach(r => {
-          let displayName = r.nomenclature?.name || ''
-          if (!displayName && r.details) {
-            const match = r.details.match(/:\s*(Фреза[^-—]+)(?:[-—]|$)/i)
-            displayName = match ? match[1].trim() : r.details
-          }
-          if (displayName.toLowerCase().includes('фреза')) {
-            cuttersSummary[displayName] = (cuttersSummary[displayName] || 0) + getRequestQty(r)
-          }
-        })
-
-        const formatDate = (dateStr) => {
-          if (!dateStr) return '—'
-          const date = new Date(dateStr)
-          if (isNaN(date.getTime())) return '—'
-          return date.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric' })
-        }
-
-        return (
-          <div className="print-overlay" style={{ position: 'fixed', inset: 0, background: '#111', color: '#000', zIndex: 10000, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 0' }}>
-            <div className="no-print" style={{ position: 'sticky', top: 0, width: '100%', padding: '15px 30px', background: '#111', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #222', zIndex: 100 }}>
-              <h3>Друк наряду: №{order?.order_num}</h3>
-              <div style={{ display: 'flex', gap: '15px' }}>
-                <button onClick={() => window.print()} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer' }}>ДРУКУВАТИ</button>
-                <button onClick={() => setPrintNaryadQueue(null)} style={{ color: '#fff', background: 'none', border: 'none', cursor: 'pointer' }}><X size={24} /></button>
-              </div>
-            </div>
-
-            <div className="a4-page" style={{ width: '210mm', minHeight: '297mm', background: '#fff', padding: '20mm', margin: '0 auto', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', boxSizing: 'border-box', fontFamily: 'Inter, sans-serif' }}>
-              <h1 style={{ fontSize: '24pt', fontWeight: 950, margin: '0 0 20px 0', textTransform: 'uppercase', color: '#000', letterSpacing: '-0.5px' }}>
-                НАРЯД №{order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}
-              </h1>
-
-              {/* Box Info */}
-              <div style={{ border: '1.5px solid #000', borderRadius: '16px', padding: '18px', marginBottom: '30px' }}>
-                <div style={{ fontSize: '12pt', fontWeight: 1000, borderBottom: '1.5px solid #000', paddingBottom: '10px', marginBottom: '12px', textTransform: 'uppercase' }}>
-                  ВИРІБ: <span style={{ textDecoration: 'underline' }}>{productNames || '—'}</span>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px' }}>
-                  <div>
-                    <div style={{ fontSize: '6.5pt', fontWeight: 900, color: '#555', textTransform: 'uppercase', marginBottom: '4px' }}>Замовник</div>
-                    <div style={{ fontSize: '10pt', fontWeight: 950 }}>{order?.customer || '—'}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '6.5pt', fontWeight: 900, color: '#555', textTransform: 'uppercase', marginBottom: '4px' }}>Дата формування</div>
-                    <div style={{ fontSize: '10pt', fontWeight: 950 }}>{formatDate(task.created_at)}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '6.5pt', fontWeight: 900, color: '#555', textTransform: 'uppercase', marginBottom: '4px' }}>Дедлайн на цю партію</div>
-                    <div style={{ fontSize: '10pt', fontWeight: 950 }}>{formatDate(order?.deadline)}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Table */}
-              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '30px', fontSize: '9pt' }}>
-                <thead>
-                  <tr style={{ borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000', textAlign: 'left', fontWeight: 900, textTransform: 'uppercase', fontSize: '7pt' }}>
-                    <th style={{ padding: '8px 10px', borderRight: '1px solid #000', width: '40%' }}>Деталь в розкрій</th>
-                    <th style={{ padding: '8px 10px', borderRight: '1px solid #000', textAlign: 'center', width: '10%' }}>Потреба</th>
-                    {!isReworkOrder && (
-                      <>
-                        <th style={{ padding: '8px 10px', borderRight: '1px solid #000', textAlign: 'center', width: '10%' }}>Склад БЗ</th>
-                        <th style={{ padding: '8px 10px', borderRight: '1px solid #000', textAlign: 'center', width: '10%' }}>План</th>
-                      </>
-                    )}
-                    <th style={{ padding: '8px 10px', borderRight: '1px solid #000', textAlign: 'center', width: '18%' }}>Матеріал</th>
-                    <th style={{ padding: '8px 10px', borderRight: '1px solid #000', textAlign: 'center', width: '6%' }}>Шт/л</th>
-                    <th style={{ padding: '8px 10px', textAlign: 'center', width: '10%' }}>Листів</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tableRows.map((row, idx) => (
-                    <tr key={idx} style={{ borderBottom: '1px solid #000' }}>
-                      <td style={{ padding: '8px 10px', borderRight: '1px solid #000' }}>
-                        <div style={{ fontWeight: 900 }}>{row.name}</div>
-                        <div style={{ fontSize: '7pt', color: '#666' }}>{row.code}</div>
-                      </td>
-                      <td style={{ padding: '8px 10px', borderRight: '1px solid #000', textAlign: 'center', fontWeight: 800 }}>{row.need}</td>
-                      {!isReworkOrder && (
-                        <>
-                          <td style={{ padding: '8px 10px', borderRight: '1px solid #000', textAlign: 'center', color: '#555' }}>{row.stockBZ}</td>
-                          <td style={{ padding: '8px 10px', borderRight: '1px solid #000', textAlign: 'center', fontWeight: 850 }}>{row.plan}</td>
-                        </>
-                      )}
-                      <td style={{ padding: '8px 10px', borderRight: '1px solid #000', textAlign: 'center', fontSize: '8pt' }}>{row.material}</td>
-                      <td style={{ padding: '8px 10px', borderRight: '1px solid #000', textAlign: 'center' }}>{row.unitsPerSheet}</td>
-                      <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 1000, fontSize: '10pt' }}>{row.sheets}</td>
-                    </tr>
-                  ))}
-                  {/* Totals Row */}
-                  <tr style={{ borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000', fontWeight: 950, textTransform: 'uppercase', background: '#fcfcfc' }}>
-                    <td style={{ padding: '10px', borderRight: '1px solid #000' }}>Загальний підсумок:</td>
-                    <td style={{ padding: '10px', borderRight: '1px solid #000', textAlign: 'center' }}>{totalNeed}</td>
-                    {!isReworkOrder && (
-                      <>
-                        <td style={{ padding: '10px', borderRight: '1px solid #000' }}></td>
-                        <td style={{ padding: '10px', borderRight: '1px solid #000', textAlign: 'center' }}>{totalPlan}</td>
-                      </>
-                    )}
-                    <td style={{ padding: '10px', borderRight: '1px solid #000' }}></td>
-                    <td style={{ padding: '10px', borderRight: '1px solid #000' }}></td>
-                    <td style={{ padding: '10px', textAlign: 'center', fontSize: '11pt' }}>{totalSheets}</td>
-                  </tr>
-                </tbody>
-              </table>
-
-              {/* Bottom blocks */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {/* Materials Summary */}
-                <div style={{ border: '1.5px solid #000', borderRadius: '16px', padding: '15px' }}>
-                  <div style={{ fontSize: '7.5pt', fontWeight: 900, textTransform: 'uppercase', color: '#555', marginBottom: '12px', letterSpacing: '0.5px' }}>
-                    Відомість матеріалів:
-                  </div>
-                  {Object.keys(materialsSummary).length > 0 ? (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
-                      {Object.entries(materialsSummary).map(([mat, qty]) => (
-                        <div key={mat} style={{ borderLeft: '3.5px solid #000', paddingLeft: '10px', minWidth: '160px' }}>
-                          <div style={{ fontSize: '8pt', color: '#555', fontWeight: 600 }}>{mat}</div>
-                          <div style={{ fontSize: '13pt', fontWeight: 1000, marginTop: '2px' }}>{qty} листів</div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: '9pt', color: '#888' }}>Немає запланованих матеріалів</div>
-                  )}
-                </div>
-
-                {/* Consumables Summary */}
-                <div style={{ border: '1.5px solid #000', borderRadius: '16px', padding: '15px' }}>
-                  <div style={{ fontSize: '7.5pt', fontWeight: 900, textTransform: 'uppercase', color: '#555', marginBottom: '12px', letterSpacing: '0.5px' }}>
-                    Витратні матеріали:
-                  </div>
-                  {Object.keys(cuttersSummary).length > 0 ? (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
-                      {Object.entries(cuttersSummary).map(([name, qty]) => (
-                        <div key={name} style={{ borderLeft: '3.5px solid #000', paddingLeft: '10px', minWidth: '160px' }}>
-                          <div style={{ fontSize: '8pt', color: '#555', fontWeight: 600 }}>{name}</div>
-                          <div style={{ fontSize: '13pt', fontWeight: 1000, marginTop: '2px' }}>{qty} од.</div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
-                      <div style={{ borderLeft: '3.5px solid #000', paddingLeft: '10px', minWidth: '160px' }}>
-                        <div style={{ fontSize: '8pt', color: '#555', fontWeight: 600 }}>Фреза</div>
-                        <div style={{ fontSize: '13pt', fontWeight: 1000, marginTop: '2px' }}>— од.</div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )
-      })()}
-
-      {/* ───── СКАНЕР ───── */}
-      {isBufferScanning && (
-        <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 25000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <button onClick={() => setIsBufferScanning(false)} style={{ position: 'absolute', top: 30, right: 30, background: '#333', color: '#fff', padding: '15px', borderRadius: '50%', border: 'none' }}>
-            <X size={32} />
-          </button>
-          <div id="buffer-reader" style={{ width: '100%', maxWidth: '500px', borderRadius: '20px', overflow: 'hidden' }}></div>
-        </div>
-      )}
-
-      {/* ───── МОДАЛ БРАКУ БУФЕРА ───── */}
-      {bufferScrapModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 30000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#111', width: '400px', padding: '30px', borderRadius: '20px', textAlign: 'center' }}>
-            <h3 style={{ margin: '0 0 20px' }}>ПРИЙОМКА НА БУФЕР</h3>
-            <div style={{ marginBottom: '20px' }}>
-              <label>Кількість браку:</label>
-              <input
-                type="number"
-                style={{ width: '100%', background: '#000', color: '#fff', border: '1px solid #333', padding: '10px' }}
-                value={bufferScrapCounts[bufferScrapModal.nomenclature_id] || 0}
-                onChange={e => setBufferScrapCounts({ ...bufferScrapCounts, [bufferScrapModal.nomenclature_id]: parseInt(e.target.value) || 0 })}
-              />
-            </div>
-            <button onClick={submitBufferReception} style={{ width: '100%', background: '#10b981', color: '#fff', padding: '15px', borderRadius: '10px', border: 'none' }}>
-              ПІДТВЕРДИТИ
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ───── МОДАЛ ЗВІТУ ПО НАРЯДУ ───── */}
+      <ForemanPrintNaryadQueue
+        printNaryadQueue={printNaryadQueue}
+        setPrintNaryadQueue={setPrintNaryadQueue}
+        nomenclatures={nomenclatures}
+        inventory={inventory}
+        getBOMParts={getBOMPartsLocal}
+        getRequestQty={getRequestQty}
+      />
+      {/* тФАтФАтФАтФАтФА ╨Ь╨Ю╨Ф╨Р╨Ы ╨Ч╨Т╨Ж╨в╨г ╨Я╨Ю ╨Э╨Р╨а╨п╨Ф╨г тФАтФАтФАтФАтФА */}
       {showReportModal && (
         <div style={{
           position: 'fixed',
@@ -3912,11 +1986,11 @@ const ForemanWorkplace = () => {
             {reportLoading ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 0', gap: '15px' }}>
                 <Loader2 size={40} className="animate-spin" color="#3b82f6" />
-                <span style={{ fontSize: '0.9rem', color: '#888', fontWeight: 800 }}>Формування звіту...</span>
+                <span style={{ fontSize: '0.9rem', color: '#888', fontWeight: 800 }}>╨д╨╛╤А╨╝╤Г╨▓╨░╨╜╨╜╤П ╨╖╨▓╤Ц╤В╤Г...</span>
               </div>
             ) : reportData ? (() => {
               const currentTask = relevantTasks.find(t => t.id === reportTaskId) || tasks.find(t => t.id === reportTaskId)
-              if (!currentTask) return <div>Наряд не знайдено</div>
+              if (!currentTask) return <div>╨Э╨░╤А╤П╨┤ ╨╜╨╡ ╨╖╨╜╨░╨╣╨┤╨╡╨╜╨╛</div>
               const currentOrder = orders.find(o => o.id === currentTask.order_id) || allOrdersMap[currentTask.order_id]
 
               // BOM parts helper inside modal
@@ -3955,7 +2029,7 @@ const ForemanWorkplace = () => {
                     plan: Number(snapEntry.plan) || 0,
                     sheets: Number(snapEntry.sheets) || 0,
                     unitsPerSheet: Number(snapEntry.units_per_sheet) || (nom?.units_per_sheet || 1),
-                    material: snapEntry.material || nom?.material_type || '—'
+                    material: snapEntry.material || nom?.material_type || 'тАФ'
                   })
                 })
               } else {
@@ -3967,12 +2041,12 @@ const ForemanWorkplace = () => {
                     const nomId = part.nom?.id
                     if (!nomId) return
                     const need = Number(item.quantity) * (Number(part.quantity_per_parent) || 1)
-                    const bzInv = (inventory || []).find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
+                    const bzInv = (inventory || []).find(i => String(i.nomenclature_id) === String(nomId) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === '╨Э╨╡ ╨▓╨║╨░╨╖╨░╨╜╨╛'))
                     const stockBZ = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
                     const plan = Math.max(0, need - stockBZ)
                     const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
                     const sheets = Math.ceil(plan / unitsPerSheet)
-                    const material = part.nom?.material_type || '—'
+                    const material = part.nom?.material_type || 'тАФ'
 
                     partsList.push({
                       nomId: String(nomId),
@@ -3990,17 +2064,17 @@ const ForemanWorkplace = () => {
               const getMaterialName = (typePrefix, thickness) => {
                 const rawNom = nomenclatures?.find(n =>
                   (n.type === 'raw' || n.type === 'material') &&
-                  n.name.includes('[Підготовлений]') &&
-                  (n.name.toLowerCase().includes(typePrefix.toLowerCase()) || (typePrefix === 'Т300' && !n.name.toLowerCase().includes('т700') && !n.name.toLowerCase().includes('t700'))) &&
+                  n.name.includes('[╨Я╤Ц╨┤╨│╨╛╤В╨╛╨▓╨╗╨╡╨╜╨╕╨╣]') &&
+                  (n.name.toLowerCase().includes(typePrefix.toLowerCase()) || (typePrefix === '╨в300' && !n.name.toLowerCase().includes('╤В700') && !n.name.toLowerCase().includes('t700'))) &&
                   n.name.toLowerCase().replace(/\s+/g, '').includes(`(${thickness.toLowerCase()})`)
                 )
-                return rawNom ? rawNom.name : `Лист ${typePrefix} (${thickness}) [Підготовлений]`
+                return rawNom ? rawNom.name : `╨Ы╨╕╤Б╤В ${typePrefix} (${thickness}) [╨Я╤Ц╨┤╨│╨╛╤В╨╛╨▓╨╗╨╡╨╜╨╕╨╣]`
               }
 
               partsList.forEach(p => {
                 const partHistory = reportData.historyRows.filter(h => String(h.nomenclature_id) === String(p.nomId))
-                const cuttingHistory = partHistory.filter(h => h.stage_name === 'Розкрій')
-                const acceptedHistory = partHistory.filter(h => h.stage_name === 'Прийомка' || h.stage_name === 'completed')
+                const cuttingHistory = partHistory.filter(h => h.stage_name === '╨а╨╛╨╖╨║╤А╤Ц╨╣')
+                const acceptedHistory = partHistory.filter(h => h.stage_name === '╨Я╤А╨╕╨╣╨╛╨╝╨║╨░' || h.stage_name === 'completed')
 
                 const totalQtyDone = cuttingHistory.reduce((s, h) => s + (Number(h.qty_completed) || 0), 0)
                 const sheetsDone = p.unitsPerSheet > 0 ? Math.ceil(totalQtyDone / p.unitsPerSheet) : 0
@@ -4014,7 +2088,7 @@ const ForemanWorkplace = () => {
 
                 // Get planned splits from snapshot
                 const snapEntry = snapshot?.[p.nomId]
-                const isDefaultT700 = (p.material || '').toLowerCase().includes('т700') || (p.material || '').toLowerCase().includes('t700')
+                const isDefaultT700 = (p.material || '').toLowerCase().includes('╤В700') || (p.material || '').toLowerCase().includes('t700')
                 const defaultT300 = isDefaultT700 ? 0 : p.sheets
                 const defaultT700 = isDefaultT700 ? p.sheets : 0
                 let plannedT300 = snapEntry ? (snapEntry.sheets_t300 !== undefined ? Number(snapEntry.sheets_t300) : (isDefaultT700 ? 0 : Number(p.sheets))) : defaultT300
@@ -4029,9 +2103,9 @@ const ForemanWorkplace = () => {
                 const actualT300 = Math.round(sheetsDone * ratioT300)
                 const actualT700 = Math.round(sheetsDone * ratioT700)
 
-                const rawMat = p.material || '—'
-                const thickMatch = rawMat.match(/(\d+(?:\.\d+)?)мм/i)
-                const thickness = thickMatch ? `${thickMatch[1]}мм` : null
+                const rawMat = p.material || 'тАФ'
+                const thickMatch = rawMat.match(/(\d+(?:\.\d+)?)╨╝╨╝/i)
+                const thickness = thickMatch ? `${thickMatch[1]}╨╝╨╝` : null
 
                 const addToStats = (name, planned, actual) => {
                   if (planned === 0 && actual === 0) return
@@ -4046,8 +2120,8 @@ const ForemanWorkplace = () => {
                 }
 
                 if (thickness) {
-                  const t300Name = getMaterialName('Т300', thickness)
-                  const t700Name = getMaterialName('Т700', thickness)
+                  const t300Name = getMaterialName('╨в300', thickness)
+                  const t700Name = getMaterialName('╨в700', thickness)
 
                   addToStats(t300Name, plannedT300, actualT300)
                   addToStats(t700Name, plannedT700, actualT700)
@@ -4061,7 +2135,7 @@ const ForemanWorkplace = () => {
               const cutterRequests = (reportData.materialRequests || []).filter(r => {
                 const nomName = r.nomenclature?.name?.toLowerCase() || ''
                 const detailsStr = r.details?.toLowerCase() || ''
-                return nomName.includes('фреза') || detailsStr.includes('фреза')
+                return nomName.includes('╤Д╤А╨╡╨╖╨░') || detailsStr.includes('╤Д╤А╨╡╨╖╨░')
               })
               const totalPlannedCutters = cutterRequests.length > 0
                 ? cutterRequests.reduce((sum, r) => sum + getRequestQty(r), 0)
@@ -4069,7 +2143,7 @@ const ForemanWorkplace = () => {
 
               const plannedCuttersBreakdown = {}
               cutterRequests.forEach(r => {
-                const name = r.nomenclature?.name || 'Фреза'
+                const name = r.nomenclature?.name || '╨д╤А╨╡╨╖╨░'
                 plannedCuttersBreakdown[name] = (plannedCuttersBreakdown[name] || 0) + getRequestQty(r)
               })
 
@@ -4113,10 +2187,10 @@ const ForemanWorkplace = () => {
                     plannedNames.forEach(name => {
                       // Distribute proportionally by plan, or just add to generic key
                     })
-                    const name = 'Фреза (без деталей)'
+                    const name = '╨д╤А╨╡╨╖╨░ (╨▒╨╡╨╖ ╨┤╨╡╤В╨░╨╗╨╡╨╣)'
                     actualCuttersBreakdown[name] = (actualCuttersBreakdown[name] || 0) + Number(row.cutters_used)
                   } else {
-                    const name = 'Фреза'
+                    const name = '╨д╤А╨╡╨╖╨░'
                     actualCuttersBreakdown[name] = (actualCuttersBreakdown[name] || 0) + Number(row.cutters_used)
                   }
                 }
@@ -4127,7 +2201,7 @@ const ForemanWorkplace = () => {
                 : reportData.historyRows.reduce((sum, row) => sum + (Number(row.cutters_used) || 0), 0)
 
               const totalActualMs = reportData.historyRows.reduce((sum, row) => {
-                if (row.started_at && row.completed_at && (row.stage_name === 'Розкрій' || row.stage_name === 'Розкрій (перезмінка)')) {
+                if (row.started_at && row.completed_at && (row.stage_name === '╨а╨╛╨╖╨║╤А╤Ц╨╣' || row.stage_name === '╨а╨╛╨╖╨║╤А╤Ц╨╣ (╨┐╨╡╤А╨╡╨╖╨╝╤Ц╨╜╨║╨░)')) {
                   const diff = new Date(row.completed_at) - new Date(row.started_at)
                   return sum + (diff > 0 ? diff : 0)
                 }
@@ -4136,12 +2210,12 @@ const ForemanWorkplace = () => {
               const totalActualSeconds = Math.round(totalActualMs / 1000)
 
               const formatDurationHMS = (totalSeconds) => {
-                if (totalSeconds === null || totalSeconds === undefined || totalSeconds < 0) return '—'
+                if (totalSeconds === null || totalSeconds === undefined || totalSeconds < 0) return 'тАФ'
                 const hours = Math.floor(totalSeconds / 3600)
                 const minutes = Math.floor((totalSeconds % 3600) / 60)
                 const seconds = Math.floor(totalSeconds % 60)
                 const pad = (num) => String(num).padStart(2, '0')
-                return `${pad(hours)}год. ${pad(minutes)}хв. ${pad(seconds)}с`
+                return `${pad(hours)}╨│╨╛╨┤. ${pad(minutes)}╤Е╨▓. ${pad(seconds)}╤Б`
               }
 
               let productNames = currentOrder?.order_items?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ')
@@ -4158,10 +2232,10 @@ const ForemanWorkplace = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#3b82f6', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '5px' }}>
-                          <Clock size={14} /> Звіт по виробництву цеху №1
+                          <Clock size={14} /> ╨Ч╨▓╤Ц╤В ╨┐╨╛ ╨▓╨╕╤А╨╛╨▒╨╜╨╕╤Ж╤В╨▓╤Г ╤Ж╨╡╤Е╤Г тДЦ1
                         </div>
                         <h3 style={{ fontSize: '1.8rem', fontWeight: 950, margin: 0 }}>
-                          Наряд №{currentOrder?.order_num}{currentTask.batch_index ? `/${currentTask.batch_index}` : ''}
+                          ╨Э╨░╤А╤П╨┤ тДЦ{currentOrder?.order_num}{currentTask.batch_index ? `/${currentTask.batch_index}` : ''}
                         </h3>
                       </div>
                       <button
@@ -4174,12 +2248,12 @@ const ForemanWorkplace = () => {
                           boxShadow: '0 4px 12px rgba(59,130,246,0.1)'
                         }}
                       >
-                        <RefreshCw size={12} className={reportLoading ? "animate-spin" : ""} /> ОНОВИТИ ДАНІ
+                        <RefreshCw size={12} className={reportLoading ? "animate-spin" : ""} /> ╨Ю╨Э╨Ю╨Т╨Ш╨в╨Ш ╨Ф╨Р╨Э╨Ж
                       </button>
                     </div>
                     <div style={{ color: '#aaa', fontSize: '0.9rem', marginTop: '6px', fontWeight: 700 }}>
-                      Виріб: <strong style={{ color: '#ef4444' }} className="text-accent-red">{productNames || '—'}</strong>
-                      {currentOrder?.customer && ` | Замовник: ${currentOrder.customer}`}
+                      ╨Т╨╕╤А╤Ц╨▒: <strong style={{ color: '#ef4444' }} className="text-accent-red">{productNames || 'тАФ'}</strong>
+                      {currentOrder?.customer && ` | ╨Ч╨░╨╝╨╛╨▓╨╜╨╕╨║: ${currentOrder.customer}`}
                     </div>
                   </div>
 
@@ -4187,20 +2261,20 @@ const ForemanWorkplace = () => {
 
                     {/*
                     <div style={{ background: '#111', border: '1px solid #222', borderRadius: '16px', padding: '15px' }}>
-                      <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>Час виконання</div>
+                      <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>╨з╨░╤Б ╨▓╨╕╨║╨╛╨╜╨░╨╜╨╜╤П</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <div>План: <strong style={{ color: '#fff' }}>{currentTask.estimated_time ? formatDurationHMS(Number(currentTask.estimated_time) * 60) : '—'}</strong></div>
-                        <div>Факт: <strong style={{ color: '#3b82f6' }} className="text-accent-blue">{formatDurationHMS(totalActualSeconds)}</strong></div>
+                        <div>╨Я╨╗╨░╨╜: <strong style={{ color: '#fff' }}>{currentTask.estimated_time ? formatDurationHMS(Number(currentTask.estimated_time) * 60) : 'тАФ'}</strong></div>
+                        <div>╨д╨░╨║╤В: <strong style={{ color: '#3b82f6' }} className="text-accent-blue">{formatDurationHMS(totalActualSeconds)}</strong></div>
                       </div>
                     </div>
                     */}
 
                     <div style={{ background: '#111', border: '1px solid #222', borderRadius: '16px', padding: '15px' }}>
-                      <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>Фрези (Розкрій)</div>
+                      <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>╨д╤А╨╡╨╖╨╕ (╨а╨╛╨╖╨║╤А╤Ц╨╣)</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderBottom: '1px solid #222', paddingBottom: '6px' }}>
-                          <span>План: <strong style={{ color: '#fff' }}>{totalPlannedCutters} шт</strong></span>
-                          <span>Факт: <strong style={{ color: '#eab308' }} className="text-accent-orange">{totalActualCutters} шт</strong></span>
+                          <span>╨Я╨╗╨░╨╜: <strong style={{ color: '#fff' }}>{totalPlannedCutters} ╤И╤В</strong></span>
+                          <span>╨д╨░╨║╤В: <strong style={{ color: '#eab308' }} className="text-accent-orange">{totalActualCutters} ╤И╤В</strong></span>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                           {(() => {
@@ -4209,7 +2283,7 @@ const ForemanWorkplace = () => {
                               ...Object.keys(actualCuttersBreakdown)
                             ]))
                             if (allCutterNames.length === 0) {
-                              return <div style={{ fontSize: '0.65rem', color: '#444', textAlign: 'center' }}>Немає витрат фрез</div>
+                              return <div style={{ fontSize: '0.65rem', color: '#444', textAlign: 'center' }}>╨Э╨╡╨╝╨░╤Ф ╨▓╨╕╤В╤А╨░╤В ╤Д╤А╨╡╨╖</div>
                             }
                             return allCutterNames.map(name => {
                               const planVal = plannedCuttersBreakdown[name] || 0
@@ -4218,11 +2292,11 @@ const ForemanWorkplace = () => {
                               return (
                                 <div key={name} style={{ fontSize: '0.68rem', borderBottom: '1px solid #1a1a1a', paddingBottom: '4px' }}>
                                   <div style={{ color: isExcess ? '#ef4444' : '#aaa', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={name} className={isExcess ? 'text-accent-red' : ''}>
-                                    {isExcess && '⚠️ '}{name}
+                                    {isExcess && 'тЪая╕П '}{name}
                                   </div>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2px', color: '#888' }}>
-                                    <span>План: <strong style={{ color: '#bbb' }}>{planVal} шт</strong></span>
-                                    <span>Факт: <strong style={{ color: isExcess ? '#ef4444' : '#bbb' }} className={isExcess ? 'text-accent-red' : 'text-accent-orange'}>{factVal} шт</strong></span>
+                                    <span>╨Я╨╗╨░╨╜: <strong style={{ color: '#bbb' }}>{planVal} ╤И╤В</strong></span>
+                                    <span>╨д╨░╨║╤В: <strong style={{ color: isExcess ? '#ef4444' : '#bbb' }} className={isExcess ? 'text-accent-red' : 'text-accent-orange'}>{factVal} ╤И╤В</strong></span>
                                   </div>
                                 </div>
                               )
@@ -4233,11 +2307,11 @@ const ForemanWorkplace = () => {
                     </div>
 
                     <div style={{ background: '#111', border: '1px solid #222', borderRadius: '16px', padding: '15px' }}>
-                      <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>Листи (Матеріал)</div>
+                      <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>╨Ы╨╕╤Б╤В╨╕ (╨Ь╨░╤В╨╡╤А╤Ц╨░╨╗)</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderBottom: '1px solid #222', paddingBottom: '6px' }}>
-                          <span>План: <strong style={{ color: '#fff' }}>{totalPlannedSheets} л.</strong></span>
-                          <span>Факт: <strong style={{ color: totalActualSheets > totalPlannedSheets ? '#ef4444' : '#10b981' }} className={totalActualSheets > totalPlannedSheets ? 'text-accent-red' : 'text-accent-green'}>{totalActualSheets} л.</strong></span>
+                          <span>╨Я╨╗╨░╨╜: <strong style={{ color: '#fff' }}>{totalPlannedSheets} ╨╗.</strong></span>
+                          <span>╨д╨░╨║╤В: <strong style={{ color: totalActualSheets > totalPlannedSheets ? '#ef4444' : '#10b981' }} className={totalActualSheets > totalPlannedSheets ? 'text-accent-red' : 'text-accent-green'}>{totalActualSheets} ╨╗.</strong></span>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                           {Object.entries(materialStats).length > 0 ? (
@@ -4246,39 +2320,39 @@ const ForemanWorkplace = () => {
                               return (
                                 <div key={matName} style={{ fontSize: '0.68rem', borderBottom: '1px solid #1a1a1a', paddingBottom: '4px' }}>
                                   <div style={{ color: isExcess ? '#ef4444' : '#aaa', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={matName} className={isExcess ? 'text-accent-red' : ''}>
-                                    {isExcess && '⚠️ '}{matName}
+                                    {isExcess && 'тЪая╕П '}{matName}
                                   </div>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2px', color: '#888' }}>
-                                    <span>План: <strong style={{ color: '#bbb' }}>{stats.plannedSheets} л.</strong></span>
-                                    <span>Факт: <strong style={{ color: isExcess ? '#ef4444' : '#bbb' }} className={isExcess ? 'text-accent-red' : 'text-accent-green'}>{stats.actualSheets} л.</strong></span>
+                                    <span>╨Я╨╗╨░╨╜: <strong style={{ color: '#bbb' }}>{stats.plannedSheets} ╨╗.</strong></span>
+                                    <span>╨д╨░╨║╤В: <strong style={{ color: isExcess ? '#ef4444' : '#bbb' }} className={isExcess ? 'text-accent-red' : 'text-accent-green'}>{stats.actualSheets} ╨╗.</strong></span>
                                   </div>
                                 </div>
                               )
                             })
                           ) : (
-                            <div style={{ color: '#444', fontSize: '0.65rem', fontStyle: 'italic' }}>Немає запланованих матеріалів</div>
+                            <div style={{ color: '#444', fontSize: '0.65rem', fontStyle: 'italic' }}>╨Э╨╡╨╝╨░╤Ф ╨╖╨░╨┐╨╗╨░╨╜╨╛╨▓╨░╨╜╨╕╤Е ╨╝╨░╤В╨╡╤А╤Ц╨░╨╗╤Ц╨▓</div>
                           )}
                         </div>
                       </div>
                     </div>
 
                     <div style={{ background: '#111', border: '1px solid #222', borderRadius: '16px', padding: '15px' }}>
-                      <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>Деталі та Брак</div>
+                      <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>╨Ф╨╡╤В╨░╨╗╤Ц ╤В╨░ ╨С╤А╨░╨║</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 500 }}>План:</span>
-                          <strong style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 700 }}>{totalPlannedParts} шт</strong>
+                          <span style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 500 }}>╨Я╨╗╨░╨╜:</span>
+                          <strong style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 700 }}>{totalPlannedParts} ╤И╤В</strong>
                         </div>
 
-                        {/* Прийнято: Clickable for breakdown */}
+                        {/* ╨Я╤А╨╕╨╣╨╜╤П╤В╨╛: Clickable for breakdown */}
                         <div
                           onClick={() => setReportDetailModal('accepted')}
                           style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'opacity 0.2s' }}
                           onMouseEnter={e => e.currentTarget.style.opacity = 0.8}
                           onMouseLeave={e => e.currentTarget.style.opacity = 1}
-                          title="Клікніть для деталізації прийнятих деталей"
+                          title="╨Ъ╨╗╤Ц╨║╨╜╤Ц╤В╤М ╨┤╨╗╤П ╨┤╨╡╤В╨░╨╗╤Ц╨╖╨░╤Ж╤Ц╤Ч ╨┐╤А╨╕╨╣╨╜╤П╤В╨╕╤Е ╨┤╨╡╤В╨░╨╗╨╡╨╣"
                         >
-                          <span style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 500 }}>Прийнято:</span>
+                          <span style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 500 }}>╨Я╤А╨╕╨╣╨╜╤П╤В╨╛:</span>
                           <strong
                             style={{
                               color: '#10b981',
@@ -4289,19 +2363,19 @@ const ForemanWorkplace = () => {
                             }}
                             className="text-accent-green"
                           >
-                            {totalActualParts} шт
+                            {totalActualParts} ╤И╤В
                           </strong>
                         </div>
 
-                        {/* Брак: Clickable for breakdown */}
+                        {/* ╨С╤А╨░╨║: Clickable for breakdown */}
                         <div
                           onClick={() => setReportDetailModal('scrap')}
                           style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'opacity 0.2s' }}
                           onMouseEnter={e => e.currentTarget.style.opacity = 0.8}
                           onMouseLeave={e => e.currentTarget.style.opacity = 1}
-                          title="Клікніть для деталізації браку за етапами"
+                          title="╨Ъ╨╗╤Ц╨║╨╜╤Ц╤В╤М ╨┤╨╗╤П ╨┤╨╡╤В╨░╨╗╤Ц╨╖╨░╤Ж╤Ц╤Ч ╨▒╤А╨░╨║╤Г ╨╖╨░ ╨╡╤В╨░╨┐╨░╨╝╨╕"
                         >
-                          <span style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 500 }}>Брак:</span>
+                          <span style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 500 }}>╨С╤А╨░╨║:</span>
                           <strong
                             style={{
                               color: '#ef4444',
@@ -4312,12 +2386,13 @@ const ForemanWorkplace = () => {
                             }}
                             className="text-accent-red"
                           >
-                            {totalScrap} шт
+                            {totalScrap} ╤И╤В
                           </strong>
                         </div>
                       </div>
                     </div>
                   </div>
+
 
                   {(() => {
                     const timeStats = {

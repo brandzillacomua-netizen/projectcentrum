@@ -20,7 +20,7 @@ const translateCyrillic = (str) => {
 }
 
 export default function TumblingTerminal() {
-  const { workCards, nomenclatures, getFilteredOperators, fetchData, currentUser } = useMES()
+  const { workCards, nomenclatures, getFilteredOperators, fetchData, currentUser, bomItems, orders, tasks, workCardHistory } = useMES()
 
   const [currentTime, setCurrentTime] = useState(getCurrentTime())
   const [selectedShift, setSelectedShift] = useState('')
@@ -358,17 +358,188 @@ export default function TumblingTerminal() {
     return getFilteredOperators('Цех №1', selectedShift, 'Галтовка')
   }, [selectedShift, getFilteredOperators])
 
-  // 1. Waiting cards: cards at buffer waiting for next tumbling sub-stage
+  // Check if a work card has completed tumbling
+  const hasPassedTumbling = (card) => {
+    if (!card) return false
+    if (card.status === 'completed') return true
+
+    const op = card.operation || ''
+    if (op === 'Галтовка' && card.status === 'at-buffer') return true
+    if (op === 'Склад БЗ') return true
+
+    const subsequentStages = ['Прийомка', 'completed', 'Пресування', 'Фарбування', 'Паквання', 'Пакування', 'Сортування', 'Склад СГП', 'Доопрацювання']
+    return subsequentStages.some(stage => op.includes(stage))
+  }
+
+  // 1. Process active orders and compute component kit completion & bottleneck priority
+  const orderKits = useMemo(() => {
+    const activeOrderIds = new Set(workCards.map(c => c.order_id).filter(Boolean))
+    
+    return Array.from(activeOrderIds).map(orderId => {
+      const order = orders.find(o => String(o.id) === String(orderId))
+      if (!order) return null
+
+      const targetQty = Number(order.quantity) || 1000
+      const parentNom = nomenclatures.find(n => n.id === order.nomenclature_id)
+
+      const orderBoms = bomItems.filter(b => {
+        if (b.parent_id !== order.nomenclature_id) return false
+        
+        const childNom = nomenclatures.find(n => n.id === b.child_id)
+        if (!childNom) return false
+        
+        const nameLower = (childNom.name || '').toLowerCase()
+        const isExcluded = 
+          nameLower.includes('гвинт') ||
+          nameLower.includes('метиз') ||
+          nameLower.includes('накладк') ||
+          nameLower.includes('гайка') ||
+          nameLower.includes('шайба') ||
+          nameLower.includes('заклепк') ||
+          nameLower.includes('болт') ||
+          nameLower.includes('шпильк') ||
+          nameLower.includes('саморіз') ||
+          nameLower.includes('стійка') ||
+          nameLower.includes('тримач') ||
+          nameLower.includes('демпфер') ||
+          nameLower.includes('пластик') ||
+          nameLower.includes('кабель') ||
+          nameLower.includes('хомут') ||
+          nameLower.includes('скло') ||
+          nameLower.includes('ніжка') ||
+          nameLower.includes('резинк') ||
+          nameLower.includes('ущільн') ||
+          nameLower.includes('прокладк') ||
+          nameLower.includes('стріч') ||
+          nameLower.includes('скотч') ||
+          nameLower.includes('клей') ||
+          nameLower.includes('втулк')
+        
+        const typeLower = (childNom.type || '').toLowerCase()
+        const isExcludedType = typeLower && typeLower !== 'part'
+        
+        if (isExcluded || isExcludedType) return false
+
+        const hasActiveCard = workCards.some(c => c.nomenclature_id === b.child_id && String(c.order_id) === String(orderId))
+        const hasHistoryCard = workCardHistory?.some(h => h.nomenclature_id === b.child_id)
+        
+        return hasActiveCard || hasHistoryCard
+      })
+      if (orderBoms.length === 0) return null
+
+      const orderCards = workCards.filter(c => String(c.order_id) === String(orderId))
+
+      const components = orderBoms.map(bom => {
+        const childNom = nomenclatures.find(n => n.id === bom.child_id)
+        const qtyPerParent = Number(bom.quantity_per_parent) || 1
+        const totalNeeded = targetQty * qtyPerParent
+
+         const compCards = orderCards.filter(c => c.nomenclature_id === bom.child_id)
+
+         const bzCards = compCards.filter(c => c.operation === 'Склад БЗ')
+         const producedCards = compCards.filter(c => c.operation !== 'Склад БЗ' && hasPassedTumbling(c))
+
+         const bzQty = bzCards.reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+         const producedQty = producedCards.reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+         const passedQty = bzQty + producedQty
+
+         const completedKits = passedQty / qtyPerParent
+         const kitRatio = targetQty > 0 ? completedKits / targetQty : 0
+
+         return {
+           id: bom.child_id,
+           name: childNom?.name || 'Компонент',
+           qtyPerParent,
+           totalNeeded,
+           passedQty,
+           bzQty,
+           producedQty,
+           completedKits,
+           kitRatio,
+           cards: compCards
+         }
+       })
+
+      let bottleneckId = null
+      let minRatio = Infinity
+      components.forEach(comp => {
+        if (comp.kitRatio < minRatio) {
+          minRatio = comp.kitRatio
+          bottleneckId = comp.id
+        }
+      })
+
+      const taskObj = tasks.find(t => String(t.order_id) === String(orderId))
+      const deadlineStr = taskObj?.planned_deadline || order.deadline || null
+      const deadlineDate = deadlineStr ? new Date(deadlineStr) : null
+
+      return {
+        orderId,
+        orderNum: order.order_num || `Наряд #${String(orderId).slice(-6)}`,
+        productName: parentNom?.name || 'Готовий виріб',
+        targetQty,
+        components,
+        bottleneckId,
+        deadlineDate,
+        deadlineStr
+      }
+    }).filter(Boolean)
+  }, [workCards, orders, bomItems, tasks, nomenclatures])
+
+  // Map to easily check if a nomenclature is a bottleneck in its order
+  const bottleneckNomenclaturesMap = useMemo(() => {
+    const map = {}
+    orderKits.forEach(kit => {
+      if (kit.bottleneckId) {
+        map[kit.bottleneckId] = true
+      }
+    })
+    return map
+  }, [orderKits])
+
+  // Get deadline of a card's order helper
+  const getCardDeadline = (card) => {
+    const kit = orderKits.find(k => String(k.orderId) === String(card.order_id))
+    return kit?.deadlineDate || null
+  }
+
+  // 1. Waiting cards: cards at buffer waiting for next tumbling sub-stage (sorted by kitRatio -> deadline -> FIFO)
   const waitingCards = useMemo(() => {
     return workCards
       .filter(c => c.status === 'at-buffer' && (c.operation === 'Розкрій' || c.operation === 'Галтовка (Вібростіл)' || c.operation === 'Галтовка (Мийка)' || c.operation === 'Галтовка (Галтовка)'))
-      .sort((a, b) => {
-        const aPri = a.galt_priority || 2
-        const bPri = b.galt_priority || 2
-        if (aPri !== bPri) return aPri - bPri
-        return new Date(a.completed_at || 0) - new Date(b.completed_at || 0) // Oldest waiting first (FIFO)
+      .map(card => {
+        const isBottleneck = bottleneckNomenclaturesMap[card.nomenclature_id] || false
+        
+        const kit = orderKits.find(k => String(k.orderId) === String(card.order_id))
+        const comp = kit?.components?.find(co => co.id === card.nomenclature_id)
+        const kitRatio = comp ? comp.kitRatio : 1.0
+        
+        const deadline = getCardDeadline(card)
+        return {
+          ...card,
+          isBottleneck,
+          kitRatio,
+          deadline
+        }
       })
-  }, [workCards])
+      .sort((a, b) => {
+        // Tier 1: Kit completion ratio (lowest first)
+        if (a.kitRatio !== b.kitRatio) {
+          return a.kitRatio - b.kitRatio
+        }
+        // Tier 2: Deadline (earlier first)
+        if (a.deadline && b.deadline) {
+          return a.deadline - b.deadline
+        }
+        if (a.deadline) return -1
+        if (b.deadline) return 1
+
+        // Tier 3: FIFO (completion date of previous stage)
+        const dateA = new Date(a.completed_at || a.started_at || 0)
+        const dateB = new Date(b.completed_at || b.started_at || 0)
+        return dateA - dateB
+      })
+  }, [workCards, bottleneckNomenclaturesMap, orderKits])
 
   // 2. In-work cards: cards in progress on any tumbling sub-stage
   const inWorkCards = useMemo(() => {
@@ -413,10 +584,21 @@ export default function TumblingTerminal() {
       if (a.type === 'waiting' && b.type === 'in_work') return 1
 
       if (a.type === 'waiting') {
-        const aPri = a.galt_priority || 2
-        const bPri = b.galt_priority || 2
-        if (aPri !== bPri) return aPri - bPri
-        return new Date(a.completed_at || 0) - new Date(b.completed_at || 0)
+        // Tier 1: Kit completion ratio (lowest first)
+        if (a.kitRatio !== b.kitRatio) {
+          return a.kitRatio - b.kitRatio
+        }
+        // Tier 2: Deadline (earlier first)
+        if (a.deadline && b.deadline) {
+          return a.deadline - b.deadline
+        }
+        if (a.deadline) return -1
+        if (b.deadline) return 1
+
+        // Tier 3: FIFO (completion date of previous stage)
+        const dateA = new Date(a.completed_at || a.started_at || 0)
+        const dateB = new Date(b.completed_at || b.started_at || 0)
+        return dateA - dateB
       } else {
         return new Date(a.started_at || 0) - new Date(b.started_at || 0)
       }
@@ -579,7 +761,10 @@ export default function TumblingTerminal() {
               displayedCards.map(card => {
                 const nom = getNom(card)
                 const isWaiting = card.type === 'waiting'
-                const pInfo = priorityMap[card.galt_priority || 2]
+                const isBottleneck = card.isBottleneck || (isWaiting && bottleneckNomenclaturesMap[card.nomenclature_id])
+                const pInfo = isBottleneck 
+                  ? { label: 'КРИТИЧНО', bg: 'rgba(239,68,68,0.15)', text: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }
+                  : priorityMap[card.galt_priority || 2]
 
                 // Waiting/Work time
                 const timeStr = isWaiting
@@ -616,13 +801,84 @@ export default function TumblingTerminal() {
                         })()}
                         
                         {isWaiting ? (
-                          <span className="card-stage" style={{ fontSize: '0.55rem', background: pInfo.bg, color: pInfo.text, border: pInfo.border, padding: '2px 8px', borderRadius: '6px', fontWeight: 900 }}>
-                            Очікує: {getNextTumblingOperation(card.operation)}
-                          </span>
+                          <>
+                            <span className="card-stage" style={{ fontSize: '0.8rem', background: pInfo.bg, color: pInfo.text, border: pInfo.border, padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>
+                              Очікує: {getNextTumblingOperation(card.operation)}
+                            </span>
+                            {(() => {
+                              const kit = orderKits.find(k => String(k.orderId) === String(card.order_id))
+                              const comp = kit?.components?.find(co => co.id === card.nomenclature_id)
+                              const ratio = comp ? comp.kitRatio : 1.0
+                              const percent = Math.min(100, Math.round(ratio * 100))
+
+                              if (isBottleneck) {
+                                return (
+                                  <span className="card-stage" style={{ fontSize: '0.85rem', background: 'rgba(239, 68, 68, 0.25)', color: '#ff4444', border: '2px solid #ef4444', padding: '4px 12px', borderRadius: '8px', fontWeight: 950, letterSpacing: '0.5px', boxShadow: '0 0 10px rgba(239, 68, 68, 0.2)' }}>
+                                    🔥 КРИТИЧНИЙ ПРІОРИТЕТ (Комплект: {percent}%)
+                                  </span>
+                                )
+                              }
+                              if (ratio < 0.5) {
+                                return (
+                                  <span className="card-stage" style={{ fontSize: '0.85rem', background: 'rgba(245, 158, 11, 0.25)', color: '#f59e0b', border: '2px solid #f59e0b', padding: '4px 12px', borderRadius: '8px', fontWeight: 950, letterSpacing: '0.5px' }}>
+                                    ⚡ ВИСОКИЙ ПРІОРИТЕТ (Комплект: {percent}%)
+                                  </span>
+                                )
+                              }
+                              if (ratio < 0.8) {
+                                return (
+                                  <span className="card-stage" style={{ fontSize: '0.85rem', background: 'rgba(59, 130, 246, 0.25)', color: '#3b82f6', border: '2px solid #3b82f6', padding: '4px 12px', borderRadius: '8px', fontWeight: 950, letterSpacing: '0.5px' }}>
+                                    ✨ СЕРЕДНІЙ ПРІОРИТЕТ (Комплект: {percent}%)
+                                  </span>
+                                )
+                              }
+                              return (
+                                <span className="card-stage" style={{ fontSize: '0.85rem', background: 'rgba(16, 185, 129, 0.25)', color: '#10b981', border: '2px solid #10b981', padding: '4px 12px', borderRadius: '8px', fontWeight: 950, letterSpacing: '0.5px' }}>
+                                  ✅ НИЗЬКИЙ ПРІОРИТЕТ (Комплект: {percent}%)
+                                </span>
+                              )
+                            })()}
+                          </>
                         ) : (
-                          <span className="card-stage" style={{ fontSize: '0.55rem', background: 'rgba(16,185,129,0.12)', color: '#10b981', border: '1px solid rgba(16,185,129,0.25)', padding: '2px 8px', borderRadius: '6px', fontWeight: 900 }}>
-                            У роботі: {card.operation}
-                          </span>
+                          <>
+                            <span className="card-stage" style={{ fontSize: '0.8rem', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>
+                              У роботі: {card.operation}
+                            </span>
+                            {(() => {
+                              const kit = orderKits.find(k => String(k.orderId) === String(card.order_id))
+                              const comp = kit?.components?.find(co => co.id === card.nomenclature_id)
+                              const ratio = comp ? comp.kitRatio : 1.0
+                              const percent = Math.min(100, Math.round(ratio * 100))
+                              const isB = bottleneckNomenclaturesMap[card.nomenclature_id] || false
+
+                              if (isB) {
+                                return (
+                                  <span className="card-stage" style={{ fontSize: '0.85rem', background: 'rgba(239, 68, 68, 0.25)', color: '#ff4444', border: '2px solid #ef4444', padding: '4px 12px', borderRadius: '8px', fontWeight: 950, letterSpacing: '0.5px', boxShadow: '0 0 10px rgba(239, 68, 68, 0.2)' }}>
+                                    🔥 КРИТИЧНИЙ ПРІОРИТЕТ (Комплект: {percent}%)
+                                  </span>
+                                )
+                              }
+                              if (ratio < 0.5) {
+                                return (
+                                  <span className="card-stage" style={{ fontSize: '0.85rem', background: 'rgba(245, 158, 11, 0.25)', color: '#f59e0b', border: '2px solid #f59e0b', padding: '4px 12px', borderRadius: '8px', fontWeight: 950, letterSpacing: '0.5px' }}>
+                                    ⚡ ВИСОКИЙ ПРІОРИТЕТ (Комплект: {percent}%)
+                                  </span>
+                                )
+                              }
+                              if (ratio < 0.8) {
+                                return (
+                                  <span className="card-stage" style={{ fontSize: '0.85rem', background: 'rgba(59, 130, 246, 0.25)', color: '#3b82f6', border: '2px solid #3b82f6', padding: '4px 12px', borderRadius: '8px', fontWeight: 950, letterSpacing: '0.5px' }}>
+                                    ✨ СЕРЕДНІЙ ПРІОРИТЕТ (Комплект: {percent}%)
+                                  </span>
+                                )
+                              }
+                              return (
+                                <span className="card-stage" style={{ fontSize: '0.85rem', background: 'rgba(16, 185, 129, 0.25)', color: '#10b981', border: '2px solid #10b981', padding: '4px 12px', borderRadius: '8px', fontWeight: 950, letterSpacing: '0.5px' }}>
+                                  ✅ НИЗЬКИЙ ПРІОРИТЕТ (Комплект: {percent}%)
+                                </span>
+                              )
+                            })()}
+                          </>
                         )}
                       </div>
 

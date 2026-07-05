@@ -529,17 +529,15 @@ const Shop2Module = () => {
                     </div>
                   </div>
                   {(() => {
-                    const snap = task.plan_snapshot || {}
-                    // Визначаємо назву виробу
+                    // Назва виробу
                     const prodName = (order?.order_items || [])
                       .map(it => (nomenclatures || []).find(n => n.id === it.nomenclature_id)?.name)
                       .filter(Boolean)
                       .join(', ') || '—'
-                    
-                    // Сумуємо потребу деталей
-                    const totalQty = Object.values(snap)
-                      .filter(v => v && typeof v === 'object' && v.need)
-                      .reduce((s, v) => s + (Number(v.need) || 0), 0)
+
+                    // Кількість комплектів = сума quantity з order_items (скільки виробів замовлено)
+                    const totalKits = (order?.order_items || [])
+                      .reduce((s, it) => s + (Number(it.quantity) || 0), 0)
 
                     return (
                       <div style={{ marginTop: '6px', borderTop: '1px dashed #222', paddingTop: '6px' }}>
@@ -553,9 +551,9 @@ const Shop2Module = () => {
                             Виріб: <span style={{ color: isCompleted ? '#444' : '#fff' }}>{prodName}</span>
                           </div>
                         )}
-                        {totalQty > 0 && (
+                        {totalKits > 0 && (
                           <div style={{ fontSize: '0.72rem', color: isCompleted ? '#2a2a2a' : '#71717a', marginTop: '2px', fontWeight: 600 }}>
-                            Кількість: <span style={{ color: '#8b5cf6', fontWeight: 900 }}>{totalQty} шт</span>
+                            Комплектів: <span style={{ color: '#8b5cf6', fontWeight: 900 }}>{totalKits} шт</span>
                           </div>
                         )}
                       </div>
