@@ -95,7 +95,7 @@ export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers,
     }
 
     const { data, error } = await query
-      .select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar, last_seen')
+      .select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar, last_seen, shift_calendar')
     
     const result = (data && data.length > 0) ? data[0] : null
     if (!error && result) {

@@ -233,7 +233,7 @@ export function useData() {
         { data: mCalls }
       ] = await Promise.all([
         // Users & machines — needed for portal access filtering
-        supabase.from('system_users').select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar, last_seen').order('login'),
+        supabase.from('system_users').select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar, last_seen, shift_calendar').order('login'),
         supabase.from('machines').select('*').order('name'),
         // Kanban badge counter
         supabase.from('management_tasks').select('*').neq('status', 'completed').order('created_at', { ascending: false }),

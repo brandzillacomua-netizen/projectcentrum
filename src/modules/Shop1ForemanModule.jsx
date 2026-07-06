@@ -101,6 +101,20 @@ export default function Shop1ForemanModule() {
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear())
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth()) // 0-11
   const [calendarSaving, setCalendarSaving] = useState(false)
+  const [openAccordions, setOpenAccordions] = useState({
+    '👥 ЗМІНА 1': true,
+    '👥 ЗМІНА 2': true,
+    '👥 ЗМІНА 3': true,
+    '👥 ЗМІНА 4': true,
+    '👥 БЕЗ ЗМІНИ': true
+  })
+
+  const toggleAccordion = (title) => {
+    setOpenAccordions(prev => ({
+      ...prev,
+      [title]: !prev[title]
+    }))
+  }
 
   useEffect(() => {
     fetchData(['work_cards', 'work_card_history']).catch(e => console.error(e))
@@ -694,13 +708,13 @@ export default function Shop1ForemanModule() {
             </div>
 
             {/* Calendar Grid organized by Shifts */}
-            <div style={{ overflowX: 'auto', background: '#0d0d0d', border: '1px solid #1a1a1a', borderRadius: '24px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left', minWidth: '800px' }}>
+            <div style={{ overflowX: 'auto', background: '#0d0d0d', border: '1px solid #1a1a1a', borderRadius: '24px', maxHeight: '75vh' }}>
+              <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.75rem', textAlign: 'left', minWidth: '800px' }}>
                 <thead>
-                  <tr style={{ background: '#070707', borderBottom: '2px solid #1a1a1a' }}>
-                    <th style={{ padding: '16px', fontWeight: 900, color: '#eab308', width: '220px', position: 'sticky', left: 0, background: '#070707', zIndex: 10 }}>Співробітник / Категорія</th>
+                  <tr style={{ background: '#070707', borderBottom: '2px solid #1a1a1a', position: 'sticky', top: 0, zIndex: 12 }}>
+                    <th style={{ padding: '16px', fontWeight: 900, color: '#eab308', width: '220px', position: 'sticky', left: 0, background: '#070707', zIndex: 13, borderBottom: '2px solid #1a1a1a' }}>Співробітник / Категорія</th>
                     {Array.from({ length: daysInMonth }).map((_, idx) => (
-                      <th key={idx} style={{ padding: '12px 6px', fontWeight: 900, color: '#555', textAlign: 'center', minWidth: '30px' }}>
+                      <th key={idx} style={{ padding: '12px 6px', fontWeight: 900, color: '#555', textAlign: 'center', minWidth: '30px', background: '#070707', borderBottom: '2px solid #1a1a1a' }}>
                         {idx + 1}
                       </th>
                     ))}
@@ -714,18 +728,25 @@ export default function Shop1ForemanModule() {
                       </td>
                     </tr>
                   ) : (
-                    categorizedCalendarUsers.map(category => (
-                      <React.Fragment key={category.title}>
-                        {/* Section Header Row */}
-                        <tr style={{ background: 'rgba(234,179,8,0.04)' }}>
-                          <td colSpan={daysInMonth + 1} style={{ padding: '8px 16px', fontWeight: 900, color: '#eab308', fontSize: '0.68rem', letterSpacing: '0.05em', position: 'sticky', left: 0, zIndex: 2 }}>
-                            {category.title} ({category.users.length})
-                          </td>
-                        </tr>
-                        {/* User Rows under this section */}
-                        {category.users.map(user => renderCalendarRow(user))}
-                      </React.Fragment>
-                    ))
+                    categorizedCalendarUsers.map(category => {
+                      const isOpen = !!openAccordions[category.title];
+                      return (
+                        <React.Fragment key={category.title}>
+                          {/* Section Header Row */}
+                          <tr 
+                            onClick={() => toggleAccordion(category.title)}
+                            style={{ background: 'rgba(234,179,8,0.04)', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.02)' }}
+                          >
+                            <td colSpan={daysInMonth + 1} style={{ padding: '10px 16px', fontWeight: 900, color: '#eab308', fontSize: '0.72rem', letterSpacing: '0.05em', position: 'sticky', left: 0, zIndex: 2, userSelect: 'none' }}>
+                              <span style={{ marginRight: '8px', fontSize: '0.6rem' }}>{isOpen ? '▼' : '►'}</span>
+                              {category.title} ({category.users.length})
+                            </td>
+                          </tr>
+                          {/* User Rows under this section (conditionally rendered) */}
+                          {isOpen && category.users.map(user => renderCalendarRow(user))}
+                        </React.Fragment>
+                      )
+                    })
                   )}
                 </tbody>
               </table>
