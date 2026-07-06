@@ -33,7 +33,8 @@ const PackagingModule = () => {
   const {
     orders, tasks, nomenclatures, bomItems,
     submitPickingRequest, requests, supabase,
-    fetchData, completePackaging, systemUsers
+    fetchData, completePackaging, systemUsers,
+    inventory
   } = useMES()
 
   const [selectedBatch, setSelectedBatch] = useState(null)
@@ -89,8 +90,8 @@ const PackagingModule = () => {
     if (tid && tasks && tasks.length > 0) {
       const task = tasks.find(t => String(t.id) === String(tid))
       if (task) {
-        const bIdx = task.batch_index || '1'
-        const key = `${task.order_id}_${bIdx}`
+        const bIdx = task.batch_index || ''
+        const key = bIdx ? `${task.order_id}_${bIdx}` : `${task.order_id}_whole`
         setSelectedBatch({ key, orderId: task.order_id, batchIndex: bIdx })
       }
     }
@@ -100,11 +101,18 @@ const PackagingModule = () => {
   const loadSavedBoxes = useCallback(async (batch) => {
     if (!batch) return
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('packaging_boxes')
         .select('*')
-        .eq('order_id', batch.orderId)
-        .eq('batch_index', batch.batchIndex || '1')
+        .eq('order_id', batch.orderId);
+
+      if (batch.batchIndex) {
+        query = query.eq('batch_index', batch.batchIndex);
+      } else {
+        query = query.or('batch_index.is.null,batch_index.eq.,batch_index.eq.1');
+      }
+
+      const { data, error } = await query;
 
       if (error) { console.error('[Packaging] loadSavedBoxes error:', error); return }
 
@@ -170,8 +178,8 @@ const PackagingModule = () => {
       const order = orders.find(o => o.id === task.order_id)
       if (!order) return
       if (order.order_num && (order.order_num.startsWith('ВБ') || order.order_num.startsWith('VB'))) return
-      const bIdx = task.batch_index || '1'
-      const key = `${task.order_id}_${bIdx}`
+      const bIdx = task.batch_index || ''
+      const key = bIdx ? `${task.order_id}_${bIdx}` : `${task.order_id}_whole`
       if (!batchGroups[key]) {
         const productNames = order.order_items?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ') || '—'
         batchGroups[key] = { key, orderId: task.order_id, orderNum: order.order_num, customer: order.customer, productNames, batchIndex: bIdx, plannedSets: task.planned_sets || 0, isPackaged: task.plan_snapshot?._metadata?.is_packaged === true, tasks: [] }
@@ -181,43 +189,66 @@ const PackagingModule = () => {
 
     return Object.values(batchGroups).map(batch => {
       const batchBOM = []
+      
+      // 1. Add standard BOM items from order_items
+      const order = orders.find(o => o.id === batch.orderId)
       const hasSnapshot = batch.tasks.some(t => t.plan_snapshot)
-      if (hasSnapshot) {
-        batch.tasks.forEach(t => {
-          if (t.plan_snapshot) {
-            Object.keys(t.plan_snapshot).forEach(key => {
-              if (!key.startsWith('_') && key !== 'materialSummary' && key !== 'selectedCutters') {
-                const nom = nomenclatures.find(n => String(n.id) === String(key))
-                const nameLower = nom?.name?.toLowerCase() || ''
-                if (nom && !(nameLower.includes('прес') && (nameLower.includes('гайка') || nameLower.includes('втулка')))) {
-                  if (!batchBOM.includes(nom.id)) {
-                    batchBOM.push(nom.id)
-                  }
-                }
-              }
-            })
-          }
-        })
-      } else {
-        const order = orders.find(o => o.id === batch.orderId)
-        order?.order_items?.forEach(item => {
-          const children = bomItems.filter(b => String(b.parent_id) === String(item.nomenclature_id))
+      order?.order_items?.forEach(item => {
+        const children = bomItems.filter(b => String(b.parent_id) === String(item.nomenclature_id))
+        if (children.length > 0) {
           children.forEach(b => {
             const nom = nomenclatures.find(n => String(n.id) === String(b.child_id))
             const nameLower = nom?.name?.toLowerCase() || ''
             if (nom && !(nameLower.includes('прес') && (nameLower.includes('гайка') || nameLower.includes('втулка')))) {
+              let snapFound = false
+              batch.tasks.forEach(t => {
+                if (t.plan_snapshot && t.plan_snapshot[nom.id]) snapFound = true
+              })
+              const isSgp = (nom.name?.toLowerCase().includes('-іп') || nom.name?.toLowerCase().includes(' іп') || nom.nomenclature_code?.toLowerCase().includes('іп') || nom.type?.toLowerCase().includes('part') || nom.type?.toLowerCase().includes('деталь') || nom.type?.toLowerCase().includes('виріб') || nom.type?.toLowerCase().includes('сгп'))
+              if (isSgp && hasSnapshot && !snapFound) return
+
               if (!batchBOM.includes(nom.id)) {
                 batchBOM.push(nom.id)
               }
             }
           })
-        })
-      }
+        } else {
+          const nom = nomenclatures.find(n => String(n.id) === String(item.nomenclature_id))
+          if (nom) {
+            const nameLower = nom.name?.toLowerCase() || ''
+            if (!(nameLower.includes('прес') && (nameLower.includes('гайка') || nameLower.includes('втулка')))) {
+              if (!batchBOM.includes(nom.id)) {
+                batchBOM.push(nom.id)
+              }
+            }
+          }
+        }
+      })
+
+      // 2. Add extra items from plan_snapshot of tasks
+      const ignoreSnapshotKeys = ['materialSummary', 'selectedCutters', 'consumables', 'arrivals', 'arrival_doc_id', 'arrival_doc', 'nomenclatures'];
+      batch.tasks.forEach(t => {
+        if (t.plan_snapshot) {
+          Object.keys(t.plan_snapshot).forEach(key => {
+            if (!key.startsWith('_') && !ignoreSnapshotKeys.includes(key)) {
+              const nom = nomenclatures.find(n => String(n.id) === String(key))
+              if (nom) {
+                const nameLower = nom.name?.toLowerCase() || ''
+                if (!(nameLower.includes('прес') && (nameLower.includes('гайка') || nameLower.includes('втулка')))) {
+                  if (!batchBOM.includes(nom.id)) {
+                    batchBOM.push(nom.id)
+                  }
+                }
+              }
+            }
+          })
+        }
+      })
 
       const batchReqs = (requests || []).filter(r => {
         if (String(r.order_id) !== String(batch.orderId)) return false
         const taskIdMatch = r.task_id && batch.tasks.some(t => String(t.id) === String(r.task_id))
-        const detailsMatch = r.details?.includes(`/${batch.batchIndex}`)
+        const detailsMatch = batch.batchIndex ? r.details?.includes(`/${batch.batchIndex}`) : false
         if (taskIdMatch || detailsMatch) return true
         const allTasksForOrder = tasks.filter(t => String(t.order_id) === String(batch.orderId))
         if (allTasksForOrder.length <= 1 && r.details?.includes('КОМПЛЕКТУВАННЯ')) return true
@@ -230,7 +261,14 @@ const PackagingModule = () => {
       else {
         const confirmedNoms = new Set(batchReqs.filter(r => r.status === 'completed' || r.status === 'issued').map(r => String(r.nomenclature_id)))
         const allCovered = batchBOM.length > 0 && batchBOM.every(id => confirmedNoms.has(String(id)))
-        packStatus = allCovered ? 'ready' : 'processing'
+        
+        if (allCovered) {
+          packStatus = 'ready'
+        } else {
+          // Check if we actually have sent the kitting request (it would show up as pending or processing)
+          const hasPendingKitting = batchReqs.some(r => r.details?.includes('КОМПЛЕКТУВАННЯ') && (r.status === 'pending' || r.status === 'processing'))
+          packStatus = hasPendingKitting ? 'processing' : 'waiting'
+        }
       }
       return { ...batch, packStatus }
     }).sort((a, b) => {
@@ -254,6 +292,7 @@ const PackagingModule = () => {
     if (!activeBatchData) return { categorizedBOM: {}, hasBOM: false }
     const map = {}
     let foundAnyBom = false
+    const hasSnapshot = activeBatchData.tasks.some(t => t.plan_snapshot)
 
     const order = orders.find(o => o.id === activeBatchData.orderId)
     if (order && order.order_items) {
@@ -280,6 +319,11 @@ const PackagingModule = () => {
                   }
                 }
               })
+              
+              // Skip SGP items from static BOM if we have task snapshots but this item is not in them (e.g. was replaced)
+              const isSgp = (nom.name?.toLowerCase().includes('-іп') || nom.name?.toLowerCase().includes(' іп') || nom.nomenclature_code?.toLowerCase().includes('іп') || nom.type?.toLowerCase().includes('part') || nom.type?.toLowerCase().includes('деталь') || nom.type?.toLowerCase().includes('виріб') || nom.type?.toLowerCase().includes('сгп'))
+              if (isSgp && hasSnapshot && !snapFound) return
+
               if (!snapFound) {
                 qty = Number(b.quantity_per_parent) * Number(activeBatchData.plannedSets)
               }
@@ -376,7 +420,7 @@ const PackagingModule = () => {
     if (!activeBatchData) return { orderRequests: [], completedRequestsCount: 0, isReadyToFinalize: false, hasAnyRequests: false }
     const relevant = (requests || []).filter(r =>
       String(r.order_id) === String(activeBatchData.orderId) &&
-      (r.details?.includes(`/${activeBatchData.batchIndex}`) || r.task_id === activeBatchData.tasks[0]?.id)
+      ((activeBatchData.batchIndex && r.details?.includes(`/${activeBatchData.batchIndex}`)) || activeBatchData.tasks.some(t => String(t.id) === String(r.task_id)))
     )
     const confirmedNoms = new Set(relevant.filter(r => r.status === 'completed' || r.status === 'issued').map(r => String(r.nomenclature_id)))
     const activeBOMItems = allBOMItems.filter(item => !excludedNomIds.has(item.nom.id))
@@ -674,7 +718,7 @@ const PackagingModule = () => {
                     style={{ padding: '20px 20px 20px 25px', background: isSelected ? `${statusColor}15` : (isCompleted ? '#080808' : '#111'), border: `1px solid ${isSelected ? statusColor : '#1a1a1a'}`, borderRadius: '24px', cursor: 'pointer', transition: '0.3s cubic-bezier(0.4,0,0.2,1)', position: 'relative', opacity: isCompleted ? 0.4 : 1, filter: isCompleted ? 'grayscale(1)' : 'none', overflow: 'hidden' }}>
                     <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '6px', background: statusColor, boxShadow: isSelected ? `4px 0 15px ${statusColor}44` : 'none' }}></div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                      <div style={{ fontSize: '1.25rem', fontWeight: 1000, letterSpacing: '-0.5px', color: isSelected ? '#fff' : '#ccc' }}>№ {batch.orderNum}/{batch.batchIndex}</div>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 1000, letterSpacing: '-0.5px', color: isSelected ? '#fff' : '#ccc' }}>№ {batch.orderNum}{batch.batchIndex ? `/${batch.batchIndex}` : ''}</div>
                       <div style={{ background: statusBg, padding: '4px 8px', borderRadius: '8px', fontSize: '0.55rem', color: statusColor, fontWeight: 950, display: 'flex', alignItems: 'center', gap: '4px', border: `1px solid ${statusColor}33` }}>
                         {isCompleted ? <CheckCircle2 size={10} /> : (isReady ? <Scan size={10} /> : <Clock size={10} />)} {statusLabel}
                       </div>
@@ -705,7 +749,7 @@ const PackagingModule = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexShrink: 0 }}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '8px' }}>
-                      <h2 style={{ margin: 0, fontSize: '2.2rem', fontWeight: 1000, color: '#fff', letterSpacing: '-1px' }}>Наряд № {activeBatchData.orderNum}/{activeBatchData.batchIndex}</h2>
+                      <h2 style={{ margin: 0, fontSize: '2.2rem', fontWeight: 1000, color: '#fff', letterSpacing: '-1px' }}>Наряд № {activeBatchData.orderNum}{activeBatchData.batchIndex ? `/${activeBatchData.batchIndex}` : ''}</h2>
                       <span style={{ background: '#f43f5e', color: '#fff', padding: '4px 12px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 950 }}>ПАКУВАННЯ</span>
                       {isWarehouseConfirmed && (
                         <span style={{ background: '#10b98122', color: '#10b981', padding: '4px 12px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 900, border: '1px solid #10b98133', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -876,6 +920,11 @@ const PackagingModule = () => {
                                             {item.nom.name}
                                             {item.nom.material_type && <span style={{ fontSize: '0.7rem', color: '#666', marginLeft: '5px', fontWeight: 500 }}>{item.nom.material_type}</span>}
                                           </div>
+                                          {item.nom.description && (
+                                            <div style={{ fontSize: '0.7rem', color: '#888', marginTop: '2px', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.nom.description}>
+                                              {item.nom.description}
+                                            </div>
+                                          )}
                                           <div style={{ fontSize: '0.6rem', color: isExcluded ? '#555' : (isPicked ? '#10b981' : (isPending ? '#eab308' : (item.isCustom ? '#06b6d4' : '#444'))), fontWeight: 900, textTransform: 'uppercase', marginTop: '2px' }}>
                                             {isExcluded ? 'Виключено' : (isPicked ? 'Підтверджено складом' : (isPending ? 'В обробці' : (item.isCustom ? 'Додано пакувальником' : 'Очікує')))}
                                           </div>
@@ -1023,9 +1072,15 @@ const PackagingModule = () => {
                   {/* ЗАПИТ ТМЦ */}
                   <button
                     onClick={handleCreateRequest}
-                    disabled={allBOMItems.length === 0 || isProcessing || hasAnyRequests || activeBatchData.isPackaged}
-                    style={{ flex: 1, padding: '20px', background: '#111', color: (hasAnyRequests || activeBatchData.isPackaged) ? '#444' : '#fff', border: '1px solid #222', borderRadius: '18px', fontWeight: 950, cursor: (allBOMItems.length > 0 && !isProcessing && !hasAnyRequests && !activeBatchData.isPackaged) ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontSize: '0.9rem', opacity: (allBOMItems.length > 0 && !isProcessing && !hasAnyRequests && !activeBatchData.isPackaged) ? 1 : 0.5, transition: '0.3s' }}>
-                    {hasAnyRequests ? <><CheckCircle2 size={20} color="#10b981" /> ЗАПИТ ТМЦ ВІДПРАВЛЕНО</> : <><Send size={20} color="#3b82f6" /> СФОРМУВАТИ ЗАПИТ ТМЦ</>}
+                    disabled={allBOMItems.length === 0 || isProcessing || hasAnyRequests || activeBatchData.isPackaged || isWarehouseConfirmed}
+                    style={{ flex: 1, padding: '20px', background: '#111', color: (hasAnyRequests || activeBatchData.isPackaged || isWarehouseConfirmed) ? '#444' : '#fff', border: '1px solid #222', borderRadius: '18px', fontWeight: 950, cursor: (allBOMItems.length > 0 && !isProcessing && !hasAnyRequests && !activeBatchData.isPackaged && !isWarehouseConfirmed) ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontSize: '0.9rem', opacity: (allBOMItems.length > 0 && !isProcessing && !hasAnyRequests && !activeBatchData.isPackaged && !isWarehouseConfirmed) ? 1 : 0.5, transition: '0.3s' }}>
+                    {isWarehouseConfirmed ? (
+                      <><CheckCircle2 size={20} color="#10b981" /> ТМЦ ОТРИМАНО (СКЛАД ПІДТВЕРДИВ)</>
+                    ) : hasAnyRequests ? (
+                      <><CheckCircle2 size={20} color="#10b981" /> ЗАПИТ ТМЦ ВІДПРАВЛЕНО</>
+                    ) : (
+                      <><Send size={20} color="#3b82f6" /> СФОРМУВАТИ ЗАПИТ ТМЦ</>
+                    )}
                   </button>
 
                   {/* ЗБЕРЕГТИ КОРОБКИ */}
@@ -1406,10 +1461,29 @@ const PackagingModule = () => {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#e2e8f0', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nom.name}</div>
                         <div style={{ fontSize: '0.65rem', color: '#3a5a6a', fontWeight: 600, marginTop: '2px' }}>
-                          {nom.nomenclature_code && <span style={{ marginRight: '8px', color: '#4a8a9a' }}>{nom.nomenclature_code}</span>}
+                          {nom.nomenclature_code && <span style={{ marginRight: '8px', color: '#4a8a9a' }}>Код: {nom.nomenclature_code}</span>}
                           {nom.description && <span style={{ color: '#06b6d4', marginRight: '8px' }}>{nom.description}</span>}
                           {nom.aliases && <span style={{ color: '#2a5a6a', marginLeft: '6px', fontStyle: 'italic' }}>{nom.aliases}</span>}
                         </div>
+                      </div>
+                      <div style={{
+                        marginLeft: 'auto',
+                        background: 'rgba(236,72,153,0.12)',
+                        border: '1px solid rgba(236,72,153,0.3)',
+                        borderRadius: '8px',
+                        padding: '4px 10px',
+                        fontSize: '0.75rem',
+                        fontWeight: 900,
+                        color: '#ec4899',
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0
+                      }}>
+                        Вільний залишок: {(() => {
+                          const items = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom.id));
+                          const total = items.reduce((acc, cur) => acc + (Number(cur.total_qty) || 0), 0);
+                          const reserved = items.reduce((acc, cur) => acc + (Number(cur.reserved_qty) || 0), 0);
+                          return total - reserved;
+                        })()} шт.
                       </div>
                     </div>
                   ))}
@@ -1435,10 +1509,28 @@ const PackagingModule = () => {
                   <CheckCircle2 size={16} color="#06b6d4" style={{ flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{addItemSelectedNom.name}</div>
-                    <div style={{ fontSize: '0.65rem', color: '#06b6d4', fontWeight: 700, display: 'flex', gap: '8px' }}>
-                      {addItemSelectedNom.nomenclature_code && <span>{addItemSelectedNom.nomenclature_code}</span>}
+                    <div style={{ fontSize: '0.65rem', color: '#06b6d4', fontWeight: 700, display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {addItemSelectedNom.nomenclature_code && <span>Код: {addItemSelectedNom.nomenclature_code}</span>}
                       {addItemSelectedNom.description && <span style={{ color: '#a0aec0' }}>{addItemSelectedNom.description}</span>}
                     </div>
+                  </div>
+                  <div style={{
+                    background: 'rgba(236,72,153,0.12)',
+                    border: '1px solid rgba(236,72,153,0.3)',
+                    borderRadius: '8px',
+                    padding: '4px 10px',
+                    fontSize: '0.75rem',
+                    fontWeight: 900,
+                    color: '#ec4899',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0
+                  }}>
+                    Вільний залишок: {(() => {
+                      const items = (inventory || []).filter(i => String(i.nomenclature_id) === String(addItemSelectedNom.id));
+                      const total = items.reduce((acc, cur) => acc + (Number(cur.total_qty) || 0), 0);
+                      const reserved = items.reduce((acc, cur) => acc + (Number(cur.reserved_qty) || 0), 0);
+                      return total - reserved;
+                    })()} шт.
                   </div>
                   <button onClick={() => { setAddItemSelectedNom(null); setAddItemSearch('') }} style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer', padding: '2px' }}>
                     <X size={14} />
