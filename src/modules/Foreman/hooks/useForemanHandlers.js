@@ -198,6 +198,9 @@ export function useForemanHandlers({
         const nom = nomenclatures.find(n => n.id === r.nomenclature_id)
         return nom?.name?.toLowerCase()?.includes('фреза')
       })
+      // Completed requests are audit/history records and must never be rewritten
+      // when only the remaining, not-yet-cut part of the task changes machine.
+      const replaceableCutterRequests = cutterRequests.filter(r => r.status === 'pending' || r.status === 'issued')
 
       // --- Step 1: Fetch actual work cards to compute remaining sheets per part ---
       const { data: dbCards } = await supabase
@@ -227,20 +230,22 @@ export function useForemanHandlers({
 
       // --- Step 2: Release reservations on already-issued cutter requests ---
       const inventoryReleaseById = {}
-      for (const req of cutterRequests.filter(r => r.status === 'issued')) {
+      for (const req of replaceableCutterRequests.filter(r => r.status === 'issued')) {
         if (req.inventory_id) {
           inventoryReleaseById[req.inventory_id] = (inventoryReleaseById[req.inventory_id] || 0) + (Number(req.quantity) || 0)
         }
       }
       for (const [invId, releaseQty] of Object.entries(inventoryReleaseById)) {
-        const { data: invRow } = await supabase.from('inventory').select('id,reserved_qty').eq('id', invId).maybeSingle()
+        const { data: invRow, error: invFetchErr } = await supabase.from('inventory').select('id,reserved_qty').eq('id', invId).maybeSingle()
+        if (invFetchErr) throw invFetchErr
         if (invRow) {
-          await supabase.from('inventory').update({ reserved_qty: Math.max(0, (Number(invRow.reserved_qty) || 0) - releaseQty) }).eq('id', invRow.id)
+          const { error: releaseErr } = await supabase.from('inventory').update({ reserved_qty: Math.max(0, (Number(invRow.reserved_qty) || 0) - releaseQty) }).eq('id', invRow.id)
+          if (releaseErr) throw releaseErr
         }
       }
 
       // --- Step 3: Delete all pending/issued cutter requests for clean recalculation ---
-      const cutterRequestIds = cutterRequests.map(r => r.id)
+      const cutterRequestIds = replaceableCutterRequests.map(r => r.id)
       if (cutterRequestIds.length > 0) {
         const { error: delErr } = await supabase.from('material_requests').delete().in('id', cutterRequestIds)
         if (delErr) throw delErr
@@ -313,41 +318,57 @@ export function useForemanHandlers({
         }
       })
 
-      // --- Step 5: Only request deficit (needed - available free stock) ---
+      // --- Step 5: Create requests for the FULL remaining need. If the task was
+      // already warehouse-approved, reserve the available part immediately and
+      // leave only the real deficit pending (yellow light).
       const requestsToInsert = []
       const newConsumablesSnapshot = []
-      const shouldAutoReserve = task.warehouse_conf && task.engineer_conf && task.director_conf
-      const newInventoryReservations = []
+      const shouldAutoReserve = (task.warehouse_conf === 'true' || task.warehouse_conf === 'partial') && task.engineer_conf === true && task.director_conf === true
+      const reservationByInventoryId = {}
 
       for (const item of Object.values(newMachineSpecificCutters)) {
         const isSynthetic = String(item.nomenclature_id).startsWith('__synthetic')
         newConsumablesSnapshot.push({ name: item.name, total: item.qty })
 
-        const operationalStock = isSynthetic ? 0 : inventory
-          .filter(i => String(i.nomenclature_id) === String(item.nomenclature_id) && i.warehouse === 'operational')
-          .reduce((sum, i) => sum + Math.max(0, (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0)), 0)
+        const stockRows = isSynthetic ? [] : inventory
+          .filter(i => String(i.nomenclature_id) === String(item.nomenclature_id) && (i.warehouse === 'operational' || !i.warehouse))
+          .map(i => ({
+            ...i,
+            free: Math.max(0, (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0) + (Number(inventoryReleaseById[i.id]) || 0))
+          }))
+          .sort((a, b) => b.free - a.free)
 
-        const deficit = Math.max(0, item.qty - operationalStock)
+        let remaining = item.qty
+        if (shouldAutoReserve) {
+          for (const invItem of stockRows) {
+            if (remaining <= 0) break
+            const take = Math.min(remaining, invItem.free)
+            if (take <= 0) continue
+            requestsToInsert.push({
+              order_id: task.order_id,
+              task_id: task.id,
+              quantity: take,
+              status: 'issued',
+              inventory_id: invItem.id,
+              nomenclature_id: item.nomenclature_id,
+              details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ЗАЛИШКУ НАРЯДУ: ${item.name} — ${take} од. (ПІСЛЯ ЗМІНИ ВЕРСТАТА)`
+            })
+            reservationByInventoryId[invItem.id] = (reservationByInventoryId[invItem.id] || 0) + take
+            remaining -= take
+          }
+        }
 
-        if (deficit > 0) {
-          const invItem = isSynthetic ? null : (
-            inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id) && i.warehouse === 'operational') ||
-            inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id))
-          )
+        if (remaining > 0) {
+          const fallbackInv = stockRows[0] || null
           requestsToInsert.push({
             order_id: task.order_id,
             task_id: task.id,
-            quantity: deficit,
+            quantity: remaining,
             status: 'pending',
-            inventory_id: invItem?.id || null,
+            inventory_id: fallbackInv?.id || null,
             nomenclature_id: isSynthetic ? null : item.nomenclature_id,
-            details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ЗАЛИШКУ НАРЯДУ: ${item.name} — ${deficit} од. (ПІСЛЯ ЗМІНИ ВЕРСТАТА)`
+            details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ЗАЛИШКУ НАРЯДУ: ${item.name} — ${remaining} од. (ПІСЛЯ ЗМІНИ ВЕРСТАТА)`
           })
-          if (shouldAutoReserve && invItem) {
-            newInventoryReservations.push(
-              supabase.from('inventory').update({ reserved_qty: (Number(invItem.reserved_qty) || 0) + deficit }).eq('id', invItem.id)
-            )
-          }
         }
       }
 
@@ -367,7 +388,17 @@ export function useForemanHandlers({
         const { error: insErr } = await supabase.from('material_requests').insert(requestsToInsert)
         if (insErr) throw insErr
       }
-      if (newInventoryReservations.length > 0) await Promise.all(newInventoryReservations)
+      const newInventoryReservations = Object.entries(reservationByInventoryId).map(([inventoryId, qty]) => {
+        const invItem = inventory.find(i => String(i.id) === String(inventoryId))
+        const releasedOldQty = Number(inventoryReleaseById[inventoryId]) || 0
+        const reservationBase = Math.max(0, (Number(invItem?.reserved_qty) || 0) - releasedOldQty)
+        return supabase.from('inventory').update({ reserved_qty: reservationBase + qty }).eq('id', inventoryId)
+      })
+      if (newInventoryReservations.length > 0) {
+        const reservationResults = await Promise.all(newInventoryReservations)
+        const reservationError = reservationResults.find(result => result.error)?.error
+        if (reservationError) throw reservationError
+      }
 
       snapshot.consumables = newConsumablesSnapshot
       const { error: taskUpdErr } = await supabase
@@ -375,6 +406,17 @@ export function useForemanHandlers({
         .update({ machine_name: newMachine, plan_snapshot: snapshot })
         .eq('id', taskId)
       if (taskUpdErr) throw taskUpdErr
+
+      const { data: currentRequests, error: currentReqErr } = await supabase
+        .from('material_requests')
+        .select('status')
+        .eq('task_id', taskId)
+      if (currentReqErr) throw currentReqErr
+      const allIssued = (currentRequests || []).length > 0 && currentRequests.every(r => r.status === 'issued' || r.status === 'completed')
+      const someIssued = (currentRequests || []).some(r => r.status === 'issued' || r.status === 'completed')
+      const nextWarehouseConf = allIssued ? 'true' : (someIssued ? 'partial' : 'false')
+      const { error: whConfErr } = await supabase.from('tasks').update({ warehouse_conf: nextWarehouseConf }).eq('id', taskId)
+      if (whConfErr) throw whConfErr
 
       // [PRESERVE HISTORY] Do NOT retroactively update machine on already-generated cards
 
@@ -635,7 +677,7 @@ export function useForemanHandlers({
       setIsChangingMachine(false)
     }
   }
-  const handleGenerateFromWorksheet = async (task, part, sheets, selectedMachineName, count, localGeneratedCount = 0, totalToReach = 0, isRepair = false, globalTotalCards = null, globalSeqOffset = 0, customCapacity = null) => {
+  const handleGenerateFromWorksheet = async (task, part, sheets, selectedMachineName, count, localGeneratedCount = 0, totalToReach = 0, isRepair = false, globalTotalCards = null, globalSeqOffset = 0, customCapacity = null, maxSheetsToGenerate = null) => {
     if (generatingLockRef.current) {
       console.warn("[GEN] BLOCKED: Generation already in progress, ignoring duplicate call.")
       return
@@ -708,6 +750,9 @@ export function useForemanHandlers({
     try {
       const cardsBatch = []
       let sheetsRemainingForThisSplit = sheets - (localGeneratedCount * capacity)
+      if (maxSheetsToGenerate !== null && maxSheetsToGenerate !== undefined) {
+        sheetsRemainingForThisSplit = Math.min(sheetsRemainingForThisSplit, Math.max(0, Number(maxSheetsToGenerate) || 0))
+      }
 
       const snapshotEntry = task.plan_snapshot?.[String(part.nom?.id)]
       const originalNeed = snapshotEntry?.need || totalToReach || 0

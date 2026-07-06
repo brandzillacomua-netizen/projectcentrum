@@ -1708,22 +1708,30 @@ const ForemanWorkplace = () => {
                         const match = str.match(/(\d+(?:\.\d+)?)\s*мм/)
                         return match ? match[1] + 'мм' : null
                       }
+                      const extractMaterialGrade = (str) => {
+                        const match = String(str || '').toLowerCase().match(/[tт]\s*(300|700)/)
+                        return match ? match[1] : null
+                      }
                       const baseThickness = extractThickness(baseMat)
+                      const baseGrade = extractMaterialGrade(baseMat)
+                      const matchesBaseMaterial = (candidate) => {
+                        const candidateLower = String(candidate || '').toLowerCase()
+                        const candidateThickness = extractThickness(candidateLower)
+                        const candidateGrade = extractMaterialGrade(candidateLower)
+                        if (baseThickness && candidateThickness && baseThickness !== candidateThickness) return false
+                        if (baseGrade && candidateGrade && baseGrade !== candidateGrade) return false
+                        if (baseThickness && candidateThickness) return true
+                        const activeMaterials = baseMat.split('+').map(m => m.trim().toLowerCase()).filter(Boolean)
+                        return activeMaterials.some(act => candidateLower.includes(act) || act.includes(candidateLower))
+                      }
                       const sheetReqs = taskReqs.filter(r => {
                         const rNom = nomenclatures.find(n => n.id === r.nomenclature_id)
-                        const rName = rNom?.name || r.details || ''
+                        const rName = `${rNom?.name || ''} ${rNom?.material_type || ''} ${r.details || ''}`
                         const lowerName = rName.toLowerCase()
 
                         const isSheet = lowerName.includes('лист') || lowerName.includes('sheet')
                         if (!isSheet) return false
-
-                        const reqThickness = extractThickness(lowerName)
-                        if (baseThickness && reqThickness) {
-                          return baseThickness === reqThickness
-                        }
-
-                        const activeMaterials = baseMat.split('+').map(m => m.trim().toLowerCase())
-                        return activeMaterials.some(act => lowerName.includes(act) || act.includes(lowerName))
+                        return matchesBaseMaterial(lowerName)
                       })
 
                       const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
@@ -1732,18 +1740,36 @@ const ForemanWorkplace = () => {
                       const pending = sheetReqs.filter(r => r.status === 'pending')
                         .reduce((sum, r) => sum + getRequestQty(r), 0)
 
-                      return { issuedSheets: issued, pendingSheets: pending, hasKittingReqs: sheetReqs.length > 0 }
+                      // One issued sheet pool can serve several parts made from the
+                      // same material. Subtract cards generated for ALL such parts,
+                      // not only the currently opened nomenclature.
+                      const usedAcrossTask = (workCards || []).filter(card => {
+                        if (String(card.task_id) !== String(taskObj.id) || card.is_rework) return false
+                        const operation = String(card.operation || '').toLowerCase()
+                        if (operation === 'склад бз' || operation.includes('склад bz')) return false
+                        const cardNom = nomenclatures.find(n => String(n.id) === String(card.nomenclature_id))
+                        const cardEntry = (taskObj.plan_snapshot || {})[String(card.nomenclature_id)]
+                        return matchesBaseMaterial(cardEntry?.material || cardNom?.material_type || cardNom?.name || '')
+                      }).reduce((sum, card) => {
+                        const cardNom = nomenclatures.find(n => String(n.id) === String(card.nomenclature_id))
+                        const cardUnitsPerSheet = Number(cardNom?.units_per_sheet) || Number((taskObj.plan_snapshot || {})[String(card.nomenclature_id)]?.units_per_sheet) || 1
+                        return sum + Math.ceil((Number(card.quantity) || 0) / cardUnitsPerSheet)
+                      }, 0)
+
+                      return { issuedSheets: issued, pendingSheets: pending, usedAcrossTask, hasKittingReqs: sheetReqs.length > 0 }
                     }
 
-                    const { issuedSheets, pendingSheets, hasKittingReqs } = getKittingSheets(genModal.task, genModal.part.nom)
+                    const { issuedSheets, pendingSheets, usedAcrossTask, hasKittingReqs } = getKittingSheets(genModal.task, genModal.part.nom)
                     const generatedCount = cardsBelongingToThisSplitCount
                     const isGenerated = sheetsUsedInThisSplit >= splitSheets
                     const remainingCount = Math.max(0, splitLoadings - generatedCount)
 
                     // Розраховуємо ліміт карт на основі виданих листів
 
+                    const availableIssuedSheets = Math.max(0, issuedSheets - usedAcrossTask)
+                    const remainingSheetsInSplit = Math.max(0, splitSheets - sheetsUsedInThisSplit)
                     const maxAllowedToGen = hasKittingReqs
-                      ? Math.min(remainingCount, Math.floor(Math.max(0, issuedSheets - sheetsUsedInThisSplit) / currentCapacity))
+                      ? Math.min(remainingCount, Math.ceil(Math.min(remainingSheetsInSplit, availableIssuedSheets) / currentCapacity))
                       : remainingCount
                     const isKittingBlocked = hasKittingReqs && maxAllowedToGen <= 0
 
@@ -1812,10 +1838,10 @@ const ForemanWorkplace = () => {
                               <input
                                 type="number"
                                 min="1"
-                                max={remainingCount}
+                                max={maxAllowedToGen}
                                 value={toGen}
                                 onChange={(e) => {
-                                  const val = Math.min(remainingCount, Math.max(1, parseInt(e.target.value) || 1))
+                                  const val = Math.min(maxAllowedToGen, Math.max(1, parseInt(e.target.value) || 1))
                                   setPartialCounts(prev => ({ ...prev, [`${genModal.part.nom?.id}_${sIdx}`]: val }))
                                 }}
                                 style={{ width: '45px', background: '#000', border: '1px solid #333', color: '#fff', textAlign: 'center', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 900, padding: '4px 0' }}
@@ -1824,7 +1850,7 @@ const ForemanWorkplace = () => {
                             <button
                               disabled={isGenerating || isKittingBlocked}
                               onClick={() => {
-                                const finalToGen = Math.min(toGen, remainingCount)
+                                const finalToGen = Math.min(toGen, remainingCount, maxAllowedToGen)
                                 if (finalToGen <= 0) return
 
                                 handleGenerateFromWorksheet(
@@ -1838,7 +1864,8 @@ const ForemanWorkplace = () => {
                                   genModal.isRepair,
                                   globalTotalLoadings,
                                   splitGlobalOffsetForThisMachine,
-                                  currentCapacity
+                                  currentCapacity,
+                                  hasKittingReqs ? Math.min(remainingSheetsInSplit, availableIssuedSheets) : null
                                 )
                               }}
                               style={{
