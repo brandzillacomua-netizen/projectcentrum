@@ -175,7 +175,7 @@ const ForemanWorkplace = () => {
         setArchiveCards(cards || [])
 
         const activeTaskCards = workCards.filter(c => c.task_id === activeTaskId)
-        const allTaskCards = [...activeTaskCards, ...(cards || [])]
+        const allTaskCards = Array.from(new Map([...activeTaskCards, ...(cards || [])].map(card => [String(card.id), card])).values())
         const cardIds = allTaskCards.map(c => c.id)
         let histData = []
         if (cardIds.length > 0) {
@@ -192,7 +192,7 @@ const ForemanWorkplace = () => {
             )
           }
           const results = await Promise.all(promises)
-          histData = results.flatMap(r => r.data || [])
+          histData = Array.from(new Map(results.flatMap(r => r.data || []).map(row => [String(row.id), row])).values())
           setTaskHistory(histData)
         } else {
           setTaskHistory([])
