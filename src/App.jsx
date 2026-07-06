@@ -54,6 +54,7 @@ const NomenclatureV2 = lazy(() => import('./modules/NomenclatureV2'))
 const AnalyticsModule = lazy(() => import('./modules/AnalyticsModule'))
 const BrakModule = lazy(() => import('./modules/BrakModule'))
 const KanbanModule = lazy(() => import('./modules/KanbanModule'))
+const TaskProjectsModule = lazy(() => import('./modules/TaskProjectsModule'))
 const AccessModule = lazy(() => import('./modules/AccessModule'))
 const ReportsModule = lazy(() => import('./modules/ReportsModule'))
 const DashboardModule = lazy(() => import('./modules/DashboardModule'))
@@ -2682,6 +2683,7 @@ const AppContent = () => {
           <Route path="/analytics" element={<PermissionGuard id="analytics"><AnalyticsModule /></PermissionGuard>} />
           <Route path="/brak" element={<PermissionGuard id="brak"><BrakModule /></PermissionGuard>} />
           <Route path="/tasks" element={<PermissionGuard id="kanban"><KanbanModule /></PermissionGuard>} />
+          <Route path="/tasks/projects" element={<PermissionGuard id="kanban"><TaskProjectsModule /></PermissionGuard>} />
           <Route path="/access" element={<PermissionGuard id="access"><AccessModule /></PermissionGuard>} />
           <Route path="/procurement" element={<PermissionGuard id="procurement"><SupplyModule isProcurementOnly={true} /></PermissionGuard>} />
           <Route path="/reports" element={<PermissionGuard id="reports"><ReportsModule /></PermissionGuard>} />

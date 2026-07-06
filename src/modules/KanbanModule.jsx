@@ -625,7 +625,7 @@ const ChecklistMultiAssigneeSelector = ({ values = [], onChange, systemUsers }) 
   )
 }
 
-const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove, canEdit, onAddSubItem, onUpdateDeadline, onUpdateAssignee, systemUsers }) => {
+export const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, onRemove, canEdit, onAddSubItem, onUpdateDeadline, onUpdateAssignee, systemUsers }) => {
   const [activeAddId, setActiveAddId] = useState(null)
   const [subText, setSubText] = useState('')
   const [collapsedItems, setCollapsedItems] = useState({})
@@ -1009,7 +1009,7 @@ const KanbanModule = () => {
 
   // ── Stats ───────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
-    let list = managementTasks || []
+    let list = (managementTasks || []).filter(t => !t.project_id)
     if (!isManager) {
       list = list.filter(t =>
         getAssignees(t).includes(currentUser?.login) ||
@@ -1027,7 +1027,7 @@ const KanbanModule = () => {
 
   // ── Filtered tasks ──────────────────────────────────────────────────────
   const filteredTasks = useMemo(() => {
-    let list = managementTasks || []
+    let list = (managementTasks || []).filter(t => !t.project_id)
     if (!isManager) {
       list = list.filter(t =>
         getAssignees(t).includes(currentUser?.login) ||
@@ -1335,6 +1335,7 @@ const KanbanModule = () => {
           {isManager && (
             <div className="role-badge manager-badge"><Shield size={11} /> Менеджер</div>
           )}
+          <Link to="/tasks/projects" className="role-badge manager-badge" style={{ textDecoration: 'none' }}><Briefcase size={12} /> ПРОЄКТИ</Link>
         </div>
         <div className="kb-nav-right">
           <div className={`kb-search-wrap ${showSearch ? 'open' : ''}`}>
@@ -1546,7 +1547,7 @@ const KanbanModule = () => {
                 <div className="sb-dept-list">
                   {DEPARTMENTS.map(d => {
                     // Calculate counts for this department
-                    const deptTasks = (managementTasks || []).filter(t => {
+                    const deptTasks = (managementTasks || []).filter(t => !t.project_id).filter(t => {
                       if (d.id === 'all') return true
                       return getTaskDepartment(t, systemUsers, companyStructure) === d.id
                     })
@@ -1589,7 +1590,7 @@ const KanbanModule = () => {
               {(() => {
                 const now = new Date()
                 const in7 = new Date(now.getTime() + 7 * 86400000)
-                const allTasks = managementTasks || []
+                const allTasks = (managementTasks || []).filter(t => !t.project_id)
                 // Tasks visible to current user
                 const visibleTasks = isManager ? allTasks : allTasks.filter(t =>
                   t.assigned_to === currentUser?.login || t.is_collective
@@ -1636,7 +1637,7 @@ const KanbanModule = () => {
             </div>
             <div className="sb-stats-grid">
               {(() => {
-                const all = managementTasks || []
+                const all = (managementTasks || []).filter(t => !t.project_id)
                 const visibleAll = isManager ? all : all.filter(t =>
                   t.assigned_to === currentUser?.login || t.is_collective
                 )

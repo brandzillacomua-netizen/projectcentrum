@@ -65,6 +65,25 @@ export const MESProvider = ({ children }) => {
     return cData || []
   }
 
+  const addTaskProject = async (project) => {
+    const payload = { ...project, created_by: data.currentUser?.login || 'system' }
+    const { data: rows, error } = await supabase.from('task_projects').insert([payload]).select()
+    if (!error && rows?.[0]) data.setTaskProjects(prev => prev.some(p => p.id === rows[0].id) ? prev : [rows[0], ...prev])
+    return { data: rows?.[0], error }
+  }
+
+  const updateTaskProject = async (id, updates) => {
+    const { data: rows, error } = await supabase.from('task_projects').update(updates).eq('id', id).select()
+    if (!error) data.setTaskProjects(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p))
+    return { data: rows?.[0], error }
+  }
+
+  const deleteTaskProject = async (id) => {
+    const { error } = await supabase.from('task_projects').delete().eq('id', id)
+    if (!error) data.setTaskProjects(prev => prev.filter(p => p.id !== id))
+    return { error }
+  }
+
   // ── WAREHOUSE ──
   const warehouseActions = createWarehouseActions({
     inventory: data.inventory, 
@@ -259,6 +278,9 @@ export const MESProvider = ({ children }) => {
       ...productionActions,
       searchCustomers,
       addManagementTask: (p) => productionActions.addManagementTask(p, data.currentUser?.login),
+      addTaskProject,
+      updateTaskProject,
+      deleteTaskProject,
       confirmReceptionDoc: warehouseActions.confirmReception,
       totalProduced: data.productionData.totalProduced,
       totalScrapCount: data.productionData.totalScrap,
@@ -282,4 +304,3 @@ export const MESProvider = ({ children }) => {
 }
 
 export const useMES = () => useContext(MESContext)
-

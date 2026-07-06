@@ -80,6 +80,7 @@ export function useData() {
   const [inventory, setInventory] = useState(fromCache('inventory', []))
   const [tasks, setTasks] = useState(fromCache('tasks', []))
   const [managementTasks, setManagementTasks] = useState(fromCache('managementTasks', []))
+  const [taskProjects, setTaskProjects] = useState(fromCache('taskProjects', []))
   const [requests, setRequests] = useState(fromCache('requests', []))
   const [nomenclatures, setNomenclatures] = useState(fromCache('nomenclatures', []))
   const [bomItems, setBomItems] = useState(fromCache('bomItems', []))
@@ -133,6 +134,7 @@ export function useData() {
       restore(setInventory, 'inventory')
       restore(setTasks, 'tasks')
       restore(setManagementTasks, 'managementTasks')
+      restore(setTaskProjects, 'taskProjects')
       restore(setRequests, 'requests')
       restore(setNomenclatures, 'nomenclatures')
       restore(setBomItems, 'bomItems')
@@ -213,6 +215,7 @@ export function useData() {
         { data: su },
         { data: mc },
         { data: mt },
+        { data: tp },
         { data: c },
         { data: latest, error: oErr },
         { data: t },
@@ -234,6 +237,7 @@ export function useData() {
         supabase.from('machines').select('*').order('name'),
         // Kanban badge counter
         supabase.from('management_tasks').select('*').neq('status', 'completed').order('created_at', { ascending: false }),
+        supabase.from('task_projects').select('*').order('created_at', { ascending: false }),
         // Customers for manager
         supabase.from('customers').select('id,name,official_name').limit(50).order('name'),
         // Latest orders WITH order_items — needed by Master, Foreman, Director for naryad creation
@@ -260,6 +264,7 @@ export function useData() {
       if (su) setSystemUsers(su)
       if (mc) setMachines(mc)
       if (mt) setManagementTasks(mt)
+      if (tp) setTaskProjects(tp)
       if (c) setCustomers(c)
       if (!oErr && latest) setOrders(latest)
       if (t) {
@@ -329,6 +334,7 @@ export function useData() {
         { data: mc },
         { data: su },
         { data: mt },
+        { data: tp },
         { data: wc },
         structRes,
         { data: inv },
@@ -347,6 +353,7 @@ export function useData() {
         needMachines ? supabase.from('machines').select('*').order('name') : Promise.resolve({ data: null }),
         needUsers ? supabase.from('system_users').select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar, last_seen').order('login') : Promise.resolve({ data: null }),
         supabase.from('management_tasks').select('*').neq('status', 'completed').order('created_at', { ascending: false }),
+        supabase.from('task_projects').select('*').order('created_at', { ascending: false }),
         fetchActiveWorkCards(),
         needStructure ? supabase.from('company_structure').select('*').order('name').then(res => res, () => ({ data: fallbackStructure, error: null })) : Promise.resolve({ data: null }),
         supabase.from('inventory').select('*').order('name').limit(3000),
@@ -386,6 +393,7 @@ export function useData() {
       if (needMachines && mc) setMachines(mc)
       if (needUsers && su) setSystemUsers(su)
       if (mt) setManagementTasks(mt)
+      if (tp) setTaskProjects(tp)
       if (wc) setWorkCards(wc)
       if (inv) setInventory(inv)
       if (req) setRequests(req)
@@ -552,6 +560,7 @@ export function useData() {
           customers,
           tasks: tasks.slice(0, 100),
           managementTasks,
+          taskProjects,
           requests,
           nomenclatures: nomenclatures.slice(0, 200), // Slice heavy tables
           bomItems: bomItems.slice(0, 100),
@@ -577,7 +586,7 @@ export function useData() {
         } catch (innerErr) { }
       }
     }, 2000) // Затримка 2с після останньої зміни
-  }, [orders, customers, tasks, managementTasks, requests, nomenclatures, bomItems, machines, systemUsers, machineOperations, machineCalls, companyStructure, companyPositions, workCards, inventory, receptionDocs, purchaseRequests, workCardHistory])
+  }, [orders, customers, tasks, managementTasks, taskProjects, requests, nomenclatures, bomItems, machines, systemUsers, machineOperations, machineCalls, companyStructure, companyPositions, workCards, inventory, receptionDocs, purchaseRequests, workCardHistory])
 
   // --- REAL-TIME ---
   useEffect(() => {
@@ -715,6 +724,15 @@ export function useData() {
           setManagementTasks(prev => prev.map(t => t.id === payload.new.id ? { ...t, ...payload.new } : t))
         } else if (payload.eventType === 'DELETE') {
           setManagementTasks(prev => prev.filter(t => t.id !== payload.old.id))
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_projects' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setTaskProjects(prev => prev.some(p => p.id === payload.new.id) ? prev : [payload.new, ...prev])
+        } else if (payload.eventType === 'UPDATE') {
+          setTaskProjects(prev => prev.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p))
+        } else if (payload.eventType === 'DELETE') {
+          setTaskProjects(prev => prev.filter(p => p.id !== payload.old.id))
         }
       })
       // Запити матеріалів — склад, майстер
@@ -1197,6 +1215,7 @@ export function useData() {
     setInventory([])
     setTasks([])
     setManagementTasks([])
+    setTaskProjects([])
     setRequests([])
     setNomenclatures([])
     setBomItems([])
@@ -1232,6 +1251,7 @@ export function useData() {
     inventory, setInventory,
     tasks, setTasks,
     managementTasks, setManagementTasks,
+    taskProjects, setTaskProjects,
     requests, setRequests,
     nomenclatures, setNomenclatures,
     bomItems, setBomItems,
