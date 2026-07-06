@@ -62,7 +62,47 @@ export default function Shop1Terminal() {
     })
   }, [])
   const [selectedCardId, setSelectedCardId] = useState(null)
+  const [selectedCardHistory, setSelectedCardHistory] = useState([])
   const prevCardIdRef = React.useRef(null)
+
+  // Global history is intentionally capped in the shared context. Load the complete
+  // history of the opened card separately so shift changes and old stages are not lost.
+  useEffect(() => {
+    let cancelled = false
+
+    if (!selectedCardId) {
+      setSelectedCardHistory([])
+      return () => { cancelled = true }
+    }
+
+    const loadSelectedCardHistory = async () => {
+      const pageSize = 500
+      const rows = []
+
+      try {
+        for (let from = 0; ; from += pageSize) {
+          const { data, error } = await supabase
+            .from('work_card_history')
+            .select('*')
+            .eq('card_id', selectedCardId)
+            .order('created_at', { ascending: true })
+            .range(from, from + pageSize - 1)
+
+          if (error) throw error
+          rows.push(...(data || []))
+          if (!data || data.length < pageSize) break
+        }
+
+        if (!cancelled) setSelectedCardHistory(rows)
+      } catch (error) {
+        console.error('Failed to load complete card history:', error)
+        if (!cancelled) setSelectedCardHistory([])
+      }
+    }
+
+    loadSelectedCardHistory()
+    return () => { cancelled = true }
+  }, [selectedCardId, workCardHistory])
 
   // Сканування та ручний ввід
   const [isScanning, setIsScanning] = useState(false)
@@ -520,30 +560,18 @@ export default function Shop1Terminal() {
   const getCardTimeMetrics = (card) => {
     if (!card) return { totalSec: 0, currentSec: 0 }
     const nowMs = currentTime.getTime()
-    const isGaltCurrent = card.operation?.startsWith('Галтовка')
 
-    // 1) Загальний час за всю історію картки (всі етапи та буфери)
-    let totalHistorySec = 0
-    if (workCardHistory && workCardHistory.length > 0) {
-      const cardHistory = workCardHistory.filter(h => {
-        if (String(h.card_id) !== String(card.id)) return false
-        if (isGaltCurrent) {
-          return h.stage_name?.startsWith('Галтовка') || (h.stage_name?.startsWith('Буфер') && h.stage_name !== 'Буфер Розкрою')
-        } else {
-          return h.stage_name === 'Розкрій' || h.stage_name === 'Буфер Розкрою' || h.stage_name === 'Розкрій (перезмінка)'
-        }
+    const sourceHistory = String(card.id) === String(selectedCardId) && selectedCardHistory.length > 0
+      ? selectedCardHistory
+      : workCardHistory
+    const intervals = (sourceHistory || [])
+      .filter(h => String(h.card_id) === String(card.id))
+      .filter(h => {
+        const stage = String(h.stage_name || '').toLowerCase()
+        return !stage.includes('пауза') && !stage.includes('зупинка')
       })
-      cardHistory.forEach(h => {
-        if (h.started_at && h.completed_at) {
-          if (String(h.stage_name).includes('пауза') || String(h.stage_name).includes('зупинка')) return;
-          const s = parseDBTime(h.started_at)?.getTime() || 0;
-          const c = parseDBTime(h.completed_at)?.getTime() || 0;
-          if (s && c) {
-            totalHistorySec += Math.max(0, Math.floor((c - s) / 1000))
-          }
-        }
-      })
-    }
+      .map(h => [parseDBTime(h.started_at)?.getTime(), parseDBTime(h.completed_at)?.getTime()])
+      .filter(([start, end]) => start && end && end > start)
 
     // 2) Час на поточному етапі / буфері
     let currentSec = 0
@@ -560,7 +588,29 @@ export default function Shop1Terminal() {
         : 0
     }
 
-    return { totalSec: totalHistorySec + currentSec, currentSec }
+    // Add the live interval and merge overlaps. This preserves sequential shift
+    // intervals while preventing duplicate time when good parts and scrap create
+    // two history rows for the same physical work period.
+    if (currentSec > 0) {
+      const currentStart = card.status === 'at-buffer'
+        ? parseDBTime(card.completed_at || card.started_at)?.getTime()
+        : parseDBTime(card.started_at)?.getTime()
+      if (currentStart) intervals.push([currentStart, nowMs])
+    }
+
+    intervals.sort((a, b) => a[0] - b[0])
+    const merged = []
+    intervals.forEach(([start, end]) => {
+      const last = merged[merged.length - 1]
+      if (!last || start > last[1]) merged.push([start, end])
+      else last[1] = Math.max(last[1], end)
+    })
+
+    const totalSec = merged.reduce((sum, [start, end]) => (
+      sum + Math.max(0, Math.floor((end - start) / 1000))
+    ), 0)
+
+    return { totalSec, currentSec }
   }
 
   const getCardStartDate = (card) => {
@@ -1143,7 +1193,7 @@ export default function Shop1Terminal() {
         }
       }
 
-      await supabase.from('work_cards').update({
+      const { error } = await supabase.from('work_cards').update({
         status: 'in-progress',
         operation: startOp,
         started_at: new Date().toISOString(),
@@ -1153,6 +1203,7 @@ export default function Shop1Terminal() {
         machine: targetMachine,
         card_info: ((currentCard.card_info || '').replace('[SHOP:1]', '').trim() + ' [SHOP:1]').trim()
       }).eq('id', currentCard.id)
+      if (error) throw error
       fetchData(['work_cards', 'tasks']).catch(() => {})
       if (!scannedIds.includes(currentCard.id)) setScannedIds(prev => [...prev, currentCard.id])
     } catch (e) {
@@ -1172,7 +1223,7 @@ export default function Shop1Terminal() {
       const historyCardInfo = ((currentCard.card_info || '') + ' ' + shiftChangeInfo).trim()
 
       // Записуємо проміжного оператора в history (того, хто працював до цього моменту)
-      await supabase.from('work_card_history').insert([{
+      const { error: historyError } = await supabase.from('work_card_history').insert([{
         card_id: currentCard.id,
         nomenclature_id: currentCard.nomenclature_id,
         stage_name: 'Розкрій (перезмінка)',
@@ -1187,17 +1238,19 @@ export default function Shop1Terminal() {
         machine_name: currentCard.machine,
         card_info: historyCardInfo
       }])
+      if (historyError) throw historyError
       // Зберігаємо первинний час запуску етапу в card_info, якщо його там немає
       const originalStart = currentCard.card_info?.match(/\[ORIGINAL_START:([^\]]+)\]/)?.[1] || currentCard.started_at || now;
       const updatedCardInfo = ((currentCard.card_info || '').replace(/\[ORIGINAL_START:[^\]]+\]/g, '').trim() + ` [ORIGINAL_START:${originalStart}]`).trim();
 
       // Оновлюємо оператора на картці (залишаємо початковий started_at для загального часу, або записуємо новий started_at для поточного оператора)
-      await supabase.from('work_cards').update({
+      const { error: cardError } = await supabase.from('work_cards').update({
         operator_name: shiftChangeOperator,
         shift_name: shiftChangeShift,
         started_at: now, // поточний оператор починає зараз
         card_info: updatedCardInfo // зберігаємо оригінальний старт в метаданих
       }).eq('id', currentCard.id)
+      if (cardError) throw cardError
       setShowShiftChangeModal(false)
       setShiftChangeOperator('')
       setShiftChangeShift('')
@@ -1217,7 +1270,7 @@ export default function Shop1Terminal() {
       const now = new Date().toISOString()
       
       // 1. Записуємо робочий інтервал в історію
-      await supabase.from('work_card_history').insert([{
+      const { error: historyError } = await supabase.from('work_card_history').insert([{
         card_id: currentCard.id,
         nomenclature_id: currentCard.nomenclature_id,
         stage_name: 'Розкрій',
@@ -1232,6 +1285,7 @@ export default function Shop1Terminal() {
         machine_name: currentCard.machine || 'Не вказано',
         card_info: `[PAUSED_WORK_LOG][REASON:${reasonText}]`
       }])
+      if (historyError) throw historyError
 
       // Збережемо початковий ORIGINAL_START, якщо його немає
       const originalStart = currentCard.card_info?.match(/\[ORIGINAL_START:([^\]]+)\]/)?.[1] || currentCard.started_at || now;
@@ -1241,10 +1295,11 @@ export default function Shop1Terminal() {
       const updatedCardInfo = `[PAUSED:${reasonText}][PAUSED_AT:${now}][ORIGINAL_START:${originalStart}] ${cleanCardInfo}`.trim()
 
       // 2. Оновлюємо статус на paused
-      await supabase.from('work_cards').update({
+      const { error: cardError } = await supabase.from('work_cards').update({
         status: 'paused',
         card_info: updatedCardInfo
       }).eq('id', currentCard.id)
+      if (cardError) throw cardError
 
       setShowPauseModal(false)
       setCustomPauseReason('')
@@ -1266,7 +1321,7 @@ export default function Shop1Terminal() {
       const pausedAt = pausedAtStr ? new Date(pausedAtStr).toISOString() : now
 
       // 1. Записуємо паузу в історію
-      await supabase.from('work_card_history').insert([{
+      const { error: historyError } = await supabase.from('work_card_history').insert([{
         card_id: currentCard.id,
         nomenclature_id: currentCard.nomenclature_id,
         stage_name: 'Розкрій (зупинка)',
@@ -1281,6 +1336,7 @@ export default function Shop1Terminal() {
         machine_name: currentCard.machine || 'Не вказано',
         card_info: `Причина зупинки: ${reasonText}`
       }])
+      if (historyError) throw historyError
 
       // 2. Оновлюємо статус на in-progress
       let cleanCardInfo = (currentCard.card_info || '')
@@ -1288,11 +1344,12 @@ export default function Shop1Terminal() {
         .replace(/\[PAUSED_AT:[^\]]+\]/g, '')
         .trim()
 
-      await supabase.from('work_cards').update({
+      const { error: cardError } = await supabase.from('work_cards').update({
         status: 'in-progress',
         started_at: now,
         card_info: cleanCardInfo
       }).eq('id', currentCard.id)
+      if (cardError) throw cardError
 
       fetchData(['work_cards', 'work_card_history']).catch(() => {})
     } catch (e) {
@@ -1488,11 +1545,12 @@ export default function Shop1Terminal() {
 
     // Прийомка — це однокрокове прийняття на склад
     if (next === 'Прийомка') {
+      let bufferAlreadyRecorded = false
       if (currentCard.status === 'at-buffer') {
         try {
           const bufferStart = currentCard.completed_at || currentCard.started_at || new Date().toISOString()
           const op = selectedOperator || currentCard.operator_name || 'Прийомка'
-          await supabase.from('work_card_history').insert([{
+          const { error } = await supabase.from('work_card_history').insert([{
             card_id: currentCard.id,
             nomenclature_id: currentCard.nomenclature_id,
             stage_name: `Буфер ${currentCard.operation}`,
@@ -1506,11 +1564,14 @@ export default function Shop1Terminal() {
             manager_name: currentCard.manager_name,
             machine_name: currentCard.machine
           }])
+          if (error) throw error
+          bufferAlreadyRecorded = true
         } catch (err) {
           console.error('Error writing Tumbling Buffer history:', err)
         }
       }
-      await handleAcceptToStock()
+      // If the first write failed, handleAcceptToStock retries the same buffer record.
+      await handleAcceptToStock({ bufferAlreadyRecorded })
       return
     }
 
@@ -1669,10 +1730,11 @@ export default function Shop1Terminal() {
     if (!currentCard) return
     setIsProcessing(true)
     try {
-      await supabase.from('work_cards').update({
+      const { error } = await supabase.from('work_cards').update({
         status: 'at-buffer',
         completed_at: new Date().toISOString()
       }).eq('id', currentCard.id)
+      if (error) throw error
 
       fetchData(['work_cards', 'tasks']).catch(() => {})
     } catch (e) {
@@ -1973,7 +2035,7 @@ export default function Shop1Terminal() {
   }
 
   // ── ПРИЙНЯТИ НА СКЛАД (з буфера Галтовки → тепер переводить в Прийомку) ─
-  const handleAcceptToStock = async () => {
+  const handleAcceptToStock = async ({ bufferAlreadyRecorded = false } = {}) => {
     if (!currentCard) return
     setIsProcessing(true)
     try {
@@ -1984,7 +2046,7 @@ export default function Shop1Terminal() {
       const promises = []
 
       // 1. Записуємо history запис для Буфера Галтовки (якщо картка в буфері)
-      if (currentCard.status === 'at-buffer') {
+      if (currentCard.status === 'at-buffer' && !bufferAlreadyRecorded) {
         const bufferStart = currentCard.completed_at || currentCard.started_at || new Date().toISOString()
         promises.push(
           supabase.from('work_card_history').insert([{
@@ -2546,7 +2608,7 @@ export default function Shop1Terminal() {
                     || currentCard.started_at
                   const stageRunStartMs = stageRunStart ? new Date(stageRunStart).getTime() : 0
 
-                  const shiftHistory = (workCardHistory || []).filter(h =>
+                  const shiftHistory = (selectedCardHistory.length > 0 ? selectedCardHistory : workCardHistory || []).filter(h =>
                     String(h.card_id) === String(currentCard.id) &&
                     h.stage_name === 'Розкрій (перезмінка)' &&
                     // Тільки перезмінки поточного запуску (не старі з попередніх запусків)
