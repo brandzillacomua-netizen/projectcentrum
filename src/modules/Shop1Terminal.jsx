@@ -718,8 +718,9 @@ export default function Shop1Terminal() {
                   
                   // Check if there is a specific selected cutter for this generic cutter name in plan_snapshot
                   let resolvedName = genericName
-                  if (task.plan_snapshot.selectedCutters) {
-                    const invId = task.plan_snapshot.selectedCutters[genericName] || task.plan_snapshot.selectedCutters[genericName.toLowerCase()]
+                  const partSelectedCutters = task.plan_snapshot?.[String(card.nomenclature_id)]?.selected_cutters || task.plan_snapshot.selectedCutters
+                  if (partSelectedCutters) {
+                    const invId = partSelectedCutters[genericName] || partSelectedCutters[genericName.toLowerCase()]
                     if (invId) {
                       const inv = (inventory || []).find(i => String(i.id) === String(invId))
                       if (inv) {
@@ -768,8 +769,9 @@ export default function Shop1Terminal() {
             if (cutterNom && cutterNom.name.trim().toLowerCase() !== 'фреза') {
               const genericName = cutterNom.name.trim()
               let resolvedName = genericName
-              if (task?.plan_snapshot?.selectedCutters) {
-                const invId = task.plan_snapshot.selectedCutters[genericName] || task.plan_snapshot.selectedCutters[genericName.toLowerCase()]
+              const partSelectedCutters = task?.plan_snapshot?.[String(card.nomenclature_id)]?.selected_cutters || task?.plan_snapshot?.selectedCutters
+              if (partSelectedCutters) {
+                const invId = partSelectedCutters[genericName] || partSelectedCutters[genericName.toLowerCase()]
                 if (invId) {
                   const inv = (inventory || []).find(i => String(i.id) === String(invId))
                   if (inv) {

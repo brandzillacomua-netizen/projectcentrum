@@ -3175,15 +3175,20 @@ const ForemanWorkplace = () => {
         const snapshotEntry = targetTask.plan_snapshot?.[String(changeNomMachineNomId)]
         const totalSheetsPlanned = snapshotEntry?.sheets || 0
 
-        const partCards = workCards.filter(c =>
-          c.task_id === targetTask.id &&
+        const unitsPerSheetForPart = Number(snapshotEntry?.units_per_sheet) || Number(nomenclatures.find(n => String(n.id) === String(changeNomMachineNomId))?.units_per_sheet) || 1
+        const knownCards = Array.from(new Map([...(workCards || []), ...(archiveCards || [])].map(card => [String(card.id), card])).values())
+        const partCards = knownCards.filter(c =>
+          String(c.task_id) === String(targetTask.id) &&
           String(c.nomenclature_id) === String(changeNomMachineNomId) &&
           !c.is_rework &&
           c.operation !== 'Склад BZ' &&
           c.operation !== 'Склад БЗ'
         )
 
-        const generatedSheets = partCards.reduce((sum, c) => sum + (Number(c.actual_sheets) || 0), 0)
+        const generatedSheets = Math.min(totalSheetsPlanned, partCards.reduce((sum, c) => {
+          const cardSheets = Number(c.actual_sheets || c.actualSheets) || Math.ceil((Number(c.quantity) || 0) / unitsPerSheetForPart)
+          return sum + cardSheets
+        }, 0))
         const remainingSheets = Math.max(0, totalSheetsPlanned - generatedSheets)
 
         const opData = machineOperations?.find(o =>
@@ -3212,6 +3217,36 @@ const ForemanWorkplace = () => {
           })
         }
 
+        const extractCutterDiameter = (name) => {
+          const value = String(name || '').toLowerCase()
+          const explicit = value.match(/ф\s*([0-9][0-9,.]*)/)
+          if (explicit) return Number.parseFloat(explicit[1].replace(',', '.'))
+          const dimensions = value.match(/(?:кукурудза|двопера|однопера|спіральна|торцева|шарова|радіусна)?\s*([0-9][0-9,]*)(?:\s*[×xх])/)
+          return dimensions ? Number.parseFloat(dimensions[1].replace(',', '.')) : null
+        }
+        const existingCutterSelections = snapshotEntry?.selected_cutters || targetTask.plan_snapshot?.selectedCutters || {}
+        const getCutterOptions = (cut) => {
+          const requiredDiameter = extractCutterDiameter(cut.name)
+          const currentSelection = selectedCutterTypes[String(cut.id)]
+            || existingCutterSelections[String(cut.id)]
+            || existingCutterSelections[cut.name]
+            || existingCutterSelections[cut.name.toLowerCase()]
+          return (inventory || []).filter(item => {
+            const nom = nomenclatures.find(n => String(n.id) === String(item.nomenclature_id))
+            if (!nom || !String(nom.name || '').toLowerCase().startsWith('фреза')) return false
+            if (item.type && item.type !== 'consumable') return false
+            const available = Math.max(0, (Number(item.total_qty) || 0) - (Number(item.reserved_qty) || 0))
+            if (available <= 0 && String(item.id) !== String(currentSelection || '')) return false
+            const optionDiameter = extractCutterDiameter(nom.name)
+            return requiredDiameter === null || (optionDiameter !== null && Math.abs(optionDiameter - requiredDiameter) < 0.01)
+          })
+        }
+        const getSelectedCutterId = (cut) => selectedCutterTypes[String(cut.id)]
+          || existingCutterSelections[String(cut.id)]
+          || existingCutterSelections[cut.name]
+          || existingCutterSelections[cut.name.toLowerCase()]
+          || ''
+        const hasMissingCutterSelection = remainingSheets > 0 && cutters.some(cut => !getSelectedCutterId(cut))
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(15px)', zIndex: 15500, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
             <div style={{ background: '#111', width: '100%', maxWidth: '480px', borderRadius: '32px', border: '1px solid #222', padding: '40px', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
@@ -3272,31 +3307,28 @@ const ForemanWorkplace = () => {
                     </label>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {cutters.map(cut => {
-                        const isChecked = selectedCutterTypes[cut.id] !== false
+                        const options = getCutterOptions(cut)
+                        const selectedInventoryId = getSelectedCutterId(cut)
                         return (
-                          <label
-                            key={cut.id}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              cursor: 'pointer',
-                              fontSize: '0.78rem',
-                              color: isChecked ? '#fff' : '#666',
-                              userSelect: 'none'
-                            }}
-                          >
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={() => setSelectedCutterTypes(prev => ({ ...prev, [cut.id]: !isChecked }))}
-                                style={{ cursor: 'pointer', accentColor: '#ff9000' }}
-                              />
-                              {cut.name}
-                            </span>
-                            <strong style={{ color: isChecked ? '#ff9000' : '#444' }}>+{cut.totalNeeded} шт</strong>
-                          </label>
+                          <div key={cut.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px 0', borderBottom: '1px solid #181818' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem' }}>
+                              <span style={{ color: '#888' }}>{cut.name}</span>
+                              <strong style={{ color: '#ff9000' }}>{cut.totalNeeded} шт</strong>
+                            </div>
+                            <select
+                              value={selectedInventoryId}
+                              onChange={(event) => setSelectedCutterTypes(prev => ({ ...prev, [String(cut.id)]: event.target.value }))}
+                              style={{ width: '100%', background: '#000', border: selectedInventoryId ? '1px solid rgba(255,144,0,.45)' : '1px solid #333', color: '#fff', padding: '10px', borderRadius: '9px', fontSize: '0.74rem', fontWeight: 700 }}
+                            >
+                              <option value="">— Оберіть конкретну фрезу —</option>
+                              {options.map(item => {
+                                const nom = nomenclatures.find(n => String(n.id) === String(item.nomenclature_id))
+                                const available = Math.max(0, (Number(item.total_qty) || 0) - (Number(item.reserved_qty) || 0))
+                                return <option key={item.id} value={item.id}>{nom?.name || item.name} — вільно {available} шт</option>
+                              })}
+                              {options.length === 0 && <option value="" disabled>Немає відповідної фрези на складі</option>}
+                            </select>
+                          </div>
                         )
                       })}
                     </div>
@@ -3306,12 +3338,14 @@ const ForemanWorkplace = () => {
 
               <button
                 onClick={async () => {
-                  await handleUpdateNomenclatureMachineAndRecalculate(targetTask, changeNomMachineNomId, selectedNomNewMachine, null, selectedCutterTypes)
+                  const resolvedSelections = {}
+                  cutters.forEach(cut => { resolvedSelections[String(cut.id)] = getSelectedCutterId(cut) })
+                  await handleUpdateNomenclatureMachineAndRecalculate(targetTask, changeNomMachineNomId, selectedNomNewMachine, null, resolvedSelections)
                   setChangeNomMachineTaskId(null)
                   setChangeNomMachineNomId(null)
                   setSelectedCutterTypes({})
                 }}
-                disabled={isChangingMachine}
+                disabled={isChangingMachine || hasMissingCutterSelection}
                 style={{
                   width: '100%', background: '#3b82f6', color: '#fff', padding: '18px',
                   borderRadius: '16px', fontSize: '0.95rem', fontWeight: 950, cursor: 'pointer',

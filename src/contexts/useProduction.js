@@ -583,8 +583,9 @@ export function createProductionActions({
                 const cleanName = cutterNom.name.trim()
                 
                 let resolvedCutterNom = cutterNom
-                if (task?.plan_snapshot?.selectedCutters) {
-                  const invId = task.plan_snapshot.selectedCutters[cleanName] || task.plan_snapshot.selectedCutters[cleanName.toLowerCase()]
+                const partSelectedCutters = task?.plan_snapshot?.[String(partNom?.id)]?.selected_cutters || task?.plan_snapshot?.selectedCutters
+                if (partSelectedCutters) {
+                  const invId = partSelectedCutters[cleanName] || partSelectedCutters[cleanName.toLowerCase()]
                   if (invId) {
                     const inv = (inventory || []).find(i => String(i.id) === String(invId))
                     if (inv) {
