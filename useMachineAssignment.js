@@ -1,192 +1,25 @@
-import { useEffect } from 'react'
-import { findMachineByName } from '../utils/foremanHelpers'
+import { useState } from 'react'
+import { supabase } from '../../../supabase'
+import { useMES } from '../../../MESContext'
 
-export function useForemanHandlers({
-  // From useMES
-  createWorkCard,
-  createWorkCardsBatch,
-  completeTaskByMaster,
-  confirmBuffer,
-  reserveBZForTask,
-  createDovyпускMaterialRequests,
-  tasks,
-  orders,
-  workCards,
-  inventory,
-  nomenclatures,
-  bomItems,
-  machines,
-  machineOperations,
-  workCardHistory,
+export function useMachineAssignment(setCustomAlert) {
+  const {
+    tasks,
+    nomenclatures,
+    machineOperations,
+    inventory,
+    fetchData
+  } = useMES()
 
-  // From useForemanData / State
-  relevantTasks,
-  allOrdersMap,
-  setAllOrdersMap,
-  setReportTaskId,
-  setShowReportModal,
-  setReportStageFilter,
-  setReportNomFilter,
-  setReportSortBy,
-  setReportOperatorFilter,
-  setReportData,
-  setReportLoading,
-  setPrintNaryadQueue,
-  setNaryadPrintLoading,
-  setIsChangingMachine,
-  setCustomAlert,
-  setChangeMachineTaskId,
-  setIsGenerating,
-  setGenModal,
-  setPrintQueue,
-  setBufferScrapModal,
-  setBufferScrapCounts,
-  bufferScrapModal,
-  bufferScrapCounts,
-  saveTimeoutRef,
-  setEditingSplits,
-
-  // Refs & Cache
-  generatingLockRef,
-  cardScrapCache,
-
-  // API & Supabase
-  supabase,
-  apiService,
-
-  // Methods
-  fetchData,
-  fetchModuleData,
-  addLocalWorkCards
-}) {
-
-  const handleResolveCall = async (callId, currentUser) => {
-    const resolverName = currentUser ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() : 'Майстер зміни'
-    const { error } = await supabase
-      .from('machine_calls')
-      .update({
-        status: 'resolved',
-        resolved_at: new Date().toISOString(),
-        resolved_by: resolverName
-      })
-      .eq('id', callId)
-    if (error) {
-      alert('Помилка при вирішенні виклику: ' + error.message)
-    }
-  }
-
-  const handleOpenReport = async (task, order, taskCards, forceRefresh = false) => {
-    setReportTaskId(task.id)
-    setShowReportModal(true)
-    setReportStageFilter('All')
-    setReportNomFilter('All')
-    setReportSortBy('date')
-    setReportOperatorFilter('All')
-
-    const cached = task?.plan_snapshot?._report_snapshot
-    if (cached && !forceRefresh) {
-      setReportData(cached)
-      if (task.status === 'completed') {
-        setReportLoading(false)
-        return
-      }
-    }
-
-    setReportLoading(true)
-    if (!cached || forceRefresh) {
-      setReportData(null)
-    }
-
-    try {
-      const { data: materialRequests, error: reqError } = await supabase
-        .from('material_requests')
-        .select('*, nomenclature:nomenclatures(*)')
-        .eq('task_id', task.id)
-
-      if (reqError) console.warn('Error fetching material requests:', reqError.message)
-
-      const { data: allTaskCardsDB } = await supabase
-        .from('work_cards')
-        .select('id')
-        .eq('task_id', task.id)
-        .limit(10000)
-
-      const stateCardIds = taskCards.map(c => c.id)
-      const dbCardIds = (allTaskCardsDB || []).map(c => c.id)
-      const allCardIds = [...new Set([...stateCardIds, ...dbCardIds])]
-
-      if (allCardIds.length === 0) {
-        const finalData = { historyRows: [], taskCards, materialRequests: materialRequests || [] }
-        setReportData(finalData)
-        setReportLoading(false)
-        return
-      }
-
-      let historyRows = []
-      for (let i = 0; i < allCardIds.length; i += 100) {
-        const chunk = allCardIds.slice(i, i + 100)
-        const { data: histChunk, error: histErr } = await supabase
-          .from('work_card_history')
-          .select('*')
-          .in('card_id', chunk)
-          .limit(10000)
-
-        if (histErr) throw histErr
-        if (histChunk) {
-          historyRows = historyRows.concat(histChunk)
-        }
-      }
-
-      historyRows.sort((a, b) => new Date(a.completed_at || 0) - new Date(b.completed_at || 0))
-
-      const finalData = { historyRows: historyRows || [], taskCards, materialRequests: materialRequests || [] }
-      setReportData(finalData)
-
-      const updatedSnapshot = {
-        ...(task.plan_snapshot || {}),
-        _report_snapshot: finalData
-      }
-
-      await supabase.from('tasks').update({ plan_snapshot: updatedSnapshot }).eq('id', task.id)
-    } catch (e) {
-      console.error(e)
-      if (!cached) {
-        alert('Помилка завантаження звіту: ' + e.message)
-      }
-    } finally {
-      setReportLoading(false)
-    }
-  }
-
-  const handleOpenNaryadPrint = async (task, order) => {
-    setNaryadPrintLoading(true)
-    try {
-      const { data: materialRequests, error: reqError } = await supabase
-        .from('material_requests')
-        .select('*, nomenclature:nomenclatures(*)')
-        .eq('task_id', task.id)
-
-      if (reqError) console.warn('Error fetching material requests:', reqError.message)
-
-      setPrintNaryadQueue({
-        task,
-        order,
-        materialRequests: materialRequests || []
-      })
-    } catch (e) {
-      console.error(e)
-      alert('Помилка завантаження даних наряду: ' + e.message)
-    } finally {
-      setNaryadPrintLoading(false)
-    }
-  }
+  const [isChangingMachine, setIsChangingMachine] = useState(false)
 
   const handleChangeTaskMachine = async (taskId, newMachine) => {
-    const task = relevantTasks.find(t => t.id === taskId) || tasks.find(t => t.id === taskId)
+    const task = tasks.find(t => t.id === taskId)
     if (!task || !newMachine) return
 
     setIsChangingMachine(true)
     try {
+      // 1. Отримуємо актуальні material_requests для наряду
       const { data: matReqs, error: fetchReqsErr } = await supabase
         .from('material_requests')
         .select('*')
@@ -194,6 +27,7 @@ export function useForemanHandlers({
 
       if (fetchReqsErr) throw fetchReqsErr
 
+      // 2. Шукаємо старі запити на фрези, щоб зняти бронь
       const cutterRequests = (matReqs || []).filter(r => {
         if (!r.nomenclature_id) return false
         const nom = nomenclatures.find(n => n.id === r.nomenclature_id)
@@ -222,6 +56,7 @@ export function useForemanHandlers({
         await Promise.all(inventoryUpdates)
       }
 
+      // 3. Видаляємо старі запити на фрези
       const cutterRequestIds = cutterRequests.map(r => r.id)
       if (cutterRequestIds.length > 0) {
         const { error: delErr } = await supabase
@@ -231,6 +66,7 @@ export function useForemanHandlers({
         if (delErr) throw delErr
       }
 
+      // 4. Розраховуємо нові фрези для нового типу верстата
       const snapshot = { ...(task.plan_snapshot || {}) }
       const newMachineSpecificCutters = {}
       let hasMachineSpecificCutters = false
@@ -241,6 +77,7 @@ export function useForemanHandlers({
         const sheetsNeeded = Number(partInfo.sheets) || 0
         if (sheetsNeeded <= 0) return
 
+        // override selected_machine for all parts to new machine
         partInfo.selected_machine = newMachine
 
         const opData = machineOperations?.find(o =>
@@ -286,6 +123,7 @@ export function useForemanHandlers({
         }
       })
 
+      // 5. Створюємо нові запити на фрези (material_requests)
       const requestsToInsert = []
       const newConsumablesSnapshot = []
 
@@ -335,6 +173,11 @@ export function useForemanHandlers({
         if (insErr) throw insErr
       }
 
+      if (newInventoryReservations.length > 0) {
+        await Promise.all(newInventoryReservations)
+      }
+
+      // 6. Оновлюємо сам наряд (task)
       snapshot.consumables = newConsumablesSnapshot
       const { error: taskUpdErr } = await supabase
         .from('tasks')
@@ -346,6 +189,7 @@ export function useForemanHandlers({
 
       if (taskUpdErr) throw taskUpdErr
 
+      // 7. Оновлюємо невиконані картки наряду (work_cards)
       const { error: cardsUpdErr } = await supabase
         .from('work_cards')
         .update({ machine: newMachine })
@@ -355,7 +199,6 @@ export function useForemanHandlers({
       if (cardsUpdErr) throw cardsUpdErr
 
       setCustomAlert({ title: 'Верстат наряду змінено', message: '✅ Верстат наряду успішно змінено. Бронь зі старих фрез знято. Надіслано новий запит на СО для видачі нових фрез!' })
-      setChangeMachineTaskId(null)
       fetchData(['tasks', 'material_requests', 'inventory', 'work_cards']).catch(() => {})
     } catch (e) {
       console.error(e)
@@ -485,7 +328,7 @@ export function useForemanHandlers({
                   const d = m1 ? parseFloat(m1[1].replace(',', '.')) : (m2 ? parseFloat(m2[1].replace(',', '.')) : null)
 
                   if (partInfo.cutter_override !== '1.5' && d && Math.abs(d - 1.5) < 0.01) {
-                    return // skip
+                    return
                   }
                   if (partInfo.cutter_override === '1.5' && d && Math.abs(d - 2) < 0.01) {
                     cutterNom = { ...cutterNom, name: 'Фреза ф1.5', id: '__synthetic_f1.5__' }
@@ -524,6 +367,8 @@ export function useForemanHandlers({
       const shouldAutoReserve = task.warehouse_conf && task.engineer_conf && task.director_conf
       const newStatus = 'pending'
 
+      const newInventoryReservations = []
+
       for (const item of Object.values(newMachineSpecificCutters)) {
         const isSynthetic = String(item.nomenclature_id).startsWith('__synthetic')
         const invItem = isSynthetic ? null : (
@@ -542,6 +387,13 @@ export function useForemanHandlers({
         })
 
         newConsumablesSnapshot.push({ name: item.name, total: item.qty })
+
+        if (shouldAutoReserve && invItem) {
+          const currentReserved = Number(invItem.reserved_qty) || 0
+          newInventoryReservations.push(
+            supabase.from('inventory').update({ reserved_qty: currentReserved + item.qty }).eq('id', invItem.id)
+          )
+        }
       }
 
       const totalSheets = Object.values(updatedSnapshot.materialSummary || {}).reduce((acc, m) => acc + (Number(m.sheets) || 0), 0)
@@ -556,6 +408,10 @@ export function useForemanHandlers({
       if (requestsToInsert.length > 0) {
         const { error: insErr } = await supabase.from('material_requests').insert(requestsToInsert)
         if (insErr) throw insErr
+      }
+
+      if (newInventoryReservations.length > 0) {
+        await Promise.all(newInventoryReservations)
       }
 
       updatedSnapshot.consumables = newConsumablesSnapshot
@@ -592,221 +448,9 @@ export function useForemanHandlers({
     }
   }
 
-  const handleGenerateFromWorksheet = async (task, part, sheets, selectedMachineName, count, localGeneratedCount = 0, totalToReach = 0, isRepair = false, globalTotalCards = null, globalSeqOffset = 0, customCapacity = null) => {
-    if (generatingLockRef.current) {
-      console.warn("[GEN] BLOCKED: Generation already in progress, ignoring duplicate call.")
-      return
-    }
-    generatingLockRef.current = true
-
-    const machinesList = machines || []
-    const baseName = (selectedMachineName || '').split(' №')[0].trim()
-    let machineObj = machinesList.find(m => m.name === baseName) || machinesList.find(m => m.name === selectedMachineName)
-    
-    const capacity = customCapacity !== null ? Number(customCapacity) : (Number(machineObj?.sheet_capacity) || 1)
-    const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
-
-    const maxCardsForThisSplit = Math.ceil(sheets / capacity)
-    const displayTotal = globalTotalCards || maxCardsForThisSplit
-
-    let finalCount = Math.min(count, maxCardsForThisSplit - localGeneratedCount)
-    if (finalCount <= 0) {
-      generatingLockRef.current = false
-      return
-    }
-
-    if (!isRepair) {
-      let dbCardsCount = 0
-      try {
-        const { data, error } = await supabase
-          .from('work_cards')
-          .select('id, is_rework, operation')
-          .eq('task_id', task.id)
-          .eq('nomenclature_id', part.nom?.id)
-        if (!error && data) {
-          dbCardsCount = data.filter(c => !c.is_rework && c.operation !== 'Склад БЗ').length
-        }
-      } catch (err) {
-        console.error("Error fetching dbCardsCount:", err)
-      }
-      const allowedCount = displayTotal - dbCardsCount
-      if (allowedCount > 0) {
-        finalCount = Math.min(finalCount, allowedCount)
-      } else {
-        finalCount = 0
-      }
-    }
-
-    if (finalCount <= 0) {
-      generatingLockRef.current = false
-      return
-    }
-
-    const existingNomenclatureCards = (workCards || []).filter(wc =>
-      String(wc.task_id) === String(task.id) &&
-      String(wc.nomenclature_id) === String(part.nom?.id)
-    )
-
-    let maxExistingSeq = 0
-    existingNomenclatureCards.forEach(wc => {
-      const match = (wc.card_info || '').match(/(\d+)\/(\d+)/)
-      if (match) {
-        const seq = parseInt(match[1])
-        if (seq > maxExistingSeq) maxExistingSeq = seq
-      }
-    })
-
-    const startSeqForThisBatch = maxExistingSeq + 1
-
-    setIsGenerating(true)
-    try {
-      const cardsBatch = []
-      let sheetsRemainingForThisSplit = sheets - (localGeneratedCount * capacity)
-
-      const snapshotEntry = task.plan_snapshot?.[String(part.nom?.id)]
-      const originalNeed = snapshotEntry?.need || totalToReach || 0
-
-      let reqRemainingForThisSplit = originalNeed - (localGeneratedCount * capacity * unitsPerSheet)
-      if (reqRemainingForThisSplit < 0) reqRemainingForThisSplit = 0
-
-      for (let i = 1; i <= finalCount; i++) {
-        const currentSeq = startSeqForThisBatch + (i - 1)
-        const sheetsInThisLoading = Math.min(sheetsRemainingForThisSplit, capacity)
-        const qtyInThisLoading = Math.ceil(sheetsInThisLoading * unitsPerSheet)
-        const reqInThisLoading = Math.min(qtyInThisLoading, reqRemainingForThisSplit)
-        const bzInThisLoading = Math.max(0, qtyInThisLoading - reqInThisLoading)
-
-        const prefix = isRepair ? '[REDO] ' : ''
-        cardsBatch.push({
-          operation: 'Розкрій',
-          machine: selectedMachineName || 'Не вказано',
-          estimatedTime: (Number(part.nom?.time_per_unit) || 0) * reqInThisLoading * 60,
-          cardInfo: `${prefix}${currentSeq}/${displayTotal}${originalNeed > 0 ? ` [NEED:${originalNeed}]` : ''} [REQ:${reqInThisLoading}] [BZ:${bzInThisLoading}]`,
-          quantity: qtyInThisLoading,
-          bufferQty: bzInThisLoading,
-          actualSheets: sheetsInThisLoading,
-          status: isRepair ? 'waiting-materials' : 'new',
-          is_rework: isRepair
-        })
-
-        sheetsRemainingForThisSplit -= sheetsInThisLoading
-        reqRemainingForThisSplit -= reqInThisLoading
-        if (reqRemainingForThisSplit < 0) reqRemainingForThisSplit = 0
-      }
-
-      const createdCards = await apiService.submitCreateWorkCardsBatch(task.id, task.order_id, part.nom.id, cardsBatch, createWorkCardsBatch)
-
-      if (isRepair && sheets > 0) {
-        const totalQty = finalCount * capacity * unitsPerSheet
-        await createDovyпускMaterialRequests(task.id, task.order_id, part.nom, sheets, totalQty, selectedMachineName)
-      }
-
-      if (createdCards && createdCards.length > 0) {
-        if (typeof addLocalWorkCards === 'function') {
-          addLocalWorkCards(createdCards)
-        }
-        fetchData(['work_cards', 'tasks', 'material_requests']).catch(() => {})
-
-        setPrintQueue({
-          task,
-          part,
-          total: displayTotal,
-          created: startSeqForThisBatch,
-          metadata: createdCards.map((c, idx) => {
-            const batchItem = cardsBatch[idx]
-            return {
-              id: c.id,
-              loading: c.card_info,
-              qty: batchItem ? batchItem.quantity : 0,
-              estimatedTime: (Number(part.nom?.time_per_unit) || 0) * (batchItem ? batchItem.quantity : 0) * 60,
-              totalLoadings: displayTotal,
-              sheetsPerLoading: batchItem ? batchItem.actualSheets : capacity,
-              machine: selectedMachineName
-            }
-          })
-        })
-      }
-    } catch (err) {
-      alert('Помилка: ' + err.message)
-    } finally {
-      setTimeout(() => {
-        setIsGenerating(false)
-        setGenModal(null)
-        generatingLockRef.current = false
-      }, 500)
-    }
-  }
-
-  const handleBufferReception = async (cardId) => {
-    const card = workCards.find(c => String(c.id) === String(cardId))
-    if (!card) { alert("Картку не знайдено!"); return }
-    setBufferScrapModal({ cardId: card.id, nomenclature_id: card.nomenclature_id })
-    setBufferScrapCounts({ [card.nomenclature_id]: 0 })
-  }
-
-  const submitBufferReception = async () => {
-    if (!bufferScrapModal) return
-    const scrap = bufferScrapCounts[bufferScrapModal.nomenclature_id] || 0
-    try {
-      await confirmBuffer(bufferScrapModal.cardId, scrap)
-      setBufferScrapModal(null)
-      fetchData(['work_cards', 'work_card_history', 'inventory', 'tasks'])
-    } catch (err) {
-      alert("Помилка: " + err.message)
-    }
-  }
-
-  const handleReserveBZ = async (taskId, orderId, nomId, qty) => {
-    if (!window.confirm(`Забронювати ${qty} шт. зі складу БЗ?`)) return
-    try {
-      await reserveBZForTask(taskId, orderId, nomId, qty)
-      alert("Деталі заброньовано!")
-    } catch (err) {
-      alert("Помилка: " + err.message)
-    }
-  }
-
-  const handleUpdateMachineInSnapshot = async (task, nomId, machineName = null, splits = null) => {
-    if (!task || !nomId) return
-    const sId = String(nomId)
-    const currentSnapshot = task.plan_snapshot || {}
-
-    const entry = { ...(currentSnapshot[sId] || {}) }
-    if (machineName !== null) entry.machine = machineName
-    if (splits !== null) entry.splits = splits
-
-    const updatedSnapshot = {
-      ...currentSnapshot,
-      [sId]: entry
-    }
-    try {
-      const { error } = await supabase.from('tasks').update({ plan_snapshot: updatedSnapshot }).eq('id', task.id)
-      if (error) throw error
-      if (!saveTimeoutRef.current) fetchData('tasks')
-    } catch (err) { console.error("Snapshot error:", err) }
-  }
-
-  const debouncedUpdateSplits = (task, nomId, newSplits) => {
-    setEditingSplits(prev => ({ ...prev, [nomId]: newSplits }))
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
-
-    saveTimeoutRef.current = setTimeout(() => {
-      handleUpdateNomenclatureMachineAndRecalculate(task, nomId, null, newSplits)
-      saveTimeoutRef.current = null
-    }, 1000)
-  }
-
   return {
-    handleResolveCall,
-    handleOpenReport,
-    handleOpenNaryadPrint,
+    isChangingMachine,
     handleChangeTaskMachine,
-    handleUpdateNomenclatureMachineAndRecalculate,
-    handleGenerateFromWorksheet,
-    handleBufferReception,
-    submitBufferReception,
-    handleReserveBZ,
-    handleUpdateMachineInSnapshot,
-    debouncedUpdateSplits
+    handleUpdateNomenclatureMachineAndRecalculate
   }
 }

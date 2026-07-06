@@ -862,10 +862,19 @@ export function createProductionActions({
       }
     }
 
-    // Update task status in background (non-blocking)
-    supabase.from('tasks').update({ status: 'in-progress' }).eq('id', taskId).then(() => {
-      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'in-progress' } : t))
-    })
+    const { error: taskStatusError } = await supabase
+      .from('tasks')
+      .update({ status: 'in-progress' })
+      .eq('id', taskId)
+    if (taskStatusError) console.warn('Failed to update task status:', taskStatusError.message)
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'in-progress' } : t))
+
+    await Promise.all([
+      refreshTable('work_cards'),
+      refreshTable('material_requests'),
+      refreshTable('tasks')
+    ])
+
     return data
   }
 

@@ -396,7 +396,7 @@ export function createWarehouseActions({
       }
     }
 
-    const invItem = matchedInventory.find(i => {
+    const matchingItems = matchedInventory.filter(i => {
       if (i.id === req.inventory_id) return true
       if (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) return true
       if (parsedName) {
@@ -409,6 +409,12 @@ export function createWarehouseActions({
       }
       return false
     })
+
+    const invItem = matchingItems.sort((a, b) => {
+      const availA = (Number(a.total_qty) || 0) - (Number(a.reserved_qty) || 0)
+      const availB = (Number(b.total_qty) || 0) - (Number(b.reserved_qty) || 0)
+      return availB - availA
+    })[0]
 
     if (invItem) {
       await supabase.from('inventory').update({ reserved_qty: (Number(invItem.reserved_qty) || 0) + Number(req.quantity) }).eq('id', invItem.id)
@@ -497,7 +503,7 @@ export function createWarehouseActions({
         const isPrepRequest = (req.details && (req.details.includes('ПІДГОТОВ') || req.details.includes('подготов'))) || 
           (parsedName && (parsedName.includes('[Непідготовлений]') || parsedName.includes('[неподготовленный]')))
 
-        let invItem = matchedInventory.find(i => {
+        const matches = matchedInventory.filter(i => {
           const baseMatch = String(i.id) === String(req.inventory_id) ||
             (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) ||
             (parsedName && (
@@ -517,8 +523,14 @@ export function createWarehouseActions({
           }
         })
 
+        let invItem = matches.sort((a, b) => {
+          const availA = (Number(a.total_qty) || 0) - (Number(a.reserved_qty) || 0)
+          const availB = (Number(b.total_qty) || 0) - (Number(b.reserved_qty) || 0)
+          return availB - availA
+        })[0]
+
         if (!invItem) {
-          invItem = matchedInventory.find(i => {
+          const fallbackMatches = matchedInventory.filter(i => {
             if (String(i.id) === String(req.inventory_id)) return true
             if (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) return true
             if (parsedName) {
@@ -529,6 +541,11 @@ export function createWarehouseActions({
             }
             return false
           })
+          invItem = fallbackMatches.sort((a, b) => {
+            const availA = (Number(a.total_qty) || 0) - (Number(a.reserved_qty) || 0)
+            const availB = (Number(b.total_qty) || 0) - (Number(b.reserved_qty) || 0)
+            return availB - availA
+          })[0]
         }
 
         if (invItem) {

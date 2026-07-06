@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { supabase, isLocalWrite } from '../supabase'
 import { sendPushToUsers } from '../services/pushService'
+import { getIndexedCache, setIndexedCache, removeIndexedCache } from '../services/indexedDbCache'
+import { fetchProductionSummary } from '../services/statisticsService'
 
 const CACHE_KEY = 'MES_APP_CACHE_V1'
 const USER_CACHE_KEY = 'MES_SESSION_USER'  // Full user object for instant restore
@@ -51,6 +53,25 @@ const fromCache = (field, def) => () => {
   } catch { return def }
 }
 
+const fetchActiveWorkCards = async () => {
+  const pageSize = 500
+  const allCards = []
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from('work_cards')
+      .select('*')
+      .neq('status', 'completed')
+      .order('created_at', { ascending: false })
+      .range(from, from + pageSize - 1)
+
+    if (error) return { data: allCards.length > 0 ? allCards : null, error }
+    allCards.push(...(data || []))
+    if (!data || data.length < pageSize) break
+  }
+
+  return { data: allCards, error: null }
+}
 export function useData() {
 
   // ── Lazy initialisers: localStorage is parsed ONCE per mount, not on every render ──
@@ -74,7 +95,8 @@ export function useData() {
   const [fortnetUrl, setFortnetUrl] = useState(localStorage.getItem('FORTNET_API_URL') || 'http://192.168.1.100:8090')
   const [companyStructure, setCompanyStructure] = useState(fromCache('companyStructure', fallbackStructure))
   const [companyPositions, setCompanyPositions] = useState(fromCache('companyPositions', fallbackPositions))
-  
+
+
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const cached = localStorage.getItem(USER_CACHE_KEY)
@@ -99,7 +121,50 @@ export function useData() {
   const [loading, setLoading] = useState(false)
   const [hasMoreOrders, setHasMoreOrders] = useState(true)
   const [lastFetchTime, setLastFetchTime] = useState(0)
-  
+  const [serverProductionData, setServerProductionData] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    getIndexedCache(CACHE_KEY).then(cached => {
+      if (cancelled || !cached) return
+      const restore = (setter, field) => setter(prev => Array.isArray(prev) && prev.length > 0 ? prev : (cached[field] ?? prev))
+      restore(setOrders, 'orders')
+      restore(setCustomers, 'customers')
+      restore(setInventory, 'inventory')
+      restore(setTasks, 'tasks')
+      restore(setManagementTasks, 'managementTasks')
+      restore(setRequests, 'requests')
+      restore(setNomenclatures, 'nomenclatures')
+      restore(setBomItems, 'bomItems')
+      restore(setReceptionDocs, 'receptionDocs')
+      restore(setPurchaseRequests, 'purchaseRequests')
+      restore(setWorkCards, 'workCards')
+      restore(setWorkCardHistory, 'workCardHistory')
+      restore(setMachines, 'machines')
+      restore(setSystemUsers, 'systemUsers')
+      restore(setMachineOperations, 'machineOperations')
+      restore(setMachineCalls, 'machineCalls')
+      restore(setCompanyStructure, 'companyStructure')
+      restore(setCompanyPositions, 'companyPositions')
+    }).catch(error => console.warn('Failed to restore IndexedDB cache:', error))
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    const refreshSummary = async () => {
+      try {
+        const summary = await fetchProductionSummary()
+        if (!cancelled) setServerProductionData(summary)
+      } catch (error) {
+        console.warn('Failed to refresh production summary:', error)
+      }
+    }
+    refreshSummary()
+    const timer = setInterval(refreshSummary, 60000)
+    return () => { cancelled = true; clearInterval(timer) }
+  }, [])
+
   const PAGE_SIZE = 20
 
   const normalize = (s) => (s || '').toLowerCase().trim()
@@ -178,8 +243,8 @@ export function useData() {
         // Nomenclatures & BOM needed for naryad creation
         supabase.from('nomenclatures').select('*').limit(2000),
         supabase.from('bom_items').select('*').limit(4000),
-        // Active work cards for real-time sync across terminals
-        supabase.from('work_cards').select('*').neq('status', 'completed').order('created_at', { ascending: true }),
+        // Active (non-completed) work cards for real-time sync — completed are loaded separately per-task in ForemanWorkplace
+        fetchActiveWorkCards(),
         supabase.from('company_structure').select('*').order('name').then(res => res, () => ({ data: fallbackStructure, error: null })),
         supabase.from('company_positions').select('*').order('name').then(res => res, () => ({ data: fallbackPositions, error: null })),
         // Global Real-time Tables
@@ -217,7 +282,7 @@ export function useData() {
       if (wch) setWorkCardHistory(wch)
       if (mo) setMachineOperations(mo)
       if (mCalls) setMachineCalls(mCalls)
-      
+
       if (structRes && structRes.data && structRes.data.length > 0) {
         setCompanyStructure(structRes.data)
       } else {
@@ -240,7 +305,7 @@ export function useData() {
   const fetchData = async (forceOrTargets = false) => {
     if (typeof forceOrTargets === 'string' || Array.isArray(forceOrTargets)) {
       const targets = Array.isArray(forceOrTargets) ? forceOrTargets : [forceOrTargets]
-      await Promise.all(targets.map(t => refreshTable(t).catch(() => {})))
+      await Promise.all(targets.map(t => refreshTable(t).catch(() => { })))
       return
     }
     const force = forceOrTargets === true
@@ -282,7 +347,7 @@ export function useData() {
         needMachines ? supabase.from('machines').select('*').order('name') : Promise.resolve({ data: null }),
         needUsers ? supabase.from('system_users').select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar, last_seen').order('login') : Promise.resolve({ data: null }),
         supabase.from('management_tasks').select('*').neq('status', 'completed').order('created_at', { ascending: false }),
-        supabase.from('work_cards').select('*').neq('status', 'completed').order('created_at', { ascending: true }),
+        fetchActiveWorkCards(),
         needStructure ? supabase.from('company_structure').select('*').order('name').then(res => res, () => ({ data: fallbackStructure, error: null })) : Promise.resolve({ data: null }),
         supabase.from('inventory').select('*').order('name').limit(3000),
         supabase.from('material_requests').select('*').neq('status', 'completed').order('created_at', { ascending: false }),
@@ -329,7 +394,7 @@ export function useData() {
       if (wch) setWorkCardHistory(wch)
       if (needOperations && mo) setMachineOperations(mo)
       if (mCalls) setMachineCalls(mCalls)
-      
+
       if (needStructure && structRes && structRes.data && structRes.data.length > 0) {
         setCompanyStructure(structRes.data)
       }
@@ -367,18 +432,27 @@ export function useData() {
 
   const fetchHistoryRange = async (startDate, endDate) => {
     try {
-      let query = supabase.from('work_card_history').select('*').order('created_at', { ascending: false })
-      if (startDate) query = query.gte('completed_at', startDate)
-      if (endDate) query = query.lte('completed_at', endDate)
-      const { data, error } = await query.limit(2000)
-      if (error) throw error
-      return data || []
-    } catch (e) { return [] }
+      const pageSize = 500
+      const rows = []
+      for (let from = 0; ; from += pageSize) {
+        let query = supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).range(from, from + pageSize - 1)
+        if (startDate) query = query.gte('completed_at', startDate)
+        if (endDate) query = query.lte('completed_at', endDate)
+        const { data, error } = await query
+        if (error) throw error
+        rows.push(...(data || []))
+        if (!data || data.length < pageSize) break
+      }
+      return rows
+    } catch (e) {
+      console.error('Failed to fetch complete history range:', e)
+      return []
+    }
   }
 
   const fetchTaskArchiveCards = async (taskId) => {
     try {
-      const { data, error } = await supabase.from('work_cards').select('*').eq('task_id', taskId).eq('status', 'completed')
+      const { data, error } = await supabase.from('work_cards').select('*').eq('task_id', taskId).order('created_at', { ascending: true })
       if (error) throw error
       return data || []
     } catch (e) { return [] }
@@ -387,8 +461,7 @@ export function useData() {
   const refreshTable = async (tableName) => {
     try {
       if (tableName === 'work_cards') {
-        const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
-        const { data } = await supabase.from('work_cards').select('*').neq('status', 'completed').order('created_at', { ascending: true })
+        const { data } = await fetchActiveWorkCards()
         if (data) setWorkCards(data)
       } else if (tableName === 'inventory') {
         const { data } = await supabase.from('inventory').select('*').order('name')
@@ -449,11 +522,15 @@ export function useData() {
   const productionData = useMemo(() => {
     const finishingStages = ['пакування/сгп', 'прийомка', 'склад бз', 'сгп', 'пакування']
     const finalRecords = (workCardHistory || []).filter(h => finishingStages.includes((h.stage_name || '').toLowerCase().trim()))
-    return {
+    const fallback = {
       totalProduced: finalRecords.reduce((acc, h) => acc + (Number(h.qty_completed) || 0), 0),
       totalScrap: (workCardHistory || []).reduce((acc, h) => acc + (Number(h.scrap_qty) || 0), 0)
     }
-  }, [workCardHistory])
+    return serverProductionData ? {
+      totalProduced: Number(serverProductionData.totalProduced) || 0,
+      totalScrap: Number(serverProductionData.totalScrap) || 0
+    } : fallback
+  }, [workCardHistory, serverProductionData])
 
   // --- PERSISTENCE (дебаунс 2с + тільки критичні поля щоб не блокувати UI) ---
   const cacheTimerRef = useRef(null)
@@ -490,12 +567,14 @@ export function useData() {
           purchaseRequests: purchaseRequests.slice(0, 50),
           workCardHistory: workCardHistory.slice(0, 50)
         }
-        localStorage.setItem(CACHE_KEY, JSON.stringify(dataToCache))
+        setIndexedCache(CACHE_KEY, dataToCache)
+          .then(() => localStorage.removeItem(CACHE_KEY))
+          .catch(error => console.warn('IndexedDB cache write failed:', error))
       } catch (e) {
         console.warn('Cache write failed (quota?), clearing old cache...', e)
         try {
-          localStorage.removeItem(CACHE_KEY) // Fallback: clear to prevent loop
-        } catch (innerErr) {}
+          removeIndexedCache(CACHE_KEY).catch(() => {})
+        } catch (innerErr) { }
       }
     }, 2000) // Затримка 2с після останньої зміни
   }, [orders, customers, tasks, managementTasks, requests, nomenclatures, bomItems, machines, systemUsers, machineOperations, machineCalls, companyStructure, companyPositions, workCards, inventory, receptionDocs, purchaseRequests, workCardHistory])
@@ -507,19 +586,13 @@ export function useData() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'work_cards' }, (payload) => {
         if (payload.eventType === 'UPDATE') {
           if (payload.new.status === 'completed') {
-            const cardDate = new Date(payload.new.created_at || payload.new.updated_at || Date.now())
-            if (cardDate > threeDaysAgo) {
-              setWorkCards(prev => prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c))
-              setWorkCards(prev => prev.some(c => c.id === payload.new.id) ? prev : [payload.new, ...prev])
-            } else {
-              setWorkCards(prev => prev.filter(c => c.id !== payload.new.id))
-            }
+            // Remove from global state — completed cards are tracked separately per-task
+            setWorkCards(prev => prev.filter(c => c.id !== payload.new.id))
           } else {
             setWorkCards(prev => prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c))
           }
         } else if (payload.eventType === 'INSERT') {
-          const cardDate = new Date(payload.new.created_at || Date.now())
-          if (payload.new.status !== 'completed' || cardDate > threeDaysAgo) {
+          if (payload.new.status !== 'completed') {
             setWorkCards(prev => prev.some(c => c.id === payload.new.id) ? prev : [payload.new, ...prev])
           }
         } else if (payload.eventType === 'DELETE') {
@@ -565,7 +638,7 @@ export function useData() {
                   `Партія №${batchIdx}${packedBy ? ` (${packedBy})` : ''} запакована і очікує відвантаження`,
                   '/shipping',
                   { tag: `task-ready-to-ship-${payload.new.id}` }
-                ).catch(() => {})
+                ).catch(() => { })
               }
             }
           }
@@ -624,7 +697,7 @@ export function useData() {
               `№ ${orderNum}${customer ? ` — ${customer}` : ''} очікує на створення наряду`,
               '/manager',
               { tag: `order-new-${payload.new.id}` }
-            ).catch(() => {})
+            ).catch(() => { })
           }
         }
       })
@@ -652,7 +725,7 @@ export function useData() {
         if (isLocalWrite('material_requests', payload.new)) {
           const isPackaging = payload.new?.details?.includes('КОМПЛЕКТУВАННЯ')
           const orderId = payload.new?.order_id || payload.new?.task_id || 'unknown'
-          
+
           let orderNum = 'новий'
           if (payload.new?.task_id) {
             const t = tasksRef.current.find(item => item.id === payload.new.task_id)
@@ -707,7 +780,7 @@ export function useData() {
                 ? `Наряд №${num} — ${itemCount} позицій до комплектування`
                 : `Наряд №${num} — ${itemCount} позицій (листи, фрези)`
 
-              sendPushToUsers(entry.notifyIds, title, body, '/warehouse', { tag: `req-group-${orderId}` }).catch(() => {})
+              sendPushToUsers(entry.notifyIds, title, body, '/warehouse', { tag: `req-group-${orderId}` }).catch(() => { })
             }, 1500)
           }
         }
@@ -752,7 +825,7 @@ export function useData() {
               `Замовлення №${orderNum} → ${dest} потребує закупівлі матеріалів`,
               '/supply',
               { tag: `pr-${payload.new.id}` }
-            ).catch(() => {})
+            ).catch(() => { })
           }
         }
       })
@@ -778,17 +851,17 @@ export function useData() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'machine_calls' }, (payload) => {
         if (payload.eventType === 'INSERT') {
           setMachineCalls(prev => prev.some(c => c.id === payload.new.id) ? prev : [payload.new, ...prev])
-          
+
           // Надсилаємо Push-сповіщення при виклику персоналу до верстата
           if (isLocalWrite('machine_calls', payload.new)) {
             const call = payload.new
             const calledEmployeeId = call.called_employee_id
             const calledRole = call.called_role
             const operator = call.operator_name || 'Оператор'
-            
+
             const machineObj = (machinesRef.current || []).find(m => m.id === call.machine_id)
             const machineName = machineObj ? machineObj.name : 'Верстат'
-            
+
             let notifyIds = []
             if (calledEmployeeId) {
               notifyIds = [calledEmployeeId]
@@ -797,7 +870,7 @@ export function useData() {
                 if (!u?.access_rights) return false
                 const settings = u.notification_settings || {}
                 if (settings.machine_call === false) return false
-                
+
                 if (calledRole === 'master') {
                   return u.access_rights.master || u.access_rights.foreman || (u.position && u.position.toLowerCase().includes('майстер'))
                 }
@@ -822,14 +895,14 @@ export function useData() {
                 roleLabel = 'ВКЯ'
                 targetPath = '/brak'
               }
-              
+
               sendPushToUsers(
                 notifyIds,
                 `🚨 Виклик ${roleLabel}`,
                 `${operator} викликає на ${machineName}`,
                 targetPath,
                 { tag: `call-${payload.new.id}` }
-              ).catch(() => {})
+              ).catch(() => { })
             }
           }
         } else if (payload.eventType === 'UPDATE') {
@@ -1039,7 +1112,7 @@ export function useData() {
         delete payload.id
       }
       let { data: res, error } = await supabase.from('company_positions').upsert([payload]).select()
-      
+
       // Fallback if the user hasn't run the SQL script to add the department_id column yet
       if (error && error.message && error.message.includes('department_id') && 'department_id' in payload) {
         console.warn("department_id column is missing, retrying without it:", error.message)
@@ -1063,7 +1136,7 @@ export function useData() {
           error = new Error('MISSING_START_PAGE_COLUMN')
         }
       }
-      
+
       if (error) {
         if (error.message === 'MISSING_START_PAGE_COLUMN') {
           if (res && res.length > 0) {
@@ -1142,6 +1215,7 @@ export function useData() {
 
     try {
       localStorage.removeItem(CACHE_KEY)
+      removeIndexedCache(CACHE_KEY).catch(() => {})
       localStorage.removeItem(USER_CACHE_KEY)
       localStorage.removeItem('MES_SESSION_LOGIN')
       localStorage.removeItem('BACKEND_TOKEN')

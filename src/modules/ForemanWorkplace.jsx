@@ -11,6 +11,7 @@ import { useForemanHandlers } from './Foreman/hooks/useForemanHandlers'
 import ForemanTaskQueue from './Foreman/components/ForemanTaskQueue'
 import ForemanPrintQueue from './Foreman/components/ForemanPrintQueue'
 import ForemanPrintNaryadQueue from './Foreman/components/ForemanPrintNaryadQueue'
+import { ForemanReportModal } from './Foreman/components/ForemanReportModal'
 import { getDisplayPartsForOrderItem as getDisplayPartsForOrderItemHelper, getStandardMachineType, findMachineByName, MACHINE_TYPES } from './Foreman/utils/foremanHelpers'
 const getRequestQty = (r) => {
   if (r.quantity !== null && r.quantity !== undefined) return Number(r.quantity);
@@ -122,6 +123,13 @@ const ForemanWorkplace = () => {
   } = useForemanData()
 
   const [selectedCutterTypes, setSelectedCutterTypes] = useState({})
+  const [localGeneratedCards, setLocalGeneratedCards] = useState([])
+
+  useEffect(() => {
+    if (localGeneratedCards.length === 0 || workCards.length === 0) return
+    const syncedIds = new Set(workCards.map(c => String(c.id)))
+    setLocalGeneratedCards(prev => prev.filter(c => !syncedIds.has(String(c.id))))
+  }, [workCards, localGeneratedCards.length])
 
   useEffect(() => {
     if (activeTaskId) {
@@ -139,6 +147,69 @@ const ForemanWorkplace = () => {
 
   // Load foreman-specific data (workCards, inventory, requests) immediately on mount
   useEffect(() => { fetchModuleData('foreman') }, [])
+
+  // ── Load archive cards and history on active task change ──────────────
+  useEffect(() => {
+    if (activeTaskId) {
+      if (taskDataCacheRef.current.lastWorkCards !== workCards) {
+        delete taskDataCacheRef.current.archiveCards[activeTaskId]
+        delete taskDataCacheRef.current.taskHistory[activeTaskId]
+        taskDataCacheRef.current.lastWorkCards = workCards
+      }
+
+      if (typeof fetchTaskPlanSnapshot === 'function') {
+        fetchTaskPlanSnapshot(activeTaskId).catch(() => {})
+      }
+
+      const cachedCards = taskDataCacheRef.current.archiveCards[activeTaskId]
+      const cachedHistory = taskDataCacheRef.current.taskHistory[activeTaskId]
+
+      if (cachedCards && cachedHistory) {
+        setArchiveCards(cachedCards)
+        setTaskHistory(cachedHistory)
+        setIsLoadingHistory(false)
+      }
+
+      setIsLoadingHistory(true)
+      fetchTaskArchiveCards(activeTaskId).then(async (cards) => {
+        setArchiveCards(cards || [])
+
+        const activeTaskCards = workCards.filter(c => c.task_id === activeTaskId)
+        const allTaskCards = [...activeTaskCards, ...(cards || [])]
+        const cardIds = allTaskCards.map(c => c.id)
+        let histData = []
+        if (cardIds.length > 0) {
+          const chunkSize = 100
+          const promises = []
+          for (let i = 0; i < cardIds.length; i += chunkSize) {
+            const chunk = cardIds.slice(i, i + chunkSize)
+            promises.push(
+              supabase
+                .from('work_card_history')
+                .select('*')
+                .in('card_id', chunk)
+                .limit(5000)
+            )
+          }
+          const results = await Promise.all(promises)
+          histData = results.flatMap(r => r.data || [])
+          setTaskHistory(histData)
+        } else {
+          setTaskHistory([])
+        }
+
+        taskDataCacheRef.current.archiveCards[activeTaskId] = cards || []
+        taskDataCacheRef.current.taskHistory[activeTaskId] = histData
+        setIsLoadingHistory(false)
+      }).catch(() => {
+        setIsLoadingHistory(false)
+      })
+    } else {
+      setArchiveCards([])
+      setTaskHistory([])
+      setIsLoadingHistory(false)
+    }
+  }, [activeTaskId, workCards, fetchTaskPlanSnapshot, fetchTaskArchiveCards])
 
   // ── Load orders for ALL relevant tasks (pagination-independent) ──────────────
   useEffect(() => {
@@ -192,8 +263,8 @@ const ForemanWorkplace = () => {
           console.error('Error fetching cards for static progress:', cardsError);
           return;
         }
-        
-        // Filter out completed ones to update staticCompletedCards state (reactive split)
+
+        // Only track completed cards in staticCompletedCards — active cards come from workCards global state
         const completedCards = (cardsData || []).filter(c => c.status === 'completed');
         setStaticCompletedCards(completedCards);
 
@@ -220,7 +291,7 @@ const ForemanWorkplace = () => {
           setStaticHistory([]);
         }
       });
-  }, [tasks]);
+  }, [tasks, activeTaskId]);
 
   // ── Sync staticHistory з реалтайм workCardHistory (без зайвих DB-запитів) ──
   // При новому браку через realtime INSERT → workCardHistory оновлюється →
@@ -277,7 +348,14 @@ const ForemanWorkplace = () => {
     saveTimeoutRef, setEditingSplits,
     generatingLockRef, cardScrapCache,
     supabase, apiService,
-    fetchData, fetchModuleData
+    fetchData, fetchModuleData,
+    addLocalWorkCards: (cards) => {
+      setLocalGeneratedCards(prev => {
+        const existingIds = new Set(prev.map(c => String(c.id)))
+        const next = cards.filter(c => c?.id && !existingIds.has(String(c.id)))
+        return next.length > 0 ? [...prev, ...next] : prev
+      })
+    }
   })
 
   const handleResolveCall = (callId) => handleResolveCallRaw(callId, currentUser)
@@ -478,7 +556,13 @@ const ForemanWorkplace = () => {
               const order = task.orders || orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
               // Об'єднуємо АКТИВНІ картки (з глобального стейту) + ЗАВЕРШЕНІ (архів для цього наряду)
               // Це гарантує, що картки НІКОЛИ не зникають після переходу на прийомку/буфер
-              const activeTaskCards = workCards.filter(c => c.task_id === task.id)
+              const activeTaskCards = [
+                ...workCards.filter(c => String(c.task_id) === String(task.id)),
+                ...localGeneratedCards.filter(c =>
+                  String(c.task_id) === String(task.id) &&
+                  !(workCards || []).some(wc => String(wc.id) === String(c.id))
+                )
+              ]
               const taskCards = [...activeTaskCards, ...(archiveCards || []).filter(c => c.task_id === task.id && !activeTaskCards.some(ac => ac.id === c.id))]
               const isReworkOrder = order?.order_num?.startsWith('ВБ')
 
@@ -1058,33 +1142,33 @@ const ForemanWorkplace = () => {
                                                   if (!rowMachineName) return;
                                                   const mObj = findMachine(rowMachineName);
                                                   const snapMat = (task.plan_snapshot || {})[String(part.nom?.id)]?.material;
-                                                   const baseMat = (snapMat || part.nom?.material_type || '').toLowerCase();
-                                                   const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(task.id));
-                                                   const extractThickness = (str) => {
-                                                     const match = str.match(/(\d+(?:\.\d+)?)\s*мм/)
-                                                     return match ? match[1] + 'мм' : null
-                                                   }
-                                                   const baseThickness = extractThickness(baseMat)
-                                                   const sheetReqs = taskReqs.filter(r => {
-                                                     const rNom = nomenclatures.find(n => n.id === r.nomenclature_id)
-                                                     const rName = (rNom?.name || r.details || '').toLowerCase()
-                                                     const isSheet = rName.includes('лист') || rName.includes('sheet')
-                                                     if (!isSheet) return false
-                                                     const reqThickness = extractThickness(rName)
-                                                     if (baseThickness && reqThickness) {
-                                                       return baseThickness === reqThickness
-                                                     }
-                                                     const activeMaterials = baseMat.split('+').map(m => m.trim())
-                                                     return activeMaterials.some(act => rName.includes(act) || act.includes(rName))
-                                                   })
-                                                   const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
-                                                     .reduce((sum, r) => sum + getRequestQty(r), 0)
-                                                   const hasKittingReqs = sheetReqs.length > 0
-                                                   
-                                                   const maxAllowed = hasKittingReqs ? Math.floor(issued / machineCapacity) : totalTargetLoads
-                                                   const initialTotal = Math.min(Math.max(1, totalTargetLoads - productionCards.length), maxAllowed)
+                                                  const baseMat = (snapMat || part.nom?.material_type || '').toLowerCase();
+                                                  const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(task.id));
+                                                  const extractThickness = (str) => {
+                                                    const match = str.match(/(\d+(?:\.\d+)?)\s*мм/)
+                                                    return match ? match[1] + 'мм' : null
+                                                  }
+                                                  const baseThickness = extractThickness(baseMat)
+                                                  const sheetReqs = taskReqs.filter(r => {
+                                                    const rNom = nomenclatures.find(n => n.id === r.nomenclature_id)
+                                                    const rName = (rNom?.name || r.details || '').toLowerCase()
+                                                    const isSheet = rName.includes('лист') || rName.includes('sheet')
+                                                    if (!isSheet) return false
+                                                    const reqThickness = extractThickness(rName)
+                                                    if (baseThickness && reqThickness) {
+                                                      return baseThickness === reqThickness
+                                                    }
+                                                    const activeMaterials = baseMat.split('+').map(m => m.trim())
+                                                    return activeMaterials.some(act => rName.includes(act) || act.includes(rName))
+                                                  })
+                                                  const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
+                                                    .reduce((sum, r) => sum + getRequestQty(r), 0)
+                                                  const hasKittingReqs = sheetReqs.length > 0
 
-                                                   setGenModal({ task, part, total: initialTotal, targetTotal: totalTargetLoads, requirement: plan, created: productionCards.length, rowId, machineName: rowMachineName, sheets, capacity: machineCapacity })
+                                                  const maxAllowed = hasKittingReqs ? Math.floor(issued / machineCapacity) : totalTargetLoads
+                                                  const initialTotal = Math.min(Math.max(1, totalTargetLoads - productionCards.length), maxAllowed)
+
+                                                  setGenModal({ task, part, total: initialTotal, targetTotal: totalTargetLoads, requirement: plan, created: productionCards.length, rowId, machineName: rowMachineName, sheets, capacity: machineCapacity })
                                                 }
                                               }}
                                               style={{
@@ -1341,7 +1425,7 @@ const ForemanWorkplace = () => {
                         const originalQty = (Number(c.quantity) || 0) + cardScrap
                         return sum + (c.actualSheets ? Number(c.actualSheets) : Math.ceil(originalQty / unitsPerSheet))
                       }, 0)
-                      
+
                       const totalSheetsMax = Math.max(plannedSheets, totalSheets)
                       const totalBZ = (totalSheetsMax * unitsPerSheet) + stockBZ - need
                       const shortage = (totalBZ - groupScrap) < 0 ? Math.abs(totalBZ - groupScrap) : 0
@@ -1629,25 +1713,25 @@ const ForemanWorkplace = () => {
                         const rNom = nomenclatures.find(n => n.id === r.nomenclature_id)
                         const rName = rNom?.name || r.details || ''
                         const lowerName = rName.toLowerCase()
-                        
+
                         const isSheet = lowerName.includes('лист') || lowerName.includes('sheet')
                         if (!isSheet) return false
-                        
+
                         const reqThickness = extractThickness(lowerName)
                         if (baseThickness && reqThickness) {
                           return baseThickness === reqThickness
                         }
-                        
+
                         const activeMaterials = baseMat.split('+').map(m => m.trim().toLowerCase())
                         return activeMaterials.some(act => lowerName.includes(act) || act.includes(lowerName))
                       })
-                      
+
                       const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
                         .reduce((sum, r) => sum + getRequestQty(r), 0)
-                        
+
                       const pending = sheetReqs.filter(r => r.status === 'pending')
                         .reduce((sum, r) => sum + getRequestQty(r), 0)
-                        
+
                       return { issuedSheets: issued, pendingSheets: pending, hasKittingReqs: sheetReqs.length > 0 }
                     }
 
@@ -1657,8 +1741,8 @@ const ForemanWorkplace = () => {
                     const remainingCount = Math.max(0, splitLoadings - generatedCount)
 
                     // Розраховуємо ліміт карт на основі виданих листів
-                    
-                    const maxAllowedToGen = hasKittingReqs 
+
+                    const maxAllowedToGen = hasKittingReqs
                       ? Math.min(remainingCount, Math.floor(Math.max(0, issuedSheets - sheetsUsedInThisSplit) / currentCapacity))
                       : remainingCount
                     const isKittingBlocked = hasKittingReqs && maxAllowedToGen <= 0
@@ -1757,19 +1841,19 @@ const ForemanWorkplace = () => {
                                   currentCapacity
                                 )
                               }}
-                              style={{ 
-                                background: isGenerating ? '#333' : (isKittingBlocked ? '#1e1b18' : '#10b981'), 
-                                color: isKittingBlocked ? '#7f1d1d' : '#fff', 
+                              style={{
+                                background: isGenerating ? '#333' : (isKittingBlocked ? '#1e1b18' : '#10b981'),
+                                color: isKittingBlocked ? '#7f1d1d' : '#fff',
                                 border: isKittingBlocked ? '1px solid rgba(239,68,68,0.2)' : 'none',
-                                padding: '10px 15px', 
-                                borderRadius: '10px', 
-                                fontSize: '0.7rem', 
-                                fontWeight: 950, 
-                                cursor: (isGenerating || isKittingBlocked) ? 'not-allowed' : 'pointer', 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                gap: '5px', 
-                                pointerEvents: (isGenerating || isKittingBlocked) ? 'none' : 'auto' 
+                                padding: '10px 15px',
+                                borderRadius: '10px',
+                                fontSize: '0.7rem',
+                                fontWeight: 950,
+                                cursor: (isGenerating || isKittingBlocked) ? 'not-allowed' : 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                pointerEvents: (isGenerating || isKittingBlocked) ? 'none' : 'auto'
                               }}
                             >
                               {isGenerating ? <Loader2 size={12} className="animate-spin" /> : <Printer size={12} />}
@@ -1942,7 +2026,19 @@ const ForemanWorkplace = () => {
         getRequestQty={getRequestQty}
       />
       {/* тФАтФАтФАтФАтФА ╨Ь╨Ю╨Ф╨Р╨Ы ╨Ч╨Т╨Ж╨в╨г ╨Я╨Ю ╨Э╨Р╨а╨п╨Ф╨г тФАтФАтФАтФАтФА */}
-      {showReportModal && (
+      <ForemanReportModal
+        showReportModal={showReportModal} setShowReportModal={setShowReportModal}
+        reportTaskId={reportTaskId} reportLoading={reportLoading} reportData={reportData}
+        reportStageFilter={reportStageFilter} setReportStageFilter={setReportStageFilter}
+        reportNomFilter={reportNomFilter} setReportNomFilter={setReportNomFilter}
+        reportSortBy={reportSortBy} setReportSortBy={setReportSortBy}
+        reportOperatorFilter={reportOperatorFilter} setReportOperatorFilter={setReportOperatorFilter}
+        reportDetailModal={reportDetailModal} setReportDetailModal={setReportDetailModal}
+        handleOpenReport={handleOpenReport} tasks={tasks} orders={orders}
+        allOrdersMap={allOrdersMap} bomItems={bomItems} nomenclatures={nomenclatures}
+        inventory={inventory} workCards={workCards} getRequestQty={getRequestQty}
+      />
+      {false && showReportModal && (
         <div style={{
           position: 'fixed',
           inset: 0,
@@ -2236,7 +2332,7 @@ const ForemanWorkplace = () => {
                   .join(', ')
               }
 
-               return (
+              return (
                 <div>
                   <div style={{ borderBottom: '1px solid #1a1a1a', paddingBottom: '20px', marginBottom: '25px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
@@ -2793,7 +2889,7 @@ const ForemanWorkplace = () => {
                                         row.stage_name === 'Розкрій' ? 'cutting' :
                                           row.stage_name === 'Галтовка' ? 'tumbling' :
                                             (row.stage_name === 'Прийомка' || row.stage_name === 'completed') ? 'reception' : 'sorting'
-                                          }`}
+                                        }`}
                                       style={{
                                         background: row.stage_name.startsWith('Буфер') ? '#a78bfa1e' : row.stage_name === 'Розкрій' ? '#3b82f61a' : row.stage_name === 'Галтовка' ? '#eab3081a' : row.stage_name === 'Прийомка' || row.stage_name === 'completed' ? '#10b9811a' : '#14b8a61a',
                                         color: row.stage_name.startsWith('Буфер') ? '#a78bfa' : row.stage_name === 'Розкрій' ? '#3b82f6' : row.stage_name === 'Галтовка' ? '#eab308' : row.stage_name === 'Прийомка' || row.stage_name === 'completed' ? '#10b981' : '#14b8a6',
@@ -3079,11 +3175,11 @@ const ForemanWorkplace = () => {
         const snapshotEntry = targetTask.plan_snapshot?.[String(changeNomMachineNomId)]
         const totalSheetsPlanned = snapshotEntry?.sheets || 0
 
-        const partCards = workCards.filter(c => 
-          c.task_id === targetTask.id && 
-          String(c.nomenclature_id) === String(changeNomMachineNomId) && 
-          !c.is_rework && 
-          c.operation !== 'Склад BZ' && 
+        const partCards = workCards.filter(c =>
+          c.task_id === targetTask.id &&
+          String(c.nomenclature_id) === String(changeNomMachineNomId) &&
+          !c.is_rework &&
+          c.operation !== 'Склад BZ' &&
           c.operation !== 'Склад БЗ'
         )
 
@@ -3134,7 +3230,7 @@ const ForemanWorkplace = () => {
               <div style={{ color: '#ef4444', fontWeight: 900, textAlign: 'center', fontSize: '0.85rem', marginBottom: '20px', wordBreak: 'break-all', background: 'rgba(239, 68, 68, 0.05)', padding: '10px', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.1)' }}>
                 {changeNomMachineName}
               </div>
-              
+
               <div style={{ background: 'rgba(59, 130, 246, 0.05)', border: '1px solid rgba(59, 130, 246, 0.15)', borderRadius: '14px', padding: '12px 16px', marginBottom: '20px', fontSize: '0.78rem', color: '#a1a1aa' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                   <span>Всього заплановано листів:</span>
@@ -3178,21 +3274,21 @@ const ForemanWorkplace = () => {
                       {cutters.map(cut => {
                         const isChecked = selectedCutterTypes[cut.id] !== false
                         return (
-                          <label 
-                            key={cut.id} 
-                            style={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              justifyContent: 'space-between', 
-                              cursor: 'pointer', 
-                              fontSize: '0.78rem', 
+                          <label
+                            key={cut.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              cursor: 'pointer',
+                              fontSize: '0.78rem',
                               color: isChecked ? '#fff' : '#666',
                               userSelect: 'none'
                             }}
                           >
                             <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <input 
-                                type="checkbox" 
+                              <input
+                                type="checkbox"
                                 checked={isChecked}
                                 onChange={() => setSelectedCutterTypes(prev => ({ ...prev, [cut.id]: !isChecked }))}
                                 style={{ cursor: 'pointer', accentColor: '#ff9000' }}

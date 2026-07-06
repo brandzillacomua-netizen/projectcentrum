@@ -123,6 +123,7 @@ export function useForemanComputed({
       const snapshot = task.plan_snapshot || {}
       const taskScrap = scrapCache[task.id] || {}
       const taskCards = allCardsCache.filter(c => c.task_id === task.id)
+
       let hasShortage = false
       Object.keys(snapshot).forEach(nomIdStr => {
         if (hasShortage) return
@@ -130,9 +131,9 @@ export function useForemanComputed({
         if (nom?.type !== 'part') return
         const snap = snapshot[nomIdStr]
         if (!snap) return
-        const need = snap.need || 0
-        const stockBZ = snap.stock || 0
-        const unitsPerSheet = snap.units_per_sheet || 1
+        const need = Number(snap.need) || 0
+        const stockBZ = Number(snap.stock) || 0
+        const unitsPerSheet = Number(snap.units_per_sheet) || Number(nom?.units_per_sheet) || 1
         const nomCards = taskCards.filter(c => String(c.nomenclature_id) === String(nomIdStr))
         const productionCards = nomCards.filter(c => c.operation !== 'Склад БЗ')
         if (nomCards.length === 0) return
@@ -141,7 +142,7 @@ export function useForemanComputed({
           const originalQty = (Number(c.quantity) || 0) + cardScrap
           return sum + (c.actualSheets ? Number(c.actualSheets) : Math.ceil(originalQty / unitsPerSheet))
         }, 0)
-        const plannedSheets = snap.sheets || 0
+        const plannedSheets = Number(snap.sheets) || 0
         const totalSheetsMax = productionCards.length > 0 ? Math.max(plannedSheets, totalSheets) : plannedSheets
         const totalBZ = (totalSheetsMax * unitsPerSheet) + stockBZ - need
         const groupScrap = taskScrap[nomIdStr] || 0
@@ -152,6 +153,7 @@ export function useForemanComputed({
     })
     return map
   }, [tasks, scrapCache, nomenclatures, allCardsCache, cardScrapCache])
+
 
   // ── relevantTasks ──────────────────────────────────────────────────
   const relevantTasks = useMemo(() => {

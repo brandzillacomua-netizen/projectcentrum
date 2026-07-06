@@ -53,9 +53,14 @@ const MACHINE_TYPES = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function Shop1Terminal() {
-  const { workCards, nomenclatures, operators, getFilteredOperators, getFilteredManagers, managers, workCardHistory, inventory, fetchData, createWorkCard, orders, bomItems, tasks, currentUser, machines, systemUsers, machineOperations, formatUserName, requests } = useMES()
+  const { workCards, setWorkCards, nomenclatures, operators, getFilteredOperators, getFilteredManagers, managers, workCardHistory, inventory, fetchData, createWorkCard, orders, bomItems, tasks, currentUser, machines, systemUsers, machineOperations, formatUserName, requests } = useMES()
 
   const [currentTime, setCurrentTime] = useState(getCurrentTime())
+  useEffect(() => {
+    fetchData(['work_cards', 'tasks']).catch(error => {
+      console.error('Failed to load Shop 1 cards:', error)
+    })
+  }, [])
   const [selectedCardId, setSelectedCardId] = useState(null)
   const prevCardIdRef = React.useRef(null)
 
@@ -303,6 +308,9 @@ export default function Shop1Terminal() {
                 return
               }
               card = freshCard
+              setWorkCards(prev => prev.some(c => c.id === freshCard.id)
+                ? prev.map(c => c.id === freshCard.id ? { ...c, ...freshCard } : c)
+                : [freshCard, ...prev])
             }
 
             // Дозволяємо картки "Нова", ті що в ланцюжку Цеху №1, або в буфері Сортування
@@ -382,7 +390,12 @@ export default function Shop1Terminal() {
                 .eq('id', id)
                 .single()
               setIsSyncing(false)
-              if (freshCard) card = freshCard
+              if (freshCard) {
+                card = freshCard
+                setWorkCards(prev => prev.some(c => c.id === freshCard.id)
+                  ? prev.map(c => c.id === freshCard.id ? { ...c, ...freshCard } : c)
+                  : [freshCard, ...prev])
+              }
             }
 
             if (card) {
