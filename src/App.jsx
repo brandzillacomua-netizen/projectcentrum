@@ -48,6 +48,7 @@ const MachinesModule = lazy(() => import('./modules/MachinesModule'))
 const SettingsModule = lazy(() => import('./modules/SettingsModule'))
 const LoginPage = lazy(() => import('./modules/LoginPage'))
 const Shop1Terminal = lazy(() => import('./modules/Shop1Terminal'))
+const Shop1ForemanModule = lazy(() => import('./modules/Shop1ForemanModule'))
 const Shop2Module = lazy(() => import('./modules/Shop2Module'))
 const Shop2Terminal = lazy(() => import('./modules/Shop2Terminal'))
 const NomenclatureV2 = lazy(() => import('./modules/NomenclatureV2'))
@@ -89,6 +90,7 @@ const getAllModules = (badgeCount = 0) => [
   { id: 'master', title: 'ЦЕХ №1 – Створення нарядів', icon: <Monitor />, path: '/master', desc: 'Управління зміною', color: '#3b82f6' },
   { id: 'foreman', title: 'ЦЕХ №1 – Створення РК', icon: <Users />, path: '/foreman', desc: 'Розподіл нарядів', color: '#f59e0b' },
   { id: 'shop1', title: 'Цех №1 · Термінал', icon: <Tablet />, path: '/shop1', desc: 'Розкрій → Галтовка → Прийомка', color: '#eab308' },
+  { id: 'shop1_foreman', title: 'Кабінет Нач. Цеху №1', icon: <Users />, path: '/shop1-foreman', desc: 'Управління персоналом, календар та верстати', color: '#ff9000' },
   { id: 'tumbling_terminal', title: 'Екран Галтовки', icon: <Tablet />, path: '/tumbling-terminal', desc: 'Дільниця галтовки', color: '#06b6d4' },
   { id: 'tumbling_dashboard', title: 'Дашборд Галтовки (TV)', icon: <LayoutDashboard />, path: '/tumbling-dashboard', desc: 'Монітор черги та комплектів', color: '#ff9000' },
   { id: 'reception_terminal', title: 'Екран Прийомки', icon: <Tablet />, path: '/reception-terminal', desc: 'Дільниця прийомки', color: '#a78bfa' },
@@ -149,6 +151,7 @@ const CATEGORY_MAP = {
   master: 'shop1',
   foreman: 'shop1',
   shop1: 'shop1',
+  shop1_foreman: 'shop1',
   prep_terminal: 'shop1',
   tumbling_terminal: 'shop1',
   tumbling_dashboard: 'shop1',
@@ -2665,6 +2668,7 @@ const AppContent = () => {
           <Route path="/operator" element={<PermissionGuard id="operator"><OperatorTerminal /></PermissionGuard>} />
           <Route path="/prep-terminal" element={<PermissionGuard id="prep_terminal"><PreparationTerminal /></PermissionGuard>} />
           <Route path="/shop1" element={<PermissionGuard id="shop1"><Shop1Terminal /></PermissionGuard>} />
+          <Route path="/shop1-foreman" element={<PermissionGuard id="shop1_foreman"><Shop1ForemanModule /></PermissionGuard>} />
           <Route path="/tumbling-terminal" element={<PermissionGuard id="tumbling_terminal"><TumblingTerminal /></PermissionGuard>} />
           <Route path="/tumbling-dashboard" element={<PermissionGuard id="tumbling_dashboard"><TumblingDashboard /></PermissionGuard>} />
           <Route path="/reception-terminal" element={<PermissionGuard id="reception_terminal"><ReceptionTerminal /></PermissionGuard>} />

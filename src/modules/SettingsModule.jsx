@@ -1980,6 +1980,7 @@ const SettingsModule = () => {
     { id: 'tumbling_dashboard', label: 'Дашборд Галтовки (TV)' },
     { id: 'reception_terminal', label: 'Екран Прийомки' },
     { id: 'sorting_terminal', label: 'Екран Сортування' },
+    { id: 'shop1_foreman', label: 'Кабінет Нач. Цеху №1' },
     { id: 'shop2', label: 'Цех №2 (Черга)' },
     { id: 'shop2_terminal', label: 'Цех №2 · Термінал' },
     { id: 'packaging', label: 'Пакування' },

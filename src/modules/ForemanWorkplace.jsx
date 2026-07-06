@@ -1063,7 +1063,7 @@ const ForemanWorkplace = () => {
                                       {plan === 0 ? (
                                         (stockBZ > 0 && existing.find(c => c.operation === 'Склад БЗ')) ? (
                                           <div style={{ background: '#3b82f620', border: '1px solid #3b82f640', color: '#3b82f6', padding: '8px 12px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 950, textTransform: 'uppercase' }}>
-                                            ЗАБРОНЬОВАНО ({stockBZ})
+                                            ЗАБРОНЬОВАНО ({Math.min(need, stockBZ)})
                                           </div>
                                         ) : (
                                           <div style={{ color: '#222', fontSize: '0.6rem', fontWeight: 900 }}>НЕ ПОТРЕБУЄ ДІЇ</div>
@@ -1072,7 +1072,7 @@ const ForemanWorkplace = () => {
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                                           {stockBZ > 0 && (
                                             <div style={{ background: '#3b82f622', border: '1px solid #3b82f644', color: '#3b82f6', padding: '6px 10px', borderRadius: '8px', fontSize: '0.6rem', fontWeight: 950, textAlign: 'center' }}>
-                                              ЗАБРОНЬОВАНО: {stockBZ} шт
+                                              ЗАБРОНЬОВАНО: {Math.min(need, stockBZ)} шт
                                             </div>
                                           )}
                                           {(productionCards.length === 0 || productionCards.length < totalTargetLoads) && (
