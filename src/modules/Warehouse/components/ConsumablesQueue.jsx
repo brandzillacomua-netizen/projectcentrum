@@ -237,7 +237,7 @@ export const ConsumablesQueue = ({
                             )}
                             {currentUser?.login === 'admin@workshop.local' && (
                               <button
-                                onClick={() => handleDeleteRequest(r.id)}
+                              onClick={() => handleDeleteRequest(r.id, r.nomenclature_id, r.task_id, reqList)}
                                 style={{ background: 'transparent', border: 'none', padding: '2px 4px', cursor: 'pointer', color: '#888', display: 'flex', alignItems: 'center', transition: '0.15s' }}
                                 title="Видалити запит"
                                 onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}

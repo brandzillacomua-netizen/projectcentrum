@@ -191,7 +191,6 @@ export function useForemanHandlers({
         .from('material_requests')
         .select('*')
         .eq('task_id', taskId)
-
       if (fetchReqsErr) throw fetchReqsErr
 
       const cutterRequests = (matReqs || []).filter(r => {
@@ -200,48 +199,67 @@ export function useForemanHandlers({
         return nom?.name?.toLowerCase()?.includes('фреза')
       })
 
-      const inventoryUpdates = []
-      for (const req of cutterRequests) {
-        if (req.inventory_id && req.status === 'issued') {
-          const { data: invItem } = await supabase
-            .from('inventory')
-            .select('*')
-            .eq('id', req.inventory_id)
-            .maybeSingle()
+      // --- Step 1: Fetch actual work cards to compute remaining sheets per part ---
+      const { data: dbCards } = await supabase
+        .from('work_cards')
+        .select('nomenclature_id, quantity, is_rework, operation')
+        .eq('task_id', taskId)
 
-          if (invItem) {
-            const newReserved = Math.max(0, (Number(invItem.reserved_qty) || 0) - Number(req.quantity))
-            inventoryUpdates.push(
-              supabase.from('inventory').update({ reserved_qty: newReserved }).eq('id', invItem.id)
-            )
-          }
+      const productionCards = (dbCards || []).filter(card => {
+        const operation = String(card.operation || '').toLowerCase()
+        return !card.is_rework && operation !== 'склад бз' && !operation.includes('склад bz')
+      })
+
+      const snapshot = { ...(task.plan_snapshot || {}) }
+      const partIds = Object.keys(snapshot).filter(k => !k.startsWith('_') && k !== 'materialSummary' && k !== 'selectedCutters' && k !== 'consumables')
+      const customCutters = snapshot.selectedCutters || {}
+
+      // Build map: partId → already-generated sheets
+      const generatedSheetsByPart = {}
+      partIds.forEach(partId => {
+        const partInfo = snapshot[partId]
+        const unitsPerSheet = Number(partInfo?.units_per_sheet) || 1
+        const cardsForPart = productionCards.filter(c => String(c.nomenclature_id) === String(partId))
+        const generated = cardsForPart.reduce((sum, c) =>
+          sum + Math.ceil((Number(c.quantity) || 0) / unitsPerSheet), 0)
+        generatedSheetsByPart[partId] = generated
+      })
+
+      // --- Step 2: Release reservations on already-issued cutter requests ---
+      const inventoryReleaseById = {}
+      for (const req of cutterRequests.filter(r => r.status === 'issued')) {
+        if (req.inventory_id) {
+          inventoryReleaseById[req.inventory_id] = (inventoryReleaseById[req.inventory_id] || 0) + (Number(req.quantity) || 0)
+        }
+      }
+      for (const [invId, releaseQty] of Object.entries(inventoryReleaseById)) {
+        const { data: invRow } = await supabase.from('inventory').select('id,reserved_qty').eq('id', invId).maybeSingle()
+        if (invRow) {
+          await supabase.from('inventory').update({ reserved_qty: Math.max(0, (Number(invRow.reserved_qty) || 0) - releaseQty) }).eq('id', invRow.id)
         }
       }
 
-      if (inventoryUpdates.length > 0) {
-        await Promise.all(inventoryUpdates)
-      }
-
+      // --- Step 3: Delete all pending/issued cutter requests for clean recalculation ---
       const cutterRequestIds = cutterRequests.map(r => r.id)
       if (cutterRequestIds.length > 0) {
-        const { error: delErr } = await supabase
-          .from('material_requests')
-          .delete()
-          .in('id', cutterRequestIds)
+        const { error: delErr } = await supabase.from('material_requests').delete().in('id', cutterRequestIds)
         if (delErr) throw delErr
       }
 
-      const snapshot = { ...(task.plan_snapshot || {}) }
+      // --- Step 4: Compute cutter needs based on REMAINING sheets only ---
       const newMachineSpecificCutters = {}
       let hasMachineSpecificCutters = false
-      const partIds = Object.keys(snapshot).filter(k => !k.startsWith('_') && k !== 'materialSummary' && k !== 'selectedCutters' && k !== 'consumables')
 
       partIds.forEach(partId => {
         const partInfo = snapshot[partId]
-        const sheetsNeeded = Number(partInfo.sheets) || 0
-        if (sheetsNeeded <= 0) return
+        const totalPlannedSheets = Number(partInfo.sheets) || 0
+        const alreadyGenerated = generatedSheetsByPart[partId] || 0
+        const remainingSheets = Math.max(0, totalPlannedSheets - alreadyGenerated)
 
+        // Update snapshot machine for the part
         partInfo.selected_machine = newMachine
+
+        if (remainingSheets <= 0) return  // nothing left to cut on new machine
 
         const opData = machineOperations?.find(o =>
           String(o.nomenclature_id) === String(partId) &&
@@ -256,7 +274,7 @@ export function useForemanHandlers({
             const qtyPerSheet = parseFloat(parts[2]) || 0
             if (cutterNomId && qtyPerSheet > 0) {
               hasMachineSpecificCutters = true
-              const totalQty = Math.ceil(sheetsNeeded * qtyPerSheet)
+              const neededQty = Math.ceil(remainingSheets * qtyPerSheet)
               let cutterNom = nomenclatures.find(n => String(n.id) === String(cutterNomId))
 
               if (cutterNom) {
@@ -264,97 +282,103 @@ export function useForemanHandlers({
                 const m1 = nl.match(/ф\s*([0-9,.]+)/)
                 const m2 = nl.match(/(?:кукурудза|двопера|однопера|спіральна|торцева|шарова|радіусна)?\s*([0-9][0-9,]*)(?:\s*[×xх×])/)
                 const d = m1 ? parseFloat(m1[1].replace(',', '.')) : (m2 ? parseFloat(m2[1].replace(',', '.')) : null)
-
-                if (partInfo.cutter_override !== '1.5' && d && Math.abs(d - 1.5) < 0.01) {
-                  return // skip
-                }
+                if (partInfo.cutter_override !== '1.5' && d && Math.abs(d - 1.5) < 0.01) return
                 if (partInfo.cutter_override === '1.5' && d && Math.abs(d - 2) < 0.01) {
                   cutterNom = { ...cutterNom, name: 'Фреза ф1.5', id: '__synthetic_f1.5__' }
                 }
               }
 
               if (cutterNom) {
-                const cleanName = cutterNom.name.trim()
-                const key = cleanName.toLowerCase()
-                if (!newMachineSpecificCutters[key]) {
-                  newMachineSpecificCutters[key] = { name: cleanName, qty: 0, nomenclature_id: cutterNom.id }
+                // Resolve generic cutter → specific inventory item from selectedCutters map
+                let resolvedNomId = cutterNom.id
+                let resolvedName = cutterNom.name.trim()
+                const genericKey = cutterNom.name.trim()
+                const customInvId = customCutters[genericKey] || customCutters[genericKey.toLowerCase()]
+                if (customInvId) {
+                  const inv = inventory.find(i => String(i.id) === String(customInvId))
+                  if (inv) {
+                    const specificNom = nomenclatures.find(n => String(n.id) === String(inv.nomenclature_id))
+                    if (specificNom) { resolvedNomId = specificNom.id; resolvedName = specificNom.name.trim() }
+                  }
                 }
-                newMachineSpecificCutters[key].qty += totalQty
+
+                const key = String(resolvedNomId)
+                if (!newMachineSpecificCutters[key]) {
+                  newMachineSpecificCutters[key] = { name: resolvedName, qty: 0, nomenclature_id: resolvedNomId }
+                }
+                newMachineSpecificCutters[key].qty += neededQty
               }
             }
           })
         }
       })
 
+      // --- Step 5: Only request deficit (needed - available free stock) ---
       const requestsToInsert = []
       const newConsumablesSnapshot = []
-
       const shouldAutoReserve = task.warehouse_conf && task.engineer_conf && task.director_conf
-      const newStatus = 'pending'
-
       const newInventoryReservations = []
 
       for (const item of Object.values(newMachineSpecificCutters)) {
         const isSynthetic = String(item.nomenclature_id).startsWith('__synthetic')
-        const invItem = isSynthetic ? null : (
-          inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id) && i.warehouse === 'operational') ||
-          inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id))
-        )
-
-        requestsToInsert.push({
-          order_id: task.order_id,
-          task_id: task.id,
-          quantity: item.qty,
-          status: newStatus,
-          inventory_id: invItem?.id || null,
-          nomenclature_id: isSynthetic ? null : item.nomenclature_id,
-          details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ${task.id}: ${item.name} — ${item.qty} од. (ПІСЛЯ ЗМІНИ ВЕРСТАТА)`
-        })
-
         newConsumablesSnapshot.push({ name: item.name, total: item.qty })
 
-        if (shouldAutoReserve && invItem) {
-          const currentReserved = Number(invItem.reserved_qty) || 0
-          newInventoryReservations.push(
-            supabase.from('inventory').update({ reserved_qty: currentReserved + item.qty }).eq('id', invItem.id)
+        const operationalStock = isSynthetic ? 0 : inventory
+          .filter(i => String(i.nomenclature_id) === String(item.nomenclature_id) && i.warehouse === 'operational')
+          .reduce((sum, i) => sum + Math.max(0, (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0)), 0)
+
+        const deficit = Math.max(0, item.qty - operationalStock)
+
+        if (deficit > 0) {
+          const invItem = isSynthetic ? null : (
+            inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id) && i.warehouse === 'operational') ||
+            inventory.find(i => String(i.nomenclature_id) === String(item.nomenclature_id))
           )
+          requestsToInsert.push({
+            order_id: task.order_id,
+            task_id: task.id,
+            quantity: deficit,
+            status: 'pending',
+            inventory_id: invItem?.id || null,
+            nomenclature_id: isSynthetic ? null : item.nomenclature_id,
+            details: `ВИТРАТНІ МАТЕРІАЛИ ДЛЯ ЗАЛИШКУ НАРЯДУ: ${item.name} — ${deficit} од. (ПІСЛЯ ЗМІНИ ВЕРСТАТА)`
+          })
+          if (shouldAutoReserve && invItem) {
+            newInventoryReservations.push(
+              supabase.from('inventory').update({ reserved_qty: (Number(invItem.reserved_qty) || 0) + deficit }).eq('id', invItem.id)
+            )
+          }
         }
       }
 
       const totalSheets = Object.values(snapshot.materialSummary || {}).reduce((acc, m) => acc + (Number(m.sheets) || 0), 0)
       if (totalSheets > 0) {
-        nomenclatures.filter(n => n.type === 'consumable' && (Number(n.consumption_per_sheet) || 0) > 0 && n.name.trim().toLowerCase() !== 'фреза' && (n.name.toLowerCase().startsWith('лист') || n.name.toLowerCase().includes('фреза'))).forEach(cons => {
-          if (hasMachineSpecificCutters && cons.name.toLowerCase().includes('фреза')) return
-          const neededQty = Math.ceil(totalSheets * Number(cons.consumption_per_sheet))
-          newConsumablesSnapshot.push({ name: cons.name.trim(), total: neededQty })
-        })
+        nomenclatures
+          .filter(n => n.type === 'consumable' && (Number(n.consumption_per_sheet) || 0) > 0 &&
+            n.name.trim().toLowerCase() !== 'фреза' &&
+            (n.name.toLowerCase().startsWith('лист') || n.name.toLowerCase().includes('фреза')))
+          .forEach(cons => {
+            if (hasMachineSpecificCutters && cons.name.toLowerCase().includes('фреза')) return
+            newConsumablesSnapshot.push({ name: cons.name.trim(), total: Math.ceil(totalSheets * Number(cons.consumption_per_sheet)) })
+          })
       }
 
       if (requestsToInsert.length > 0) {
         const { error: insErr } = await supabase.from('material_requests').insert(requestsToInsert)
         if (insErr) throw insErr
       }
+      if (newInventoryReservations.length > 0) await Promise.all(newInventoryReservations)
 
       snapshot.consumables = newConsumablesSnapshot
       const { error: taskUpdErr } = await supabase
         .from('tasks')
-        .update({
-          machine_name: newMachine,
-          plan_snapshot: snapshot
-        })
+        .update({ machine_name: newMachine, plan_snapshot: snapshot })
         .eq('id', taskId)
-
       if (taskUpdErr) throw taskUpdErr
 
-      const { error: cardsUpdErr } = await supabase
-        .from('work_cards')
-        .update({ machine: newMachine })
-        .eq('task_id', taskId)
-        .neq('status', 'completed')
+      // [PRESERVE HISTORY] Do NOT retroactively update machine on already-generated cards
 
-      if (cardsUpdErr) throw cardsUpdErr
-
-      setCustomAlert({ title: 'Верстат наряду змінено', message: '✅ Верстат наряду успішно змінено. Бронь зі старих фрез знято. Надіслано новий запит на СО для видачі нових фрез!' })
+      setCustomAlert({ title: 'Верстат наряду змінено', message: `✅ Верстат змінено. Запит на фрези відправлено лише для залишку невирізаних листів!` })
       setChangeMachineTaskId(null)
       fetchData(['tasks', 'material_requests', 'inventory', 'work_cards']).catch(() => {})
     } catch (e) {
@@ -364,6 +388,7 @@ export function useForemanHandlers({
       setIsChangingMachine(false)
     }
   }
+
 
   const handleUpdateNomenclatureMachineAndRecalculate = async (task, nomId, newMachineName, newSplits = null, cutterSelection = {}) => {
     if (!task || !nomId) return

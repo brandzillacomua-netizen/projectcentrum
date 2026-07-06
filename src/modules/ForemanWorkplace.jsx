@@ -3241,15 +3241,23 @@ const ForemanWorkplace = () => {
             return requiredDiameter === null || (optionDiameter !== null && Math.abs(optionDiameter - requiredDiameter) < 0.01)
           })
         }
-        const getSelectedCutterId = (cut) => selectedCutterTypes[String(cut.id)]
-          || existingCutterSelections[String(cut.id)]
-          || existingCutterSelections[cut.name]
-          || existingCutterSelections[cut.name.toLowerCase()]
-          || ''
+        const getSelectedCutterId = (cut) => {
+          const val = selectedCutterTypes[String(cut.id)] !== undefined
+            ? selectedCutterTypes[String(cut.id)]
+            : (existingCutterSelections[String(cut.id)]
+              || existingCutterSelections[cut.name]
+              || existingCutterSelections[cut.name.toLowerCase()]
+              || '')
+          const options = getCutterOptions(cut)
+          if (val && !options.some(opt => String(opt.id) === String(val))) {
+            return ''
+          }
+          return val
+        }
         const hasMissingCutterSelection = remainingSheets > 0 && cutters.some(cut => !getSelectedCutterId(cut))
         return (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(15px)', zIndex: 15500, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
-            <div style={{ background: '#111', width: '100%', maxWidth: '480px', borderRadius: '32px', border: '1px solid #222', padding: '40px', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(15px)', zIndex: 15500, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '10px', overflowY: 'auto' }}>
+            <div style={{ background: '#111', width: '100%', maxWidth: '480px', maxHeight: '92vh', overflowY: 'auto', borderRadius: '24px', border: '1px solid #222', padding: '25px 20px', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
               <button
                 onClick={() => {
                   setChangeNomMachineTaskId(null)
@@ -3335,6 +3343,12 @@ const ForemanWorkplace = () => {
                   </div>
                 )}
               </div>
+              
+              {hasMissingCutterSelection && (
+                <div style={{ color: '#ef4444', fontSize: '0.76rem', fontWeight: 800, textAlign: 'center', background: 'rgba(239, 68, 68, 0.05)', padding: '12px', borderRadius: '14px', border: '1px solid rgba(239, 68, 68, 0.15)', marginBottom: '15px' }}>
+                  ⚠️ Будь ласка, оберіть конкретну фрезу зі списку для всіх позицій
+                </div>
+              )}
 
               <button
                 onClick={async () => {
@@ -3347,11 +3361,17 @@ const ForemanWorkplace = () => {
                 }}
                 disabled={isChangingMachine || hasMissingCutterSelection}
                 style={{
-                  width: '100%', background: '#3b82f6', color: '#fff', padding: '18px',
-                  borderRadius: '16px', fontSize: '0.95rem', fontWeight: 950, cursor: 'pointer',
-                  border: 'none', textTransform: 'uppercase', letterSpacing: '1px',
+                  width: '100%',
+                  background: (isChangingMachine || hasMissingCutterSelection) ? '#222' : '#3b82f6',
+                  color: (isChangingMachine || hasMissingCutterSelection) ? '#555' : '#fff',
+                  padding: '18px',
+                  borderRadius: '16px', fontSize: '0.95rem', fontWeight: 950,
+                  cursor: (isChangingMachine || hasMissingCutterSelection) ? 'not-allowed' : 'pointer',
+                  border: (isChangingMachine || hasMissingCutterSelection) ? '1px solid #333' : 'none',
+                  textTransform: 'uppercase', letterSpacing: '1px',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
-                  boxShadow: '0 10px 20px -5px rgba(59, 130, 246, 0.4)'
+                  boxShadow: (isChangingMachine || hasMissingCutterSelection) ? 'none' : '0 10px 20px -5px rgba(59, 130, 246, 0.4)',
+                  opacity: (isChangingMachine || hasMissingCutterSelection) ? 0.6 : 1
                 }}
               >
                 {isChangingMachine ? <Loader2 size={16} className="animate-spin" /> : 'ПІДТВЕРДИТИ ЗМІНУ'}
@@ -3363,8 +3383,8 @@ const ForemanWorkplace = () => {
 
       {/* ───── МОДАЛЬНЕ ВІКНО ЗМІНИ ВЕРСТАТА ───── */}
       {changeMachineTaskId && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(15px)', zIndex: 15000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
-          <div style={{ background: '#111', width: '100%', maxWidth: '440px', borderRadius: '32px', border: '1px solid #222', padding: '40px', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(15px)', zIndex: 15000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '10px', overflowY: 'auto' }}>
+          <div style={{ background: '#111', width: '100%', maxWidth: '440px', maxHeight: '92vh', overflowY: 'auto', borderRadius: '24px', border: '1px solid #222', padding: '25px 20px', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
             <button
               onClick={() => setChangeMachineTaskId(null)}
               style={{ position: 'absolute', top: '25px', right: '25px', background: '#222', border: 'none', color: '#fff', cursor: 'pointer', width: '35px', height: '35px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}

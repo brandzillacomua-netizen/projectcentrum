@@ -1030,13 +1030,14 @@ export function useData() {
   // fetchCritical does NOT depend on currentUser, so start it immediately
   const lastVisibilityRefreshRef = useRef(0)
 
+
   useEffect(() => {
     fetchCritical()
 
     const handleRefresh = () => {
       const now = Date.now()
-      // Throttle refresh to once every 5 seconds maximum
-      if (now - lastVisibilityRefreshRef.current > 5000) {
+      // Throttle: minimum 30s between reloads — prevents window.confirm focus events racing with async deletes
+      if (now - lastVisibilityRefreshRef.current > 30000) {
         lastVisibilityRefreshRef.current = now
         console.log('[App Reactivation] Refreshing critical data on focus/visibility change')
         fetchCritical().catch(err => console.error(err))

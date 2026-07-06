@@ -189,14 +189,8 @@ export function useMachineAssignment(setCustomAlert) {
 
       if (taskUpdErr) throw taskUpdErr
 
-      // 7. Оновлюємо невиконані картки наряду (work_cards)
-      const { error: cardsUpdErr } = await supabase
-        .from('work_cards')
-        .update({ machine: newMachine })
-        .eq('task_id', taskId)
-        .neq('status', 'completed')
-
-      if (cardsUpdErr) throw cardsUpdErr
+      // [PRESERVE HISTORY] Do not retroactively update machine for already generated work cards.
+      // New cards will use the new machine automatically when generated.
 
       setCustomAlert({ title: 'Верстат наряду змінено', message: '✅ Верстат наряду успішно змінено. Бронь зі старих фрез знято. Надіслано новий запит на СО для видачі нових фрез!' })
       fetchData(['tasks', 'material_requests', 'inventory', 'work_cards']).catch(() => {})
@@ -240,13 +234,7 @@ export function useMachineAssignment(setCustomAlert) {
         [sId]: entry
       }
 
-      const cardMachine = newMachineName !== null ? newMachineName : (newSplits && newSplits[0]?.machine ? newSplits[0].machine : task.machine_name)
-      await supabase
-        .from('work_cards')
-        .update({ machine: cardMachine })
-        .eq('task_id', task.id)
-        .eq('nomenclature_id', nomId)
-        .neq('status', 'completed')
+      // [PRESERVE HISTORY] Do not retroactively update machine for already generated work cards.
 
       const { data: matReqs, error: fetchReqsErr } = await supabase
         .from('material_requests')

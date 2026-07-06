@@ -520,17 +520,38 @@ export const useWarehouseHandlers = ({
     }
   }
 
-  const handleDeleteRequest = async (reqId) => {
+  const handleDeleteRequest = async (reqId, nomenclatureId, taskId, allReqsInGroup) => {
     if (!window.confirm('Ви впевнені, що хочете повністю видалити цей запит з бази даних?')) return
     try {
+      // Collect ALL ids that share the same nomenclature_id + task_id (UI merges them visually but they are separate DB rows)
+      const allMatchingIds = (allReqsInGroup || [])
+        .filter(r => {
+          if (nomenclatureId) return String(r.nomenclature_id) === String(nomenclatureId) && String(r.task_id) === String(taskId)
+          return r.id === reqId
+        })
+        .map(r => r.id)
+
+      const idsToDelete = allMatchingIds.length > 0 ? allMatchingIds : [reqId]
+
+      // Release inventory reservations for any issued requests before deleting
+      const issuedToRelease = (allReqsInGroup || []).filter(r => idsToDelete.includes(r.id) && r.status === 'issued' && r.inventory_id)
+      for (const req of issuedToRelease) {
+        const { data: invRow } = await supabaseClient.from('inventory').select('id,reserved_qty').eq('id', req.inventory_id).maybeSingle()
+        if (invRow) {
+          await supabaseClient.from('inventory').update({
+            reserved_qty: Math.max(0, (Number(invRow.reserved_qty) || 0) - (Number(req.quantity) || 0))
+          }).eq('id', invRow.id)
+        }
+      }
+
       const { error } = await supabaseClient
         .from('material_requests')
         .delete()
-        .eq('id', reqId)
+        .in('id', idsToDelete)
       if (error) throw error
-      alert('Запит успішно видалено!')
+      alert(`Запит успішно видалено! (${idsToDelete.length} записів)`)
       if (typeof fetchData === 'function') {
-        fetchData(['material_requests'])
+        fetchData(['material_requests', 'inventory'])
       }
     } catch (e) {
       console.error(e)
