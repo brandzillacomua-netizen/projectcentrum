@@ -514,10 +514,14 @@ export default function Shop1ForemanModule() {
           else if (status === 'В') { bg = '#3b82f6'; color = '#fff' }
           else if (status === 'Л') { bg = '#ef4444'; color = '#fff' }
           else if (hasCheckins) {
-            // Highlight checkin if no manual status is set!
             bg = 'rgba(34, 197, 94, 0.15)'
             color = '#22c55e'
             borderStyle = '1px dashed #22c55e'
+          }
+
+          let finalBorder = borderStyle
+          if (status && hasCheckins) {
+            finalBorder = '2px dashed #22c55e'
           }
 
           return (
@@ -543,9 +547,28 @@ export default function Shop1ForemanModule() {
                 fontSize: '0.68rem',
                 fontWeight: 900,
                 margin: '0 auto',
-                border: borderStyle
-              }} title={hasCheckins ? "Зафіксовано роботу по картках!" : ""}>
+                border: finalBorder,
+                position: 'relative'
+              }} title={hasCheckins ? `Зафіксовано роботу по картках!${status ? ` (За планом: ${status})` : ''}` : ""}>
                 {status || (hasCheckins ? '✓' : day)}
+                {status && hasCheckins && (
+                  <span style={{
+                    position: 'absolute',
+                    bottom: '-4px',
+                    right: '-4px',
+                    background: '#22c55e',
+                    color: '#000',
+                    borderRadius: '50%',
+                    width: '10px',
+                    height: '10px',
+                    fontSize: '0.55rem',
+                    fontWeight: 950,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: '1px solid #000'
+                  }}>✓</span>
+                )}
               </div>
             </td>
           )
