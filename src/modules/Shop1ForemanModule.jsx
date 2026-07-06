@@ -481,8 +481,10 @@ export default function Shop1ForemanModule() {
     const start = new Date(reportStartDate + 'T00:00:00')
     const end = new Date(reportEndDate + 'T23:59:59')
 
-    // Active Cards (running / paused)
+    // Active Cards — skip only 'new' (not yet taken). at-buffer, in-progress, paused, completed all count.
     ;(workCards || []).forEach(c => {
+      if (c.status === 'new') return
+
       const startedDate = c.started_at || c.created_at
       if (startedDate) {
         const d = new Date(startedDate)
@@ -495,9 +497,9 @@ export default function Shop1ForemanModule() {
       targetGroup.active += 1
       targetGroup.activeCards.push(c)
 
-      // Sub-divide by operation step: cutting (розкрій/лазер) vs tumbling (галтовка/галтування)
-      const step = String(c.step_name || c.step || '').toLowerCase()
-      if (step.includes('галтовка') || step.includes('галтування') || step.includes('галтов')) {
+      // Sub-divide by operation: tumbling starts with 'Галтовка', everything else is cutting/розкрій
+      const op = String(c.operation || '')
+      if (op.startsWith('Галтовка')) {
         targetGroup.tumblingActive += 1
       } else {
         targetGroup.cuttingActive += 1
@@ -513,10 +515,12 @@ export default function Shop1ForemanModule() {
     // Completed Cards (history)
     ;(workCardHistory || []).forEach(h => {
       const compDate = h.completed_at || h.started_at || h.created_at
+      // Date filter: only skip if a date exists and it is outside the range
       if (compDate) {
         const d = new Date(compDate)
         if (d < start || d > end) return
       }
+      // If compDate is empty, include it (unknown completion date — we still count it)
 
       const user = (systemUsers || []).find(u => formatUserName(u) === h.operator_name)
       const shift = h.shift_name || user?.shift || 'Без зміни'
@@ -524,8 +528,9 @@ export default function Shop1ForemanModule() {
       targetGroup.completed += 1
       targetGroup.completedCards.push(h)
 
-      const step = String(h.step_name || h.step || '').toLowerCase()
-      if (step.includes('галтовка') || step.includes('галтування') || step.includes('галтов')) {
+      // stage_name is the correct field in work_card_history (not 'operation')
+      const hop = String(h.stage_name || h.operation || '')
+      if (hop.startsWith('Галтовка') || hop === 'Галтовка') {
         targetGroup.tumblingCompleted += 1
       } else {
         targetGroup.cuttingCompleted += 1
@@ -1081,34 +1086,62 @@ export default function Shop1ForemanModule() {
                     {selectedReportDetails.cards.map((card, idx) => {
                       const nom = nomenclatures?.find(n => n.id === card.nomenclature_id)
                       const dateText = new Date(card.completed_at || card.started_at || card.created_at).toLocaleString('uk-UA', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                      // Determine operation type: active cards use 'operation', history cards use 'stage_name'
+                      const opField = String(card.operation || card.stage_name || '')
+                      const isGalt = opField.startsWith('Галтовка') || opField === 'Галтовка'
+                      const opLabel = isGalt
+                        ? { label: '🌀 ГАЛТОВКА', bg: 'rgba(139,92,246,0.15)', color: '#a78bfa', border: '1px solid rgba(139,92,246,0.25)' }
+                        : { label: '✂️ РОЗКРІЙ', bg: 'rgba(34,197,94,0.1)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.2)' }
+                      // Show sub-stage if it has parentheses e.g. "Галтовка (Мийка)"
+                      const subStage = opField.match(/\(([^)]+)\)/)?.[1]
+
                       return (
                         <div key={card.id || idx} style={{
-                          background: 'rgba(255,255,255,0.01)',
-                          border: '1px solid rgba(255,255,255,0.03)',
+                          background: 'rgba(255,255,255,0.015)',
+                          border: '1px solid rgba(255,255,255,0.04)',
                           borderRadius: '16px',
-                          padding: '16px',
+                          padding: '14px 16px',
                           display: 'flex',
                           justifyContent: 'space-between',
                           alignItems: 'center',
                           gap: '15px'
                         }}>
-                          <div>
-                            <div style={{ fontWeight: 800, color: '#fff', fontSize: '0.85rem' }}>{nom?.name || 'Н Nomenclature'}</div>
-                            <div style={{ fontSize: '0.65rem', color: '#666', marginTop: '4px', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                              <span>Номер: #{card.id?.slice(-8).toUpperCase()}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px', flexWrap: 'wrap' }}>
+                              {/* Operation type badge */}
+                              <span style={{
+                                background: opLabel.bg,
+                                color: opLabel.color,
+                                border: opLabel.border,
+                                borderRadius: '6px',
+                                padding: '2px 8px',
+                                fontSize: '0.58rem',
+                                fontWeight: 900,
+                                letterSpacing: '0.05em',
+                                flexShrink: 0
+                              }}>
+                                {opLabel.label}
+                                {subStage && <span style={{ opacity: 0.7, marginLeft: '4px' }}>({subStage})</span>}
+                              </span>
+                              <span style={{ fontWeight: 800, color: '#fff', fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {nom?.name || '—'}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '0.63rem', color: '#555', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                              <span>#{card.id?.slice(-8).toUpperCase()}</span>
                               <span>•</span>
-                              <span>Оператор: <strong>{card.operator_name || 'Не вказано'}</strong></span>
-                              {card.machine && card.machine !== 'Не вказано' && (
+                              <span>Оператор: <strong style={{ color: '#777' }}>{card.operator_name || 'Не вказано'}</strong></span>
+                              {(card.machine || card.machine_name) && (card.machine || card.machine_name) !== 'Не вказано' && (
                                 <>
                                   <span>•</span>
-                                  <span>Верстат: {card.machine}</span>
+                                  <span style={{ color: '#555' }}>{card.machine || card.machine_name}</span>
                                 </>
                               )}
                             </div>
                           </div>
                           
                           <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                            <div style={{ fontWeight: 950, fontSize: '0.9rem', color: '#eab308' }}>{card.quantity || 0} шт</div>
+                            <div style={{ fontWeight: 950, fontSize: '0.9rem', color: '#eab308' }}>{card.quantity || card.qty_completed || 0} шт</div>
                             <div style={{ fontSize: '0.62rem', color: '#444', marginTop: '2px', fontWeight: 700 }}>{dateText}</div>
                           </div>
                         </div>
