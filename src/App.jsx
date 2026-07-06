@@ -120,8 +120,8 @@ const getAllModules = (badgeCount = 0) => [
 
   // 5. Технічні дані та Конфігурація
   { id: 'engineer', title: 'Інженер', icon: <FileCodeIcon />, path: '/engineer', desc: 'CNC та специфікації', color: '#8b5cf6' },
-  { id: 'nomenclature_v2', title: 'Номенклатура', icon: <Menu />, path: '/nomenclature-v2', desc: 'Управління каталогом', color: '#8b5cf6' },
-  { id: 'nomenclature', title: 'База', icon: <Settings />, path: '/nomenclature', desc: 'Номенклатура', color: '#6366f1' },
+  { id: 'nomenclature', title: 'База', icon: <Settings />, path: '/nomenclature', desc: 'Основна робоча номенклатура', color: '#6366f1' },
+  { id: 'nomenclature_v2', title: 'Номенклатура LAB', icon: <Menu />, path: '/nomenclature-v2', desc: 'Експериментальний каталог — лише перегляд', color: '#8b5cf6' },
   { id: 'machines', title: 'Станки', icon: <Cpu />, path: '/machines', desc: 'Обладнання', color: '#f97316' },
   { id: 'settings', title: 'Система', icon: <Settings />, path: '/settings', desc: 'Конфігурація', color: '#444' },
   { id: 'access', title: 'Система Доступу', icon: <ShieldCheck />, path: '/access', desc: 'Контроль проходів (Fortnet)', color: '#ff9000' },

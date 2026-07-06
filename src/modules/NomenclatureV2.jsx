@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   ArrowLeft, 
   Menu, 
@@ -26,6 +26,28 @@ import { Link } from 'react-router-dom';
 import { nomenclatureService } from '../services/nomenclatureService';
 import { useMES } from '../MESContext';
 import { supabase } from '../supabase';
+
+// Поки модуль розробляється, єдиним робочим джерелом змін лишається «БАЗА».
+// Зняття цього прапорця потребує окремої перевірки сумісності зі складом,
+// виробництвом, BOM, закупівлями та звітами.
+const EXPERIMENTAL_READ_ONLY = true;
+
+const LEGACY_CLASS_LABELS = {
+  raw: 'Сировина',
+  material: 'Сировина',
+  hardware: 'Метизи',
+  part: 'Деталі',
+  tool: 'Інструмент',
+  product: 'Вироби (сумісність)',
+  assembly: 'Вироби (сумісність)'
+};
+
+const inferLegacyClass = (item) => {
+  const type = String(item.type || '').toLowerCase();
+  const name = String(item.name || '').toLowerCase();
+  if (type === 'consumable' && (name.includes('фрез') || name.includes('свердл'))) return 'Інструмент';
+  return LEGACY_CLASS_LABELS[type] || 'Потребує визначення';
+};
 
 const GroupItem = ({ group, allGroups, depth = 0 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -79,7 +101,10 @@ const NomenclatureV2 = () => {
   
   const [groups, setGroups] = useState([]);
   const [types, setTypes] = useState([]);
-  const [items, setItems] = useState([]);
+  const [allItems, setAllItems] = useState([]);
+  const [classFilter, setClassFilter] = useState('all');
+  const [groupFilter, setGroupFilter] = useState('all');
+  const [migrationFilter, setMigrationFilter] = useState('all');
   
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
@@ -101,14 +126,42 @@ const NomenclatureV2 = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [g, t, i] = await Promise.all([
-        nomenclatureService.getGroups(),
-        nomenclatureService.getTypes(),
-        nomenclatureService.getNomenclature()
+      const [groupsResult, classesResult, unitsResult, profilesResult, itemsResult] = await Promise.all([
+        supabase.from('nomenclature_catalog_groups').select('*').order('sort_order').order('name'),
+        supabase.from('nomenclature_classes').select('*').order('sort_order').order('name'),
+        supabase.from('nomenclature_units').select('*'),
+        supabase.from('nomenclature_catalog_profiles').select('*'),
+        supabase.from('nomenclatures').select('*').limit(2000)
       ]);
-      setGroups(g.items || g || []);
-      setTypes(t.items || t || []);
-      setItems(i.items || i || []);
+
+      const firstError = [groupsResult, classesResult, unitsResult, profilesResult, itemsResult].find(result => result.error)?.error;
+      if (firstError) throw firstError;
+
+      const catalogGroups = groupsResult.data || [];
+      const classes = classesResult.data || [];
+      const units = unitsResult.data || [];
+      const profilesByNomId = new Map((profilesResult.data || []).map(profile => [String(profile.nomenclature_id), profile]));
+      const groupsById = new Map(catalogGroups.map(group => [String(group.id), group]));
+      const classesById = new Map(classes.map(itemClass => [String(itemClass.id), itemClass]));
+      const unitsById = new Map(units.map(unit => [String(unit.id), unit]));
+
+      const catalogItems = (itemsResult.data || []).map(item => {
+        const profile = profilesByNomId.get(String(item.id));
+        return {
+          ...item,
+          catalog_profile: profile || null,
+          catalog_group: profile?.group_id ? groupsById.get(String(profile.group_id)) : null,
+          catalog_class: profile?.class_id ? classesById.get(String(profile.class_id)) : null,
+          catalog_unit: profile?.base_unit_id ? unitsById.get(String(profile.base_unit_id)) : null
+        };
+      });
+
+      setGroups(catalogGroups);
+      setTypes(classes.map(itemClass => ({
+        ...itemClass,
+        description: itemClass.is_produced ? 'Виробляється у системі' : 'Обліковується як ресурс'
+      })));
+      setAllItems(catalogItems);
     } catch (err) {
       console.error('Failed to load data:', err);
     } finally {
@@ -171,16 +224,36 @@ const NomenclatureV2 = () => {
   const handleSearch = async (e) => {
     const q = e.target.value;
     setSearchQuery(q);
-    if (q.length > 2) {
-      try {
-        const results = await nomenclatureService.searchNomenclature(q);
-        setItems(results.items || results || []);
-      } catch (err) {
-        console.error('Search failed:', err);
-      }
-    } else if (q.length === 0) {
-      loadData();
-    }
+  };
+
+  const visibleItems = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLocaleLowerCase('uk');
+    return allItems.filter(item => {
+      const matchesSearch = !normalizedQuery || [
+        item.name,
+        item.base_code,
+        item.catalog_profile?.catalog_code,
+        item.catalog_class?.name,
+        item.catalog_group?.name
+      ].some(value => String(value || '').toLocaleLowerCase('uk').includes(normalizedQuery));
+      const matchesClass = classFilter === 'all' || String(item.catalog_class?.id || '') === classFilter;
+      const matchesGroup = groupFilter === 'all' || String(item.catalog_group?.id || '') === groupFilter;
+      const migrationState = item.catalog_profile?.migration_state || 'unclassified';
+      const matchesMigration = migrationFilter === 'all' || migrationState === migrationFilter;
+      return matchesSearch && matchesClass && matchesGroup && matchesMigration;
+    });
+  }, [allItems, searchQuery, classFilter, groupFilter, migrationFilter]);
+
+  const availableFilterGroups = useMemo(() => {
+    if (classFilter === 'all') return groups;
+    return groups.filter(group => String(group.class_id || '') === classFilter);
+  }, [groups, classFilter]);
+
+  const resetRegistryFilters = () => {
+    setSearchQuery('');
+    setClassFilter('all');
+    setGroupFilter('all');
+    setMigrationFilter('all');
   };
 
   const parseSpecCSV = (text) => {
@@ -532,7 +605,7 @@ const NomenclatureV2 = () => {
           </div>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button 
+          {!EXPERIMENTAL_READ_ONLY && <button
              onClick={() => {
                if (activeTab === 'registry') setIsItemModalOpen(true);
                if (activeTab === 'groups') setIsGroupModalOpen(true);
@@ -541,7 +614,7 @@ const NomenclatureV2 = () => {
              style={{ background: '#ff9000', color: '#000', border: 'none', borderRadius: '12px', padding: '10px 18px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem' }}
           >
             <Plus size={16} /> <span className="hide-mobile">СТВОРИТИ</span>
-          </button>
+          </button>}
         </div>
       </nav>
 
@@ -568,12 +641,12 @@ const NomenclatureV2 = () => {
               >
                 <Type size={20} /> Типи номенклатури
               </button>
-              <button 
+              {!EXPERIMENTAL_READ_ONLY && <button
                 onClick={() => setActiveTab('import')}
                 style={{ background: activeTab === 'import' ? 'rgba(255,144,0,0.1)' : 'transparent', color: activeTab === 'import' ? '#ff9000' : '#555', border: 'none', borderRadius: '12px', padding: '15px', textAlign: 'left', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: '0.3s' }}
               >
                 <FileUp size={20} /> Імпорт CSV (Sync)
-              </button>
+              </button>}
             </div>
           </div>
           <div style={{ padding: '20px', borderTop: '1px solid #1a1a1a' }}>
@@ -583,12 +656,17 @@ const NomenclatureV2 = () => {
 
         {/* Main Area */}
         <main style={{ flex: 1, padding: '30px', overflowY: 'auto', background: '#050505' }}>
+           {EXPERIMENTAL_READ_ONLY && (
+             <div style={{ marginBottom: '20px', padding: '14px 18px', borderRadius: '14px', border: '1px solid #8b5cf655', background: '#8b5cf612', color: '#c4b5fd', fontSize: '0.82rem', fontWeight: 700, lineHeight: 1.5 }}>
+               Експериментальний модуль. Дані показуються для перевірки майбутньої структури, але робоче створення та редагування номенклатури виконується у модулі «БАЗА».
+             </div>
+           )}
            {/* Mobile Tabs */}
            <div className="mobile-only" style={{ display: 'flex', gap: '10px', marginBottom: '25px', overflowX: 'auto' }}>
               <button onClick={() => setActiveTab('registry')} style={{ flex: 1, background: activeTab === 'registry' ? '#ff9000' : '#111', color: activeTab === 'registry' ? '#000' : '#555', border: 'none', borderRadius: '10px', padding: '10px', fontSize: '0.7rem', fontWeight: 900 }}>РЕЄСТР</button>
               <button onClick={() => setActiveTab('groups')} style={{ flex: 1, background: activeTab === 'groups' ? '#ff9000' : '#111', color: activeTab === 'groups' ? '#000' : '#555', border: 'none', borderRadius: '10px', padding: '10px', fontSize: '0.7rem', fontWeight: 900 }}>ГРУПИ</button>
               <button onClick={() => setActiveTab('types')} style={{ flex: 1, background: activeTab === 'types' ? '#ff9000' : '#111', color: activeTab === 'types' ? '#000' : '#555', border: 'none', borderRadius: '10px', padding: '10px', fontSize: '0.7rem', fontWeight: 900 }}>ТИПИ</button>
-              <button onClick={() => setActiveTab('import')} style={{ flex: 1, background: activeTab === 'import' ? '#ff9000' : '#111', color: activeTab === 'import' ? '#000' : '#555', border: 'none', borderRadius: '10px', padding: '10px', fontSize: '0.7rem', fontWeight: 900 }}>CSV</button>
+              {!EXPERIMENTAL_READ_ONLY && <button onClick={() => setActiveTab('import')} style={{ flex: 1, background: activeTab === 'import' ? '#ff9000' : '#111', color: activeTab === 'import' ? '#000' : '#555', border: 'none', borderRadius: '10px', padding: '10px', fontSize: '0.7rem', fontWeight: 900 }}>CSV</button>}
            </div>
 
            {activeTab === 'registry' && (
@@ -607,34 +685,59 @@ const NomenclatureV2 = () => {
                    </div>
                 </div>
 
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '12px', alignItems: 'center', marginBottom: '18px' }}>
+                  <select value={classFilter} onChange={e => { setClassFilter(e.target.value); setGroupFilter('all'); }} style={{ background: '#111', border: '1px solid #222', borderRadius: '12px', padding: '11px 14px', color: '#ccc', fontWeight: 700 }}>
+                    <option value="all">Усі класи</option>
+                    {types.map(type => <option key={type.id} value={type.id}>{type.name}</option>)}
+                  </select>
+                  <select value={groupFilter} onChange={e => setGroupFilter(e.target.value)} style={{ background: '#111', border: '1px solid #222', borderRadius: '12px', padding: '11px 14px', color: '#ccc', fontWeight: 700 }}>
+                    <option value="all">Усі групи</option>
+                    {availableFilterGroups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}
+                  </select>
+                  <select value={migrationFilter} onChange={e => setMigrationFilter(e.target.value)} style={{ background: '#111', border: '1px solid #222', borderRadius: '12px', padding: '11px 14px', color: '#ccc', fontWeight: 700 }}>
+                    <option value="all">Усі стани</option>
+                    <option value="unclassified">Не розібрано</option>
+                    <option value="suggested">Автокласифіковано</option>
+                    <option value="verified">Перевірено</option>
+                    <option value="conflict">Конфлікт</option>
+                  </select>
+                  <button onClick={resetRegistryFilters} style={{ background: '#171717', border: '1px solid #292929', borderRadius: '12px', padding: '11px 16px', color: '#888', fontWeight: 800, cursor: 'pointer' }}>СКИНУТИ</button>
+                </div>
+
+                <div style={{ marginBottom: '12px', color: '#555', fontSize: '0.75rem', fontWeight: 800 }}>
+                  Показано {visibleItems.length} із {allItems.length} позицій
+                </div>
+
                 <div className="table-container glass-panel" style={{ background: '#0a0a0a', borderRadius: '24px', border: '1px solid #1a1a1a', overflow: 'hidden' }}>
                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                          <tr style={{ background: '#111', borderBottom: '1px solid #1a1a1a' }}>
                             <th style={{ padding: '18px 25px', textAlign: 'left', fontSize: '0.75rem', color: '#444', textTransform: 'uppercase', fontWeight: 900 }}>Код</th>
                             <th style={{ padding: '18px 25px', textAlign: 'left', fontSize: '0.75rem', color: '#444', textTransform: 'uppercase', fontWeight: 900 }}>Назва</th>
+                            <th style={{ padding: '18px 25px', textAlign: 'left', fontSize: '0.75rem', color: '#444', textTransform: 'uppercase', fontWeight: 900 }}>Клас</th>
                             <th style={{ padding: '18px 25px', textAlign: 'left', fontSize: '0.75rem', color: '#444', textTransform: 'uppercase', fontWeight: 900 }}>Група</th>
                             <th style={{ padding: '18px 25px', textAlign: 'left', fontSize: '0.75rem', color: '#444', textTransform: 'uppercase', fontWeight: 900 }}>Од. вим.</th>
-                            <th style={{ padding: '18px 25px', textAlign: 'center', fontSize: '0.75rem', color: '#444', textTransform: 'uppercase', fontWeight: 900 }}>Дії</th>
+                            <th style={{ padding: '18px 25px', textAlign: 'center', fontSize: '0.75rem', color: '#444', textTransform: 'uppercase', fontWeight: 900 }}>Міграція</th>
                          </tr>
                       </thead>
                       <tbody>
-                         {items.length === 0 ? (
+                         {visibleItems.length === 0 ? (
                            <tr>
-                              <td colSpan="5" style={{ padding: '50px', textAlign: 'center', color: '#333', fontSize: '0.9rem' }}>
+                              <td colSpan="6" style={{ padding: '50px', textAlign: 'center', color: '#333', fontSize: '0.9rem' }}>
                                  {loading ? 'Завантаження...' : 'Порожньо'}
                               </td>
                            </tr>
-                         ) : items.map(item => {
+                         ) : visibleItems.map(item => {
                            const isActive = item.status !== 'inactive'; // Assuming there's a status field
                            return (
                              <tr key={item.id} style={{ borderBottom: '1px solid #111', transition: '0.2s', opacity: isActive ? 1 : 0.4 }} className="table-row-hover">
                                 <td style={{ padding: '18px 25px', fontWeight: 700, color: isActive ? '#ff9000' : '#444' }}>{item.base_code || item.id.substring(0,8)}</td>
                                 <td style={{ padding: '18px 25px', fontWeight: 800 }}>{item.name}</td>
-                                <td style={{ padding: '18px 25px', color: '#666' }}>{groups.find(g => g.id === item.group_id)?.name || '—'}</td>
-                                <td style={{ padding: '18px 25px', color: '#888' }}>{item.unit || 'шт'}</td>
+                                <td style={{ padding: '18px 25px', color: item.catalog_class ? '#c4b5fd' : '#eab308', fontWeight: 800 }}>{item.catalog_class?.name || inferLegacyClass(item)}</td>
+                                <td style={{ padding: '18px 25px', color: '#666' }}>{item.catalog_group?.name || '—'}</td>
+                                <td style={{ padding: '18px 25px', color: '#888' }}>{item.catalog_unit?.symbol || item.unit || 'шт'}</td>
                                 <td style={{ padding: '18px 25px', textAlign: 'center' }}>
-                                   <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
+                                   {!EXPERIMENTAL_READ_ONLY && <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
                                       <button 
                                          onClick={() => {
                                            const action = isActive ? nomenclatureService.deactivate(item.id) : nomenclatureService.activate(item.id);
@@ -670,7 +773,18 @@ const NomenclatureV2 = () => {
                                       >
                                          <Trash2 size={18} />
                                       </button>
-                                   </div>
+                                   </div>}
+                                   {EXPERIMENTAL_READ_ONLY && (
+                                     <span style={{ color: item.catalog_profile?.migration_state === 'verified' ? '#22c55e' : item.catalog_profile?.migration_state === 'conflict' ? '#ef4444' : item.catalog_profile ? '#3b82f6' : '#eab308', fontSize: '0.68rem', fontWeight: 900 }}>
+                                       {item.catalog_profile?.migration_state === 'verified'
+                                         ? 'ПЕРЕВІРЕНО'
+                                         : item.catalog_profile?.migration_state === 'conflict'
+                                           ? 'ПОТРЕБУЄ ПЕРЕВІРКИ'
+                                           : item.catalog_profile
+                                             ? 'АВТОКЛАСИФІКОВАНО'
+                                             : 'НЕ РОЗІБРАНО'}
+                                     </span>
+                                   )}
                                 </td>
                              </tr>
                            );
@@ -685,9 +799,9 @@ const NomenclatureV2 = () => {
              <div className="view-groups" style={{ animation: 'fadeIn 0.5s' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
                    <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 900 }}>Групи номенклатури</h2>
-                   <button onClick={() => setIsGroupModalOpen(true)} style={{ background: 'rgba(255,144,0,0.1)', color: '#ff9000', border: '1px solid #ff900033', borderRadius: '10px', padding: '8px 15px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                   {!EXPERIMENTAL_READ_ONLY && <button onClick={() => setIsGroupModalOpen(true)} style={{ background: 'rgba(255,144,0,0.1)', color: '#ff9000', border: '1px solid #ff900033', borderRadius: '10px', padding: '8px 15px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <FolderPlus size={16} /> ДОДАТИ ГРУПУ
-                   </button>
+                   </button>}
                 </div>
 
                 <div className="groups-tree-container glass-panel" style={{ background: '#0a0a0a', padding: '30px', borderRadius: '24px', border: '1px solid #1a1a1a' }}>
@@ -712,7 +826,7 @@ const NomenclatureV2 = () => {
                      <div key={type.id} className="glass-panel" style={{ background: '#0a0a0a', padding: '20px', borderRadius: '18px', border: '1px solid #1a1a1a' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                            <span style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6', padding: '4px 10px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase' }}>{type.name}</span>
-                           <button onClick={() => nomenclatureService.deleteType(type.id).then(loadData)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}><Trash2 size={16} /></button>
+                           {!EXPERIMENTAL_READ_ONLY && <button onClick={() => nomenclatureService.deleteType(type.id).then(loadData)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}><Trash2 size={16} /></button>}
                         </div>
                         <p style={{ margin: 0, fontSize: '0.85rem', color: '#666' }}>{type.description || 'Опис відсутній'}</p>
                      </div>

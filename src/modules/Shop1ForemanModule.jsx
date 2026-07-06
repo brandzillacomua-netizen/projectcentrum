@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -140,6 +140,42 @@ export default function Shop1ForemanModule() {
   const [nariadStageFilter, setNariadStageFilter] = useState('All')
   const [nariadNomFilter, setNariadNomFilter] = useState('All')
   const [nariadSortBy, setNariadSortBy] = useState('date')
+  const [nariadDetailModal, setNariadDetailModal] = useState(null)
+  const [nariadCatalog, setNariadCatalog] = useState([])
+  const [nariadCatalogLoading, setNariadCatalogLoading] = useState(false)
+  const [nariadCatalogTotal, setNariadCatalogTotal] = useState(0)
+  const [nariadCatalogPage, setNariadCatalogPage] = useState(0)
+  const nariadReportCache = useRef(new Map())
+
+  // The archive is intentionally loaded independently from the global MES state.
+  // Only 50 lightweight rows are transferred; report details are fetched on demand.
+  useEffect(() => {
+    if (activeTab !== 'nariad_reports') return
+    const timer = setTimeout(async () => {
+      setNariadCatalogLoading(true)
+      try {
+        const { data, error } = await supabase.rpc('shop1_naryad_catalog', {
+          p_search: nariadSearch.trim() || null,
+          p_limit: 50,
+          p_offset: nariadCatalogPage * 50
+        })
+        if (error) throw error
+        const rows = data || []
+        setNariadCatalog(rows)
+        setNariadCatalogTotal(Number(rows[0]?.total_count) || rows.length)
+      } catch (error) {
+        // Safe compatibility path while the accompanying migration is being deployed.
+        console.warn('Naryad catalog RPC unavailable, using the locally loaded window', error)
+        setNariadCatalog([])
+        setNariadCatalogTotal(0)
+      } finally {
+        setNariadCatalogLoading(false)
+      }
+    }, nariadSearch ? 300 : 0)
+    return () => clearTimeout(timer)
+  }, [activeTab, nariadSearch, nariadCatalogPage, supabase])
+
+  useEffect(() => { setNariadCatalogPage(0) }, [nariadSearch])
 
   const handleQuickDateSelect = (val) => {
     if (!val) return;
@@ -1173,7 +1209,7 @@ export default function Shop1ForemanModule() {
         {/* 1.5 NARIAD REPORTS TAB */}
         {activeTab === 'nariad_reports' && (() => {
           // ── Load report for a selected task ────────────────────────────────
-          const handleOpenNariadReport = async (task) => {
+          const handleOpenNariadReport = async (task, force = false) => {
             if (nariadReportLoading) return
             setSelectedNariadTaskId(task.id)
             setNariadReportData(null)
@@ -1182,15 +1218,60 @@ export default function Shop1ForemanModule() {
             setNariadSortBy('date')
             setNariadReportLoading(true)
             try {
+              const cached = nariadReportCache.current.get(task.id)
+              if (!force && cached && Date.now() - cached.savedAt < 5 * 60 * 1000) {
+                setNariadReportData(cached.data)
+                return
+              }
+
+              const { data: rpcData, error: rpcError } = await supabase.rpc('shop1_naryad_report', {
+                p_task_id: task.id
+              })
+              if (!rpcError && rpcData) {
+                let orderItems = rpcData.orderItems || rpcData.order_items || []
+                // Compatibility with an older deployed RPC: fetch only the finished
+                // product rows for this order instead of falling back to BOM details.
+                if (orderItems.length === 0 && task.order_id) {
+                  const { data: dbOrderItems } = await supabase
+                    .from('order_items')
+                    .select('nomenclature_id, quantity, nomenclature:nomenclatures(id, name)')
+                    .eq('order_id', task.order_id)
+                  orderItems = (dbOrderItems || []).map(item => ({
+                    nomenclature_id: item.nomenclature_id,
+                    quantity: item.quantity,
+                    name: item.nomenclature?.name || null
+                  }))
+                }
+                const normalized = {
+                  historyRows: rpcData.historyRows || rpcData.history_rows || [],
+                  taskCards: rpcData.taskCards || rpcData.task_cards || [],
+                  materialRequests: rpcData.materialRequests || rpcData.material_requests || [],
+                  planSnapshot: rpcData.planSnapshot || rpcData.plan_snapshot || null,
+                  orderItems,
+                  taskCount: Number(rpcData.taskCount || rpcData.task_count) || 1
+                }
+                nariadReportCache.current.set(task.id, { data: normalized, savedAt: Date.now() })
+                setNariadReportData(normalized)
+                return
+              }
+
               const { data: matReqs } = await supabase
                 .from('material_requests')
                 .select('*, nomenclature:nomenclatures(*)')
                 .eq('task_id', task.id)
 
+              const { data: dbOrderItems } = task.order_id
+                ? await supabase
+                    .from('order_items')
+                    .select('nomenclature_id, quantity, nomenclature:nomenclatures(id, name)')
+                    .eq('order_id', task.order_id)
+                : { data: [] }
+
               const { data: dbCards } = await supabase
                 .from('work_cards')
-                .select('id')
+                .select('id, created_at, card_info')
                 .eq('task_id', task.id)
+                .order('created_at', { ascending: true })
                 .limit(10000)
 
               const allCardIds = [...new Set((dbCards || []).map(c => c.id))]
@@ -1202,7 +1283,14 @@ export default function Shop1ForemanModule() {
                 if (histChunk) historyRows = historyRows.concat(histChunk)
               }
               historyRows.sort((a, b) => new Date(a.completed_at || 0) - new Date(b.completed_at || 0))
-              setNariadReportData({ historyRows, taskCards: dbCards || [], materialRequests: matReqs || [] })
+              const fallbackData = {
+                historyRows,
+                taskCards: (dbCards || []).map((card, index) => ({ ...card, card_number: index + 1 })),
+                materialRequests: matReqs || [],
+                orderItems: (dbOrderItems || []).map(item => ({ nomenclature_id: item.nomenclature_id, quantity: item.quantity, name: item.nomenclature?.name || null }))
+              }
+              nariadReportCache.current.set(task.id, { data: fallbackData, savedAt: Date.now() })
+              setNariadReportData(fallbackData)
             } catch (e) {
               console.error(e)
               alert('Помилка завантаження звіту: ' + e.message)
@@ -1215,9 +1303,11 @@ export default function Shop1ForemanModule() {
           const allOrdersMap = {}
           ;(orders || []).forEach(o => { allOrdersMap[o.id] = o })
 
-          const filteredTasks = (tasks || [])
+          const localFilteredTasks = (tasks || [])
             .filter(t => {
               const order = allOrdersMap[t.order_id]
+              // Never turn an orphan task UUID suffix into a visible naryad number.
+              if (!order?.order_num) return false
               const orderNum = order?.order_num || ''
               const customer = order?.customer || ''
               const q = nariadSearch.toLowerCase().trim()
@@ -1230,12 +1320,21 @@ export default function Shop1ForemanModule() {
             })
             .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
 
-          const selectedTask = (tasks || []).find(t => t.id === selectedNariadTaskId)
-          const selectedOrder = selectedTask ? allOrdersMap[selectedTask.order_id] : null
+          const filteredTasks = nariadCatalog.length > 0
+            ? nariadCatalog.filter(row => row.order_num).map(row => ({
+                ...row,
+                id: row.task_id,
+                plan_snapshot: row.plan_snapshot || null,
+                _catalogOrder: { id: row.order_id, order_num: row.order_num, customer: row.customer, order_items: [] }
+              }))
+            : localFilteredTasks
+
+          const selectedTask = filteredTasks.find(t => t.id === selectedNariadTaskId) || (tasks || []).find(t => t.id === selectedNariadTaskId)
+          const selectedOrder = selectedTask ? (selectedTask._catalogOrder || allOrdersMap[selectedTask.order_id]) : null
 
           // ── Helpers for inline report ───────────────────────────────────────
           const formatDurHMS = (totalSec) => {
-            if (!totalSec || totalSec < 0) return '—'
+            if (totalSec === null || totalSec === undefined || totalSec < 0) return '—'
             const h = Math.floor(totalSec / 3600)
             const m = Math.floor((totalSec % 3600) / 60)
             const s = Math.floor(totalSec % 60)
@@ -1273,18 +1372,18 @@ export default function Shop1ForemanModule() {
 
                 {/* Task count */}
                 <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800, paddingLeft: '4px' }}>
-                  {filteredTasks.length} нарядів
+                  {nariadCatalogLoading ? 'Завантаження…' : `${nariadCatalogTotal || filteredTasks.length} нарядів`}
                 </div>
 
                 {/* Task list */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', maxHeight: '78vh', paddingRight: '4px' }}>
                   {filteredTasks.map(task => {
-                    const order = allOrdersMap[task.order_id]
+                    const order = task._catalogOrder || allOrdersMap[task.order_id]
                     const sm = statusMeta(task.status)
                     const isSelected = task.id === selectedNariadTaskId
                     const partCount = task.plan_snapshot
                       ? Object.keys(task.plan_snapshot).filter(k => !k.startsWith('_') && !['materialSummary','arrivals','arrival_doc_id','arrival_doc','nomenclatures','selectedCutters','consumables'].includes(k)).length
-                      : 0
+                      : Number(task.card_count) || 0
                     const createdDate = task.created_at ? new Date(task.created_at).toLocaleDateString('uk-UA', { day:'2-digit', month:'2-digit', year:'2-digit' }) : '—'
 
                     return (
@@ -1307,7 +1406,7 @@ export default function Shop1ForemanModule() {
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
                           <div style={{ fontWeight: 900, fontSize: '0.85rem', color: isSelected ? '#eab308' : '#fff' }}>
-                            Наряд №{order?.order_num || task.id?.slice(-6).toUpperCase()}
+                            Наряд №{order?.order_num}
                             {task.batch_index ? `/${task.batch_index}` : ''}
                           </div>
                           <span style={{ background: sm.bg, color: sm.color, fontSize: '0.58rem', fontWeight: 900, padding: '2px 7px', borderRadius: '5px', flexShrink: 0 }}>
@@ -1320,6 +1419,7 @@ export default function Shop1ForemanModule() {
                         <div style={{ display: 'flex', gap: '10px', fontSize: '0.62rem', color: '#444', fontWeight: 700, marginTop: '2px' }}>
                           <span>📅 {createdDate}</span>
                           {partCount > 0 && <span>📦 {partCount} деталей</span>}
+                          {Number(task.task_count) > 1 && <span style={{ color: '#8b5cf6' }}>⛓ Цех 1 + Цех 2</span>}
                         </div>
                       </div>
                     )
@@ -1327,6 +1427,13 @@ export default function Shop1ForemanModule() {
                   {filteredTasks.length === 0 && (
                     <div style={{ color: '#555', fontSize: '0.78rem', textAlign: 'center', padding: '30px 0', fontWeight: 700 }}>
                       Нарядів не знайдено
+                    </div>
+                  )}
+                  {nariadCatalogTotal > 50 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', paddingTop: '4px' }}>
+                      <button disabled={nariadCatalogPage === 0 || nariadCatalogLoading} onClick={() => setNariadCatalogPage(p => Math.max(0, p - 1))} style={{ background: '#111', border: '1px solid #222', color: '#aaa', borderRadius: '8px', padding: '7px 10px', cursor: 'pointer', fontWeight: 800 }}>←</button>
+                      <span style={{ color: '#555', fontSize: '0.65rem', fontWeight: 800 }}>{nariadCatalogPage + 1} / {Math.ceil(nariadCatalogTotal / 50)}</span>
+                      <button disabled={(nariadCatalogPage + 1) * 50 >= nariadCatalogTotal || nariadCatalogLoading} onClick={() => setNariadCatalogPage(p => p + 1)} style={{ background: '#111', border: '1px solid #222', color: '#aaa', borderRadius: '8px', padding: '7px 10px', cursor: 'pointer', fontWeight: 800 }}>→</button>
                     </div>
                   )}
                 </div>
@@ -1351,7 +1458,7 @@ export default function Shop1ForemanModule() {
 
                 {selectedTask && nariadReportData && !nariadReportLoading && (() => {
                   const rd = nariadReportData
-                  const snapshot = selectedTask.plan_snapshot
+                  const snapshot = rd.planSnapshot || selectedTask.plan_snapshot
 
                   // ── Stats calculation ───────────────────────────────────────
                   const cutterRequests = (rd.materialRequests || []).filter(r => {
@@ -1360,6 +1467,11 @@ export default function Shop1ForemanModule() {
                   })
                   const getReqQty = r => r.quantity !== null && r.quantity !== undefined ? Number(r.quantity) : Number((r.details || '').match(/—\s*(\d+)/)?.[1] || 0)
                   const totalPlannedCutters = cutterRequests.reduce((s, r) => s + getReqQty(r), 0)
+                  const plannedCuttersBreakdown = cutterRequests.reduce((result, request) => {
+                    const name = request.nomenclature?.name || 'Фреза'
+                    result[name] = (result[name] || 0) + getReqQty(request)
+                    return result
+                  }, {})
                   const actualCuttersBreakdown = {}
                   rd.historyRows.forEach(row => {
                     const info = row.card_info || ''
@@ -1382,44 +1494,113 @@ export default function Shop1ForemanModule() {
 
                   let totalScrap = rd.historyRows.reduce((s, r) => s + (Number(r.scrap_qty) || 0), 0)
 
-                  // Timing stats
-                  const stages = { 'Розкрій': {total:0,count:0}, 'Галтовка': {total:0,count:0}, 'Прийомка': {total:0,count:0}, 'Сортування': {total:0,count:0} }
-                  let firstStart = null, lastCompleted = null
-                  rd.historyRows.forEach(row => {
-                    if (row.started_at) { const t = new Date(row.started_at); if (!firstStart || t < firstStart) firstStart = t }
-                    if (row.completed_at) { const t = new Date(row.completed_at); if (!lastCompleted || t > lastCompleted) lastCompleted = t }
-                    if (row.started_at && row.completed_at) {
-                      const sec = Math.max(0, Math.round((new Date(row.completed_at) - new Date(row.started_at)) / 1000))
-                      if (stages[row.stage_name]) { stages[row.stage_name].total += sec; stages[row.stage_name].count++ }
-                      else if (row.stage_name?.startsWith('Галтовка')) { stages['Галтовка'].total += sec; stages['Галтовка'].count++ }
+                  const shop1StageNames = ['Розкрій', 'Галтовка', 'Прийомка', 'Сортування']
+                  const shop2DefaultStages = ['Пресування', 'Фарбування', 'Доопрацювання', 'Контроль ВКЯ']
+                  const isShop1History = row => {
+                    const stage = String(row.stage_name || '')
+                    return shop1StageNames.some(name => stage === name || stage.startsWith(name)) || stage.startsWith('Буфер ')
+                  }
+                  const isTechnicalHistory = row => ['completed', 'Склад БЗ', 'Склад СГП', 'Склад (БРОНЬ)'].includes(String(row.stage_name || ''))
+                  const isShop2History = row => String(row.card_info || '').includes('[ЦЕХ №2]') || (!isShop1History(row) && !isTechnicalHistory(row))
+
+                  const buildTimeAnalytics = (rows, defaults = []) => {
+                    const stageTotals = Object.fromEntries(defaults.map(name => [name, { total: 0, count: 0 }]))
+                    const bufferTotals = {}
+                    let first = null
+                    let last = null
+                    rows.forEach(row => {
+                      const started = row.started_at ? new Date(row.started_at) : null
+                      const completed = row.completed_at ? new Date(row.completed_at) : null
+                      if (started && (!first || started < first)) first = started
+                      if (completed && (!last || completed > last)) last = completed
+                      if (!started || !completed) return
+                      const seconds = Math.max(0, Math.round((completed - started) / 1000))
+                      const stage = String(row.stage_name || 'Без назви')
+                      const target = stage.startsWith('Буфер ') ? bufferTotals : stageTotals
+                      if (!target[stage]) target[stage] = { total: 0, count: 0 }
+                      target[stage].total += seconds
+                      target[stage].count += 1
+                    })
+                    return {
+                      stageTotals,
+                      bufferTotals,
+                      total: first && last ? Math.max(0, Math.round((last - first) / 1000)) : 0,
+                      active: Object.values(stageTotals).reduce((sum, item) => sum + item.total, 0),
+                      buffer: Object.values(bufferTotals).reduce((sum, item) => sum + item.total, 0),
+                      cards: new Set(rows.map(row => row.card_id).filter(Boolean)).size || 1
                     }
-                  })
-                  const totalShop1 = firstStart && lastCompleted ? Math.max(0, Math.round((lastCompleted - firstStart) / 1000)) : 0
-                  const totalActiveSec = Object.values(stages).reduce((s, v) => s + v.total, 0)
-                  const numCards = new Set(rd.historyRows.map(h => h.card_id)).size || 1
+                  }
+
+                  const shop1Time = buildTimeAnalytics(rd.historyRows.filter(isShop1History), shop1StageNames)
+                  const shop2Time = buildTimeAnalytics(rd.historyRows.filter(isShop2History), shop2DefaultStages)
+                  const actualShop2Stages = [...new Set(rd.historyRows.filter(isShop2History).map(row => row.stage_name).filter(Boolean))]
+                  const availableStageFilters = [...new Set(['All', 'Цех №1', 'Цех №2', ...shop1StageNames, ...actualShop2Stages])]
+                  const renderTimeAnalytics = (title, stats, color, subtitle) => (
+                    <div style={{ background: '#0d0d0d', border: '1px solid #222', borderRadius: '20px', padding: '20px 18px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color, fontSize: '0.72rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '15px' }}>
+                        <Clock size={14} /> {title}
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(205px, 1fr))', gap: '16px' }}>
+                        <div style={{ background: '#090909', border: '1px solid #1a1a1a', borderRadius: '14px', padding: '15px', textAlign: 'center' }}>
+                          <div style={{ color: '#777', fontSize: '0.62rem', fontWeight: 900, textTransform: 'uppercase' }}>Загальний час проходження</div>
+                          <div style={{ color, fontSize: '1.45rem', fontWeight: 1000, margin: '8px 0 5px' }}>{stats.total ? formatDurHMS(stats.total) : '—'}</div>
+                          <div style={{ color: '#444', fontSize: '0.58rem', borderBottom: '1px solid #1a1a1a', paddingBottom: '8px' }}>{subtitle}</div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', color: '#777', fontSize: '0.65rem', marginTop: '8px', textAlign: 'left' }}><span>Сер. робота / картку:</span><strong style={{ color: '#3b82f6' }}>{formatDurHMS(Math.round(stats.active / stats.cards))}</strong></div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', color: '#777', fontSize: '0.65rem', marginTop: '5px', textAlign: 'left' }}><span>Сер. буфер / картку:</span><strong style={{ color: '#f59e0b' }}>{formatDurHMS(Math.round(stats.buffer / stats.cards))}</strong></div>
+                        </div>
+                        <div style={{ background: '#090909', border: '1px solid #1a1a1a', borderRadius: '14px', padding: '15px' }}>
+                          <div style={{ color: '#777', fontSize: '0.62rem', fontWeight: 900, textTransform: 'uppercase', borderBottom: '1px solid #181818', paddingBottom: '7px', marginBottom: '8px' }}>Робочі етапи · активна робота</div>
+                          {Object.entries(stats.stageTotals).map(([name, item]) => <div key={name} style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', color: '#888', fontSize: '0.68rem', padding: '4px 0' }}><span>{name}:</span><strong style={{ color: '#3b82f6' }}>{formatDurHMS(item.total)}</strong></div>)}
+                        </div>
+                        <div style={{ background: '#090909', border: '1px solid #1a1a1a', borderRadius: '14px', padding: '15px' }}>
+                          <div style={{ color: '#777', fontSize: '0.62rem', fontWeight: 900, textTransform: 'uppercase', borderBottom: '1px solid #181818', paddingBottom: '7px', marginBottom: '8px' }}>Буфери накопичення</div>
+                          {Object.keys(stats.bufferTotals).length > 0 ? Object.entries(stats.bufferTotals).map(([name, item]) => <div key={name} style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', color: '#888', fontSize: '0.68rem', padding: '4px 0' }}><span>{name}:</span><strong style={{ color: '#f59e0b' }}>{formatDurHMS(item.total)}</strong></div>) : <div style={{ color: '#444', fontSize: '0.65rem', paddingTop: '4px' }}>Час у буферах не зафіксовано</div>}
+                        </div>
+                      </div>
+                    </div>
+                  )
 
                   // Accepted parts
                   const acceptedQty = rd.historyRows.filter(r => r.stage_name === 'Прийомка' || r.stage_name === 'completed').reduce((s, r) => s + (Number(r.qty_completed) || 0), 0)
+                  const totalPlannedParts = snapshot && typeof snapshot === 'object'
+                    ? Object.entries(snapshot).filter(([key, value]) => !key.startsWith('_') && value && typeof value === 'object' && (value.id || value.name)).reduce((sum, [, value]) => sum + (Number(value.plan ?? value.need ?? value.quantity) || 0), 0)
+                    : 0
 
-                  // Material (sheets) stats
+                  // Same plan/fact sheet calculation as the foreman report.
                   const matStats = {}
-                  rd.historyRows.filter(r => r.stage_name === 'Розкрій' || r.stage_name === 'Розкрій (перезмінка)').forEach(r => {
-                    const nom = nomenclatures?.find(n => String(n.id) === String(r.nomenclature_id))
-                    const mat = nom?.material_type || 'Матеріал'
-                    const ups = Number(nom?.units_per_sheet) || 1
-                    const sheets = Math.ceil((Number(r.qty_completed) || 0) / ups)
-                    matStats[mat] = (matStats[mat] || 0) + sheets
+                  const snapshotParts = snapshot && typeof snapshot === 'object'
+                    ? Object.entries(snapshot).filter(([key, value]) => !key.startsWith('_') && value && typeof value === 'object' && (value.id || value.name))
+                    : []
+                  snapshotParts.forEach(([nomId, entry]) => {
+                    const actualNomId = entry.id || nomId
+                    const nom = nomenclatures?.find(item => String(item.id) === String(actualNomId))
+                    if (nom && nom.type !== 'part') return
+                    const unitsPerSheet = Number(entry.units_per_sheet) || Number(nom?.units_per_sheet) || 1
+                    const planned = Number(entry.sheets) || Math.ceil((Number(entry.plan) || 0) / unitsPerSheet)
+                    const cutQty = rd.historyRows
+                      .filter(row => String(row.nomenclature_id) === String(actualNomId) && (row.stage_name === 'Розкрій' || row.stage_name === 'Розкрій (перезмінка)'))
+                      .reduce((sum, row) => sum + (Number(row.qty_completed) || 0), 0)
+                    const actual = Math.ceil(cutQty / unitsPerSheet)
+                    const material = entry.material || nom?.material_type || 'Матеріал'
+                    if (!matStats[material]) matStats[material] = { planned: 0, actual: 0 }
+                    matStats[material].planned += planned
+                    matStats[material].actual += actual
                   })
+                  const totalPlannedSheets = Object.values(matStats).reduce((sum, item) => sum + item.planned, 0)
+                  const totalActualSheets = Object.values(matStats).reduce((sum, item) => sum + item.actual, 0)
 
                   // Filtered + sorted log rows
                   let logRows = rd.historyRows.filter(row => {
                     if (nariadStageFilter === 'All') return true
+                    if (nariadStageFilter === 'Цех №1') return isShop1History(row)
+                    if (nariadStageFilter === 'Цех №2') return isShop2History(row)
                     if (nariadStageFilter === 'Галтовка') return row.stage_name?.startsWith('Галтовка')
                     if (nariadStageFilter === 'Прийомка') return row.stage_name === 'Прийомка' || row.stage_name === 'completed'
                     return row.stage_name === nariadStageFilter
                   }).filter(row => nariadNomFilter === 'All' || String(row.nomenclature_id) === nariadNomFilter)
 
                   logRows.sort((a, b) => {
+                    if (nariadSortBy === 'shop') return Number(isShop2History(a)) - Number(isShop2History(b)) || new Date(a.started_at || a.created_at || 0) - new Date(b.started_at || b.created_at || 0)
                     if (nariadSortBy === 'min-time') {
                       const da = a.started_at && a.completed_at ? new Date(a.completed_at) - new Date(a.started_at) : 0
                       const db2 = b.started_at && b.completed_at ? new Date(b.completed_at) - new Date(b.started_at) : 0
@@ -1434,17 +1615,19 @@ export default function Shop1ForemanModule() {
                     return new Date(a.started_at || a.created_at || 0) - new Date(b.started_at || b.created_at || 0)
                   })
 
-                  const productNames = selectedOrder?.order_items?.map(it => nomenclatures?.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ') || '—'
+                  let productNames = (rd.orderItems || []).map(item => item.name || nomenclatures?.find(n => String(n.id) === String(item.nomenclature_id))?.name).filter(Boolean).join(', ')
+                  if (!productNames) productNames = selectedOrder?.order_items?.map(it => nomenclatures?.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ')
+                  productNames ||= '—'
                   const sm2 = statusMeta(selectedTask.status)
 
                   return (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
                       {/* Report header */}
-                      <div style={{ background: '#0d0d0d', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '20px', padding: '22px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '15px', flexWrap: 'wrap' }}>
+                      <div style={{ borderBottom: '1px solid #1a1a1a', padding: '4px 0 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '15px', flexWrap: 'wrap' }}>
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#3b82f6', fontSize: '0.68rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '4px' }}>
-                            <Clock size={13} /> Звіт по виробництву
+                            <Clock size={13} /> Звіт по виробництву · Цех №1 + Цех №2
                           </div>
                           <h3 style={{ margin: 0, fontSize: '1.7rem', fontWeight: 950 }}>
                             Наряд №{selectedOrder?.order_num}{selectedTask.batch_index ? `/${selectedTask.batch_index}` : ''}
@@ -1453,16 +1636,21 @@ export default function Shop1ForemanModule() {
                             Виріб: <strong style={{ color: '#ef4444' }}>{productNames}</strong>
                             {selectedOrder?.customer && ` | Замовник: ${selectedOrder.customer}`}
                           </div>
+                          {(rd.taskCount > 1 || Number(selectedTask.task_count) > 1) && (
+                            <div style={{ color: '#8b5cf6', fontSize: '0.68rem', marginTop: '8px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                              Єдина історія руху · Цех №1 → Цех №2
+                            </div>
+                          )}
                         </div>
                         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                           <span style={{ background: sm2.bg, color: sm2.color, fontSize: '0.7rem', fontWeight: 900, padding: '5px 12px', borderRadius: '8px', border: `1px solid ${sm2.color}30` }}>
                             {sm2.label}
                           </span>
                           <button
-                            onClick={() => handleOpenNariadReport(selectedTask)}
+                            onClick={() => handleOpenNariadReport(selectedTask, true)}
                             style={{ background: '#0d1424', border: '1px solid #3b82f640', color: '#3b82f6', padding: '8px 14px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
                           >
-                            <RotateCcw size={12} /> Оновити
+                            <RotateCcw size={12} /> Оновити дані
                           </button>
                         </div>
                       </div>
@@ -1476,19 +1664,23 @@ export default function Shop1ForemanModule() {
                             <span style={{ color: '#888' }}>План: <strong style={{ color: '#fff' }}>{totalPlannedCutters} шт</strong></span>
                             <span style={{ color: '#888' }}>Факт: <strong style={{ color: totalActualCutters > totalPlannedCutters ? '#ef4444' : '#eab308' }}>{totalActualCutters} шт</strong></span>
                           </div>
-                          {Object.entries(actualCuttersBreakdown).map(([name, qty]) => (
-                            <div key={name} style={{ fontSize: '0.65rem', color: '#555', marginBottom: '3px' }}>{name}: <strong style={{ color: '#777' }}>{qty} шт</strong></div>
+                          {[...new Set([...Object.keys(plannedCuttersBreakdown), ...Object.keys(actualCuttersBreakdown)])].map(name => (
+                            <div key={name} style={{ fontSize: '0.65rem', color: '#555', marginBottom: '5px', borderBottom: '1px solid #171717', paddingBottom: '4px' }}>
+                              <div style={{ color: '#777', fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2px' }}><span>План: <strong>{plannedCuttersBreakdown[name] || 0} шт</strong></span><span>Факт: <strong style={{ color: '#eab308' }}>{actualCuttersBreakdown[name] || 0} шт</strong></span></div>
+                            </div>
                           ))}
-                          {Object.keys(actualCuttersBreakdown).length === 0 && <div style={{ fontSize: '0.62rem', color: '#333', fontStyle: 'italic' }}>Без витрат</div>}
+                          {Object.keys(plannedCuttersBreakdown).length === 0 && Object.keys(actualCuttersBreakdown).length === 0 && <div style={{ fontSize: '0.62rem', color: '#333', fontStyle: 'italic' }}>Без витрат</div>}
                         </div>
 
                         {/* Sheets */}
                         <div style={{ background: '#0d0d0d', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '16px', padding: '16px' }}>
                           <div style={{ color: '#555', fontSize: '0.62rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>🗂️ Листи (Матеріал)</div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', borderBottom: '1px solid #1a1a1a', paddingBottom: '6px', marginBottom: '6px' }}><span style={{ color: '#888' }}>План: <strong style={{ color: '#fff' }}>{totalPlannedSheets} л.</strong></span><span style={{ color: '#888' }}>Факт: <strong style={{ color: totalActualSheets > totalPlannedSheets ? '#ef4444' : '#10b981' }}>{totalActualSheets} л.</strong></span></div>
                           {Object.entries(matStats).length > 0 ? Object.entries(matStats).map(([mat, sheets]) => (
                             <div key={mat} style={{ fontSize: '0.68rem', color: '#666', borderBottom: '1px solid #111', paddingBottom: '4px', marginBottom: '4px' }}>
                               <div style={{ color: '#888', fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={mat}>{mat}</div>
-                              <div style={{ color: '#10b981', fontWeight: 900, marginTop: '2px' }}>{sheets} л.</div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2px' }}><span>План: <strong>{sheets.planned} л.</strong></span><span>Факт: <strong style={{ color: '#10b981' }}>{sheets.actual} л.</strong></span></div>
                             </div>
                           )) : <div style={{ fontSize: '0.62rem', color: '#333', fontStyle: 'italic' }}>Немає даних</div>}
                         </div>
@@ -1497,32 +1689,23 @@ export default function Shop1ForemanModule() {
                         <div style={{ background: '#0d0d0d', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '16px', padding: '16px' }}>
                           <div style={{ color: '#555', fontSize: '0.62rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px' }}>📦 Деталі та Брак</div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginBottom: '6px' }}>
-                            <span style={{ color: '#888' }}>Прийнято:</span>
-                            <strong style={{ color: '#10b981' }}>{acceptedQty} шт</strong>
+                            <span style={{ color: '#888' }}>План:</span>
+                            <strong style={{ color: '#fff' }}>{totalPlannedParts || '—'}{totalPlannedParts ? ' шт' : ''}</strong>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
+                          <div onClick={() => setNariadDetailModal('accepted')} title="Відкрити деталізацію прийнятих деталей" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginBottom: '6px', cursor: 'pointer' }}>
+                            <span style={{ color: '#888' }}>Прийнято:</span>
+                            <strong style={{ color: '#10b981', borderBottom: '1px dashed #10b981' }}>{acceptedQty} шт</strong>
+                          </div>
+                          <div onClick={() => setNariadDetailModal('scrap')} title="Відкрити деталізацію браку" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', cursor: 'pointer' }}>
                             <span style={{ color: '#888' }}>Брак:</span>
-                            <strong style={{ color: totalScrap > 0 ? '#ef4444' : '#555' }}>{totalScrap} шт</strong>
+                            <strong style={{ color: totalScrap > 0 ? '#ef4444' : '#555', borderBottom: `1px dashed ${totalScrap > 0 ? '#ef4444' : '#555'}` }}>{totalScrap} шт</strong>
                           </div>
                         </div>
 
-                        {/* Timing */}
-                        <div style={{ background: '#0d0d0d', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '16px', padding: '16px' }}>
-                          <div style={{ color: '#555', fontSize: '0.62rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>⏱️ Аналітика часу</div>
-                          <div style={{ fontSize: '1.3rem', fontWeight: 1000, color: '#10b981', marginBottom: '6px' }}>{totalShop1 > 0 ? formatDurHMS(totalShop1) : '—'}</div>
-                          <div style={{ fontSize: '0.6rem', color: '#444', borderBottom: '1px solid #111', paddingBottom: '6px', marginBottom: '6px' }}>Загальний час у цеху</div>
-                          {Object.entries(stages).filter(([, v]) => v.total > 0).map(([name, s]) => (
-                            <div key={name} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', marginBottom: '3px' }}>
-                              <span style={{ color: '#666' }}>{name}:</span>
-                              <strong style={{ color: '#3b82f6' }}>{formatDurHMS(s.total)}</strong>
-                            </div>
-                          ))}
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', borderTop: '1px solid #111', marginTop: '6px', paddingTop: '6px' }}>
-                            <span style={{ color: '#666' }}>Сер. на карту:</span>
-                            <strong style={{ color: '#eab308' }}>{formatDurHMS(Math.round(totalActiveSec / numCards))}</strong>
-                          </div>
-                        </div>
                       </div>
+
+                      {renderTimeAnalytics('Аналітика перебування деталей у Цеху №1', shop1Time, '#10b981', 'Від першої операції до передачі у Цех №2')}
+                      {renderTimeAnalytics('Аналітика перебування деталей у Цеху №2', shop2Time, '#8b5cf6', 'Від приймання у Цех №2 до завершення останньої операції')}
 
                       {/* Chronological log */}
                       <div style={{ background: '#0d0d0d', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '20px', padding: '20px 22px' }}>
@@ -1531,17 +1714,18 @@ export default function Shop1ForemanModule() {
                           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
                             {/* Stage filter */}
                             <div style={{ display: 'flex', gap: '3px', background: '#080808', padding: '4px', borderRadius: '10px', border: '1px solid #1a1a1a' }}>
-                              {['All','Розкрій','Галтовка','Прийомка','Сортування'].map(stage => {
+                              {availableStageFilters.map(stage => {
                                 const sel = nariadStageFilter === stage
-                                const clr = { All: '#777', Розкрій: '#3b82f6', Галтовка: '#eab308', Прийомка: '#10b981', Сортування: '#8b5cf6' }
+                                const clr = { All: '#777', 'Цех №1': '#10b981', 'Цех №2': '#8b5cf6', Розкрій: '#3b82f6', Галтовка: '#eab308', Прийомка: '#10b981', Сортування: '#14b8a6' }
+                                const stageColor = clr[stage] || '#8b5cf6'
                                 return (
                                   <button key={stage} onClick={() => setNariadStageFilter(stage)} style={{
-                                    border: 'none', background: sel ? (stage === 'All' ? '#222' : clr[stage]) : 'transparent',
+                                    border: 'none', background: sel ? (stage === 'All' ? '#222' : stageColor) : 'transparent',
                                     color: sel ? (stage === 'All' ? '#fff' : '#000') : '#555',
                                     padding: '4px 10px', borderRadius: '7px', fontSize: '0.6rem', fontWeight: 900, cursor: 'pointer', transition: 'all 0.15s',
                                     textTransform: 'uppercase'
                                   }}>
-                                    {stage === 'All' ? 'Всі' : stage}
+                                    {stage === 'All' ? 'Всі етапи' : stage}
                                   </button>
                                 )
                               })}
@@ -1550,6 +1734,7 @@ export default function Shop1ForemanModule() {
                             <select value={nariadSortBy} onChange={e => setNariadSortBy(e.target.value)}
                               style={{ background: '#111', border: '1px solid #222', color: '#aaa', padding: '5px 10px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer' }}>
                               <option value="date">По даті</option>
+                              <option value="shop">Спочатку Цех №1, потім Цех №2</option>
                               <option value="min-time">Мін. час</option>
                               <option value="max-time">Макс. час</option>
                               <option value="scrap">По браку</option>
@@ -1571,7 +1756,7 @@ export default function Shop1ForemanModule() {
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem' }}>
                             <thead>
                               <tr style={{ borderBottom: '1px solid #1a1a1a' }}>
-                                {['Деталь / Картка','Початок','Кінець','Тривалість','Етап','Оператор / Зміна','Кількість','Брак'].map(col => (
+                                {['Деталь / Картка','Час (початок / завершення)','План. час','Факт. час','Етап','Оператор / Зміна','Робоче місце','Готово / Брак'].map(col => (
                                   <th key={col} style={{ padding: '8px 10px', textAlign: 'left', color: '#444', fontWeight: 900, textTransform: 'uppercase', fontSize: '0.58rem', whiteSpace: 'nowrap' }}>{col}</th>
                                 ))}
                               </tr>
@@ -1579,21 +1764,25 @@ export default function Shop1ForemanModule() {
                             <tbody>
                               {logRows.map((row, idx) => {
                                 const nom = nomenclatures?.find(n => String(n.id) === String(row.nomenclature_id))
+                                const rowCard = (rd.taskCards || []).find(card => String(card.id) === String(row.card_id))
+                                const sequenceMatch = String(row.card_info || rowCard?.card_info || '').match(/(?:^|\D)(\d+)\s*\/\s*(\d+)(?:\D|$)/)
+                                const sequenceLabel = sequenceMatch ? `${sequenceMatch[1]}/${sequenceMatch[2]}` : `ID ${String(row.card_id || '').slice(-8).toUpperCase()}`
                                 const dur = row.started_at && row.completed_at
                                   ? Math.max(0, Math.round((new Date(row.completed_at) - new Date(row.started_at)) / 1000))
                                   : null
+                                const plannedSec = nom?.time_per_unit ? Math.round(Number(nom.time_per_unit) * (Number(row.qty_completed) || 0)) : null
                                 const isGalt = row.stage_name?.startsWith('Галтовка')
-                                const stageClr = isGalt ? '#eab308' : row.stage_name === 'Прийомка' ? '#10b981' : row.stage_name === 'Сортування' ? '#8b5cf6' : '#3b82f6'
+                                const stageClr = isShop2History(row) ? '#8b5cf6' : isGalt ? '#eab308' : row.stage_name === 'Прийомка' ? '#10b981' : row.stage_name === 'Сортування' ? '#14b8a6' : '#3b82f6'
                                 const hasScrap = Number(row.scrap_qty) > 0
                                 const fmt = (iso) => iso ? new Date(iso).toLocaleString('uk-UA', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—'
                                 return (
                                   <tr key={row.id || idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.005)' }}>
                                     <td style={{ padding: '8px 10px', color: '#bbb', fontWeight: 700, maxWidth: '220px' }}>
                                       <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nom?.name || '—'}</div>
-                                      <div style={{ color: '#444', fontSize: '0.58rem', marginTop: '2px' }}>#{String(row.card_id || '').slice(-8).toUpperCase()}</div>
+                                      <div style={{ color: '#666', fontSize: '0.58rem', marginTop: '2px' }}>Картка {sequenceLabel}</div>
                                     </td>
-                                    <td style={{ padding: '8px 10px', color: '#555', whiteSpace: 'nowrap' }}>{fmt(row.started_at)}</td>
-                                    <td style={{ padding: '8px 10px', color: '#555', whiteSpace: 'nowrap' }}>{fmt(row.completed_at)}</td>
+                                    <td style={{ padding: '8px 10px', color: '#555', whiteSpace: 'nowrap' }}><div>{fmt(row.started_at)}</div><div style={{ marginTop: '2px' }}>{fmt(row.completed_at)}</div></td>
+                                    <td style={{ padding: '8px 10px', color: '#777', fontWeight: 800, whiteSpace: 'nowrap' }}>{plannedSec ? formatDurHMS(plannedSec) : '—'}</td>
                                     <td style={{ padding: '8px 10px', color: dur !== null ? '#3b82f6' : '#333', fontWeight: 800, whiteSpace: 'nowrap' }}>{dur !== null ? formatDurHMS(dur) : '—'}</td>
                                     <td style={{ padding: '8px 10px' }}>
                                       <span style={{ background: `${stageClr}15`, color: stageClr, padding: '2px 7px', borderRadius: '5px', fontSize: '0.6rem', fontWeight: 900 }}>
@@ -1604,8 +1793,8 @@ export default function Shop1ForemanModule() {
                                       <div>{row.operator_name || '—'}</div>
                                       <div style={{ color: '#444', fontSize: '0.6rem' }}>{row.shift_name || ''}</div>
                                     </td>
-                                    <td style={{ padding: '8px 10px', color: '#eab308', fontWeight: 900, textAlign: 'right' }}>{Number(row.qty_completed) || 0}</td>
-                                    <td style={{ padding: '8px 10px', color: hasScrap ? '#ef4444' : '#333', fontWeight: 900, textAlign: 'right' }}>{Number(row.scrap_qty) || 0}</td>
+                                    <td style={{ padding: '8px 10px', color: '#666', fontWeight: 700 }}>{row.machine_name || '—'}</td>
+                                    <td style={{ padding: '8px 10px', fontWeight: 900, textAlign: 'right' }}><div style={{ color: '#10b981' }}>{Number(row.qty_completed) || 0} шт</div><div style={{ color: hasScrap ? '#ef4444' : '#333', marginTop: '3px' }}>{Number(row.scrap_qty) || 0} брак</div></td>
                                   </tr>
                                 )
                               })}
@@ -1877,6 +2066,63 @@ export default function Shop1ForemanModule() {
 
           </div>
         )}
+
+        {nariadDetailModal && nariadReportData && (() => {
+          const historyRows = nariadReportData.historyRows || []
+          const cardsById = new Map((nariadReportData.taskCards || []).map(card => [String(card.id), card]))
+          const getCardSequence = row => {
+            const card = cardsById.get(String(row.card_id))
+            const match = String(row.card_info || card?.card_info || '').match(/(?:^|\D)(\d+)\s*\/\s*(\d+)(?:\D|$)/)
+            return match ? `${match[1]}/${match[2]}` : `ID ${String(row.card_id || '').slice(-8).toUpperCase()}`
+          }
+          const isAccepted = nariadDetailModal === 'accepted'
+          const rows = historyRows
+            .filter(row => isAccepted ? (row.stage_name === 'Прийомка' || row.stage_name === 'completed') && Number(row.qty_completed) > 0 : Number(row.scrap_qty) > 0)
+            .map(row => {
+              const nom = nomenclatures?.find(item => String(item.id) === String(row.nomenclature_id))
+              return {
+                ...row,
+                detailName: nom?.name || 'Невідома деталь',
+                detailCode: nom?.nomenclature_code || 'БЕЗ КОДУ',
+                sequence: getCardSequence(row),
+                qty: isAccepted ? Number(row.qty_completed) || 0 : Number(row.scrap_qty) || 0
+              }
+            })
+            .sort((a, b) => b.qty - a.qty)
+
+          return (
+            <div onClick={() => setNariadDetailModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.82)', backdropFilter: 'blur(8px)', zIndex: 45000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+              <div onClick={event => event.stopPropagation()} style={{ width: '100%', maxWidth: '620px', maxHeight: '85vh', overflowY: 'auto', background: '#0d0d0d', border: '1px solid #252525', borderRadius: '20px', padding: '24px', boxShadow: '0 24px 60px rgba(0,0,0,.65)', position: 'relative' }}>
+                <button onClick={() => setNariadDetailModal(null)} style={{ position: 'absolute', right: '15px', top: '15px', width: '30px', height: '30px', borderRadius: '50%', border: 'none', background: '#222', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center' }}><XCircle size={16} /></button>
+                <h3 style={{ margin: '0 40px 18px 0', color: isAccepted ? '#10b981' : '#ef4444', fontSize: '1.08rem', fontWeight: 950, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {isAccepted ? <CheckCircle size={19} /> : <AlertTriangle size={19} />}
+                  {isAccepted ? 'Деталізація прийнятих деталей' : 'Деталізація браку за етапами'}
+                </h3>
+                {rows.length === 0 ? <div style={{ color: '#555', textAlign: 'center', padding: '30px' }}>Записів немає</div> : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
+                    {rows.map((row, index) => (
+                      <div key={row.id || `${row.card_id}-${index}`} style={{ background: '#111', border: '1px solid #242424', borderRadius: '12px', padding: '12px 13px', display: 'flex', justifyContent: 'space-between', gap: '15px', alignItems: 'center' }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ display: 'flex', gap: '7px', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <span style={{ color: '#fff', fontWeight: 850, fontSize: '0.8rem' }}>{row.detailName}</span>
+                            <span style={{ color: '#eab308', background: 'rgba(234,179,8,.1)', border: '1px solid rgba(234,179,8,.2)', borderRadius: '5px', padding: '2px 6px', fontSize: '0.6rem', fontWeight: 900 }}>Картка {row.sequence}</span>
+                          </div>
+                          <div style={{ color: '#4b4b4b', fontSize: '0.6rem', marginTop: '3px' }}>{row.detailCode} · ID {String(row.card_id || '').slice(-8).toUpperCase()}</div>
+                          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', color: '#777', fontSize: '0.63rem', marginTop: '7px' }}>
+                            <span>Етап: <strong style={{ color: '#aaa' }}>{row.stage_name === 'completed' ? 'Прийомка' : row.stage_name || '—'}</strong></span>
+                            {row.machine_name && <span>Верстат: <strong style={{ color: '#aaa' }}>{row.machine_name}</strong></span>}
+                            <span>Оператор: <strong style={{ color: '#aaa' }}>{row.operator_name || '—'}</strong></span>
+                          </div>
+                        </div>
+                        <div style={{ color: isAccepted ? '#10b981' : '#ef4444', fontWeight: 1000, fontSize: '0.95rem', whiteSpace: 'nowrap' }}>{row.qty} шт</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })()}
 
       </div>
     </div>
