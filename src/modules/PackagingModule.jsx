@@ -338,12 +338,14 @@ const PackagingModule = () => {
           if (nom) {
             let qty = 0
             let snapFound = false
+            let isCustomPkg = false
             activeBatchData.tasks.forEach(t => {
               if (t.plan_snapshot && t.plan_snapshot[nom.id]) {
                 const snapItem = t.plan_snapshot[nom.id]
                 if (snapItem && typeof snapItem === 'object') {
                   qty = Math.max(qty, Number(snapItem.need) || 0)
                   snapFound = true
+                  if (snapItem.is_custom_packaging) isCustomPkg = true
                 }
               }
             })
@@ -352,6 +354,7 @@ const PackagingModule = () => {
             }
             if (!map[nom.id]) map[nom.id] = { nom, qty: 0 }
             map[nom.id].qty = Math.max(map[nom.id].qty, qty)
+            if (isCustomPkg) map[nom.id].isCustom = true
           }
         }
       })
@@ -376,7 +379,7 @@ const PackagingModule = () => {
               const nameLower = nom.name?.toLowerCase() || ''
               if (nameLower.includes('прес') && (nameLower.includes('гайка') || nameLower.includes('втулка'))) return
               const qty = Number(snapItem.need) || 0
-              map[key] = { nom, qty }
+              map[key] = { nom, qty, isCustom: snapItem.is_custom_packaging || false }
             }
           }
         })
@@ -496,19 +499,41 @@ const PackagingModule = () => {
 
   // ─── HANDLERS ─────────────────────────────────────────────────────────────
   const handleCreateRequest = async () => {
-    const activeBOMItems = allBOMItems.filter(item => !excludedNomIds.has(item.nom.id))
-    if (activeBOMItems.length === 0) { alert('Немає активних елементів для комплектування'); return }
-    const itemsToRequest = activeBOMItems.map(r => {
-      // Використовуємо кастомну кількість пакувальника якщо вказана, інакше планову
-      const effectiveQty = customQty[String(r.nom.id)] !== undefined ? Number(customQty[String(r.nom.id)]) : r.qty
-      return { nomId: r.nom.id, name: r.nom.material_type ? `${r.nom.name} (${r.nom.material_type})` : r.nom.name, qty: effectiveQty }
-    })
+    setIsProcessing(true)
     try {
-      setIsProcessing(true)
+      // Спочатку підтягуємо найсвіжіші запити
+      await fetchData('material_requests')
+
+      const activeBOMItems = allBOMItems.filter(item => {
+        const isExcluded = excludedNomIds.has(item.nom.id)
+        // Шукаємо будь-який активний чи завершений запит по цьому виробу в межах наряду
+        const hasReq = (requests || []).some(r =>
+          String(r.order_id) === String(activeBatchData.orderId) &&
+          String(r.nomenclature_id) === String(item.nom.id) &&
+          ['pending', 'processing', 'completed', 'issued'].includes(r.status)
+        )
+        return !isExcluded && !hasReq
+      })
+
+      if (activeBOMItems.length === 0) {
+        alert('Немає нових деталей для комплектування (всі інші позиції вже були надіслані раніше або підтверджені)');
+        return
+      }
+
+      const itemsToRequest = activeBOMItems.map(r => {
+        const effectiveQty = customQty[String(r.nom.id)] !== undefined ? Number(customQty[String(r.nom.id)]) : r.qty
+        return { nomId: r.nom.id, name: r.nom.material_type ? `${r.nom.name} (${r.nom.material_type})` : r.nom.name, qty: effectiveQty }
+      })
+
       await submitPickingRequest(activeBatchData.orderId, itemsToRequest, activeBatchData.tasks[0]?.id)
       alert('Запит успішно відправлено!')
       await fetchData('material_requests')
-    } catch (e) { console.error(e); alert('Помилка створення запиту') } finally { setIsProcessing(false) }
+    } catch (e) {
+      console.error(e)
+      alert('Помилка створення запиту')
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
   const handleCompleteClick = () => {
@@ -609,35 +634,41 @@ const PackagingModule = () => {
     setShowAddItemModal(true)
   }
 
-  const handleConfirmAddItem = () => {
-    if (!addItemSelectedNom) return
-    if (!addItemQty || Number(addItemQty) <= 0) return
+  const handleConfirmAddItem = async () => {
+    if (!addItemSelectedNom || !addItemQty || !activeBatchData) return
+    const firstTask = activeBatchData.tasks[0]
+    if (!firstTask) return
 
-    // Don't add if already in BOM from spec (use customQty instead)
+    // Don't add if already in BOM from spec
     const existsInBOM = allBOMItems.some(item => String(item.nom.id) === String(addItemSelectedNom.id) && !item.isCustom)
     if (existsInBOM) {
-      // Just highlight — can't add duplicate; user can change qty above
       alert(`"${addItemSelectedNom.name}" вже є в специфікації. Щоб змінити кількість — відредагуйте поле кількості напроти цієї позиції.`)
       return
     }
 
-    // Don't add if already in customItems
-    const existsCustom = customItems.some(ci => String(ci.nom.id) === String(addItemSelectedNom.id))
-    if (existsCustom) {
-      alert(`"${addItemSelectedNom.name}" вже додано. Видаліть попередній запис або змініть кількість.`)
-      return
+    setIsProcessing(true)
+    try {
+      const snap = { ...(firstTask.plan_snapshot || {}) }
+      snap[addItemSelectedNom.id] = {
+        need: Number(addItemQty),
+        is_custom_packaging: true
+      }
+
+      const { error } = await supabase
+        .from('tasks')
+        .update({ plan_snapshot: snap })
+        .eq('id', firstTask.id)
+
+      if (error) throw error
+
+      await fetchData('tasks')
+      setShowAddItemModal(false)
+    } catch (e) {
+      console.error(e)
+      alert('Помилка додавання позиції: ' + e.message)
+    } finally {
+      setIsProcessing(false)
     }
-
-    const detectedCat = detectCategoryKey(addItemSelectedNom)
-    const catKey = addItemCategoryKey || detectedCat
-
-    setCustomItems(prev => [...prev, {
-      nom: addItemSelectedNom,
-      qty: Number(addItemQty),
-      categoryKey: catKey,
-      uid: `custom_${addItemSelectedNom.id}_${Date.now()}`
-    }])
-    setShowAddItemModal(false)
   }
 
   const handleRemoveCustomItem = (uid) => {
@@ -659,7 +690,7 @@ const PackagingModule = () => {
   return (
     <div className="packaging-module" style={{ background: '#050505', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
 
-      <nav className="module-nav" style={{ flexShrink: 0, padding: '0 25px', height: '80px', background: '#0a0a0a', borderBottom: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <nav className="module-nav module-nav-container" style={{ flexShrink: 0, background: '#0a0a0a', borderBottom: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <Link to="/" style={{ color: '#555', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: 800 }}>
             <ArrowLeft size={18} /> <span className="hide-mobile">НА ГОЛОВНУ</span>
@@ -691,13 +722,13 @@ const PackagingModule = () => {
             <Package size={18} color="#fff" />
           </div>
           <div>
-            <h1 style={{ fontSize: '0.95rem', fontWeight: 950, margin: 0, letterSpacing: '0.5px', lineHeight: 1.1 }}>ВІДДІЛ ПАКУВАННЯ</h1>
-            <div style={{ fontSize: '0.58rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', marginTop: '3px', letterSpacing: '0.3px', lineHeight: 1 }}>Контроль комплектування партій</div>
+            <h1 className="nav-title" style={{ fontSize: '0.95rem', fontWeight: 950, margin: 0, letterSpacing: '0.5px', lineHeight: 1.1 }}>ВІДДІЛ ПАКУВАННЯ</h1>
+            <div className="nav-subtitle" style={{ fontSize: '0.58rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', marginTop: '3px', letterSpacing: '0.3px', lineHeight: 1 }}>Контроль комплектування партій</div>
           </div>
         </div>
       </nav>
 
-      <div className="module-content" style={{ padding: '30px', flex: 1, overflowY: 'auto' }}>
+      <div className="module-content module-content-container" style={{ flex: 1, overflowY: 'auto' }}>
         <div className="master-grid" style={{ maxWidth: '1600px', margin: '0 auto', height: 'calc(100vh - 140px)' }}>
 
           {isDrawerOpen && (
@@ -760,13 +791,13 @@ const PackagingModule = () => {
           {/* MAIN AREA */}
           <div className="order-details-area" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {activeBatchData ? (
-              <div className="glass-panel" style={{ background: '#0a0a0a', padding: '40px', borderRadius: '32px', border: '1px solid #1a1a1a', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+              <div className="glass-panel details-panel" style={{ background: '#0a0a0a', border: '1px solid #1a1a1a', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
                 {/* HEADER */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexShrink: 0 }}>
+                <div className="detail-header-row">
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '8px' }}>
-                      <h2 style={{ margin: 0, fontSize: '2.2rem', fontWeight: 1000, color: '#fff', letterSpacing: '-1px' }}>Наряд № {activeBatchData.orderNum}{activeBatchData.batchIndex ? `/${activeBatchData.batchIndex}` : ''}</h2>
+                      <h2 className="order-detail-title" style={{ margin: 0, fontWeight: 1000, color: '#fff', letterSpacing: '-1px' }}>Наряд № {activeBatchData.orderNum}{activeBatchData.batchIndex ? `/${activeBatchData.batchIndex}` : ''}</h2>
                       <span style={{ background: '#f43f5e', color: '#fff', padding: '4px 12px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 950 }}>ПАКУВАННЯ</span>
                       {isWarehouseConfirmed && (
                         <span style={{ background: '#10b98122', color: '#10b981', padding: '4px 12px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 900, border: '1px solid #10b98133', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -778,7 +809,7 @@ const PackagingModule = () => {
                     <p style={{ margin: '4px 0 0 0', color: '#555', fontSize: '1rem', fontWeight: 600 }}>Виріб: <strong style={{ color: '#ff9000' }}>{activeBatchData.productNames}</strong></p>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-end' }}>
-                    <div style={{ textAlign: 'right', background: '#111', padding: '12px 20px', borderRadius: '16px', border: '1px solid #1a1a1a' }}>
+                    <div className="volume-box" style={{ border: '1px solid #1a1a1a' }}>
                       <div style={{ fontSize: '0.65rem', color: '#555', textTransform: 'uppercase', fontWeight: 900, marginBottom: '4px' }}>Обсяг пакування</div>
                       <div style={{ fontSize: '1.6rem', fontWeight: 1000, color: '#10b981' }}>{activeBatchData.plannedSets} <span style={{ fontSize: '0.85rem', color: '#444' }}>шт.</span></div>
                     </div>
@@ -971,7 +1002,7 @@ const PackagingModule = () => {
                                                 }}
                                                 onClick={e => e.stopPropagation()}
                                                 style={{
-                                                  width: '80px',
+                                                  width: '120px',
                                                   background: customQty[String(item.nom.id)] !== undefined && customQty[String(item.nom.id)] !== item.qty ? '#eab30818' : '#111',
                                                   border: `1.5px solid ${customQty[String(item.nom.id)] !== undefined && customQty[String(item.nom.id)] !== item.qty ? '#eab30866' : '#2a2a2a'}`,
                                                   borderRadius: '8px',
@@ -988,9 +1019,9 @@ const PackagingModule = () => {
                                                 <div style={{ fontSize: '0.55rem', color: '#eab308', fontWeight: 900 }}>план: {item.qty}</div>
                                               )}
                                               {/* Кнопка видалення для кастомних позицій */}
-                                              {item.isCustom && item.uid && (
+                                              {item.isCustom && !isPicked && !activeBatchData.isPackaged && (
                                                 <button
-                                                  onClick={e => { e.stopPropagation(); handleRemoveCustomItem(item.uid) }}
+                                                  onClick={e => { e.stopPropagation(); handleRemoveCustomItem(item.nom.id) }}
                                                   title="Видалити позицію"
                                                   style={{
                                                     marginTop: '4px',
@@ -1084,7 +1115,7 @@ const PackagingModule = () => {
                 </div>
 
                 {/* КНОПКИ ДІЙ */}
-                <div style={{ display: 'flex', gap: '15px', flexShrink: 0 }}>
+                <div className="action-buttons-row">
 
                   {/* ЗАПИТ ТМЦ */}
                   <button
@@ -1630,6 +1661,114 @@ const PackagingModule = () => {
       )}
 
       <style dangerouslySetInnerHTML={{ __html: `
+        .module-nav-container {
+          padding: 0 25px !important;
+          height: 80px !important;
+        }
+        .module-content-container {
+          padding: 30px !important;
+        }
+        .details-panel {
+          padding: 40px !important;
+          border-radius: 32px !important;
+        }
+        .detail-header-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 25px;
+          flex-shrink: 0;
+        }
+        @media screen and (max-width: 768px) {
+          .module-nav-container {
+            padding: 0 12px !important;
+            height: 54px !important;
+          }
+          .nav-title {
+            font-size: 0.8rem !important;
+          }
+          .nav-subtitle {
+            display: none !important;
+          }
+          .module-nav-container svg {
+            width: 14px !important;
+            height: 14px !important;
+          }
+          .burger-btn-labeled {
+            padding: 4px 8px !important;
+            font-size: 0.7rem !important;
+          }
+          .burger-btn-labeled span {
+            font-size: 0.7rem !important;
+          }
+        }
+        .order-detail-title {
+          font-size: 2.2rem !important;
+        }
+        .volume-box {
+          text-align: right;
+          background: #111;
+          padding: 12px 20px;
+          border-radius: 16px;
+        }
+        .action-buttons-row {
+          display: flex;
+          gap: 15px;
+          flex-shrink: 0;
+        }
+        
+        @media screen and (max-width: 768px) {
+          .module-content-container {
+            padding: 8px !important;
+          }
+          .details-panel {
+            padding: 12px !important;
+            border-radius: 16px !important;
+            gap: 10px !important; /* Decrease gap inside main container */
+          }
+          .detail-header-row {
+            flex-direction: row !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            margin-bottom: 8px !important;
+          }
+          .order-detail-title {
+            font-size: 1.2rem !important; /* Make title much smaller */
+          }
+          .volume-box {
+            padding: 4px 8px !important;
+            border-radius: 8px !important;
+          }
+          .volume-box div:first-child {
+            font-size: 0.5rem !important;
+          }
+          .volume-box div:last-child {
+            font-size: 1rem !important;
+          }
+          
+          /* Make buttons compact and smaller */
+          .action-buttons-row {
+            gap: 8px !important;
+            margin-top: 5px !important;
+          }
+          .action-buttons-row button, .action-buttons-row div button {
+            padding: 10px 10px !important; /* Much smaller button height */
+            border-radius: 10px !important;
+            font-size: 0.72rem !important;
+          }
+          .action-buttons-row svg, .action-buttons-row div svg {
+            width: 14px !important;
+            height: 14px !important;
+          }
+          .bom-required-list {
+            grid-template-columns: 1fr !important;
+            gap: 6px !important;
+          }
+          .bom-required-list > div {
+            padding: 10px !important;
+            border-radius: 12px !important;
+          }
+        }
         .master-grid {
           display: grid;
           grid-template-columns: 350px 1fr;
