@@ -116,6 +116,70 @@ export default function Shop1ForemanModule() {
     }))
   }
 
+  // Shift Report States (Period Selection + Card List Modal)
+  const [reportStartDate, setReportStartDate] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 7) // Last 7 days by default
+    return d.toISOString().split('T')[0]
+  })
+  const [reportEndDate, setReportEndDate] = useState(() => {
+    return new Date().toISOString().split('T')[0]
+  })
+  const [quickPeriod, setQuickPeriod] = useState('week')
+  const [selectedReportDetails, setSelectedReportDetails] = useState(null) // { shift: string, type: 'active' | 'completed' }
+
+  const handleQuickDateSelect = (val) => {
+    if (!val) return;
+    const today = new Date();
+    const toISO = (d) => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    const todayStr = toISO(today);
+    let startStr = '';
+    let endStr = todayStr;
+
+    if (val === 'today') {
+      startStr = todayStr;
+    } else if (val === 'yesterday') {
+      const yest = new Date();
+      yest.setDate(yest.getDate() - 1);
+      startStr = toISO(yest);
+      endStr = startStr;
+    } else if (val === '3days') {
+      const d = new Date();
+      d.setDate(d.getDate() - 2);
+      startStr = toISO(d);
+    } else if (val === 'week') {
+      const d = new Date();
+      d.setDate(d.getDate() - 6);
+      startStr = toISO(d);
+    } else if (val === 'month') {
+      const d = new Date();
+      d.setMonth(d.getMonth() - 1);
+      startStr = toISO(d);
+    } else if (val === 'quarter') {
+      const d = new Date();
+      d.setMonth(d.getMonth() - 3);
+      startStr = toISO(d);
+    } else if (val === 'halfyear') {
+      const d = new Date();
+      d.setMonth(d.getMonth() - 6);
+      startStr = toISO(d);
+    } else if (val === 'year') {
+      const d = new Date();
+      d.setFullYear(d.getFullYear() - 1);
+      startStr = toISO(d);
+    }
+
+    setReportStartDate(startStr);
+    setReportEndDate(endStr);
+    setQuickPeriod(val);
+  };
+
   useEffect(() => {
     fetchData(['work_cards', 'work_card_history']).catch(e => console.error(e))
   }, [])
@@ -374,6 +438,121 @@ export default function Shop1ForemanModule() {
     }).filter(group => group.users.length > 0)
   }, [shop1Users])
 
+  // Count active and completed cards for each shift, sub-divided by cutting vs tumbling, including timing metrics & buffers
+  const shiftStats = useMemo(() => {
+    const stats = {
+      'Зміна 1': { 
+        active: 0, completed: 0, activeCards: [], completedCards: [],
+        cuttingActive: 0, cuttingCompleted: 0,
+        tumblingActive: 0, tumblingCompleted: 0,
+        totalTuningTimeMins: 0, totalWorkingTimeMins: 0,
+        completedWorkingTimeMins: 0
+      },
+      'Зміна 2': { 
+        active: 0, completed: 0, activeCards: [], completedCards: [],
+        cuttingActive: 0, cuttingCompleted: 0,
+        tumblingActive: 0, tumblingCompleted: 0,
+        totalTuningTimeMins: 0, totalWorkingTimeMins: 0,
+        completedWorkingTimeMins: 0
+      },
+      'Зміна 3': { 
+        active: 0, completed: 0, activeCards: [], completedCards: [],
+        cuttingActive: 0, cuttingCompleted: 0,
+        tumblingActive: 0, tumblingCompleted: 0,
+        totalTuningTimeMins: 0, totalWorkingTimeMins: 0,
+        completedWorkingTimeMins: 0
+      },
+      'Зміна 4': { 
+        active: 0, completed: 0, activeCards: [], completedCards: [],
+        cuttingActive: 0, cuttingCompleted: 0,
+        tumblingActive: 0, tumblingCompleted: 0,
+        totalTuningTimeMins: 0, totalWorkingTimeMins: 0,
+        completedWorkingTimeMins: 0
+      },
+      'Без зміни': { 
+        active: 0, completed: 0, activeCards: [], completedCards: [],
+        cuttingActive: 0, cuttingCompleted: 0,
+        tumblingActive: 0, tumblingCompleted: 0,
+        totalTuningTimeMins: 0, totalWorkingTimeMins: 0,
+        completedWorkingTimeMins: 0
+      }
+    }
+
+    const start = new Date(reportStartDate + 'T00:00:00')
+    const end = new Date(reportEndDate + 'T23:59:59')
+
+    // Active Cards (running / paused)
+    ;(workCards || []).forEach(c => {
+      const startedDate = c.started_at || c.created_at
+      if (startedDate) {
+        const d = new Date(startedDate)
+        if (d < start || d > end) return
+      }
+
+      const user = (systemUsers || []).find(u => formatUserName(u) === c.operator_name)
+      const shift = c.shift_name || user?.shift || 'Без зміни'
+      const targetGroup = stats[shift] || stats['Без зміни']
+      targetGroup.active += 1
+      targetGroup.activeCards.push(c)
+
+      // Sub-divide by operation step: cutting (розкрій/лазер) vs tumbling (галтовка/галтування)
+      const step = String(c.step_name || c.step || '').toLowerCase()
+      if (step.includes('галтовка') || step.includes('галтування') || step.includes('галтов')) {
+        targetGroup.tumblingActive += 1
+      } else {
+        targetGroup.cuttingActive += 1
+      }
+
+      // Timing estimates for active cards (only accumulated for active/working)
+      if (c.started_at) {
+        const diffMins = Math.max(0, Math.floor((new Date() - new Date(c.started_at)) / 60000))
+        targetGroup.totalWorkingTimeMins += diffMins
+      }
+    })
+
+    // Completed Cards (history)
+    ;(workCardHistory || []).forEach(h => {
+      const compDate = h.completed_at || h.started_at || h.created_at
+      if (compDate) {
+        const d = new Date(compDate)
+        if (d < start || d > end) return
+      }
+
+      const user = (systemUsers || []).find(u => formatUserName(u) === h.operator_name)
+      const shift = h.shift_name || user?.shift || 'Без зміни'
+      const targetGroup = stats[shift] || stats['Без зміни']
+      targetGroup.completed += 1
+      targetGroup.completedCards.push(h)
+
+      const step = String(h.step_name || h.step || '').toLowerCase()
+      if (step.includes('галтовка') || step.includes('галтування') || step.includes('галтов')) {
+        targetGroup.tumblingCompleted += 1
+      } else {
+        targetGroup.cuttingCompleted += 1
+      }
+
+      // Truthful Timing logic based on database timestamps (completed_at - started_at)
+      if (h.completed_at && h.started_at) {
+        const actualDiffMins = Math.max(0, Math.floor((new Date(h.completed_at) - new Date(h.started_at)) / 60000))
+        // Protect against extreme anomalies (e.g. card left active for weeks) by ignoring values over 48 hours for averages
+        if (actualDiffMins < 2880) {
+          targetGroup.completedWorkingTimeMins += actualDiffMins
+          targetGroup.totalWorkingTimeMins += actualDiffMins
+        }
+      } else {
+        // Fallback to written columns if dates are missing
+        const workTime = Number(h.working_time_mins || h.duration_mins || 0)
+        targetGroup.completedWorkingTimeMins += workTime
+        targetGroup.totalWorkingTimeMins += workTime
+      }
+      
+      const setupTime = Number(h.setup_time_mins || h.tuning_time_mins || h.setup_duration || 0)
+      targetGroup.totalTuningTimeMins += setupTime
+    })
+
+    return stats
+  }, [workCards, workCardHistory, systemUsers, reportStartDate, reportEndDate])
+
   // Map of operator checks to calculate actual activity.
   // Format: { "Operator Name": { "YYYY-MM-DD": true } }
   const parsedCheckins = useMemo(() => {
@@ -605,6 +784,9 @@ export default function Shop1ForemanModule() {
             <button onClick={() => setActiveTab('calendar')} style={tabBtnStyle('calendar')}>
               <Calendar size={16} /> Календар змін
             </button>
+            <button onClick={() => setActiveTab('shifts_report')} style={tabBtnStyle('shifts_report')}>
+              <RefreshCw size={16} /> Звіт по змінах
+            </button>
             <button onClick={() => setActiveTab('staff')} style={tabBtnStyle('staff')}>
               <Users size={16} /> Персонал
             </button>
@@ -705,6 +887,237 @@ export default function Shop1ForemanModule() {
                 )
               })}
             </div>
+          </div>
+        )}
+
+        {/* 1.1 SHIFTS REPORT TAB */}
+        {activeTab === 'shifts_report' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', animation: 'fadeIn 0.2s ease' }}>
+            {/* Filter Panel matching ReportsModule Style */}
+            <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', background: '#0d0d0d', borderRadius: '16px', border: '1px solid #1a1a1a', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', padding: '0 15px', borderRight: '1px solid #1a1a1a' }}>
+                  <Calendar size={14} color="#888" style={{ marginRight: '8px' }} />
+                  <span style={{ fontSize: '0.75rem', color: '#666', textTransform: 'uppercase', fontWeight: 800 }}>Період:</span>
+                </div>
+                <input 
+                  type="date" 
+                  value={reportStartDate} 
+                  onClick={(e) => e.target.showPicker && e.target.showPicker()}
+                  onChange={(e) => { setReportStartDate(e.target.value); setQuickPeriod(''); }}
+                  style={{ background: 'transparent', border: 'none', color: reportStartDate ? '#fff' : '#555', padding: '12px 15px', fontSize: '0.85rem', outline: 'none', cursor: 'pointer', fontFamily: 'inherit', colorScheme: 'dark' }}
+                />
+                <span style={{ color: '#333' }}>—</span>
+                <input 
+                  type="date" 
+                  value={reportEndDate} 
+                  onClick={(e) => e.target.showPicker && e.target.showPicker()}
+                  onChange={(e) => { setReportEndDate(e.target.value); setQuickPeriod(''); }}
+                  style={{ background: 'transparent', border: 'none', color: reportEndDate ? '#fff' : '#555', padding: '12px 15px', fontSize: '0.85rem', outline: 'none', cursor: 'pointer', fontFamily: 'inherit', colorScheme: 'dark' }}
+                />
+                {(reportStartDate || reportEndDate) && (
+                  <button 
+                    onClick={() => { setReportStartDate(''); setReportEndDate(''); setQuickPeriod(''); }}
+                    style={{ background: 'transparent', border: 'none', padding: '12px 15px', cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#ef4444', borderLeft: '1px solid #1a1a1a' }}
+                    title="Очистити період"
+                  >
+                    ✕
+                  </button>
+                )}
+                <select 
+                  onChange={(e) => handleQuickDateSelect(e.target.value)} 
+                  value={quickPeriod}
+                  style={{ background: '#0d0d0d', border: 'none', borderLeft: '1px solid #1a1a1a', color: '#eab308', padding: '12px 15px', fontSize: '0.8rem', outline: 'none', cursor: 'pointer', fontWeight: 800, textTransform: 'uppercase' }}
+                >
+                  <option value="" disabled hidden>ОБРАТИ ПЕРІОД</option>
+                  <option value="today">Сьогодні</option>
+                  <option value="yesterday">Вчора</option>
+                  <option value="3days">Останні 3 дні</option>
+                  <option value="week">Останній тиждень</option>
+                  <option value="month">Останній місяць</option>
+                  <option value="quarter">Останній квартал</option>
+                  <option value="halfyear">Останні пів року</option>
+                  <option value="year">Останній рік</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Shift cards widgets grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
+              {Object.entries(shiftStats).map(([shiftName, counts]) => {
+                const total = counts.active + counts.completed
+                // Calculate buffers/queue size (cards waiting to start)
+                const queueCount = counts.activeCards.filter(c => c.status === 'paused' || !c.started_at).length;
+                return (
+                  <div key={shiftName} style={{
+                    background: '#0d0d0d',
+                    border: '1px solid rgba(255,255,255,0.03)',
+                    borderRadius: '24px',
+                    padding: '25px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '15px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.95rem', fontWeight: 900, color: '#fff' }}>{shiftName}</span>
+                      <span style={{ fontSize: '0.68rem', fontWeight: 900, padding: '4px 10px', borderRadius: '8px', background: 'rgba(234,179,8,0.1)', color: '#eab308' }}>
+                        Всього: {total}
+                      </span>
+                    </div>
+                    
+                    {/* General counts clickable */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', borderBottom: '1px solid rgba(255,255,255,0.02)', paddingBottom: '15px' }}>
+                      <div 
+                        onClick={() => counts.active > 0 && setSelectedReportDetails({ shift: shiftName, type: 'active', cards: counts.activeCards })}
+                        style={{ cursor: counts.active > 0 ? 'pointer' : 'default', padding: '8px', borderRadius: '12px', background: counts.active > 0 ? 'rgba(34, 197, 94, 0.03)' : 'transparent', border: counts.active > 0 ? '1px solid rgba(34, 197, 94, 0.08)' : '1px solid transparent', transition: '0.2s' }}
+                        className={counts.active > 0 ? "hover-scale" : ""}
+                      >
+                        <div style={{ fontSize: '0.58rem', color: '#555', fontWeight: 900, textTransform: 'uppercase' }}>В роботі ➔</div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 950, color: '#22c55e', marginTop: '4px' }}>{counts.active} <span style={{ fontSize: '0.75rem', color: '#444', fontWeight: 700 }}>карт</span></div>
+                      </div>
+                      <div 
+                        onClick={() => counts.completed > 0 && setSelectedReportDetails({ shift: shiftName, type: 'completed', cards: counts.completedCards })}
+                        style={{ cursor: counts.completed > 0 ? 'pointer' : 'default', padding: '8px', borderRadius: '12px', background: counts.completed > 0 ? 'rgba(59, 130, 246, 0.03)' : 'transparent', border: counts.completed > 0 ? '1px solid rgba(59, 130, 246, 0.08)' : '1px solid transparent', transition: '0.2s' }}
+                        className={counts.completed > 0 ? "hover-scale" : ""}
+                      >
+                        <div style={{ fontSize: '0.58rem', color: '#555', fontWeight: 900, textTransform: 'uppercase' }}>Завершено ➔</div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 950, color: '#3b82f6', marginTop: '4px' }}>{counts.completed} <span style={{ fontSize: '0.75rem', color: '#444', fontWeight: 700 }}>карт</span></div>
+                      </div>
+                    </div>
+
+                    {/* Breakdown by operations: Cutting vs Tumbling */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', borderBottom: '1px solid rgba(255,255,255,0.02)', paddingBottom: '15px', fontSize: '0.7rem' }}>
+                      <div>
+                        <div style={{ fontSize: '0.58rem', color: '#888', fontWeight: 900, marginBottom: '6px', letterSpacing: '0.05em' }}>✂️ РОЗКРІЙ</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span style={{ color: '#aaa' }}>Активних: <strong style={{ color: '#22c55e' }}>{counts.cuttingActive}</strong></span>
+                          <span style={{ color: '#aaa' }}>Здано: <strong style={{ color: '#3b82f6' }}>{counts.cuttingCompleted}</strong></span>
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.58rem', color: '#888', fontWeight: 900, marginBottom: '6px', letterSpacing: '0.05em' }}>🌀 ГАЛТОВКА</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span style={{ color: '#aaa' }}>Активних: <strong style={{ color: '#22c55e' }}>{counts.tumblingActive}</strong></span>
+                          <span style={{ color: '#aaa' }}>Здано: <strong style={{ color: '#3b82f6' }}>{counts.tumblingCompleted}</strong></span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Timings and Buffers/Queue */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.68rem', color: '#666' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>⏱️ Час налаштування:</span>
+                        <strong style={{ color: '#bbb' }}>{counts.totalTuningTimeMins} хв</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>⚙️ Фактичний час роботи:</span>
+                        <strong style={{ color: '#bbb' }}>{counts.totalWorkingTimeMins} хв</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>📊 Середній час на карту:</span>
+                        <strong style={{ color: '#eab308' }}>
+                          { counts.completed > 0 ? Math.round(counts.completedWorkingTimeMins / counts.completed) : 0 } хв
+                        </strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed rgba(255,255,255,0.03)', paddingTop: '6px', marginTop: '2px' }}>
+                        <span>📦 Буфер / Черга запуску:</span>
+                        <strong style={{ color: queueCount > 0 ? '#eab308' : '#555' }}>{queueCount} карт</strong>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Interactive Card Details Modal */}
+            {selectedReportDetails && (
+              <div style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(0,0,0,0.85)',
+                backdropFilter: 'blur(10px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 9999,
+                padding: '20px'
+              }} onClick={() => setSelectedReportDetails(null)}>
+                <div style={{
+                  background: '#0a0a0b',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  borderRadius: '24px',
+                  width: '100%',
+                  maxWidth: '750px',
+                  maxHeight: '80vh',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  onClick: e => e.stopPropagation(),
+                  animation: 'fadeIn 0.15s ease-out'
+                }} onClick={e => e.stopPropagation()}>
+                  
+                  {/* Modal Header */}
+                  <div style={{ padding: '20px 25px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 950, color: '#fff' }}>
+                        {selectedReportDetails.shift} — {selectedReportDetails.type === 'active' ? 'Картки в роботі' : 'Завершені картки'}
+                      </h3>
+                      <div style={{ fontSize: '0.7rem', color: '#555', marginTop: '2px', fontWeight: 700 }}>
+                        Період: {reportStartDate} — {reportEndDate}
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => setSelectedReportDetails(null)} 
+                      style={{ background: 'rgba(255,255,255,0.03)', border: 'none', color: '#888', cursor: 'pointer', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* Modal List */}
+                  <div style={{ padding: '20px 25px', overflowY: 'auto', flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {selectedReportDetails.cards.map((card, idx) => {
+                      const nom = nomenclatures?.find(n => n.id === card.nomenclature_id)
+                      const dateText = new Date(card.completed_at || card.started_at || card.created_at).toLocaleString('uk-UA', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                      return (
+                        <div key={card.id || idx} style={{
+                          background: 'rgba(255,255,255,0.01)',
+                          border: '1px solid rgba(255,255,255,0.03)',
+                          borderRadius: '16px',
+                          padding: '16px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: '15px'
+                        }}>
+                          <div>
+                            <div style={{ fontWeight: 800, color: '#fff', fontSize: '0.85rem' }}>{nom?.name || 'Н Nomenclature'}</div>
+                            <div style={{ fontSize: '0.65rem', color: '#666', marginTop: '4px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              <span>Номер: #{card.id?.slice(-8).toUpperCase()}</span>
+                              <span>•</span>
+                              <span>Оператор: <strong>{card.operator_name || 'Не вказано'}</strong></span>
+                              {card.machine && card.machine !== 'Не вказано' && (
+                                <>
+                                  <span>•</span>
+                                  <span>Верстат: {card.machine}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <div style={{ fontWeight: 950, fontSize: '0.9rem', color: '#eab308' }}>{card.quantity || 0} шт</div>
+                            <div style={{ fontSize: '0.62rem', color: '#444', marginTop: '2px', fontWeight: 700 }}>{dateText}</div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
