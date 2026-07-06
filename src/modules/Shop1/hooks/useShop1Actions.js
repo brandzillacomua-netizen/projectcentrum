@@ -249,7 +249,9 @@ export function useShop1Actions({
         stage_name: 'Розкрій (перезмінка)',
         operator_name: currentCard.operator_name || 'Не вказано',
         qty_at_start: currentCard.quantity,
-        qty_completed: currentCard.quantity,
+        // Перезмінка закриває лише часову сесію оператора. Виробіток
+        // фіксується один раз під час фактичного завершення операції.
+        qty_completed: 0,
         scrap_qty: 0,
         started_at: currentCard.started_at || now,
         completed_at: now,
@@ -294,7 +296,7 @@ export function useShop1Actions({
         stage_name: 'Розкрій',
         operator_name: currentCard.operator_name || 'Не вказано',
         qty_at_start: currentCard.quantity || 0,
-        qty_completed: currentCard.quantity || 0,
+        qty_completed: 0,
         scrap_qty: 0,
         started_at: currentCard.started_at || now,
         completed_at: now,
@@ -340,7 +342,7 @@ export function useShop1Actions({
         stage_name: 'Розкрій (зупинка)',
         operator_name: currentCard.operator_name || 'Не вказано',
         qty_at_start: currentCard.quantity || 0,
-        qty_completed: currentCard.quantity || 0,
+        qty_completed: 0,
         scrap_qty: 0,
         started_at: pausedAt,
         completed_at: now,

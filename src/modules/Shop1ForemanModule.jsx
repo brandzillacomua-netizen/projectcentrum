@@ -131,6 +131,8 @@ export default function Shop1ForemanModule() {
   })
   const [quickPeriod, setQuickPeriod] = useState('week')
   const [selectedReportDetails, setSelectedReportDetails] = useState(null) // { shift: string, type: 'active' | 'completed' }
+  const [shiftReportHistory, setShiftReportHistory] = useState([])
+  const [shiftReportLoading, setShiftReportLoading] = useState(false)
 
   // Nariad Reports States
   const [nariadSearch, setNariadSearch] = useState('')
@@ -232,6 +234,50 @@ export default function Shop1ForemanModule() {
   useEffect(() => {
     fetchData(['work_cards', 'work_card_history']).catch(e => console.error(e))
   }, [])
+
+  // The global MES context intentionally keeps only the latest 500 history rows.
+  // Shift reports need the complete selected period, so fetch it independently
+  // in pages without inflating the global application cache.
+  useEffect(() => {
+    if (activeTab !== 'shifts_report' || !reportStartDate || !reportEndDate) return
+    let cancelled = false
+
+    const loadShiftReportHistory = async () => {
+      setShiftReportLoading(true)
+      try {
+        const periodStart = new Date(`${reportStartDate}T00:00:00`).toISOString()
+        const periodEnd = new Date(`${reportEndDate}T23:59:59.999`).toISOString()
+        const pageSize = 1000
+        let offset = 0
+        let rows = []
+
+        while (!cancelled) {
+          const { data, error } = await supabase
+            .from('work_card_history')
+            .select('*')
+            .gte('completed_at', periodStart)
+            .lte('completed_at', periodEnd)
+            .order('completed_at', { ascending: true })
+            .range(offset, offset + pageSize - 1)
+          if (error) throw error
+          const page = data || []
+          rows = rows.concat(page)
+          if (page.length < pageSize) break
+          offset += pageSize
+        }
+
+        if (!cancelled) setShiftReportHistory(rows)
+      } catch (error) {
+        console.error('Failed to load complete shift report history:', error)
+        if (!cancelled) setShiftReportHistory(workCardHistory || [])
+      } finally {
+        if (!cancelled) setShiftReportLoading(false)
+      }
+    }
+
+    loadShiftReportHistory()
+    return () => { cancelled = true }
+  }, [activeTab, reportStartDate, reportEndDate, supabase])
 
   // Filter only Shop 1 Users
   const shop1Users = useMemo(() => {
@@ -489,50 +535,33 @@ export default function Shop1ForemanModule() {
 
   // Count active and completed cards for each shift, sub-divided by cutting vs tumbling, including timing metrics & buffers
   const shiftStats = useMemo(() => {
+    const emptyShiftStats = () => ({
+      active: 0, paused: 0, buffer: 0, completed: 0,
+      activeCards: [], pausedCards: [], bufferCards: [], completedCards: [],
+      cuttingActive: 0, cuttingCompleted: 0,
+      tumblingActive: 0, tumblingCompleted: 0,
+      totalTuningTimeMins: 0, totalWorkingTimeMins: 0,
+      completedWorkingTimeMins: 0,
+      completedOperationKeys: new Set()
+    })
     const stats = {
-      'Зміна 1': { 
-        active: 0, completed: 0, activeCards: [], completedCards: [],
-        cuttingActive: 0, cuttingCompleted: 0,
-        tumblingActive: 0, tumblingCompleted: 0,
-        totalTuningTimeMins: 0, totalWorkingTimeMins: 0,
-        completedWorkingTimeMins: 0
-      },
-      'Зміна 2': { 
-        active: 0, completed: 0, activeCards: [], completedCards: [],
-        cuttingActive: 0, cuttingCompleted: 0,
-        tumblingActive: 0, tumblingCompleted: 0,
-        totalTuningTimeMins: 0, totalWorkingTimeMins: 0,
-        completedWorkingTimeMins: 0
-      },
-      'Зміна 3': { 
-        active: 0, completed: 0, activeCards: [], completedCards: [],
-        cuttingActive: 0, cuttingCompleted: 0,
-        tumblingActive: 0, tumblingCompleted: 0,
-        totalTuningTimeMins: 0, totalWorkingTimeMins: 0,
-        completedWorkingTimeMins: 0
-      },
-      'Зміна 4': { 
-        active: 0, completed: 0, activeCards: [], completedCards: [],
-        cuttingActive: 0, cuttingCompleted: 0,
-        tumblingActive: 0, tumblingCompleted: 0,
-        totalTuningTimeMins: 0, totalWorkingTimeMins: 0,
-        completedWorkingTimeMins: 0
-      },
-      'Без зміни': { 
-        active: 0, completed: 0, activeCards: [], completedCards: [],
-        cuttingActive: 0, cuttingCompleted: 0,
-        tumblingActive: 0, tumblingCompleted: 0,
-        totalTuningTimeMins: 0, totalWorkingTimeMins: 0,
-        completedWorkingTimeMins: 0
-      }
+      'Зміна 1': emptyShiftStats(),
+      'Зміна 2': emptyShiftStats(),
+      'Зміна 3': emptyShiftStats(),
+      'Зміна 4': emptyShiftStats(),
+      'Без зміни': emptyShiftStats()
     }
 
     const start = new Date(reportStartDate + 'T00:00:00')
     const end = new Date(reportEndDate + 'T23:59:59')
 
-    // Active Cards — skip only 'new' (not yet taken). at-buffer, in-progress, paused, completed all count.
+    // Current state is mutually exclusive: working, paused or waiting in buffer.
     ;(workCards || []).forEach(c => {
-      if (c.status === 'new') return
+      const status = String(c.status || '')
+      const isWorking = status === 'in-progress'
+      const isPaused = status === 'paused'
+      const isBuffer = ['at-buffer', 'waiting-buffer'].includes(status)
+      if (!isWorking && !isPaused && !isBuffer) return
 
       const startedDate = c.started_at || c.created_at
       if (startedDate) {
@@ -543,6 +572,18 @@ export default function Shop1ForemanModule() {
       const user = (systemUsers || []).find(u => formatUserName(u) === c.operator_name)
       const shift = c.shift_name || user?.shift || 'Без зміни'
       const targetGroup = stats[shift] || stats['Без зміни']
+
+      if (isPaused) {
+        targetGroup.paused += 1
+        targetGroup.pausedCards.push(c)
+        return
+      }
+      if (isBuffer) {
+        targetGroup.buffer += 1
+        targetGroup.bufferCards.push(c)
+        return
+      }
+
       targetGroup.active += 1
       targetGroup.activeCards.push(c)
 
@@ -562,7 +603,7 @@ export default function Shop1ForemanModule() {
     })
 
     // Completed Cards (history)
-    ;(workCardHistory || []).forEach(h => {
+    ;(shiftReportHistory || []).forEach(h => {
       const compDate = h.completed_at || h.started_at || h.created_at
       // Date filter: only skip if a date exists and it is outside the range
       if (compDate) {
@@ -574,26 +615,44 @@ export default function Shop1ForemanModule() {
       const user = (systemUsers || []).find(u => formatUserName(u) === h.operator_name)
       const shift = h.shift_name || user?.shift || 'Без зміни'
       const targetGroup = stats[shift] || stats['Без зміни']
-      targetGroup.completed += 1
-      targetGroup.completedCards.push(h)
 
       // stage_name is the correct field in work_card_history (not 'operation')
       const hop = String(h.stage_name || h.operation || '')
-      if (hop.startsWith('Галтовка') || hop === 'Галтовка') {
-        targetGroup.tumblingCompleted += 1
-      } else {
-        targetGroup.cuttingCompleted += 1
+      const isShiftHandover = hop === 'Розкрій (перезмінка)'
+      const isPausedWorkSession = String(h.card_info || '').includes('[PAUSED_WORK_LOG]')
+      const isPauseInterval = hop === 'Розкрій (зупинка)'
+      const isServiceSession = isShiftHandover || isPausedWorkSession || isPauseInterval
+      const isCuttingCompletion = hop === 'Розкрій'
+      const isTumblingCompletion = hop === 'Галтовка' || hop.startsWith('Галтовка ')
+      const isTrackedCompletion = isCuttingCompletion || isTumblingCompletion
+
+      // A handover is a finished operator work session, not a finished card.
+      // Its duration belongs to the previous shift, while output is credited once
+      // by the final operation-completion history row.
+      if (!isServiceSession && isTrackedCompletion) {
+        const operationType = isTumblingCompletion ? 'tumbling' : 'cutting'
+        const operationKey = `${h.card_id || h.id}:${operationType}`
+        if (!targetGroup.completedOperationKeys.has(operationKey)) {
+          targetGroup.completedOperationKeys.add(operationKey)
+          targetGroup.completed += 1
+          targetGroup.completedCards.push(h)
+          if (operationType === 'tumbling') {
+            targetGroup.tumblingCompleted += 1
+          } else {
+            targetGroup.cuttingCompleted += 1
+          }
+        }
       }
 
       // Truthful Timing logic based on database timestamps (completed_at - started_at)
-      if (h.completed_at && h.started_at) {
+      if (!isPauseInterval && h.completed_at && h.started_at) {
         const actualDiffMins = Math.max(0, Math.floor((new Date(h.completed_at) - new Date(h.started_at)) / 60000))
         // Protect against extreme anomalies (e.g. card left active for weeks) by ignoring values over 48 hours for averages
         if (actualDiffMins < 2880) {
           targetGroup.completedWorkingTimeMins += actualDiffMins
           targetGroup.totalWorkingTimeMins += actualDiffMins
         }
-      } else {
+      } else if (!isPauseInterval) {
         // Fallback to written columns if dates are missing
         const workTime = Number(h.working_time_mins || h.duration_mins || 0)
         targetGroup.completedWorkingTimeMins += workTime
@@ -604,8 +663,9 @@ export default function Shop1ForemanModule() {
       targetGroup.totalTuningTimeMins += setupTime
     })
 
+    Object.values(stats).forEach(group => { delete group.completedOperationKeys })
     return stats
-  }, [workCards, workCardHistory, systemUsers, reportStartDate, reportEndDate])
+  }, [workCards, shiftReportHistory, systemUsers, reportStartDate, reportEndDate])
 
   // Map of operator checks to calculate actual activity.
   // Format: { "Operator Name": { "YYYY-MM-DD": true } }
@@ -999,12 +1059,22 @@ export default function Shop1ForemanModule() {
               </div>
             </div>
 
+            {shiftReportLoading && (
+              <div style={{ marginBottom: '15px', padding: '12px 15px', borderRadius: '12px', background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.14)', color: '#60a5fa', fontSize: '0.72rem', fontWeight: 800 }}>
+                Завантажується повна історія за вибраний період…
+              </div>
+            )}
+
             {/* Shift cards widgets grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
               {Object.entries(shiftStats).map(([shiftName, counts]) => {
-                const total = counts.active + counts.completed
-                // Calculate buffers/queue size (cards waiting to start)
-                const queueCount = counts.activeCards.filter(c => c.status === 'paused' || !c.started_at).length;
+                const total = new Set([
+                  ...counts.activeCards,
+                  ...counts.pausedCards,
+                  ...counts.bufferCards,
+                  ...counts.completedCards
+                ].map(card => String(card.card_id || card.id))).size
+                const queueCount = counts.buffer
                 return (
                   <div key={shiftName} style={{
                     background: '#0d0d0d',
@@ -1023,7 +1093,7 @@ export default function Shop1ForemanModule() {
                     </div>
                     
                     {/* General counts clickable */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', borderBottom: '1px solid rgba(255,255,255,0.02)', paddingBottom: '15px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', borderBottom: '1px solid rgba(255,255,255,0.02)', paddingBottom: '15px' }}>
                       <div 
                         onClick={() => counts.active > 0 && setSelectedReportDetails({ shift: shiftName, type: 'active', cards: counts.activeCards })}
                         style={{ cursor: counts.active > 0 ? 'pointer' : 'default', padding: '8px', borderRadius: '12px', background: counts.active > 0 ? 'rgba(34, 197, 94, 0.03)' : 'transparent', border: counts.active > 0 ? '1px solid rgba(34, 197, 94, 0.08)' : '1px solid transparent', transition: '0.2s' }}
@@ -1031,6 +1101,14 @@ export default function Shop1ForemanModule() {
                       >
                         <div style={{ fontSize: '0.58rem', color: '#555', fontWeight: 900, textTransform: 'uppercase' }}>В роботі ➔</div>
                         <div style={{ fontSize: '1.25rem', fontWeight: 950, color: '#22c55e', marginTop: '4px' }}>{counts.active} <span style={{ fontSize: '0.75rem', color: '#444', fontWeight: 700 }}>карт</span></div>
+                      </div>
+                      <div
+                        onClick={() => counts.paused > 0 && setSelectedReportDetails({ shift: shiftName, type: 'paused', cards: counts.pausedCards })}
+                        style={{ cursor: counts.paused > 0 ? 'pointer' : 'default', padding: '8px', borderRadius: '12px', background: counts.paused > 0 ? 'rgba(234, 179, 8, 0.03)' : 'transparent', border: counts.paused > 0 ? '1px solid rgba(234, 179, 8, 0.08)' : '1px solid transparent', transition: '0.2s' }}
+                        className={counts.paused > 0 ? "hover-scale" : ""}
+                      >
+                        <div style={{ fontSize: '0.58rem', color: '#555', fontWeight: 900, textTransform: 'uppercase' }}>На паузі →</div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 950, color: '#eab308', marginTop: '4px' }}>{counts.paused} <span style={{ fontSize: '0.75rem', color: '#444', fontWeight: 700 }}>карт</span></div>
                       </div>
                       <div 
                         onClick={() => counts.completed > 0 && setSelectedReportDetails({ shift: shiftName, type: 'completed', cards: counts.completedCards })}
@@ -1047,14 +1125,14 @@ export default function Shop1ForemanModule() {
                       <div>
                         <div style={{ fontSize: '0.58rem', color: '#888', fontWeight: 900, marginBottom: '6px', letterSpacing: '0.05em' }}>✂️ РОЗКРІЙ</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                          <span style={{ color: '#aaa' }}>Активних: <strong style={{ color: '#22c55e' }}>{counts.cuttingActive}</strong></span>
+                          <span style={{ color: '#aaa' }}>Зараз у роботі: <strong style={{ color: '#22c55e' }}>{counts.cuttingActive}</strong></span>
                           <span style={{ color: '#aaa' }}>Здано: <strong style={{ color: '#3b82f6' }}>{counts.cuttingCompleted}</strong></span>
                         </div>
                       </div>
                       <div>
                         <div style={{ fontSize: '0.58rem', color: '#888', fontWeight: 900, marginBottom: '6px', letterSpacing: '0.05em' }}>🌀 ГАЛТОВКА</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                          <span style={{ color: '#aaa' }}>Активних: <strong style={{ color: '#22c55e' }}>{counts.tumblingActive}</strong></span>
+                          <span style={{ color: '#aaa' }}>Зараз у роботі: <strong style={{ color: '#22c55e' }}>{counts.tumblingActive}</strong></span>
                           <span style={{ color: '#aaa' }}>Здано: <strong style={{ color: '#3b82f6' }}>{counts.tumblingCompleted}</strong></span>
                         </div>
                       </div>
@@ -1119,7 +1197,7 @@ export default function Shop1ForemanModule() {
                   <div style={{ padding: '20px 25px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                       <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 950, color: '#fff' }}>
-                        {selectedReportDetails.shift} — {selectedReportDetails.type === 'active' ? 'Картки в роботі' : 'Завершені картки'}
+                        {selectedReportDetails.shift} — {selectedReportDetails.type === 'active' ? 'Картки в роботі' : selectedReportDetails.type === 'paused' ? 'Картки на паузі' : 'Завершені операції'}
                       </h3>
                       <div style={{ fontSize: '0.7rem', color: '#555', marginTop: '2px', fontWeight: 700 }}>
                         Період: {reportStartDate} — {reportEndDate}
@@ -1514,8 +1592,11 @@ export default function Shop1ForemanModule() {
                       if (started && (!first || started < first)) first = started
                       if (completed && (!last || completed > last)) last = completed
                       if (!started || !completed) return
-                      const seconds = Math.max(0, Math.round((completed - started) / 1000))
                       const stage = String(row.stage_name || 'Без назви')
+                      // The pause interval remains part of total elapsed time, but is
+                      // not productive operator time.
+                      if (stage === 'Розкрій (зупинка)') return
+                      const seconds = Math.max(0, Math.round((completed - started) / 1000))
                       const target = stage.startsWith('Буфер ') ? bufferTotals : stageTotals
                       if (!target[stage]) target[stage] = { total: 0, count: 0 }
                       target[stage].total += seconds
@@ -1578,7 +1659,7 @@ export default function Shop1ForemanModule() {
                     const unitsPerSheet = Number(entry.units_per_sheet) || Number(nom?.units_per_sheet) || 1
                     const planned = Number(entry.sheets) || Math.ceil((Number(entry.plan) || 0) / unitsPerSheet)
                     const cutQty = rd.historyRows
-                      .filter(row => String(row.nomenclature_id) === String(actualNomId) && (row.stage_name === 'Розкрій' || row.stage_name === 'Розкрій (перезмінка)'))
+                      .filter(row => String(row.nomenclature_id) === String(actualNomId) && row.stage_name === 'Розкрій' && !String(row.card_info || '').includes('[PAUSED_WORK_LOG]'))
                       .reduce((sum, row) => sum + (Number(row.qty_completed) || 0), 0)
                     const actual = Math.ceil(cutQty / unitsPerSheet)
                     const material = entry.material || nom?.material_type || 'Матеріал'
