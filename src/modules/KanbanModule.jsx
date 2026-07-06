@@ -1335,7 +1335,11 @@ const KanbanModule = () => {
           {isManager && (
             <div className="role-badge manager-badge"><Shield size={11} /> Менеджер</div>
           )}
-          <Link to="/tasks/projects" className="role-badge manager-badge" style={{ textDecoration: 'none' }}><Briefcase size={12} /> ПРОЄКТИ</Link>
+          <Link to="/tasks/projects" className="projects-nav-btn">
+            <span className="projects-nav-icon"><Briefcase size={16} /></span>
+            <span className="projects-nav-copy"><b>ПРОЄКТИ</b><small>Відкрити дошки</small></span>
+            <ChevronRight size={16} className="projects-nav-arrow" />
+          </Link>
         </div>
         <div className="kb-nav-right">
           <div className={`kb-search-wrap ${showSearch ? 'open' : ''}`}>
@@ -2184,6 +2188,14 @@ const KanbanModule = () => {
         .kb-brand-text span { font-size: 0.65rem; color: #333; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
         .role-badge { display: flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; font-size: 0.65rem; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; }
         .manager-badge { background: rgba(255,144,0,0.1); color: #ff9000; border: 1px solid rgba(255,144,0,0.25); }
+        .projects-nav-btn { display: flex; align-items: center; gap: 9px; min-width: 154px; padding: 7px 10px 7px 7px; border-radius: 11px; text-decoration: none; background: linear-gradient(135deg, #ff9000, #ffab2e); color: #090909; border: 1px solid #ffc05a; box-shadow: 0 5px 18px rgba(255,144,0,0.2); transition: transform .2s, box-shadow .2s, filter .2s; }
+        .projects-nav-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(255,144,0,0.38); filter: brightness(1.07); }
+        .projects-nav-icon { width: 29px; height: 29px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.14); }
+        .projects-nav-copy { display: flex; flex: 1; flex-direction: column; line-height: 1.05; }
+        .projects-nav-copy b { font-size: .72rem; letter-spacing: .7px; }
+        .projects-nav-copy small { margin-top: 4px; font-size: .56rem; font-weight: 700; opacity: .62; }
+        .projects-nav-arrow { transition: transform .2s; }
+        .projects-nav-btn:hover .projects-nav-arrow { transform: translateX(3px); }
 
         .kb-nav-right { display: flex; align-items: center; gap: 12px; }
         .kb-search-wrap { display: flex; align-items: center; gap: 8px; }
@@ -2685,6 +2697,8 @@ const KanbanModule = () => {
         @media (max-width: 1100px) {
           .kb-nav { padding: 0 20px; flex-wrap: wrap; height: auto; gap: 10px; padding-top: 12px; padding-bottom: 12px; }
           .kb-nav-right { flex-wrap: wrap; gap: 8px; }
+          .projects-nav-btn { min-width: auto; }
+          .projects-nav-copy small { display: none; }
           .kb-stats { grid-template-columns: repeat(2, 1fr); padding: 12px 20px; }
           .kb-board { padding: 16px 20px; }
         }

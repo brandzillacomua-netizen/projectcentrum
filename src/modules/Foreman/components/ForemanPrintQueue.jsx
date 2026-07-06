@@ -2,6 +2,30 @@ import React from 'react'
 import { X } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 
+const getLoadingSequence = (metadata) => {
+  const loading = String(metadata?.loading || metadata?.card_info || '')
+  const fraction = loading.match(/(?:^|\D)(\d+)\s*\/\s*(\d+)(?:\D|$)/)
+  if (fraction) return Number(fraction[1])
+
+  const leadingNumber = loading.match(/^\s*(\d+)/)
+  return leadingNumber ? Number(leadingNumber[1]) : Number.MAX_SAFE_INTEGER
+}
+
+const getLoadingDeclaredTotal = (metadata) => {
+  const loading = String(metadata?.loading || metadata?.card_info || '')
+  const fraction = loading.match(/(?:^|\D)(\d+)\s*\/\s*(\d+)(?:\D|$)/)
+  return fraction ? Number(fraction[2]) : 0
+}
+
+const getLoadingLabel = (metadata, total) => {
+  const loading = String(metadata?.loading || metadata?.card_info || '')
+  const sequence = getLoadingSequence(metadata)
+  if (!Number.isFinite(sequence) || sequence === Number.MAX_SAFE_INTEGER) {
+    return loading.split(' [')[0]
+  }
+  return `${sequence}/${total}`
+}
+
 export default function ForemanPrintQueue({
   printQueue,
   setPrintQueue,
@@ -15,6 +39,20 @@ export default function ForemanPrintQueue({
 }) {
   if (!printQueue) return null
 
+  // Cards can arrive from Supabase in creation/update order. Printing must follow
+  // the human sequence stored in card_info/loading: 1/99, 2/99, ... 99/99.
+  const sortedMetadata = (printQueue.metadata || [])
+    .map((item, originalIndex) => ({ item, originalIndex }))
+    .sort((a, b) => getLoadingSequence(a.item) - getLoadingSequence(b.item) || a.originalIndex - b.originalIndex)
+    .map(entry => entry.item)
+  const printTotal = sortedMetadata.reduce((max, item) => {
+    const sequence = getLoadingSequence(item)
+    const declaredTotal = getLoadingDeclaredTotal(item)
+    return Number.isFinite(sequence) && sequence !== Number.MAX_SAFE_INTEGER
+      ? Math.max(max, sequence, declaredTotal)
+      : Math.max(max, declaredTotal)
+  }, sortedMetadata.length)
+
   return (
     <div className="print-overlay" style={{ position: 'fixed', inset: 0, background: '#111', color: '#000', zIndex: 10000, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 0' }}>
       <div className="no-print" style={{ position: 'sticky', top: 0, width: '100%', padding: '15px 30px', background: '#111', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #222', zIndex: 100 }}>
@@ -25,7 +63,7 @@ export default function ForemanPrintQueue({
         </div>
       </div>
 
-      {printQueue.metadata.map((m, i) => {
+      {sortedMetadata.map((m, i) => {
         const order = orders.find(o => o.id === printQueue.task?.order_id) || allOrdersMap[printQueue.task?.order_id]
         const nomenclature = nomenclatures.find(n => n.id === (printQueue.part?.nomenclature_id || printQueue.part?.nom?.id))
         const currentDate = new Date().toLocaleDateString('uk-UA')
@@ -84,7 +122,7 @@ export default function ForemanPrintQueue({
         }))
 
         return (
-          <div key={i} className="a4-page" style={{ width: '210mm', height: '297mm', background: '#fff', padding: '10mm', margin: '0 auto 40px auto', pageBreakAfter: i === printQueue.metadata.length - 1 ? 'avoid' : 'always', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>
+          <div key={m.id || i} className="a4-page" style={{ width: '210mm', height: '297mm', background: '#fff', padding: '10mm', margin: '0 auto 40px auto', pageBreakAfter: i === sortedMetadata.length - 1 ? 'avoid' : 'always', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>
             <div style={{ height: '100%', display: 'flex', flexDirection: 'column', border: '1.5px solid #000' }}>
               {[1, 2].map(blockIdx => (
                 <div key={blockIdx} style={{ borderBottom: '1.5px solid #000', marginBottom: blockIdx === 1 ? '20px' : '0' }}>
@@ -116,7 +154,7 @@ export default function ForemanPrintQueue({
                       </div>
                       <div style={{ width: '12%', borderRight: '1px solid #000', fontSize: '8pt', fontWeight: 1000, lineHeight: 1.1 }}>{getDisplayMaterial(nomenclature, snapshotPart)}</div>
                       <div style={{ width: '15%', borderRight: '1px solid #000', fontSize: '7.5pt', fontWeight: 1000, padding: '0 2px' }}>{m.machine}</div>
-                      <div style={{ width: '15%', borderRight: '1px solid #000', fontSize: '11pt', fontWeight: 1000 }}>{m.loading?.split(' [')[0]}</div>
+                      <div style={{ width: '15%', borderRight: '1px solid #000', fontSize: '11pt', fontWeight: 1000 }}>{getLoadingLabel(m, printTotal)}</div>
                       <div style={{ width: '18%', fontSize: '11pt', fontWeight: 1000 }}>#{m.id.slice(-8).toUpperCase()}</div>
                     </div>
                   </div>

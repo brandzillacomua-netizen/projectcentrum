@@ -658,16 +658,18 @@ export function useForemanHandlers({
       return
     }
 
+    let dbCardsForRenumber = []
     if (!isRepair) {
       let dbCardsCount = 0
       try {
         const { data, error } = await supabase
           .from('work_cards')
-          .select('id, is_rework, operation')
+          .select('id, is_rework, operation, card_info')
           .eq('task_id', task.id)
           .eq('nomenclature_id', part.nom?.id)
         if (!error && data) {
-          dbCardsCount = data.filter(c => !c.is_rework && c.operation !== 'Склад БЗ').length
+          dbCardsForRenumber = data.filter(c => !c.is_rework && c.operation !== 'Склад БЗ')
+          dbCardsCount = dbCardsForRenumber.length
         }
       } catch (err) {
         console.error("Error fetching dbCardsCount:", err)
@@ -691,7 +693,8 @@ export function useForemanHandlers({
     )
 
     let maxExistingSeq = 0
-    existingNomenclatureCards.forEach(wc => {
+    const cardsForSequence = !isRepair && dbCardsForRenumber.length > 0 ? dbCardsForRenumber : existingNomenclatureCards
+    cardsForSequence.forEach(wc => {
       const match = (wc.card_info || '').match(/(\d+)\/(\d+)/)
       if (match) {
         const seq = parseInt(match[1])
@@ -738,6 +741,18 @@ export function useForemanHandlers({
       }
 
       const createdCards = await apiService.submitCreateWorkCardsBatch(task.id, task.order_id, part.nom.id, cardsBatch, createWorkCardsBatch)
+
+      // Генерація може виконуватися будь-якою кількістю пакетів. Після додавання
+      // нового пакета оновлюємо знаменник усіх попередніх карток до спільного N.
+      if (!isRepair && dbCardsForRenumber.length > 0) {
+        const renumberUpdates = dbCardsForRenumber.map(card => {
+          const currentInfo = String(card.card_info || '')
+          const normalizedInfo = currentInfo.replace(/(\d+)\s*\/\s*(\d+)/, (_, sequence) => `${sequence}/${displayTotal}`)
+          if (normalizedInfo === currentInfo) return null
+          return supabase.from('work_cards').update({ card_info: normalizedInfo }).eq('id', card.id)
+        }).filter(Boolean)
+        if (renumberUpdates.length > 0) await Promise.all(renumberUpdates)
+      }
 
       if (isRepair && sheets > 0) {
         const totalQty = finalCount * capacity * unitsPerSheet
