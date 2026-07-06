@@ -382,6 +382,8 @@ export function createWarehouseActions({
       orFilters.push(`name.eq.${escapedParsedName}`)
       const prepName = `${parsedName} [підготовлений]`
       orFilters.push(`name.eq."${prepName.replace(/"/g, '""')}"`)
+      const wildcardName = `"${parsedName.replace(/"/g, '""')}%"`
+      orFilters.push(`name.ilike.${wildcardName}`)
     }
 
     let matchedInventory = []
@@ -458,6 +460,8 @@ export function createWarehouseActions({
           orFilters.push(`name.eq.${escapedParsedName}`)
           const prepName = `${parsedName} [підготовлений]`
           orFilters.push(`name.eq."${prepName.replace(/"/g, '""')}"`)
+          const wildcardName = `"${parsedName.replace(/"/g, '""')}%"`
+          orFilters.push(`name.ilike.${wildcardName}`)
         }
       })
 

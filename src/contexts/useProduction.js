@@ -681,12 +681,16 @@ export function createProductionActions({
   }
   const createWorkCard = async (taskId, orderId, nomenclatureId, operation, machine, estimatedTime, cardInfo, quantity, bufferQty, isRework = false) => {
     const status = isRework ? 'waiting-materials' : 'new'
-    const { data: list } = await supabase.from('work_cards').insert([{
+    const { data: list, error } = await supabase.from('work_cards').insert([{
       task_id: taskId, order_id: orderId, nomenclature_id: nomenclatureId,
       operation: operation || 'Нова', machine, quantity: Number(quantity) || 0,
       estimated_time: Number(estimatedTime) || 0, status, is_rework: isRework,
       card_info: `${cardInfo || ''}${Number(bufferQty) > 0 ? ` [BZ:${bufferQty}]` : ''}${isRework ? ' [REDO]' : ''}`
     }]).select()
+    if (error) {
+      console.error('Error inserting work_card:', error)
+      throw new Error(error.message || 'Помилка при створенні картки')
+    }
     const data = (list && list.length > 0) ? list[0] : null
     await supabase.from('tasks').update({ status: 'in-progress' }).eq('id', taskId)
 
@@ -717,7 +721,11 @@ export function createProductionActions({
       card_info: `${c.cardInfo || ''}${Number(c.bufferQty) > 0 ? ` [BZ:${c.bufferQty}]` : ''}`
     }))
 
-    const { data } = await supabase.from('work_cards').insert(payloads).select()
+    const { data, error } = await supabase.from('work_cards').insert(payloads).select()
+    if (error) {
+      console.error('Error inserting work_cards batch:', error)
+      throw new Error(error.message || 'Помилка при створенні карток')
+    }
     
     // Proportional splitting of material_requests for this task
     if (data && data.length > 0) {

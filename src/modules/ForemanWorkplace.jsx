@@ -11,7 +11,7 @@ import { useForemanHandlers } from './Foreman/hooks/useForemanHandlers'
 import ForemanTaskQueue from './Foreman/components/ForemanTaskQueue'
 import ForemanPrintQueue from './Foreman/components/ForemanPrintQueue'
 import ForemanPrintNaryadQueue from './Foreman/components/ForemanPrintNaryadQueue'
-import { getDisplayPartsForOrderItem as getDisplayPartsForOrderItemHelper, getStandardMachineType, findMachineByName } from './Foreman/utils/foremanHelpers'
+import { getDisplayPartsForOrderItem as getDisplayPartsForOrderItemHelper, getStandardMachineType, findMachineByName, MACHINE_TYPES } from './Foreman/utils/foremanHelpers'
 const getRequestQty = (r) => {
   if (r.quantity !== null && r.quantity !== undefined) return Number(r.quantity);
   const match = (r.details || '').match(/—\s*(\d+)/);
@@ -120,6 +120,8 @@ const ForemanWorkplace = () => {
     cachedShortageMap, setCachedShortageMap,
     customLoadingCapacities, setCustomLoadingCapacities
   } = useForemanData()
+
+  const [selectedCutterTypes, setSelectedCutterTypes] = useState({})
 
   useEffect(() => {
     if (activeTaskId) {
@@ -3070,68 +3072,164 @@ const ForemanWorkplace = () => {
       )}
 
       {/* ───── МОДАЛЬНЕ ВІКНО ЗМІНИ ВЕРСТАТА ДЕТАЛІ ───── */}
-      {changeNomMachineTaskId && changeNomMachineNomId && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(15px)', zIndex: 15500, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
-          <div style={{ background: '#111', width: '100%', maxWidth: '480px', borderRadius: '32px', border: '1px solid #222', padding: '40px', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
-            <button
-              onClick={() => {
-                setChangeNomMachineTaskId(null)
-                setChangeNomMachineNomId(null)
-              }}
-              style={{ position: 'absolute', top: '25px', right: '25px', background: '#222', border: 'none', color: '#fff', cursor: 'pointer', width: '35px', height: '35px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            >
-              <X size={20} />
-            </button>
+      {changeNomMachineTaskId && changeNomMachineNomId && (() => {
+        const targetTask = relevantTasks.find(t => t.id === changeNomMachineTaskId) || tasks.find(t => t.id === changeNomMachineTaskId)
+        if (!targetTask) return null
 
-            <h2 style={{ fontSize: '1.3rem', fontWeight: 950, margin: '0 0 10px', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '1px', color: '#fff' }}>⚙️ Зміна верстата для деталі</h2>
-            <div style={{ color: '#ef4444', fontWeight: 900, textAlign: 'center', fontSize: '0.85rem', marginBottom: '20px', wordBreak: 'break-all', background: 'rgba(239, 68, 68, 0.05)', padding: '10px', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.1)' }}>
-              {changeNomMachineName}
-            </div>
-            
-            <p style={{ color: '#666', textAlign: 'center', fontSize: '0.8rem', marginBottom: '25px' }}>
-              При підтвердженні система автоматично перерахує фрези під новий верстат та оновить запити на складі (СО) із збереженням вашої броні.
-            </p>
+        const snapshotEntry = targetTask.plan_snapshot?.[String(changeNomMachineNomId)]
+        const totalSheetsPlanned = snapshotEntry?.sheets || 0
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '30px' }}>
-              <div>
-                <label style={{ display: 'block', color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>
-                  Оберіть новий верстат:
-                </label>
-                <select
-                  value={selectedNomNewMachine}
-                  onChange={(e) => setSelectedNomNewMachine(e.target.value)}
-                  style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '0.95rem', outline: 'none', fontWeight: 800 }}
-                >
-                  {MACHINE_TYPES.map(t => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
+        const partCards = workCards.filter(c => 
+          c.task_id === targetTask.id && 
+          String(c.nomenclature_id) === String(changeNomMachineNomId) && 
+          !c.is_rework && 
+          c.operation !== 'Склад BZ' && 
+          c.operation !== 'Склад БЗ'
+        )
 
-            <button
-              onClick={async () => {
-                const targetTask = relevantTasks.find(t => t.id === changeNomMachineTaskId) || tasks.find(t => t.id === changeNomMachineTaskId)
-                if (targetTask) {
-                  await handleUpdateNomenclatureMachineAndRecalculate(targetTask, changeNomMachineNomId, selectedNomNewMachine)
+        const generatedSheets = partCards.reduce((sum, c) => sum + (Number(c.actual_sheets) || 0), 0)
+        const remainingSheets = Math.max(0, totalSheetsPlanned - generatedSheets)
+
+        const opData = machineOperations?.find(o =>
+          String(o.nomenclature_id) === String(changeNomMachineNomId) &&
+          (o.machine_type === selectedNomNewMachine || o.machine_id === selectedNomNewMachine)
+        )
+
+        const cutters = []
+        if (opData && opData.side2_cut_ops) {
+          const cutterOps = opData.side2_cut_ops.filter(op => op.startsWith('__CUTTER__Reference:') || op.startsWith('__CUTTER__:') || op.startsWith('__CUTTER__:'))
+          cutterOps.forEach(op => {
+            const parts = op.split(':')
+            const cutterNomId = parts[1]
+            const qtyPerSheet = parseFloat(parts[2]) || 0
+            if (cutterNomId && qtyPerSheet > 0) {
+              const nom = nomenclatures.find(n => String(n.id) === String(cutterNomId))
+              if (nom) {
+                cutters.push({
+                  id: nom.id,
+                  name: nom.name,
+                  qtyPerSheet,
+                  totalNeeded: Math.ceil(remainingSheets * qtyPerSheet)
+                })
+              }
+            }
+          })
+        }
+
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(15px)', zIndex: 15500, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
+            <div style={{ background: '#111', width: '100%', maxWidth: '480px', borderRadius: '32px', border: '1px solid #222', padding: '40px', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+              <button
+                onClick={() => {
                   setChangeNomMachineTaskId(null)
                   setChangeNomMachineNomId(null)
-                }
-              }}
-              disabled={isChangingMachine}
-              style={{
-                width: '100%', background: '#3b82f6', color: '#fff', padding: '18px',
-                borderRadius: '16px', fontSize: '0.95rem', fontWeight: 950, cursor: 'pointer',
-                border: 'none', textTransform: 'uppercase', letterSpacing: '1px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
-                boxShadow: '0 10px 20px -5px rgba(59, 130, 246, 0.4)'
-              }}
-            >
-              {isChangingMachine ? <Loader2 size={16} className="animate-spin" /> : 'ПІДТВЕРДИТИ ЗМІНУ'}
-            </button>
+                  setSelectedCutterTypes({})
+                }}
+                style={{ position: 'absolute', top: '25px', right: '25px', background: '#222', border: 'none', color: '#fff', cursor: 'pointer', width: '35px', height: '35px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <X size={20} />
+              </button>
+
+              <h2 style={{ fontSize: '1.3rem', fontWeight: 950, margin: '0 0 10px', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '1px', color: '#fff' }}>⚙️ Зміна верстата для деталі</h2>
+              <div style={{ color: '#ef4444', fontWeight: 900, textAlign: 'center', fontSize: '0.85rem', marginBottom: '20px', wordBreak: 'break-all', background: 'rgba(239, 68, 68, 0.05)', padding: '10px', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.1)' }}>
+                {changeNomMachineName}
+              </div>
+              
+              <div style={{ background: 'rgba(59, 130, 246, 0.05)', border: '1px solid rgba(59, 130, 246, 0.15)', borderRadius: '14px', padding: '12px 16px', marginBottom: '20px', fontSize: '0.78rem', color: '#a1a1aa' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span>Всього заплановано листів:</span>
+                  <strong style={{ color: '#fff' }}>{totalSheetsPlanned} л.</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span>Вже згенеровано карт:</span>
+                  <strong style={{ color: '#fff' }}>{generatedSheets} л.</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #222', paddingTop: '4px', fontWeight: 800 }}>
+                  <span style={{ color: '#ff9000' }}>Залишилось згенерувати:</span>
+                  <strong style={{ color: '#ff9000' }}>{remainingSheets} л.</strong>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '30px' }}>
+                <div>
+                  <label style={{ display: 'block', color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>
+                    Оберіть новий верстат:
+                  </label>
+                  <select
+                    value={selectedNomNewMachine}
+                    onChange={(e) => {
+                      setSelectedNomNewMachine(e.target.value)
+                      setSelectedCutterTypes({})
+                    }}
+                    style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '0.95rem', outline: 'none', fontWeight: 800 }}
+                  >
+                    {MACHINE_TYPES.map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {remainingSheets > 0 && cutters.length > 0 && (
+                  <div style={{ background: '#09090c', padding: '16px', borderRadius: '16px', border: '1px solid #222' }}>
+                    <label style={{ display: 'block', color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px' }}>
+                      Дозамовити фрези на СО (під {remainingSheets} листів):
+                    </label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {cutters.map(cut => {
+                        const isChecked = selectedCutterTypes[cut.id] !== false
+                        return (
+                          <label 
+                            key={cut.id} 
+                            style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'space-between', 
+                              cursor: 'pointer', 
+                              fontSize: '0.78rem', 
+                              color: isChecked ? '#fff' : '#666',
+                              userSelect: 'none'
+                            }}
+                          >
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={isChecked}
+                                onChange={() => setSelectedCutterTypes(prev => ({ ...prev, [cut.id]: !isChecked }))}
+                                style={{ cursor: 'pointer', accentColor: '#ff9000' }}
+                              />
+                              {cut.name}
+                            </span>
+                            <strong style={{ color: isChecked ? '#ff9000' : '#444' }}>+{cut.totalNeeded} шт</strong>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={async () => {
+                  await handleUpdateNomenclatureMachineAndRecalculate(targetTask, changeNomMachineNomId, selectedNomNewMachine, null, selectedCutterTypes)
+                  setChangeNomMachineTaskId(null)
+                  setChangeNomMachineNomId(null)
+                  setSelectedCutterTypes({})
+                }}
+                disabled={isChangingMachine}
+                style={{
+                  width: '100%', background: '#3b82f6', color: '#fff', padding: '18px',
+                  borderRadius: '16px', fontSize: '0.95rem', fontWeight: 950, cursor: 'pointer',
+                  border: 'none', textTransform: 'uppercase', letterSpacing: '1px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                  boxShadow: '0 10px 20px -5px rgba(59, 130, 246, 0.4)'
+                }}
+              >
+                {isChangingMachine ? <Loader2 size={16} className="animate-spin" /> : 'ПІДТВЕРДИТИ ЗМІНУ'}
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* ───── МОДАЛЬНЕ ВІКНО ЗМІНИ ВЕРСТАТА ───── */}
       {changeMachineTaskId && (
