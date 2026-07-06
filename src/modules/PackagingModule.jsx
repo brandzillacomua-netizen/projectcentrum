@@ -383,6 +383,23 @@ const PackagingModule = () => {
       }
     })
 
+    // Add any items from requests that are not in the BOM or snapshots (sync across terminals)
+    if (activeBatchData) {
+      const relevant = (requests || []).filter(r =>
+        String(r.order_id) === String(activeBatchData.orderId) &&
+        ((activeBatchData.batchIndex && r.details?.includes(`/${activeBatchData.batchIndex}`)) || activeBatchData.tasks.some(t => String(t.id) === String(r.task_id)))
+      )
+      relevant.forEach(r => {
+        const nomIdStr = String(r.nomenclature_id)
+        if (!map[nomIdStr]) {
+          const nom = nomenclatures.find(n => String(n.id) === nomIdStr)
+          if (nom) {
+            map[nomIdStr] = { nom, qty: Number(r.quantity) || 0, isCustom: true }
+          }
+        }
+      })
+    }
+
     const categories = {
       sgp: { title: '1. ДЕТАЛІ / ГОТОВІ ВИРОБИ (СГП)', items: [], color: '#f43f5e', icon: <Package size={18} /> },
       mounts: { title: '2. КРІПЛЕННЯ / 3Д ДРУК', items: [], color: '#eab308', icon: <Layers size={18} /> },
@@ -971,7 +988,7 @@ const PackagingModule = () => {
                                                 <div style={{ fontSize: '0.55rem', color: '#eab308', fontWeight: 900 }}>план: {item.qty}</div>
                                               )}
                                               {/* Кнопка видалення для кастомних позицій */}
-                                              {item.isCustom && (
+                                              {item.isCustom && item.uid && (
                                                 <button
                                                   onClick={e => { e.stopPropagation(); handleRemoveCustomItem(item.uid) }}
                                                   title="Видалити позицію"
