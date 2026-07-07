@@ -124,6 +124,10 @@ export function useData() {
   const [lastFetchTime, setLastFetchTime] = useState(0)
   const [serverProductionData, setServerProductionData] = useState(null)
 
+  const fetchInProgressRef = useRef(false)
+  const nomenclaturesLoadedRef = useRef(false)
+  const bomItemsLoadedRef = useRef(false)
+
   useEffect(() => {
     let cancelled = false
     getIndexedCache(CACHE_KEY).then(cached => {
@@ -209,6 +213,9 @@ export function useData() {
 
   // ── LEVEL 1: Critical data only — loads in ~300ms, shows portal immediately ──
   const fetchCritical = async () => {
+    if (fetchInProgressRef.current) return
+    fetchInProgressRef.current = true
+    setLoading(true)
     try {
       const threeDaysAgoTasks = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
       const [
@@ -245,8 +252,8 @@ export function useData() {
         // Active tasks WITHOUT nested order JOIN — order data is already in orders state
         supabase.from('tasks').select('id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,batch_index,planned_deadline,machine_name,created_at,completed_at,plan_snapshot').or(`status.neq.completed,completed_at.gte.${threeDaysAgoTasks}`).order('created_at', { ascending: false }),
         // Nomenclatures & BOM needed for naryad creation
-        supabase.from('nomenclatures').select('*').limit(2000),
-        supabase.from('bom_items').select('*').limit(4000),
+        nomenclaturesLoadedRef.current ? Promise.resolve({ data: nomenclatures }) : supabase.from('nomenclatures').select('*').limit(2000).then(res => { nomenclaturesLoadedRef.current = true; return res; }),
+        bomItemsLoadedRef.current ? Promise.resolve({ data: bomItems }) : supabase.from('bom_items').select('*').limit(4000).then(res => { bomItemsLoadedRef.current = true; return res; }),
         // Active (non-completed) work cards for real-time sync — completed are loaded separately per-task in ForemanWorkplace
         fetchActiveWorkCards(),
         supabase.from('company_structure').select('*').order('name').then(res => res, () => ({ data: fallbackStructure, error: null })),
@@ -302,6 +309,7 @@ export function useData() {
       console.error('fetchCritical error:', e)
     } finally {
       setLoading(false)
+      fetchInProgressRef.current = false
     }
   }
 
@@ -348,8 +356,8 @@ export function useData() {
         supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).range(0, 99),
         // tasks WITHOUT nested JOIN — avoids the orders(order_items(*)) waterfall
         supabase.from('tasks').select('id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,batch_index,planned_deadline,machine_name,created_at,completed_at,plan_snapshot').or(`status.neq.completed,completed_at.gte.${threeDaysAgoTasks}`).order('created_at', { ascending: false }),
-        needNomenclatures ? supabase.from('nomenclatures').select('*').limit(2000) : Promise.resolve({ data: null }),
-        needBOM ? supabase.from('bom_items').select('*').limit(4000) : Promise.resolve({ data: null }),
+        needNomenclatures && !nomenclaturesLoadedRef.current ? supabase.from('nomenclatures').select('*').limit(2000).then(res => { nomenclaturesLoadedRef.current = true; return res; }) : Promise.resolve({ data: null }),
+        needBOM && !bomItemsLoadedRef.current ? supabase.from('bom_items').select('*').limit(4000).then(res => { bomItemsLoadedRef.current = true; return res; }) : Promise.resolve({ data: null }),
         needMachines ? supabase.from('machines').select('*').order('name') : Promise.resolve({ data: null }),
         needUsers ? supabase.from('system_users').select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar, last_seen').order('login') : Promise.resolve({ data: null }),
         supabase.from('management_tasks').select('*').neq('status', 'completed').order('created_at', { ascending: false }),
@@ -504,10 +512,16 @@ export function useData() {
         if (data) setMachineOperations(data)
       } else if (tableName === 'nomenclatures') {
         const { data } = await supabase.from('nomenclatures').select('*').limit(2000)
-        if (data) setNomenclatures(data)
+        if (data) {
+          setNomenclatures(data)
+          nomenclaturesLoadedRef.current = true
+        }
       } else if (tableName === 'bom_items') {
         const { data } = await supabase.from('bom_items').select('*').limit(4000)
-        if (data) setBomItems(data)
+        if (data) {
+          setBomItems(data)
+          bomItemsLoadedRef.current = true
+        }
       } else if (tableName === 'customers') {
         const { data } = await supabase.from('customers').select('id,name,official_name').order('name').limit(500)
         if (data) setCustomers(data)

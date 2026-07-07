@@ -337,7 +337,23 @@ export function createWarehouseActions({
         if (r.error) throw r.error
       }
 
-      refreshTable('inventory')
+       // In-memory point-by-point update to inventory state to prevent refetching 3000 rows
+      if (finalUpdates.length > 0) {
+        setInventory(prev => prev.map(item => {
+          const upd = finalUpdates.find(u => u.id === item.id)
+          return upd ? { ...item, ...upd } : item
+        }))
+      }
+      if (finalInserts.length > 0) {
+        setInventory(prev => {
+          const next = [...prev]
+          finalInserts.forEach(ins => {
+            if (!next.some(item => item.id === ins.id)) next.push(ins)
+          })
+          return next
+        })
+      }
+
       refreshTable('reception_docs')
 
       if (doc.task_id || doc.order_id) {
@@ -671,8 +687,27 @@ export function createWarehouseActions({
       } else {
         if (typeof fetchData === 'function') fetchData(['tasks'])
       }
-      refreshTable('inventory')
-      refreshTable('material_requests')
+      // In-memory point-by-point update to inventory state
+      if (invUpdates.length > 0) {
+        setInventory(prev => prev.map(item => {
+          const upd = invUpdates.find(u => u.id === item.id)
+          return upd ? { ...item, ...upd } : item
+        }))
+      }
+
+      // In-memory point-by-point update to requests state
+      if (requestUpdateList.length > 0) {
+        setRequests(prev => prev.map(req => {
+          const upd = requestUpdateList.find(u => u.id === req.id)
+          if (upd) {
+            const nextStatus = upd.status
+            const nextQty = upd.quantity !== undefined ? upd.quantity : req.quantity
+            return { ...req, status: nextStatus, quantity: nextQty }
+          }
+          return req
+        }).filter(r => r.status !== 'completed'))
+      }
+
       refreshTable('work_cards')
     } catch (err) {
       console.error('Batch issue error:', err)

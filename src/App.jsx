@@ -1203,7 +1203,16 @@ const GlobalUserNav = () => {
       return true;
     });
 
-    return filteredList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const uniqueFilteredList = [];
+    const seenIds = new Set();
+    filteredList.forEach(n => {
+      if (!seenIds.has(n.id)) {
+        seenIds.add(n.id);
+        uniqueFilteredList.push(n);
+      }
+    });
+
+    return uniqueFilteredList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }, [currentUser, managementTasks, requests, workCards, purchaseRequests, receptionDocs, machineCalls, machines, isManager, activeTasks, completedCards, completedHistory, tasks, orders, bomItems, workCardHistory, notifSettings]);
 
   const unreadCount = useMemo(() => {
@@ -1411,9 +1420,11 @@ const GlobalUserNav = () => {
         header:has(a[href="/"]),
         .module-nav:has(a[href="/"]),
         .terminal-nav:has(a[href="/"]),
-        .glass-nav:has(a[href="/"]) {
+        .glass-nav:has(a[href="/"]),
+        .tp-header {
           padding-left: 75px !important;
         }
+
 
         /* Sidebar backdrop overlay */
         .sidebar-backdrop {
