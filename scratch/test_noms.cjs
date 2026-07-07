@@ -12,9 +12,11 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 async function run() {
-  // Let's check if we can query functions or see if we get an error or if we can run a simple RPC query
-  const { data, error } = await supabase.rpc('pg_proc'); // doesn't exist usually
-  console.log('pg_proc error:', error);
+  const { count, error } = await supabase
+    .from('nomenclatures')
+    .select('*', { count: 'exact', head: true });
+  console.log('Nomenclatures count:', count);
+  console.log('Error:', error);
 }
 
 run();

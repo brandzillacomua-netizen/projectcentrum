@@ -191,8 +191,15 @@ export const ConsumablesQueue = ({
                       }}>
                         <span style={{ flex: 1, marginRight: '8px' }}>
                           {parsedName || r.details}
-                          {nom?.description && (
-                            <span style={{ color: '#06b6d4', fontSize: '0.72rem', marginLeft: '6px', fontWeight: 'bold' }}>
+                          {nom?.description && !(parsedName || r.details || '').toLowerCase().includes(nom.description.toLowerCase()) && (
+                            <span style={{ 
+                              color: '#06b6d4', 
+                              fontSize: '0.72rem', 
+                              marginLeft: nom.description.length > 30 ? '0' : '6px', 
+                              display: nom.description.length > 30 ? 'block' : 'inline',
+                              fontWeight: 'bold',
+                              marginTop: nom.description.length > 30 ? '4px' : '0'
+                            }}>
                               ({nom.description})
                             </span>
                           )}

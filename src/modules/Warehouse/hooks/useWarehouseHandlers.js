@@ -663,11 +663,11 @@ export const useWarehouseHandlers = ({
   }
 
   const handleReserveOrder = (taskId, orderId, orderNum, reqList) => {
-    const hasActivePR = (purchaseRequests || []).some(
-      pr => (pr.task_id ? String(pr.task_id) === String(taskId) : String(pr.order_id) === String(orderId)) && 
-            ['pending', 'accepted', 'ordered'].includes(pr.status)
-    )
-    if (hasActivePR) return
+    // const hasActivePR = (purchaseRequests || []).some(
+    //   pr => (pr.task_id ? String(pr.task_id) === String(taskId) : String(pr.order_id) === String(orderId)) && 
+    //         ['pending', 'accepted', 'ordered'].includes(pr.status)
+    // )
+    // if (hasActivePR) return
 
     const missingItems = []
     reqList.forEach(req => {

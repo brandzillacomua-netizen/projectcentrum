@@ -71,7 +71,12 @@ const PackagingModule = () => {
     })
   }, [systemUsers])
 
-  useEffect(() => { document.title = 'Відділ Пакування | Centrum' }, [])
+  useEffect(() => { 
+    document.title = 'Відділ Пакування | Centrum'
+    if (typeof fetchData === 'function') {
+      fetchData()
+    }
+  }, [])
 
   // Скидаємо при зміні наряду
   useEffect(() => {

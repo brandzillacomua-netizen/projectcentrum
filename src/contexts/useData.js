@@ -127,6 +127,22 @@ export function useData() {
   const fetchInProgressRef = useRef(false)
   const nomenclaturesLoadedRef = useRef(false)
   const bomItemsLoadedRef = useRef(false)
+  const nomenclaturesRef = useRef([])
+  const bomItemsRef = useRef([])
+  const inventoryRef = useRef([])
+  const workCardHistoryRef = useRef([])
+  const receptionDocsRef = useRef([])
+  const purchaseRequestsRef = useRef([])
+  const companyStructureRef = useRef([])
+  const companyPositionsRef = useRef([])
+  nomenclaturesRef.current = nomenclatures
+  bomItemsRef.current = bomItems
+  inventoryRef.current = inventory
+  workCardHistoryRef.current = workCardHistory
+  receptionDocsRef.current = receptionDocs
+  purchaseRequestsRef.current = purchaseRequests
+  companyStructureRef.current = companyStructure
+  companyPositionsRef.current = companyPositions
 
   useEffect(() => {
     let cancelled = false
@@ -252,18 +268,18 @@ export function useData() {
         // Active tasks WITHOUT nested order JOIN — order data is already in orders state
         supabase.from('tasks').select('id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,batch_index,planned_deadline,machine_name,created_at,completed_at,plan_snapshot').or(`status.neq.completed,completed_at.gte.${threeDaysAgoTasks}`).order('created_at', { ascending: false }),
         // Nomenclatures & BOM needed for naryad creation
-        nomenclaturesLoadedRef.current ? Promise.resolve({ data: nomenclatures }) : supabase.from('nomenclatures').select('*').limit(2000).then(res => { nomenclaturesLoadedRef.current = true; return res; }),
-        bomItemsLoadedRef.current ? Promise.resolve({ data: bomItems }) : supabase.from('bom_items').select('*').limit(4000).then(res => { bomItemsLoadedRef.current = true; return res; }),
+        nomenclaturesLoadedRef.current ? Promise.resolve({ data: nomenclaturesRef.current }) : supabase.from('nomenclatures').select('*').limit(2000).then(res => { nomenclaturesLoadedRef.current = true; return res; }),
+        bomItemsLoadedRef.current ? Promise.resolve({ data: bomItemsRef.current }) : supabase.from('bom_items').select('*').limit(4000).then(res => { bomItemsLoadedRef.current = true; return res; }),
         // Active (non-completed) work cards for real-time sync — completed are loaded separately per-task in ForemanWorkplace
         fetchActiveWorkCards(),
-        supabase.from('company_structure').select('*').order('name').then(res => res, () => ({ data: fallbackStructure, error: null })),
-        supabase.from('company_positions').select('*').order('name').then(res => res, () => ({ data: fallbackPositions, error: null })),
+        companyStructureRef.current.length > fallbackStructure.length ? Promise.resolve({ data: companyStructureRef.current }) : supabase.from('company_structure').select('*').order('name').then(res => res, () => ({ data: fallbackStructure, error: null })),
+        companyPositionsRef.current.length > fallbackPositions.length ? Promise.resolve({ data: companyPositionsRef.current }) : supabase.from('company_positions').select('*').order('name').then(res => res, () => ({ data: fallbackPositions, error: null })),
         // Global Real-time Tables
-        supabase.from('inventory').select('*').order('name').limit(3000),
-        supabase.from('material_requests').select('*').neq('status', 'completed').order('created_at', { ascending: false }),
-        supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300),
-        supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300),
-        supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(500),
+        inventoryRef.current.length > 0 ? Promise.resolve({ data: inventoryRef.current }) : supabase.from('inventory').select('*').order('name').limit(3000),
+        supabase.from('material_requests').select('*').order('created_at', { ascending: false }).limit(1000),
+        receptionDocsRef.current.length > 0 ? Promise.resolve({ data: receptionDocsRef.current }) : supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300),
+        purchaseRequestsRef.current.length > 0 ? Promise.resolve({ data: purchaseRequestsRef.current }) : supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300),
+        workCardHistoryRef.current.length > 0 ? Promise.resolve({ data: workCardHistoryRef.current }) : supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(500),
         supabase.from('machine_operations').select('*'),
         supabase.from('machine_calls').select('*').order('created_at', { ascending: false })
       ])
@@ -327,8 +343,8 @@ export function useData() {
       setLastFetchTime(Date.now())
       const threeDaysAgoTasks = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
-      const needNomenclatures = nomenclatures.length === 0
-      const needBOM = bomItems.length === 0
+      const needNomenclatures = nomenclaturesRef.current.length === 0
+      const needBOM = bomItemsRef.current.length === 0
       const needMachines = machines.length === 0
       const needUsers = systemUsers.length === 0
       const needStructure = companyStructure.length <= fallbackStructure.length
@@ -365,7 +381,7 @@ export function useData() {
         fetchActiveWorkCards(),
         needStructure ? supabase.from('company_structure').select('*').order('name').then(res => res, () => ({ data: fallbackStructure, error: null })) : Promise.resolve({ data: null }),
         supabase.from('inventory').select('*').order('name').limit(3000),
-        supabase.from('material_requests').select('*').neq('status', 'completed').order('created_at', { ascending: false }),
+        supabase.from('material_requests').select('*').order('created_at', { ascending: false }).limit(1000),
         supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300),
         supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300),
         supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(500),
@@ -532,7 +548,7 @@ export function useData() {
         const { data } = await supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300)
         if (data) setReceptionDocs(data)
       } else if (tableName === 'material_requests') {
-        const { data } = await supabase.from('material_requests').select('*').neq('status', 'completed').order('created_at', { ascending: false })
+        const { data } = await supabase.from('material_requests').select('*').order('created_at', { ascending: false }).limit(1000)
         if (data) setRequests(data)
       } else if (tableName === 'work_card_history') {
         const { data } = await supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(500)
@@ -570,25 +586,25 @@ export function useData() {
     cacheTimerRef.current = setTimeout(() => {
       try {
         const dataToCache = {
-          orders: orders.slice(0, 50),
+          orders,
           customers,
-          tasks: tasks.slice(0, 100),
+          tasks,
           managementTasks,
           taskProjects,
           requests,
-          nomenclatures: nomenclatures.slice(0, 200), // Slice heavy tables
-          bomItems: bomItems.slice(0, 100),
+          nomenclatures,
+          bomItems,
           machines,
           systemUsers,
           machineOperations,
           machineCalls,
           companyStructure,
           companyPositions,
-          workCards: workCards.slice(0, 100),
-          inventory: inventory.slice(0, 200), // Limit extremely large inventory array
-          receptionDocs: receptionDocs.slice(0, 50),
-          purchaseRequests: purchaseRequests.slice(0, 50),
-          workCardHistory: workCardHistory.slice(0, 50)
+          workCards,
+          inventory,
+          receptionDocs,
+          purchaseRequests,
+          workCardHistory
         }
         setIndexedCache(CACHE_KEY, dataToCache)
           .then(() => localStorage.removeItem(CACHE_KEY))
@@ -818,11 +834,7 @@ export function useData() {
         }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'material_requests' }, (payload) => {
-        if (payload.new.status === 'completed') {
-          setRequests(prev => prev.filter(r => r.id !== payload.new.id))
-        } else {
-          setRequests(prev => prev.map(r => r.id === payload.new.id ? { ...r, ...payload.new } : r))
-        }
+        setRequests(prev => prev.map(r => r.id === payload.new.id ? { ...r, ...payload.new } : r))
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'material_requests' }, (payload) => {
         setRequests(prev => prev.filter(r => r.id !== payload.old.id))
