@@ -70,7 +70,8 @@ const fetchActiveWorkCards = async () => {
     if (!data || data.length < pageSize) break
   }
 
-  return { data: allCards, error: null }
+  const uniqueCards = Array.from(new Map(allCards.map(c => [String(c.id), c])).values())
+  return { data: uniqueCards, error: null }
 }
 export function useData() {
 

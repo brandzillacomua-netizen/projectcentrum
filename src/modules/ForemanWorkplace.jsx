@@ -143,6 +143,19 @@ const ForemanWorkplace = () => {
     localStorage.setItem('foreman_active_view', activeView)
   }, [activeView])
 
+  const handleCompleteShop1Task = async (taskId) => {
+    setIsCompletingTask(true)
+    try {
+      await apiService.submitCompleteTaskByMaster(taskId, completeTaskByMaster)
+      fetchData(['tasks', 'work_cards'])
+    } catch (e) {
+      console.error(e)
+      alert('Помилка при закритті наряду: ' + e.message)
+    } finally {
+      setIsCompletingTask(false)
+    }
+  }
+
   const itemsPerPage = 8
 
   // Load foreman-specific data (workCards, inventory, requests) immediately on mount

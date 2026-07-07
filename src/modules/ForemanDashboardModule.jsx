@@ -1622,8 +1622,10 @@ const OrderDetailView = ({
                   {/* Part Title and Overall info */}
                   {(() => {
                     const totalQty = partCards.reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-                    const avgCardDurationMs = partCards.length > 0 ? totalDurationMs / partCards.length : 0
-                    const avgPartDurationMs = totalQty > 0 ? totalDurationMs / totalQty : 0
+                    const activePartCards = partCards.filter(c => c.operation !== 'Склад БЗ' && c.operation !== 'Склад BZ')
+                    const avgCardDurationMs = activePartCards.length > 0 ? totalDurationMs / activePartCards.length : 0
+                    const activePartCardsQty = activePartCards.reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+                    const avgPartDurationMs = activePartCardsQty > 0 ? totalDurationMs / activePartCardsQty : 0
 
                     return (
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap', gap: '15px' }}>

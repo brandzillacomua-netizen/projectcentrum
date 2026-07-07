@@ -2247,16 +2247,18 @@ export default function Shop1Terminal() {
       return true
     })
 
+    const uniqueFilteredQueueCards = Array.from(new Map(filteredQueueCards.map(c => [String(c.id), c])).values())
+
     return (
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px 20px', scrollbarWidth: 'none' }}>
         <style>{`div::-webkit-scrollbar { display: none; }`}</style>
-        {filteredQueueCards.length === 0 && (
+        {uniqueFilteredQueueCards.length === 0 && (
           <div style={{ textAlign: 'center', padding: '40px 20px', color: '#555', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             <Layers size={24} style={{ marginBottom: '10px', opacity: 0.2 }} /><br />
             {queueFilter === 'new' ? 'Немає нових карт' : queueFilter === 'at-buffer' ? 'Немає карт в буфері' : 'Черга порожня'}
           </div>
         )}
-        {filteredQueueCards.map(card => {
+        {uniqueFilteredQueueCards.map(card => {
           const nom = getNom(card)
           const active = selectedCardId === card.id
         const isBuffer = card.status === 'at-buffer'
@@ -3524,7 +3526,7 @@ export default function Shop1Terminal() {
             </thead>
             <tbody>
               {(() => {
-                const activeCards = workCards.filter(c => {
+                const activeCardsRaw = workCards.filter(c => {
                   const nom = getNom(c)
                   if (nom && nom.type && nom.type !== 'part') return false
 
@@ -3568,7 +3570,8 @@ export default function Shop1Terminal() {
                   }
 
                   return true
-                }).sort((a, b) => getCardStartDate(b).getTime() - getCardStartDate(a).getTime())
+                }).sort((a, b) => getCardStartDate(b).getTime() - getCardStartDate(a).getTime());
+                const activeCards = Array.from(new Map(activeCardsRaw.map(c => [String(c.id), c])).values())
 
                 if (activeCards.length === 0) {
                   return (
