@@ -570,7 +570,7 @@ const WarehouseModuleV2 = () => {
         </div>
 
         {/* Main Content card */}
-        <div className="content-card glass-panel" style={{ padding: '25px', borderRadius: '24px', background: 'rgba(20,20,20,0.6)', border: '1px solid #222' }}>
+        <div className="content-card glass-panel" style={{ padding: '25px 25px 120px', borderRadius: '24px', background: 'rgba(20,20,20,0.6)', border: '1px solid #222' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '25px' }}>
             <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 900 }}>
               {tabs.find(t => t.id === activeTab)?.label.toUpperCase()}

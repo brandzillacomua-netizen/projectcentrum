@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import {
   Truck,
   ArrowLeft,
@@ -12,12 +12,33 @@ import {
   CheckCircle,
   Pencil,
   Check,
-  Trash2
+  Trash2,
+  QrCode,
+  Printer
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
 import { supabase } from '../supabase'
+import { ScannerPanel } from './Warehouse/components/ScannerPanel'
+
+const getQR = (nom) => {
+  if (!nom || !nom.additional_info) return ''
+  const match = nom.additional_info.match(/\[QR:\s*([^\]]+)\]/)
+  return match ? match[1].trim() : ''
+}
+
+const setQR = (nom, code) => {
+  if (!nom) return ''
+  let info = nom.additional_info || ''
+  const qrPattern = /\[QR:\s*([^\]]*)\]/
+  if (qrPattern.test(info)) {
+    info = info.replace(qrPattern, code ? `[QR: ${code}]` : '')
+  } else if (code) {
+    info = (info + ` [QR: ${code}]`).trim()
+  }
+  return info
+}
 
 const SupplyModule = ({ isProcurementOnly = false }) => {
   const {
@@ -26,6 +47,12 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
     confirmReception, fetchData, refreshTable, normalize, requests, issueMaterialsBatch, tasks,
     managers
   } = useMES()
+
+  useEffect(() => {
+    if (typeof fetchData === 'function') {
+      fetchData(['inventory', 'nomenclatures', 'reception_docs', 'purchase_requests', 'requests'])
+    }
+  }, [])
 
   const [activeTab, setActiveTab] = useState('requests') // 'requests', 'registry', 'stock'
   const [requestSubTab, setRequestSubTab] = useState('all') // 'all', 'prep', 'deficit'
@@ -42,6 +69,17 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
   const [targetWarehouse, setTargetWarehouse] = useState('operational') // 'operational'=СО, 'production'=СВ
   const [expandedPRs, setExpandedPRs] = useState(new Set())
   const [pocketOwner, setPocketOwner] = useState('')
+
+  // QR Scanning state
+  const [isScanning, setIsScanning] = useState(false)
+  const [manualCardInput, setManualCardInput] = useState('')
+
+  // QR Code tab states
+  const [qrNomSearch, setQrNomSearch] = useState('')
+  const [editingQrNomId, setEditingQrNomId] = useState(null)
+  const [editingQrCodeValue, setEditingQrCodeValue] = useState('')
+  const [savingQr, setSavingQr] = useState(false)
+  const [selectedQrNomIds, setSelectedQrNomIds] = useState(new Set())
 
   // Super admin inventory editing state
   const [editingInvId, setEditingInvId] = useState(null)
@@ -73,7 +111,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
         reserved_qty: reservedVal,
         updated_at: new Date().toISOString()
       }).eq('id', itemId)
-      if (typeof fetchData === 'function') fetchData(['inventory'])
+      if (typeof fetchData === 'function') fetchData(['inventory', 'nomenclatures'])
       setEditingInvId(null)
     } catch (err) {
       alert('Помилка збереження: ' + err.message)
@@ -194,6 +232,46 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
       'in-progress': 'В РОБОТІ'
     }
     return map[status] || (status || '').toUpperCase()
+  }
+
+  const handleQRScan = (scannedCode) => {
+    if (!scannedCode) return
+    const nom = (nomenclatures || []).find(n => getQR(n).toLowerCase() === scannedCode.toLowerCase().trim())
+    if (!nom) {
+      alert(`Номенклатуру з QR-кодом "${scannedCode}" не знайдено!`)
+      return
+    }
+    const nomLabel = getNomLabel(nom)
+    const existingIndex = draftItems.findIndex(it => it.nomenclature_id === nom.id)
+    if (existingIndex !== -1) {
+      const updated = [...draftItems]
+      updated[existingIndex].qty = String(Number(updated[existingIndex].qty || 0) + 1)
+      setDraftItems(updated)
+    } else {
+      setDraftItems([...draftItems, { nomenclature_id: nom.id, name: nomLabel, qty: '1' }])
+    }
+  }
+
+  const handleSaveQrCode = async (nomId, qrCodeVal) => {
+    const nom = (nomenclatures || []).find(n => n.id === nomId)
+    if (!nom) return
+    const updatedInfo = setQR(nom, qrCodeVal.trim())
+    setSavingQr(true)
+    try {
+      const { error } = await supabase
+        .from('nomenclatures')
+        .update({
+          additional_info: updatedInfo
+        })
+        .eq('id', nomId)
+      if (error) throw error
+      if (typeof fetchData === 'function') fetchData(['nomenclatures'])
+      setEditingQrNomId(null)
+    } catch (err) {
+      alert('Помилка збереження: ' + err.message)
+    } finally {
+      setSavingQr(false)
+    }
   }
 
   const addToDraft = () => {
@@ -930,14 +1008,15 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
         )}
 
         {/* Tabs */}
-        <div className="supply-tabs" style={{ display: 'flex', background: '#111', padding: '5px', borderRadius: '14px', marginBottom: '25px', maxWidth: '600px' }}>
+        <div className="supply-tabs" style={{ display: 'flex', background: '#111', padding: '5px', borderRadius: '14px', marginBottom: '25px', maxWidth: '700px', flexWrap: 'wrap', gap: '2px' }}>
           <button onClick={() => { setActiveTab('requests'); setActiveMobileSection('requests'); setShowCreate(false) }} className={`tab-btn-m ${activeTab === 'requests' && !showCreate ? 'active' : ''}`}>ЗАПИТИ ({pendingRequests.length})</button>
           <button onClick={() => { setActiveTab('registry'); setActiveMobileSection('registry'); setShowCreate(false) }} className={`tab-btn-m ${activeTab === 'registry' && !showCreate ? 'active' : ''}`}>РЕЄСТР</button>
           {!isProcurementOnly && <button onClick={() => { setActiveTab('stock'); setActiveMobileSection('stock'); setShowCreate(false) }} className={`tab-btn-m ${activeTab === 'stock' && !showCreate ? 'active' : ''}`}>ЗАЛИШКИ</button>}
+          {isProcurementOnly && <button onClick={() => { setActiveTab('qrcodes'); setActiveMobileSection('qrcodes'); setShowCreate(false) }} className={`tab-btn-m ${activeTab === 'qrcodes' && !showCreate ? 'active' : ''}`}>QR-КОДИ</button>}
           <button onClick={() => { setShowCreate(true); setActiveMobileSection('create'); setActiveTab('create') }} className={`tab-btn-m ${showCreate ? 'active' : ''}`}>+ НОВИЙ</button>
         </div>
 
-        <div className="supply-main-layout" style={{ display: 'grid', gridTemplateColumns: (showCreate || activeTab === 'stock') ? '1fr' : 'repeat(auto-fit, minmax(400px, 1fr))', gap: '30px' }}>
+        <div className="supply-main-layout" style={{ display: 'grid', gridTemplateColumns: (showCreate || activeTab === 'stock' || activeTab === 'qrcodes') ? '1fr' : 'repeat(auto-fit, minmax(400px, 1fr))', gap: '30px' }}>
 
           {/* CREATE PANEL */}
           {(showCreate || activeMobileSection === 'create') && (
@@ -1034,7 +1113,16 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                 {/* Add Item inputs */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 50px', gap: '10px' }} className="mobile-stack">
                   <div style={{ position: 'relative' }}>
-                    <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 900, color: '#555', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Номенклатура</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 900, color: '#555', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Номенклатура</label>
+                      <button
+                        type="button"
+                        onClick={() => setIsScanning(true)}
+                        style={{ background: 'transparent', border: 'none', color: '#ff9000', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', fontWeight: 900, padding: 0 }}
+                      >
+                        <QrCode size={12} /> СКАНУВАТИ QR
+                      </button>
+                    </div>
                     <input
                       list="noms-list"
                       style={{ width: '100%', background: '#0a0a0a', border: '1px solid #222', color: '#fff', padding: '12px 15px', borderRadius: '10px', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }}
@@ -1075,7 +1163,17 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                         <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#0d0d0d', borderRadius: '8px', border: '1px solid #222' }}>
                           <span style={{ fontSize: '0.8rem', color: '#ddd' }}>{it.name}</span>
                           <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                            <strong style={{ color: '#ff9000', fontSize: '0.9rem' }}>{it.qty}</strong>
+                            <input
+                              type="number"
+                              value={it.qty}
+                              onChange={e => {
+                                const val = e.target.value
+                                const updated = [...draftItems]
+                                updated[idx].qty = val
+                                setDraftItems(updated)
+                              }}
+                              style={{ width: '85px', background: '#000', border: '1px solid #333', color: '#ff9000', textAlign: 'center', borderRadius: '8px', padding: '6px 10px', fontSize: '0.85rem', fontWeight: 900, outline: 'none' }}
+                            />
                             <button onClick={() => setDraftItems(draftItems.filter((_, i) => i !== idx))} style={{ color: '#555', border: 'none', background: 'transparent', cursor: 'pointer', padding: '2px' }}><X size={14} /></button>
                           </div>
                         </div>
@@ -1901,6 +1999,346 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
             </section>
           )}
 
+          {/* QR CODES TAB */}
+          {!showCreate && activeTab === 'qrcodes' && (() => {
+            const filteredNoms = nomenclatures.filter(n => 
+              n.type !== 'finished' && n.type !== 'product' && 
+              (n.name || '').toLowerCase().includes(qrNomSearch.toLowerCase())
+            )
+            const filteredNomsWithQr = filteredNoms.filter(n => getQR(n))
+            const allSelected = filteredNomsWithQr.length > 0 && filteredNomsWithQr.every(n => selectedQrNomIds.has(n.id))
+
+            const toggleAll = () => {
+              const next = new Set(selectedQrNomIds)
+              if (allSelected) {
+                filteredNomsWithQr.forEach(n => next.delete(n.id))
+              } else {
+                filteredNomsWithQr.forEach(n => next.add(n.id))
+              }
+              setSelectedQrNomIds(next)
+            }
+
+            const toggleOne = (id) => {
+              const next = new Set(selectedQrNomIds)
+              if (next.has(id)) {
+                next.delete(id)
+              } else {
+                next.add(id)
+              }
+              setSelectedQrNomIds(next)
+            }
+
+            return (
+              <section className="qrcodes-col glass-panel" style={{ background: '#111', padding: '25px', borderRadius: '24px', border: '1px solid #222' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.2rem', fontWeight: 900, margin: 0, display: 'flex', alignItems: 'center', gap: '10px', color: '#ff9000' }}>
+                      <QrCode size={20} /> ГЕНЕРАТОР ТА ДРУК QR-КОДІВ
+                    </h3>
+                    <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#555' }}>
+                      Призначення унікальних кодів і друк стікерів для швидкої прийомки сканером
+                    </p>
+                  </div>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      style={{ background: '#000', border: '1px solid #222', padding: '10px 15px', borderRadius: '10px', color: '#fff', width: '250px', outline: 'none' }}
+                      placeholder="Пошук номенклатури..." 
+                      value={qrNomSearch} 
+                      onChange={e => setQrNomSearch(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Bulk Actions Bar */}
+                {selectedQrNomIds.size > 0 && (
+                  <div style={{ display: 'flex', gap: '15px', alignItems: 'center', background: 'rgba(255, 144, 0, 0.08)', border: '1px solid rgba(255, 144, 0, 0.3)', padding: '15px 25px', borderRadius: '16px', marginBottom: '25px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#fff' }}>
+                      Обрано для друку: <strong style={{ color: '#ff9000' }}>{selectedQrNomIds.size}</strong> позицій
+                    </span>
+                    <button
+                      onClick={() => {
+                        const selectedNoms = nomenclatures.filter(n => selectedQrNomIds.has(n.id) && getQR(n))
+                        if (selectedNoms.length === 0) return
+                        
+                        const qrWindow = window.open('', '_blank', 'width=800,height=600')
+                        const gridHtml = selectedNoms.map(nom => {
+                          const qrVal = getQR(nom)
+                          const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrVal)}`
+                          return `
+                            <div class="label-box">
+                              <div class="title">${nom.name}</div>
+                              <img class="qr-image" src="${qrUrl}" alt="QR" />
+                              <div class="code">${qrVal}</div>
+                            </div>
+                          `
+                        }).join('')
+
+                        qrWindow.document.write(`
+                          <html>
+                            <head>
+                              <title>Друк QR-кодів</title>
+                              <style>
+                                body {
+                                  font-family: sans-serif;
+                                  margin: 0;
+                                  padding: 20px;
+                                  background: white;
+                                  color: black;
+                                }
+                                .grid-container {
+                                  display: grid;
+                                  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+                                  gap: 20px;
+                                }
+                                .label-box {
+                                  border: 1px dashed #ccc;
+                                  padding: 15px;
+                                  border-radius: 8px;
+                                  text-align: center;
+                                  display: flex;
+                                  flex-direction: column;
+                                  align-items: center;
+                                  justify-content: center;
+                                  page-break-inside: avoid;
+                                }
+                                .title {
+                                  font-size: 11px;
+                                  font-weight: bold;
+                                  margin-bottom: 5px;
+                                  max-height: 40px;
+                                  overflow: hidden;
+                                }
+                                .qr-image {
+                                  width: 120px;
+                                  height: 120px;
+                                  margin: 5px 0;
+                                }
+                                .code {
+                                  font-size: 9px;
+                                  font-family: monospace;
+                                  color: #555;
+                                  letter-spacing: 1px;
+                                }
+                                @media print {
+                                  body { padding: 0; }
+                                  .label-box { border: 1px solid #ddd; }
+                                }
+                              </style>
+                            </head>
+                            <body>
+                              <div class="grid-container">
+                                ${gridHtml}
+                              </div>
+                              <script>
+                                window.onload = function() {
+                                  window.print();
+                                  setTimeout(function() { window.close(); }, 500);
+                                }
+                              </script>
+                            </body>
+                          </html>
+                        `)
+                        qrWindow.document.close()
+                      }}
+                      style={{ background: '#ff9000', color: '#000', border: 'none', padding: '8px 18px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem' }}
+                    >
+                      <Printer size={16} /> ДРУКУВАТИ ОБРАНІ ({selectedQrNomIds.size})
+                    </button>
+                    <button
+                      onClick={() => setSelectedQrNomIds(new Set())}
+                      style={{ background: 'transparent', border: '1px solid #333', color: '#888', padding: '8px 18px', borderRadius: '10px', cursor: 'pointer', fontSize: '0.8rem' }}
+                    >
+                      СКАСУВАТИ ВИДІЛЕННЯ
+                    </button>
+                  </div>
+                )}
+
+                <div className="table-responsive-container">
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid #222', textAlign: 'left' }}>
+                        <th style={{ padding: '15px 10px', width: '40px', textAlign: 'center' }}>
+                          <input
+                            type="checkbox"
+                            checked={allSelected}
+                            onChange={toggleAll}
+                            disabled={filteredNomsWithQr.length === 0}
+                            style={{ width: '16px', height: '16px', accentColor: '#ff9000', cursor: 'pointer' }}
+                          />
+                        </th>
+                        <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555' }}>НАЙМЕНУВАННЯ</th>
+                        <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555' }}>ТИП</th>
+                        <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'center' }}>QR-КОД</th>
+                        <th style={{ padding: '15px', fontSize: '0.7rem', color: '#555', textAlign: 'center' }}>ДІЇ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredNoms.map(nom => {
+                        const qrVal = getQR(nom)
+                        const isEditingThis = editingQrNomId === nom.id
+                        const isSelected = selectedQrNomIds.has(nom.id)
+                        return (
+                          <tr key={nom.id} style={{ borderBottom: '1px solid #151515', opacity: !qrVal && !isEditingThis ? 0.7 : 1 }}>
+                            <td style={{ padding: '15px 10px', textAlign: 'center' }}>
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleOne(nom.id)}
+                                disabled={!qrVal}
+                                style={{ width: '16px', height: '16px', accentColor: '#ff9000', cursor: qrVal ? 'pointer' : 'not-allowed' }}
+                              />
+                            </td>
+                            <td style={{ padding: '15px', fontWeight: 700 }}>
+                              {nom.name} {nom.material_type && <span style={{ color: '#555', fontSize: '0.75rem' }}>({nom.material_type})</span>}
+                            </td>
+                            <td style={{ padding: '15px', fontSize: '0.75rem', color: '#888' }}>
+                              {nom.type === 'raw' ? 'Сировина' : nom.type === 'hardware' ? 'Метизи' : nom.type === 'consumable' ? 'Розхідник' : nom.type}
+                            </td>
+                            <td style={{ padding: '15px', textAlign: 'center' }}>
+                              {isEditingThis ? (
+                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }}>
+                                  <input
+                                    type="text"
+                                    value={editingQrCodeValue}
+                                    onChange={e => setEditingQrCodeValue(e.target.value)}
+                                    placeholder="Введіть код..."
+                                    style={{ background: '#000', border: '1px solid #ff9000', color: '#fff', padding: '6px 10px', borderRadius: '8px', fontSize: '0.8rem', width: '150px', outline: 'none' }}
+                                  />
+                                  <button
+                                    onClick={() => {
+                                      const rand = 'NOM-' + Math.random().toString(36).substring(2, 8).toUpperCase()
+                                      setEditingQrCodeValue(rand)
+                                    }}
+                                    style={{ background: '#222', border: '1px solid #444', color: '#ff9000', padding: '6px 10px', borderRadius: '8px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 700 }}
+                                  >
+                                    АВТО
+                                  </button>
+                                </div>
+                              ) : (
+                                qrVal ? (
+                                  <span style={{ fontFamily: 'monospace', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 900 }}>
+                                    {qrVal}
+                                  </span>
+                                ) : (
+                                  <span style={{ color: '#444', fontSize: '0.75rem' }}>не призначено</span>
+                                )
+                              )}
+                            </td>
+                            <td style={{ padding: '15px', textAlign: 'center' }}>
+                              {isEditingThis ? (
+                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                                  <button
+                                    onClick={() => handleSaveQrCode(nom.id, editingQrCodeValue)}
+                                    disabled={savingQr}
+                                    style={{ background: '#10b981', color: '#000', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 900 }}
+                                  >
+                                    {savingQr ? '...' : 'ЗБЕРЕГТИ'}
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingQrNomId(null)}
+                                    style={{ background: '#222', color: '#fff', border: '1px solid #333', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', cursor: 'pointer' }}
+                                  >
+                                    СКАСУВАТИ
+                                  </button>
+                                </div>
+                              ) : (
+                                <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                                  <button
+                                    onClick={() => {
+                                      setEditingQrNomId(nom.id)
+                                      setEditingQrCodeValue(qrVal || 'NOM-' + Math.random().toString(36).substring(2, 8).toUpperCase())
+                                    }}
+                                    style={{ background: 'transparent', border: '1px solid #333', color: '#ff9000', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 700 }}
+                                  >
+                                    {qrVal ? 'РЕДАГУВАТИ' : '+ ДОДАТИ'}
+                                  </button>
+                                  {qrVal && (
+                                    <button
+                                      onClick={() => {
+                                        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrVal)}`;
+                                        const printWindow = window.open('', '_blank', 'width=400,height=400');
+                                        printWindow.document.write(`
+                                          <html>
+                                            <head>
+                                              <title>Друк QR-коду</title>
+                                              <style>
+                                                body {
+                                                  font-family: sans-serif;
+                                                  margin: 0;
+                                                  padding: 20px;
+                                                  display: flex;
+                                                  flex-direction: column;
+                                                  align-items: center;
+                                                  justify-content: center;
+                                                  text-align: center;
+                                                  background: white;
+                                                  color: black;
+                                                }
+                                                .label {
+                                                  border: 2px dashed #000;
+                                                  padding: 15px;
+                                                  border-radius: 10px;
+                                                  display: inline-block;
+                                                }
+                                                .title {
+                                                  font-size: 14px;
+                                                  font-weight: bold;
+                                                  margin-bottom: 5px;
+                                                  max-width: 250px;
+                                                  word-wrap: break-word;
+                                                }
+                                                .qr-image {
+                                                  width: 150px;
+                                                  height: 150px;
+                                                  margin: 10px 0;
+                                                }
+                                                .code {
+                                                  font-size: 11px;
+                                                  font-family: monospace;
+                                                  color: #555;
+                                                  letter-spacing: 1px;
+                                                }
+                                                @media print {
+                                                  body { margin: 0; padding: 0; }
+                                                  .label { border: none; }
+                                                }
+                                              </style>
+                                            </head>
+                                            <body>
+                                              <div class="label">
+                                                <div class="title">${nom.name}</div>
+                                                <img class="qr-image" src="${qrUrl}" alt="QR" />
+                                                <div class="code">${qrVal}</div>
+                                              </div>
+                                              <script>
+                                                window.onload = function() {
+                                                  window.print();
+                                                  setTimeout(function() { window.close(); }, 500);
+                                                }
+                                              </script>
+                                            </body>
+                                          </html>
+                                        `);
+                                        printWindow.document.close();
+                                      }}
+                                      style={{ background: 'transparent', border: '1px solid #10b981', color: '#10b981', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                    >
+                                      <Printer size={12} /> ДРУК
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )
+          })()}
+
         </div>
       </div>
 
@@ -1946,6 +2384,15 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
         </div>
       )}
 
+      <ScannerPanel
+        isScanning={isScanning}
+        setIsScanning={setIsScanning}
+        manualCardInput={manualCardInput}
+        setManualCardInput={setManualCardInput}
+        handleCardScan={handleQRScan}
+        color="#ff9000"
+      />
+ 
       <style dangerouslySetInnerHTML={{ __html: `
         .tab-btn-m { flex: 1; padding: 12px; border: none; background: transparent; color: #444; font-weight: 900; font-size: 0.7rem; border-radius: 10px; cursor: pointer; transition: 0.3s; }
         .tab-btn-m.active { background: #222; color: #ff9000; }
