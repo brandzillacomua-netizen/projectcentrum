@@ -96,6 +96,19 @@ const fetchAllRows = async (table, { orderBy = 'created_at', ascending = false, 
   const uniqueRows = Array.from(new Map(allRows.map(row => [String(row.id), row])).values())
   return { data: uniqueRows, error: null }
 }
+
+const mergeTaskRows = (existing = [], incoming = []) => {
+  const merged = new Map(existing.map(item => [String(item.id), item]))
+  incoming.forEach(item => {
+    const cached = merged.get(String(item.id))
+    merged.set(String(item.id), {
+      ...cached,
+      ...item,
+      plan_snapshot: item.plan_snapshot || cached?.plan_snapshot || null
+    })
+  })
+  return Array.from(merged.values()).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+}
 export function useData() {
 
   // ── Lazy initialisers: localStorage is parsed ONCE per mount, not on every render ──
@@ -176,7 +189,7 @@ export function useData() {
       restore(setOrders, 'orders')
       restore(setCustomers, 'customers')
       restore(setInventory, 'inventory')
-      restore(setTasks, 'tasks')
+      setTasks(prev => mergeTaskRows(prev, cached.tasks || []))
       restore(setManagementTasks, 'managementTasks')
       restore(setTaskProjects, 'taskProjects')
       restore(setRequests, 'requests')
@@ -315,14 +328,7 @@ export function useData() {
       if (c) setCustomers(c)
       if (!oErr && latest) setOrders(latest)
       if (t) {
-        // Keep plan_snapshot from already cached tasks if present
-        setTasks(prev => {
-          const cachedMap = new Map(prev.map(item => [item.id, item.plan_snapshot]))
-          return t.map(item => ({
-            ...item,
-            plan_snapshot: item.plan_snapshot || cachedMap.get(item.id) || null
-          }))
-        })
+        setTasks(prev => mergeTaskRows(prev, t))
       }
       if (n) setNomenclatures(n)
       if (b) setBomItems(b)
@@ -427,14 +433,7 @@ export function useData() {
       }
 
       if (t) {
-        // Keep plan_snapshot from already cached tasks if present
-        setTasks(prev => {
-          const cachedMap = new Map(prev.map(item => [item.id, item.plan_snapshot]))
-          return t.map(item => ({
-            ...item,
-            plan_snapshot: item.plan_snapshot || cachedMap.get(item.id) || null
-          }))
-        })
+        setTasks(prev => mergeTaskRows(prev, t))
       }
       if (needNomenclatures && n) setNomenclatures(n)
       if (needBOM && b) setBomItems(b)
@@ -528,11 +527,11 @@ export function useData() {
         const { data } = await supabase.from('tasks').select('id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,batch_index,planned_deadline,machine_name,created_at,completed_at,plan_snapshot').or(`status.neq.completed,completed_at.gte.${threeDaysAgo}`).order('created_at', { ascending: false })
         if (data) {
           setTasks(prev => {
-            const cachedMap = new Map(prev.map(item => [item.id, item.plan_snapshot]))
-            return data.map(item => ({
-              ...item,
-              plan_snapshot: item.plan_snapshot || cachedMap.get(item.id) || null
-            }))
+            // Keep archived tasks already restored from IndexedDB. Some legacy
+            // completed tasks have completed_at = null and are absent from the
+            // rolling query; replacing state here made packaging lose their
+            // freshly updated snapshots.
+            return mergeTaskRows(prev, data)
           })
         }
       } else if (tableName === 'orders') {
