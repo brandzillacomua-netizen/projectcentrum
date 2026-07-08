@@ -470,10 +470,26 @@ export const useWarehouseHandlers = ({
 
         if (req.isSheet) {
           const nextQty = Math.max(0, (Number(req.quantity) || 0) - qtyToDeduct)
-          const nextStatus = nextQty === 0 ? 'completed' : req.status
-          await supabaseClient.from('material_requests')
-            .update({ quantity: nextQty, status: nextStatus })
-            .eq('id', req.id)
+          // Preserve the consumed amount as a card-linked history row. Writing
+          // `completed / quantity: 0` onto the task-level reservation destroys
+          // the evidence that sheets were issued and later makes Foreman show
+          // "НЕМАЄ ЛИСТІВ" for old orders.
+          const { error: historyError } = await supabaseClient.from('material_requests').insert({
+            order_id: req.order_id,
+            task_id: req.task_id,
+            card_id: scannedCard?.id || req.card_id || null,
+            nomenclature_id: req.nomenclature_id,
+            inventory_id: req.inventory_id,
+            quantity: qtyToDeduct,
+            status: 'completed',
+            details: req.details
+          })
+          if (historyError) throw historyError
+
+          const remainderResult = nextQty === 0
+            ? await supabaseClient.from('material_requests').delete().eq('id', req.id)
+            : await supabaseClient.from('material_requests').update({ quantity: nextQty }).eq('id', req.id)
+          if (remainderResult.error) throw remainderResult.error
         } else {
           if (req.isSynthetic) {
             await supabaseClient.from('material_requests').insert({

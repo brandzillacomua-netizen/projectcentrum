@@ -73,6 +73,29 @@ const fetchActiveWorkCards = async () => {
   const uniqueCards = Array.from(new Map(allCards.map(c => [String(c.id), c])).values())
   return { data: uniqueCards, error: null }
 }
+
+// Supabase/PostgREST commonly caps one response at 1000 rows. Fetch every
+// page explicitly so historical rows are never dropped from application state
+// (and consequently from the IndexedDB cache).
+const fetchAllRows = async (table, { orderBy = 'created_at', ascending = false, pageSize = 1000 } = {}) => {
+  const allRows = []
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .order(orderBy, { ascending })
+      .range(from, from + pageSize - 1)
+
+    if (error) return { data: allRows.length > 0 ? allRows : null, error }
+    const page = data || []
+    allRows.push(...page)
+    if (page.length < pageSize) break
+  }
+
+  const uniqueRows = Array.from(new Map(allRows.map(row => [String(row.id), row])).values())
+  return { data: uniqueRows, error: null }
+}
 export function useData() {
 
   // ── Lazy initialisers: localStorage is parsed ONCE per mount, not on every render ──
@@ -277,7 +300,7 @@ export function useData() {
         companyPositionsRef.current.length > fallbackPositions.length ? Promise.resolve({ data: companyPositionsRef.current }) : supabase.from('company_positions').select('*').order('name').then(res => res, () => ({ data: fallbackPositions, error: null })),
         // Global Real-time Tables
         inventoryRef.current.length > 0 ? Promise.resolve({ data: inventoryRef.current }) : supabase.from('inventory').select('*').order('name').limit(3000),
-        supabase.from('material_requests').select('*').order('created_at', { ascending: false }).limit(1000),
+        fetchAllRows('material_requests'),
         receptionDocsRef.current.length > 0 ? Promise.resolve({ data: receptionDocsRef.current }) : supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300),
         purchaseRequestsRef.current.length > 0 ? Promise.resolve({ data: purchaseRequestsRef.current }) : supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300),
         workCardHistoryRef.current.length > 0 ? Promise.resolve({ data: workCardHistoryRef.current }) : supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(500),
@@ -382,7 +405,7 @@ export function useData() {
         fetchActiveWorkCards(),
         needStructure ? supabase.from('company_structure').select('*').order('name').then(res => res, () => ({ data: fallbackStructure, error: null })) : Promise.resolve({ data: null }),
         supabase.from('inventory').select('*').order('name').limit(3000),
-        supabase.from('material_requests').select('*').order('created_at', { ascending: false }).limit(1000),
+        fetchAllRows('material_requests'),
         supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300),
         supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300),
         supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(500),
@@ -549,7 +572,8 @@ export function useData() {
         const { data } = await supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300)
         if (data) setReceptionDocs(data)
       } else if (tableName === 'material_requests') {
-        const { data } = await supabase.from('material_requests').select('*').order('created_at', { ascending: false }).limit(1000)
+        const { data, error } = await fetchAllRows('material_requests')
+        if (error) throw error
         if (data) setRequests(data)
       } else if (tableName === 'work_card_history') {
         const { data } = await supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(500)

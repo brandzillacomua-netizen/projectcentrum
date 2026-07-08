@@ -105,6 +105,7 @@ export default function Shop1ForemanModule() {
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear())
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth()) // 0-11
   const [calendarSaving, setCalendarSaving] = useState(false)
+  const [calendarWorkHistory, setCalendarWorkHistory] = useState([])
   const [openAccordions, setOpenAccordions] = useState({
     '👥 ЗМІНА 1': true,
     '👥 ЗМІНА 2': true,
@@ -234,6 +235,58 @@ export default function Shop1ForemanModule() {
   useEffect(() => {
     fetchData(['work_cards', 'work_card_history']).catch(e => console.error(e))
   }, [])
+
+  // Calendar is a historical DB projection, not a view over the globally
+  // capped recent-history window. Load every row for the selected month.
+  useEffect(() => {
+    if (activeTab !== 'calendar') return
+    let cancelled = false
+
+    const loadCalendarHistory = async () => {
+      const monthStart = new Date(currentYear, currentMonth, 1)
+      const monthEnd = new Date(currentYear, currentMonth + 1, 1)
+      const startIso = monthStart.toISOString()
+      const endIso = monthEnd.toISOString()
+      const pageSize = 1000
+
+      const loadByDateColumn = async (column) => {
+        const rows = []
+        for (let offset = 0; !cancelled; offset += pageSize) {
+          const { data, error } = await supabase
+            .from('work_card_history')
+            .select('id,card_id,operator_name,started_at,completed_at,created_at')
+            .gte(column, startIso)
+            .lt(column, endIso)
+            .order(column, { ascending: true })
+            .range(offset, offset + pageSize - 1)
+          if (error) throw error
+          const page = data || []
+          rows.push(...page)
+          if (page.length < pageSize) break
+        }
+        return rows
+      }
+
+      try {
+        // `started_at` is the source of truth for "took a card into work".
+        // completed_at covers older legacy rows where started_at was not saved.
+        const [startedRows, completedRows] = await Promise.all([
+          loadByDateColumn('started_at'),
+          loadByDateColumn('completed_at')
+        ])
+        const merged = Array.from(new Map(
+          [...startedRows, ...completedRows].map(row => [String(row.id), row])
+        ).values())
+        if (!cancelled) setCalendarWorkHistory(merged)
+      } catch (error) {
+        console.error('Failed to load calendar work history:', error)
+        if (!cancelled) setCalendarWorkHistory([])
+      }
+    }
+
+    loadCalendarHistory()
+    return () => { cancelled = true }
+  }, [activeTab, currentYear, currentMonth, supabase])
 
   // The global MES context intentionally keeps only the latest 500 history rows.
   // Shift reports need the complete selected period, so fetch it independently
@@ -673,16 +726,16 @@ export default function Shop1ForemanModule() {
     const map = {}
     
     // Process work card history to find who checked in on which days
-    if (workCardHistory && workCardHistory.length > 0) {
-      workCardHistory.forEach(h => {
+    if (calendarWorkHistory && calendarWorkHistory.length > 0) {
+      calendarWorkHistory.forEach(h => {
         const opName = h.operator_name
         if (!opName || opName === 'Не вказано') return
 
-        const completedDate = h.completed_at || h.started_at || h.created_at
-        if (!completedDate) return
+        const workedDate = h.started_at || h.completed_at || h.created_at
+        if (!workedDate) return
 
         try {
-          const dateStr = completedDate.split('T')[0] // Get YYYY-MM-DD
+          const dateStr = new Date(workedDate).toLocaleDateString('en-CA', { timeZone: 'Europe/Kyiv' })
           if (!map[opName]) {
             map[opName] = {}
           }
@@ -702,7 +755,7 @@ export default function Shop1ForemanModule() {
         if (!startedDate) return
 
         try {
-          const dateStr = startedDate.split('T')[0]
+          const dateStr = new Date(startedDate).toLocaleDateString('en-CA', { timeZone: 'Europe/Kyiv' })
           if (!map[opName]) {
             map[opName] = {}
           }
@@ -712,7 +765,7 @@ export default function Shop1ForemanModule() {
     }
 
     return map
-  }, [workCardHistory, workCards])
+  }, [calendarWorkHistory, workCards])
 
   const tabBtnStyle = (tabId) => ({
     background: activeTab === tabId ? '#eab308' : 'rgba(255,255,255,0.02)',
