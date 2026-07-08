@@ -1886,12 +1886,32 @@ export default function Shop1Terminal() {
       }
 
       // History entries to write
+      let scrapOperator = op
+      if (scrapCount > 0) {
+        try {
+          const { data: cuttingHistory } = await supabase
+            .from('work_card_history')
+            .select('operator_name')
+            .eq('card_id', currentCard.id)
+            .eq('stage_name', 'Розкрій')
+
+          if (cuttingHistory && cuttingHistory.length > 0) {
+            const cuttingOperators = [...new Set(cuttingHistory.map(h => h.operator_name).filter(Boolean))]
+            if (cuttingOperators.length === 1) {
+              scrapOperator = cuttingOperators[0]
+            }
+          }
+        } catch (err) {
+          console.error('Failed to resolve cutting operator:', err)
+        }
+      }
+
       const historyToInsert = []
       historyToInsert.push({
         card_id: currentCard.id,
         nomenclature_id: currentCard.nomenclature_id,
         stage_name: 'Сортування',
-        operator_name: op,
+        operator_name: scrapOperator,
         qty_at_start: currentCard.quantity,
         qty_completed: goodQty,
         scrap_qty: scrapCount,

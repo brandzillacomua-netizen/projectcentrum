@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react'
-import { ArrowLeft, AlertTriangle, CheckCircle2, Package, Layers, ChevronRight, Info, Camera, X, Scan } from 'lucide-react'
+import React, { useState, useEffect, useMemo } from 'react'
+import { ArrowLeft, AlertTriangle, CheckCircle2, Package, Layers, ChevronRight, Info, Camera, X, Scan, BarChart2, Filter, Search, Calendar } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { supabase } from '../supabase'
 import { useScrapReasons } from '../hooks/useScrapReasons'
 
 export default function BrakModule() {
-  const { inventory, nomenclatures, fetchData, currentUser, disposeScrapItem, createReworkNaryad, productionStages, workCards, orders, machineCalls, machines, supabase, workCardHistory } = useMES()
+  const { inventory, nomenclatures, fetchData, currentUser, disposeScrapItem, createReworkNaryad, productionStages, workCards, orders, machineCalls, machines, supabase, workCardHistory, systemUsers } = useMES()
   const [isProcessing, setIsProcessing] = useState(false)
   const [selectedItem, setSelectedItem] = useState(null)
   const [distribution, setDistribution] = useState({ 1: 0, 2: 0, 3: 0, 4: 0 })
@@ -25,6 +25,338 @@ export default function BrakModule() {
   const [qcScrapCount, setQcScrapCount] = useState(0)
   const [qcReason, setQcReason] = useState('Биття цанги')
   const [qcCustomReason, setQcCustomReason] = useState('')
+
+  // QC Reports Modal States
+  const [showReportPage, setShowReportPage] = useState(false)
+  const [scrapReportSubTab, setScrapReportSubTab] = useState('cases')
+  const todayStr = new Date().toISOString().split('T')[0];
+  const [reportStartDate, setReportStartDate] = useState(todayStr)
+  const [reportEndDate, setReportEndDate] = useState(todayStr)
+  const [reportWorkCardHistory, setReportWorkCardHistory] = useState([])
+  const [reportScrapReasonsDb, setReportScrapReasonsDb] = useState([])
+  const [reportClassifiedHistoryIds, setReportClassifiedHistoryIds] = useState(new Set())
+  const [reportIsSyncing, setReportIsSyncing] = useState(false)
+  const [reportSelectedShiftFilter, setReportSelectedShiftFilter] = useState('all')
+  const [reportSelectedEmployeeFilter, setReportSelectedEmployeeFilter] = useState('all')
+  const [reportSearchQuery, setReportSearchQuery] = useState('')
+  const [reportQuickPeriod, setReportQuickPeriod] = useState('')
+
+  const reportFilterByDate = (dateString) => {
+    if (!reportStartDate && !reportEndDate) return true;
+    if (!dateString) return false;
+    const d = new Date(dateString);
+    
+    if (reportStartDate) {
+      const s = new Date(reportStartDate)
+      s.setHours(0,0,0,0)
+      if (d < s) return false;
+    }
+    if (reportEndDate) {
+      const e = new Date(reportEndDate)
+      e.setHours(23,59,59,999)
+      if (d > e) return false;
+    }
+    return true;
+  }
+
+  const matchesOperator = (opName, filterVal) => {
+    if (!filterVal || filterVal === 'all') return true;
+    if (!opName) return false;
+    
+    const clean = (str) => str.toLowerCase().replace(/\s+/g, ' ').trim();
+    const oClean = clean(opName);
+    const fClean = clean(filterVal);
+    
+    if (oClean === fClean) return true;
+    
+    const oParts = oClean.split(' ');
+    const fParts = fClean.split(' ');
+    
+    const match1 = fParts.every(p => oParts.includes(p) || oParts.some(op => op.includes(p) || p.includes(op)));
+    const match2 = oParts.every(p => fParts.includes(p) || fParts.some(fp => fp.includes(p) || p.includes(fp)));
+    
+    return match1 || match2;
+  };
+
+  const fetchReportHistoryRange = async (startIso, endIso) => {
+    const columns = 'id,card_id,nomenclature_id,operator_name,shift_name,stage_name,qty_completed,scrap_qty,qc_scrap_comment,completed_at,created_at,card_info'
+    const applyRange = (query) => {
+      let ranged = query
+      if (startIso) ranged = ranged.gte('completed_at', startIso)
+      if (endIso) ranged = ranged.lte('completed_at', endIso)
+      return ranged
+    }
+
+    const { count, error: countError } = await applyRange(
+      supabase.from('work_card_history').select('id', { count: 'exact', head: true })
+    )
+    if (countError) throw countError
+
+    const pageSize = 1000
+    const pageCount = Math.ceil((count || 0) / pageSize)
+    const pages = []
+
+    for (let batchStart = 0; batchStart < pageCount; batchStart += 6) {
+      const batch = []
+      for (let page = batchStart; page < Math.min(pageCount, batchStart + 6); page += 1) {
+        const from = page * pageSize
+        batch.push(applyRange(
+          supabase
+            .from('work_card_history')
+            .select(columns)
+            .order('completed_at', { ascending: false })
+            .range(from, from + pageSize - 1)
+        ))
+      }
+      const results = await Promise.all(batch)
+      results.forEach(result => {
+        if (result.error) throw result.error
+        pages.push(...(result.data || []))
+      })
+    }
+    return pages
+  }
+
+  const syncReportHistory = async (startStr, endStr) => {
+    setReportIsSyncing(true)
+    let startIso = null
+    let endIso = null
+    
+    if (startStr) {
+      const d = new Date(startStr)
+      d.setHours(0,0,0,0)
+      startIso = d.toISOString()
+    } else {
+      const d = new Date()
+      d.setMonth(d.getMonth() - 1)
+      startIso = d.toISOString()
+    }
+    
+    if (endStr) {
+      const d = new Date(endStr)
+      d.setHours(23,59,59,999)
+      endIso = d.toISOString()
+    }
+    
+    try {
+      let dbReasonsQuery = supabase.from('scrap_report_by_reason').select('*')
+      if (startIso) dbReasonsQuery = dbReasonsQuery.gte('report_day', startIso)
+      if (endIso) dbReasonsQuery = dbReasonsQuery.lte('report_day', endIso)
+
+      let classificationsQuery = supabase.from('scrap_classifications').select('source_history_id')
+      if (startIso) classificationsQuery = classificationsQuery.gte('classified_at', startIso)
+      if (endIso) classificationsQuery = classificationsQuery.lte('classified_at', endIso)
+
+      const [completeHistory, dbReasonsResult, classificationsResult] = await Promise.all([
+        fetchReportHistoryRange(startIso, endIso),
+        dbReasonsQuery,
+        classificationsQuery
+      ])
+
+      setReportWorkCardHistory(completeHistory)
+      setReportScrapReasonsDb(dbReasonsResult.data || [])
+      setReportClassifiedHistoryIds(new Set((classificationsResult.data || []).map(r => r.source_history_id)))
+    } catch (err) {
+      console.error("Failed to sync report history range:", err)
+    } finally {
+      setReportIsSyncing(false)
+    }
+  }
+
+  useEffect(() => {
+    if (showReportPage) {
+      syncReportHistory(reportStartDate, reportEndDate)
+    }
+  }, [reportStartDate, reportEndDate, showReportPage])
+
+  const handleReportQuickDateSelect = (e) => {
+    const val = e.target.value;
+    if (!val) return;
+    
+    const today = new Date();
+    const toISO = (d) => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    const todayStr = toISO(today);
+    let startStr = '';
+    let endStr = todayStr;
+
+    if (val === 'today') {
+      startStr = todayStr;
+    } else if (val === 'yesterday') {
+      const yest = new Date();
+      yest.setDate(yest.getDate() - 1);
+      startStr = toISO(yest);
+      endStr = startStr;
+    } else if (val === '3days') {
+      const d = new Date();
+      d.setDate(d.getDate() - 2);
+      startStr = toISO(d);
+    } else if (val === 'week') {
+      const d = new Date();
+      d.setDate(d.getDate() - 6);
+      startStr = toISO(d);
+    } else if (val === 'month') {
+      const d = new Date();
+      d.setMonth(d.getMonth() - 1);
+      startStr = toISO(d);
+    }
+
+    setReportStartDate(startStr);
+    setReportEndDate(endStr);
+    setReportQuickPeriod(val);
+  };
+
+  const reportUniqueOperators = useMemo(() => {
+    const ops = new Set();
+    (systemUsers || []).forEach(u => {
+      const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim();
+      if (fullName) ops.add(fullName);
+    });
+    reportWorkCardHistory.forEach(h => {
+      if (h.operator_name) ops.add(h.operator_name);
+    });
+    return Array.from(ops).filter(Boolean).sort();
+  }, [systemUsers, reportWorkCardHistory]);
+
+  const reportScrapStats = useMemo(() => {
+    const list = reportWorkCardHistory
+      .filter(h => Number(h.scrap_qty) > 0 && reportFilterByDate(h.completed_at) && (reportSelectedShiftFilter === 'all' || h.shift_name === reportSelectedShiftFilter) && matchesOperator(h.operator_name, reportSelectedEmployeeFilter))
+      .map(h => {
+        const nom = nomenclatures.find(n => n.id === h.nomenclature_id);
+        
+        let cat1 = 0, cat2 = 0, cat3 = 0, cat4 = 0;
+        if (h.qc_scrap_comment && h.qc_scrap_comment.includes('SCRAP_CAT:')) {
+          try {
+            const match = h.qc_scrap_comment.match(/\[SCRAP_CAT:([^\]]+)\]/);
+            if (match) {
+              const cats = JSON.parse(match[1]);
+              cat1 = Number(cats.cat1 || 0);
+              cat2 = Number(cats.cat2 || 0);
+              cat3 = Number(cats.cat3 || 0);
+              cat4 = Number(cats.cat4 || 0);
+            }
+          } catch (e) {}
+        }
+        
+        const totalClassified = cat1 + cat2 + cat3 + cat4;
+        const unclassified = Math.max(0, Number(h.scrap_qty) - totalClassified);
+
+        return {
+          ...h,
+          nom_name: nom ? nom.name : 'Невідома деталь',
+          cat1,
+          cat2,
+          cat3,
+          cat4,
+          unclassified
+        };
+      })
+      .filter(h => !reportSearchQuery || h.nom_name.toLowerCase().includes(reportSearchQuery.toLowerCase()) || h.operator_name.toLowerCase().includes(reportSearchQuery.toLowerCase()))
+      .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at));
+
+    const totalScrap = list.reduce((acc, curr) => acc + Number(curr.scrap_qty), 0);
+    
+    const byStage = list.reduce((acc, curr) => {
+      acc[curr.stage_name] = (acc[curr.stage_name] || 0) + Number(curr.scrap_qty);
+      return acc;
+    }, {});
+
+    return { list, totalScrap, byStage };
+  }, [reportWorkCardHistory, nomenclatures, reportStartDate, reportEndDate, reportSearchQuery, reportSelectedShiftFilter, reportSelectedEmployeeFilter])
+
+  const reportScrapReasonsStats = useMemo(() => {
+    const reasonsMap = {};
+    let totalScrapQty = 0;
+
+    reportScrapReasonsDb.forEach(row => {
+      if (reportSelectedEmployeeFilter !== 'all' && !matchesOperator(row.source_operator_name, reportSelectedEmployeeFilter)) return;
+
+      const reason = row.reason_name || 'Причина не вказана';
+      const qty = Number(row.quantity) || 0;
+      if (qty <= 0) return;
+
+      const nom = nomenclatures.find(n => n.id === row.nomenclature_id);
+      const nomName = nom ? nom.name : 'Невідома деталь';
+      totalScrapQty += qty;
+
+      if (!reasonsMap[reason]) {
+        reasonsMap[reason] = {
+          name: reason,
+          quantity: 0,
+          items: {},
+          operators: {}
+        };
+      }
+      reasonsMap[reason].quantity += qty;
+      reasonsMap[reason].items[nomName] = (reasonsMap[reason].items[nomName] || 0) + qty;
+      reasonsMap[reason].operators[row.source_operator_name || 'Невідомий'] = (reasonsMap[reason].operators[row.source_operator_name || 'Невідомий'] || 0) + qty;
+    });
+
+    reportWorkCardHistory
+      .filter(h => !reportClassifiedHistoryIds.has(h.id) && Number(h.scrap_qty) > 0 && reportFilterByDate(h.completed_at) && (reportSelectedShiftFilter === 'all' || h.shift_name === reportSelectedShiftFilter) && matchesOperator(h.operator_name, reportSelectedEmployeeFilter))
+      .forEach(h => {
+        let reasons = {};
+        if (h.qc_scrap_comment && h.qc_scrap_comment.includes('SCRAP_REASONS:')) {
+          try {
+            const match = h.qc_scrap_comment.match(/\[SCRAP_REASONS:([^\]]+)\]/);
+            if (match) {
+              reasons = JSON.parse(match[1]);
+            }
+          } catch (e) {}
+        } else {
+          let reasonName = h.qc_scrap_comment || 'Причина не вказана';
+          if (reasonName.includes('Причина:')) {
+            reasonName = reasonName.split('Причина:')[1].trim();
+          }
+          reasonName = reasonName.replace(/\[SCRAP_CAT:[^\]]+\]/g, '').replace(/\[SCRAP_REASONS:[^\]]+\]/g, '').trim();
+          if (!reasonName) {
+            reasonName = 'Причина не вказана';
+          }
+          reasons[reasonName] = Number(h.scrap_qty) || 0;
+        }
+
+        const nom = nomenclatures.find(n => n.id === h.nomenclature_id);
+        const nomName = nom ? nom.name : 'Невідома деталь';
+
+        Object.entries(reasons).forEach(([reason, qty]) => {
+          const numQty = Number(qty);
+          if (numQty <= 0) return;
+
+          totalScrapQty += numQty;
+
+          if (!reasonsMap[reason]) {
+            reasonsMap[reason] = {
+              name: reason,
+              quantity: 0,
+              items: {},
+              operators: {}
+            };
+          }
+
+          reasonsMap[reason].quantity += numQty;
+          reasonsMap[reason].items[nomName] = (reasonsMap[reason].items[nomName] || 0) + numQty;
+          reasonsMap[reason].operators[h.operator_name || 'Невідомий'] = (reasonsMap[reason].operators[h.operator_name || 'Невідомий'] || 0) + numQty;
+        });
+      });
+
+    return Object.values(reasonsMap)
+      .map(r => {
+        const topItem = Object.entries(r.items).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+        const topOperator = Object.entries(r.operators).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+        return {
+          ...r,
+          percentage: totalScrapQty > 0 ? ((r.quantity / totalScrapQty) * 100).toFixed(1) : '0.0',
+          topItem,
+          topOperator
+        };
+      })
+      .sort((a, b) => b.quantity - a.quantity);
+  }, [reportWorkCardHistory, reportScrapReasonsDb, reportClassifiedHistoryIds, nomenclatures, reportStartDate, reportEndDate, reportSelectedShiftFilter, reportSelectedEmployeeFilter]);
 
   const handleAddScrapReason = async () => {
     const name = newScrapReason.trim()
@@ -203,6 +535,7 @@ export default function BrakModule() {
   }
 
   const [localScrapHistory, setLocalScrapHistory] = useState([])
+  const [queuePage, setQueuePage] = useState(1)
   const [scrapSourceMeta, setScrapSourceMeta] = useState({ cards: {}, tasks: {}, orders: {}, sequences: {} })
 
   const loadScrapHistory = async () => {
@@ -212,12 +545,28 @@ export default function BrakModule() {
         .select('*')
         .eq('is_archived_scrap', true)
         .gt('scrap_qty', 0)
+        .or('qc_scrap_comment.is.null,qc_scrap_comment.not.ilike.%[scrap_cat:%')
         .order('created_at', { ascending: false })
       if (!error && data) {
+        // Filter first to only include items that actually have remaining unclassified scrap
+        const activeScrap = data.filter(h => {
+          let sum = 0;
+          if (h.qc_scrap_comment && h.qc_scrap_comment.includes('SCRAP_CAT:')) {
+            try {
+              const match = h.qc_scrap_comment.match(/\[SCRAP_CAT:([^\]]+)\]/);
+              if (match) {
+                const cats = JSON.parse(match[1]);
+                sum = Object.values(cats).reduce((a, b) => a + Number(b), 0);
+              }
+            } catch(e) {}
+          }
+          return Math.max(0, Number(h.scrap_qty) - sum) > 0;
+        })
+
         // Load exact source records for the queue. This must not depend on the
         // globally cached "latest N" cards/orders, otherwise old scrap loses
         // its work-order and card numbers.
-        const cardIds = [...new Set(data.map(row => row.card_id).filter(Boolean))]
+        const cardIds = [...new Set(activeScrap.map(row => row.card_id).filter(Boolean))]
         const { data: sourceCardsData } = cardIds.length
           ? await supabase.from('work_cards').select('id,task_id,order_id,created_at').in('id', cardIds)
           : { data: [] }
@@ -269,7 +618,7 @@ export default function BrakModule() {
           orders: Object.fromEntries(sourceOrders.map(order => [String(order.id), order])),
           sequences
         })
-        setLocalScrapHistory(data)
+        setLocalScrapHistory(activeScrap)
       }
     } catch (e) {
       console.error('Failed to fetch local scrap history:', e)
@@ -381,6 +730,17 @@ export default function BrakModule() {
     })
     .filter(Boolean);
 
+  const queuePageSize = 10;
+  const totalPages = Math.ceil(readyItems.length / queuePageSize);
+
+  useEffect(() => {
+    if (queuePage > 1 && queuePage > totalPages) {
+      setQueuePage(Math.max(1, totalPages));
+    }
+  }, [totalPages, queuePage]);
+
+  const paginatedReadyItems = readyItems.slice((queuePage - 1) * queuePageSize, queuePage * queuePageSize);
+
   // Stats for categorized scrap
   const categorizedStats = {
     cat1: (inventory || []).filter(i => i.type === 'scrap_cat_1').reduce((a, b) => a + (Number(b.total_qty) || 0), 0),
@@ -439,6 +799,75 @@ export default function BrakModule() {
       }
       
       const absoluteRemaining = Number(selectedItem.total_qty) - totalDistributed
+
+      // Call analytical database function record_scrap_classification
+      try {
+        const sourceCard = scrapSourceMeta.cards[String(selectedItem.card_id)]
+          || workCards?.find(card => String(card.id) === String(selectedItem.card_id))
+        const sourceTask = sourceCard?.task_id
+          ? scrapSourceMeta.tasks[String(sourceCard.task_id)]
+          : null
+        const sourceOrderId = sourceTask?.order_id || sourceCard?.order_id
+
+        const categoriesParam = categoriesToProcess.map(([cat, qty]) => ({
+          category: parseInt(cat),
+          quantity: Number(qty)
+        }))
+
+        const reasonsParam = reasonAllocations
+          .filter(r => r.reason && Number(r.qty) > 0)
+          .map(r => {
+            const reasonRow = scrapReasonRows.find(row => row.name === r.reason)
+            return {
+              reason_id: reasonRow?.id,
+              quantity: Number(r.qty)
+            }
+          })
+
+        const userName = currentUser ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() : 'Інспектор ВКЯ'
+
+        // Determine operator responsible for the scrap
+        let targetOperator = selectedItem.history_row.operator_name || null;
+        if (selectedItem.stage === 'Сортування' && selectedItem.card_id) {
+          const { data: cuttingHistory } = await supabase
+            .from('work_card_history')
+            .select('operator_name')
+            .eq('card_id', selectedItem.card_id)
+            .eq('stage_name', 'Розкрій');
+
+          if (cuttingHistory && cuttingHistory.length > 0) {
+            const cuttingOperators = [...new Set(cuttingHistory.map(h => h.operator_name).filter(Boolean))];
+            if (cuttingOperators.length === 1) {
+              targetOperator = cuttingOperators[0];
+            }
+          }
+        }
+
+        const { error: rpcErr } = await supabase.rpc('record_scrap_classification', {
+          p_source_history_id: selectedItem.id,
+          p_card_id: selectedItem.card_id || null,
+          p_task_id: sourceCard?.task_id || null,
+          p_order_id: sourceOrderId || null,
+          p_nomenclature_id: selectedItem.nomenclature_id,
+          p_order_number: selectedItem.naryad_number || null,
+          p_card_sequence: selectedItem.card_sequence ? parseInt(selectedItem.card_sequence) : null,
+          p_source_operator_name: targetOperator,
+          p_source_stage_name: selectedItem.history_row.stage_name || null,
+          p_source_machine_name: selectedItem.history_row.machine_name || null,
+          p_quantity: totalDistributed,
+          p_classified_by_user_id: currentUser?.id || null,
+          p_classified_by_name: userName,
+          p_categories: categoriesParam,
+          p_reasons: reasonsParam,
+          p_notes: selectedItem.history_row.qc_scrap_comment || null
+        })
+
+        if (rpcErr) {
+          console.error('RPC record_scrap_classification error:', rpcErr.message)
+        }
+      } catch (rpcEx) {
+        console.error('Failed to execute scrap classification RPC:', rpcEx)
+      }
       
       // We need to update the work_card_history with the new JSON distribution
       if (selectedItem.is_history_row) {
@@ -544,6 +973,236 @@ export default function BrakModule() {
     }
   }
 
+  if (showReportPage) {
+    return (
+      <div style={{ background: '#050505', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
+        
+        {/* Header */}
+        <nav style={{ 
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+          padding: '0 25px', height: '75px', background: '#000', borderBottom: '1px solid #1a1a1a', flexShrink: 0 
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+            <button 
+              onClick={() => setShowReportPage(false)} 
+              style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '0.85rem', padding: 0 }}
+            >
+              <ArrowLeft size={18} /> <span>Черга ВКЯ</span>
+            </button>
+            <div style={{ width: '2px', height: '24px', background: '#1a1a1a' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <AlertTriangle color="#ef4444" size={22} />
+              <h1 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 900, letterSpacing: '-0.5px' }}>ВКЯ · Звіти 1С Брак</h1>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <div style={{ textAlign: 'right', lineHeight: 1.2 }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 800 }}>{currentUser?.first_name} {currentUser?.last_name}</div>
+              <div style={{ fontSize: '0.65rem', color: '#555', textTransform: 'uppercase', fontWeight: 900 }}>Інспектор ВКЯ</div>
+            </div>
+          </div>
+        </nav>
+
+        {/* Filter Bar */}
+        <div className="report-filters-bar" style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap', background: '#000', padding: '15px 25px', borderBottom: '1px solid #111' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#111', border: '1px solid #222', padding: '8px 12px', borderRadius: '10px', width: '220px' }}>
+            <Search size={16} color="#555" />
+            <input 
+              type="text" 
+              placeholder="Фільтр по назві..." 
+              value={reportSearchQuery}
+              onChange={e => setReportSearchQuery(e.target.value)}
+              style={{ background: 'transparent', border: 'none', color: '#fff', outline: 'none', fontSize: '0.85rem', width: '100%' }}
+            />
+          </div>
+
+          <select 
+            value={reportSelectedShiftFilter} 
+            onChange={e => setReportSelectedShiftFilter(e.target.value)}
+            style={{ background: '#111', border: '1px solid #222', color: '#fff', padding: '10px 15px', borderRadius: '10px', fontSize: '0.85rem', outline: 'none' }}
+          >
+            <option value="all">— Всі зміни —</option>
+            <option value="Зміна 1">Зміна 1</option>
+            <option value="Зміна 2">Зміна 2</option>
+            <option value="Зміна 3">Зміна 3</option>
+            <option value="Зміна 4">Зміна 4</option>
+            <option value="Без зміни">Без зміни</option>
+          </select>
+
+          <select 
+            value={reportSelectedEmployeeFilter} 
+            onChange={e => setReportSelectedEmployeeFilter(e.target.value)}
+            style={{ background: '#111', border: '1px solid #222', color: '#fff', padding: '10px 15px', borderRadius: '10px', fontSize: '0.85rem', outline: 'none', maxWidth: '200px' }}
+          >
+            <option value="all">— Всі працівники —</option>
+            {reportUniqueOperators.map(op => <option key={op} value={op}>{op}</option>)}
+          </select>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#111', border: '1px solid #222', padding: '8px 15px', borderRadius: '10px', fontSize: '0.85rem' }}>
+            <Calendar size={16} color="#555" />
+            <span style={{ color: '#666', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 800 }}>Період:</span>
+            <input 
+              type="date" 
+              value={reportStartDate} 
+              onChange={e => { setReportStartDate(e.target.value); setReportQuickPeriod(''); }}
+              style={{ background: 'transparent', border: 'none', color: '#fff', outline: 'none', fontSize: '0.85rem' }}
+            />
+            <span style={{ color: '#555' }}>—</span>
+            <input 
+              type="date" 
+              value={reportEndDate} 
+              onChange={e => { setReportEndDate(e.target.value); setReportQuickPeriod(''); }}
+              style={{ background: 'transparent', border: 'none', color: '#fff', outline: 'none', fontSize: '0.85rem' }}
+            />
+          </div>
+
+          <select 
+            value={reportQuickPeriod} 
+            onChange={handleReportQuickDateSelect}
+            style={{ background: '#111', border: '1px solid #222', color: '#ff9000', padding: '10px 15px', borderRadius: '10px', fontSize: '0.85rem', outline: 'none', fontWeight: 800 }}
+          >
+            <option value="">ОБРАТИ ПЕРІОД</option>
+            <option value="today">Сьогодні</option>
+            <option value="yesterday">Вчора</option>
+            <option value="3days">Останні 3 дні</option>
+            <option value="week">Цей тиждень</option>
+            <option value="month">Цей місяць</option>
+          </select>
+        </div>
+
+        {/* Main Body */}
+        <div style={{ flex: 1, padding: '30px', width: '100%', boxSizing: 'border-box' }}>
+          {reportIsSyncing ? (
+            <div style={{ textAlign: 'center', padding: '50px 0', color: '#a1a1aa' }}>Завантаження даних звіту...</div>
+          ) : (
+            <div className="report-main-columns" style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              {/* Left Column: Totals & Stages */}
+              <div className="report-left-column" style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div style={{ background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid #222' }}>
+                  <h4 style={{ margin: '0 0 15px', color: '#ef4444', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'uppercase', fontWeight: 900 }}>
+                    <AlertTriangle size={18} /> Загальний облік браку
+                  </h4>
+                  <div style={{ fontSize: '2.5rem', fontWeight: 1000, color: '#fff', lineHeight: 1 }}>
+                    {reportScrapStats.totalScrap} <span style={{ fontSize: '1rem', color: '#71717a', fontWeight: 700 }}>од.</span>
+                  </div>
+                </div>
+
+                <div style={{ background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid #222' }}>
+                  <h4 style={{ margin: '0 0 15px', fontSize: '0.78rem', color: '#a1a1aa', textTransform: 'uppercase', fontWeight: 900 }}>Брак по етапах</h4>
+                  {Object.entries(reportScrapStats.byStage).map(([stage, count]) => (
+                    <div key={stage} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', padding: '10px', background: '#09090b', borderRadius: '8px', border: '1px solid #222' }}>
+                      <span style={{ color: '#d4d4d8', fontSize: '0.82rem', fontWeight: 700 }}>{stage}</span>
+                      <strong style={{ color: '#ef4444', fontSize: '0.85rem' }}>{count} од.</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Right Column: Toggle Tabs & Tables */}
+              <div className="report-right-column" style={{ flex: '2 2 600px', background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid #222' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px solid #222', paddingBottom: '10px' }}>
+                  <h4 style={{ margin: 0, fontSize: '0.8rem', color: '#a1a1aa', textTransform: 'uppercase', fontWeight: 900 }}>
+                    {scrapReportSubTab === 'cases' ? 'Деталізація випадків' : 'Аналітика причин браку'}
+                  </h4>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button 
+                      onClick={() => setScrapReportSubTab('cases')}
+                      style={{
+                        background: scrapReportSubTab === 'cases' ? '#ef4444' : 'transparent',
+                        color: '#fff', border: scrapReportSubTab === 'cases' ? 'none' : '1px solid #222',
+                        padding: '6px 14px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer'
+                      }}
+                    >
+                      Випадки
+                    </button>
+                    <button 
+                      onClick={() => setScrapReportSubTab('reasons')}
+                      style={{
+                        background: scrapReportSubTab === 'reasons' ? '#ef4444' : 'transparent',
+                        color: '#fff', border: scrapReportSubTab === 'reasons' ? 'none' : '1px solid #222',
+                        padding: '6px 14px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer'
+                      }}
+                    >
+                      Причини браку
+                    </button>
+                  </div>
+                </div>
+
+                {scrapReportSubTab === 'cases' ? (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', minWidth: '550px' }}>
+                      <thead>
+                        <tr style={{ color: '#71717a', textAlign: 'left', borderBottom: '2px solid #222' }}>
+                          <th style={{ padding: '10px 8px' }}>Дата</th>
+                          <th style={{ padding: '10px 8px' }}>Деталь</th>
+                          <th style={{ padding: '10px 8px' }}>Оператор</th>
+                          <th style={{ padding: '10px 8px' }}>Етап</th>
+                          <th style={{ padding: '10px 8px', textAlign: 'center', color: '#10b981' }}>Кат. 1</th>
+                          <th style={{ padding: '10px 8px', textAlign: 'center', color: '#eab308' }}>Кат. 2</th>
+                          <th style={{ padding: '10px 8px', textAlign: 'center', color: '#f97316' }}>Кат. 3</th>
+                          <th style={{ padding: '10px 8px', textAlign: 'center', color: '#ef4444' }}>Кат. 4</th>
+                          <th style={{ padding: '10px 8px', textAlign: 'center', color: '#a1a1aa' }}>Не класиф.</th>
+                          <th style={{ padding: '10px 8px', textAlign: 'right' }}>Всього</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reportScrapStats.list.map(h => (
+                          <tr key={h.id} style={{ borderBottom: '1px solid #222' }}>
+                            <td style={{ padding: '10px 8px', color: '#71717a' }}>{new Date(h.completed_at).toLocaleDateString()}</td>
+                            <td style={{ padding: '10px 8px', color: '#fff', fontWeight: 700 }}>{h.nom_name}</td>
+                            <td style={{ padding: '10px 8px', color: '#d4d4d8' }}>{h.operator_name}</td>
+                            <td style={{ padding: '10px 8px', color: '#a1a1aa' }}>{h.stage_name}</td>
+                            <td style={{ padding: '10px 8px', textAlign: 'center', color: h.cat1 > 0 ? '#10b981' : '#3f3f46', fontWeight: h.cat1 > 0 ? '900' : '400' }}>{h.cat1 || '—'}</td>
+                            <td style={{ padding: '10px 8px', textAlign: 'center', color: h.cat2 > 0 ? '#eab308' : '#3f3f46', fontWeight: h.cat2 > 0 ? '900' : '400' }}>{h.cat2 || '—'}</td>
+                            <td style={{ padding: '10px 8px', textAlign: 'center', color: h.cat3 > 0 ? '#f97316' : '#3f3f46', fontWeight: h.cat3 > 0 ? '900' : '400' }}>{h.cat3 || '—'}</td>
+                            <td style={{ padding: '10px 8px', textAlign: 'center', color: h.cat4 > 0 ? '#ef4444' : '#3f3f46', fontWeight: h.cat4 > 0 ? '900' : '400' }}>{h.cat4 || '—'}</td>
+                            <td style={{ padding: '10px 8px', textAlign: 'center', color: h.unclassified > 0 ? '#a1a1aa' : '#27272a', fontWeight: h.unclassified > 0 ? '700' : '400' }}>{h.unclassified || '—'}</td>
+                            <td style={{ padding: '10px 8px', textAlign: 'right', color: '#ef4444', fontWeight: 900 }}>{h.scrap_qty}</td>
+                          </tr>
+                        ))}
+                        {reportScrapStats.list.length === 0 && (
+                          <tr><td colSpan="10" style={{ padding: '20px', textAlign: 'center', color: '#71717a' }}>Брак відсутній за обраний період</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', minWidth: '550px' }}>
+                      <thead>
+                        <tr style={{ color: '#71717a', textAlign: 'left', borderBottom: '2px solid #222' }}>
+                          <th style={{ padding: '10px 8px' }}>Причина браку</th>
+                          <th style={{ padding: '10px 8px', textAlign: 'center' }}>Кількість деталей (шт)</th>
+                          <th style={{ padding: '10px 8px', textAlign: 'center' }}>Відсоток (%)</th>
+                          <th style={{ padding: '10px 8px' }}>Найчастіша деталь</th>
+                          <th style={{ padding: '10px 8px', textAlign: 'right' }}>Найчастіший оператор</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reportScrapReasonsStats.map((item, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid #222' }}>
+                            <td style={{ padding: '12px 8px', color: '#fff', fontWeight: 700 }}>{item.name}</td>
+                            <td style={{ padding: '12px 8px', textAlign: 'center', color: '#ef4444', fontWeight: 900 }}>{item.quantity}</td>
+                            <td style={{ padding: '12px 8px', textAlign: 'center', color: '#71717a' }}>{item.percentage}%</td>
+                            <td style={{ padding: '12px 8px', color: '#a1a1aa' }}>{item.topItem}</td>
+                            <td style={{ padding: '12px 8px', textAlign: 'right', color: '#a1a1aa' }}>{item.topOperator}</td>
+                          </tr>
+                        ))}
+                        {reportScrapReasonsStats.length === 0 && (
+                          <tr><td colSpan="5" style={{ padding: '20px', textAlign: 'center', color: '#71717a' }}>Немає класифікованого браку за обраний період</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={{ background: '#050505', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
       
@@ -553,13 +1212,24 @@ export default function BrakModule() {
         padding: '0 25px', height: '75px', background: '#000', borderBottom: '1px solid #1a1a1a', flexShrink: 0 
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <Link to="/" style={{ color: '#94a3b8', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '0.85rem' }}>
-            <ArrowLeft size={18} /> <span>Назад</span>
-          </Link>
+          {showReportPage ? (
+            <button 
+              onClick={() => setShowReportPage(false)} 
+              style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '0.85rem', padding: 0 }}
+            >
+              <ArrowLeft size={18} /> <span>Черга ВКЯ</span>
+            </button>
+          ) : (
+            <Link to="/" style={{ color: '#94a3b8', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '0.85rem' }}>
+              <ArrowLeft size={18} /> <span>Назад</span>
+            </Link>
+          )}
           <div style={{ width: '2px', height: '24px', background: '#1a1a1a' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <AlertTriangle color="#ef4444" size={22} />
-            <h1 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 900, letterSpacing: '-0.5px' }}>ВКЯ · Управління Якістю</h1>
+            <h1 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 900, letterSpacing: '-0.5px' }}>
+              {showReportPage ? 'ВКЯ · Звіти 1С Брак' : 'ВКЯ · Управління Якістю'}
+            </h1>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
@@ -633,6 +1303,28 @@ export default function BrakModule() {
           >
             <Camera size={18} /> СКАНУВАТИ КАРТКУ
           </button>}
+          {!showReasonCatalog && (
+            <button
+              onClick={() => setShowReportPage(true)}
+              style={{
+                background: '#a855f720', border: '1px solid #a855f755', color: '#a855f7',
+                padding: '12px 24px', borderRadius: '14px', fontSize: '0.85rem', fontWeight: 900,
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px',
+                transition: 'all 0.2s',
+                boxShadow: '0 4px 15px rgba(168, 85, 247, 0.1)'
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = '#a855f730';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = '#a855f720';
+                e.currentTarget.style.transform = 'translateY(0)';
+              }}
+            >
+              <BarChart2 size={18} /> ЗВІТИ ВКЯ
+            </button>
+          )}
           <button
             onClick={() => setShowReasonCatalog(value => !value)}
             style={{ background: '#f59e0b20', border: '1px solid #f59e0b55', color: '#f59e0b', padding: '12px 24px', borderRadius: '14px', fontSize: '0.85rem', fontWeight: 900, cursor: 'pointer' }}
@@ -642,7 +1334,7 @@ export default function BrakModule() {
         </div>
 
         {showReasonCatalog && (
-          <div style={{ background: '#0d0d0d', border: '1px solid #f59e0b33', borderRadius: '24px', padding: '26px', marginBottom: '25px' }}>
+          <div className="qc-catalog-container" style={{ background: '#0d0d0d', border: '1px solid #f59e0b33', borderRadius: '24px', padding: '26px', marginBottom: '25px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '20px', alignItems: 'flex-start', marginBottom: '25px', flexWrap: 'wrap' }}>
               <div>
                 <div style={{ fontSize: '1.45rem', fontWeight: 1000, color: '#fff' }}>Довідник причин браку</div>
@@ -655,7 +1347,7 @@ export default function BrakModule() {
 
             <div style={{ background: '#080808', border: '1px solid #222', borderRadius: '16px', padding: '16px', marginBottom: '22px' }}>
               <div style={{ color: '#888', fontSize: '0.68rem', fontWeight: 950, marginBottom: '10px' }}>ДОДАТИ НОВУ ПРИЧИНУ</div>
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <div className="qc-catalog-add-row" style={{ display: 'flex', gap: '10px' }}>
               <input value={newScrapReason} onChange={event => setNewScrapReason(event.target.value)}
                 onKeyDown={event => { if (event.key === 'Enter') handleAddScrapReason() }}
                 placeholder="Наприклад: Невірний розмір деталі"
@@ -669,7 +1361,7 @@ export default function BrakModule() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
               {scrapReasonRows.map(row => (
-                <div key={row.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#111', border: '1px solid #202020', borderRadius: '14px', padding: '13px 15px' }}>
+                <div key={row.id} className="qc-catalog-row" style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#111', border: '1px solid #202020', borderRadius: '14px', padding: '13px 15px' }}>
                   <div style={{ width: '10px', height: '10px', flexShrink: 0, borderRadius: '50%', background: row.is_active ? '#10b981' : '#444', boxShadow: row.is_active ? '0 0 10px #10b98166' : 'none' }} />
                   {editingScrapReasonId === row.id ? (
                     <input autoFocus value={editingScrapReasonName} onChange={event => setEditingScrapReasonName(event.target.value)}
@@ -679,14 +1371,26 @@ export default function BrakModule() {
                       }}
                       style={{ flex: 1, background: '#050505', border: '1px solid #f59e0b66', borderRadius: '9px', color: '#fff', padding: '9px 11px', fontWeight: 800 }} />
                   ) : (
-                    <div style={{ flex: 1, color: row.is_active ? '#fff' : '#666', fontWeight: 850 }}>{row.name}</div>
+                    <div className="row-name" style={{ flex: 1, color: row.is_active ? '#fff' : '#666', fontWeight: 850 }}>{row.name}</div>
                   )}
                   {editingScrapReasonId === row.id ? <>
-                    <button onClick={() => handleUpdateScrapReason(row)} style={{ background: '#10b981', color: '#000', border: 0, borderRadius: '9px', padding: '9px 13px', fontWeight: 950, cursor: 'pointer' }}>ЗБЕРЕГТИ</button>
-                    <button onClick={() => setEditingScrapReasonId(null)} style={{ background: '#222', color: '#888', border: '1px solid #333', borderRadius: '9px', padding: '9px 13px', fontWeight: 850, cursor: 'pointer' }}>СКАСУВАТИ</button>
+                    <button onClick={() => handleUpdateScrapReason(row)} style={{ background: '#10b981', color: '#000', border: 0, borderRadius: '9px', padding: '9px 13px', fontWeight: 950, cursor: 'pointer' }}>
+                      <span className="desktop-text">ЗБЕРЕГТИ</span>
+                      <span className="mobile-text">💾</span>
+                    </button>
+                    <button onClick={() => setEditingScrapReasonId(null)} style={{ background: '#222', color: '#888', border: '1px solid #333', borderRadius: '9px', padding: '9px 13px', fontWeight: 850, cursor: 'pointer' }}>
+                      <span className="desktop-text">СКАСУВАТИ</span>
+                      <span className="mobile-text">❌</span>
+                    </button>
                   </> : <>
-                    <button onClick={() => { setEditingScrapReasonId(row.id); setEditingScrapReasonName(row.name) }} style={{ background: '#1d1d1d', color: '#f59e0b', border: '1px solid #333', borderRadius: '9px', padding: '9px 13px', fontWeight: 900, cursor: 'pointer' }}>РЕДАГУВАТИ</button>
-                    <button onClick={() => handleToggleScrapReason(row)} style={{ minWidth: '105px', background: row.is_active ? '#10b98118' : '#222', color: row.is_active ? '#10b981' : '#888', border: `1px solid ${row.is_active ? '#10b98155' : '#333'}`, borderRadius: '9px', padding: '9px 13px', fontWeight: 900, cursor: 'pointer' }}>{row.is_active ? 'АКТИВНА' : 'ВИМКНЕНА'}</button>
+                    <button onClick={() => { setEditingScrapReasonId(row.id); setEditingScrapReasonName(row.name) }} style={{ background: '#1d1d1d', color: '#f59e0b', border: '1px solid #333', borderRadius: '9px', padding: '9px 13px', fontWeight: 900, cursor: 'pointer' }}>
+                      <span className="desktop-text">РЕДАГУВАТИ</span>
+                      <span className="mobile-text">✏️</span>
+                    </button>
+                    <button onClick={() => handleToggleScrapReason(row)} style={{ minWidth: '105px', background: row.is_active ? '#10b98118' : '#222', color: row.is_active ? '#10b981' : '#888', border: `1px solid ${row.is_active ? '#10b98155' : '#333'}`, borderRadius: '9px', padding: '9px 13px', fontWeight: 900, cursor: 'pointer' }}>
+                      <span className="desktop-text">{row.is_active ? 'АКТИВНА' : 'ВИМКНЕНА'}</span>
+                      <span className="mobile-text">{row.is_active ? 'ВКЛ' : 'ВИКЛ'}</span>
+                    </button>
                   </>}
                 </div>
               ))}
@@ -807,7 +1511,7 @@ export default function BrakModule() {
                   </div>
                 ))
               ) : (
-                readyItems.map(item => {
+                paginatedReadyItems.map(item => {
                   const nom = nomenclatures.find(n => n.id === item.nomenclature_id)
                   const isActive = selectedItem?.id === item.id
                   return (
@@ -850,6 +1554,51 @@ export default function BrakModule() {
                     </div>
                   )
                 })
+              )}
+
+              {!viewingCategory && totalPages > 1 && (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '25px', flexWrap: 'wrap' }}>
+                  <button
+                    disabled={queuePage === 1}
+                    onClick={() => setQueuePage(p => Math.max(1, p - 1))}
+                    style={{
+                      background: '#111', border: '1px solid #222', color: '#fff',
+                      padding: '8px 16px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer'
+                    }}
+                  >
+                    Назад
+                  </button>
+                  {Array.from({ length: totalPages }).map((_, idx) => {
+                    const pageNum = idx + 1
+                    const isActive = pageNum === queuePage
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setQueuePage(pageNum)}
+                        style={{
+                          background: isActive ? '#ef4444' : '#111',
+                          border: `1px solid ${isActive ? '#ef4444' : '#222'}`,
+                          color: '#fff',
+                          width: '36px', height: '36px', borderRadius: '10px',
+                          fontWeight: 900, cursor: 'pointer',
+                          boxShadow: isActive ? '0 0 10px rgba(239, 68, 68, 0.3)' : 'none'
+                        }}
+                      >
+                        {pageNum}
+                      </button>
+                    )
+                  })}
+                  <button
+                    disabled={queuePage === totalPages}
+                    onClick={() => setQueuePage(p => Math.min(totalPages, p + 1))}
+                    style={{
+                      background: '#111', border: '1px solid #222', color: '#fff',
+                      padding: '8px 16px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer'
+                    }}
+                  >
+                    Вперед
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -1188,13 +1937,68 @@ export default function BrakModule() {
         </div>
       )}
 
+
       <style dangerouslySetInnerHTML={{ __html: `
         .glass-panel { backdrop-filter: blur(10px); }
         button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .mobile-text { display: none; }
         @keyframes pulse-red {
           0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
           70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
           100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        @media (max-width: 900px) {
+          .report-filters-bar {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            padding: 15px !important;
+          }
+          .report-filters-bar > * {
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box;
+          }
+          .report-main-columns {
+            flex-direction: column !important;
+          }
+          .report-left-column, .report-right-column {
+            flex: 1 1 100% !important;
+            width: 100% !important;
+          }
+        }
+        @media (max-width: 600px) {
+          .qc-catalog-container {
+            padding: 15px !important;
+          }
+          .qc-catalog-add-row {
+            flex-direction: row !important;
+            align-items: stretch !important;
+          }
+          .qc-catalog-add-row button {
+            padding: 0 15px !important;
+          }
+          .qc-catalog-row {
+            flex-wrap: nowrap !important;
+            gap: 8px !important;
+            padding: 10px 12px !important;
+          }
+          .qc-catalog-row .row-name {
+            font-size: 0.8rem !important;
+            word-break: break-word !important;
+            line-height: 1.2 !important;
+          }
+          .qc-catalog-row button {
+            padding: 6px 10px !important;
+            font-size: 0.7rem !important;
+            min-width: auto !important;
+            flex-shrink: 0 !important;
+          }
+          .desktop-text {
+            display: none !important;
+          }
+          .mobile-text {
+            display: inline-block !important;
+          }
         }
       `}} />
     </div>

@@ -58,6 +58,7 @@ const ReportsModule = () => {
   } = useMES()
 
   const [activeTab, setActiveTab] = useState('warehouse')
+  const [scrapReportSubTab, setScrapReportSubTab] = useState('cases')
   const [searchQuery, setSearchQuery] = useState('')
   const [quickPeriod, setQuickPeriod] = useState('')
 
@@ -129,6 +130,8 @@ const ReportsModule = () => {
   const [startDate, setStartDate] = useState(todayStr)
   const [endDate, setEndDate] = useState(todayStr)
   const [workCardHistory, setWorkCardHistory] = useState(initialHistory)
+  const [scrapReasonsDb, setScrapReasonsDb] = useState([])
+  const [classifiedHistoryIds, setClassifiedHistoryIds] = useState(new Set())
   const [isSyncing, setIsSyncing] = useState(false)
   const [selectedShiftFilter, setSelectedShiftFilter] = useState('all')
   const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState('all')
@@ -219,8 +222,25 @@ const ReportsModule = () => {
     }
     
     try {
-      const completeHistory = await fetchReportHistoryRange(startIso, endIso)
-      if (requestSeq === historyRequestSeqRef.current) setWorkCardHistory(completeHistory)
+      let dbReasonsQuery = supabase.from('scrap_report_by_reason').select('*')
+      if (startIso) dbReasonsQuery = dbReasonsQuery.gte('report_day', startIso)
+      if (endIso) dbReasonsQuery = dbReasonsQuery.lte('report_day', endIso)
+
+      let classificationsQuery = supabase.from('scrap_classifications').select('source_history_id')
+      if (startIso) classificationsQuery = classificationsQuery.gte('classified_at', startIso)
+      if (endIso) classificationsQuery = classificationsQuery.lte('classified_at', endIso)
+
+      const [completeHistory, dbReasonsResult, classificationsResult] = await Promise.all([
+        fetchReportHistoryRange(startIso, endIso),
+        dbReasonsQuery,
+        classificationsQuery
+      ])
+
+      if (requestSeq === historyRequestSeqRef.current) {
+        setWorkCardHistory(completeHistory)
+        setScrapReasonsDb(dbReasonsResult.data || [])
+        setClassifiedHistoryIds(new Set((classificationsResult.data || []).map(r => r.source_history_id)))
+      }
     } catch (err) {
       console.error("Failed to sync history range:", err)
     } finally {
@@ -557,6 +577,101 @@ const ReportsModule = () => {
 
     return { list, totalScrap, byStage };
   }, [workCardHistory, nomenclatures, startDate, endDate, searchQuery, selectedShiftFilter, selectedEmployeeFilter])
+
+  // 3.1. Scrap Reasons Analytics
+  const scrapReasonsStats = useMemo(() => {
+    const reasonsMap = {};
+    let totalScrapQty = 0;
+
+    // 1. Add structured reason classification facts from the database view
+    scrapReasonsDb.forEach(row => {
+      // Apply filters if needed
+      if (selectedEmployeeFilter !== 'all' && !matchesOperator(row.source_operator_name, selectedEmployeeFilter)) return;
+
+      const reason = row.reason_name || 'Причина не вказана';
+      const qty = Number(row.quantity) || 0;
+      if (qty <= 0) return;
+
+      const nom = nomenclatures.find(n => n.id === row.nomenclature_id);
+      const nomName = nom ? nom.name : 'Невідома деталь';
+      totalScrapQty += qty;
+
+      if (!reasonsMap[reason]) {
+        reasonsMap[reason] = {
+          name: reason,
+          quantity: 0,
+          items: {},
+          operators: {}
+        };
+      }
+      reasonsMap[reason].quantity += qty;
+      reasonsMap[reason].items[nomName] = (reasonsMap[reason].items[nomName] || 0) + qty;
+      reasonsMap[reason].operators[row.source_operator_name || 'Невідомий'] = (reasonsMap[reason].operators[row.source_operator_name || 'Невідомий'] || 0) + qty;
+    });
+
+    // 2. Add legacy parsed comments ONLY if they aren't already represented in scrap_classifications
+    workCardHistory
+      .filter(h => !classifiedHistoryIds.has(h.id) && Number(h.scrap_qty) > 0 && filterByDate(h.completed_at) && (selectedShiftFilter === 'all' || h.shift_name === selectedShiftFilter) && matchesOperator(h.operator_name, selectedEmployeeFilter))
+      .forEach(h => {
+        let reasons = {};
+        if (h.qc_scrap_comment && h.qc_scrap_comment.includes('SCRAP_REASONS:')) {
+          try {
+            const match = h.qc_scrap_comment.match(/\[SCRAP_REASONS:([^\]]+)\]/);
+            if (match) {
+              reasons = JSON.parse(match[1]);
+            }
+          } catch (e) {}
+        } else {
+          // Fallback to legacy qc_scrap_comment
+          let reasonName = h.qc_scrap_comment || 'Причина не вказана';
+          if (reasonName.includes('Причина:')) {
+            reasonName = reasonName.split('Причина:')[1].trim();
+          }
+          // Remove system JSON block tags from the legacy fallback string
+          reasonName = reasonName.replace(/\[SCRAP_CAT:[^\]]+\]/g, '').replace(/\[SCRAP_REASONS:[^\]]+\]/g, '').trim();
+          if (!reasonName) {
+            reasonName = 'Причина не вказана';
+          }
+          reasons[reasonName] = Number(h.scrap_qty) || 0;
+        }
+
+        const nom = nomenclatures.find(n => n.id === h.nomenclature_id);
+        const nomName = nom ? nom.name : 'Невідома деталь';
+
+        Object.entries(reasons).forEach(([reason, qty]) => {
+          const numQty = Number(qty);
+          if (numQty <= 0) return;
+
+          totalScrapQty += numQty;
+
+          if (!reasonsMap[reason]) {
+            reasonsMap[reason] = {
+              name: reason,
+              quantity: 0,
+              items: {},
+              operators: {}
+            };
+          }
+
+          reasonsMap[reason].quantity += numQty;
+          reasonsMap[reason].items[nomName] = (reasonsMap[reason].items[nomName] || 0) + numQty;
+          reasonsMap[reason].operators[h.operator_name || 'Невідомий'] = (reasonsMap[reason].operators[h.operator_name || 'Невідомий'] || 0) + numQty;
+        });
+      });
+
+    return Object.values(reasonsMap)
+      .map(r => {
+        const topItem = Object.entries(r.items).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+        const topOperator = Object.entries(r.operators).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+        return {
+          ...r,
+          percentage: totalScrapQty > 0 ? ((r.quantity / totalScrapQty) * 100).toFixed(1) : '0.0',
+          topItem,
+          topOperator
+        };
+      })
+      .sort((a, b) => b.quantity - a.quantity);
+  }, [workCardHistory, scrapReasonsDb, classifiedHistoryIds, nomenclatures, startDate, endDate, selectedShiftFilter, selectedEmployeeFilter]);
 
   // 4. General Analytics
   const generalStats = useMemo(() => {
@@ -1057,42 +1172,97 @@ const ReportsModule = () => {
             </div>
 
             <div className="glass-panel" style={{ flex: 2, background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid #222' }}>
-              <h4 style={{ margin: '0 0 15px', fontSize: '0.8rem', color: '#888', textTransform: 'uppercase' }}>Деталізація випадків</h4>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                <thead>
-                  <tr style={{ color: '#555', textAlign: 'left', borderBottom: '2px solid #222' }}>
-                    <th style={{ padding: '10px' }}>Дата</th>
-                    <th style={{ padding: '10px' }}>Деталь</th>
-                    <th style={{ padding: '10px' }}>Оператор</th>
-                    <th style={{ padding: '10px' }}>Етап</th>
-                    <th style={{ padding: '10px', textAlign: 'center', color: '#10b981' }}>Кат. 1</th>
-                    <th style={{ padding: '10px', textAlign: 'center', color: '#eab308' }}>Кат. 2</th>
-                    <th style={{ padding: '10px', textAlign: 'center', color: '#f97316' }}>Кат. 3</th>
-                    <th style={{ padding: '10px', textAlign: 'center', color: '#ef4444' }}>Кат. 4</th>
-                    <th style={{ padding: '10px', textAlign: 'center', color: '#666' }}>Не класиф.</th>
-                    <th style={{ padding: '10px', textAlign: 'right' }}>Всього</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {scrapStats.list.map(h => (
-                    <tr key={h.id} style={{ borderBottom: '1px solid #1a1a1a' }}>
-                      <td style={{ padding: '10px', color: '#888' }}>{new Date(h.completed_at).toLocaleDateString()}</td>
-                      <td style={{ padding: '10px', color: '#fff', fontWeight: 700 }}>{h.nom_name}</td>
-                      <td style={{ padding: '10px', color: '#aaa' }}>{h.operator_name}</td>
-                      <td style={{ padding: '10px', color: '#aaa' }}>{h.stage_name}</td>
-                      <td style={{ padding: '10px', textAlign: 'center', color: h.cat1 > 0 ? '#10b981' : '#444', fontWeight: h.cat1 > 0 ? '900' : '400' }}>{h.cat1 || '—'}</td>
-                      <td style={{ padding: '10px', textAlign: 'center', color: h.cat2 > 0 ? '#eab308' : '#444', fontWeight: h.cat2 > 0 ? '900' : '400' }}>{h.cat2 || '—'}</td>
-                      <td style={{ padding: '10px', textAlign: 'center', color: h.cat3 > 0 ? '#f97316' : '#444', fontWeight: h.cat3 > 0 ? '900' : '400' }}>{h.cat3 || '—'}</td>
-                      <td style={{ padding: '10px', textAlign: 'center', color: h.cat4 > 0 ? '#ef4444' : '#444', fontWeight: h.cat4 > 0 ? '900' : '400' }}>{h.cat4 || '—'}</td>
-                      <td style={{ padding: '10px', textAlign: 'center', color: h.unclassified > 0 ? '#888' : '#333', fontWeight: h.unclassified > 0 ? '700' : '400' }}>{h.unclassified || '—'}</td>
-                      <td style={{ padding: '10px', textAlign: 'right', color: '#ef4444', fontWeight: 900 }}>{h.scrap_qty}</td>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px solid #222', paddingBottom: '10px' }}>
+                <h4 style={{ margin: 0, fontSize: '0.8rem', color: '#888', textTransform: 'uppercase' }}>
+                  {scrapReportSubTab === 'cases' ? 'Деталізація випадків' : 'Аналітика причин браку'}
+                </h4>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button 
+                    onClick={() => setScrapReportSubTab('cases')}
+                    style={{
+                      background: scrapReportSubTab === 'cases' ? '#ef4444' : 'transparent',
+                      color: '#fff', border: scrapReportSubTab === 'cases' ? 'none' : '1px solid #333',
+                      padding: '5px 12px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer'
+                    }}
+                  >
+                    Випадки
+                  </button>
+                  <button 
+                    onClick={() => setScrapReportSubTab('reasons')}
+                    style={{
+                      background: scrapReportSubTab === 'reasons' ? '#ef4444' : 'transparent',
+                      color: '#fff', border: scrapReportSubTab === 'reasons' ? 'none' : '1px solid #333',
+                      padding: '5px 12px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer'
+                    }}
+                  >
+                    Причини браку
+                  </button>
+                </div>
+              </div>
+
+              {scrapReportSubTab === 'cases' ? (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                  <thead>
+                    <tr style={{ color: '#555', textAlign: 'left', borderBottom: '2px solid #222' }}>
+                      <th style={{ padding: '10px' }}>Дата</th>
+                      <th style={{ padding: '10px' }}>Деталь</th>
+                      <th style={{ padding: '10px' }}>Оператор</th>
+                      <th style={{ padding: '10px' }}>Етап</th>
+                      <th style={{ padding: '10px', textAlign: 'center', color: '#10b981' }}>Кат. 1</th>
+                      <th style={{ padding: '10px', textAlign: 'center', color: '#eab308' }}>Кат. 2</th>
+                      <th style={{ padding: '10px', textAlign: 'center', color: '#f97316' }}>Кат. 3</th>
+                      <th style={{ padding: '10px', textAlign: 'center', color: '#ef4444' }}>Кат. 4</th>
+                      <th style={{ padding: '10px', textAlign: 'center', color: '#666' }}>Не класиф.</th>
+                      <th style={{ padding: '10px', textAlign: 'right' }}>Всього</th>
                     </tr>
-                  ))}
-                  {scrapStats.list.length === 0 && (
-                    <tr><td colSpan="10" style={{ padding: '20px', textAlign: 'center', color: '#555' }}>Брак відсутній за обраний період</td></tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {scrapStats.list.map(h => (
+                      <tr key={h.id} style={{ borderBottom: '1px solid #1a1a1a' }}>
+                        <td style={{ padding: '10px', color: '#888' }}>{new Date(h.completed_at).toLocaleDateString()}</td>
+                        <td style={{ padding: '10px', color: '#fff', fontWeight: 700 }}>{h.nom_name}</td>
+                        <td style={{ padding: '10px', color: '#aaa' }}>{h.operator_name}</td>
+                        <td style={{ padding: '10px', color: '#aaa' }}>{h.stage_name}</td>
+                        <td style={{ padding: '10px', textAlign: 'center', color: h.cat1 > 0 ? '#10b981' : '#444', fontWeight: h.cat1 > 0 ? '900' : '400' }}>{h.cat1 || '—'}</td>
+                        <td style={{ padding: '10px', textAlign: 'center', color: h.cat2 > 0 ? '#eab308' : '#444', fontWeight: h.cat2 > 0 ? '900' : '400' }}>{h.cat2 || '—'}</td>
+                        <td style={{ padding: '10px', textAlign: 'center', color: h.cat3 > 0 ? '#f97316' : '#444', fontWeight: h.cat3 > 0 ? '900' : '400' }}>{h.cat3 || '—'}</td>
+                        <td style={{ padding: '10px', textAlign: 'center', color: h.cat4 > 0 ? '#ef4444' : '#444', fontWeight: h.cat4 > 0 ? '900' : '400' }}>{h.cat4 || '—'}</td>
+                        <td style={{ padding: '10px', textAlign: 'center', color: h.unclassified > 0 ? '#888' : '#333', fontWeight: h.unclassified > 0 ? '700' : '400' }}>{h.unclassified || '—'}</td>
+                        <td style={{ padding: '10px', textAlign: 'right', color: '#ef4444', fontWeight: 900 }}>{h.scrap_qty}</td>
+                      </tr>
+                    ))}
+                    {scrapStats.list.length === 0 && (
+                      <tr><td colSpan="10" style={{ padding: '20px', textAlign: 'center', color: '#555' }}>Брак відсутній за обраний період</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                  <thead>
+                    <tr style={{ color: '#555', textAlign: 'left', borderBottom: '2px solid #222' }}>
+                      <th style={{ padding: '10px' }}>Причина браку</th>
+                      <th style={{ padding: '10px', textAlign: 'center' }}>Кількість деталей (шт)</th>
+                      <th style={{ padding: '10px', textAlign: 'center' }}>Відсоток (%)</th>
+                      <th style={{ padding: '10px' }}>Найчастіша деталь</th>
+                      <th style={{ padding: '10px', textAlign: 'right' }}>Найчастіший оператор</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scrapReasonsStats.map((item, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid #1a1a1a' }}>
+                        <td style={{ padding: '12px 10px', color: '#fff', fontWeight: 700 }}>{item.name}</td>
+                        <td style={{ padding: '12px 10px', textAlign: 'center', color: '#ef4444', fontWeight: 900 }}>{item.quantity}</td>
+                        <td style={{ padding: '12px 10px', textAlign: 'center', color: '#888' }}>{item.percentage}%</td>
+                        <td style={{ padding: '12px 10px', color: '#aaa' }}>{item.topItem}</td>
+                        <td style={{ padding: '12px 10px', textAlign: 'right', color: '#aaa' }}>{item.topOperator}</td>
+                      </tr>
+                    ))}
+                    {scrapReasonsStats.length === 0 && (
+                      <tr><td colSpan="5" style={{ padding: '20px', textAlign: 'center', color: '#555' }}>Немає класифікованого браку за обраний період</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         );

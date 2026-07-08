@@ -285,12 +285,32 @@ export default function SortingTerminal() {
       }
 
       // History
+      let scrapOperator = op;
+      if (scrapCount > 0) {
+        try {
+          const { data: cuttingHistory } = await supabase
+            .from('work_card_history')
+            .select('operator_name')
+            .eq('card_id', activeCompletingCard.id)
+            .eq('stage_name', 'Розкрій');
+
+          if (cuttingHistory && cuttingHistory.length > 0) {
+            const cuttingOperators = [...new Set(cuttingHistory.map(h => h.operator_name).filter(Boolean))];
+            if (cuttingOperators.length === 1) {
+              scrapOperator = cuttingOperators[0];
+            }
+          }
+        } catch (err) {
+          console.error('Failed to resolve cutting operator:', err);
+        }
+      }
+
       const historyRows = [
         {
           card_id: activeCompletingCard.id,
           nomenclature_id: activeCompletingCard.nomenclature_id,
           stage_name: 'Сортування',
-          operator_name: op,
+          operator_name: scrapOperator,
           qty_at_start: activeCompletingCard.quantity,
           qty_completed: goodQty,
           scrap_qty: scrapCount,
