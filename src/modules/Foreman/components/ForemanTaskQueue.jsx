@@ -1,5 +1,6 @@
 import React from 'react'
-import { X, ArrowRight, CheckCircle2, AlertTriangle, Clock, Layers } from 'lucide-react'
+import { X, ArrowRight, CheckCircle2, AlertTriangle, Clock, Layers, Sun, Moon } from 'lucide-react'
+import { useMES } from '../../../MESContext'
 
 export default function ForemanTaskQueue({
   relevantTasks,
@@ -19,6 +20,7 @@ export default function ForemanTaskQueue({
   setIsDrawerOpen,
   onSelectTask
 }) {
+  const { theme, toggleTheme } = useMES()
   return (
     <div
       className={`side-panel no-print ${isDrawerOpen ? 'drawer-open' : ''}`}

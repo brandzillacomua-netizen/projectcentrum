@@ -28,7 +28,9 @@ import {
   ChevronUp,
   ClipboardList,
   BellOff,
-  ArrowLeft
+  ArrowLeft,
+  Sun,
+  Moon
 } from 'lucide-react'
 
 // ── Lazy-loaded modules (loaded on demand, not at startup) ─────────────────────
@@ -248,7 +250,7 @@ const renderAvatar = (avatar, initials, size = '38px', fontSize = '0.85rem') => 
 };
 
 const GlobalUserNav = () => {
-  const { currentUser, managementTasks, requests, workCards, purchaseRequests, receptionDocs, nomenclatures, machineCalls, machines, tasks, orders, bomItems, workCardHistory, supabase, upsertUser } = useMES();
+  const { currentUser, managementTasks, requests, workCards, purchaseRequests, receptionDocs, nomenclatures, machineCalls, machines, tasks, orders, bomItems, workCardHistory, supabase, upsertUser, theme, toggleTheme } = useMES();
   const location = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -1669,7 +1671,7 @@ const GlobalUserNav = () => {
           pointerEvents: activeSubPanel ? 'none' : 'auto'
         }}>
           {/* Header section with Logo and Close button */}
-          <div style={{ padding: '24px 20px 20px 20px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div className="sidebar-header-bar" style={{ padding: '24px 20px 20px 20px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <img src="/kulytsya.png" alt="Logo" style={{ height: '36px', filter: 'drop-shadow(0 0 10px rgba(255,144,0,0.3))' }} />
               <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -1703,7 +1705,7 @@ const GlobalUserNav = () => {
           </div>
 
           {/* User Mini Profile */}
-          <div style={{
+          <div className="user-profile-bar" style={{
             padding: '16px 20px',
             background: 'rgba(255,255,255,0.01)',
             borderBottom: '1px solid rgba(255,255,255,0.04)',
@@ -1728,26 +1730,46 @@ const GlobalUserNav = () => {
                 </span>
               </div>
             </div>
-            <button
-              onClick={() => setActiveSubPanel('notif_settings')}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: '#555',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '8px',
-                borderRadius: '8px',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={e => e.currentTarget.style.color = '#ff9000'}
-              onMouseLeave={e => e.currentTarget.style.color = '#555'}
-              title="Налаштування сповіщень"
-            >
-              <Settings size={18} />
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <button
+                onClick={toggleTheme}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: theme === 'light' ? '#eab308' : '#a78bfa',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '8px',
+                  borderRadius: '8px',
+                  transition: 'all 0.2s ease'
+                }}
+                title="Перемикання теми"
+              >
+                {theme === 'light' ? <Sun size={18} /> : <Moon size={18} />}
+              </button>
+              <button
+                onClick={() => setActiveSubPanel('notif_settings')}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#555',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '8px',
+                  borderRadius: '8px',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={e => e.currentTarget.style.color = '#ff9000'}
+                onMouseLeave={e => e.currentTarget.style.color = '#555'}
+                title="Налаштування сповіщень"
+              >
+                <Settings size={18} />
+              </button>
+            </div>
           </div>
 
           {/* Notification Center Trigger Row */}

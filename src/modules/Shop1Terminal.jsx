@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { ArrowLeft, Camera, X, ChevronRight, Package, AlertTriangle, ClipboardList, Menu, ArrowRight, Layers, RefreshCw, Eye, Search, QrCode } from 'lucide-react'
+import { ArrowLeft, Camera, X, ChevronRight, Package, AlertTriangle, ClipboardList, Menu, ArrowRight, Layers, RefreshCw, Eye, Search, QrCode, Sun, Moon } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { supabase, getCurrentTime } from '../supabase'
@@ -53,7 +53,7 @@ const MACHINE_TYPES = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function Shop1Terminal() {
-  const { workCards, setWorkCards, nomenclatures, operators, getFilteredOperators, getFilteredManagers, managers, workCardHistory, inventory, fetchData, createWorkCard, orders, bomItems, tasks, currentUser, machines, systemUsers, machineOperations, formatUserName, requests } = useMES()
+  const { workCards, setWorkCards, nomenclatures, operators, getFilteredOperators, getFilteredManagers, managers, workCardHistory, inventory, fetchData, createWorkCard, orders, bomItems, tasks, currentUser, machines, systemUsers, machineOperations, formatUserName, requests, theme, toggleTheme } = useMES()
 
   const [currentTime, setCurrentTime] = useState(getCurrentTime())
   useEffect(() => {

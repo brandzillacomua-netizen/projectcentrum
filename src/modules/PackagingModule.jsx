@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react'
-import { Package, ArrowLeft, ClipboardList, CheckCircle2, Box, Send, AlertCircle, Wrench, FileArchive, Layers, Clock, Scan, Loader2, Hash, Save, Eye, X, Menu, Plus, Search, Trash2 } from 'lucide-react'
+import { Package, ArrowLeft, ClipboardList, CheckCircle2, Box, Send, AlertCircle, Wrench, FileArchive, Layers, Clock, Scan, Loader2, Hash, Save, Eye, X, Menu, Plus, Search, Trash2, Sun, Moon } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useMES } from '../MESContext'
 
@@ -34,7 +34,7 @@ const PackagingModule = () => {
     orders, tasks, nomenclatures, bomItems,
     submitPickingRequest, requests, supabase,
     fetchData, completePackaging, systemUsers,
-    inventory
+    inventory, theme, toggleTheme
   } = useMES()
 
   const [selectedBatch, setSelectedBatch] = useState(null)

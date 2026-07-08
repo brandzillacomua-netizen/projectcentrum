@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect } from 'react'
+import React, { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from './supabase'
 
 import { useData } from './contexts/useData'
@@ -11,6 +11,24 @@ const MESContext = createContext()
 
 export const MESProvider = ({ children }) => {
   const data = useData()
+
+  const [theme, setThemeState] = useState(() => {
+    return localStorage.getItem('app-theme') || 'dark'
+  })
+
+  useEffect(() => {
+    if (theme === 'light') {
+      document.body.classList.add('light-theme')
+    } else {
+      document.body.classList.remove('light-theme')
+    }
+  }, [theme])
+
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark'
+    setThemeState(next)
+    localStorage.setItem('app-theme', next)
+  }
 
   // ── FORTNET SYNC LOGIC ──
   const { syncFortnetEvents } = createFortnetActions({ 
@@ -272,6 +290,8 @@ export const MESProvider = ({ children }) => {
 
   return (
     <MESContext.Provider value={{
+      theme,
+      toggleTheme,
       ...data,
       ...authActions,
       ...warehouseActions,

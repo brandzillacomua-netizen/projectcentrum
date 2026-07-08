@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Factory, ListTodo, Loader2, X, Printer, LayoutDashboard, Layers, User, Clock, Package, Scan, CheckCircle2, AlertTriangle, Camera, Tablet, Menu, Shuffle, RefreshCw } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Factory, ListTodo, Loader2, X, Printer, LayoutDashboard, Layers, User, Clock, Package, Scan, CheckCircle2, AlertTriangle, Camera, Tablet, Menu, Shuffle, RefreshCw, Sun, Moon } from 'lucide-react'
 import { useMES } from '../MESContext'
 import { QRCodeSVG } from 'qrcode.react'
 import { apiService } from '../services/apiDispatcher'
@@ -57,7 +57,7 @@ const getDisplayMaterial = (partNom, snapshot) => {
 const ForemanWorkplace = () => {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { tasks, orders, workCards, createWorkCard, createWorkCardsBatch, inventory, completeTaskByMaster, nomenclatures, bomItems, machines, machineOperations, workCardHistory, confirmBuffer, fetchData, reserveBZForTask, fetchTaskArchiveCards, fetchModuleData, fetchTaskPlanSnapshot, machineCalls, currentUser, createDovyпускMaterialRequests, requests: materialRequests } = useMES()
+  const { tasks, orders, workCards, createWorkCard, createWorkCardsBatch, inventory, completeTaskByMaster, nomenclatures, bomItems, machines, machineOperations, workCardHistory, confirmBuffer, fetchData, reserveBZForTask, fetchTaskArchiveCards, fetchModuleData, fetchTaskPlanSnapshot, machineCalls, currentUser, createDovyпускMaterialRequests, requests: materialRequests, theme, toggleTheme } = useMES()
 
   const countAsProduced = (card) => {
     if (card.status === 'completed') return true
