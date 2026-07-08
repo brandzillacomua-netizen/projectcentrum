@@ -1746,6 +1746,7 @@ const ForemanWorkplace = () => {
                         if (!isSheet) return false
                         return matchesBaseMaterial(lowerName)
                       })
+                      const materialRequiresSheets = /(?:т|t)\s*(?:300|700)|лист|sheet/i.test(baseMat)
 
                       const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
                         .reduce((sum, r) => sum + getRequestQty(r), 0)
@@ -1769,7 +1770,14 @@ const ForemanWorkplace = () => {
                         return sum + Math.ceil((Number(card.quantity) || 0) / cardUnitsPerSheet)
                       }, 0)
 
-                      return { issuedSheets: issued, pendingSheets: pending, usedAcrossTask, hasKittingReqs: sheetReqs.length > 0 }
+                      return {
+                        issuedSheets: issued,
+                        pendingSheets: pending,
+                        usedAcrossTask,
+                        // Fail closed: sheet-based production without a loaded
+                        // request must be blocked, never treated as unlimited.
+                        hasKittingReqs: materialRequiresSheets || sheetReqs.length > 0
+                      }
                     }
 
                     const { issuedSheets, pendingSheets, usedAcrossTask, hasKittingReqs } = getKittingSheets(genModal.task, genModal.part.nom)
@@ -1782,7 +1790,7 @@ const ForemanWorkplace = () => {
                     const availableIssuedSheets = Math.max(0, issuedSheets - usedAcrossTask)
                     const remainingSheetsInSplit = Math.max(0, splitSheets - sheetsUsedInThisSplit)
                     const maxAllowedToGen = hasKittingReqs
-                      ? Math.min(remainingCount, Math.ceil(Math.min(remainingSheetsInSplit, availableIssuedSheets) / currentCapacity))
+                      ? Math.min(remainingCount, Math.floor(Math.min(remainingSheetsInSplit, availableIssuedSheets) / currentCapacity))
                       : remainingCount
                     const isKittingBlocked = hasKittingReqs && maxAllowedToGen <= 0
 

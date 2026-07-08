@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useScrapReasons } from '../hooks/useScrapReasons'
 import {
   Tablet, ArrowLeft, Play, CheckCircle, Scan, Timer, AlertTriangle,
   X, ClipboardList, Camera, Menu, RefreshCw, Box, Layers, Gauge, Package, Eye, Search, QrCode
@@ -23,6 +24,7 @@ const translateCyrillic = (str) => {
 }
 
 const Shop2Terminal = () => {
+  const { names: scrapReasons } = useScrapReasons()
 
   const handleManualEntry = async (e) => {
     if (e) e.preventDefault()
@@ -1686,14 +1688,7 @@ const Shop2Terminal = () => {
                   }}
                   style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '0.9rem', fontWeight: 700 }}
                 >
-                  <option value="Биття цанги">Биття цанги</option>
-                  <option value="Помилка програми">Помилка програми</option>
-                  <option value="Збій станка">Збій станка</option>
-                  <option value="Кривизна листа">Кривизна листа</option>
-                  <option value="Поломка флешки">Поломка флешки</option>
-                  <option value="Прив'язка">Прив'язка</option>
-                  <option value="Помилка оператора">Помилка оператора</option>
-                  <option value="Інше (коментар)">Інше (коментар)</option>
+                  {scrapReasons.map(reason => <option key={reason} value={reason}>{reason}</option>)}
                 </select>
               </div>
 

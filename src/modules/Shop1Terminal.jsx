@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useScrapReasons } from '../hooks/useScrapReasons'
 import { ArrowLeft, Camera, X, ChevronRight, Package, AlertTriangle, ClipboardList, Menu, ArrowRight, Layers, RefreshCw, Eye, Search, QrCode, Sun, Moon } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
@@ -53,6 +54,7 @@ const MACHINE_TYPES = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function Shop1Terminal() {
+  const { names: scrapReasons } = useScrapReasons()
   const { workCards, setWorkCards, nomenclatures, operators, getFilteredOperators, getFilteredManagers, managers, workCardHistory, inventory, fetchData, createWorkCard, orders, bomItems, tasks, currentUser, machines, systemUsers, machineOperations, formatUserName, requests, theme, toggleTheme } = useMES()
 
   const [currentTime, setCurrentTime] = useState(getCurrentTime())
@@ -4511,14 +4513,7 @@ export default function Shop1Terminal() {
                   }}
                   style={{ ...selectStyle, background: '#000' }}
                 >
-                  <option value="Биття цанги">Биття цанги</option>
-                  <option value="Помилка програми">Помилка програми</option>
-                  <option value="Збій станка">Збій станка</option>
-                  <option value="Кривизна листа">Кривизна листа</option>
-                  <option value="Поломка флешки">Поломка флешки</option>
-                  <option value="Прив'язка">Прив'язка</option>
-                  <option value="Помилка оператора">Помилка оператора</option>
-                  <option value="Інше (коментар)">Інше (коментар)</option>
+                  {scrapReasons.map(reason => <option key={reason} value={reason}>{reason}</option>)}
                 </select>
               </div>
 

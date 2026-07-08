@@ -32,6 +32,8 @@ export const ConsumablesQueue = ({
       <div style={{ display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px' }}>
         {Object.entries(groupedRequests).map(([key, reqList]) => {
           const firstReq = reqList[0]
+          const pendingReqs = reqList.filter(r => r.status === 'pending')
+          const actionableReqs = pendingReqs.length > 0 ? pendingReqs : reqList
           const orderId = firstReq.order_id
           const taskId = firstReq.task_id
           
@@ -46,7 +48,7 @@ export const ConsumablesQueue = ({
               : String(doc.order_id) === String(orderId)
             if (!sameOrder || !Array.isArray(doc.items)) return false
 
-            return doc.items.some(item => reqList.some(req => {
+            return doc.items.some(item => actionableReqs.some(req => {
               if (item.nomenclature_id && req.nomenclature_id) {
                 return String(item.nomenclature_id) === String(req.nomenclature_id)
               }
@@ -72,7 +74,7 @@ export const ConsumablesQueue = ({
           )
 
           const missingItems = []
-          reqList.forEach(req => {
+          actionableReqs.forEach(req => {
             const parsedName = parseMaterialName(req.details)
             const nameLower = parsedName.toLowerCase()
             
@@ -109,18 +111,13 @@ export const ConsumablesQueue = ({
             const isSgp = packagingSource === 'SGP' || packagingSource === 'BZ' || (!packagingSource && inferredSgp)
             if (isSgp) return
             
-            const alreadyIssuedForThis = (reqList || []).filter(r => r.id === req.id && r.status === 'issued')
-              .reduce((sum, r) => sum + Number(r.quantity), 0)
-            
-            const effectiveAvailable = totalOnWh + alreadyIssuedForThis
-
-            if (effectiveAvailable < Number(req.quantity)) missingItems.push(req)
+            if (totalOnWh < Number(req.quantity)) missingItems.push(req)
           })
 
           const isAllIssued = reqList.every(r => r.status === 'issued')
           const isPartiallyIssued = task?.warehouse_conf === 'partial'
 
-          const allRemainingArePreparedSheets = reqList.length > 0 && reqList.every(r => {
+          const allRemainingArePreparedSheets = actionableReqs.length > 0 && actionableReqs.every(r => {
             const nameLower = (parseMaterialName(r.details) || '').toLowerCase()
             return nameLower.includes('лист') && nameLower.includes('підготовлений')
           })
@@ -180,7 +177,7 @@ export const ConsumablesQueue = ({
               <ul style={{ listStyle: 'none', padding: 0, marginBottom: '15px' }}>
                 {(() => {
                   const displayedRequests = []
-                  reqList.forEach(r => {
+                  actionableReqs.forEach(r => {
                     const parsedName = parseMaterialName(r.details)
                     const key = r.nomenclature_id || parsedName
                     const existing = displayedRequests.find(dr => 
@@ -290,7 +287,7 @@ export const ConsumablesQueue = ({
                   if (isAllIssued && missingItems.length === 0) {
                     await approveWarehouse(taskId)
                   } else {
-                    handleReserveOrder(taskId, orderId, displayNum, reqList)
+                    handleReserveOrder(taskId, orderId, displayNum, actionableReqs)
                   }
                 }}
                 style={{

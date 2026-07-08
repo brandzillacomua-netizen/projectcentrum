@@ -3,13 +3,20 @@ import { ArrowLeft, AlertTriangle, CheckCircle2, Package, Layers, ChevronRight, 
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { supabase } from '../supabase'
+import { useScrapReasons } from '../hooks/useScrapReasons'
 
 export default function BrakModule() {
   const { inventory, nomenclatures, fetchData, currentUser, disposeScrapItem, createReworkNaryad, productionStages, workCards, orders, machineCalls, machines, supabase, workCardHistory } = useMES()
   const [isProcessing, setIsProcessing] = useState(false)
   const [selectedItem, setSelectedItem] = useState(null)
   const [distribution, setDistribution] = useState({ 1: 0, 2: 0, 3: 0, 4: 0 })
+  const [reasonAllocations, setReasonAllocations] = useState([{ reason: '', qty: 0 }])
   const [viewingCategory, setViewingCategory] = useState(null)
+  const { rows: scrapReasonRows, names: scrapReasons, reload: reloadScrapReasons } = useScrapReasons({ includeInactive: true })
+  const [newScrapReason, setNewScrapReason] = useState('')
+  const [showReasonCatalog, setShowReasonCatalog] = useState(false)
+  const [editingScrapReasonId, setEditingScrapReasonId] = useState(null)
+  const [editingScrapReasonName, setEditingScrapReasonName] = useState('')
 
   const [isScanning, setIsScanning] = useState(false)
   const [scanError, setScanError] = useState(null)
@@ -18,6 +25,36 @@ export default function BrakModule() {
   const [qcScrapCount, setQcScrapCount] = useState(0)
   const [qcReason, setQcReason] = useState('Биття цанги')
   const [qcCustomReason, setQcCustomReason] = useState('')
+
+  const handleAddScrapReason = async () => {
+    const name = newScrapReason.trim()
+    if (!name) return
+    const maxSort = scrapReasonRows
+      .filter(row => row.name !== 'Інше (коментар)')
+      .reduce((max, row) => Math.max(max, Number(row.sort_order) || 0), 0)
+    const { error } = await supabase.from('scrap_reasons').insert({ name, sort_order: maxSort + 10 })
+    if (error) return alert('Не вдалося додати причину: ' + error.message)
+    setNewScrapReason('')
+    await reloadScrapReasons()
+  }
+
+  const handleToggleScrapReason = async row => {
+    const { error } = await supabase.from('scrap_reasons')
+      .update({ is_active: !row.is_active, updated_at: new Date().toISOString() }).eq('id', row.id)
+    if (error) return alert('Не вдалося змінити причину: ' + error.message)
+    await reloadScrapReasons()
+  }
+
+  const handleUpdateScrapReason = async row => {
+    const name = editingScrapReasonName.trim()
+    if (!name) return
+    const { error } = await supabase.from('scrap_reasons')
+      .update({ name, updated_at: new Date().toISOString() }).eq('id', row.id)
+    if (error) return alert('Не вдалося перейменувати причину: ' + error.message)
+    setEditingScrapReasonId(null)
+    setEditingScrapReasonName('')
+    await reloadScrapReasons()
+  }
 
   const activeCalls = (machineCalls || []).filter(c => 
     c.status === 'pending' && 
@@ -166,6 +203,7 @@ export default function BrakModule() {
   }
 
   const [localScrapHistory, setLocalScrapHistory] = useState([])
+  const [scrapSourceMeta, setScrapSourceMeta] = useState({ cards: {}, tasks: {}, orders: {}, sequences: {} })
 
   const loadScrapHistory = async () => {
     try {
@@ -176,6 +214,61 @@ export default function BrakModule() {
         .gt('scrap_qty', 0)
         .order('created_at', { ascending: false })
       if (!error && data) {
+        // Load exact source records for the queue. This must not depend on the
+        // globally cached "latest N" cards/orders, otherwise old scrap loses
+        // its work-order and card numbers.
+        const cardIds = [...new Set(data.map(row => row.card_id).filter(Boolean))]
+        const { data: sourceCardsData } = cardIds.length
+          ? await supabase.from('work_cards').select('id,task_id,order_id,created_at').in('id', cardIds)
+          : { data: [] }
+        const sourceCards = sourceCardsData || []
+        const taskIds = [...new Set(sourceCards.map(card => card.task_id).filter(Boolean))]
+        const { data: sourceTasksData } = taskIds.length
+          ? await supabase.from('tasks').select('id,order_id,batch_index,step,plan_snapshot').in('id', taskIds)
+          : { data: [] }
+        const sourceTasks = sourceTasksData || []
+        const orderIds = [...new Set([
+          ...sourceCards.map(card => card.order_id),
+          ...sourceTasks.map(task => task.order_id)
+        ].filter(Boolean))]
+        const { data: sourceOrdersData } = orderIds.length
+          ? await supabase.from('orders').select('id,order_num').in('id', orderIds)
+          : { data: [] }
+        const sourceOrders = sourceOrdersData || []
+
+        // A card's human number is its 1-based position inside the task,
+        // ordered exactly as cards were created. Load every card in those
+        // tasks page-by-page so numbering also works beyond 1000 records.
+        const taskCards = []
+        if (taskIds.length) {
+          const pageSize = 1000
+          for (let from = 0; ; from += pageSize) {
+            const { data: page, error: pageError } = await supabase.from('work_cards')
+              .select('id,task_id,created_at').in('task_id', taskIds)
+              .order('created_at', { ascending: true }).order('id', { ascending: true })
+              .range(from, from + pageSize - 1)
+            if (pageError || !page?.length) break
+            taskCards.push(...page)
+            if (page.length < pageSize) break
+          }
+        }
+        const cardsByTask = taskCards.reduce((result, card) => {
+          const key = String(card.task_id)
+          if (!result[key]) result[key] = []
+          result[key].push(card)
+          return result
+        }, {})
+        const sequences = {}
+        Object.values(cardsByTask).forEach(cards => {
+          cards.forEach((card, index) => { sequences[String(card.id)] = index + 1 })
+        })
+
+        setScrapSourceMeta({
+          cards: Object.fromEntries(sourceCards.map(card => [String(card.id), card])),
+          tasks: Object.fromEntries(sourceTasks.map(task => [String(task.id), task])),
+          orders: Object.fromEntries(sourceOrders.map(order => [String(order.id), order])),
+          sequences
+        })
         setLocalScrapHistory(data)
       }
     } catch (e) {
@@ -190,10 +283,52 @@ export default function BrakModule() {
   // Reset distribution when selected item changes
   useEffect(() => {
     setDistribution({ 1: 0, 2: 0, 3: 0, 4: 0 })
+    setReasonAllocations([{ reason: '', qty: 0 }])
   }, [selectedItem])
 
   const totalDistributed = Object.values(distribution).reduce((a, b) => a + b, 0)
+  const totalReasonAllocated = reasonAllocations.reduce((sum, item) => sum + (Number(item.qty) || 0), 0)
+  const hasMissingScrapReason = reasonAllocations.some(item => Number(item.qty) > 0 && !item.reason?.trim())
+  const isReasonDistributionValid = totalDistributed > 0
+    && totalReasonAllocated === totalDistributed
+    && !hasMissingScrapReason
   const remainingInBatch = selectedItem ? Number(selectedItem.total_qty) - totalDistributed : 0
+  const activeScrapReasons = scrapReasons.filter(reason => scrapReasonRows.find(row => row.name === reason)?.is_active !== false)
+
+  const updateCategoryQty = (category, requestedQty) => {
+    const otherQty = Object.entries(distribution)
+      .filter(([key]) => String(key) !== String(category))
+      .reduce((sum, [, qty]) => sum + (Number(qty) || 0), 0)
+    const maxQty = Math.max(0, Number(selectedItem?.total_qty || 0) - otherQty)
+    setDistribution(previous => ({
+      ...previous,
+      [category]: Math.min(maxQty, Math.max(0, Number(requestedQty) || 0))
+    }))
+  }
+
+  const updateReasonQty = (index, requestedQty) => {
+    setReasonAllocations(items => {
+      const otherQty = items.reduce((sum, item, itemIndex) => itemIndex === index ? sum : sum + (Number(item.qty) || 0), 0)
+      const maxQty = Math.max(0, totalDistributed - otherQty)
+      return items.map((item, itemIndex) => itemIndex === index
+        ? { ...item, qty: Math.min(maxQty, Math.max(0, Number(requestedQty) || 0)) }
+        : item)
+    })
+  }
+
+  useEffect(() => {
+    setReasonAllocations(items => {
+      let available = totalDistributed
+      let changed = false
+      const clamped = items.map(item => {
+        const qty = Math.min(Math.max(0, Number(item.qty) || 0), available)
+        available -= qty
+        if (qty !== Number(item.qty || 0)) changed = true
+        return changed ? { ...item, qty } : item
+      })
+      return changed ? clamped : items
+    })
+  }, [totalDistributed])
 
   // Filter for items ready for classification from work_card_history
   const readyItems = (localScrapHistory || [])
@@ -213,6 +348,20 @@ export default function BrakModule() {
       if (remaining <= 0) return null;
       
       const nom = nomenclatures?.find(n => n.id === h.nomenclature_id);
+      const sourceCard = scrapSourceMeta.cards[String(h.card_id)]
+        || workCards?.find(card => String(card.id) === String(h.card_id))
+      const sourceTask = sourceCard?.task_id
+        ? scrapSourceMeta.tasks[String(sourceCard.task_id)]
+        : null
+      const sourceOrderId = sourceTask?.order_id || sourceCard?.order_id
+      const sourceOrder = sourceOrderId
+        ? scrapSourceMeta.orders[String(sourceOrderId)] || orders?.find(order => String(order.id) === String(sourceOrderId))
+        : null
+      const taskNumber = sourceTask?.step === 'Підготовка' && sourceTask?.plan_snapshot?._prep_num
+        ? sourceTask.plan_snapshot._prep_num
+        : sourceOrder?.order_num
+          ? `${sourceOrder.order_num}${sourceTask?.batch_index ? `/${sourceTask.batch_index}` : ''}`
+          : sourceTask?.plan_snapshot?._prep_num || '—'
       return {
         id: h.id, // we use history id as item id
         is_history_row: true,
@@ -223,7 +372,11 @@ export default function BrakModule() {
         total_qty: remaining, // Show remaining as total_qty for UI compatibility
         operator: h.operator_name,
         stage: h.stage_name,
-        updated_at: h.created_at
+        updated_at: h.created_at,
+        card_number: h.card_id ? String(h.card_id).slice(-8).toUpperCase() : '—',
+        card_sequence: h.card_id ? scrapSourceMeta.sequences[String(h.card_id)] || null : null,
+        card_id: h.card_id,
+        naryad_number: taskNumber
       };
     })
     .filter(Boolean);
@@ -247,6 +400,10 @@ export default function BrakModule() {
     if (!selectedItem || totalDistributed <= 0) return
     if (totalDistributed > Number(selectedItem.total_qty)) {
       alert('Розподілено більше ніж є в наявності!')
+      return
+    }
+    if (!isReasonDistributionValid) {
+      alert('Розподіліть за причинами рівно ту саму кількість, що й за категоріями.')
       return
     }
 
@@ -301,8 +458,23 @@ export default function BrakModule() {
         }
         
         const jsonStr = `[SCRAP_CAT:${JSON.stringify(newCats)}]`;
-        const baseComment = row.qc_scrap_comment ? row.qc_scrap_comment.replace(/\[SCRAP_CAT:[^\]]+\]/g, '').trim() : '';
-        const newComment = baseComment ? `${baseComment} ${jsonStr}` : jsonStr;
+        let existingReasons = {};
+        if (row.qc_scrap_comment?.includes('SCRAP_REASONS:')) {
+          try {
+            const reasonMatch = row.qc_scrap_comment.match(/\[SCRAP_REASONS:([^\]]+)\]/);
+            if (reasonMatch) existingReasons = JSON.parse(reasonMatch[1]);
+          } catch (e) { console.warn('Invalid scrap reason allocation:', e) }
+        }
+        const newReasons = { ...existingReasons };
+        reasonAllocations.forEach(allocation => {
+          if (!allocation.reason || Number(allocation.qty) <= 0) return;
+          newReasons[allocation.reason] = (Number(newReasons[allocation.reason]) || 0) + Number(allocation.qty);
+        });
+        const reasonsJson = `[SCRAP_REASONS:${JSON.stringify(newReasons)}]`;
+        const baseComment = row.qc_scrap_comment
+          ? row.qc_scrap_comment.replace(/\[SCRAP_CAT:[^\]]+\]/g, '').replace(/\[SCRAP_REASONS:[^\]]+\]/g, '').trim()
+          : '';
+        const newComment = [baseComment, jsonStr, reasonsJson].filter(Boolean).join(' ');
         
         await supabase.from('work_card_history').update({ qc_scrap_comment: newComment }).eq('id', selectedItem.id);
       }
@@ -401,7 +573,7 @@ export default function BrakModule() {
       <div style={{ flex: 1, padding: '30px', maxWidth: '1400px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
         
         {/* Active Machine Calls Widget */}
-        {activeCalls.length > 0 && (
+        {!showReasonCatalog && activeCalls.length > 0 && (
           <div style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.15)', borderRadius: '16px', padding: '15px 20px', marginBottom: '25px' }}>
             <h3 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', fontWeight: 900, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span className="pulse-indicator" style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 8px #ef4444' }} />
@@ -440,8 +612,8 @@ export default function BrakModule() {
         )}
 
         {/* Action Bar */}
-        <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '25px' }}>
-          <button
+        <div style={{ display: 'flex', justifyContent: 'flex-start', gap: '12px', marginBottom: '25px', flexWrap: 'wrap' }}>
+          {!showReasonCatalog && <button
             onClick={() => setIsScanning(true)}
             style={{
               background: '#ef444420', border: '1px solid #ef444455', color: '#ef4444',
@@ -460,9 +632,69 @@ export default function BrakModule() {
             }}
           >
             <Camera size={18} /> СКАНУВАТИ КАРТКУ
+          </button>}
+          <button
+            onClick={() => setShowReasonCatalog(value => !value)}
+            style={{ background: '#f59e0b20', border: '1px solid #f59e0b55', color: '#f59e0b', padding: '12px 24px', borderRadius: '14px', fontSize: '0.85rem', fontWeight: 900, cursor: 'pointer' }}
+          >
+            {showReasonCatalog ? '← ЧЕРГА КЛАСИФІКАЦІЇ' : `ДОВІДНИК ПРИЧИН БРАКУ (${scrapReasonRows.filter(row => row.is_active).length})`}
           </button>
         </div>
 
+        {showReasonCatalog && (
+          <div style={{ background: '#0d0d0d', border: '1px solid #f59e0b33', borderRadius: '24px', padding: '26px', marginBottom: '25px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '20px', alignItems: 'flex-start', marginBottom: '25px', flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: '1.45rem', fontWeight: 1000, color: '#fff' }}>Довідник причин браку</div>
+                <div style={{ color: '#666', fontSize: '0.78rem', marginTop: '6px' }}>Ці значення використовуються у випадаючих списках ВКЯ та виробничих терміналів.</div>
+              </div>
+              <div style={{ background: '#f59e0b18', color: '#f59e0b', borderRadius: '12px', padding: '9px 14px', fontSize: '0.75rem', fontWeight: 950 }}>
+                {scrapReasonRows.filter(row => row.is_active).length} АКТИВНИХ
+              </div>
+            </div>
+
+            <div style={{ background: '#080808', border: '1px solid #222', borderRadius: '16px', padding: '16px', marginBottom: '22px' }}>
+              <div style={{ color: '#888', fontSize: '0.68rem', fontWeight: 950, marginBottom: '10px' }}>ДОДАТИ НОВУ ПРИЧИНУ</div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+              <input value={newScrapReason} onChange={event => setNewScrapReason(event.target.value)}
+                onKeyDown={event => { if (event.key === 'Enter') handleAddScrapReason() }}
+                placeholder="Наприклад: Невірний розмір деталі"
+                style={{ flex: 1, minWidth: 0, background: '#000', border: '1px solid #333', borderRadius: '11px', color: '#fff', padding: '13px 15px', fontWeight: 700 }} />
+              <button onClick={handleAddScrapReason} disabled={!newScrapReason.trim()}
+                style={{ background: '#f59e0b', color: '#000', border: 0, borderRadius: '11px', padding: '0 22px', fontWeight: 950, cursor: 'pointer', opacity: newScrapReason.trim() ? 1 : 0.45 }}>
+                ДОДАТИ
+              </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
+              {scrapReasonRows.map(row => (
+                <div key={row.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#111', border: '1px solid #202020', borderRadius: '14px', padding: '13px 15px' }}>
+                  <div style={{ width: '10px', height: '10px', flexShrink: 0, borderRadius: '50%', background: row.is_active ? '#10b981' : '#444', boxShadow: row.is_active ? '0 0 10px #10b98166' : 'none' }} />
+                  {editingScrapReasonId === row.id ? (
+                    <input autoFocus value={editingScrapReasonName} onChange={event => setEditingScrapReasonName(event.target.value)}
+                      onKeyDown={event => {
+                        if (event.key === 'Enter') handleUpdateScrapReason(row)
+                        if (event.key === 'Escape') setEditingScrapReasonId(null)
+                      }}
+                      style={{ flex: 1, background: '#050505', border: '1px solid #f59e0b66', borderRadius: '9px', color: '#fff', padding: '9px 11px', fontWeight: 800 }} />
+                  ) : (
+                    <div style={{ flex: 1, color: row.is_active ? '#fff' : '#666', fontWeight: 850 }}>{row.name}</div>
+                  )}
+                  {editingScrapReasonId === row.id ? <>
+                    <button onClick={() => handleUpdateScrapReason(row)} style={{ background: '#10b981', color: '#000', border: 0, borderRadius: '9px', padding: '9px 13px', fontWeight: 950, cursor: 'pointer' }}>ЗБЕРЕГТИ</button>
+                    <button onClick={() => setEditingScrapReasonId(null)} style={{ background: '#222', color: '#888', border: '1px solid #333', borderRadius: '9px', padding: '9px 13px', fontWeight: 850, cursor: 'pointer' }}>СКАСУВАТИ</button>
+                  </> : <>
+                    <button onClick={() => { setEditingScrapReasonId(row.id); setEditingScrapReasonName(row.name) }} style={{ background: '#1d1d1d', color: '#f59e0b', border: '1px solid #333', borderRadius: '9px', padding: '9px 13px', fontWeight: 900, cursor: 'pointer' }}>РЕДАГУВАТИ</button>
+                    <button onClick={() => handleToggleScrapReason(row)} style={{ minWidth: '105px', background: row.is_active ? '#10b98118' : '#222', color: row.is_active ? '#10b981' : '#888', border: `1px solid ${row.is_active ? '#10b98155' : '#333'}`, borderRadius: '9px', padding: '9px 13px', fontWeight: 900, cursor: 'pointer' }}>{row.is_active ? 'АКТИВНА' : 'ВИМКНЕНА'}</button>
+                  </>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!showReasonCatalog && <>
         {/* Stats Dashboard */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '20px', marginBottom: '40px' }}>
           {[
@@ -495,7 +727,7 @@ export default function BrakModule() {
           ))}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '40px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '40px' }}>
           
           {/* List of Pending Items */}
           <div>
@@ -581,6 +813,9 @@ export default function BrakModule() {
                   return (
                     <div key={item.id} 
                       onClick={() => setSelectedItem(item)}
+                      onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') setSelectedItem(item) }}
+                      role="button"
+                      tabIndex={0}
                       style={{ 
                         background: isActive ? 'rgba(239, 68, 68, 0.05)' : '#111', 
                         borderRadius: '20px', padding: '20px', cursor: 'pointer',
@@ -599,8 +834,13 @@ export default function BrakModule() {
                         </div>
                         <div>
                           <div style={{ fontWeight: 900, fontSize: '1.05rem', marginBottom: '2px' }}>{nom?.name || item.name}</div>
-                          <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800 }}>Отримано: {new Date(item.updated_at).toLocaleDateString()}</div>
-                          {item.operator && <div style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 800 }}>Оператор: {item.operator} | Етап: {item.stage}</div>}
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px 12px', marginTop: '5px', fontSize: '0.67rem', fontWeight: 850 }}>
+                            <span style={{ color: '#f59e0b' }}>Наряд №{item.naryad_number}</span>
+                            <span style={{ color: '#38bdf8' }}>Картка №{item.card_sequence || '—'}</span>
+                            <span style={{ color: '#64748b' }} title={item.card_id ? String(item.card_id) : ''}>Системна #{item.card_number}</span>
+                            <span style={{ color: '#666' }}>Отримано: {new Date(item.updated_at).toLocaleDateString('uk-UA')}</span>
+                          </div>
+                          {item.operator && <div style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 800, marginTop: '3px' }}>Оператор: {item.operator} · Етап: {item.stage || '—'}</div>}
                         </div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
@@ -614,14 +854,27 @@ export default function BrakModule() {
             </div>
           </div>
 
-          {/* Classification Action Panel */}
-          <div>
-            <div style={{ position: 'sticky', top: '30px' }}>
+          {/* Classification card: modal for queue items, inline info for category views */}
+          {(selectedItem || viewingCategory) && (
+          <div
+            onClick={selectedItem ? () => setSelectedItem(null) : undefined}
+            style={selectedItem ? {
+              position: 'fixed', inset: 0, zIndex: 10040,
+              background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(5px)',
+              padding: '24px', overflowY: 'auto',
+              display: 'flex', alignItems: 'flex-start', justifyContent: 'center'
+            } : {}}
+          >
+            <div
+              onClick={event => event.stopPropagation()}
+              style={selectedItem ? { width: '100%', maxWidth: '620px', margin: '20px auto' } : {}}
+            >
               <h2 style={{ margin: '0 0 20px', fontSize: '1.4rem', fontWeight: 950 }}>{viewingCategory ? 'Довідка' : 'Обробка деталі'}</h2>
               
               <div style={{ 
                 background: 'linear-gradient(145deg, #111 0%, #0a0a0a 100%)', 
-                borderRadius: '30px', padding: '35px', border: '1px solid #1a1a1a', minHeight: '400px',
+                borderRadius: '30px', padding: '35px', border: '1px solid #1a1a1a', minHeight: selectedItem ? 'auto' : '400px',
+                boxShadow: selectedItem ? '0 30px 90px rgba(0,0,0,0.65)' : 'none',
                 display: 'flex', flexDirection: 'column', justifyContent: (selectedItem || viewingCategory) ? 'flex-start' : 'center',
                 alignItems: (selectedItem || viewingCategory) ? 'stretch' : 'center', textAlign: (selectedItem || viewingCategory) ? 'left' : 'center'
               }}>
@@ -668,6 +921,14 @@ export default function BrakModule() {
                           <div style={{ fontSize: '1rem', color: '#ef4444', fontWeight: 1000, marginTop: '8px' }}>
                             {selectedItem.total_qty} шт до розподілу
                           </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 12px', marginTop: '10px', fontSize: '0.7rem', fontWeight: 900 }}>
+                            <span style={{ color: '#f59e0b' }}>Наряд №{selectedItem.naryad_number}</span>
+                            <span style={{ color: '#38bdf8' }}>Картка №{selectedItem.card_sequence || '—'}</span>
+                            <span style={{ color: '#64748b' }} title={selectedItem.card_id ? String(selectedItem.card_id) : ''}>Системна #{selectedItem.card_number}</span>
+                          </div>
+                          <div style={{ marginTop: '8px', color: '#a78bfa', fontSize: '0.72rem', fontWeight: 900 }}>
+                            Оператор: {selectedItem.operator || 'Не вказаний'}
+                          </div>
                        </div>
                     </div>
 
@@ -697,7 +958,7 @@ export default function BrakModule() {
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                    <button 
-                                     onClick={() => setDistribution(prev => ({ ...prev, [c.cat]: Math.max(0, prev[c.cat] - 1) }))}
+                                     onClick={() => updateCategoryQty(c.cat, Number(distribution[c.cat]) - 1)}
                                      style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#111', border: '1px solid #222', color: '#fff', cursor: 'pointer' }}
                                    >-</button>
                                    <input 
@@ -705,13 +966,13 @@ export default function BrakModule() {
                                       value={distribution[c.cat] === 0 ? '' : distribution[c.cat]}
                                       onChange={(e) => {
                                         const val = e.target.value
-                                        setDistribution(prev => ({ ...prev, [c.cat]: val === '' ? 0 : Math.max(0, parseInt(val) || 0) }))
+                                        updateCategoryQty(c.cat, val === '' ? 0 : parseInt(val) || 0)
                                       }}
                                       placeholder="0"
                                       style={{ width: '50px', textAlign: 'center', background: 'transparent', border: 'none', color: '#fff', fontSize: '1.1rem', fontWeight: 1000, outline: 'none' }}
                                    />
                                    <button 
-                                     onClick={() => setDistribution(prev => ({ ...prev, [c.cat]: prev[c.cat] + 1 }))}
+                                     onClick={() => updateCategoryQty(c.cat, Number(distribution[c.cat]) + 1)}
                                      style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#111', border: '1px solid #222', color: '#fff', cursor: 'pointer' }}
                                    >+</button>
                                 </div>
@@ -727,11 +988,67 @@ export default function BrakModule() {
                         </div>
                     </div>
 
+                    <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '25px', marginBottom: '30px', border: '1px solid #1a1a1a' }}>
+                      <div style={{ marginBottom: '18px' }}>
+                        <div>
+                          <div style={{ fontSize: '0.65rem', color: '#777', fontWeight: 950, textTransform: 'uppercase' }}>ПРИЧИНИ БРАКУ</div>
+                          <div style={{ color: '#444', fontSize: '0.63rem', marginTop: '4px' }}>
+                            {totalDistributed > 0 ? `Розподіліть за причинами ${totalDistributed} шт, вибраних вище` : 'Спочатку вкажіть кількість у категоріях вище'}
+                          </div>
+                        </div>
+                      </div>
+                      {totalDistributed === 0 ? (
+                        <div style={{ padding: '22px', textAlign: 'center', background: '#090909', border: '1px dashed #292929', borderRadius: '13px', color: '#555', fontSize: '0.72rem', fontWeight: 800 }}>
+                          Блок причин стане доступним після розподілу хоча б однієї деталі за категоріями
+                        </div>
+                      ) : <>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {reasonAllocations.map((allocation, index) => (
+                          <div key={index} style={{ background: '#090909', border: `1px solid ${Number(allocation.qty) > 0 && !allocation.reason ? '#ef444466' : '#1d1d1d'}`, borderRadius: '13px', padding: '12px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: '#555', fontSize: '0.6rem', fontWeight: 900 }}>
+                              <span>ПРИЧИНА {index + 1}</span><span>КІЛЬКІСТЬ</span>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto auto', gap: '9px', alignItems: 'center' }}>
+                            <select value={allocation.reason} onChange={event => setReasonAllocations(items => items.map((item, itemIndex) => itemIndex === index ? { ...item, reason: event.target.value } : item))}
+                              style={{ minWidth: 0, width: '100%', background: '#050505', border: '1px solid #292929', color: allocation.reason ? '#fff' : '#666', padding: '11px', borderRadius: '9px', fontWeight: 800 }}>
+                              <option value="">Оберіть причину...</option>
+                              {activeScrapReasons.filter(reason => reason === allocation.reason || !reasonAllocations.some((item, itemIndex) => itemIndex !== index && item.reason === reason)).map(reason => <option key={reason} value={reason}>{reason}</option>)}
+                            </select>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <button onClick={() => updateReasonQty(index, Number(allocation.qty) - 1)} disabled={Number(allocation.qty) <= 0}
+                                style={{ width: '32px', height: '32px', background: '#151515', border: '1px solid #292929', color: '#fff', borderRadius: '8px', cursor: 'pointer' }}>−</button>
+                              <input type="number" min="0" max={totalDistributed} value={allocation.qty || ''} placeholder="0"
+                                onChange={event => updateReasonQty(index, event.target.value)}
+                                style={{ width: '54px', background: 'transparent', border: 0, color: '#fff', textAlign: 'center', fontSize: '1rem', fontWeight: 950, outline: 'none' }} />
+                              <button onClick={() => updateReasonQty(index, Number(allocation.qty) + 1)} disabled={totalReasonAllocated >= totalDistributed}
+                                style={{ width: '32px', height: '32px', background: '#151515', border: '1px solid #292929', color: '#fff', borderRadius: '8px', cursor: 'pointer' }}>+</button>
+                            </div>
+                            <button onClick={() => setReasonAllocations(items => items.length === 1 ? [{ reason: '', qty: 0 }] : items.filter((_, itemIndex) => itemIndex !== index))}
+                              title="Прибрати причину" style={{ width: '32px', height: '32px', background: '#ef444412', border: '1px solid #ef444433', color: '#ef4444', borderRadius: '8px', cursor: 'pointer', fontWeight: 900 }}>×</button>
+                            </div>
+                            {Number(allocation.qty) > 0 && !allocation.reason && (
+                              <div style={{ color: '#ef4444', fontSize: '0.62rem', fontWeight: 900, marginTop: '8px' }}>Оберіть причину для цієї кількості</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <button onClick={() => setReasonAllocations(items => [...items, { reason: '', qty: 0 }])}
+                        disabled={totalReasonAllocated >= totalDistributed || reasonAllocations.length >= activeScrapReasons.length}
+                        style={{ width: '100%', marginTop: '11px', background: '#f59e0b12', color: '#f59e0b', border: '1px dashed #f59e0b55', borderRadius: '11px', padding: '11px', fontSize: '0.7rem', fontWeight: 950, cursor: 'pointer', opacity: totalReasonAllocated >= totalDistributed ? 0.35 : 1 }}>
+                        + ДОДАТИ ЩЕ ОДНУ ПРИЧИНУ
+                      </button>
+                      <div style={{ marginTop: '15px', display: 'flex', justifyContent: 'space-between', padding: '12px 14px', background: '#000', border: `1px solid ${totalReasonAllocated === totalDistributed && totalDistributed > 0 ? '#10b98144' : '#292929'}`, borderRadius: '11px', fontSize: '0.7rem', fontWeight: 900 }}>
+                        <span style={{ color: '#555' }}>ЗА ПРИЧИНАМИ: <b style={{ color: totalReasonAllocated === totalDistributed && totalDistributed > 0 ? '#10b981' : '#fff' }}>{totalReasonAllocated}</b></span>
+                        <span style={{ color: '#555' }}>ЗАЛИШИЛОСЬ: <b style={{ color: totalReasonAllocated === totalDistributed ? '#10b981' : '#f59e0b' }}>{Math.max(0, totalDistributed - totalReasonAllocated)}</b></span>
+                      </div>
+                      </>}
+                    </div>
+
                     <div style={{ display: 'flex', gap: '10px' }}>
                       <button 
-                        disabled={isProcessing || totalDistributed <= 0 || remainingInBatch < 0}
+                        disabled={isProcessing || remainingInBatch < 0 || !isReasonDistributionValid}
                         onClick={handleBulkClassify}
-                        style={{ flex: 2, background: '#8b5cf6', color: '#fff', border: 'none', padding: '20px', borderRadius: '18px', fontSize: '1.1rem', fontWeight: 1000, cursor: 'pointer', opacity: (totalDistributed <= 0 || remainingInBatch < 0) ? 0.3 : 1 }}
+                        style={{ flex: 2, background: '#8b5cf6', color: '#fff', border: 'none', padding: '20px', borderRadius: '18px', fontSize: '1.1rem', fontWeight: 1000, cursor: isReasonDistributionValid ? 'pointer' : 'not-allowed', opacity: (remainingInBatch < 0 || !isReasonDistributionValid) ? 0.3 : 1 }}
                       >
                         {isProcessing ? 'ОБРОБКА...' : 'ПІДТВЕРДИТИ РОЗПОДІЛ'}
                       </button>
@@ -747,7 +1064,9 @@ export default function BrakModule() {
               </div>
             </div>
           </div>
+          )}
         </div>
+        </>}
       </div>
 
       {/* ── МОДАЛКА СКАНЕРА QR ── */}
@@ -815,14 +1134,7 @@ export default function BrakModule() {
                   }}
                   style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #333', background: '#000', color: '#fff', fontSize: '0.9rem', fontWeight: 800, boxSizing: 'border-box', outline: 'none' }}
                 >
-                  <option value="Биття цанги">Биття цанги</option>
-                  <option value="Помилка програми">Помилка програми</option>
-                  <option value="Збій станка">Збій станка</option>
-                  <option value="Кривизна листа">Кривизна листа</option>
-                  <option value="Поломка флешки">Поломка флешки</option>
-                  <option value="Прив'язка">Прив'язка</option>
-                  <option value="Помилка оператора">Помилка оператора</option>
-                  <option value="Інше (коментар)">Інше (коментар)</option>
+                  {scrapReasons.filter(reason => scrapReasonRows.find(row => row.name === reason)?.is_active !== false).map(reason => <option key={reason} value={reason}>{reason}</option>)}
                 </select>
               </div>
 

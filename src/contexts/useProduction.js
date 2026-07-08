@@ -734,11 +734,13 @@ export function createProductionActions({
       
       try {
         // Fetch general material requests for this task that are not yet assigned to any card
-        const { data: generalRequests } = await supabase
+        const { data: allTaskRequests } = await supabase
           .from('material_requests')
           .select('*')
           .eq('task_id', taskId)
-          .is('card_id', null)
+
+        const generalRequests = (allTaskRequests || []).filter(req => !req.card_id)
+        const assignedRequests = (allTaskRequests || []).filter(req => req.card_id)
 
         if (generalRequests && generalRequests.length > 0) {
           const task = (tasks || []).find(t => t.id === taskId)
@@ -796,13 +798,30 @@ export function createProductionActions({
             }
 
             let totalDeduction = 0
+            const existingAssignedForNom = assignedRequests.filter(existing =>
+              String(existing.nomenclature_id) === String(req.nomenclature_id)
+            )
+            const existingLabels = new Set(existingAssignedForNom.map(existing => {
+              const match = (existing.details || '').match(/\(Картка\s+([^\)]+)\)/i)
+              return match?.[1]?.trim() || ''
+            }).filter(Boolean))
+            const existingAssignedQty = existingAssignedForNom.reduce((sum, existing) => sum + (Number(existing.quantity) || 0), 0)
+            const declaredQtyMatch = (req.details || '').match(/—\s*(\d+(?:[.,]\d+)?)/)
+            const declaredQty = declaredQtyMatch ? Number(declaredQtyMatch[1].replace(',', '.')) : getRequestQty(req)
+            let remainingSheetBudget = Math.max(0, Math.max(getRequestQty(req), declaredQty) - existingAssignedQty)
 
             data.forEach((card, idx) => {
               const cardSheets = Math.ceil((Number(card.quantity) || 0) / unitsPerSheet)
               let cardQty = 0
+              const cardLabel = (card.card_info || '').split(' ')[0] || `№${idx + 1}`
 
               if (isSheetForThisCard) {
-                cardQty = cardSheets
+                // A regenerated work-card batch can contain logical card labels
+                // that were already issued earlier. Never create a second
+                // material request for the same nomenclature + card label.
+                if (existingLabels.has(cardLabel)) return
+                cardQty = Math.min(cardSheets, remainingSheetBudget)
+                remainingSheetBudget -= cardQty
               } else if (isGeneralConsumable) {
                 let originalCutterQty = getRequestQty(req)
                 const consumablesList = snapshot.consumables || []
@@ -818,7 +837,6 @@ export function createProductionActions({
 
               if (cardQty > 0) {
                 totalDeduction += cardQty
-                const cardLabel = (card.card_info || '').split(' ')[0] || `№${idx + 1}`
                 const updatedDetails = req.details 
                   ? req.details.replace('СКЛАД ОПЕРАТИВНИЙ:', `СКЛАД ОПЕРАТИВНИЙ (Картка ${cardLabel}):`)
                                .replace('ВИТРАТНІ МАТЕРІАЛИ ДЛЯ', `ВИТРАТНІ МАТЕРІАЛИ (Картка ${cardLabel}) ДЛЯ`)
@@ -838,7 +856,9 @@ export function createProductionActions({
               }
             })
 
-            const nextReqQty = Math.max(0, getRequestQty(req) - totalDeduction)
+            const nextReqQty = isSheetForThisCard
+              ? remainingSheetBudget
+              : Math.max(0, getRequestQty(req) - totalDeduction)
             if (nextReqQty <= 0) {
               deletes.push(req.id)
             } else {

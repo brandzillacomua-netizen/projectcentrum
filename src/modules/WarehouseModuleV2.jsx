@@ -47,7 +47,11 @@ const WarehouseModuleV2 = () => {
   // Load warehouse-specific data on mount
   useEffect(() => { 
     if (typeof fetchData === 'function') {
-      fetchData(['inventory', 'material_requests', 'reception_docs', 'purchase_requests', 'tasks', 'work_cards', 'orders', 'machine_operations'])
+      // Critical/global data is already restored by useData + IndexedDB and
+      // kept current via realtime. Re-fetching every large table here caused a
+      // multi-second main-thread stall on each warehouse entry. Only reception
+      // documents are latency-sensitive for this screen.
+      fetchData(['reception_docs'])
     }
   }, [])
 
@@ -217,37 +221,29 @@ const WarehouseModuleV2 = () => {
   }, [receptionDocs, activeTab])
 
   const tabs = useMemo(() => {
-    const getCount = (tabId) => {
-      const filtered = (requests || []).filter(r => {
-        if (r.status !== 'pending' && r.status !== 'issued') return false
-        if (r.status === 'issued') {
-          const task = tasks.find(t => t.id === r.task_id)
-          if (!task || task.warehouse_conf === 'true' || task.warehouse_conf === 'partial') return false
-        }
-        
-        // Manual isPrepRequest call matching useWarehouseComputed logic
-        if (r.details && (r.details.includes('ПІДГОТОВ') || r.details.includes('ЗАПИТ НА ПІДГОТОВКУ'))) return false
-        if (r.task_id) {
-          const tObj = (tasks || []).find(t => t.id === r.task_id)
-          if (tObj && tObj.step === 'Підготовка') return false
-        }
+    const taskMap = new Map((tasks || []).map(task => [String(task.id), task]))
+    const groupedByType = new Map()
 
-        // Use exactly the same routing as the visible request queue. Keeping a
-        // second inline classifier made packaging consumables (e.g. rubber)
-        // appear in the SGP badge while their card correctly appeared on SO.
-        const itemType = getMaterialType(r, nomenclatures, inventory)
-        return itemType === tabId
-      })
-      const uniqueDocs = new Set(filtered.map(r => r.task_id || `order-${r.order_id}`))
-      let receptionCount = 0
-      if (tabId === 'raw') {
-        receptionCount = (receptionDocs || []).filter(d => (d.status === 'shipped' || d.status === 'ordered') && d.target_warehouse === 'operational').length
-      }
-      if (tabId === 'pocket') {
-        receptionCount = (receptionDocs || []).filter(d => (d.status === 'shipped' || d.status === 'ordered') && d.target_warehouse === 'pocket').length
-      }
-      return uniqueDocs.size + receptionCount
-    }
+    ;(requests || []).forEach(r => {
+      if (r.status !== 'pending' && r.status !== 'issued') return
+      const task = r.task_id ? taskMap.get(String(r.task_id)) : null
+      if (r.status === 'issued' && (!task || task.warehouse_conf === 'true' || task.warehouse_conf === 'partial')) return
+      if (r.details && (r.details.includes('ПІДГОТОВ') || r.details.includes('ЗАПИТ НА ПІДГОТОВКУ'))) return
+      if (task?.step === 'Підготовка') return
+
+      const itemType = getMaterialType(r, nomenclatures, inventory)
+      if (!groupedByType.has(itemType)) groupedByType.set(itemType, new Set())
+      groupedByType.get(itemType).add(r.task_id || `order-${r.order_id}`)
+    })
+
+    const receptionCounts = (receptionDocs || []).reduce((counts, doc) => {
+      if (doc.status !== 'shipped' && doc.status !== 'ordered') return counts
+      if (doc.target_warehouse === 'operational') counts.raw += 1
+      if (doc.target_warehouse === 'pocket') counts.pocket += 1
+      return counts
+    }, { raw: 0, pocket: 0 })
+
+    const getCount = tabId => (groupedByType.get(tabId)?.size || 0) + (receptionCounts[tabId] || 0)
     return [
       { id: 'raw', label: 'Оперативний', icon: <Package size={18} />, count: getCount('raw') },
       { id: 'boxes', label: 'Бокси фрез', icon: <WarehouseIcon size={18} />, count: cardsWithBoxes.filter(c => !c.isPrepared).length },
@@ -363,7 +359,10 @@ const WarehouseModuleV2 = () => {
             justifyContent: 'space-between',
             alignItems: 'center',
             boxShadow: '0 4px 20px rgba(14, 165, 233, 0.15)',
-            animation: 'pulse-blue 2s infinite',
+            // Lightweight compositor-only attention pulse: no scaling or
+            // animated box-shadow, so initial data rendering stays smooth.
+            animation: 'warehouse-reception-attention 1.4s ease-in-out infinite',
+            willChange: 'opacity',
             flexWrap: 'wrap',
             gap: '15px'
           }}>

@@ -1344,7 +1344,8 @@ export function ForemanTaskDetails({
                         .reduce((sum, r) => sum + getRequestQty(r), 0)
                       const pending = sheetReqs.filter(r => r.status === 'pending')
                         .reduce((sum, r) => sum + getRequestQty(r), 0)
-                      return { issuedSheets: issued, pendingSheets: pending, hasKittingReqs: sheetReqs.length > 0 }
+                      const materialRequiresSheets = /(?:т|t)\s*(?:300|700)|лист|sheet/i.test(baseMat)
+                      return { issuedSheets: issued, pendingSheets: pending, hasKittingReqs: materialRequiresSheets || sheetReqs.length > 0 }
                     }
 
                     const { issuedSheets, pendingSheets, hasKittingReqs } = getKittingSheets(genModal.task, genModal.part.nom)

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react'
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { 
@@ -52,7 +52,6 @@ const ReportsModule = () => {
     orders, 
     nomenclatures,
     accessLogs,
-    fetchHistoryRange,
     receptionDocs,
     requests,
     normalize
@@ -133,6 +132,8 @@ const ReportsModule = () => {
   const [isSyncing, setIsSyncing] = useState(false)
   const [selectedShiftFilter, setSelectedShiftFilter] = useState('all')
   const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState('all')
+  const historyRangeCacheRef = useRef(new Map())
+  const historyRequestSeqRef = useRef(0)
 
   const uniqueOperators = useMemo(() => {
     const ops = new Set();
@@ -146,8 +147,56 @@ const ReportsModule = () => {
     return Array.from(ops).filter(Boolean).sort();
   }, [systemUsers, workCardHistory]);
 
+  const fetchReportHistoryRange = async (startIso, endIso) => {
+    const cacheKey = `${startIso || ''}|${endIso || ''}`
+    const cached = historyRangeCacheRef.current.get(cacheKey)
+    if (cached) return cached
+
+    const columns = 'id,card_id,nomenclature_id,operator_name,shift_name,stage_name,qty_completed,scrap_qty,qc_scrap_comment,completed_at,created_at,card_info'
+    const applyRange = (query) => {
+      let ranged = query
+      if (startIso) ranged = ranged.gte('completed_at', startIso)
+      if (endIso) ranged = ranged.lte('completed_at', endIso)
+      return ranged
+    }
+
+    const { count, error: countError } = await applyRange(
+      supabase.from('work_card_history').select('id', { count: 'exact', head: true })
+    )
+    if (countError) throw countError
+
+    const pageSize = 1000
+    const pageCount = Math.ceil((count || 0) / pageSize)
+    const pages = []
+
+    // Fetch several independent PostgREST pages concurrently instead of one
+    // 500-row round trip after another. Limit concurrency to avoid flooding DB.
+    for (let batchStart = 0; batchStart < pageCount; batchStart += 6) {
+      const batch = []
+      for (let page = batchStart; page < Math.min(pageCount, batchStart + 6); page += 1) {
+        const from = page * pageSize
+        batch.push(applyRange(
+          supabase
+            .from('work_card_history')
+            .select(columns)
+            .order('completed_at', { ascending: false })
+            .range(from, from + pageSize - 1)
+        ))
+      }
+      const results = await Promise.all(batch)
+      results.forEach(result => {
+        if (result.error) throw result.error
+        pages.push(...(result.data || []))
+      })
+    }
+
+    historyRangeCacheRef.current.set(cacheKey, pages)
+    return pages
+  }
+
   // Функція для завантаження даних за період
   const syncHistory = async (startStr, endStr) => {
+    const requestSeq = ++historyRequestSeqRef.current
     setIsSyncing(true)
     let startIso = null
     let endIso = null
@@ -170,23 +219,23 @@ const ReportsModule = () => {
     }
     
     try {
-      const completeHistory = await fetchHistoryRange(startIso, endIso)
-      setWorkCardHistory(completeHistory)
+      const completeHistory = await fetchReportHistoryRange(startIso, endIso)
+      if (requestSeq === historyRequestSeqRef.current) setWorkCardHistory(completeHistory)
     } catch (err) {
       console.error("Failed to sync history range:", err)
     } finally {
-      setIsSyncing(false)
+      if (requestSeq === historyRequestSeqRef.current) setIsSyncing(false)
     }
   }
 
   // Слідкуємо за зміною періоду
   React.useEffect(() => {
-    if (startDate || endDate) {
-      syncHistory(startDate, endDate)
-    } else {
-      setWorkCardHistory(initialHistory)
-    }
-  }, [startDate, endDate, initialHistory])
+    const timer = setTimeout(() => {
+      if (startDate || endDate) syncHistory(startDate, endDate)
+      else setWorkCardHistory(initialHistory)
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [startDate, endDate])
 
   // Date Filtering Logic
   const handleQuickDateSelect = (e) => {

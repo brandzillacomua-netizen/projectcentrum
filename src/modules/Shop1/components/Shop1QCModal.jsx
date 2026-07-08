@@ -1,5 +1,6 @@
 import React from 'react'
 import { X } from 'lucide-react'
+import { useScrapReasons } from '../../../hooks/useScrapReasons'
 
 export function Shop1QCModal({
   currentCard,
@@ -16,6 +17,7 @@ export function Shop1QCModal({
   setShowQCModal,
   getNom
 }) {
+  const { names: scrapReasons } = useScrapReasons()
   const labelStyle = { display: 'block', fontSize: '0.65rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', marginBottom: '7px' }
   const selectStyle = { width: '100%', background: '#0d0d0d', border: '1px solid #222', color: '#fff', padding: '13px', borderRadius: '12px', fontSize: '0.95rem', fontWeight: 700, boxSizing: 'border-box' }
 
@@ -61,14 +63,7 @@ export function Shop1QCModal({
               }}
               style={{ ...selectStyle, background: '#000' }}
             >
-              <option value="Биття цанги">Биття цанги</option>
-              <option value="Помилка програми">Помилка програми</option>
-              <option value="Збій станка">Збій станка</option>
-              <option value="Кривизна листа">Кривизна листа</option>
-              <option value="Поломка флешки">Поломка флешки</option>
-              <option value="Прив'язка">Прив'язка</option>
-              <option value="Помилка оператора">Помилка оператора</option>
-              <option value="Інше (коментар)">Інше (коментар)</option>
+              {scrapReasons.map(reason => <option key={reason} value={reason}>{reason}</option>)}
             </select>
           </div>
 
