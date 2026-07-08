@@ -501,6 +501,7 @@ export default function Shop1ForemanModule() {
     'Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень',
     'Липень', 'Серпень', 'Вересень', 'Жовтень', 'Листопад', 'Грудень'
   ]
+  const weekDayNames = ['Нд', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
 
   const handleMonthChange = (direction) => {
     if (direction === 'prev') {
@@ -1977,8 +1978,16 @@ export default function Shop1ForemanModule() {
                   <tr style={{ background: '#070707', borderBottom: '2px solid #1a1a1a', position: 'sticky', top: 0, zIndex: 12 }}>
                     <th style={{ padding: '16px', fontWeight: 900, color: '#eab308', width: '220px', position: 'sticky', left: 0, background: '#070707', zIndex: 13, borderBottom: '2px solid #1a1a1a' }}>Співробітник / Категорія</th>
                     {Array.from({ length: daysInMonth }).map((_, idx) => (
-                      <th key={idx} style={{ padding: '12px 6px', fontWeight: 900, color: '#555', textAlign: 'center', minWidth: '30px', background: '#070707', borderBottom: '2px solid #1a1a1a' }}>
-                        {idx + 1}
+                      <th key={idx} style={{
+                        padding: '12px 6px',
+                        fontWeight: 900,
+                        color: [0, 6].includes(new Date(currentYear, currentMonth, idx + 1).getDay()) ? '#3b82f6' : '#666',
+                        textAlign: 'center',
+                        minWidth: '30px',
+                        background: '#070707',
+                        borderBottom: '2px solid #1a1a1a'
+                      }}>
+                        {weekDayNames[new Date(currentYear, currentMonth, idx + 1).getDay()]}
                       </th>
                     ))}
                   </tr>
