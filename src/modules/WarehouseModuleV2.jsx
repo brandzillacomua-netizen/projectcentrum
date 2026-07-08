@@ -184,6 +184,7 @@ const WarehouseModuleV2 = () => {
     createPurchaseRequest,
     approveWarehouse,
     setIsScanning,
+    scannedCard,
     setScannedCard,
     setScannedRequests,
     setKittingBoxItem,

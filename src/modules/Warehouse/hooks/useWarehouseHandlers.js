@@ -16,6 +16,7 @@ export const useWarehouseHandlers = ({
   createPurchaseRequest,
   approveWarehouse,
   setIsScanning,
+  scannedCard,
   setScannedCard,
   setScannedRequests,
   setKittingBoxItem,
