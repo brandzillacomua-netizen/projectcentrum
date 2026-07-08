@@ -811,8 +811,8 @@ const PackagingModule = () => {
                         </span>
                       )}
                     </div>
-                    <p style={{ margin: 0, color: '#555', fontSize: '1rem', fontWeight: 600 }}>Замовник: <strong style={{ color: '#888' }}>{activeBatchData.customer}</strong></p>
-                    <p style={{ margin: '4px 0 0 0', color: '#555', fontSize: '1rem', fontWeight: 600 }}>Виріб: <strong style={{ color: '#ff9000' }}>{activeBatchData.productNames}</strong></p>
+                    <p className="detail-customer-text" style={{ margin: 0, color: '#555', fontSize: '1rem', fontWeight: 600 }}>Замовник: <strong style={{ color: '#888' }}>{activeBatchData.customer}</strong></p>
+                    <p className="detail-product-text" style={{ margin: '4px 0 0 0', color: '#555', fontSize: '1rem', fontWeight: 600 }}>Виріб: <strong style={{ color: '#ff9000' }}>{activeBatchData.productNames}</strong></p>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-end' }}>
                     <div className="volume-box" style={{ border: '1px solid #1a1a1a' }}>
@@ -831,7 +831,7 @@ const PackagingModule = () => {
                 </div>
 
                 {/* BOM / BOX SUMMARY */}
-                <div style={{ background: '#070707', borderRadius: '28px', padding: '25px', flex: 1, border: '1px solid #151515', marginBottom: '20px', overflowY: 'auto' }}>
+                <div className="bom-container" style={{ background: '#070707', borderRadius: '28px', padding: '25px', flex: 1, border: '1px solid #151515', marginBottom: '20px', overflowY: 'auto' }}>
 
                   {/* ─── РЕЖИМ ПЕРЕГЛЯДУ КОРОБОК ─── */}
                   {showBoxSummary ? (
@@ -841,7 +841,7 @@ const PackagingModule = () => {
                         <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900, color: '#fff', textTransform: 'uppercase' }}>Зміст коробок</h3>
                         <span style={{ marginLeft: 'auto', color: '#444', fontSize: '0.8rem', fontWeight: 800 }}>{boxSummary.length} КОРОБОК</span>
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px' }}>
                         {boxSummary.map(box => {
                           const color = getBoxColor(box.boxNumber)
                           return (
@@ -1727,10 +1727,23 @@ const PackagingModule = () => {
           .module-content-container {
             padding: 8px !important;
           }
+          .master-grid {
+            height: auto !important;
+          }
+          .order-details-area {
+            height: auto !important;
+          }
           .details-panel {
             padding: 12px !important;
             border-radius: 16px !important;
             gap: 10px !important; /* Decrease gap inside main container */
+            height: auto !important;
+            overflow: visible !important;
+          }
+          .bom-container {
+            overflow-y: visible !important;
+            padding: 15px !important;
+            border-radius: 16px !important;
           }
           .detail-header-row {
             flex-direction: row !important;
@@ -1740,6 +1753,9 @@ const PackagingModule = () => {
           }
           .order-detail-title {
             font-size: 1.2rem !important; /* Make title much smaller */
+          }
+          .detail-customer-text, .detail-product-text {
+            font-size: 0.8rem !important;
           }
           .volume-box {
             padding: 4px 8px !important;
@@ -1756,19 +1772,20 @@ const PackagingModule = () => {
           .action-buttons-row {
             gap: 8px !important;
             margin-top: 5px !important;
+            flex-direction: column !important;
           }
           .action-buttons-row button, .action-buttons-row div button {
-            padding: 10px 10px !important; /* Much smaller button height */
+            padding: 14px 10px !important; /* Much smaller button height */
             border-radius: 10px !important;
-            font-size: 0.72rem !important;
+            font-size: 0.8rem !important;
           }
           .action-buttons-row svg, .action-buttons-row div svg {
-            width: 14px !important;
-            height: 14px !important;
+            width: 16px !important;
+            height: 16px !important;
           }
           .bom-required-list {
-            grid-template-columns: 1fr !important;
-            gap: 6px !important;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important;
+            gap: 8px !important;
           }
           .bom-required-list > div {
             padding: 10px !important;
@@ -1786,6 +1803,11 @@ const PackagingModule = () => {
         }
         .mobile-only { display: none; }
 
+        @media screen and (max-width: 480px) {
+          .bom-required-list {
+            grid-template-columns: 1fr !important;
+          }
+        }
         @media screen and (max-width: 1024px) {
           .hide-mobile { display: none !important; }
           .mobile-only { display: block !important; }
