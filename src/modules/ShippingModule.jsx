@@ -358,7 +358,7 @@ const ShippingModule = () => {
 
       // 1. Списуємо матеріали зі складу
       for (const t of batch.batchTasks) {
-        await deductIssuedMaterialsForTask(t.id)
+        await deductIssuedMaterialsForTask(t.id, { packagingOnly: true })
       }
 
       // 1.5. Визначаємо наступний номер пакувального листа

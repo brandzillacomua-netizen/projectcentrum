@@ -758,7 +758,8 @@ export const useWarehouseHandlers = ({
       })
       
       const nom = req.nomenclature_id ? nomenclatures.find(n => String(n.id) === String(req.nomenclature_id)) : null
-      const isSgp = (
+      const packagingSource = req.details?.match(/\[PACKAGING_SOURCE:(SGP|BZ|SO)\]/)?.[1]
+      const inferredSgp = (
         nom?.type === 'part' || 
         nom?.type === 'product' || 
         nameLower.startsWith('іп-') || 
@@ -769,6 +770,7 @@ export const useWarehouseHandlers = ({
         nameLower.includes('ip') ||
         matching.some(i => i.type === 'finished' || i.type === 'semi' || i.type === 'part')
       )
+      const isSgp = packagingSource === 'SGP' || packagingSource === 'BZ' || (!packagingSource && inferredSgp)
       if (isSgp) return
 
       const operationalItems = matching.filter(i => i.warehouse === 'operational' || !i.warehouse)

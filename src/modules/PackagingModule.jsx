@@ -28,6 +28,22 @@ function detectCategoryKey(nom) {
   return 'other'
 }
 
+function isFinishedComponent(nom) {
+  const name = (nom?.name || '').toLowerCase()
+  const code = (nom?.nomenclature_code || '').toLowerCase()
+  const type = (nom?.type || '').toLowerCase()
+  return name.includes('-іп') || name.includes(' іп') || code.includes('іп') ||
+    type.includes('part') || type.includes('деталь') || type.includes('виріб') ||
+    type.includes('product') || type.includes('сгп')
+}
+
+function isProductionOnlyMaterial(nom) {
+  const name = (nom?.name || '').toLowerCase()
+  const type = (nom?.type || '').toLowerCase()
+  return name.includes('лист') || name.includes('sheet') || name.includes('фрез') ||
+    type.includes('sheet') || type.includes('cutter')
+}
+
 const PackagingModule = () => {
   const location = useLocation()
   const {
@@ -209,7 +225,7 @@ const PackagingModule = () => {
               batch.tasks.forEach(t => {
                 if (t.plan_snapshot && t.plan_snapshot[nom.id]) snapFound = true
               })
-              const isSgp = (nom.name?.toLowerCase().includes('-іп') || nom.name?.toLowerCase().includes(' іп') || nom.nomenclature_code?.toLowerCase().includes('іп') || nom.type?.toLowerCase().includes('part') || nom.type?.toLowerCase().includes('деталь') || nom.type?.toLowerCase().includes('виріб') || nom.type?.toLowerCase().includes('сгп'))
+              const isSgp = isFinishedComponent(nom)
               if (isSgp && hasSnapshot && !snapFound) return
 
               if (!batchBOM.includes(nom.id)) {
@@ -240,7 +256,9 @@ const PackagingModule = () => {
               if (nom) {
                 const nameLower = nom.name?.toLowerCase() || ''
                 if (!(nameLower.includes('прес') && (nameLower.includes('гайка') || nameLower.includes('втулка')))) {
-                  if (!batchBOM.includes(nom.id)) {
+                  const snapItem = t.plan_snapshot[key]
+                  const belongsToPackaging = snapItem?.is_custom_packaging || isFinishedComponent(nom)
+                  if (belongsToPackaging && !isProductionOnlyMaterial(nom) && !batchBOM.includes(nom.id)) {
                     batchBOM.push(nom.id)
                   }
                 }
@@ -252,6 +270,9 @@ const PackagingModule = () => {
 
       const batchReqs = (requests || []).filter(r => {
         if (String(r.order_id) !== String(batch.orderId)) return false
+        if (!r.details?.includes('ЗАПИТ НА КОМПЛЕКТУВАННЯ')) return false
+        const reqNom = nomenclatures.find(n => String(n.id) === String(r.nomenclature_id))
+        if (reqNom && isProductionOnlyMaterial(reqNom)) return false
         const taskIdMatch = r.task_id && batch.tasks.some(t => String(t.id) === String(r.task_id))
         const detailsMatch = batch.batchIndex ? r.details?.includes(`/${batch.batchIndex}`) : false
         if (taskIdMatch || detailsMatch) return true
@@ -326,14 +347,14 @@ const PackagingModule = () => {
               })
               
               // Skip SGP items from static BOM if we have task snapshots but this item is not in them (e.g. was replaced)
-              const isSgp = (nom.name?.toLowerCase().includes('-іп') || nom.name?.toLowerCase().includes(' іп') || nom.nomenclature_code?.toLowerCase().includes('іп') || nom.type?.toLowerCase().includes('part') || nom.type?.toLowerCase().includes('деталь') || nom.type?.toLowerCase().includes('виріб') || nom.type?.toLowerCase().includes('сгп'))
+              const isSgp = isFinishedComponent(nom)
               if (isSgp && hasSnapshot && !snapFound) return
 
               if (!snapFound) {
                 qty = Number(b.quantity_per_parent) * Number(activeBatchData.plannedSets)
               }
               
-              if (!map[nom.id]) map[nom.id] = { nom, qty: 0 }
+              if (!map[nom.id]) map[nom.id] = { nom, qty: 0, sourceKind: isSgp ? 'sgp' : 'operational' }
               map[nom.id].qty = Math.max(map[nom.id].qty, qty)
             }
           })
@@ -357,7 +378,7 @@ const PackagingModule = () => {
             if (!snapFound) {
               qty = Number(item.quantity)
             }
-            if (!map[nom.id]) map[nom.id] = { nom, qty: 0 }
+            if (!map[nom.id]) map[nom.id] = { nom, qty: 0, sourceKind: isFinishedComponent(nom) ? 'sgp' : 'operational' }
             map[nom.id].qty = Math.max(map[nom.id].qty, qty)
             if (isCustomPkg) map[nom.id].isCustom = true
           }
@@ -383,8 +404,16 @@ const PackagingModule = () => {
               }
               const nameLower = nom.name?.toLowerCase() || ''
               if (nameLower.includes('прес') && (nameLower.includes('гайка') || nameLower.includes('втулка'))) return
+              const isCustomPackaging = snapItem.is_custom_packaging === true
+              if (isProductionOnlyMaterial(nom)) return
+              if (!isCustomPackaging && !isFinishedComponent(nom)) return
               const qty = Number(snapItem.need) || 0
-              map[key] = { nom, qty, isCustom: snapItem.is_custom_packaging || false }
+              map[key] = {
+                nom,
+                qty,
+                isCustom: isCustomPackaging,
+                sourceKind: isCustomPackaging && isFinishedComponent(nom) ? 'bz' : (isFinishedComponent(nom) ? 'sgp' : 'operational')
+              }
             }
           }
         })
@@ -395,14 +424,17 @@ const PackagingModule = () => {
     if (activeBatchData) {
       const relevant = (requests || []).filter(r =>
         String(r.order_id) === String(activeBatchData.orderId) &&
+        r.details?.includes('ЗАПИТ НА КОМПЛЕКТУВАННЯ') &&
         ((activeBatchData.batchIndex && r.details?.includes(`/${activeBatchData.batchIndex}`)) || activeBatchData.tasks.some(t => String(t.id) === String(r.task_id)))
       )
       relevant.forEach(r => {
         const nomIdStr = String(r.nomenclature_id)
         if (!map[nomIdStr]) {
           const nom = nomenclatures.find(n => String(n.id) === nomIdStr)
-          if (nom) {
-            map[nomIdStr] = { nom, qty: Number(r.quantity) || 0, isCustom: true }
+          if (nom && !isProductionOnlyMaterial(nom)) {
+            const sourceMatch = r.details?.match(/\[PACKAGING_SOURCE:(SGP|BZ|SO)\]/)
+            const sourceKind = sourceMatch?.[1] === 'BZ' ? 'bz' : sourceMatch?.[1] === 'SO' ? 'operational' : (isFinishedComponent(nom) ? 'sgp' : 'operational')
+            map[nomIdStr] = { nom, qty: Number(r.quantity) || 0, isCustom: r.details?.includes('[PACKAGING_CUSTOM]'), sourceKind }
           }
         }
       })
@@ -420,12 +452,12 @@ const PackagingModule = () => {
       const type = (item.nom.type || '').toLowerCase()
       const name = (item.nom.name || '').toLowerCase()
       const code = (item.nom.nomenclature_code || '').toLowerCase()
-      if (name.includes('кріплення') || name.includes('друк') || name.includes('3д')) categories.mounts.items.push({ ...item, isCustom: false })
-      else if (name.includes('стійка') || type.includes('стійк')) categories.spacers.items.push({ ...item, isCustom: false })
-      else if (name.includes('накладка') || name.includes('тримач') || name.includes('упаковка') || name.includes('пакет') || name.includes('гума')) categories.other.items.push({ ...item, isCustom: false })
-      else if (type.includes('метиз') || type.includes('гвинт') || type.includes('гайка') || name.includes('гвинт') || name.includes('гайка') || type.includes('hardware') || type.includes('fastener')) categories.hardware.items.push({ ...item, isCustom: false })
-      else if (name.includes('-іп') || name.includes(' іп') || code.includes('іп') || type.includes('part') || type.includes('деталь') || type.includes('виріб') || type.includes('сгп')) categories.sgp.items.push({ ...item, isCustom: false })
-      else categories.other.items.push({ ...item, isCustom: false })
+      if (name.includes('кріплення') || name.includes('друк') || name.includes('3д')) categories.mounts.items.push(item)
+      else if (name.includes('стійка') || type.includes('стійк')) categories.spacers.items.push(item)
+      else if (name.includes('накладка') || name.includes('тримач') || name.includes('упаковка') || name.includes('пакет') || name.includes('гума')) categories.other.items.push(item)
+      else if (type.includes('метиз') || type.includes('гвинт') || type.includes('гайка') || name.includes('гвинт') || name.includes('гайка') || type.includes('hardware') || type.includes('fastener')) categories.hardware.items.push(item)
+      else if (isFinishedComponent(item.nom)) categories.sgp.items.push(item)
+      else categories.other.items.push(item)
     })
 
     // Inject custom items added by packer
@@ -437,7 +469,7 @@ const PackagingModule = () => {
     })
 
     return { categorizedBOM: categories, hasBOM: foundAnyBom }
-  }, [activeBatchData, orders, bomItems, nomenclatures, customItems])
+  }, [activeBatchData, orders, bomItems, nomenclatures, customItems, requests])
 
   const allBOMItems = useMemo(() => Object.values(categorizedBOM).flatMap(c => c.items), [categorizedBOM])
 
@@ -445,6 +477,8 @@ const PackagingModule = () => {
     if (!activeBatchData) return { orderRequests: [], completedRequestsCount: 0, isReadyToFinalize: false, hasAnyRequests: false }
     const relevant = (requests || []).filter(r =>
       String(r.order_id) === String(activeBatchData.orderId) &&
+      r.details?.includes('ЗАПИТ НА КОМПЛЕКТУВАННЯ') &&
+      !isProductionOnlyMaterial(nomenclatures.find(n => String(n.id) === String(r.nomenclature_id))) &&
       ((activeBatchData.batchIndex && r.details?.includes(`/${activeBatchData.batchIndex}`)) || activeBatchData.tasks.some(t => String(t.id) === String(r.task_id)))
     )
     const confirmedNoms = new Set(relevant.filter(r => r.status === 'completed' || r.status === 'issued').map(r => String(r.nomenclature_id)))
@@ -453,7 +487,7 @@ const PackagingModule = () => {
     // hasAnyRequests: тільки активні запити (pending/processing), не завершені
     const activeRequests = relevant.filter(r => r.status === 'pending' || r.status === 'processing')
     return { orderRequests: relevant, completedRequestsCount: relevant.filter(r => r.status === 'completed' || r.status === 'issued').length, isReadyToFinalize: is100PercentCovered, hasAnyRequests: activeRequests.length > 0 }
-  }, [activeBatchData, requests, allBOMItems, excludedNomIds])
+  }, [activeBatchData, requests, allBOMItems, excludedNomIds, nomenclatures])
 
   // Чи підтверджено склад (всі позиції issued/completed)
   const isWarehouseConfirmed = isReadyToFinalize
@@ -515,6 +549,8 @@ const PackagingModule = () => {
         const hasReq = (requests || []).some(r =>
           String(r.order_id) === String(activeBatchData.orderId) &&
           String(r.nomenclature_id) === String(item.nom.id) &&
+          r.details?.includes('ЗАПИТ НА КОМПЛЕКТУВАННЯ') &&
+          activeBatchData.tasks.some(t => String(t.id) === String(r.task_id)) &&
           ['pending', 'processing', 'completed', 'issued'].includes(r.status)
         )
         return !isExcluded && !hasReq
@@ -527,7 +563,13 @@ const PackagingModule = () => {
 
       const itemsToRequest = activeBOMItems.map(r => {
         const effectiveQty = customQty[String(r.nom.id)] !== undefined ? Number(customQty[String(r.nom.id)]) : r.qty
-        return { nomId: r.nom.id, name: r.nom.material_type ? `${r.nom.name} (${r.nom.material_type})` : r.nom.name, qty: effectiveQty }
+        return {
+          nomId: r.nom.id,
+          name: r.nom.material_type ? `${r.nom.name} (${r.nom.material_type})` : r.nom.name,
+          qty: effectiveQty,
+          packagingSource: r.sourceKind || (isFinishedComponent(r.nom) ? 'sgp' : 'operational'),
+          isCustomPackaging: r.isCustom === true
+        }
       })
 
       await submitPickingRequest(activeBatchData.orderId, itemsToRequest, activeBatchData.tasks[0]?.id)
@@ -675,7 +717,9 @@ const PackagingModule = () => {
       await submitPickingRequest(activeBatchData.orderId, [{
         nomId: addItemSelectedNom.id,
         name: requestName,
-        qty: Number(addItemQty)
+        qty: Number(addItemQty),
+        packagingSource: isFinishedComponent(addItemSelectedNom) ? 'bz' : 'operational',
+        isCustomPackaging: true
       }], firstTask.id)
 
       await Promise.all([

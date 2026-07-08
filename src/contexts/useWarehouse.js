@@ -539,7 +539,9 @@ export function createWarehouseActions({
         if (req.status === 'issued') return
         let parsedName = ''
         try { parsedName = req.details?.split(': ')[1]?.split(' — ')[0]?.trim() } catch (e) {}
-        const isSgpItem = (
+        const packagingSourceMatch = req.details?.match(/\[PACKAGING_SOURCE:(SGP|BZ|SO)\]/)
+        const packagingSource = packagingSourceMatch?.[1] || null
+        const inferredSgpItem = (
           parsedName?.toLowerCase().startsWith('іп-') ||
           parsedName?.toLowerCase().startsWith('ip-') ||
           parsedName?.toLowerCase().startsWith('kr-') ||
@@ -551,6 +553,7 @@ export function createWarehouseActions({
             return t === 'part' || t === 'product'
           })())
         )
+        const isSgpItem = packagingSource === 'SGP' || packagingSource === 'BZ' || (!packagingSource && inferredSgpItem)
         const isPrepRequest = (req.details && (req.details.includes('ПІДГОТОВ') || req.details.includes('подготов'))) || 
           (parsedName && (parsedName.includes('[Непідготовлений]') || parsedName.includes('[неподготовленный]')))
 
@@ -564,8 +567,18 @@ export function createWarehouseActions({
             ))
           if (!baseMatch) return false
           
-          if (isSgpItem) {
-            // Finished components may be held both on SGP and in the BZ stock.
+          if (packagingSource === 'SGP') {
+            // Planned packaging parts prefer SGP, but the same nomenclature
+            // may physically remain in BZ. If SGP has no usable balance, BZ is
+            // a valid fallback source.
+            return i.warehouse === 'sgp' || i.type === 'finished' || i.type === 'semi' ||
+              i.type === 'bz' || i.type === 'wip_bz'
+          } else if (packagingSource === 'BZ') {
+            return i.type === 'bz' || i.type === 'wip_bz'
+          } else if (packagingSource === 'SO') {
+            return i.warehouse === 'operational' || !i.warehouse
+          } else if (isSgpItem) {
+            // Compatibility for old requests without an explicit source marker.
             return i.type === 'finished' || i.type === 'semi' || i.type === 'part' ||
               i.type === 'bz' || i.type === 'wip_bz' || i.warehouse === 'sgp'
           } else if (isPrepRequest) {
@@ -579,10 +592,14 @@ export function createWarehouseActions({
         let invItem = matches.sort((a, b) => {
           const availA = (Number(a.total_qty) || 0) - (Number(a.reserved_qty) || 0)
           const availB = (Number(b.total_qty) || 0) - (Number(b.reserved_qty) || 0)
+          const needed = Number(req.quantity) || 0
+          // First choose a row that can satisfy the request in full. This lets
+          // a stocked BZ row beat an empty SGP placeholder.
+          if ((availA >= needed) !== (availB >= needed)) return availB >= needed ? 1 : -1
           return availB - availA
         })[0]
 
-        if (!invItem) {
+        if (!invItem && !packagingSource) {
           const fallbackMatches = matchedInventory.filter(i => {
             if (String(i.id) === String(req.inventory_id)) return true
             if (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) return true
@@ -638,7 +655,12 @@ export function createWarehouseActions({
             parsedName?.toLowerCase().includes('[підготовлений]')
           const isSheetItem = parsedName?.toLowerCase().includes('лист')
           
-          if (isPreparedSheet || isSheetItem) {
+          if (packagingSource) {
+            // Explicit packaging requests must remain pending until stock is
+            // available in their declared warehouse. Never confirm them from
+            // an unrelated warehouse or without an inventory row.
+            console.log(`[issueMaterialsBatch] Waiting for ${packagingSource} stock: ${parsedName}`)
+          } else if (isPreparedSheet || isSheetItem) {
             // Залишаємо в pending — видача відбудеться коли підготовка передасть листи на СО
             console.log(`[issueMaterialsBatch] Skipping prepared sheet (no inventory): ${parsedName}`)
           } else {
@@ -791,19 +813,28 @@ export function createWarehouseActions({
     return { error }
   }
 
-  const deductIssuedMaterialsForTask = async (taskId) => {
+  const deductIssuedMaterialsForTask = async (taskId, options = {}) => {
     try {
       const { data: issuedReqs } = await supabase
         .from('material_requests')
-        .select('inventory_id, quantity')
+        .select('id, inventory_id, quantity, details')
         .eq('task_id', taskId)
         .eq('status', 'issued')
 
-      if (!issuedReqs || issuedReqs.length === 0) return
+      const requestsToDeduct = (issuedReqs || []).filter(req => {
+        if (!options.packagingOnly) return true
+        const details = (req.details || '').toLowerCase()
+        return details.includes('запит на комплектування') &&
+          !details.includes('лист') &&
+          !details.includes('sheet') &&
+          !details.includes('фрез')
+      })
+
+      if (requestsToDeduct.length === 0) return
 
       // Aggregate deductions per inventory item in memory
       const deductionMap = {}
-      for (const req of issuedReqs) {
+      for (const req of requestsToDeduct) {
         if (req.inventory_id) {
           deductionMap[req.inventory_id] = (deductionMap[req.inventory_id] || 0) + Number(req.quantity)
         }
@@ -829,7 +860,7 @@ export function createWarehouseActions({
 
       await Promise.all([
         supabase.from('inventory').upsert(updates),
-        supabase.from('material_requests').update({ status: 'completed' }).eq('task_id', taskId).eq('status', 'issued')
+        supabase.from('material_requests').update({ status: 'completed' }).in('id', requestsToDeduct.map(req => req.id))
       ])
     } catch (e) {
       console.error('Error deducting materials for task:', e)
@@ -846,6 +877,9 @@ export function createWarehouseActions({
     for (const item of requiredItems) {
       const nomId = item.nomId || item.nomenclature_id
       const neededQty = Number(item.qty) || 0
+      const sourceCode = item.packagingSource === 'bz' ? 'BZ' : item.packagingSource === 'operational' ? 'SO' : 'SGP'
+      const sourceMarker = `[PACKAGING_SOURCE:${sourceCode}]`
+      const customMarker = item.isCustomPackaging ? ' [PACKAGING_CUSTOM]' : ''
 
       requestsToInsert.push({
         order_id: orderId,
@@ -854,7 +888,7 @@ export function createWarehouseActions({
         quantity: neededQty,
         status: 'pending',
         inventory_id: null,
-        details: `ЗАПИТ НА КОМПЛЕКТУВАННЯ (СГП) (${order?.order_num || ''}${batchSuffix}): ${item.name} — ${neededQty} шт.`
+        details: `ЗАПИТ НА КОМПЛЕКТУВАННЯ (${order?.order_num || ''}${batchSuffix}) ${sourceMarker}${customMarker}: ${item.name} — ${neededQty} шт.`
       })
     }
 

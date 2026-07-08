@@ -94,7 +94,8 @@ export const ConsumablesQueue = ({
             const totalOnWh = matchingInv.reduce((sum, i) => sum + (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0), 0)
             
             const nom = req.nomenclature_id ? nomenclatures.find(n => String(n.id) === String(req.nomenclature_id)) : null
-            const isSgp = (
+            const packagingSource = req.details?.match(/\[PACKAGING_SOURCE:(SGP|BZ|SO)\]/)?.[1]
+            const inferredSgp = (
               nom?.type === 'part' || 
               nom?.type === 'product' || 
               nameLower.startsWith('іп-') || 
@@ -105,6 +106,7 @@ export const ConsumablesQueue = ({
               nameLower.includes('ip') ||
               matchingInv.some(i => i.type === 'finished' || i.type === 'semi' || i.type === 'part')
             )
+            const isSgp = packagingSource === 'SGP' || packagingSource === 'BZ' || (!packagingSource && inferredSgp)
             if (isSgp) return
             
             const alreadyIssuedForThis = (reqList || []).filter(r => r.id === req.id && r.status === 'issued')
