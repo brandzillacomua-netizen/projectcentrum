@@ -768,18 +768,19 @@ const PackagingModule = () => {
                 else if (isProc) { statusColor = '#3b82f6'; statusBg = '#3b82f615'; statusLabel = 'ЗАПИТ В ОБРОБЦІ' }
                 return (
                   <div key={batch.key} onClick={() => { setSelectedBatch(batch); setIsDrawerOpen(false); }} className={`pack-order-card ${isReady ? 'ready-pulse' : ''}`}
-                    style={{ padding: '20px 20px 20px 25px', background: isSelected ? `${statusColor}15` : (isCompleted ? '#080808' : '#111'), border: `1px solid ${isSelected ? statusColor : '#1a1a1a'}`, borderRadius: '24px', cursor: 'pointer', transition: '0.3s cubic-bezier(0.4,0,0.2,1)', position: 'relative', opacity: isCompleted ? 0.4 : 1, filter: isCompleted ? 'grayscale(1)' : 'none', overflow: 'hidden' }}>
-                    <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '6px', background: statusColor, boxShadow: isSelected ? `4px 0 15px ${statusColor}44` : 'none' }}></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                      <div style={{ fontSize: '1.25rem', fontWeight: 1000, letterSpacing: '-0.5px', color: isSelected ? '#fff' : '#ccc' }}>№ {batch.orderNum}{batch.batchIndex ? `/${batch.batchIndex}` : ''}</div>
-                      <div style={{ background: statusBg, padding: '4px 8px', borderRadius: '8px', fontSize: '0.55rem', color: statusColor, fontWeight: 950, display: 'flex', alignItems: 'center', gap: '4px', border: `1px solid ${statusColor}33` }}>
-                        {isCompleted ? <CheckCircle2 size={10} /> : (isReady ? <Scan size={10} /> : <Clock size={10} />)} {statusLabel}
+                    style={{ flexShrink: 0, padding: '14px 16px 14px 20px', background: isSelected ? `${statusColor}12` : (isCompleted ? '#060608' : '#0e0e10'), border: `1px solid ${isSelected ? statusColor : '#18181b'}`, borderRadius: '16px', cursor: 'pointer', transition: 'all 0.2s ease', position: 'relative', opacity: isCompleted ? 0.4 : 1, filter: isCompleted ? 'grayscale(1)' : 'none', overflow: 'hidden' }}>
+                    <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '4px', background: statusColor, boxShadow: isSelected ? `2px 0 10px ${statusColor}44` : 'none' }}></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 900, color: isSelected ? '#fff' : '#e4e4e7' }}>№ {batch.orderNum}{batch.batchIndex ? `/${batch.batchIndex}` : ''}</div>
+                      <div style={{ background: statusBg, padding: '3px 6px', borderRadius: '6px', fontSize: '0.52rem', color: statusColor, fontWeight: 950, display: 'flex', alignItems: 'center', gap: '3px', border: `1px solid ${statusColor}22` }}>
+                        {isCompleted ? <CheckCircle2 size={8} /> : (isReady ? <Scan size={8} /> : <Clock size={8} />)} {statusLabel}
                       </div>
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: isSelected ? '#aaa' : '#555', fontWeight: 700, marginBottom: '4px' }}>{batch.customer}</div>
-                    <div style={{ fontSize: '0.75rem', color: '#ff9000', fontWeight: 800, marginBottom: '12px' }}>{batch.productNames}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', paddingTop: '12px', borderTop: '1px solid #1a1a1a' }}>
-                      <div style={{ fontSize: '0.65rem', color: '#333', fontWeight: 800 }}>КІЛЬКІСТЬ: <span style={{ color: isSelected ? '#fff' : '#666' }}>{batch.plannedSets} шт</span></div>
+                    <div style={{ fontSize: '0.78rem', color: isSelected ? '#fff' : '#a1a1aa', fontWeight: 700, marginBottom: '2px' }}>{batch.customer}</div>
+                    <div style={{ fontSize: '0.92rem', color: '#ff9000', fontWeight: 900, marginBottom: '10px', lineHeight: 1.2 }}>{batch.productNames}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '10px', borderTop: '1px solid #18181b', marginTop: '4px' }}>
+                      <span style={{ fontSize: '0.72rem', color: '#52525b', fontWeight: 800 }}>ОБСЯГ:</span>
+                      <span style={{ fontSize: '0.88rem', color: '#10b981', fontWeight: 900 }}>{batch.plannedSets} шт</span>
                     </div>
                   </div>
                 )
