@@ -40,20 +40,35 @@ export const ConsumablesQueue = ({
           const orderNum = order?.order_num || '???'
           const displayNum = task?.batch_index ? `${orderNum}/${task.batch_index}` : orderNum
 
+          const documentCoversCard = (doc) => {
+            const sameOrder = doc.task_id
+              ? String(doc.task_id) === String(taskId)
+              : String(doc.order_id) === String(orderId)
+            if (!sameOrder || !Array.isArray(doc.items)) return false
+
+            return doc.items.some(item => reqList.some(req => {
+              if (item.nomenclature_id && req.nomenclature_id) {
+                return String(item.nomenclature_id) === String(req.nomenclature_id)
+              }
+              const itemName = item.name || item.reqDetails || item.details || ''
+              return normalize(itemName) === normalize(parseMaterialName(req.details))
+            }))
+          }
+          
           const activePR = (purchaseRequests || []).find(pr =>
-            (pr.task_id ? String(pr.task_id) === String(taskId) : String(pr.order_id) === String(orderId)) && pr.status === 'pending'
+            documentCoversCard(pr) && pr.status === 'pending'
           )
           const acceptedPR = (purchaseRequests || []).find(pr =>
-            (pr.task_id ? String(pr.task_id) === String(taskId) : String(pr.order_id) === String(orderId)) && pr.status === 'accepted'
+            documentCoversCard(pr) && pr.status === 'accepted'
           )
           const orderedPR = (purchaseRequests || []).find(pr =>
-            (pr.task_id ? String(pr.task_id) === String(taskId) : String(pr.order_id) === String(orderId)) && pr.status === 'ordered'
+            documentCoversCard(pr) && pr.status === 'ordered'
           )
           const orderedReception = (receptionDocs || []).find(rd =>
-            (rd.task_id ? String(rd.task_id) === String(taskId) : String(rd.order_id) === String(orderId)) && rd.status === 'ordered'
+            documentCoversCard(rd) && rd.status === 'ordered'
           )
           const pendingReception = (receptionDocs || []).find(rd =>
-            (rd.task_id ? String(rd.task_id) === String(taskId) : String(rd.order_id) === String(orderId)) && (rd.status === 'pending' || rd.status === 'shipped')
+            documentCoversCard(rd) && (rd.status === 'pending' || rd.status === 'shipped')
           )
 
           const missingItems = []

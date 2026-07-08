@@ -33,6 +33,9 @@ export const isPrepRequest = (r, tasks) => {
 }
 
 export const getMaterialType = (r, nomenclatures, inventory) => {
+  // Packaging requests are displayed in the Finished Goods queue regardless
+  // of the physical warehouse from which an item will be issued. The issuing
+  // logic separately chooses SO for consumables and BZ/SGP for components.
   if (r.details && (r.details.includes('ЗАПИТ НА КОМПЛЕКТУВАННЯ') || r.details.includes('ПАКУВАННЯ'))) {
     return 'finished'
   }

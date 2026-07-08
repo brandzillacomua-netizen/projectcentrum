@@ -22,7 +22,7 @@ import { useMES } from '../MESContext'
 import { supabase } from '../supabase'
 
 // Hooks
-import { useWarehouseComputed } from './Warehouse/hooks/useWarehouseComputed'
+import { getMaterialType, useWarehouseComputed } from './Warehouse/hooks/useWarehouseComputed'
 import { useWarehouseHandlers } from './Warehouse/hooks/useWarehouseHandlers'
 
 // Components
@@ -222,7 +222,7 @@ const WarehouseModuleV2 = () => {
         if (r.status !== 'pending' && r.status !== 'issued') return false
         if (r.status === 'issued') {
           const task = tasks.find(t => t.id === r.task_id)
-          if (!task || task.warehouse_conf === 'true') return false
+          if (!task || task.warehouse_conf === 'true' || task.warehouse_conf === 'partial') return false
         }
         
         // Manual isPrepRequest call matching useWarehouseComputed logic
@@ -232,31 +232,10 @@ const WarehouseModuleV2 = () => {
           if (tObj && tObj.step === 'Підготовка') return false
         }
 
-        // getMaterialType calculation inline
-        let itemType = 'raw'
-        if (r.details && (r.details.includes('ЗАПИТ НА КОМПЛЕКТУВАННЯ') || r.details.includes('ПАКУВАННЯ'))) {
-          itemType = 'finished'
-        } else {
-          const parsed = r.details?.split(': ')[1]?.split(' — ')[0]?.trim() || r.details || ''
-          const nameLower = parsed.toLowerCase()
-          const nom = r.nomenclature_id ? nomenclatures.find(n => String(n.id) === String(r.nomenclature_id)) : null
-          
-          if (nom?.type === 'part' || nom?.type === 'product') {
-            itemType = 'finished'
-          } else {
-            const isSgp = (
-              nameLower.startsWith('іп-') || 
-              nameLower.startsWith('ip-') || 
-              nameLower.startsWith('kr-') || 
-              nameLower.startsWith('kh-') || 
-              (nameLower.includes('іп') && !nameLower.includes('кріплення') && !nameLower.includes('друк') && !nameLower.includes('3д')) ||
-              nameLower.includes('ip')
-            )
-            if (isSgp) {
-              itemType = 'finished'
-            }
-          }
-        }
+        // Use exactly the same routing as the visible request queue. Keeping a
+        // second inline classifier made packaging consumables (e.g. rubber)
+        // appear in the SGP badge while their card correctly appeared on SO.
+        const itemType = getMaterialType(r, nomenclatures, inventory)
         return itemType === tabId
       })
       const uniqueDocs = new Set(filtered.map(r => r.task_id || `order-${r.order_id}`))
@@ -279,7 +258,7 @@ const WarehouseModuleV2 = () => {
       { id: 'bz', label: 'БЗ', icon: <CheckCircle2 size={18} />, count: getCount('bz') },
       { id: 'registry', label: 'Реєстр', icon: <History size={18} /> }
     ]
-  }, [requests, tasks, receptionDocs, nomenclatures, cardsWithBoxes])
+  }, [requests, tasks, receptionDocs, nomenclatures, inventory, cardsWithBoxes])
 
   return (
     <div className="warehouse-module-v2" style={{ background: '#080808', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>

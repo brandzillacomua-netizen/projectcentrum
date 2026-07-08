@@ -666,7 +666,22 @@ const PackagingModule = () => {
 
       if (error) throw error
 
-      await fetchData('tasks')
+      const requestName = addItemSelectedNom.material_type
+        ? `${addItemSelectedNom.name} (${addItemSelectedNom.material_type})`
+        : addItemSelectedNom.name
+
+      // A custom packaging position is an actual picking need, not only a
+      // plan-snapshot decoration. Send it to the warehouse immediately.
+      await submitPickingRequest(activeBatchData.orderId, [{
+        nomId: addItemSelectedNom.id,
+        name: requestName,
+        qty: Number(addItemQty)
+      }], firstTask.id)
+
+      await Promise.all([
+        fetchData('tasks'),
+        fetchData('material_requests')
+      ])
       setShowAddItemModal(false)
     } catch (e) {
       console.error(e)

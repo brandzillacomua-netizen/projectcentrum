@@ -23,7 +23,8 @@ export function createWarehouseActions({
       order_id: orderId, task_id: taskId, order_num: orderNum,
       items: processedItems, status: 'pending', destination_warehouse: 'production'
     }])
-    if (!error) refreshTable('purchase_requests')
+    if (error) throw error
+    refreshTable('purchase_requests')
     return { error }
   }
 
@@ -57,6 +58,7 @@ export function createWarehouseActions({
     }
 
     // Бронювання на складі-відправнику якщо це переміщення СВ → СО
+    const appliedReserveUpdates = []
     if (sourceWH) {
       try {
         const items = requestData.items || []
@@ -96,16 +98,26 @@ export function createWarehouseActions({
 
           if (matches.length > 0) {
             const best = matches.sort((a, b) => (Number(b.total_qty) || 0) - (Number(a.total_qty) || 0))[0]
-            reserveUpdates.push(
-              supabase.from('inventory').update({
-                reserved_qty: (Number(best.reserved_qty) || 0) + qty
-              }).eq('id', best.id)
-            )
+            const previousReserved = Number(best.reserved_qty) || 0
+            // Never let a retry inflate reserve above the physical stock.
+            const nextReserved = Math.min(Number(best.total_qty) || 0, previousReserved + qty)
+            if (nextReserved > previousReserved) {
+              appliedReserveUpdates.push({ id: best.id, previousReserved })
+              reserveUpdates.push(
+                supabase.from('inventory').update({ reserved_qty: nextReserved }).eq('id', best.id)
+              )
+            }
           }
         }
-        if (reserveUpdates.length > 0) await Promise.all(reserveUpdates)
+        if (reserveUpdates.length > 0) {
+          const reserveResults = await Promise.all(reserveUpdates)
+          const reserveError = reserveResults.find(result => result.error)?.error
+          if (reserveError) throw reserveError
+        }
       } catch (err) {
         console.error('Error reserving items during transfer:', err)
+        await supabase.from('purchase_requests').update({ status: 'accepted' }).eq('id', requestId)
+        return { error: err }
       }
     }
 
@@ -120,6 +132,15 @@ export function createWarehouseActions({
     }])
 
     if (recError) {
+      // Reservation and reception document form one logical operation.
+      // If the document could not be created, restore every reserve changed above.
+      if (appliedReserveUpdates.length > 0) {
+        await Promise.all(appliedReserveUpdates.map(update =>
+          supabase.from('inventory')
+            .update({ reserved_qty: update.previousReserved })
+            .eq('id', update.id)
+        ))
+      }
       await supabase.from('purchase_requests').update({ status: 'accepted' }).eq('id', requestId)
       return { error: recError }
     }
@@ -463,7 +484,21 @@ export function createWarehouseActions({
 
   const issueMaterialsBatch = async (requestIds, taskId = null) => {
     try {
-      const relevantRequests = (requests || []).filter(r => requestIds.includes(r.id))
+      // Always read the rows that are about to be issued from the database.
+      // A partial issue inserts a new pending remainder; realtime can render that
+      // row before the `requests` closure used by this callback is refreshed.
+      // In that situation the old implementation silently processed an empty
+      // array while the UI still reported success.
+      const { data: freshRequests, error: requestsError } = await supabase
+        .from('material_requests')
+        .select('*')
+        .in('id', requestIds)
+      if (requestsError) throw requestsError
+
+      const relevantRequests = freshRequests || []
+      if (relevantRequests.length === 0) {
+        throw new Error('Заявки для видачі не знайдено. Оновіть сторінку та повторіть спробу.')
+      }
       const orFilters = []
       
       relevantRequests.forEach(req => {
@@ -530,7 +565,9 @@ export function createWarehouseActions({
           if (!baseMatch) return false
           
           if (isSgpItem) {
-            return i.type === 'finished' || i.type === 'semi' || i.warehouse === 'sgp'
+            // Finished components may be held both on SGP and in the BZ stock.
+            return i.type === 'finished' || i.type === 'semi' || i.type === 'part' ||
+              i.type === 'bz' || i.type === 'wip_bz' || i.warehouse === 'sgp'
           } else if (isPrepRequest) {
             return i.warehouse === 'production'
           } else {
@@ -641,7 +678,9 @@ export function createWarehouseActions({
         reqPromises.push(supabase.from('material_requests').insert(requestsToInsert))
       }
 
-      await Promise.all([...invPromises, ...reqPromises])
+      const writeResults = await Promise.all([...invPromises, ...reqPromises])
+      const writeError = writeResults.find(result => result?.error)?.error
+      if (writeError) throw writeError
 
       // Auto-transition work cards for any task whose material requests are fully issued
       const uniqueTaskIds = [...new Set(relevantRequests.map(r => r.task_id).filter(Boolean))]
@@ -709,6 +748,17 @@ export function createWarehouseActions({
       }
 
       refreshTable('work_cards')
+      refreshTable('material_requests')
+      refreshTable('inventory')
+
+      return {
+        requestedCount: relevantRequests.filter(r => r.status !== 'issued').length,
+        issuedCount: requestUpdateList.length,
+        fullyIssued: relevantRequests
+          .filter(r => r.status !== 'issued')
+          .every(r => requestUpdateList.some(update => update.id === r.id && update.status === 'issued')) &&
+          requestsToInsert.length === 0
+      }
     } catch (err) {
       console.error('Batch issue error:', err)
       throw err
@@ -810,7 +860,10 @@ export function createWarehouseActions({
 
     if (requestsToInsert.length > 0) {
       const { error } = await supabase.from('material_requests').insert(requestsToInsert)
-      if (error) console.error("Picking Request Error:", error)
+      if (error) {
+        console.error("Picking Request Error:", error)
+        throw error
+      }
       refreshTable('material_requests')
     }
   }

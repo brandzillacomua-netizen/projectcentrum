@@ -1555,6 +1555,9 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                                     setProcessingDocs(prev => new Set(prev).add(pr.id))
                                     try {
                                       await apiService.submitConvertRequestToOrder(pr.id, convertRequestToOrder)
+                                    } catch (err) {
+                                      console.error('Transfer creation error:', err)
+                                      alert('Не вдалося сформувати поставку на склад: ' + (err?.message || 'невідома помилка'))
                                     } finally {
                                       setProcessingDocs(prev => {
                                         const next = new Set(prev)

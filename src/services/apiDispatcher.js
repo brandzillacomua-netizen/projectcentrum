@@ -177,7 +177,7 @@ export const apiService = {
     console.log("%c--- 📦 BACKEND ACTION: RESERVE BATCH (WAREHOUSE) ---", "color: #f59e0b; font-weight: bold; font-size: 16px; text-decoration: underline;");
     console.log("JSON Payload:", payload);
     if (typeof cbIssueBatch === 'function') {
-      await cbIssueBatch(reqList.map(r => r.id), taskId);
+      return await cbIssueBatch(reqList.map(r => r.id), taskId);
     }
     return true;
   },
@@ -289,7 +289,11 @@ export const apiService = {
     const payload = requestBuilder.buildConvertRequestToOrderPayload(requestId);
     console.log("%c--- 📦 BACKEND ACTION: CONVERT REQUEST TO ORDER ---", "color: #3b82f6; font-weight: bold; font-size: 14px; text-decoration: underline;");
     console.log("JSON Payload:", payload);
-    if (typeof fallback === 'function') await fallback(requestId);
+    if (typeof fallback === 'function') {
+      const result = await fallback(requestId);
+      if (result?.error) throw result.error;
+      return result;
+    }
     return true;
   },
 

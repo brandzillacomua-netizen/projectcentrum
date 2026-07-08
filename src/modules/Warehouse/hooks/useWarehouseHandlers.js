@@ -562,15 +562,68 @@ export const useWarehouseHandlers = ({
   const handleDeleteEntireRequest = async (reqList, displayNum) => {
     if (!window.confirm(`Ви впевнені, що хочете повністю видалити весь запит для НАРЯДУ #${displayNum} з бази даних? (${reqList.length} позицій)`)) return
     try {
-      const ids = reqList.map(r => r.id)
+      const firstReq = reqList[0]
+      if (!firstReq) return
+
+      // The card receives only requests visible on the active tab. Fetch the
+      // complete order/task request from DB so hidden issued/partial rows are
+      // removed as well.
+      let allRowsQuery = supabaseClient
+        .from('material_requests')
+        .select('*')
+      if (firstReq.task_id) {
+        allRowsQuery = allRowsQuery.eq('task_id', firstReq.task_id)
+      } else {
+        allRowsQuery = allRowsQuery.eq('order_id', firstReq.order_id)
+      }
+
+      const { data: allRows, error: fetchError } = await allRowsQuery
+      if (fetchError) throw fetchError
+
+      const rowsToDelete = allRows || []
+      const ids = rowsToDelete.map(r => r.id)
+      if (ids.length === 0) return
+
+      // Release every reservation represented by an issued request.
+      const releaseByInventory = {}
+      rowsToDelete.forEach(req => {
+        if (req.status === 'issued' && req.inventory_id) {
+          releaseByInventory[req.inventory_id] = (releaseByInventory[req.inventory_id] || 0) + (Number(req.quantity) || 0)
+        }
+      })
+      for (const [inventoryId, qty] of Object.entries(releaseByInventory)) {
+        const { data: invRow, error: invError } = await supabaseClient
+          .from('inventory')
+          .select('id,reserved_qty')
+          .eq('id', inventoryId)
+          .maybeSingle()
+        if (invError) throw invError
+        if (invRow) {
+          const { error: releaseError } = await supabaseClient
+            .from('inventory')
+            .update({ reserved_qty: Math.max(0, (Number(invRow.reserved_qty) || 0) - qty) })
+            .eq('id', inventoryId)
+          if (releaseError) throw releaseError
+        }
+      }
+
       const { error } = await supabaseClient
         .from('material_requests')
         .delete()
         .in('id', ids)
       if (error) throw error
+
+      if (firstReq.task_id) {
+        const { error: taskError } = await supabaseClient
+          .from('tasks')
+          .update({ warehouse_conf: 'false' })
+          .eq('id', firstReq.task_id)
+        if (taskError) throw taskError
+      }
+
       alert('Запит для наряду успішно видалено!')
       if (typeof fetchData === 'function') {
-        fetchData(['material_requests'])
+        fetchData(['material_requests', 'inventory', 'tasks'])
       }
     } catch (e) {
       console.error(e)
@@ -744,7 +797,7 @@ export const useWarehouseHandlers = ({
     })
 
     setProcessingTasks(prev => new Set(prev).add(taskId))
-    apiService.submitReserveBatch(orderId, reqList, taskId, issueMaterialsBatch).then(() => {
+    apiService.submitReserveBatch(orderId, reqList, taskId, issueMaterialsBatch).then((result) => {
       setProcessingTasks(prev => {
         const next = new Set(prev)
         next.delete(taskId)
@@ -759,8 +812,10 @@ export const useWarehouseHandlers = ({
         setShortages({ orderId, orderNum, taskId, items: nonPreparedMissing, reqList })
       } else if (missingItems.length > 0) {
         // Only prepared sheets missing, wait
-      } else {
+      } else if (result?.fullyIssued) {
         alert('Наряд повністю зарезервовано та погоджено!')
+      } else {
+        alert('Видано наявну кількість. Недостача залишилась у заявках на комплектування.')
       }
     }).catch(err => {
       setProcessingTasks(prev => {
@@ -775,10 +830,22 @@ export const useWarehouseHandlers = ({
   const sendPurchaseRequest = async () => {
     if (!shortages || isProcessing) return
     
-    const alreadySent = (purchaseRequests || []).some(
-      pr => (shortages.taskId ? String(pr.task_id) === String(shortages.taskId) : String(pr.order_id) === String(shortages.orderId)) && 
-            ['pending', 'accepted', 'ordered'].includes(pr.status)
-    )
+    const shortageMatchesPurchaseItem = (shortageItem, purchaseItem) => {
+      if (shortageItem.nomenclature_id && purchaseItem.nomenclature_id) {
+        return String(shortageItem.nomenclature_id) === String(purchaseItem.nomenclature_id)
+      }
+      const shortageName = shortageItem.name || shortageItem.reqDetails || shortageItem.details || ''
+      const purchaseName = purchaseItem.name || purchaseItem.reqDetails || purchaseItem.details || ''
+      return normalize(shortageName) === normalize(purchaseName)
+    }
+    const alreadySent = (purchaseRequests || []).some(pr => {
+      const sameOrder = shortages.taskId
+        ? String(pr.task_id) === String(shortages.taskId)
+        : String(pr.order_id) === String(shortages.orderId)
+      return sameOrder && ['pending', 'accepted', 'ordered'].includes(pr.status) &&
+        Array.isArray(pr.items) &&
+        shortages.items.some(shortage => pr.items.some(item => shortageMatchesPurchaseItem(shortage, item)))
+    })
     if (alreadySent) {
       alert('Запит для цього наряду вже був надісланий раніше.')
       setShortages(null)
