@@ -675,3 +675,84 @@ body {
   animation: pulse-blue 2s infinite;
 }
 
+
+
+/* --- Machine badges and inputs in master workplace --- */
+.machine-name-display {
+  color: #fff;
+  background: #222;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+
+.machine-badge {
+  font-size: 0.75rem;
+  font-weight: 800;
+  background: #000;
+  padding: 8px 10px;
+  border-radius: 8px;
+  text-align: center;
+}
+.machine-badge.assigned {
+  border: 1px solid #333;
+  color: #fff;
+}
+.machine-badge.unassigned {
+  border: 1px solid #ef4444;
+  color: #ef4444;
+}
+
+.capacity-input {
+  width: 65px;
+  background: #000;
+  padding: 10px 5px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 950;
+  text-align: center;
+  outline: none;
+}
+.capacity-input:not(.disabled) {
+  border: 1px solid #ff9000;
+  color: #ff9000;
+  cursor: text;
+}
+.capacity-input.disabled {
+  border: 1px solid #222;
+  color: #444;
+  cursor: default;
+}
+
+.split-machine-item {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  background: #080808;
+  padding: 5px;
+  border-radius: 8px;
+  border: 1px solid #151515;
+}
+
+.split-sheets-input {
+  width: 80px;
+  background: #000;
+  border: 1px solid #333;
+  color: #fff;
+  padding: 10px 5px;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 950;
+  text-align: center;
+  outline: none;
+}
+
+.split-machine-select {
+  flex: 1;
+  background: #000;
+  border: 1px solid #222;
+  color: #fff;
+  padding: 5px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+}

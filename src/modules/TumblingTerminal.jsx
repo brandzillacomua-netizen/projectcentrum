@@ -168,7 +168,9 @@ export default function TumblingTerminal() {
       }
 
       // Check state
-      const isWaiting = card.status === 'at-buffer' && (card.operation === 'Розкрій' || card.operation === 'Галтовка (Вібростіл)' || card.operation === 'Галтовка (Мийка)' || card.operation === 'Галтовка (Галтовка)')
+      const isWaiting = 
+        (card.status === 'at-buffer' && (card.operation === 'Розкрій' || card.operation === 'Галтовка (Вібростіл)' || card.operation === 'Галтовка (Мийка)' || card.operation === 'Галтовка (Галтовка)')) ||
+        (card.status === 'new' && (card.operation === 'Галтовка (Вібростіл)' || card.operation === 'Галтовка (Мийка)' || card.operation === 'Галтовка (Галтовка)' || card.operation === 'Галтовка (Сушка)'))
       const isInWork = card.status === 'in-progress' && card.operation?.startsWith('Галтовка')
 
       if (isWaiting) {
@@ -207,7 +209,7 @@ export default function TumblingTerminal() {
     try {
       const now = new Date().toISOString()
       const bufferStart = card.completed_at || card.started_at || now
-      const nextOp = getNextTumblingOperation(card.operation)
+      const nextOp = card.status === 'new' ? card.operation : getNextTumblingOperation(card.operation)
 
       // 1. Insert history log for waiting buffer
       await supabase.from('work_card_history').insert([{
@@ -506,7 +508,10 @@ export default function TumblingTerminal() {
   // 1. Waiting cards: cards at buffer waiting for next tumbling sub-stage (sorted by kitRatio -> deadline -> FIFO)
   const waitingCards = useMemo(() => {
     return workCards
-      .filter(c => c.status === 'at-buffer' && (c.operation === 'Розкрій' || c.operation === 'Галтовка (Вібростіл)' || c.operation === 'Галтовка (Мийка)' || c.operation === 'Галтовка (Галтовка)'))
+      .filter(c => 
+        (c.status === 'at-buffer' && (c.operation === 'Розкрій' || c.operation === 'Галтовка (Вібростіл)' || c.operation === 'Галтовка (Мийка)' || c.operation === 'Галтовка (Галтовка)')) ||
+        (c.status === 'new' && (c.operation === 'Галтовка (Вібростіл)' || c.operation === 'Галтовка (Мийка)' || c.operation === 'Галтовка (Галтовка)' || c.operation === 'Галтовка (Сушка)'))
+      )
       .map(card => {
         const isBottleneck = bottleneckNomenclaturesMap[card.nomenclature_id] || false
         
@@ -562,11 +567,12 @@ export default function TumblingTerminal() {
     if (subStageFilter !== 'all') {
       list = list.filter(c => {
         if (c.type === 'waiting') {
-          // Waiting cards: operation indicates the PREVIOUS stage
-          if (subStageFilter === 'вибростил') return c.operation === 'Розкрій'
-          if (subStageFilter === 'мийка') return c.operation === 'Галтовка (Вібростіл)'
-          if (subStageFilter === 'галтовка') return c.operation === 'Галтовка (Мийка)'
-          if (subStageFilter === 'сушка') return c.operation === 'Галтовка (Галтовка)'
+          // Waiting cards: if 'new', targets current op; if 'at-buffer', targets next op
+          const targetOp = c.status === 'new' ? c.operation : getNextTumblingOperation(c.operation)
+          if (subStageFilter === 'вибростил') return targetOp === 'Галтовка (Вібростіл)'
+          if (subStageFilter === 'мийка') return targetOp === 'Галтовка (Мийка)'
+          if (subStageFilter === 'галтовка') return targetOp === 'Галтовка (Галтовка)'
+          if (subStageFilter === 'сушка') return targetOp === 'Галтовка (Сушка)'
         } else {
           // In-work cards: operation indicates the ACTIVE stage
           if (subStageFilter === 'вибростил') return c.operation === 'Галтовка (Вібростіл)'
@@ -721,10 +727,10 @@ export default function TumblingTerminal() {
             <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '4px', scrollbarWidth: 'none' }} className="hide-scrollbar">
               {[
                 { id: 'all', label: 'Усі під-етапи', count: waitingCards.length + inWorkCards.length },
-                { id: 'вибростил', label: '1 - Вібростіл', count: waitingCards.filter(c => c.operation === 'Розкрій').length + inWorkCards.filter(c => c.operation === 'Галтовка (Вібростіл)').length },
-                { id: 'мийка', label: '2 - Мийка', count: waitingCards.filter(c => c.operation === 'Галтовка (Вібростіл)').length + inWorkCards.filter(c => c.operation === 'Галтовка (Мийка)').length },
-                { id: 'галтовка', label: '3 - Галтовка', count: waitingCards.filter(c => c.operation === 'Галтовка (Мийка)').length + inWorkCards.filter(c => c.operation === 'Галтовка (Галтовка)').length },
-                { id: 'сушка', label: '4 - Сушка', count: waitingCards.filter(c => c.operation === 'Галтовка (Галтовка)').length + inWorkCards.filter(c => c.operation === 'Галтовка (Сушка)').length }
+                { id: 'вибростил', label: '1 - Вібростіл', count: waitingCards.filter(c => (c.status === 'new' ? c.operation : getNextTumblingOperation(c.operation)) === 'Галтовка (Вібростіл)').length + inWorkCards.filter(c => c.operation === 'Галтовка (Вібростіл)').length },
+                { id: 'мийка', label: '2 - Мийка', count: waitingCards.filter(c => (c.status === 'new' ? c.operation : getNextTumblingOperation(c.operation)) === 'Галтовка (Мийка)').length + inWorkCards.filter(c => c.operation === 'Галтовка (Мийка)').length },
+                { id: 'галтовка', label: '3 - Галтовка', count: waitingCards.filter(c => (c.status === 'new' ? c.operation : getNextTumblingOperation(c.operation)) === 'Галтовка (Галтовка)').length + inWorkCards.filter(c => c.operation === 'Галтовка (Галтовка)').length },
+                { id: 'сушка', label: '4 - Сушка', count: waitingCards.filter(c => (c.status === 'new' ? c.operation : getNextTumblingOperation(c.operation)) === 'Галтовка (Сушка)').length + inWorkCards.filter(c => c.operation === 'Галтовка (Сушка)').length }
               ].map(sub => (
                 <button
                   key={sub.id}

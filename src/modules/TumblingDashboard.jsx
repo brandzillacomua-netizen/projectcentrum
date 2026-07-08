@@ -170,7 +170,9 @@ export default function TumblingDashboard() {
          } else if (compCards.some(c => c.status === 'in-progress' && c.operation?.startsWith('Галтовка'))) {
            statusText = '⚡ У роботі'
            statusColor = '#10b981'
-         } else if (compCards.some(c => c.status === 'at-buffer' && (c.operation === 'Розкрій' || c.operation === 'Галтовка (Вібростіл)' || c.operation === 'Галтовка (Мийка)' || c.operation === 'Галтовка (Галтовка)'))) {
+         } else if (compCards.some(c => ((c.status === 'at-buffer' && (c.operation === 'Розкрій' || c.operation === 'Галтовка (Вібростіл)' || c.operation === 'Галтовка (Мийка)' || c.operation === 'Галтовка (Галтовка)')) ||
+        (c.status === 'new' && (c.operation === 'Галтовка (Вібростіл)' || c.operation === 'Галтовка (Мийка)' || c.operation === 'Галтовка (Галтовка)' || c.operation === 'Галтовка (Сушка)'))) ||
+        (c.status === 'new' && (c.operation === 'Галтовка (Вібростіл)' || c.operation === 'Галтовка (Мийка)' || c.operation === 'Галтовка (Галтовка)' || c.operation === 'Галтовка (Сушка)')))) {
            statusText = '⚙️ В черзі'
            statusColor = '#06b6d4'
          } else {

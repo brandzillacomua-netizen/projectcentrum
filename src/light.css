@@ -5,7 +5,7 @@
   --text: #0f172a;
   --text-muted: #64748b;
   --secondary: #e2e8f0;
-  --shadow: 0 10px 30px rgba(0,0,0,0.03), 0 1px 3px rgba(0,0,0,0.01);
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.01);
 }
 
 body.light-theme {
@@ -14,11 +14,11 @@ body.light-theme {
 }
 
 /* Global resets for light theme */
-.light-theme h1, 
-.light-theme h2, 
-.light-theme h3, 
-.light-theme h4, 
-.light-theme h5, 
+.light-theme h1,
+.light-theme h2,
+.light-theme h3,
+.light-theme h4,
+.light-theme h5,
 .light-theme h6 {
   color: var(--text) !important;
 }
@@ -31,8 +31,8 @@ body.light-theme {
   box-shadow: var(--shadow) !important;
 }
 
-.light-theme .form-group input, 
-.light-theme .form-group select, 
+.light-theme .form-group input,
+.light-theme .form-group select,
 .light-theme .form-group textarea,
 .light-theme input[type="text"],
 .light-theme input[type="number"] {
@@ -41,7 +41,7 @@ body.light-theme {
   color: #0f172a !important;
 }
 
-.light-theme .form-group input:focus, 
+.light-theme .form-group input:focus,
 .light-theme .form-group select:focus,
 .light-theme input[type="text"]:focus,
 .light-theme input[type="number"]:focus {
@@ -78,7 +78,7 @@ body.light-theme {
 }
 
 .light-theme .burger-btn:hover {
-  background: rgba(0,0,0,0.05) !important;
+  background: rgba(0, 0, 0, 0.05) !important;
 }
 
 .light-theme .burger-btn-labeled {

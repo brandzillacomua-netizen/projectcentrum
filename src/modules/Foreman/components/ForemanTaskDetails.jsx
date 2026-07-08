@@ -406,7 +406,7 @@ export function ForemanTaskDetails({
               )}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ color: '#555' }}>ВЕРСТАТ:</span>
-                <span style={{ color: '#fff', background: '#222', padding: '4px 10px', borderRadius: '8px', fontSize: '0.95rem' }}>{task.machine_name || 'Не вказано'}</span>
+                <span className="machine-name-display">{task.machine_name || 'Не вказано'}</span>
                 {task.status !== 'completed' && (
                   <button
                     onClick={() => {
@@ -563,7 +563,7 @@ export function ForemanTaskDetails({
                           {!isSplitMode ? (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', minWidth: '220px' }}>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', flex: 1 }}>
-                                <div style={{ fontSize: '0.75rem', fontWeight: 800, background: '#000', padding: '8px 10px', borderRadius: '8px', border: rowMachineName ? '1px solid #333' : '1px solid #ef4444', textAlign: 'center', color: rowMachineName ? '#fff' : '#ef4444' }}>
+                                <div className={`machine-badge ${rowMachineName ? 'assigned' : 'unassigned'}`}>
                                   {rowMachineName || 'Оберіть тип верстата'}
                                 </div>
                                 {plan > 0 && (
@@ -610,19 +610,7 @@ export function ForemanTaskDetails({
                                       else v = Math.min(maxCapacity, Math.max(defaultCapacity, v));
                                       setRowCapacities(p => ({ ...p, [rowId]: v }));
                                     }}
-                                    style={{
-                                      width: '65px',
-                                      background: '#000',
-                                      border: `1px solid ${productionCards.length > 0 && productionCards.length >= totalTargetLoads ? '#222' : '#ff9000'}`,
-                                      color: productionCards.length > 0 && productionCards.length >= totalTargetLoads ? '#444' : '#ff9000',
-                                      padding: '10px 5px',
-                                      borderRadius: '8px',
-                                      fontSize: '0.9rem',
-                                      fontWeight: 950,
-                                      textAlign: 'center',
-                                      cursor: productionCards.length > 0 && productionCards.length >= totalTargetLoads ? 'default' : 'text',
-                                      outline: 'none'
-                                    }}
+                                    className={`capacity-input ${productionCards.length > 0 && productionCards.length >= totalTargetLoads ? 'disabled' : ''}`}
                                   />
                                 </div>
                               )}
@@ -633,7 +621,7 @@ export function ForemanTaskDetails({
                                 const sh = Math.ceil(Number(s.qty) / (unitsPerSheet || 1))
                                 const l = Math.ceil(sh / cap)
                                 return (
-                                  <div key={sIdx} style={{ display: 'flex', gap: '5px', alignItems: 'center', background: '#080808', padding: '5px', borderRadius: '8px', border: '1px solid #151515' }}>
+                                  <div key={sIdx} className="split-machine-item">
                                     <input
                                       type="number"
                                       value={(s.sheets || (unitsPerSheet > 0 ? Math.ceil((s.qty || 0) / unitsPerSheet) : 0)) || ''}
@@ -649,7 +637,7 @@ export function ForemanTaskDetails({
                                       onBlur={() => {
                                         handleUpdateNomenclatureMachineAndRecalculate(task, nomId, null, splits)
                                       }}
-                                      style={{ width: '80px', background: '#000', border: '1px solid #333', color: '#fff', padding: '10px 5px', borderRadius: '8px', fontSize: '1rem', fontWeight: 950, textAlign: 'center', outline: 'none' }}
+                                      className="split-sheets-input"
                                     />
                                     <select
                                       value={s.machine || ''}
@@ -658,7 +646,7 @@ export function ForemanTaskDetails({
                                         newSplits[sIdx].machine = e.target.value
                                         debouncedUpdateSplits(task, nomId, newSplits)
                                       }}
-                                      style={{ flex: 1, background: '#000', border: '1px solid #222', color: '#fff', padding: '5px', borderRadius: '6px', fontSize: '0.7rem' }}
+                                      className="split-machine-select"
                                     >
                                       <option value="">Тип верстата</option>
                                       {MACHINE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
