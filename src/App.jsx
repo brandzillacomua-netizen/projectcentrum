@@ -152,7 +152,6 @@ const getAvailableModules = (currentUser, badgeCount) => {
     if (m.id === 'pressing_terminal') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.pressing_terminal || currentUser?.access_rights?.shop2;
     if (m.id === 'painting_terminal') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.painting_terminal || currentUser?.access_rights?.shop2;
     if (m.id === 'simulator') return currentUser?.position === 'Адмін' || currentUser?.role === 'admin';
-    if (m.id === 'warehouse_boxes') return currentUser?.access_rights?.warehouse || currentUser?.access_rights?.warehouse_boxes || currentUser?.access_rights?.master;
     return currentUser?.access_rights?.[m.id] === true;
   });
 }

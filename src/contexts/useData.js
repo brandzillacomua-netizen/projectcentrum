@@ -1094,6 +1094,17 @@ export function useData() {
     }
   }, [systemUsers])
 
+  // Sync currentUser changes to localStorage cache
+  useEffect(() => {
+    if (currentUser) {
+      const cleanUser = { ...currentUser }
+      delete cleanUser.token
+      localStorage.setItem('MES_SESSION_USER', JSON.stringify(cleanUser))
+    } else {
+      localStorage.removeItem('MES_SESSION_USER')
+    }
+  }, [currentUser])
+
   // --- INITIAL DATA FETCH + SESSION init run in parallel ---
   // fetchCritical does NOT depend on currentUser, so start it immediately
   const lastVisibilityRefreshRef = useRef(0)
