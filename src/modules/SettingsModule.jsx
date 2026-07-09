@@ -1925,7 +1925,7 @@ const SettingsModule = () => {
       return matchSearch && matchDept && matchPos && matchShift && matchOnline
     })
 
-    // Sort: Online users first, then by last_seen (most recent first), then fallback to login
+    // Sort: Online users first, then alphabetically (by last name, first name, or login)
     return [...list].sort((a, b) => {
       const aOnline = a.last_seen && (Date.now() - new Date(a.last_seen).getTime() < 120000)
       const bOnline = b.last_seen && (Date.now() - new Date(b.last_seen).getTime() < 120000)
@@ -1933,13 +1933,9 @@ const SettingsModule = () => {
       if (aOnline && !bOnline) return -1
       if (!aOnline && bOnline) return 1
       
-      const aTime = a.last_seen ? new Date(a.last_seen).getTime() : 0
-      const bTime = b.last_seen ? new Date(b.last_seen).getTime() : 0
-      if (aTime !== bTime) {
-        return bTime - aTime
-      }
-      
-      return a.login.localeCompare(b.login)
+      const aName = `${a.last_name || ''} ${a.first_name || ''} ${a.login || ''}`.trim()
+      const bName = `${b.last_name || ''} ${b.first_name || ''} ${b.login || ''}`.trim()
+      return aName.localeCompare(bName, 'uk')
     })
   }, [systemUsers, userSearch, filterDepartment, filterPosition, filterShift, filterOnlyOnline])
 
