@@ -1,9 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { Warehouse as WarehouseIcon, ArrowLeft, Search, Check, ListFilter, AlertCircle, Box } from 'lucide-react'
+import { Warehouse as WarehouseIcon, ArrowLeft, Search, Check, ListFilter, AlertCircle, Box, QrCode } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { useWarehouseComputed } from './Warehouse/hooks/useWarehouseComputed'
 import { useWarehouseHandlers } from './Warehouse/hooks/useWarehouseHandlers'
+import { ScannerPanel } from './Warehouse/components/ScannerPanel'
+import { KittingModal } from './Warehouse/components/KittingModal'
 
 const WarehouseBoxesModule = () => {
   const {
@@ -21,6 +23,13 @@ const WarehouseBoxesModule = () => {
   const [editingInvTotal, setEditingInvTotal] = useState('')
   const [editingInvReserved, setEditingInvReserved] = useState('')
   const [savingInv, setSavingInv] = useState(false)
+
+  // Scanning & kitting modal states (Identical to WarehouseModuleV2)
+  const [isScanning, setIsScanning] = useState(false)
+  const [cameraError, setCameraError] = useState(null)
+  const [manualCardInput, setManualCardInput] = useState('')
+  const [kittingBoxItem, setKittingBoxItem] = useState(null)
+  const [scannedRequests, setScannedRequests] = useState([])
 
   // Local interactive states
   const [selectedOrderNum, setSelectedOrderNum] = useState('all')
@@ -40,10 +49,55 @@ const WarehouseBoxesModule = () => {
   const [editingQty] = useState({})
   const [savingQty] = useState(new Set())
   const [shortages, setShortages] = useState(null)
-  const [scannedRequests] = useState([])
   const [newItem] = useState({ name: '', unit: 'шт', total_qty: '', type: 'raw', pocket_owner: '' })
 
+  // Active tab context is boxes
   const activeTab = 'boxes'
+
+  // Scanner effect (Identical to WarehouseModuleV2)
+  useEffect(() => {
+    let html5QrCode = null
+    let timer = null
+    
+    if (isScanning && window.Html5Qrcode) {
+      const startScanner = () => {
+        const el = document.getElementById("reader")
+        if (!el) {
+          timer = setTimeout(startScanner, 50)
+          return
+        }
+        try {
+          html5QrCode = new window.Html5Qrcode("reader")
+          const config = { fps: 15, qrbox: { width: 260, height: 260 } }
+          const stopAndClose = async () => {
+            if (html5QrCode && html5QrCode.isScanning) await html5QrCode.stop().catch(() => { })
+            setIsScanning(false)
+          }
+          html5QrCode.start({ facingMode: "environment" }, config, async (decodedText) => {
+            let cardId = decodedText.trim()
+            if (cardId.startsWith("CENTRUM_CARD_")) {
+              cardId = cardId.replace("CENTRUM_CARD_", "").trim()
+            }
+            await stopAndClose()
+            handlers.handleCardScan(cardId)
+          }).catch(err => { 
+            console.error("Camera error:", err)
+            setIsScanning(false) 
+          })
+        } catch (e) {
+          console.error("Scanner init error:", e)
+          setIsScanning(false)
+        }
+      }
+
+      timer = setTimeout(startScanner, 120)
+    }
+    
+    return () => {
+      clearTimeout(timer)
+      if (html5QrCode && html5QrCode.isScanning) html5QrCode.stop().catch(() => { })
+    }
+  }, [isScanning])
 
   const { cardsWithBoxes } = useWarehouseComputed({
     requests, tasks, receptionDocs, nomenclatures, inventory,
@@ -63,7 +117,8 @@ const WarehouseBoxesModule = () => {
     checkedCutters, setCheckedCutters,
     editingQty, savingQty,
     editingInvTotal, editingInvReserved, savingInv,
-    scannedRequests, shortages, isProcessing, newItem
+    scannedRequests, shortages, isProcessing, newItem,
+    setIsScanning, setKittingBoxItem, setScannedRequests, setCameraError, setManualCardInput
   })
 
   // Process & group all cards with boxes
@@ -143,7 +198,8 @@ const WarehouseBoxesModule = () => {
         alignItems: 'center',
         justifyContent: 'space-between',
         borderBottom: '1px solid #222',
-        boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
+        boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+        zIndex: 100
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : '20px' }}>
           <Link to="/" style={{ color: '#aaa', transition: '0.2s', display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
@@ -164,6 +220,26 @@ const WarehouseBoxesModule = () => {
           </span>
         </div>
       </nav>
+
+      {/* Camera Scanner Overlay Panel */}
+      <ScannerPanel
+        isScanning={isScanning}
+        setIsScanning={setIsScanning}
+        cameraError={cameraError}
+        manualCardInput={manualCardInput}
+        setManualCardInput={setManualCardInput}
+        handleCardScan={handlers.handleCardScan}
+      />
+
+      {/* Kitting Modal (opens upon successful scan) */}
+      <KittingModal
+        kittingBoxItem={kittingBoxItem}
+        setKittingBoxItem={setKittingBoxItem}
+        checkedCutters={checkedCutters}
+        handleToggleCutterCheck={handlers.handleToggleCutterCheck}
+        handlePrepareBox={handlers.handlePrepareBox}
+        isProcessing={isProcessing}
+      />
 
       {/* Workspace */}
       <div style={{ display: 'flex', flex: 1, flexDirection: 'row', overflow: 'hidden' }}>
@@ -556,6 +632,39 @@ const WarehouseBoxesModule = () => {
           )}
         </main>
       </div>
+
+      {/* Floating Action Button (FAB) Scanner Widget */}
+      <button
+        onClick={() => setIsScanning(true)}
+        style={{
+          position: 'fixed',
+          bottom: '25px',
+          right: '25px',
+          width: '60px',
+          height: '60px',
+          borderRadius: '50%',
+          background: 'linear-gradient(135deg, #ff9000, #e68000)',
+          color: '#000',
+          border: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          boxShadow: '0 8px 30px rgba(255, 144, 0, 0.35), 0 0 15px rgba(255, 144, 0, 0.2)',
+          zIndex: 850,
+          transition: 'all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+        }}
+        onMouseEnter={e => {
+          e.currentTarget.style.transform = 'scale(1.1) translateY(-2px)'
+          e.currentTarget.style.boxShadow = '0 12px 35px rgba(255, 144, 0, 0.45)'
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.transform = 'scale(1) translateY(0)'
+          e.currentTarget.style.boxShadow = '0 8px 30px rgba(255, 144, 0, 0.35)'
+        }}
+      >
+        <QrCode size={26} strokeWidth={2.5} />
+      </button>
     </div>
   )
 }
