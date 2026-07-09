@@ -70,6 +70,7 @@ const SortingTerminal = lazy(() => import('./modules/SortingTerminal'))
 const SimulatorModule = lazy(() => import('./modules/SimulatorModule'))
 const PaintingTerminal = lazy(() => import('./modules/PaintingTerminal'))
 const PressingTerminal = lazy(() => import('./modules/PressingTerminal'))
+const WarehouseBoxesModule = lazy(() => import('./modules/WarehouseBoxesModule'))
 
 import { MESProvider, useMES } from './MESContext'
 import { subscribeToPush } from './services/pushService'
@@ -109,6 +110,7 @@ const getAllModules = (badgeCount = 0) => [
 
   // 3. Склад, Постачання та Логістика
   { id: 'warehouse', title: 'Склад Оперативний', icon: <Warehouse />, path: '/warehouse', desc: 'Матеріали та залишки', color: '#10b981' },
+  { id: 'warehouse_boxes', title: 'Бокси фрез (СО)', icon: <Package />, path: '/warehouse-boxes', desc: 'Підготовка боксів для карток', color: '#f59e0b' },
   { id: 'supply', title: 'Склад Виробництва', icon: <Warehouse />, path: '/supply', desc: 'Управління запасами та запити', color: '#06b6d4' },
   { id: 'procurement', title: 'Постачання', icon: <ShoppingBag />, path: '/procurement', desc: 'Закупівля ТМЦ у постачальників', color: '#ec4899' },
   { id: 'packaging', title: 'Пакування', icon: <Package />, path: '/packaging', desc: 'Комплектування', color: '#f43f5e' },
@@ -150,6 +152,7 @@ const getAvailableModules = (currentUser, badgeCount) => {
     if (m.id === 'pressing_terminal') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.pressing_terminal || currentUser?.access_rights?.shop2;
     if (m.id === 'painting_terminal') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.painting_terminal || currentUser?.access_rights?.shop2;
     if (m.id === 'simulator') return currentUser?.position === 'Адмін' || currentUser?.role === 'admin';
+    if (m.id === 'warehouse_boxes') return currentUser?.access_rights?.warehouse || currentUser?.access_rights?.warehouse_boxes || currentUser?.access_rights?.master;
     return currentUser?.access_rights?.[m.id] === true;
   });
 }
@@ -2704,6 +2707,7 @@ const AppContent = () => {
           <Route path="/foreman-dashboard" element={<PermissionGuard id="foreman_dashboard"><ForemanDashboardModule /></PermissionGuard>} />
           <Route path="/manager" element={<PermissionGuard id="manager"><ManagerModule /></PermissionGuard>} />
           <Route path="/warehouse" element={<PermissionGuard id="warehouse"><WarehouseModule /></PermissionGuard>} />
+          <Route path="/warehouse-boxes" element={<PermissionGuard id="warehouse_boxes"><WarehouseBoxesModule /></PermissionGuard>} />
           <Route path="/master" element={<PermissionGuard id="master"><MasterModule /></PermissionGuard>} />
           <Route path="/foreman" element={<PermissionGuard id="foreman"><ForemanWorkplace /></PermissionGuard>} />
           <Route path="/operator" element={<PermissionGuard id="operator"><OperatorTerminal /></PermissionGuard>} />
