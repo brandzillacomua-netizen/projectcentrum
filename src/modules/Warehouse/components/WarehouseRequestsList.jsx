@@ -13,7 +13,7 @@ export function WarehouseRequestsList({
   setEditingQty,
   savingQty
 }) {
-  const { nomenclatures, tasks, orders, currentUser } = useMES()
+  const { nomenclatures, tasks, orders, workCards, currentUser } = useMES()
 
   const parseMaterialName = (details) => {
     if (!details) return ''
@@ -31,16 +31,31 @@ export function WarehouseRequestsList({
         const firstReq = reqList[0]
         const orderId = firstReq.order_id
         const taskId = firstReq.task_id
-        
+
         const task = (tasks || []).find(t => t.id === taskId)
         const order = (orders || []).find(o => String(o.id) === String(orderId))
         const orderNum = order?.order_num || '???'
         const displayNum = task?.batch_index ? `${orderNum}/${task.batch_index}` : orderNum
 
+        // card-specific reissue group?
+        const isCardGroup = key.startsWith('card-')
+        const reissueCard = isCardGroup
+          ? (workCards || []).find(c => String(c.id) === String(firstReq.card_id))
+          : null
+        const reissueNom = reissueCard
+          ? (nomenclatures || []).find(n => String(n.id) === String(reissueCard.nomenclature_id))
+          : null
+        const cardSeq = reissueCard
+          ? ((reissueCard.card_info || '').match(/(\d+\/\d+)/)?.[1] || '')
+          : ''
+        const cardLabel = isCardGroup
+          ? `НАРЯД #${displayNum} (Довипуск${reissueNom ? ': ' + reissueNom.name : ''}${cardSeq ? ' [' + cardSeq + ']' : ''})`
+          : `НАРЯД #${displayNum}`
+
         return (
-          <div key={key} style={{ minWidth: '320px', background: '#111', padding: '18px', borderRadius: '16px', border: '1px solid #222', display: 'flex', flexDirection: 'column' }}>
+          <div key={key} style={{ minWidth: '320px', background: '#111', padding: '18px', borderRadius: '16px', border: isCardGroup ? '1px solid #78350f' : '1px solid #222', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <span style={{ fontSize: '0.85rem', fontWeight: 800 }}>НАРЯД #{displayNum}</span>
+              <span style={{ fontSize: '0.85rem', fontWeight: 800, color: isCardGroup ? '#f59e0b' : '#fff' }}>{cardLabel}</span>
               {currentUser?.login === 'admin@workshop.local' && (
                 <button onClick={() => handleDeleteEntireRequest(reqList, displayNum)} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer' }}><Trash2 size={13} /></button>
               )}

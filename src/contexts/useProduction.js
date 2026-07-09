@@ -429,7 +429,7 @@ export function createProductionActions({
     refreshTable('orders')
   }
 
-  const createDovyпускMaterialRequests = async (taskId, orderId, partNom, sheets, quantity, selectedMachineName = null) => {
+  const createDovyпускMaterialRequests = async (taskId, orderId, partNom, sheets, quantity, selectedMachineName = null, cardId = null) => {
     try {
       const order = orders.find(o => String(o.id) === String(orderId))
 
@@ -503,6 +503,7 @@ export function createProductionActions({
         requestsToInsert.push({
           order_id: orderId,
           task_id: taskId,
+          card_id: cardId,
           quantity: sheets,
           status: 'pending',
           inventory_id: invItem?.id || null,
@@ -681,6 +682,7 @@ export function createProductionActions({
           requestsToInsert.push({
             order_id: orderId,
             task_id: taskId,
+            card_id: cardId,
             quantity: item.qty,
             status: 'pending',
             inventory_id: consInvItem?.id || null,
@@ -716,7 +718,7 @@ export function createProductionActions({
       const partNom = nomenclatures.find(n => n.id === nomenclatureId)
       const unitsPerSheet = partNom?.units_per_sheet || 1
       const sheets = Math.ceil(Number(quantity) / unitsPerSheet)
-      await createDovyпускMaterialRequests(taskId, orderId, partNom, sheets, Number(quantity), machine)
+      await createDovyпускMaterialRequests(taskId, orderId, partNom, sheets, Number(quantity), machine, data?.id || null)
     }
 
     // Only refresh affected tables (work_cards + tasks), not everything

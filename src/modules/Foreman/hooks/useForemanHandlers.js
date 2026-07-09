@@ -801,7 +801,8 @@ export function useForemanHandlers({
 
       if (isRepair && sheets > 0) {
         const totalQty = finalCount * capacity * unitsPerSheet
-        await createDovyпускMaterialRequests(task.id, task.order_id, part.nom, sheets, totalQty, selectedMachineName)
+        const reissueCardId = createdCards?.[0]?.id || null
+        await createDovyпускMaterialRequests(task.id, task.order_id, part.nom, sheets, totalQty, selectedMachineName, reissueCardId)
       }
 
       if (createdCards && createdCards.length > 0) {

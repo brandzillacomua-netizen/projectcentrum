@@ -496,6 +496,7 @@ const WarehouseModuleV2 = () => {
           setShowReception={setShowReception}
           approveWarehouse={approveWarehouse}
           handleReserveOrder={handlers.handleReserveOrder}
+          workCards={workCards}
         />
 
         {/* Tabs Bar */}

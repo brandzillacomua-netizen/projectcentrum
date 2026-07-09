@@ -20,7 +20,8 @@ export const ConsumablesQueue = ({
   processingTasks,
   setShowReception,
   approveWarehouse,
-  handleReserveOrder
+  handleReserveOrder,
+  workCards
 }) => {
   if (Object.keys(groupedRequests).length === 0) return null
 
@@ -36,11 +37,27 @@ export const ConsumablesQueue = ({
           const actionableReqs = pendingReqs.length > 0 ? pendingReqs : reqList
           const orderId = firstReq.order_id
           const taskId = firstReq.task_id
-          
+
+          // card-specific reissue group?
+          const isCardGroup = key.startsWith('card-')
+          const reissueCard = isCardGroup
+            ? (workCards || []).find(c => String(c.id) === String(firstReq.card_id))
+            : null
+          const reissueNom = reissueCard
+            ? (nomenclatures || []).find(n => String(n.id) === String(reissueCard.nomenclature_id))
+            : null
+          const cardSeq = reissueCard
+            ? ((reissueCard.card_info || '').match(/(\d+\/\d+)/)?.[1] || '')
+            : ''
+
           const task = (tasks || []).find(t => t.id === taskId)
           const order = (orders || []).find(o => String(o.id) === String(orderId))
           const orderNum = order?.order_num || '???'
           const displayNum = task?.batch_index ? `${orderNum}/${task.batch_index}` : orderNum
+
+          const cardLabel = isCardGroup
+            ? `НАРЯД #${displayNum} (Довипуск${reissueNom ? ': ' + reissueNom.name : ''}${cardSeq ? ' [' + cardSeq + ']' : ''})`
+            : `НАРЯД #${displayNum}`
 
           const documentCoversCard = (doc) => {
             const sameOrder = doc.task_id
@@ -158,9 +175,9 @@ export const ConsumablesQueue = ({
           const textColor = isAwaiting ? '#444' : '#000'
 
           return (
-            <div key={key} style={{ minWidth: '300px', background: '#111', padding: '15px', borderRadius: '15px', border: '1px solid #222' }}>
+            <div key={key} style={{ minWidth: '300px', background: '#111', padding: '15px', borderRadius: '15px', border: isCardGroup ? '1px solid #333' : '1px solid #222' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                <strong style={{ fontSize: '0.75rem' }}>НАРЯД #{displayNum}</strong>
+                <strong style={{ fontSize: '0.75rem', color: isCardGroup ? '#f59e0b' : '#fff' }}>{cardLabel}</strong>
                 {currentUser?.login === 'admin@workshop.local' && (
                   <button
                     type="button"

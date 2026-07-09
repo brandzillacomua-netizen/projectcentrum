@@ -274,7 +274,9 @@ export const useWarehouseComputed = ({
 
   const groupedRequests = useMemo(() => {
     return pendingRequests.reduce((acc, req) => {
-      const key = req.task_id || `order-${req.order_id}`
+      const key = req.card_id
+        ? `card-${req.card_id}`
+        : (req.task_id || `order-${req.order_id}`)
       if (!acc[key]) acc[key] = []
       acc[key].push(req)
       return acc
