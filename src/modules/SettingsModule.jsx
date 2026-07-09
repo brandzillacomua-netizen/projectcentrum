@@ -1706,7 +1706,7 @@ const SettingsModule = () => {
     access_rights: {
       dashboard: false, foreman_dashboard: false, manager: false, master: false, warehouse: false, engineer: false, 
       director: false, foreman: false, operator: true, shipping: false, 
-      supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, packaging: false, kanban: false, reports: false, tumbling_terminal: false, tumbling_dashboard: false, reception_terminal: false, sorting_terminal: false
+      supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, packaging: false, kanban: false, reports: false, tumbling_terminal: false, tumbling_dashboard: false, reception_terminal: false, sorting_terminal: false, painting_terminal: false, pressing_terminal: false
     }
   })
 
@@ -1775,7 +1775,7 @@ const SettingsModule = () => {
     setUserForm({
       id: null, login: '', password: '', first_name: '', last_name: '', 
       position: companyPositions?.[0]?.name || 'Оператор', department: companyStructure?.[0]?.name || 'Цех №1', shift: 'Без зміни',
-      access_rights: { dashboard: false, foreman_dashboard: false, manager: false, master: false, warehouse: false, engineer: false, director: false, foreman: false, operator: true, prep_terminal: false, shipping: false, supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, kanban: false, reports: false, tumbling_terminal: false, tumbling_dashboard: false, reception_terminal: false, sorting_terminal: false }
+      access_rights: { dashboard: false, foreman_dashboard: false, manager: false, master: false, warehouse: false, engineer: false, director: false, foreman: false, operator: true, prep_terminal: false, shipping: false, supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, kanban: false, reports: false, tumbling_terminal: false, tumbling_dashboard: false, reception_terminal: false, sorting_terminal: false, painting_terminal: false, pressing_terminal: false }
     })
   }
 
@@ -1786,7 +1786,7 @@ const SettingsModule = () => {
       access_rights: {
         dashboard: false, foreman_dashboard: false, manager: false, master: false, warehouse: false, engineer: false, 
         director: false, foreman: false, operator: false, prep_terminal: false, shipping: false, 
-        supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, packaging: false, kanban: false, reports: false, tumbling_terminal: false, tumbling_dashboard: false, reception_terminal: false, sorting_terminal: false,
+        supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, packaging: false, kanban: false, reports: false, tumbling_terminal: false, tumbling_dashboard: false, reception_terminal: false, sorting_terminal: false, painting_terminal: false, pressing_terminal: false,
         ...(user.access_rights || {})
       }
     })
@@ -1980,6 +1980,8 @@ const SettingsModule = () => {
     { id: 'tumbling_dashboard', label: 'Дашборд Галтовки (TV)' },
     { id: 'reception_terminal', label: 'Екран Прийомки' },
     { id: 'sorting_terminal', label: 'Екран Сортування' },
+    { id: 'pressing_terminal', label: 'Екран Пресування' },
+    { id: 'painting_terminal', label: 'Екран Фарбування' },
     { id: 'shop1_foreman', label: 'Кабінет Нач. Цеху №1' },
     { id: 'shop2', label: 'Цех №2 (Черга)' },
     { id: 'shop2_terminal', label: 'Цех №2 · Термінал' },

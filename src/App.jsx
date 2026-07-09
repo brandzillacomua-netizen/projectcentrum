@@ -68,6 +68,8 @@ const TumblingDashboard = lazy(() => import('./modules/TumblingDashboard'))
 const ReceptionTerminal = lazy(() => import('./modules/ReceptionTerminal'))
 const SortingTerminal = lazy(() => import('./modules/SortingTerminal'))
 const SimulatorModule = lazy(() => import('./modules/SimulatorModule'))
+const PaintingTerminal = lazy(() => import('./modules/PaintingTerminal'))
+const PressingTerminal = lazy(() => import('./modules/PressingTerminal'))
 
 import { MESProvider, useMES } from './MESContext'
 import { subscribeToPush } from './services/pushService'
@@ -102,6 +104,8 @@ const getAllModules = (badgeCount = 0) => [
   // 2. Цех 2
   { id: 'shop2', title: 'Цех №2 - Створення РК', icon: <Monitor />, path: '/shop2', desc: 'Черга нарядів', color: '#8b5cf6' },
   { id: 'shop2_terminal', title: 'Цех №2 · Термінал', icon: <Tablet />, path: '/shop2-terminal', desc: 'Пресування → Фарбування → Доопрацювання', color: '#8b5cf6' },
+  { id: 'pressing_terminal', title: 'Екран Пресування', icon: <Tablet />, path: '/pressing-terminal', desc: 'Дільниця пресування', color: '#8b5cf6' },
+  { id: 'painting_terminal', title: 'Екран Фарбування', icon: <Tablet />, path: '/painting-terminal', desc: 'Дільниця фарбування', color: '#ec4899' },
 
   // 3. Склад, Постачання та Логістика
   { id: 'warehouse', title: 'Склад Оперативний', icon: <Warehouse />, path: '/warehouse', desc: 'Матеріали та залишки', color: '#10b981' },
@@ -143,6 +147,8 @@ const getAvailableModules = (currentUser, badgeCount) => {
     if (m.id === 'tumbling_dashboard') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.tumbling_dashboard || currentUser?.access_rights?.tumbling_terminal;
     if (m.id === 'reception_terminal') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.reception_terminal;
     if (m.id === 'sorting_terminal') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.sorting_terminal;
+    if (m.id === 'pressing_terminal') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.pressing_terminal || currentUser?.access_rights?.shop2;
+    if (m.id === 'painting_terminal') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.painting_terminal || currentUser?.access_rights?.shop2;
     if (m.id === 'simulator') return currentUser?.position === 'Адмін' || currentUser?.role === 'admin';
     return currentUser?.access_rights?.[m.id] === true;
   });
@@ -164,6 +170,8 @@ const CATEGORY_MAP = {
   // Цех 2
   shop2: 'shop2',
   shop2_terminal: 'shop2',
+  pressing_terminal: 'shop2',
+  painting_terminal: 'shop2',
 
   // Склад, Постачання та Логістика
   warehouse: 'warehouse_logistics',
@@ -2708,6 +2716,8 @@ const AppContent = () => {
           <Route path="/sorting-terminal" element={<PermissionGuard id="sorting_terminal"><SortingTerminal /></PermissionGuard>} />
           <Route path="/shop2" element={<PermissionGuard id="shop2"><Shop2Module /></PermissionGuard>} />
           <Route path="/shop2-terminal" element={<PermissionGuard id="shop2_terminal"><Shop2Terminal /></PermissionGuard>} />
+          <Route path="/pressing-terminal" element={<PermissionGuard id="pressing_terminal"><PressingTerminal /></PermissionGuard>} />
+          <Route path="/painting-terminal" element={<PermissionGuard id="painting_terminal"><PaintingTerminal /></PermissionGuard>} />
           <Route path="/packaging" element={<PermissionGuard id="packaging"><PackagingModule /></PermissionGuard>} />
           <Route path="/engineer" element={<PermissionGuard id="engineer"><EngineerModule /></PermissionGuard>} />
           <Route path="/director" element={<PermissionGuard id="director"><DirectorModule /></PermissionGuard>} />
