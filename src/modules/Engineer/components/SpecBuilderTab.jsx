@@ -98,7 +98,7 @@ function BomRow({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, supabas
         <option>Метизи</option>
         <option>Накладки</option>
       </select>
-      <input type="number" min="0.001" step="any" value={row.qty} onChange={e => onUpdate(idx, { qty: parseFloat(e.target.value) || 0 })} style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '8px', borderRadius: '6px', textAlign: 'center' }} />
+      <input type="number" min="0.001" step="any" value={row.qty} onChange={e => onUpdate(idx, { qty: e.target.value })} style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '8px', borderRadius: '6px', textAlign: 'center' }} />
       <button onClick={() => onRemove(idx)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}><Trash2 size={16} /></button>
     </div>
   )
@@ -147,7 +147,7 @@ export function SpecBuilderTab({
     setSaving(true)
     try {
       await supabase.from('bom_items').delete().eq('parent_id', parentId)
-      const payload = rows.map(r => ({ parent_id: parentId, child_id: r.nomId, quantity_per_parent: r.qty, group_label: r.group }))
+      const payload = rows.map(r => ({ parent_id: parentId, child_id: r.nomId, quantity_per_parent: Number(r.qty) || 0, group_label: r.group }))
       await supabase.from('bom_items').insert(payload)
       alert('Специфікацію збережено!')
       refreshTable('bom_items')

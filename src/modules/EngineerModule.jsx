@@ -70,10 +70,10 @@ const renderCutterListEditorShared = (cutters, setCutters, nomenclatures) => {
               min="0.001"
               step="any"
               placeholder="к-сть"
-              value={c.qty || ''}
+              value={c.qty !== undefined && c.qty !== null ? c.qty : ''}
               onChange={e => {
                 const copy = [...cutters]
-                copy[idx].qty = parseFloat(e.target.value) || 0
+                copy[idx].qty = e.target.value
                 setCutters(copy)
               }}
               style={{ width: '70px', padding: '8px', background: '#000', border: '1px solid #333', color: '#f59e0b', borderRadius: '6px', fontSize: '0.8rem', textAlign: 'center', fontWeight: 800 }}

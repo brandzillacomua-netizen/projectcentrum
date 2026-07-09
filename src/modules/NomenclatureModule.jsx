@@ -666,7 +666,7 @@ const NomenclatureModule = () => {
                     <option value="">+</option>
                     {nomenclatures.filter(n => n.type === 'part' || n.type === 'hardware').map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
                   </select>
-                  <input type="number" min="0.001" step="any" style={{ background: '#000', border: '1px solid #222', color: '#fff', padding: '10px', borderRadius: '10px', textAlign: 'center' }} value={partToAdd.qty} onChange={e => setPartToAdd({...partToAdd, qty: parseFloat(e.target.value) || 0})} />
+                  <input type="number" min="0.001" step="any" style={{ background: '#000', border: '1px solid #222', color: '#fff', padding: '10px', borderRadius: '10px', textAlign: 'center' }} value={partToAdd.qty} onChange={e => setPartToAdd({...partToAdd, qty: e.target.value})} />
                   <button onClick={() => addToDraft('part', partToAdd)} style={{ background: '#ff9000', border: 'none', borderRadius: '10px', cursor: 'pointer' }}><Plus size={16} /></button>
                 </div>
                 <div style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: '20px' }}>

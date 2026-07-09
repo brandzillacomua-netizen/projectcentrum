@@ -499,27 +499,34 @@ export function createWarehouseActions({
       if (relevantRequests.length === 0) {
         throw new Error('Заявки для видачі не знайдено. Оновіть сторінку та повторіть спробу.')
       }
-      const orFilters = []
+      const uniqueInventoryIds = new Set()
+      const uniqueNomenclatureIds = new Set()
+      const uniqueParsedNames = new Set()
       
       relevantRequests.forEach(req => {
         if (req.status === 'issued') return
         let parsedName = ''
         try { parsedName = req.details?.split(': ')[1]?.split(' — ')[0]?.trim() } catch (e) {}
         
-        if (req.inventory_id) {
-          orFilters.push(`id.eq.${req.inventory_id}`)
-        }
-        if (req.nomenclature_id) {
-          orFilters.push(`nomenclature_id.eq.${req.nomenclature_id}`)
-        }
-        if (parsedName) {
-          const escapedParsedName = `"${parsedName.replace(/"/g, '""')}"`
-          orFilters.push(`name.eq.${escapedParsedName}`)
-          const prepName = `${parsedName} [підготовлений]`
-          orFilters.push(`name.eq."${prepName.replace(/"/g, '""')}"`)
-          const wildcardName = `"${parsedName.replace(/"/g, '""')}%"`
-          orFilters.push(`name.ilike.${wildcardName}`)
-        }
+        if (req.inventory_id) uniqueInventoryIds.add(req.inventory_id)
+        if (req.nomenclature_id) uniqueNomenclatureIds.add(req.nomenclature_id)
+        if (parsedName) uniqueParsedNames.add(parsedName)
+      })
+
+      const orFilters = []
+      if (uniqueInventoryIds.size > 0) {
+        orFilters.push(`id.in.(${Array.from(uniqueInventoryIds).join(',')})`)
+      }
+      if (uniqueNomenclatureIds.size > 0) {
+        orFilters.push(`nomenclature_id.in.(${Array.from(uniqueNomenclatureIds).join(',')})`)
+      }
+      uniqueParsedNames.forEach(parsedName => {
+        const escapedParsedName = `"${parsedName.replace(/"/g, '""')}"`
+        orFilters.push(`name.eq.${escapedParsedName}`)
+        const prepName = `${parsedName} [підготовлений]`
+        orFilters.push(`name.eq."${prepName.replace(/"/g, '""')}"`)
+        const wildcardName = `"${parsedName.replace(/"/g, '""')}%"`
+        orFilters.push(`name.ilike.${wildcardName}`)
       })
 
       let matchedInventory = []
