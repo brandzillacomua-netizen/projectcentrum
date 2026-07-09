@@ -4,7 +4,7 @@ import {
   ArrowLeft, Cpu, Plus, Trash2, Info, X, Zap, 
   MapPin, Hash, Activity, Clock, User, ClipboardList,
   Edit3, BarChart3, CheckCircle2, History, Layers,
-  AlertTriangle
+  AlertTriangle, Camera
 } from 'lucide-react'
 import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
@@ -19,17 +19,75 @@ const MACHINE_TYPES = [
 ]
 
 const MachinesModule = () => {
-  const { machines, addMachine, updateMachine, deleteMachine, workCards, workCardHistory, nomenclatures, orders, tasks, loading, machineCalls, currentUser } = useMES()
+  const { machines, addMachine, updateMachine, deleteMachine, workCards, workCardHistory, nomenclatures, orders, tasks, loading, machineCalls, currentUser, fetchData } = useMES()
   const [showAdd, setShowAdd] = useState(false)
   const [selectedMachineId, setSelectedMachineId] = useState(null)
   const [selectedType, setSelectedType] = useState(null)
   const [form, setForm] = useState({ id: null, name: '', type: MACHINE_TYPES[0], capacity: '1', sequence_number: '', inventory_no: '', floor: '', description: '', status: 'idle' })
   const [currentTime, setCurrentTime] = useState(new Date())
+  
+  const [maintenanceLogs, setMaintenanceLogs] = useState([])
+  const [isScanning, setIsScanning] = useState(false)
+  const [scanError, setScanError] = useState(null)
+
+  useEffect(() => {
+    if (selectedMachineId) {
+      supabase.from('machine_maintenance_logs')
+        .select('*')
+        .eq('machine_id', selectedMachineId)
+        .order('triggered_at', { ascending: false })
+        .then(({ data }) => {
+          if (data) setMaintenanceLogs(data)
+        })
+    } else {
+      setMaintenanceLogs([])
+    }
+  }, [selectedMachineId, machines])
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000)
     return () => clearInterval(timer)
   }, [])
+
+  useEffect(() => {
+    let html5QrCode = null
+    if (isScanning && window.Html5Qrcode) {
+      html5QrCode = new window.Html5Qrcode("machine-qr-reader")
+      const config = { fps: 15, qrbox: { width: 260, height: 260 } }
+      const stopAndClose = async () => {
+        if (html5QrCode && html5QrCode.isScanning) await html5QrCode.stop().catch(() => { })
+        setIsScanning(false)
+      }
+      html5QrCode.start({ facingMode: "environment" }, config, async (decodedText) => {
+        try {
+          const match = String(decodedText || '').match(/\/machines\/([a-f0-9-]+)/i)
+          if (match) {
+            const machineId = match[1]
+            const foundMach = (machines || []).find(m => String(m.id).trim() === machineId.trim())
+            if (foundMach) {
+              setSelectedMachineId(foundMach.id)
+              setScanError(null)
+              await stopAndClose()
+            } else {
+              setScanError("Верстат не знайдено в базі даних.")
+            }
+          } else {
+            setScanError("Невірний QR-код верстата.")
+          }
+        } catch (e) {
+          setScanError("Помилка зчитування QR-коду.")
+        }
+      }).catch(err => {
+        setScanError("Помилка камери: " + err)
+        setIsScanning(false)
+      })
+    }
+    return () => {
+      if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().catch(() => {})
+      }
+    }
+  }, [isScanning, machines])
 
   const isCardOnMachine = (c, m) => {
     if (!c || !m) return false;
@@ -357,20 +415,35 @@ const MachinesModule = () => {
               <h2 style={{ fontSize: '2rem', fontWeight: 1000, margin: 0, letterSpacing: '-1px' }}>МОНІТОР ВЕРСТАТІВ</h2>
               <p style={{ color: '#444', fontWeight: 700, margin: '5px 0 0' }}>Контроль завантаженості та технічні дані</p>
             </div>
-            <button 
-              onClick={() => { setShowAdd(!showAdd); if(!showAdd) setForm({id:null, name:'', type: MACHINE_TYPES[0], capacity:'1', sequence_number:'', inventory_no:'', floor:'', description:'', status:'idle'}) }}
-              style={{ 
-                background: showAdd ? '#1a1a1a' : '#ff9000', 
-                color: showAdd ? '#fff' : '#000', 
-                border: 'none', padding: '14px 30px', borderRadius: '14px', 
-                fontWeight: 950, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px',
-                boxShadow: showAdd ? 'none' : '0 10px 30px rgba(255,144,0,0.2)',
-                transition: '0.2s'
-              }}
-            >
-              {showAdd ? <X size={20} /> : <Plus size={20} />}
-              {showAdd ? 'СКАСУВАТИ' : 'НОВИЙ ВЕРСТАТ'}
-            </button>
+            <div style={{ display: 'flex', gap: '15px' }}>
+              <button 
+                onClick={() => setIsScanning(true)}
+                style={{ 
+                  background: 'rgba(255, 144, 0, 0.1)', 
+                  color: '#ff9000', 
+                  border: '1px solid rgba(255, 144, 0, 0.3)', padding: '14px 30px', borderRadius: '14px', 
+                  fontWeight: 950, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px',
+                  transition: '0.2s'
+                }}
+              >
+                <Camera size={20} />
+                СКАНУВАТИ QR
+              </button>
+              <button 
+                onClick={() => { setShowAdd(!showAdd); if(!showAdd) setForm({id:null, name:'', type: MACHINE_TYPES[0], capacity:'1', sequence_number:'', inventory_no:'', floor:'', description:'', status:'idle'}) }}
+                style={{ 
+                  background: showAdd ? '#1a1a1a' : '#ff9000', 
+                  color: showAdd ? '#fff' : '#000', 
+                  border: 'none', padding: '14px 30px', borderRadius: '14px', 
+                  fontWeight: 950, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px',
+                  boxShadow: showAdd ? 'none' : '0 10px 30px rgba(255,144,0,0.2)',
+                  transition: '0.2s'
+                }}
+              >
+                {showAdd ? <X size={20} /> : <Plus size={20} />}
+                {showAdd ? 'СКАСУВАТИ' : 'НОВИЙ ВЕРСТАТ'}
+              </button>
+            </div>
           </div>
 
           {showAdd && (
@@ -492,14 +565,14 @@ const MachinesModule = () => {
                   const progressPercent = estimatedMin > 0 ? Math.min(100, (elapsedMin / estimatedMin) * 100) : 0
                   
                   return (
-                    <div key={m.id} className={`machine-card-v3 ${m.status === 'repair' ? 'is-repair' : activeTask ? 'is-busy' : 'is-idle'}`} onClick={() => setSelectedMachineId(m.id)}>
+                    <div key={m.id} className={`machine-card-v3 ${m.status === 'repair' ? 'is-repair' : m.status === 'maintenance_required' ? 'is-maintenance-req' : m.status === 'under_maintenance' ? 'is-under-maintenance' : activeTask ? 'is-busy' : 'is-idle'}`} onClick={() => setSelectedMachineId(m.id)}>
                       <div className="card-top">
                         <div className="machine-icon-box">
                           <Cpu size={24} />
                         </div>
                         <div className="status-badge">
                           <div className="status-dot" />
-                          {m.status === 'repair' ? 'В РЕМОНТІ' : activeTask ? 'ЗАЙНЯТИЙ' : 'ВІЛЬНИЙ'}
+                          {m.status === 'repair' ? 'В РЕМОНТІ' : m.status === 'maintenance_required' ? 'ПОТРЕБУЄ ЧИСТКИ' : m.status === 'under_maintenance' ? 'ОБСЛУГОВУЄТЬСЯ' : activeTask ? 'ЗАЙНЯТИЙ' : 'ВІЛЬНИЙ'}
                         </div>
                         <div className="card-actions">
                           <button onClick={(e) => { e.stopPropagation(); handleEdit(m) }}><Edit3 size={16} /></button>
@@ -508,10 +581,15 @@ const MachinesModule = () => {
                       </div>
 
                       <div className="card-main">
-                        <div className="inv-no">
-                          {m.sequence_number ? `ПОРЯДКОВИЙ №${m.sequence_number}` : 'ПОРЯДКОВИЙ ВІДСУТНІЙ'} 
-                          {' | '}
-                          {m.inventory_no || 'БЕЗ ІНВЕНТАРНОГО'}
+                        <div className="inv-no" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span>
+                            {m.sequence_number ? `ПОРЯДКОВИЙ №${m.sequence_number}` : 'ПОРЯДКОВИЙ ВІДСУТНІЙ'} 
+                            {' | '}
+                            {m.inventory_no || 'БЕЗ ІНВЕНТАРНОГО'}
+                          </span>
+                          <span style={{ color: (m.completed_cards_count_since_maintenance || 0) >= 5 ? '#ef4444' : '#666', fontWeight: 900 }}>
+                            Картки: {m.completed_cards_count_since_maintenance || 0}/5
+                          </span>
                         </div>
                         <h3 className="machine-name">{m.name}</h3>
                         <div style={{ fontSize: '0.75rem', color: '#ff9000', fontWeight: 800, marginTop: '5px' }}>{m.type || 'Не вказано'}</div>
@@ -523,6 +601,16 @@ const MachinesModule = () => {
                           <div className="idle-info" style={{ color: '#eab308' }}>
                             <span className="capacity-info" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><AlertTriangle size={14} /> НА ОБСЛУГОВУВАННІ</span>
                             <span className="history-link" style={{ color: '#eab308' }}>АНАЛІТИКА <BarChart3 size={14} /></span>
+                          </div>
+                        ) : m.status === 'maintenance_required' ? (
+                          <div className="idle-info" style={{ color: '#ef4444' }}>
+                            <span className="capacity-info" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><AlertTriangle size={14} /> ПОТРЕБУЄ ЧИСТКИ СТОЛА</span>
+                            <span className="history-link" style={{ color: '#ef4444' }}>АНАЛІТИКА <BarChart3 size={14} /></span>
+                          </div>
+                        ) : m.status === 'under_maintenance' ? (
+                          <div className="idle-info" style={{ color: '#3b82f6' }}>
+                            <span className="capacity-info" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Activity size={14} /> ПРОВОДИТЬСЯ ЧИСТКА</span>
+                            <span className="history-link" style={{ color: '#3b82f6' }}>АНАЛІТИКА <BarChart3 size={14} /></span>
                           </div>
                         ) : activeTask ? (
                           <div className="active-work-info">
@@ -672,6 +760,146 @@ const MachinesModule = () => {
                   </div>
                 )}
 
+                {(selectedMachine.status === 'maintenance_required' || selectedMachine.status === 'under_maintenance') && (
+                  <div style={{ background: 'rgba(245, 158, 11, 0.05)', border: '1px solid rgba(245, 158, 11, 0.2)', borderRadius: '24px', padding: '25px', marginBottom: '30px' }}>
+                    <h4 style={{ margin: '0 0 10px 0', color: '#f59e0b', fontSize: '1.1rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <AlertTriangle size={20} /> ТЕХНОЛОГІЧНЕ ОБСЛУГОВУВАННЯ (ЧИСТКА СТОЛА)
+                    </h4>
+                    <p style={{ margin: '0 0 20px 0', fontSize: '0.85rem', color: '#aaa', lineHeight: 1.5 }}>
+                      Верстат виконав 5 карток розкрою поспіль і потребує очищення робочої поверхні (стола). Будь ласка, оберіть дію нижче:
+                    </p>
+                    
+                    <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+                      {selectedMachine.status === 'maintenance_required' && (
+                        <>
+                          <button
+                            onClick={async () => {
+                              const nowISO = new Date().toISOString();
+                              await supabase.from('machines').update({
+                                status: 'under_maintenance',
+                                maintenance_started_at: nowISO
+                              }).eq('id', selectedMachine.id);
+                              
+                              const { data: pendingLogs } = await supabase.from('machine_maintenance_logs')
+                                .select('*')
+                                .eq('machine_id', selectedMachine.id)
+                                .eq('status', 'pending')
+                                .order('triggered_at', { ascending: false })
+                                .limit(1);
+                              
+                              if (pendingLogs && pendingLogs[0]) {
+                                const log = pendingLogs[0];
+                                const triggered = new Date(log.triggered_at);
+                                const started = new Date(nowISO);
+                                const respDiff = Math.floor((started - triggered) / 1000);
+                                
+                                await supabase.from('machine_maintenance_logs')
+                                  .update({
+                                    status: 'in_progress',
+                                    started_at: nowISO,
+                                    response_duration_seconds: respDiff
+                                  })
+                                  .eq('id', log.id);
+                              }
+                              
+                              fetchData('machines');
+                            }}
+                            style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '12px 25px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem' }}
+                          >
+                            🛠️ ПОЧАТИ ОБСЛУГОВУВАННЯ
+                          </button>
+                          
+                          <button
+                            onClick={async () => {
+                              const nowISO = new Date().toISOString();
+                              const userName = currentUser ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() : 'Співробітник';
+                              
+                              await supabase.from('machines').update({
+                                status: 'working',
+                                completed_cards_count_since_maintenance: 0,
+                                maintenance_pending_since: null,
+                                maintenance_started_at: null
+                              }).eq('id', selectedMachine.id);
+                              
+                              const { data: pendingLogs } = await supabase.from('machine_maintenance_logs')
+                                .select('*')
+                                .eq('machine_id', selectedMachine.id)
+                                .eq('status', 'pending')
+                                .order('triggered_at', { ascending: false })
+                                .limit(1);
+                                
+                              if (pendingLogs && pendingLogs[0]) {
+                                const log = pendingLogs[0];
+                                const triggered = new Date(log.triggered_at);
+                                const completed = new Date(nowISO);
+                                const respDiff = Math.floor((completed - triggered) / 1000);
+                                
+                                await supabase.from('machine_maintenance_logs')
+                                  .update({
+                                    status: 'skipped',
+                                    completed_at: nowISO,
+                                    performed_by: userName,
+                                    response_duration_seconds: respDiff
+                                  })
+                                  .eq('id', log.id);
+                              }
+                              
+                              fetchData('machines');
+                            }}
+                            style={{ background: '#222', color: '#888', border: '1px solid #333', padding: '12px 25px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem' }}
+                          >
+                            🚀 ЗАПУСТИТИ БЕЗ РЕМОНТУ
+                          </button>
+                        </>
+                      )}
+                      
+                      {selectedMachine.status === 'under_maintenance' && (
+                        <button
+                          onClick={async () => {
+                            const nowISO = new Date().toISOString();
+                            const userName = currentUser ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() : 'Співробітник';
+                            
+                            await supabase.from('machines').update({
+                              status: 'working',
+                              completed_cards_count_since_maintenance: 0,
+                              maintenance_pending_since: null,
+                              maintenance_started_at: null
+                            }).eq('id', selectedMachine.id);
+                            
+                            const { data: activeLogs } = await supabase.from('machine_maintenance_logs')
+                              .select('*')
+                              .eq('machine_id', selectedMachine.id)
+                              .eq('status', 'in_progress')
+                              .order('triggered_at', { ascending: false })
+                              .limit(1);
+                              
+                            if (activeLogs && activeLogs[0]) {
+                              const log = activeLogs[0];
+                              const started = new Date(log.started_at);
+                              const completed = new Date(nowISO);
+                              const maintDiff = Math.floor((completed - started) / 1000);
+                              
+                              await supabase.from('machine_maintenance_logs')
+                                .update({
+                                  status: 'completed',
+                                  completed_at: nowISO,
+                                  performed_by: userName,
+                                  maintenance_duration_seconds: maintDiff
+                                })
+                                .eq('id', log.id);
+                            }
+                            
+                            fetchData('machines');
+                          }}
+                          style={{ background: '#10b981', color: '#000', border: 'none', padding: '12px 25px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem' }}
+                        >
+                          ✅ ЗАВЕРШИТИ ОБСЛУГОВУВАННЯ
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <h4 style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1rem', marginBottom: '20px' }}>
                   <History size={18} color="#ff9000" /> ІСТОРІЯ ВИКОНАНИХ КАРТОК
                 </h4>
@@ -721,10 +949,74 @@ const MachinesModule = () => {
                         )}
                       </tbody>
                    </table>
+                 </div>
+                 <h4 style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1rem', marginTop: '40px', marginBottom: '20px' }}>
+                  <History size={18} color="#f59e0b" /> ІСТОРІЯ ТЕХНОЛОГІЧНОГО ОБСЛУГОВУВАННЯ
+                </h4>
+                <div className="history-table-wrapper">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>ЧАС БЛОКУВАННЯ</th>
+                        <th>ПОЧАТОК</th>
+                        <th>ЗАВЕРШЕННЯ / СТАТУС</th>
+                        <th>ВИКОНАВ</th>
+                        <th style={{ textAlign: 'right' }}>РЕАГУВАННЯ</th>
+                        <th style={{ textAlign: 'right' }}>ТРИВАЛІСТЬ ЧИСТКИ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {maintenanceLogs.map(log => {
+                        const fmtTime = (sec) => {
+                          if (sec === null || sec === undefined) return '—';
+                          const m = Math.floor(sec / 60);
+                          const s = sec % 60;
+                          return m > 0 ? `${m}хв ${s}с` : `${s}с`;
+                        };
+                        
+                        return (
+                          <tr key={log.id}>
+                            <td style={{ fontSize: '0.8rem', color: '#aaa' }}>
+                              {new Date(log.triggered_at).toLocaleString('uk-UA')}
+                            </td>
+                            <td style={{ fontSize: '0.8rem', color: '#aaa' }}>
+                              {log.started_at ? new Date(log.started_at).toLocaleTimeString('uk-UA') : '—'}
+                            </td>
+                            <td>
+                              {log.status === 'pending' && <span style={{ color: '#ef4444', fontWeight: 900 }}>ОЧІКУЄ</span>}
+                              {log.status === 'in_progress' && <span style={{ color: '#3b82f6', fontWeight: 900 }}>ОБСЛУГОВУЄТЬСЯ</span>}
+                              {log.status === 'completed' && <span style={{ color: '#10b981', fontWeight: 900 }}>ВИКОНАНО</span>}
+                              {log.status === 'skipped' && <span style={{ color: '#888', fontWeight: 900 }}>ПРОПУЩЕНО</span>}
+                            </td>
+                            <td>{log.performed_by || '—'}</td>
+                            <td style={{ textAlign: 'right', fontWeight: 700 }}>
+                              {fmtTime(log.response_duration_seconds)}
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: 700, color: '#10b981' }}>
+                              {fmtTime(log.maintenance_duration_seconds)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {maintenanceLogs.length === 0 && (
+                        <tr><td colSpan="6" style={{ textAlign: 'center', padding: '40px', color: '#333', fontSize: '0.8rem' }}>Історія обслуговування порожня</td></tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </main>
             </div>
           </div>
+        </div>
+      )}
+
+      {isScanning && (
+        <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 10001, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <button onClick={() => setIsScanning(false)} style={{ position: 'absolute', top: 30, right: 30, color: '#fff', background: '#1a1a1a', border: 'none', padding: '15px', borderRadius: '50%', cursor: 'pointer' }}><X size={32} /></button>
+          <div style={{ width: '90%', maxWidth: '500px', border: '4px solid #ff9000', borderRadius: '32px', overflow: 'hidden' }} id="machine-qr-reader"></div>
+          {scanError && (
+            <div style={{ color: '#ef4444', marginTop: '20px', fontWeight: 800 }}>{scanError}</div>
+          )}
         </div>
       )}
 
@@ -748,14 +1040,22 @@ const MachinesModule = () => {
         .is-busy .status-badge { color: #ef4444; }
         .is-idle .status-badge { color: #10b981; }
         .is-repair .status-badge { color: #eab308; }
+        .is-maintenance-req .status-badge { color: #ef4444; }
+        .is-under-maintenance .status-badge { color: #3b82f6; }
         
         .status-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
         .is-busy .status-dot { box-shadow: 0 0 10px #ef4444; animation: pulseRed 2s infinite; }
         .is-idle .status-dot { box-shadow: 0 0 10px #10b981; }
         .is-repair .status-dot { box-shadow: 0 0 10px #eab308; }
+        .is-maintenance-req .status-dot { box-shadow: 0 0 10px #ef4444; animation: pulseRed 2s infinite; }
+        .is-under-maintenance .status-dot { box-shadow: 0 0 10px #3b82f6; }
 
         .machine-card-v3.is-repair { border-color: rgba(234, 179, 8, 0.2); }
         .machine-card-v3.is-repair:hover { border-color: rgba(234, 179, 8, 0.5); box-shadow: 0 30px 60px rgba(234, 179, 8, 0.1); }
+        .machine-card-v3.is-maintenance-req { border-color: rgba(239, 68, 68, 0.25); }
+        .machine-card-v3.is-maintenance-req:hover { border-color: rgba(239, 68, 68, 0.6); box-shadow: 0 30px 60px rgba(239, 68, 68, 0.15); }
+        .machine-card-v3.is-under-maintenance { border-color: rgba(59, 130, 246, 0.25); }
+        .machine-card-v3.is-under-maintenance:hover { border-color: rgba(59, 130, 246, 0.6); box-shadow: 0 30px 60px rgba(59, 130, 246, 0.15); }
 
         .card-actions { display: flex; gap: 10px; opacity: 0; transition: 0.2s; }
         .machine-card-v3:hover .card-actions { opacity: 1; }

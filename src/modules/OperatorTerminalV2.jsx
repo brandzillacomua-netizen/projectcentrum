@@ -24,7 +24,7 @@ const translateCyrillic = (str) => {
 }
 
 const OperatorTerminal = () => {
-  const { workCards, orders, nomenclatures, startWorkCard, completeWorkCard, confirmBuffer, fetchData, operators, productionStages, machines, workCardHistory, getFilteredOperators, getFilteredManagers, systemUsers, currentUser, machineOperations, tasks, inventory } = useMES()
+  const { workCards, orders, nomenclatures, startWorkCard, completeWorkCard, confirmBuffer, fetchData, operators, productionStages, machines, workCardHistory, getFilteredOperators, getFilteredManagers, systemUsers, currentUser, machineOperations, tasks, inventory, maintenanceCheckEnabled } = useMES()
   const [selectedCardId, setSelectedCardId] = useState(null)
   const [selectedStage, setSelectedStage] = useState('')
   const [selectedOperator, setSelectedOperator] = useState('')
@@ -672,18 +672,16 @@ const OperatorTerminal = () => {
               <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '28px', border: '1px solid #1a1a1a', padding: '40px' }}>
                 {currentCard.status === 'new' ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', maxWidth: '500px', margin: '0 auto' }}>
-                    <div>
-                      <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Етап робіт</label>
-                      <select value={selectedStage || currentCard.operation} onChange={(e) => setSelectedStage(e.target.value)} style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
-                        <option value="">— Оберіть етап —</option>
-                        {productionStages.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    </div>
-                    <div>
+                           <div>
                       <label style={{ color: '#555', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Виберіть верстат</label>
                       <select value={selectedMachine} onChange={(e) => setSelectedMachine(e.target.value)} style={{ width: '100%', background: '#111', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '1.1rem', fontWeight: 700 }}>
                         <option value="">— Оберіть обладнання —</option>
-                        {machines.map(m => <option key={m.id} value={m.id}>{m.name} {m.floor ? `(${m.floor} пов.)` : ''}</option>)}
+                        {machines.map(m => (
+                          <option key={m.id} value={m.id}>
+                            {m.name} {m.floor ? `(${m.floor} пов.)` : ''} 
+                            {maintenanceCheckEnabled && m.status === 'maintenance_required' ? ' ⚠️ [ПОТРЕБУЄ ЧИСТКИ СТОЛА]' : maintenanceCheckEnabled && m.status === 'under_maintenance' ? ' 🛠️ [В РЕМОНТІ/ОБСЛУГОВУВАННІ]' : ''}
+                          </option>
+                        ))}
                       </select>
                     </div>
                     <div>
@@ -709,7 +707,22 @@ const OperatorTerminal = () => {
                         {getFilteredOperators(getCardDept(currentCard), selectedShift, selectedStage || currentCard.operation).map(o => <option key={o} value={o}>{o}</option>)}
                       </select>
                     </div>
-                    <button disabled={isProcessing || !selectedOperator} onClick={handleStartOperation} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '22px', borderRadius: '18px', fontSize: '1.4rem', fontWeight: 900, cursor: 'pointer' }}>ВЗЯТИ В РОБОТУ</button>
+
+                    {(() => {
+                      const selectedMachObj = machines.find(m => String(m.id) === String(selectedMachine))
+                      const isMachBlocked = maintenanceCheckEnabled && selectedMachObj && (selectedMachObj.status === 'maintenance_required' || selectedMachObj.status === 'under_maintenance')
+                      return (
+                        <>
+                          {isMachBlocked && (
+                            <div style={{ color: '#ef4444', fontWeight: 900, fontSize: '0.85rem', textAlign: 'center', background: 'rgba(239, 68, 68, 0.1)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.2)', marginBottom: '10px' }}>
+                              ⚠️ Верстат заблоковано! Очікується проведення технологічного ремонту (очистка стола).
+                            </div>
+                          )}
+                          <button disabled={isProcessing || !selectedOperator || isMachBlocked} onClick={handleStartOperation} style={{ background: isMachBlocked ? '#333' : '#3b82f6', color: isMachBlocked ? '#666' : '#fff', border: 'none', padding: '22px', borderRadius: '18px', fontSize: '1.4rem', fontWeight: 900, cursor: isMachBlocked ? 'not-allowed' : 'pointer' }}>ВЗЯТИ В РОБОТУ</button>
+                        </>
+                      )
+                    })()}
+                    
                     <button onClick={() => setShowPinModal(true)} style={{ background: 'transparent', border: 'none', color: '#555', fontSize: '0.8rem', cursor: 'pointer' }}>ШВИДКИЙ ВХІД (555)</button>
                   </div>
                 ) : (

@@ -1,4 +1,5 @@
 import { supabase } from '../supabase'
+import { sendPushToUsers } from '../services/pushService'
 const getRequestQty = (r) => {
   if (r.quantity !== null && r.quantity !== undefined) return Number(r.quantity);
   const match = (r.details || '').match(/—\s*(\d+)/);
@@ -23,10 +24,11 @@ const normalizeName = (s) => {
 
 export function createProductionActions({
   orders, tasks, inventory, nomenclatures, bomItems, workCards,
-  machineOperations,
+  machineOperations, machines, systemUsers,
   setTasks, setWorkCards, setWorkCardHistory, setManagementTasks, setMachines,
   normalize, refreshTable, fetchData,
-  deductIssuedMaterialsForTask
+  deductIssuedMaterialsForTask,
+  maintenanceCheckEnabled
 }) {
 
   const approveWarehouse = async (taskId) => {
@@ -1009,6 +1011,59 @@ export function createProductionActions({
     }
 
     await Promise.all(writePromises)
+
+    // Increment completed cards count since maintenance for the machine
+    if (maintenanceCheckEnabled && card.machine_id) {
+      try {
+        const machId = card.machine_id;
+        const currentMach = (machines || []).find(m => String(m.id) === String(machId)) || { completed_cards_count_since_maintenance: 0 };
+        const nextCount = (Number(currentMach.completed_cards_count_since_maintenance) || 0) + 1;
+        
+        let machUpdates = { completed_cards_count_since_maintenance: nextCount };
+        if (nextCount >= 5) {
+          const nowISO = new Date().toISOString();
+          machUpdates.status = 'maintenance_required';
+          machUpdates.maintenance_pending_since = nowISO;
+          
+          // 1. Create maintenance log row in DB
+          await supabase.from('machine_maintenance_logs').insert([{
+            machine_id: machId,
+            triggered_at: nowISO,
+            status: 'pending'
+          }]);
+          
+          // 2. Trigger push notification to director, master, foreman
+          if (systemUsers && systemUsers.length > 0) {
+            const notifyIds = systemUsers.filter(u => {
+              if (!u?.access_rights) return false;
+              const settings = u.notification_settings || {};
+              if (settings.maintenance === false) return false;
+              
+              const posLower = (u.position || '').toLowerCase();
+              const hasRole = u.access_rights.director || u.access_rights.master || u.access_rights.foreman;
+              const hasTitle = posLower.includes('директор') || posLower.includes('майстер') || posLower.includes('начальник') || posLower.includes('нач');
+              return hasRole || hasTitle;
+            }).map(u => u.id);
+            
+            if (notifyIds.length > 0) {
+              const machineName = card.machine || currentMach.name || 'Верстат';
+              sendPushToUsers(
+                notifyIds,
+                `🚨 Чистка стола: ${machineName}`,
+                `Станок заблоковано! Завершено 5 карток. Потрібно очистити стіл.`,
+                '/settings',
+                { tag: `maintenance-req-${machId}` }
+              ).catch(() => {});
+            }
+          }
+        }
+        
+        await supabase.from('machines').update(machUpdates).eq('id', machId);
+        refreshTable('machines');
+      } catch (err) {
+        console.error('Error handling machine maintenance threshold:', err);
+      }
+    }
 
     if (currentOp === 'Розкрій' && cuttersBreakdown && Object.keys(cuttersBreakdown).length > 0) {
       for (const [cutterName, actualQtyVal] of Object.entries(cuttersBreakdown)) {

@@ -350,79 +350,355 @@ const NomenclatureModule = () => {
     return matchesFilter && matchesSearch
   })
 
-  // Group physical cutters by their generic cutter types
+  // Group all cutters into a single hierarchy
   const genericCutters = nomenclatures.filter(n => n.type === 'cutter_type')
   const mappedCutters = nomenclatures.filter(n => n.type === 'consumable' && n.name.toLowerCase().includes('фреза') && n.characteristic)
   const unmappedCutters = nomenclatures.filter(n => n.type === 'consumable' && n.name.toLowerCase().includes('фреза') && !n.characteristic)
+  const allCuttersCount = mappedCutters.length + unmappedCutters.length
+
+  // Group all sheets into a single hierarchy
+  const allSheets = nomenclatures.filter(n => n.type === 'raw' && n.name.toLowerCase().includes('лист'))
+  const t300Sheets = allSheets.filter(n => n.name.toLowerCase().includes('т300'))
+  const t700Sheets = allSheets.filter(n => n.name.toLowerCase().includes('т700'))
+  const otherSheets = allSheets.filter(n => !n.name.toLowerCase().includes('т300') && !n.name.toLowerCase().includes('т700'))
 
   // Construct rows to render
   const rowsToRender = []
-  const isAllOrConsumable = filterType === 'all' || filterType === 'consumable'
   
-  if (isAllOrConsumable) {
-    // 1. Render generic cutter folders
-    genericCutters.forEach(folder => {
-      const children = mappedCutters.filter(c => String(c.characteristic) === String(folder.id))
+  if (filterType === 'all') {
+    // A. Render Cutters hierarchy
+    if (allCuttersCount > 0) {
       const matchesSearch = 
-        folder.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        children.some(child => child.name.toLowerCase().includes(searchQuery.toLowerCase()))
-        
-      if (searchQuery && !matchesSearch) return
-      
-      rowsToRender.push({
-        ...folder,
-        isFolder: true,
-        childrenCount: children.length
-      })
-      
-      if (expandedFolders[folder.id]) {
-        children.forEach(child => {
-          if (searchQuery && !child.name.toLowerCase().includes(searchQuery.toLowerCase())) return
-          rowsToRender.push({
-            ...child,
-            isChild: true,
-            parentName: folder.name
-          })
-        })
-      }
-    })
-
-    // 2. Render virtual folder for unmapped cutters
-    if (unmappedCutters.length > 0) {
-      const matchesSearch = 
-        "непризначені фрези".includes(searchQuery.toLowerCase()) ||
+        "фрези".includes(searchQuery.toLowerCase()) ||
+        mappedCutters.some(child => child.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
         unmappedCutters.some(child => child.name.toLowerCase().includes(searchQuery.toLowerCase()))
         
       if (!searchQuery || matchesSearch) {
         rowsToRender.push({
-          id: 'unmapped_folder',
-          name: 'Непризначені фрези',
+          id: 'all_cutters_root_folder',
+          name: 'Фрези',
           type: 'cutter_type',
           isFolder: true,
-          isUnmappedFolder: true,
-          childrenCount: unmappedCutters.length
+          childrenCount: allCuttersCount
         })
-        
-        if (expandedFolders['unmapped_folder']) {
-          unmappedCutters.forEach(child => {
-            if (searchQuery && !child.name.toLowerCase().includes(searchQuery.toLowerCase())) return
+
+        if (expandedFolders['all_cutters_root_folder']) {
+          genericCutters.forEach(folder => {
+            const children = mappedCutters.filter(c => String(c.characteristic) === String(folder.id))
+            const subMatchesSearch = 
+              folder.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              children.some(child => child.name.toLowerCase().includes(searchQuery.toLowerCase()))
+              
+            if (searchQuery && !subMatchesSearch) return
+            
             rowsToRender.push({
-              ...child,
+              ...folder,
+              isFolder: true,
+              isSubFolder: true,
               isChild: true,
-              parentName: 'Непризначені фрези'
+              childrenCount: children.length,
+              parentName: 'Фрези'
             })
+
+            if (expandedFolders[folder.id]) {
+              children.forEach(child => {
+                if (searchQuery && !child.name.toLowerCase().includes(searchQuery.toLowerCase())) return
+                rowsToRender.push({
+                  ...child,
+                  isChild: true,
+                  isGrandChild: true,
+                  parentName: folder.name
+                })
+              })
+            }
           })
+
+          if (unmappedCutters.length > 0) {
+            const unmappedMatchesSearch = 
+              "непризначені фрези".includes(searchQuery.toLowerCase()) ||
+              unmappedCutters.some(child => child.name.toLowerCase().includes(searchQuery.toLowerCase()))
+              
+            if (!searchQuery || unmappedMatchesSearch) {
+              rowsToRender.push({
+                id: 'unmapped_folder',
+                name: 'Непризначені фрези',
+                type: 'cutter_type',
+                isFolder: true,
+                isSubFolder: true,
+                isChild: true,
+                childrenCount: unmappedCutters.length,
+                parentName: 'Фрези'
+              })
+
+              if (expandedFolders['unmapped_folder']) {
+                unmappedCutters.forEach(child => {
+                  if (searchQuery && !child.name.toLowerCase().includes(searchQuery.toLowerCase())) return
+                  rowsToRender.push({
+                    ...child,
+                    isChild: true,
+                    isGrandChild: true,
+                    parentName: 'Непризначені фрези'
+                  })
+                })
+              }
+            }
+          }
         }
       }
     }
-    
-    // 3. Render all other items
+
+    // B. Render Sheets hierarchy
+    if (allSheets.length > 0) {
+      const matchesSearch = 
+        "листи".includes(searchQuery.toLowerCase()) ||
+        allSheets.some(child => child.name.toLowerCase().includes(searchQuery.toLowerCase()))
+        
+      if (!searchQuery || matchesSearch) {
+        rowsToRender.push({
+          id: 'all_sheets_root_folder',
+          name: 'Листи',
+          type: 'raw',
+          isFolder: true,
+          childrenCount: allSheets.length
+        })
+
+        if (expandedFolders['all_sheets_root_folder']) {
+          if (t300Sheets.length > 0) {
+            rowsToRender.push({
+              id: 'sheets_t300_subfolder',
+              name: 'Т300',
+              type: 'raw',
+              isFolder: true,
+              isSubFolder: true,
+              isChild: true,
+              childrenCount: t300Sheets.length,
+              parentName: 'Листи'
+            })
+
+            if (expandedFolders['sheets_t300_subfolder']) {
+              t300Sheets.forEach(child => {
+                if (searchQuery && !child.name.toLowerCase().includes(searchQuery.toLowerCase())) return
+                rowsToRender.push({
+                  ...child,
+                  isChild: true,
+                  isGrandChild: true,
+                  parentName: 'Т300'
+                })
+              })
+            }
+          }
+
+          if (t700Sheets.length > 0) {
+            rowsToRender.push({
+              id: 'sheets_t700_subfolder',
+              name: 'Т700',
+              type: 'raw',
+              isFolder: true,
+              isSubFolder: true,
+              isChild: true,
+              childrenCount: t700Sheets.length,
+              parentName: 'Листи'
+            })
+
+            if (expandedFolders['sheets_t700_subfolder']) {
+              t700Sheets.forEach(child => {
+                if (searchQuery && !child.name.toLowerCase().includes(searchQuery.toLowerCase())) return
+                rowsToRender.push({
+                  ...child,
+                  isChild: true,
+                  isGrandChild: true,
+                  parentName: 'Т700'
+                })
+              })
+            }
+          }
+
+          if (otherSheets.length > 0) {
+            rowsToRender.push({
+              id: 'sheets_other_subfolder',
+              name: 'Інші листи',
+              type: 'raw',
+              isFolder: true,
+              isSubFolder: true,
+              isChild: true,
+              childrenCount: otherSheets.length,
+              parentName: 'Листи'
+            })
+
+            if (expandedFolders['sheets_other_subfolder']) {
+              otherSheets.forEach(child => {
+                if (searchQuery && !child.name.toLowerCase().includes(searchQuery.toLowerCase())) return
+                rowsToRender.push({
+                  ...child,
+                  isChild: true,
+                  isGrandChild: true,
+                  parentName: 'Інші листи'
+                })
+              })
+            }
+          }
+        }
+      }
+    }
+
     const renderedIds = new Set([
-      ...genericCutters.map(g => g.id),
       ...mappedCutters.map(m => m.id),
-      ...unmappedCutters.map(u => u.id)
+      ...unmappedCutters.map(u => u.id),
+      ...genericCutters.map(g => g.id),
+      ...allSheets.map(s => s.id)
     ])
-    
+
+    filteredNomenclatures.forEach(n => {
+      if (!renderedIds.has(n.id) && n.type !== 'cutter_type') {
+        rowsToRender.push(n)
+      }
+    })
+  } else if (filterType === 'consumable') {
+    if (allCuttersCount > 0) {
+      rowsToRender.push({
+        id: 'all_cutters_root_folder',
+        name: 'Фрези',
+        type: 'cutter_type',
+        isFolder: true,
+        childrenCount: allCuttersCount
+      })
+      if (expandedFolders['all_cutters_root_folder']) {
+        genericCutters.forEach(folder => {
+          const children = mappedCutters.filter(c => String(c.characteristic) === String(folder.id))
+          rowsToRender.push({
+            ...folder,
+            isFolder: true,
+            isSubFolder: true,
+            isChild: true,
+            childrenCount: children.length,
+            parentName: 'Фрези'
+          })
+          if (expandedFolders[folder.id]) {
+            children.forEach(child => {
+              rowsToRender.push({
+                ...child,
+                isChild: true,
+                isGrandChild: true,
+                parentName: folder.name
+              })
+            })
+          }
+        })
+        if (unmappedCutters.length > 0) {
+          rowsToRender.push({
+            id: 'unmapped_folder',
+            name: 'Непризначені фрези',
+            type: 'cutter_type',
+            isFolder: true,
+            isSubFolder: true,
+            isChild: true,
+            childrenCount: unmappedCutters.length,
+            parentName: 'Фрези'
+          })
+          if (expandedFolders['unmapped_folder']) {
+            unmappedCutters.forEach(child => {
+              rowsToRender.push({
+                ...child,
+                isChild: true,
+                isGrandChild: true,
+                parentName: 'Непризначені фрези'
+              })
+            })
+          }
+        }
+      }
+    }
+    const renderedIds = new Set([
+      ...mappedCutters.map(m => m.id),
+      ...unmappedCutters.map(u => u.id),
+      ...genericCutters.map(g => g.id)
+    ])
+    filteredNomenclatures.forEach(n => {
+      if (!renderedIds.has(n.id) && n.type !== 'cutter_type') {
+        rowsToRender.push(n)
+      }
+    })
+  } else if (filterType === 'raw') {
+    if (allSheets.length > 0) {
+      rowsToRender.push({
+        id: 'all_sheets_root_folder',
+        name: 'Листи',
+        type: 'raw',
+        isFolder: true,
+        childrenCount: allSheets.length
+      })
+      if (expandedFolders['all_sheets_root_folder']) {
+        if (t300Sheets.length > 0) {
+          rowsToRender.push({
+            id: 'sheets_t300_subfolder',
+            name: 'Т300',
+            type: 'raw',
+            isFolder: true,
+            isSubFolder: true,
+            isChild: true,
+            childrenCount: t300Sheets.length,
+            parentName: 'Листи'
+          })
+          if (expandedFolders['sheets_t300_subfolder']) {
+            t300Sheets.forEach(child => {
+              rowsToRender.push({
+                ...child,
+                isChild: true,
+                isGrandChild: true,
+                parentName: 'Т300'
+              })
+            })
+          }
+        }
+        if (t700Sheets.length > 0) {
+          rowsToRender.push({
+            id: 'sheets_t700_subfolder',
+            name: 'Т700',
+            type: 'raw',
+            isFolder: true,
+            isSubFolder: true,
+            isChild: true,
+            childrenCount: t700Sheets.length,
+            parentName: 'Листи'
+          })
+          if (expandedFolders['sheets_t700_subfolder']) {
+            t700Sheets.forEach(child => {
+              rowsToRender.push({
+                ...child,
+                isChild: true,
+                isGrandChild: true,
+                parentName: 'Т700'
+              })
+            })
+          }
+        }
+        if (otherSheets.length > 0) {
+          rowsToRender.push({
+            id: 'sheets_other_subfolder',
+            name: 'Інші листи',
+            type: 'raw',
+            isFolder: true,
+            isSubFolder: true,
+            isChild: true,
+            childrenCount: otherSheets.length,
+            parentName: 'Листи'
+          })
+          if (expandedFolders['sheets_other_subfolder']) {
+            otherSheets.forEach(child => {
+              rowsToRender.push({
+                ...child,
+                isChild: true,
+                isGrandChild: true,
+                parentName: 'Інші листи'
+              })
+            })
+          }
+        }
+      }
+    }
+    const renderedIds = new Set([
+      ...allSheets.map(s => s.id)
+    ])
     filteredNomenclatures.forEach(n => {
       if (!renderedIds.has(n.id)) {
         rowsToRender.push(n)
@@ -736,7 +1012,7 @@ const NomenclatureModule = () => {
                 <tbody>
                   {rowsToRender.map(n => {
                     const typeInfo = n.isFolder ? { label: 'ПАПКА (ТИП)', color: '#ff9000' } : types.find(t => t.id === n.type)
-                    const isUnmapped = n.isUnmappedFolder
+                    const isVirtual = n.id === 'all_cutters_root_folder' || n.id === 'unmapped_folder' || n.id === 'all_sheets_root_folder' || n.id === 'sheets_t300_subfolder' || n.id === 'sheets_t700_subfolder' || n.id === 'sheets_other_subfolder' || n.isSubFolder
                     const isExpanded = expandedFolders[n.id] || false
                     
                     return (
@@ -760,13 +1036,14 @@ const NomenclatureModule = () => {
                           style={{ 
                             padding: '15px', 
                             fontWeight: n.isFolder ? 900 : 800,
-                            paddingLeft: n.isChild ? '35px' : '15px',
+                            paddingLeft: n.isGrandChild ? '55px' : n.isChild ? '35px' : '15px',
                             color: n.isFolder ? '#eab308' : n.isChild ? '#aaa' : '#fff'
                           }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             {n.isFolder && (isExpanded ? <FolderOpen size={16} color="#eab308" /> : <Folder size={16} color="#eab308" />)}
-                            {n.isChild && <span style={{ color: '#444', fontWeight: 'normal' }}>└─</span>}
+                            {n.isChild && !n.isGrandChild && <span style={{ color: '#444', fontWeight: 'normal' }}>└─</span>}
+                            {n.isGrandChild && <span style={{ color: '#444', fontWeight: 'normal', marginLeft: '16px' }}>└─</span>}
                             <span>{n.name} {n.isFolder ? `(${n.childrenCount})` : ''}</span>
                           </div>
                         </td>
@@ -795,7 +1072,7 @@ const NomenclatureModule = () => {
                           {n.type !== 'part' && n.type !== 'consumable' && <span style={{ color: '#333' }}>—</span>}
                         </td>
                         <td style={{ padding: '15px', textAlign: 'center' }}>
-                          {!isUnmapped && (
+                          {!isVirtual && (
                             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
                               <Edit3 size={16} style={{ cursor: 'pointer', color: '#3b82f6' }} onClick={() => startEdit(n)} />
                               <Trash2 size={16} style={{ cursor: 'pointer', color: '#ef4444' }} onClick={() => window.confirm('Видалити цей елемент?') && apiService.submitDelete(n.id, n.isFolder ? 'cutter_type' : 'nomenclature', deleteNomenclature)} />
@@ -811,7 +1088,7 @@ const NomenclatureModule = () => {
 
             <div className="mobile-only mobile-card-grid">
                {rowsToRender.map(n => {
-                 const isUnmapped = n.isUnmappedFolder
+                 const isVirtual = n.id === 'all_cutters_root_folder' || n.id === 'unmapped_folder' || n.id === 'all_sheets_root_folder' || n.id === 'sheets_t300_subfolder' || n.id === 'sheets_t700_subfolder' || n.id === 'sheets_other_subfolder' || n.isSubFolder
                  const isExpanded = expandedFolders[n.id] || false
                  return (
                   <div 
@@ -833,7 +1110,7 @@ const NomenclatureModule = () => {
                         <span style={{ fontSize: '0.6rem', color: n.isFolder ? '#eab308' : '#ff9000', fontWeight: 900 }}>
                           {n.isFolder ? 'ПАПКА' : n.type.toUpperCase()}
                         </span>
-                        {!isUnmapped && (
+                        {!isVirtual && (
                           <div style={{ display: 'flex', gap: '15px' }} onClick={e => e.stopPropagation()}>
                              <Edit3 size={16} color="#555" onClick={() => startEdit(n)} />
                              <Trash2 size={16} color="#ef4444" onClick={() => window.confirm('Видалити?') && apiService.submitDelete(n.id, n.isFolder ? 'cutter_type' : 'nomenclature', deleteNomenclature)} />

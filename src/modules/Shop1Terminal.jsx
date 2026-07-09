@@ -55,7 +55,7 @@ const MACHINE_TYPES = [
 
 export default function Shop1Terminal() {
   const { names: scrapReasons } = useScrapReasons()
-  const { workCards, setWorkCards, nomenclatures, operators, getFilteredOperators, getFilteredManagers, managers, workCardHistory, inventory, fetchData, createWorkCard, orders, bomItems, tasks, currentUser, machines, systemUsers, machineOperations, formatUserName, requests, theme, toggleTheme } = useMES()
+  const { workCards, setWorkCards, nomenclatures, operators, getFilteredOperators, getFilteredManagers, managers, workCardHistory, inventory, fetchData, createWorkCard, orders, bomItems, tasks, currentUser, machines, systemUsers, machineOperations, formatUserName, requests, theme, toggleTheme, maintenanceCheckEnabled } = useMES()
 
   const [currentTime, setCurrentTime] = useState(getCurrentTime())
   useEffect(() => {
@@ -1155,6 +1155,34 @@ export default function Shop1Terminal() {
           showAlert(
             `Вказаного верстата "${targetMachine}" немає в списку обладнання.\n\nБудь ласка, введіть коректну назву або інвентарний номер верстата з наявних у системі.`,
             `❌ Помилка: верстат не знайдено`
+          )
+          return
+        }
+
+        // ⚠️ Check if machine is blocked for maintenance / cleaning
+        const matchedMachineObj = (machines || []).find(m => {
+          const mName = String(m.name || '').trim().toLowerCase()
+          const mInv = String(m.inventory_no || '').trim().toLowerCase()
+          const mSeq = String(m.sequence_number || '').trim().toLowerCase()
+          const mType = String(m.type || '').trim().toLowerCase()
+
+          if (cleanName && cleanNum) {
+            return (mName === cleanName || mType === cleanName || mName.includes(cleanName) || mType.includes(cleanName)) && (mInv === cleanNum || mSeq === cleanNum)
+          }
+          if (cleanName) {
+            return mName === cleanName || mType === cleanName || mInv === cleanName || mSeq === cleanName || mName.includes(cleanName) || mType.includes(cleanName)
+          }
+          if (cleanNum) {
+            return mInv === cleanNum || mSeq === cleanNum
+          }
+          return false
+        })
+
+        if (maintenanceCheckEnabled && matchedMachineObj && (matchedMachineObj.status === 'maintenance_required' || matchedMachineObj.status === 'under_maintenance')) {
+          setIsProcessing(false)
+          showAlert(
+            `Верстат "${targetMachine}" заблоковано! Очікується проведення технологічного ремонту (очистка стола).\n\nБудь ласка, проведіть чистку стола в розділі Станки або оберіть інший верстат.`,
+            `⚠️ Помилка: Верстат заблоковано!`
           )
           return
         }

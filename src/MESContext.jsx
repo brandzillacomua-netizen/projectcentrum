@@ -59,7 +59,7 @@ export const MESProvider = ({ children }) => {
     }
 
     updatePresence()
-    const timer = setInterval(updatePresence, 30000) // every 30s
+    const timer = setInterval(updatePresence, 60000) // every 60s
     return () => clearInterval(timer)
   }, [data.currentUser?.id])
 
@@ -126,6 +126,8 @@ export const MESProvider = ({ children }) => {
     bomItems: data.bomItems, 
     workCards: data.workCards,
     machineOperations: data.machineOperations,
+    machines: data.machines,
+    systemUsers: data.systemUsers,
     setTasks: data.setTasks, 
     setWorkCards: data.setWorkCards, 
     setWorkCardHistory: data.setWorkCardHistory, 
@@ -134,7 +136,8 @@ export const MESProvider = ({ children }) => {
     normalize: data.normalize, 
     refreshTable: data.refreshTable, 
     fetchData: data.fetchData,
-    deductIssuedMaterialsForTask: warehouseActions.deductIssuedMaterialsForTask
+    deductIssuedMaterialsForTask: warehouseActions.deductIssuedMaterialsForTask,
+    maintenanceCheckEnabled: data.maintenanceCheckEnabled
   })
 
   const formatUserName = (u) => {

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useLocation } from 'react-router-dom'
 import { supabase, isLocalWrite } from '../supabase'
 import { sendPushToUsers } from '../services/pushService'
 import { getIndexedCache, setIndexedCache, removeIndexedCache } from '../services/indexedDbCache'
@@ -110,6 +111,8 @@ const mergeTaskRows = (existing = [], incoming = []) => {
   return Array.from(merged.values()).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
 }
 export function useData() {
+  const location = useLocation()
+  const path = location.pathname
 
   // ── Lazy initialisers: localStorage is parsed ONCE per mount, not on every render ──
   const [orders, setOrders] = useState(fromCache('orders', []))
@@ -155,6 +158,37 @@ export function useData() {
     const hasCache = !!localStorage.getItem('MES_SESSION_USER')
     return hasLogin && !hasCache  // Only block UI if we have no cached user to show immediately
   })
+
+  const [maintenanceCheckEnabled, setMaintenanceCheckEnabled] = useState(() => {
+    return localStorage.getItem('maintenance_check_enabled') === 'true'
+  })
+
+  const updateMaintenanceCheckEnabled = async (value) => {
+    setMaintenanceCheckEnabled(value)
+    localStorage.setItem('maintenance_check_enabled', String(value))
+    try {
+      await supabase.from('system_configs').upsert({
+        key: 'maintenance_check_enabled',
+        value: { enabled: value }
+      })
+    } catch (e) {
+      console.warn('Failed to save to system_configs in DB:', e)
+    }
+  }
+
+  useEffect(() => {
+    supabase.from('system_configs').select('*').eq('key', 'maintenance_check_enabled').maybeSingle()
+      .then(({ data }) => {
+        if (data && data.value) {
+          const val = data.value.enabled === true
+          setMaintenanceCheckEnabled(val)
+          localStorage.setItem('maintenance_check_enabled', String(val))
+        }
+      })
+      .catch(e => {
+        console.warn('system_configs table not created yet or inaccessible:', e)
+      })
+  }, [])
 
   const [loading, setLoading] = useState(false)
   const [hasMoreOrders, setHasMoreOrders] = useState(true)
@@ -644,12 +678,13 @@ export function useData() {
 
   // --- REAL-TIME ---
   useEffect(() => {
-    const threeDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    const channel = supabase.channel('mes-global-updates')
+    const isOperator = path.includes('operator') || path.includes('shop1') || path.includes('shop2-terminal') || path.includes('tumbling') || path.includes('pressing') || path.includes('painting') || path.includes('sorting') || path.includes('reception') || path.includes('preparation') || path.includes('packaging')
+    const isWarehouse = path.includes('warehouse') || path.includes('supply') || path.includes('procurement')
+
+    let activeChannel = supabase.channel('mes-global-updates')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'work_cards' }, (payload) => {
         if (payload.eventType === 'UPDATE') {
           if (payload.new.status === 'completed') {
-            // Remove from global state — completed cards are tracked separately per-task
             setWorkCards(prev => prev.filter(c => c.id !== payload.new.id))
           } else {
             setWorkCards(prev => prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c))
@@ -681,7 +716,6 @@ export function useData() {
               return [payload.new, ...prev];
             }
           });
-          // Push відвантажувальникам та директору коли партія стає готовою до відвантаження
           const wasPackaged = payload.old?.plan_snapshot?._metadata?.is_packaged
           const isNowPackaged = payload.new?.plan_snapshot?._metadata?.is_packaged
           if (!wasPackaged && isNowPackaged) {
@@ -720,16 +754,21 @@ export function useData() {
           setInventory(prev => prev.filter(i => i.id !== payload.old.id))
         }
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'work_card_history' }, (payload) => {
-        setWorkCardHistory(prev => prev.some(h => h.id === payload.new.id) ? prev : [payload.new, ...prev].slice(0, 500))
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'work_card_history' }, (payload) => {
-        // Синхронізуємо оновлення (is_archived_scrap, qc_scrap_comment тощо) в реальному часі
-        setWorkCardHistory(prev => prev.map(h => h.id === payload.new.id ? { ...h, ...payload.new } : h))
-      })
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [])
+
+    // Subscriptions for work_card_history are only needed for dashboards and manager modules, not operator terminals or warehouse
+    if (!isOperator && !isWarehouse) {
+      activeChannel = activeChannel
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'work_card_history' }, (payload) => {
+          setWorkCardHistory(prev => prev.some(h => h.id === payload.new.id) ? prev : [payload.new, ...prev].slice(0, 500))
+        })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'work_card_history' }, (payload) => {
+          setWorkCardHistory(prev => prev.map(h => h.id === payload.new.id ? { ...h, ...payload.new } : h))
+        })
+    }
+
+    activeChannel.subscribe()
+    return () => { supabase.removeChannel(activeChannel) }
+  }, [path])
 
   // --- REAL-TIME для решти таблиць (orders, склад, Kanban тощо) ---
   // Точкові підписки замість глобального fetchData() на кожну подію
@@ -739,65 +778,76 @@ export function useData() {
   const matReqPushBufferRef = useRef({}) // { [orderId]: { timer, items[], isPackaging, notifyIds[] } }
 
   useEffect(() => {
-    const channel2 = supabase.channel('mes-secondary-updates')
-      // Замовлення — менеджер, директор
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
-        refreshTable('orders')
-        // Push-сповіщення директору та майстрам при новому замовленні
-        if (isLocalWrite('orders', payload.new)) {
-          const notifyIds = (systemUsersRef.current || []).filter(u => {
-            if (!u?.access_rights) return false
-            const settings = u.notification_settings || {}
-            if (settings.new_order === false) return false
-            return u.access_rights.director || u.access_rights.master || u.access_rights.manager
-          }).map(u => u.id)
-          if (notifyIds.length > 0) {
-            const orderNum = payload.new?.order_num || ''
-            const customer = payload.new?.customer || ''
-            sendPushToUsers(
-              notifyIds,
-              '📦 Нове замовлення',
-              `№ ${orderNum}${customer ? ` — ${customer}` : ''} очікує на створення наряду`,
-              '/manager',
-              { tag: `order-new-${payload.new.id}` }
-            ).catch(() => { })
+    const isOperator = path.includes('operator') || path.includes('shop1') || path.includes('shop2-terminal') || path.includes('tumbling') || path.includes('pressing') || path.includes('painting') || path.includes('sorting') || path.includes('reception') || path.includes('preparation') || path.includes('packaging')
+    const isWarehouse = path.includes('warehouse') || path.includes('supply') || path.includes('procurement')
+    const isSettings = path === '/settings'
+
+    let activeChannel2 = supabase.channel('mes-secondary-updates')
+
+    // Orders & Kanban — manager, director, foreman, settings (not operators or warehouse)
+    if (!isOperator && !isWarehouse) {
+      activeChannel2 = activeChannel2
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
+          refreshTable('orders')
+          if (isLocalWrite('orders', payload.new)) {
+            const notifyIds = (systemUsersRef.current || []).filter(u => {
+              if (!u?.access_rights) return false
+              const settings = u.notification_settings || {}
+              if (settings.new_order === false) return false
+              return u.access_rights.director || u.access_rights.master || u.access_rights.manager
+            }).map(u => u.id)
+            if (notifyIds.length > 0) {
+              const orderNum = payload.new?.order_num || ''
+              const customer = payload.new?.customer || ''
+              sendPushToUsers(
+                notifyIds,
+                '📦 Нове замовлення',
+                `№ ${orderNum}${customer ? ` — ${customer}` : ''} очікує на створення наряду`,
+                '/manager',
+                { tag: `order-new-${payload.new.id}` }
+              ).catch(() => { })
+            }
           }
-        }
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, () => {
-        refreshTable('orders')
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'orders' }, () => {
-        refreshTable('orders')
-      })
-      // Управлінські задачі — Kanban
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'management_tasks' }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          setManagementTasks(prev => prev.some(t => t.id === payload.new.id) ? prev : [payload.new, ...prev])
-        } else if (payload.eventType === 'UPDATE') {
-          setManagementTasks(prev => prev.map(t => t.id === payload.new.id ? { ...t, ...payload.new } : t))
-        } else if (payload.eventType === 'DELETE') {
-          setManagementTasks(prev => prev.filter(t => t.id !== payload.old.id))
-        }
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_projects' }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          setTaskProjects(prev => prev.some(p => p.id === payload.new.id) ? prev : [payload.new, ...prev])
-        } else if (payload.eventType === 'UPDATE') {
-          setTaskProjects(prev => prev.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p))
-        } else if (payload.eventType === 'DELETE') {
-          setTaskProjects(prev => prev.filter(p => p.id !== payload.old.id))
-        }
-      })
-      // Запити матеріалів — склад, майстер
+        })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, () => {
+          refreshTable('orders')
+        })
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'orders' }, () => {
+          refreshTable('orders')
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'management_tasks' }, (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setManagementTasks(prev => prev.some(t => t.id === payload.new.id) ? prev : [payload.new, ...prev])
+          } else if (payload.eventType === 'UPDATE') {
+            setManagementTasks(prev => prev.map(t => t.id === payload.new.id ? { ...t, ...payload.new } : t))
+          } else if (payload.eventType === 'DELETE') {
+            setManagementTasks(prev => prev.filter(t => t.id !== payload.old.id))
+          }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'task_projects' }, (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setTaskProjects(prev => prev.some(p => p.id === payload.new.id) ? prev : [payload.new, ...prev])
+          } else if (payload.eventType === 'UPDATE') {
+            setTaskProjects(prev => prev.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p))
+          } else if (payload.eventType === 'DELETE') {
+            setTaskProjects(prev => prev.filter(p => p.id !== payload.old.id))
+          }
+        })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'customers' }, (payload) => {
+          setCustomers(prev => prev.some(c => c.id === payload.new.id) ? prev : [...prev, payload.new].sort((a, b) => (a.name || '').localeCompare(b.name || '')))
+        })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'customers' }, (payload) => {
+          setCustomers(prev => prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c))
+        })
+    }
+
+    // Material requests — always needed for warehouse, supply and operator screens to check stock requests
+    activeChannel2 = activeChannel2
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'material_requests' }, (payload) => {
         setRequests(prev => prev.some(r => r.id === payload.new.id) ? prev : [payload.new, ...prev])
-
-        // ─── ДЕБАУНС: збираємо всі рядки одного наряду і надсилаємо ОДИН пуш ───
         if (isLocalWrite('material_requests', payload.new)) {
           const isPackaging = payload.new?.details?.includes('КОМПЛЕКТУВАННЯ')
           const orderId = payload.new?.order_id || payload.new?.task_id || 'unknown'
-
           let orderNum = 'новий'
           if (payload.new?.task_id) {
             const t = tasksRef.current.find(item => item.id === payload.new.task_id)
@@ -818,7 +868,6 @@ export function useData() {
             const o = ordersRef.current.find(item => item.id === payload.new.order_id)
             if (o?.order_num) orderNum = o.order_num
           }
-
           const notifyIds = (systemUsersRef.current || []).filter(u => {
             if (!u?.access_rights) return false
             const settings = u.notification_settings || {}
@@ -830,28 +879,23 @@ export function useData() {
               return u.access_rights.warehouse
             }
           }).map(u => u.id)
-
           if (notifyIds.length > 0) {
             const buf = matReqPushBufferRef.current
             if (!buf[orderId]) {
               buf[orderId] = { items: [], isPackaging, notifyIds, orderNum }
             }
             buf[orderId].items.push(payload.new)
-
-            // Скидаємо таймер — чекаємо 1.5с після ОСТАННЬОГО рядка наряду
             if (buf[orderId].timer) clearTimeout(buf[orderId].timer)
             buf[orderId].timer = setTimeout(() => {
               const entry = buf[orderId]
               if (!entry) return
               delete buf[orderId]
-
               const itemCount = entry.items.length
               const num = entry.orderNum
               const title = entry.isPackaging ? '📦 Запит на комплектування' : '📋 Новий запит на СО'
               const body = entry.isPackaging
                 ? `Наряд №${num} — ${itemCount} позицій до комплектування`
                 : `Наряд №${num} — ${itemCount} позицій (листи, фрези)`
-
               sendPushToUsers(entry.notifyIds, title, body, '/warehouse', { tag: `req-group-${orderId}` }).catch(() => { })
             }, 1500)
           }
@@ -863,166 +907,164 @@ export function useData() {
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'material_requests' }, (payload) => {
         setRequests(prev => prev.filter(r => r.id !== payload.old.id))
       })
-      // Документи прийомки — склад, постачання
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'reception_docs' }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          setReceptionDocs(prev => prev.some(d => d.id === payload.new.id) ? prev : [payload.new, ...prev])
-        } else if (payload.eventType === 'UPDATE') {
-          setReceptionDocs(prev => prev.map(d => d.id === payload.new.id ? { ...d, ...payload.new } : d))
-        } else if (payload.eventType === 'DELETE') {
-          setReceptionDocs(prev => prev.filter(d => d.id !== payload.old.id))
-        }
-      })
-      // Запити на закупівлю — постачання
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'purchase_requests' }, (payload) => {
-        setPurchaseRequests(prev => prev.some(p => p.id === payload.new.id) ? prev : [payload.new, ...prev])
-        // Пуш постачальникам та директору виробництва
-        if (isLocalWrite('purchase_requests', payload.new)) {
-          const notifyIds = (systemUsersRef.current || []).filter(u => {
-            if (!u?.access_rights) return false
-            const settings = u.notification_settings || {}
-            if (settings.supply_request === false) return false
-            return u.access_rights.supply || u.access_rights.procurement || u.access_rights.director
-          }).map(u => u.id)
-          if (notifyIds.length > 0) {
-            const orderNum = payload.new?.order_num || ''
-            const dest = payload.new?.destination_warehouse === 'production' ? 'СВ' : 'СО'
-            sendPushToUsers(
-              notifyIds,
-              '🛒 Новий запит постачання',
-              `Замовлення №${orderNum} → ${dest} потребує закупівлі матеріалів`,
-              '/supply',
-              { tag: `pr-${payload.new.id}` }
-            ).catch(() => { })
+
+    // Reception docs & Purchase requests — only needed for warehouse, supply and management, not operator terminals
+    if (isWarehouse || !isOperator) {
+      activeChannel2 = activeChannel2
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'reception_docs' }, (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setReceptionDocs(prev => prev.some(d => d.id === payload.new.id) ? prev : [payload.new, ...prev])
+          } else if (payload.eventType === 'UPDATE') {
+            setReceptionDocs(prev => prev.map(d => d.id === payload.new.id ? { ...d, ...payload.new } : d))
+          } else if (payload.eventType === 'DELETE') {
+            setReceptionDocs(prev => prev.filter(d => d.id !== payload.old.id))
           }
-        }
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'purchase_requests' }, (payload) => {
-        setPurchaseRequests(prev => prev.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p))
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'purchase_requests' }, (payload) => {
-        setPurchaseRequests(prev => prev.filter(p => p.id !== payload.old.id))
-      })
-      // Станки і користувачі — рідко змінюються, повний refetch
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'machines' }, () => {
-        supabase.from('machines').select('*').order('name').then(({ data }) => { if (data) setMachines(data) })
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'machine_operations' }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          setMachineOperations(prev => prev.some(o => o.id === payload.new.id) ? prev : [payload.new, ...prev])
-        } else if (payload.eventType === 'UPDATE') {
-          setMachineOperations(prev => prev.map(o => o.id === payload.new.id ? payload.new : o))
-        } else if (payload.eventType === 'DELETE') {
-          setMachineOperations(prev => prev.filter(o => o.id !== payload.old.id))
-        }
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'machine_calls' }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          setMachineCalls(prev => prev.some(c => c.id === payload.new.id) ? prev : [payload.new, ...prev])
-
-          // Надсилаємо Push-сповіщення при виклику персоналу до верстата
-          if (isLocalWrite('machine_calls', payload.new)) {
-            const call = payload.new
-            const calledEmployeeId = call.called_employee_id
-            const calledRole = call.called_role
-            const operator = call.operator_name || 'Оператор'
-
-            const machineObj = (machinesRef.current || []).find(m => m.id === call.machine_id)
-            const machineName = machineObj ? machineObj.name : 'Верстат'
-
-            let notifyIds = []
-            if (calledEmployeeId) {
-              notifyIds = [calledEmployeeId]
-            } else {
-              notifyIds = (systemUsersRef.current || []).filter(u => {
-                if (!u?.access_rights) return false
-                const settings = u.notification_settings || {}
-                if (settings.machine_call === false) return false
-
-                if (calledRole === 'master') {
-                  return u.access_rights.master || u.access_rights.foreman || (u.position && u.position.toLowerCase().includes('майстер'))
-                }
-                if (calledRole === 'engineer') {
-                  return u.access_rights.engineer || (u.position && u.position.toLowerCase().includes('інженер'))
-                }
-                if (calledRole === 'qc') {
-                  return u.access_rights.brak || (u.position && (u.position.toLowerCase().includes('вкя') || u.position.toLowerCase().includes('якост')))
-                }
-                return false
-              }).map(u => u.id)
-            }
-
+        })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'purchase_requests' }, (payload) => {
+          setPurchaseRequests(prev => prev.some(p => p.id === payload.new.id) ? prev : [payload.new, ...prev])
+          if (isLocalWrite('purchase_requests', payload.new)) {
+            const notifyIds = (systemUsersRef.current || []).filter(u => {
+              if (!u?.access_rights) return false
+              const settings = u.notification_settings || {}
+              if (settings.supply_request === false) return false
+              return u.access_rights.supply || u.access_rights.procurement || u.access_rights.director
+            }).map(u => u.id)
             if (notifyIds.length > 0) {
-              let roleLabel = 'Майстра'
-              let targetPath = '/master'
-              if (calledRole === 'engineer') {
-                roleLabel = 'Інженера'
-                targetPath = '/engineer'
-              }
-              if (calledRole === 'qc') {
-                roleLabel = 'ВКЯ'
-                targetPath = '/brak'
-              }
-
+              const orderNum = payload.new?.order_num || ''
+              const dest = payload.new?.destination_warehouse === 'production' ? 'СВ' : 'СО'
               sendPushToUsers(
                 notifyIds,
-                `🚨 Виклик ${roleLabel}`,
-                `${operator} викликає на ${machineName}`,
-                targetPath,
-                { tag: `call-${payload.new.id}` }
+                '🛒 Новий запит постачання',
+                `Замовлення №${orderNum} → ${dest} потребує закупівлі матеріалів`,
+                '/supply',
+                { tag: `pr-${payload.new.id}` }
               ).catch(() => { })
             }
           }
-        } else if (payload.eventType === 'UPDATE') {
-          setMachineCalls(prev => prev.map(c => c.id === payload.new.id ? payload.new : c))
-        } else if (payload.eventType === 'DELETE') {
-          setMachineCalls(prev => prev.filter(c => c.id !== payload.old.id))
-        }
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'system_users' }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          setSystemUsers(prev => {
-            if (prev.some(u => u.id === payload.new.id)) return prev
-            const updated = [...prev, payload.new]
-            return updated.sort((a, b) => (a.login || '').localeCompare(b.login || ''))
-          })
-        } else if (payload.eventType === 'UPDATE') {
-          setSystemUsers(prev => {
-            const existing = prev.find(u => u.id === payload.new.id)
-            if (existing) {
-              const keys = ['login', 'first_name', 'last_name', 'position', 'access_rights', 'department', 'shift', 'notification_settings', 'avatar']
-              const hasChanges = keys.some(k => JSON.stringify(existing[k]) !== JSON.stringify(payload.new[k]))
-              if (!hasChanges) {
-                existing.last_seen = payload.new.last_seen
-                return prev
+        })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'purchase_requests' }, (payload) => {
+          setPurchaseRequests(prev => prev.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p))
+        })
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'purchase_requests' }, (payload) => {
+          setPurchaseRequests(prev => prev.filter(p => p.id !== payload.old.id))
+        })
+    }
+
+    // Machine updates, calls, operations — only needed for operators, foremen, engineering and management, not warehouse
+    if (isOperator || !isWarehouse) {
+      activeChannel2 = activeChannel2
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'machines' }, () => {
+          supabase.from('machines').select('*').order('name').then(({ data }) => { if (data) setMachines(data) })
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'machine_operations' }, (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setMachineOperations(prev => prev.some(o => o.id === payload.new.id) ? prev : [payload.new, ...prev])
+          } else if (payload.eventType === 'UPDATE') {
+            setMachineOperations(prev => prev.map(o => o.id === payload.new.id ? payload.new : o))
+          } else if (payload.eventType === 'DELETE') {
+            setMachineOperations(prev => prev.filter(o => o.id !== payload.old.id))
+          }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'machine_calls' }, (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setMachineCalls(prev => prev.some(c => c.id === payload.new.id) ? prev : [payload.new, ...prev])
+            if (isLocalWrite('machine_calls', payload.new)) {
+              const call = payload.new
+              const calledEmployeeId = call.called_employee_id
+              const calledRole = call.called_role
+              const operator = call.operator_name || 'Оператор'
+              const machineObj = (machinesRef.current || []).find(m => m.id === call.machine_id)
+              const machineName = machineObj ? machineObj.name : 'Верстат'
+              let notifyIds = []
+              if (calledEmployeeId) {
+                notifyIds = [calledEmployeeId]
+              } else {
+                notifyIds = (systemUsersRef.current || []).filter(u => {
+                  if (!u?.access_rights) return false
+                  const settings = u.notification_settings || {}
+                  if (settings.machine_call === false) return false
+                  if (calledRole === 'master') {
+                    return u.access_rights.master || u.access_rights.foreman || (u.position && u.position.toLowerCase().includes('майстер'))
+                  }
+                  if (calledRole === 'engineer') {
+                    return u.access_rights.engineer || (u.position && u.position.toLowerCase().includes('інженер'))
+                  }
+                  if (calledRole === 'qc') {
+                    return u.access_rights.brak || (u.position && (u.position.toLowerCase().includes('вкя') || u.position.toLowerCase().includes('якост')))
+                  }
+                  return false
+                }).map(u => u.id)
+              }
+              if (notifyIds.length > 0) {
+                let roleLabel = 'Майстра'
+                let targetPath = '/master'
+                if (calledRole === 'engineer') {
+                  roleLabel = 'Інженера'
+                  targetPath = '/engineer'
+                }
+                if (calledRole === 'qc') {
+                  roleLabel = 'ВКЯ'
+                  targetPath = '/brak'
+                }
+                sendPushToUsers(
+                  notifyIds,
+                  `🚨 Виклик ${roleLabel}`,
+                  `${operator} викликає на ${machineName}`,
+                  targetPath,
+                  { tag: `call-${payload.new.id}` }
+                ).catch(() => { })
               }
             }
-            return prev.map(u => u.id === payload.new.id ? { ...u, ...payload.new } : u)
+          } else if (payload.eventType === 'UPDATE') {
+            setMachineCalls(prev => prev.map(c => c.id === payload.new.id ? payload.new : c))
+          } else if (payload.eventType === 'DELETE') {
+            setMachineCalls(prev => prev.filter(c => c.id !== payload.old.id))
+          }
+        })
+    }
+
+    // Static/rarely changed configuration tables are ONLY subscribed to when on Settings panel
+    if (isSettings) {
+      activeChannel2 = activeChannel2
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'system_users' }, (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setSystemUsers(prev => {
+              if (prev.some(u => u.id === payload.new.id)) return prev
+              const updated = [...prev, payload.new]
+              return updated.sort((a, b) => (a.login || '').localeCompare(b.login || ''))
+            })
+          } else if (payload.eventType === 'UPDATE') {
+            setSystemUsers(prev => {
+              const existing = prev.find(u => u.id === payload.new.id)
+              if (existing) {
+                const keys = ['login', 'first_name', 'last_name', 'position', 'access_rights', 'department', 'shift', 'notification_settings', 'avatar']
+                const hasChanges = keys.some(k => JSON.stringify(existing[k]) !== JSON.stringify(payload.new[k]))
+                if (!hasChanges) {
+                  existing.last_seen = payload.new.last_seen
+                  return prev
+                }
+              }
+              return prev.map(u => u.id === payload.new.id ? { ...u, ...payload.new } : u)
+            })
+          } else if (payload.eventType === 'DELETE') {
+            setSystemUsers(prev => prev.filter(u => u.id !== payload.old.id))
+          }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'company_structure' }, () => {
+          supabase.from('company_structure').select('*').order('name').then(({ data, error }) => {
+            if (!error && data && data.length > 0) setCompanyStructure(data)
           })
-        } else if (payload.eventType === 'DELETE') {
-          setSystemUsers(prev => prev.filter(u => u.id !== payload.old.id))
-        }
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'company_structure' }, () => {
-        supabase.from('company_structure').select('*').order('name').then(({ data, error }) => {
-          if (!error && data && data.length > 0) setCompanyStructure(data)
         })
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'company_positions' }, () => {
-        supabase.from('company_positions').select('*').order('name').then(({ data, error }) => {
-          if (!error && data && data.length > 0) setCompanyPositions(data)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'company_positions' }, () => {
+          supabase.from('company_positions').select('*').order('name').then(({ data, error }) => {
+            if (!error && data && data.length > 0) setCompanyPositions(data)
+          })
         })
-      })
-      // Клієнти — менеджер, реалтайм оновлення при додаванні нових замовників
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'customers' }, (payload) => {
-        setCustomers(prev => prev.some(c => c.id === payload.new.id) ? prev : [...prev, payload.new].sort((a, b) => (a.name || '').localeCompare(b.name || '')))
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'customers' }, (payload) => {
-        setCustomers(prev => prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c))
-      })
-      .subscribe()
-    return () => { supabase.removeChannel(channel2) }
-  }, [])
+    }
+
+    activeChannel2.subscribe()
+    return () => { supabase.removeChannel(activeChannel2) }
+  }, [path])
 
   // --- SESSION INIT — INSTANT RESTORE ————————————————————————————— ---
   // Strategy: user object cached in localStorage → show portal INSTANTLY (0ms)
@@ -1333,6 +1375,7 @@ export function useData() {
     normalize, fetchOrders, fetchData, fetchCritical, fetchModuleData, fetchTaskPlanSnapshot, fetchHistoryRange, fetchTaskArchiveCards, refreshTable, clearAllData,
     productionData,
     companyStructure, setCompanyStructure, upsertCompanyStructure, deleteCompanyStructure,
-    companyPositions, setCompanyPositions, upsertCompanyPosition, deleteCompanyPosition
+    companyPositions, setCompanyPositions, upsertCompanyPosition, deleteCompanyPosition,
+    maintenanceCheckEnabled, updateMaintenanceCheckEnabled
   }
 }

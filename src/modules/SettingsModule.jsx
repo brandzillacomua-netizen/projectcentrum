@@ -60,7 +60,8 @@ const SettingsModule = () => {
     companyStructure, upsertCompanyStructure, deleteCompanyStructure,
     companyPositions, upsertCompanyPosition, deleteCompanyPosition,
     supabase,
-    nomenclatures, bomItems, inventory, refreshTable
+    nomenclatures, bomItems, inventory, refreshTable,
+    maintenanceCheckEnabled, updateMaintenanceCheckEnabled
   } = useMES()
 
   // BZ remnants upload states
@@ -2921,6 +2922,42 @@ const SettingsModule = () => {
                   <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }} />
                   <div style={{ fontSize: '0.8rem', color: '#aaa' }}>
                     Останніх подій у базі логів проходів: <strong style={{ color: '#fff' }}>{accessLogs.length}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: '24px', marginTop: '24px' }}>
+                <h4 style={{ fontSize: '0.8rem', fontWeight: 900, color: '#888', marginBottom: '15px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ТЕХНОЛОГІЧНЕ ОБСЛУГОВУВАННЯ</h4>
+                
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0,0,0,0.2)', padding: '14px 18px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#fff' }}>Контроль чистки стола верстата</span>
+                    <span style={{ fontSize: '0.7rem', color: '#555' }}>Блокування запуску після 5-ї виконаної карти розкрою</span>
+                  </div>
+                  
+                  <div 
+                    onClick={() => updateMaintenanceCheckEnabled(!maintenanceCheckEnabled)}
+                    style={{
+                      width: '50px',
+                      height: '26px',
+                      borderRadius: '13px',
+                      background: maintenanceCheckEnabled ? 'linear-gradient(135deg, #ff9000, #ff6a00)' : '#222',
+                      padding: '3px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: maintenanceCheckEnabled ? 'flex-end' : 'flex-start',
+                      transition: 'all 0.2s ease',
+                      boxShadow: maintenanceCheckEnabled ? '0 0 12px rgba(255,144,0,0.3)' : 'none'
+                    }}
+                  >
+                    <div style={{
+                      width: '20px',
+                      height: '20px',
+                      borderRadius: '50%',
+                      background: maintenanceCheckEnabled ? '#000' : '#888',
+                      transition: 'all 0.2s ease'
+                    }} />
                   </div>
                 </div>
               </div>

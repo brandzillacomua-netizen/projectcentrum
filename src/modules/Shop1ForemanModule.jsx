@@ -21,6 +21,7 @@ import {
   RotateCcw
 } from 'lucide-react'
 import { useMES } from '../MESContext'
+import { getIndexedCache, setIndexedCache } from '../services/indexedDbCache'
 
 export default function Shop1ForemanModule() {
   const {
@@ -241,8 +242,19 @@ export default function Shop1ForemanModule() {
   useEffect(() => {
     if (activeTab !== 'calendar') return
     let cancelled = false
+    const cacheKey = `calendar-history-v3-${currentYear}-${currentMonth}`
 
     const loadCalendarHistory = async () => {
+      // 1. Try to load from IndexedDB cache first for instant visual response
+      try {
+        const cached = await getIndexedCache(cacheKey)
+        if (cached && !cancelled) {
+          setCalendarWorkHistory(cached)
+        }
+      } catch (err) {
+        console.warn('Failed to load calendar history from IndexedDB:', err)
+      }
+
       const monthStart = new Date(currentYear, currentMonth, 1)
       const monthEnd = new Date(currentYear, currentMonth + 1, 1)
       const startIso = monthStart.toISOString()
@@ -254,7 +266,7 @@ export default function Shop1ForemanModule() {
         for (let offset = 0; !cancelled; offset += pageSize) {
           const { data, error } = await supabase
             .from('work_card_history')
-            .select('id,card_id,operator_name,started_at,completed_at,created_at')
+            .select('id,card_id,operator_name,manager_name,started_at,completed_at,created_at')
             .gte(column, startIso)
             .lt(column, endIso)
             .order(column, { ascending: true })
@@ -277,7 +289,11 @@ export default function Shop1ForemanModule() {
         const merged = Array.from(new Map(
           [...startedRows, ...completedRows].map(row => [String(row.id), row])
         ).values())
-        if (!cancelled) setCalendarWorkHistory(merged)
+        if (!cancelled) {
+          setCalendarWorkHistory(merged)
+          // 2. Save fresh data to cache in the background
+          setIndexedCache(cacheKey, merged).catch(err => console.warn('Failed to save calendar history to IndexedDB:', err))
+        }
       } catch (error) {
         console.error('Failed to load calendar work history:', error)
         if (!cancelled) setCalendarWorkHistory([])
@@ -698,6 +714,7 @@ export default function Shop1ForemanModule() {
         }
       }
 
+
       // Truthful Timing logic based on database timestamps (completed_at - started_at)
       if (!isPauseInterval && h.completed_at && h.started_at) {
         const actualDiffMins = Math.max(0, Math.floor((new Date(h.completed_at) - new Date(h.started_at)) / 60000))
@@ -721,51 +738,64 @@ export default function Shop1ForemanModule() {
     return stats
   }, [workCards, shiftReportHistory, systemUsers, reportStartDate, reportEndDate])
 
-  // Map of operator checks to calculate actual activity.
-  // Format: { "Operator Name": { "YYYY-MM-DD": true } }
-  const parsedCheckins = useMemo(() => {
-    const map = {}
-    
-    // Process work card history to find who checked in on which days
+  // TWO separate check-in maps to avoid cross-contamination:
+  // operatorCheckins — built from operator_name only (any stage, any date)
+  // masterCheckins  — built from manager_name only, ONLY for Розкрій stage launch records
+  const { operatorCheckins, masterCheckins } = useMemo(() => {
+    const ops = {}
+    const masters = {}
+
+    const mark = (map, name, dateStr) => {
+      if (!name || name === 'Не вказано') return
+      if (!map[name]) map[name] = {}
+      map[name][dateStr] = true
+    }
+
+    // Process completed history records
     if (calendarWorkHistory && calendarWorkHistory.length > 0) {
       calendarWorkHistory.forEach(h => {
-        const opName = h.operator_name
-        if (!opName || opName === 'Не вказано') return
+        // Operator: credit for any date they appear (start or completion)
+        const opDate = h.started_at || h.completed_at || h.created_at
+        if (opDate) {
+          try {
+            const dateStr = new Date(opDate).toLocaleDateString('en-CA', { timeZone: 'Europe/Kyiv' })
+            mark(ops, h.operator_name, dateStr)
+          } catch (e) {}
+        }
 
-        const workedDate = h.started_at || h.completed_at || h.created_at
-        if (!workedDate) return
-
-        try {
-          const dateStr = new Date(workedDate).toLocaleDateString('en-CA', { timeZone: 'Europe/Kyiv' })
-          if (!map[opName]) {
-            map[opName] = {}
-          }
-          map[opName][dateStr] = true
-        } catch (e) {
-          // ignore date parse issues
+        // Master: ONLY credit when they physically launched a card (Розкрій stage, started_at).
+        // manager_name is inherited by ALL subsequent stages but the master was only
+        // present at launch. Using a separate map prevents operator activity from bleeding
+        // into the master's calendar.
+        const isLaunchStage = !h.stage_name || h.stage_name === 'Розкрій'
+        if (isLaunchStage && h.started_at) {
+          try {
+            const dateStr = new Date(h.started_at).toLocaleDateString('en-CA', { timeZone: 'Europe/Kyiv' })
+            mark(masters, h.manager_name, dateStr)
+          } catch (e) {}
         }
       })
     }
 
-    // Also scan active running cards
+    // Active running cards (not yet in history)
     if (workCards && workCards.length > 0) {
       workCards.forEach(c => {
-        const opName = c.operator_name
-        if (!opName || opName === 'Не вказано') return
         const startedDate = c.started_at || c.created_at
         if (!startedDate) return
-
         try {
           const dateStr = new Date(startedDate).toLocaleDateString('en-CA', { timeZone: 'Europe/Kyiv' })
-          if (!map[opName]) {
-            map[opName] = {}
+          // Operator: always credit
+          mark(ops, c.operator_name, dateStr)
+          // Master: only if card is currently in Розкрій (not a later stage)
+          const isRozkriiCard = !c.operation || c.operation === 'Розкрій'
+          if (isRozkriiCard) {
+            mark(masters, c.manager_name, dateStr)
           }
-          map[opName][dateStr] = true
         } catch (e) {}
       })
     }
 
-    return map
+    return { operatorCheckins: ops, masterCheckins: masters }
   }, [calendarWorkHistory, workCards])
 
   const tabBtnStyle = (tabId) => ({
@@ -851,7 +881,11 @@ export default function Shop1ForemanModule() {
           const status = user.shift_calendar?.[calendarKey]
 
           // Check if operator actually has checks/checkins for this day
-          const hasCheckins = parsedCheckins[uName]?.[calendarKey]
+          // Masters use a dedicated map (only Розкрій launch records).
+          // Operators use their own map so master's operator activity doesn't pollute their calendar.
+          const hasCheckins = isMaster
+            ? masterCheckins[uName]?.[calendarKey]
+            : operatorCheckins[uName]?.[calendarKey]
 
           let bg = 'rgba(255,255,255,0.01)'
           let color = '#333'
