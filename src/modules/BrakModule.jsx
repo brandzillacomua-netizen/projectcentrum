@@ -390,8 +390,26 @@ export default function BrakModule() {
 
   const handleDeleteScrapReason = async row => {
     if (!window.confirm(`Ви впевнені, що хочете остаточно видалити причину "${row.name}"?`)) return
-    const { error } = await supabase.from('scrap_reasons').delete().eq('id', row.id)
-    if (error) return alert('Не вдалося видалити причину: ' + error.message)
+    const archiveReason = async () => {
+      const { error: archiveError } = await supabase.from('scrap_reasons')
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq('id', row.id)
+      if (archiveError) {
+        alert('Не вдалося видалити причину: ' + archiveError.message)
+        return false
+      }
+      alert('Причину вимкнено, бо вона вже використовується в історії браку.')
+      return true
+    }
+
+    const { data: deletedRows, error } = await supabase.from('scrap_reasons').delete().eq('id', row.id).select('id')
+    if (error) {
+      const canArchiveInstead = ['23503', '42501'].includes(error.code)
+      if (!canArchiveInstead) return alert('Не вдалося видалити причину: ' + error.message)
+      await archiveReason()
+    } else if (!deletedRows?.length) {
+      await archiveReason()
+    }
     await reloadScrapReasons()
   }
 

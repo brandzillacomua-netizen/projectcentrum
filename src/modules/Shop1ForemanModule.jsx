@@ -242,7 +242,7 @@ export default function Shop1ForemanModule() {
   useEffect(() => {
     if (activeTab !== 'calendar') return
     let cancelled = false
-    const cacheKey = `calendar-history-v3-${currentYear}-${currentMonth}`
+    const cacheKey = `calendar-history-v4-${currentYear}-${currentMonth}`
 
     const loadCalendarHistory = async () => {
       // 1. Try to load from IndexedDB cache first for instant visual response
@@ -266,7 +266,7 @@ export default function Shop1ForemanModule() {
         for (let offset = 0; !cancelled; offset += pageSize) {
           const { data, error } = await supabase
             .from('work_card_history')
-            .select('id,card_id,operator_name,manager_name,started_at,completed_at,created_at')
+            .select('id,card_id,operator_name,manager_name,stage_name,started_at,completed_at,created_at')
             .gte(column, startIso)
             .lt(column, endIso)
             .order(column, { ascending: true })
@@ -767,7 +767,7 @@ export default function Shop1ForemanModule() {
         // manager_name is inherited by ALL subsequent stages but the master was only
         // present at launch. Using a separate map prevents operator activity from bleeding
         // into the master's calendar.
-        const isLaunchStage = !h.stage_name || h.stage_name === 'Розкрій'
+        const isLaunchStage = String(h.stage_name || '').trim().toLowerCase() === 'розкрій'
         if (isLaunchStage && h.started_at) {
           try {
             const dateStr = new Date(h.started_at).toLocaleDateString('en-CA', { timeZone: 'Europe/Kyiv' })
@@ -786,10 +786,11 @@ export default function Shop1ForemanModule() {
           const dateStr = new Date(startedDate).toLocaleDateString('en-CA', { timeZone: 'Europe/Kyiv' })
           // Operator: always credit
           mark(ops, c.operator_name, dateStr)
-          // Master: only if card is currently in Розкрій (not a later stage)
-          const isRozkriiCard = !c.operation || c.operation === 'Розкрій'
-          if (isRozkriiCard) {
-            mark(masters, c.manager_name, dateStr)
+          // Master: only if the card was actually started in Розкрій.
+          const isRozkriiCard = String(c.operation || '').trim().toLowerCase() === 'розкрій'
+          if (isRozkriiCard && c.started_at) {
+            const masterDateStr = new Date(c.started_at).toLocaleDateString('en-CA', { timeZone: 'Europe/Kyiv' })
+            mark(masters, c.manager_name, masterDateStr)
           }
         } catch (e) {}
       })
