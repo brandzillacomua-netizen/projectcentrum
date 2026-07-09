@@ -140,17 +140,6 @@ const getAvailableModules = (currentUser, badgeCount) => {
   if (!currentUser) return [];
   const allModules = getAllModules(badgeCount);
   return allModules.filter(m => {
-    if (m.id === 'shop2' || m.id === 'shop2_terminal') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.shop2;
-    if (m.id === 'analytics') return currentUser?.access_rights?.director || currentUser?.access_rights?.master || currentUser?.access_rights?.analytics;
-    if (m.id === 'brak') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.director || currentUser?.access_rights?.brak;
-    if (m.id === 'reports') return currentUser?.access_rights?.director || currentUser?.access_rights?.reports || currentUser?.position === 'Адмін';
-    if (m.id === 'prep_terminal') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.position?.toLowerCase()?.includes('вп') || currentUser?.position?.toLowerCase()?.includes('підготов');
-    if (m.id === 'tumbling_terminal') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.tumbling_terminal;
-    if (m.id === 'tumbling_dashboard') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.tumbling_dashboard || currentUser?.access_rights?.tumbling_terminal;
-    if (m.id === 'reception_terminal') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.reception_terminal;
-    if (m.id === 'sorting_terminal') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.sorting_terminal;
-    if (m.id === 'pressing_terminal') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.pressing_terminal || currentUser?.access_rights?.shop2;
-    if (m.id === 'painting_terminal') return currentUser?.access_rights?.master || currentUser?.access_rights?.foreman || currentUser?.access_rights?.painting_terminal || currentUser?.access_rights?.shop2;
     if (m.id === 'simulator') return currentUser?.position === 'Адмін' || currentUser?.role === 'admin';
     return currentUser?.access_rights?.[m.id] === true;
   });
