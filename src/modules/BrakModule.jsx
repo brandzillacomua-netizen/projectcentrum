@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { ArrowLeft, AlertTriangle, CheckCircle2, Package, Layers, ChevronRight, Info, Camera, X, Scan, BarChart2, Filter, Search, Calendar } from 'lucide-react'
+import { ArrowLeft, AlertTriangle, CheckCircle2, Package, Layers, ChevronRight, Info, Camera, X, Scan, BarChart2, Filter, Search, Calendar, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { supabase } from '../supabase'
@@ -385,6 +385,13 @@ export default function BrakModule() {
     if (error) return alert('Не вдалося перейменувати причину: ' + error.message)
     setEditingScrapReasonId(null)
     setEditingScrapReasonName('')
+    await reloadScrapReasons()
+  }
+
+  const handleDeleteScrapReason = async row => {
+    if (!window.confirm(`Ви впевнені, що хочете остаточно видалити причину "${row.name}"?`)) return
+    const { error } = await supabase.from('scrap_reasons').delete().eq('id', row.id)
+    if (error) return alert('Не вдалося видалити причину: ' + error.message)
     await reloadScrapReasons()
   }
 
@@ -1390,6 +1397,10 @@ export default function BrakModule() {
                     <button onClick={() => handleToggleScrapReason(row)} style={{ minWidth: '105px', background: row.is_active ? '#10b98118' : '#222', color: row.is_active ? '#10b981' : '#888', border: `1px solid ${row.is_active ? '#10b98155' : '#333'}`, borderRadius: '9px', padding: '9px 13px', fontWeight: 900, cursor: 'pointer' }}>
                       <span className="desktop-text">{row.is_active ? 'АКТИВНА' : 'ВИМКНЕНА'}</span>
                       <span className="mobile-text">{row.is_active ? 'ВКЛ' : 'ВИКЛ'}</span>
+                    </button>
+                    <button onClick={() => handleDeleteScrapReason(row)} style={{ background: '#ef444418', color: '#ef4444', border: '1px solid #ef444455', borderRadius: '9px', padding: '9px 13px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }} title="Видалити причину">
+                      <Trash2 size={14} />
+                      <span className="desktop-text">ВИДАЛИТИ</span>
                     </button>
                   </>}
                 </div>
