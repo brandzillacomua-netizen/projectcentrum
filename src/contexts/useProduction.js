@@ -80,7 +80,24 @@ export function createProductionActions({
   }
 
   const upsertNomenclature = async (nom) => { await supabase.from('nomenclatures').upsert([nom]); refreshTable('nomenclatures') }
-  const deleteNomenclature = async (id) => { await supabase.from('nomenclatures').delete().eq('id', id); refreshTable('nomenclatures') }
+  const deleteNomenclature = async (id) => {
+    try {
+      await supabase.from('machine_operations').delete().eq('nomenclature_id', id)
+      await supabase.from('bom_items').delete().eq('parent_id', id)
+      await supabase.from('bom_items').delete().eq('child_id', id)
+      await supabase.from('inventory').delete().eq('nomenclature_id', id)
+      await supabase.from('order_items').delete().eq('nomenclature_id', id)
+      await supabase.from('material_requests').delete().eq('nomenclature_id', id)
+      await supabase.from('replenishment_requests').delete().eq('nomenclature_id', id)
+      await supabase.from('nomenclature_catalog_profiles').delete().eq('nomenclature_id', id)
+      const { error } = await supabase.from('nomenclatures').delete().eq('id', id)
+      if (error) throw error
+    } catch (err) {
+      console.error("Failed to delete nomenclature cascades:", err)
+      alert("Не вдалося видалити номенклатуру: " + err.message)
+    }
+    refreshTable('nomenclatures')
+  }
 
   const saveBOM = async (parentId, childId, qty) => {
     await supabase.from('bom_items').upsert([{ parent_id: parentId, child_id: childId, quantity_per_parent: Number(qty) }], { onConflict: 'parent_id, child_id' })

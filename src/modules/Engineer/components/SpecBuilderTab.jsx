@@ -98,7 +98,7 @@ function BomRow({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, supabas
         <option>Метизи</option>
         <option>Накладки</option>
       </select>
-      <input type="number" min={1} value={row.qty} onChange={e => onUpdate(idx, { qty: e.target.value })} style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '8px', borderRadius: '6px', textAlign: 'center' }} />
+      <input type="number" min="0.001" step="any" value={row.qty} onChange={e => onUpdate(idx, { qty: parseFloat(e.target.value) || 0 })} style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '8px', borderRadius: '6px', textAlign: 'center' }} />
       <button onClick={() => onRemove(idx)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}><Trash2 size={16} /></button>
     </div>
   )

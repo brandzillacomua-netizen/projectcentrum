@@ -3195,7 +3195,9 @@ const displayParts = getDisplayPartsForOrderItem(it)
                         return null
                       }
 
-                      // Filter inventory for consumable cutters with matching diameter
+                      const genericCutter = nomenclatures.find(n => n.name === c.name && n.type === 'cutter_type')
+
+                      // Filter inventory for consumable cutters with matching diameter or generic cutter type assignment
                       const stockCutters = (inventory || []).filter(inv => {
                         const nom = nomenclatures.find(n => String(n.id) === String(inv.nomenclature_id))
                         if (!nom) return false
@@ -3203,6 +3205,11 @@ const displayParts = getDisplayPartsForOrderItem(it)
                         if (inv.type !== 'consumable') return false
                         const availQty = Math.max(0, (Number(inv.total_qty) || 0) - (Number(inv.reserved_qty) || 0))
                         if (availQty <= 0) return false
+                        
+                        if (genericCutter && nom.characteristic) {
+                          return String(nom.characteristic) === String(genericCutter.id)
+                        }
+
                         if (parsedDiam) {
                           const nomDiam = extractNomDiam(nom.name)
                           if (nomDiam === null) return false

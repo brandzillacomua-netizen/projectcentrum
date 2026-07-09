@@ -16,7 +16,8 @@ import {
   Check,
   AlertCircle,
   Loader2,
-  FileUp,
+  Folder,
+  FolderOpen,
   Clock
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -33,6 +34,7 @@ const NomenclatureModule = () => {
   const [filterType, setFilterType] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedParent, setSelectedParent] = useState('')
+  const [expandedFolders, setExpandedFolders] = useState({})
   const [isEditing, setIsEditing] = useState(false)
   const [newNom, setNewNom] = useState({ 
     name: '', 
@@ -348,6 +350,90 @@ const NomenclatureModule = () => {
     return matchesFilter && matchesSearch
   })
 
+  // Group physical cutters by their generic cutter types
+  const genericCutters = nomenclatures.filter(n => n.type === 'cutter_type')
+  const mappedCutters = nomenclatures.filter(n => n.type === 'consumable' && n.name.toLowerCase().includes('фреза') && n.characteristic)
+  const unmappedCutters = nomenclatures.filter(n => n.type === 'consumable' && n.name.toLowerCase().includes('фреза') && !n.characteristic)
+
+  // Construct rows to render
+  const rowsToRender = []
+  const isAllOrConsumable = filterType === 'all' || filterType === 'consumable'
+  
+  if (isAllOrConsumable) {
+    // 1. Render generic cutter folders
+    genericCutters.forEach(folder => {
+      const children = mappedCutters.filter(c => String(c.characteristic) === String(folder.id))
+      const matchesSearch = 
+        folder.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        children.some(child => child.name.toLowerCase().includes(searchQuery.toLowerCase()))
+        
+      if (searchQuery && !matchesSearch) return
+      
+      rowsToRender.push({
+        ...folder,
+        isFolder: true,
+        childrenCount: children.length
+      })
+      
+      if (expandedFolders[folder.id]) {
+        children.forEach(child => {
+          if (searchQuery && !child.name.toLowerCase().includes(searchQuery.toLowerCase())) return
+          rowsToRender.push({
+            ...child,
+            isChild: true,
+            parentName: folder.name
+          })
+        })
+      }
+    })
+
+    // 2. Render virtual folder for unmapped cutters
+    if (unmappedCutters.length > 0) {
+      const matchesSearch = 
+        "непризначені фрези".includes(searchQuery.toLowerCase()) ||
+        unmappedCutters.some(child => child.name.toLowerCase().includes(searchQuery.toLowerCase()))
+        
+      if (!searchQuery || matchesSearch) {
+        rowsToRender.push({
+          id: 'unmapped_folder',
+          name: 'Непризначені фрези',
+          type: 'cutter_type',
+          isFolder: true,
+          isUnmappedFolder: true,
+          childrenCount: unmappedCutters.length
+        })
+        
+        if (expandedFolders['unmapped_folder']) {
+          unmappedCutters.forEach(child => {
+            if (searchQuery && !child.name.toLowerCase().includes(searchQuery.toLowerCase())) return
+            rowsToRender.push({
+              ...child,
+              isChild: true,
+              parentName: 'Непризначені фрези'
+            })
+          })
+        }
+      }
+    }
+    
+    // 3. Render all other items
+    const renderedIds = new Set([
+      ...genericCutters.map(g => g.id),
+      ...mappedCutters.map(m => m.id),
+      ...unmappedCutters.map(u => u.id)
+    ])
+    
+    filteredNomenclatures.forEach(n => {
+      if (!renderedIds.has(n.id)) {
+        rowsToRender.push(n)
+      }
+    })
+  } else {
+    filteredNomenclatures.forEach(n => {
+      rowsToRender.push(n)
+    })
+  }
+
   return (
     <div className="nomenclature-module-v2" style={{ background: '#080808', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
       <nav className="module-nav" style={{ flexShrink: 0 }}>
@@ -580,7 +666,7 @@ const NomenclatureModule = () => {
                     <option value="">+</option>
                     {nomenclatures.filter(n => n.type === 'part' || n.type === 'hardware').map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
                   </select>
-                  <input type="number" style={{ background: '#000', border: '1px solid #222', color: '#fff', padding: '10px', borderRadius: '10px', textAlign: 'center' }} value={partToAdd.qty} onChange={e => setPartToAdd({...partToAdd, qty: e.target.value})} />
+                  <input type="number" min="0.001" step="any" style={{ background: '#000', border: '1px solid #222', color: '#fff', padding: '10px', borderRadius: '10px', textAlign: 'center' }} value={partToAdd.qty} onChange={e => setPartToAdd({...partToAdd, qty: parseFloat(e.target.value) || 0})} />
                   <button onClick={() => addToDraft('part', partToAdd)} style={{ background: '#ff9000', border: 'none', borderRadius: '10px', cursor: 'pointer' }}><Plus size={16} /></button>
                 </div>
                 <div style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: '20px' }}>
@@ -648,11 +734,42 @@ const NomenclatureModule = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredNomenclatures.map(n => {
-                    const typeInfo = types.find(t => t.id === n.type)
+                  {rowsToRender.map(n => {
+                    const typeInfo = n.isFolder ? { label: 'ПАПКА (ТИП)', color: '#ff9000' } : types.find(t => t.id === n.type)
+                    const isUnmapped = n.isUnmappedFolder
+                    const isExpanded = expandedFolders[n.id] || false
+                    
                     return (
-                      <tr key={n.id} style={{ borderBottom: '1px solid #151515' }}>
-                        <td className="sticky-col" style={{ padding: '15px', fontWeight: 800 }}>{n.name}</td>
+                      <tr 
+                        key={n.id} 
+                        style={{ 
+                          borderBottom: '1px solid #151515',
+                          background: n.isFolder ? 'rgba(234, 179, 8, 0.04)' : n.isChild ? 'rgba(255,255,255,0.01)' : 'transparent',
+                          cursor: n.isFolder ? 'pointer' : 'default',
+                          transition: 'background 0.2s'
+                        }}
+                        onClick={(e) => {
+                          // Toggle if clicked on a folder row but not on buttons
+                          if (n.isFolder && !e.target.closest('button') && !e.target.closest('svg')) {
+                            setExpandedFolders(prev => ({ ...prev, [n.id]: !prev[n.id] }))
+                          }
+                        }}
+                      >
+                        <td 
+                          className="sticky-col" 
+                          style={{ 
+                            padding: '15px', 
+                            fontWeight: n.isFolder ? 900 : 800,
+                            paddingLeft: n.isChild ? '35px' : '15px',
+                            color: n.isFolder ? '#eab308' : n.isChild ? '#aaa' : '#fff'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {n.isFolder && (isExpanded ? <FolderOpen size={16} color="#eab308" /> : <Folder size={16} color="#eab308" />)}
+                            {n.isChild && <span style={{ color: '#444', fontWeight: 'normal' }}>└─</span>}
+                            <span>{n.name} {n.isFolder ? `(${n.childrenCount})` : ''}</span>
+                          </div>
+                        </td>
                         <td style={{ padding: '15px', color: '#eee' }}>{n.characteristic || '—'}</td>
                         <td style={{ padding: '15px', color: '#aaa', fontSize: '0.85rem' }}>{n.description || '—'}</td>
                         <td style={{ padding: '15px', textAlign: 'center', color: '#ff9000', fontWeight: 800 }}>{n.qty_per_unit || '0'}</td>
@@ -678,10 +795,12 @@ const NomenclatureModule = () => {
                           {n.type !== 'part' && n.type !== 'consumable' && <span style={{ color: '#333' }}>—</span>}
                         </td>
                         <td style={{ padding: '15px', textAlign: 'center' }}>
-                           <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-                             <Edit3 size={16} style={{ cursor: 'pointer', color: '#3b82f6' }} onClick={() => startEdit(n)} />
-                             <Trash2 size={16} style={{ cursor: 'pointer', color: '#ef4444' }} onClick={() => window.confirm('Видалити цей елемент?') && apiService.submitDelete(n.id, 'nomenclature', deleteNomenclature)} />
-                           </div>
+                          {!isUnmapped && (
+                            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                              <Edit3 size={16} style={{ cursor: 'pointer', color: '#3b82f6' }} onClick={() => startEdit(n)} />
+                              <Trash2 size={16} style={{ cursor: 'pointer', color: '#ef4444' }} onClick={() => window.confirm('Видалити цей елемент?') && apiService.submitDelete(n.id, n.isFolder ? 'cutter_type' : 'nomenclature', deleteNomenclature)} />
+                            </div>
+                          )}
                         </td>
                       </tr>
                     )
@@ -691,45 +810,73 @@ const NomenclatureModule = () => {
             </div>
 
             <div className="mobile-only mobile-card-grid">
-               {filteredNomenclatures.map(n => (
-                 <div key={n.id} style={{ background: '#111', padding: '15px', borderRadius: '15px', marginBottom: '10px', border: '1px solid #222' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                       <span style={{ fontSize: '0.6rem', color: '#ff9000', fontWeight: 900 }}>{n.type.toUpperCase()}</span>
-                       <div style={{ display: 'flex', gap: '15px' }}>
-                          <Edit3 size={16} color="#555" onClick={() => startEdit(n)} />
-                          <Trash2 size={16} color="#ef4444" onClick={() => window.confirm('Видалити?') && apiService.submitDelete(n.id, 'nomenclature', deleteNomenclature)} />
-                       </div>
-                    </div>
-                    <strong>{n.name}</strong>
-                    {n.characteristic && <div style={{ fontSize: '0.8rem', color: '#eee', marginTop: '5px' }}>Характер.: {n.characteristic}</div>}
-                    {n.description && <div style={{ fontSize: '0.8rem', color: '#aaa' }}>Опис: {n.description}</div>}
-                    {n.qty_per_unit && <div style={{ fontSize: '0.8rem', color: '#ff9000' }}>Кі-ть на од.: {n.qty_per_unit}</div>}
-                    {n.option_label && <div style={{ fontSize: '0.8rem', color: '#999' }}>Опціон: {n.option_label}</div>}
-                    {n.color && <div style={{ fontSize: '0.8rem', color: '#ccc' }}>Колір: {n.color}</div>}
-                    {n.additional_info && <div style={{ fontSize: '0.8rem', color: '#777' }}>Доп. інфо: {n.additional_info}</div>}
-                    {(n.type === 'part' || n.type === 'consumable') && (
-                      <div style={{ color: '#555', fontSize: '0.8rem', marginTop: '5px', borderTop: '1px solid #222', paddingTop: '5px' }}>
-                        {n.type === 'part' && (
-                          <>
-                            <div>Мат: {n.material_type}</div>
-                            <div>Шт/Лист: {n.units_per_sheet} | Час: {n.time_per_unit} хв</div>
-                          </>
+               {rowsToRender.map(n => {
+                 const isUnmapped = n.isUnmappedFolder
+                 const isExpanded = expandedFolders[n.id] || false
+                 return (
+                  <div 
+                    key={n.id} 
+                    style={{ 
+                      background: n.isFolder ? 'rgba(234, 179, 8, 0.05)' : '#111', 
+                      padding: '15px', 
+                      borderRadius: '15px', 
+                      marginBottom: '10px', 
+                      border: `1px solid ${n.isFolder ? '#eab30833' : '#222'}`,
+                      paddingLeft: n.isChild ? '30px' : '15px',
+                      cursor: n.isFolder ? 'pointer' : 'default'
+                    }}
+                    onClick={() => {
+                      if (n.isFolder) setExpandedFolders(prev => ({ ...prev, [n.id]: !prev[n.id] }))
+                    }}
+                  >
+                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                        <span style={{ fontSize: '0.6rem', color: n.isFolder ? '#eab308' : '#ff9000', fontWeight: 900 }}>
+                          {n.isFolder ? 'ПАПКА' : n.type.toUpperCase()}
+                        </span>
+                        {!isUnmapped && (
+                          <div style={{ display: 'flex', gap: '15px' }} onClick={e => e.stopPropagation()}>
+                             <Edit3 size={16} color="#555" onClick={() => startEdit(n)} />
+                             <Trash2 size={16} color="#ef4444" onClick={() => window.confirm('Видалити?') && apiService.submitDelete(n.id, n.isFolder ? 'cutter_type' : 'nomenclature', deleteNomenclature)} />
+                          </div>
                         )}
-                        {n.type === 'consumable' && (
-                          <>
-                            <div>Витрата: {n.consumption_per_sheet} шт/л</div>
-                            <div>Ресурс: {n.time_per_unit}</div>
-                          </>
-                        )}
-                      </div>
-                    )}
-                 </div>
-               ))}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+                     </div>
+                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {n.isFolder && (isExpanded ? <FolderOpen size={16} color="#eab308" /> : <Folder size={16} color="#eab308" />)}
+                        {n.isChild && <span style={{ color: '#444' }}>└─</span>}
+                        <strong style={{ color: n.isFolder ? '#eab308' : '#fff' }}>
+                          {n.name} {n.isFolder ? `(${n.childrenCount})` : ''}
+                        </strong>
+                     </div>
+                     {n.characteristic && <div style={{ fontSize: '0.8rem', color: '#eee', marginTop: '5px' }}>Характер.: {n.characteristic}</div>}
+                     {n.description && <div style={{ fontSize: '0.8rem', color: '#aaa' }}>Опис: {n.description}</div>}
+                     {n.qty_per_unit && <div style={{ fontSize: '0.8rem', color: '#ff9000' }}>Кі-ть на од.: {n.qty_per_unit}</div>}
+                     {n.option_label && <div style={{ fontSize: '0.8rem', color: '#999' }}>Опціон: {n.option_label}</div>}
+                     {n.color && <div style={{ fontSize: '0.8rem', color: '#ccc' }}>Колір: {n.color}</div>}
+                     {n.additional_info && <div style={{ fontSize: '0.8rem', color: '#777' }}>Доп. інфо: {n.additional_info}</div>}
+                     {(n.type === 'part' || n.type === 'consumable') && (
+                        <div style={{ color: '#555', fontSize: '0.8rem', marginTop: '5px', borderTop: '1px solid #222', paddingTop: '5px' }}>
+                          {n.type === 'part' && (
+                            <>
+                              <div>Мат: {n.material_type}</div>
+                              <div>Шт/Лист: {n.units_per_sheet} | Час: {n.time_per_unit} хв</div>
+                            </>
+                          )}
+                          {n.type === 'consumable' && (
+                            <>
+                              <div>Витрата: {n.consumption_per_sheet} шт/л</div>
+                              <div>Ресурс: {n.time_per_unit}</div>
+                            </>
+                          )}
+                        </div>
+                      )}
+                   </div>
+                 );
+               })}
+             </div>
+           </div>
+         </div>
+        )}
+      </div>
 
       <style dangerouslySetInnerHTML={{ __html: `
         .nomenclature-grid-responsive { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; }
