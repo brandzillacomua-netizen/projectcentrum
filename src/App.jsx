@@ -157,6 +157,7 @@ const CATEGORY_MAP = {
   reception_terminal: 'shop1',
   sorting_terminal: 'shop1',
   operator: 'shop1',
+  warehouse_boxes: 'shop1',
 
   // Цех 2
   shop2: 'shop2',
