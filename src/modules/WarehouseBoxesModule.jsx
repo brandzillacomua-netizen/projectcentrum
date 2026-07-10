@@ -142,6 +142,54 @@ const WarehouseBoxesModule = () => {
     return Object.values(ordersMap).sort((a, b) => b.pending - a.pending)
   }, [allBoxes])
 
+  const normalizeScannedCardId = (rawValue) => {
+    let value = String(rawValue || '').trim()
+    if (!value) return ''
+
+    try {
+      value = decodeURIComponent(value)
+    } catch (e) {}
+
+    if (value.includes('CENTRUM_CARD_')) {
+      value = value.split('CENTRUM_CARD_').pop().trim()
+    }
+
+    try {
+      const url = new URL(value)
+      const queryId = url.searchParams.get('card_id') || url.searchParams.get('cardId') || url.searchParams.get('id')
+      value = queryId || url.pathname.split('/').filter(Boolean).pop() || value
+    } catch (e) {}
+
+    value = value.replace(/^CENTRUM_CARD_/i, '').replace(/^#/, '').trim()
+    const uuidMatch = value.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)
+    return uuidMatch ? uuidMatch[0] : value
+  }
+
+  const handleBoxCardScan = async (rawValue) => {
+    const cardId = normalizeScannedCardId(rawValue)
+    if (!cardId) {
+      alert('Не вдалося зчитати код картки.')
+      return
+    }
+
+    const boxItem = allBoxes.find(box => {
+      const cardNum = box.card.card_info?.split(' ')[0]
+      return String(box.card.id) === String(cardId) || String(cardNum) === String(cardId)
+    })
+
+    if (!boxItem) {
+      alert('Картку не знайдено в черзі боксів фрез. Перевірте, що це картка розкрою з фрезами і вона ще не завершена.')
+      return
+    }
+
+    if (boxItem.isPrepared) {
+      alert('Бокс для цієї картки вже зібрано.')
+      return
+    }
+
+    setKittingBoxItem(boxItem)
+  }
+
   return (
     <div style={{ background: '#080808', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       
@@ -184,7 +232,7 @@ const WarehouseBoxesModule = () => {
         cameraError={cameraError}
         manualCardInput={manualCardInput}
         setManualCardInput={setManualCardInput}
-        handleCardScan={handlers.handleCardScan}
+        handleCardScan={handleBoxCardScan}
       />
 
       {/* Kitting Modal (opens upon successful scan) */}
@@ -591,6 +639,7 @@ const WarehouseBoxesModule = () => {
 
       {/* Floating Action Button (FAB) Scanner Widget */}
       <button
+        type="button"
         onClick={() => setIsScanning(true)}
         style={{
           position: 'fixed',

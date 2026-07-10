@@ -98,7 +98,7 @@ export const ScannerPanel = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: color, fontWeight: 900, fontSize: '0.9rem' }}>
             <QrCode size={18} /> СКАНУВАННЯ РОБОЧОЇ КАРТКИ
           </div>
-          <button onClick={() => setIsScanning(false)} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer' }}><X size={22} /></button>
+          <button type="button" onClick={() => setIsScanning(false)} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer' }}><X size={22} /></button>
         </div>
         {localError ? (
           <div style={{ padding: '30px 24px', display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', textAlign: 'center' }}>
@@ -123,6 +123,7 @@ export const ScannerPanel = ({
                 autoFocus
               />
               <button
+                type="button"
                 onClick={() => { if (manualCardInput.trim()) { setIsScanning(false); handleCardScan(manualCardInput.trim()) } }}
                 style={{ padding: '10px 16px', background: color, color: '#000', border: 'none', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', fontSize: '0.85rem' }}
               >
