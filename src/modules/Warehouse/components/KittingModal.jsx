@@ -11,9 +11,10 @@ export const KittingModal = ({
 }) => {
   if (!kittingBoxItem) return null
 
-  const { card, cutters, activeMaterialName, cardSheets } = kittingBoxItem
+  const { card, cutters, activeMaterialName, cardSheets, nom } = kittingBoxItem
   const cardId = card.id
   const cardNum = card.card_info?.split(' ')[0] || `№${cardId.substring(0, 8)}`
+  const cardNomName = nom?.name || card.name || 'Номенклатура не вказана'
 
   const [step, setStep] = useState(1) // Step 1: Scan box, Step 2: Checklist
   const [boxNum, setBoxNum] = useState('')
@@ -178,6 +179,15 @@ export const KittingModal = ({
           
           {/* Machine Info */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', background: '#090909', padding: '12px 15px', borderRadius: '14px', border: '1px solid #151515' }}>
+            <div style={{ gridColumn: '1 / -1', paddingBottom: '10px', borderBottom: '1px solid #181818' }}>
+              <div style={{ fontSize: '0.6rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase' }}>ВИКОНУЄТЬСЯ В КАРТЦІ</div>
+              <div style={{ fontSize: '0.9rem', color: '#fff', fontWeight: 900, marginTop: '4px', lineHeight: 1.25, wordBreak: 'break-word' }}>
+                {cardNomName}
+              </div>
+              <div style={{ fontSize: '0.66rem', color: '#666', fontWeight: 800, marginTop: '6px', textTransform: 'uppercase' }}>
+                Матеріали: Склад оперативний
+              </div>
+            </div>
             <div>
               <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 800 }}>ВЕРСТАТ</div>
               <div style={{ fontSize: '0.78rem', color: '#aaa', fontWeight: 700 }}>{card.machine || '—'}</div>

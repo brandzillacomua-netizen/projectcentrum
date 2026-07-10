@@ -13,6 +13,10 @@ export const MaterialDetailModal = ({
   if (!scannedCard) return null
 
   const isFullyIssued = scannedRequests.length > 0 && scannedRequests.every(r => r.status === 'completed')
+  const cardNom = nomenclatures.find(n => String(n.id) === String(scannedCard.nomenclature_id))
+  const cardNomName = cardNom
+    ? (cardNom.name + (cardNom.material_type ? ` (${cardNom.material_type})` : ''))
+    : (scannedCard.name || 'Номенклатура не вказана')
 
   // Calculate last issue time based on updated_at/created_at of completed requests
   const completedRequests = scannedRequests.filter(r => r.status === 'completed')
@@ -87,6 +91,24 @@ export const MaterialDetailModal = ({
         )}
 
         <div style={{ padding: '25px', display: 'flex', flexDirection: 'column', gap: '15px', maxHeight: '450px', overflowY: 'auto' }}>
+          <div style={{
+            background: '#090909',
+            border: '1px solid #1a1a1a',
+            borderRadius: '16px',
+            padding: '14px 16px'
+          }}>
+            <div style={{ fontSize: '0.62rem', color: '#ff9000', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Виконується в картці
+            </div>
+            <div style={{ fontSize: '0.9rem', color: '#fff', fontWeight: 900, marginTop: '5px', lineHeight: 1.25, wordBreak: 'break-word' }}>
+              {cardNomName}
+            </div>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '8px', fontSize: '0.68rem', color: '#777', fontWeight: 800 }}>
+              <span>К-сть: {scannedCard.quantity || '—'} шт</span>
+              <span>Верстат: {scannedCard.machine || scannedCard.machine_name || '—'}</span>
+              <span>Матеріали: Склад оперативний</span>
+            </div>
+          </div>
           {isFullyIssued && (
             <div style={{
               background: 'rgba(16, 185, 129, 0.12)',
