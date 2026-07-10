@@ -6,6 +6,7 @@ import { useWarehouseComputed } from './Warehouse/hooks/useWarehouseComputed'
 import { useWarehouseHandlers } from './Warehouse/hooks/useWarehouseHandlers'
 import { ScannerPanel } from './Warehouse/components/ScannerPanel'
 import { KittingModal } from './Warehouse/components/KittingModal'
+import { MaterialDetailModal } from './Warehouse/components/MaterialDetailModal'
 
 const WarehouseBoxesModule = () => {
   const {
@@ -174,17 +175,18 @@ const WarehouseBoxesModule = () => {
 
     const boxItem = allBoxes.find(box => {
       const cardNum = box.card.card_info?.split(' ')[0]
-      return String(box.card.id) === String(cardId) || String(cardNum) === String(cardId)
+      return String(box.card.id) === String(cardId) ||
+        String(cardNum) === String(cardId) ||
+        String(box.card.box_number || '') === String(cardId)
     })
 
     if (!boxItem) {
-      alert('Картку не знайдено в черзі боксів фрез. Перевірте, що це картка розкрою з фрезами і вона ще не завершена.')
+      await handlers.handleCardScan(cardId)
       return
     }
 
     if (boxItem.isPrepared) {
-      const assignedBox = boxItem.card.box_number ? ` №${boxItem.card.box_number}` : ''
-      alert(`Бокс для цієї картки вже зібрано.${assignedBox ? ` Присвоєний бокс${assignedBox}.` : ' Номер бокса не вказаний у картці.'}`)
+      await handlers.handleCardScan(boxItem.card.id)
       return
     }
 
@@ -244,6 +246,16 @@ const WarehouseBoxesModule = () => {
         handleToggleCutterCheck={handlers.handleToggleCutterCheck}
         handlePrepareBox={handlers.handlePrepareBox}
         isProcessing={isProcessing}
+      />
+
+      <MaterialDetailModal
+        scannedCard={scannedCard}
+        setScannedCard={setScannedCard}
+        scannedRequests={scannedRequests}
+        setScannedRequests={setScannedRequests}
+        nomenclatures={nomenclatures}
+        isIssuingCard={isProcessing}
+        handleIssueCardMaterials={handlers.handleIssueCardMaterials}
       />
 
       {/* Workspace */}

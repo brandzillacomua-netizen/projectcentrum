@@ -185,11 +185,10 @@ export const useWarehouseHandlers = ({
           .from('work_cards')
           .select('*')
           .or(`box_number.eq.${boxNum},box_number.eq.${cleanVal}`)
-          .neq('status', 'completed')
           .limit(1)
 
         if (searchErr || !matchedCards || matchedCards.length === 0) {
-          alert(`Картку для боксу "${cleanVal}" не знайдено або наряд вже завершено!`)
+          alert(`Картку для боксу "${cleanVal}" не знайдено!`)
           return
         }
         card = matchedCards[0]
