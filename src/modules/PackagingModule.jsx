@@ -936,8 +936,8 @@ const PackagingModule = () => {
                               <div style={{ color: cat.color }}>{cat.icon}</div>
                               <h4 style={{ margin: 0, fontSize: '0.85rem', color: cat.color, fontWeight: 900, letterSpacing: '1px' }}>{cat.title}</h4>
                               <span style={{ marginLeft: 'auto', color: '#333', fontSize: '0.75rem', fontWeight: 800 }}>{cat.items.length} ПОЗИЦІЙ</span>
-                              {/* ─── Кнопка + Додати позицію (тільки до відправки запиту) ─── */}
-                              {!hasAnyRequests && !activeBatchData.isPackaged && (
+                              {/* ─── Кнопка + Додати позицію ─── */}
+                              {!activeBatchData.isPackaged && (
                                 <button
                                   onClick={() => {
                                     setAddItemCategoryKey(key)
