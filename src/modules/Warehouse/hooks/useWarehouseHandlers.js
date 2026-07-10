@@ -317,11 +317,42 @@ export const useWarehouseHandlers = ({
         return lowerName.includes('лист') || lowerName.includes('sheet')
       }
 
-      const matchedSheets = reqs.filter(req => !req.card_id && isSheetRequest(req) && isSheetMatchingPart(req, activeMaterial, nom)).map(req => ({
-        ...req,
-        displayQty: cardSheets,
-        isSheet: true
-      }))
+      const getRequestKey = (req) => {
+        const reqNom = nomenclatures.find(n => String(n.id) === String(req.nomenclature_id))
+        const reqName = reqNom?.name || req.details || ''
+        return `${req.nomenclature_id || ''}:${normStr(reqName)}`
+      }
+
+      const completedCardSheets = reqs
+        .filter(req => req.card_id && req.status === 'completed' && isSheetRequest(req) && isSheetMatchingPart(req, activeMaterial, nom))
+        .reduce((acc, req) => {
+          const key = getRequestKey(req)
+          if (!acc.has(key)) acc.set(key, req)
+          return acc
+        }, new Map())
+
+      const pendingSheetGroups = reqs
+        .filter(req => !req.card_id && req.status !== 'completed' && isSheetRequest(req) && isSheetMatchingPart(req, activeMaterial, nom))
+        .reduce((acc, req) => {
+          const key = getRequestKey(req)
+          if (!completedCardSheets.has(key) && !acc.has(key)) {
+            acc.set(key, req)
+          }
+          return acc
+        }, new Map())
+
+      const matchedSheets = [
+        ...Array.from(completedCardSheets.values()).map(req => ({
+          ...req,
+          displayQty: cardSheets,
+          isSheet: true
+        })),
+        ...Array.from(pendingSheetGroups.values()).map(req => ({
+          ...req,
+          displayQty: cardSheets,
+          isSheet: true
+        }))
+      ]
 
       let matchedCutters = []
       if (ops && Object.keys(cuttersRates).length > 0) {
@@ -440,6 +471,7 @@ export const useWarehouseHandlers = ({
   }
 
   const handleIssueCardMaterials = async () => {
+    if (isProcessing) return
     setIsProcessing(true)
     try {
       const pendingReqs = scannedRequests.filter(r => r.status === 'pending' || r.status === 'issued')

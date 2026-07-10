@@ -87,6 +87,21 @@ export const MaterialDetailModal = ({
         )}
 
         <div style={{ padding: '25px', display: 'flex', flexDirection: 'column', gap: '15px', maxHeight: '450px', overflowY: 'auto' }}>
+          {isFullyIssued && (
+            <div style={{
+              background: 'rgba(16, 185, 129, 0.12)',
+              border: '1px solid rgba(16, 185, 129, 0.35)',
+              color: '#10b981',
+              borderRadius: '14px',
+              padding: '14px',
+              fontSize: '0.95rem',
+              fontWeight: 950,
+              textAlign: 'center',
+              textTransform: 'uppercase'
+            }}>
+              Матеріали видано!
+            </div>
+          )}
           {scannedRequests.map((req, idx) => {
             const nom = nomenclatures.find(n => n.id === req.nomenclature_id)
             const itemName = nom

@@ -970,7 +970,7 @@ const WarehouseModuleV2 = () => {
         scannedRequests={scannedRequests}
         setScannedRequests={setScannedRequests}
         nomenclatures={nomenclatures}
-        isIssuingCard={isIssuingCard}
+        isIssuingCard={isIssuingCard || isProcessing}
         handleIssueCardMaterials={handlers.handleIssueCardMaterials}
       />
 
