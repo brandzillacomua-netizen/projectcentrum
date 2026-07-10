@@ -346,7 +346,9 @@ const PackagingModule = () => {
                 }
               })
               
-              // Skip SGP items from static BOM if we have task snapshots but this item is not in them (e.g. was replaced)
+              // Для деталей фінальний список диктує snapshot з /master:
+              // видалені не повертаються з BOM, замінені приходять новим ключем,
+              // додані позиції додаються нижче з plan_snapshot.
               const isSgp = isFinishedComponent(nom)
               if (isSgp && hasSnapshot && !snapFound) return
 
@@ -432,6 +434,7 @@ const PackagingModule = () => {
         if (!map[nomIdStr]) {
           const nom = nomenclatures.find(n => String(n.id) === nomIdStr)
           if (nom && !isProductionOnlyMaterial(nom)) {
+            if (hasSnapshot && isFinishedComponent(nom)) return
             const sourceMatch = r.details?.match(/\[PACKAGING_SOURCE:(SGP|BZ|SO)\]/)
             const sourceKind = sourceMatch?.[1] === 'BZ' ? 'bz' : sourceMatch?.[1] === 'SO' ? 'operational' : (isFinishedComponent(nom) ? 'sgp' : 'operational')
             map[nomIdStr] = { nom, qty: Number(r.quantity) || 0, isCustom: r.details?.includes('[PACKAGING_CUSTOM]'), sourceKind }
