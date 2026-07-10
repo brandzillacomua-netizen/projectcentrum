@@ -2100,7 +2100,7 @@ const ForemanWorkplace = () => {
         reportDetailModal={reportDetailModal} setReportDetailModal={setReportDetailModal}
         handleOpenReport={handleOpenReport} tasks={tasks} orders={orders}
         allOrdersMap={allOrdersMap} bomItems={bomItems} nomenclatures={nomenclatures}
-        inventory={inventory} workCards={workCards} getRequestQty={getRequestQty}
+        machineOperations={machineOperations} inventory={inventory} workCards={workCards} getRequestQty={getRequestQty}
       />
       {false && showReportModal && (
         <div style={{

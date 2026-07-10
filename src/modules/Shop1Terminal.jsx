@@ -194,6 +194,7 @@ export default function Shop1Terminal() {
   const [reworkCount, setReworkCount] = useState(0)
   const [cuttersUsed, setCuttersUsed] = useState(0)
   const [cuttersBreakdown, setCuttersBreakdown] = useState({})
+  const [cuttersTouched, setCuttersTouched] = useState({})
   const [galtPriority, setGaltPriority] = useState(2)
 
   // Перезмінка (тільки Розкрій)
@@ -763,8 +764,10 @@ export default function Shop1Terminal() {
         const initBreakdown = {}
         initCutters.forEach(name => { initBreakdown[name] = 0 })
         setCuttersBreakdown(initBreakdown)
+        setCuttersTouched({})
       } else {
         setCuttersBreakdown({})
+        setCuttersTouched({})
       }
       setGaltPriority(currentCard?.galt_priority || 2)
     }
@@ -1592,7 +1595,16 @@ export default function Shop1Terminal() {
       const activeShift = selectedShift || currentCard.shift_name || 'Без зміни'
       const isCuttingOperation = currentCard.operation === 'Розкрій'
       const cuttersQty = isCuttingOperation ? Object.values(cuttersBreakdown).reduce((sum, v) => sum + (Number(v) || 0), 0) : null
-      const priorityVal = isCuttingOperation ? galtPriority : (currentCard.galt_priority || 2)
+
+      if (isCuttingOperation) {
+        const requiredCutters = getCuttersForCard(currentCard)
+        const missingCutters = requiredCutters.filter(name => !cuttersTouched[name])
+        if (missingCutters.length > 0) {
+          alert('Заповніть фактичну кількість фрез перед передачею в буфер розкрою.')
+          setIsProcessing(false)
+          return
+        }
+      }
 
       if (isCuttingOperation && cuttersQty > 0) {
         const canSaveCutters = await validateCuttersUsageLimit(cuttersQty)
@@ -1691,7 +1703,6 @@ export default function Shop1Terminal() {
           shift_name: activeShift,
           cutters_used: cuttersQty,
           card_info: historyCardInfo,
-          galt_priority: priorityVal,
           completed_at: new Date().toISOString()
         }).eq('id', currentCard.id)
       )
@@ -2577,6 +2588,10 @@ export default function Shop1Terminal() {
     const selectStyle = { width: '100%', background: '#1a1a1a', border: '1px solid #333', color: '#fff', padding: '12px', borderRadius: '12px', fontSize: '0.9rem', fontWeight: 700 }
     const btnPrimary = { background: '#eab308', color: '#000', border: 'none', padding: '15px', borderRadius: '14px', fontSize: '1rem', fontWeight: 1000, cursor: 'pointer' }
     const btnGreen = { background: '#10b981', color: '#fff', border: 'none', padding: '15px', borderRadius: '14px', fontSize: '1rem', fontWeight: 1000, cursor: 'pointer' }
+    const completeModalCutters = currentCard.operation === 'Розкрій' ? getCuttersForCard(currentCard) : []
+    const requiresCuttersFact = currentCard.operation === 'Розкрій' && completeModalCutters.length > 0
+    const hasCuttersFact = !requiresCuttersFact || completeModalCutters.every(name => cuttersTouched[name])
+    const completeToBufferDisabled = isProcessing || !hasCuttersFact
 
     return (
       <div style={{ maxWidth: '820px', margin: '0 auto' }}>
@@ -3920,6 +3935,13 @@ export default function Shop1Terminal() {
   )
 
   // ── ГОЛОВНИЙ РЕНДЕР ──────────────────────────────────────────────────────
+  const completeModalCutters = showCompleteModal && currentCard?.operation === 'Розкрій'
+    ? getCuttersForCard(currentCard)
+    : []
+  const requiresCuttersFact = showCompleteModal && currentCard?.operation === 'Розкрій' && completeModalCutters.length > 0
+  const hasCuttersFact = !requiresCuttersFact || completeModalCutters.every(name => cuttersTouched[name])
+  const completeToBufferDisabled = isProcessing || !hasCuttersFact
+
   return (
     <div style={{ background: '#0a0a0a', height: '100vh', display: 'flex', flexDirection: 'column', color: '#fff', overflow: 'hidden' }}>
 
@@ -4348,45 +4370,6 @@ export default function Shop1Terminal() {
             <div style={{ padding: '24px 22px', display: 'flex', flexDirection: 'column', gap: '18px', overflowY: 'auto', flex: 1 }}>
               <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900 }}>{getNom(currentCard)?.name}</h3>
 
-              {/* Пріоритет галтовки (Тільки для Розкрою) */}
-              {currentCard.operation === 'Розкрій' && (
-                <div style={{ background: '#0d0d0d', borderRadius: '14px', padding: '18px', border: '1px solid #eab30822' }}>
-                  <label style={{ color: '#eab308', fontWeight: 900, fontSize: '0.7rem', textTransform: 'uppercase', display: 'block', marginBottom: '12px', textAlign: 'center' }}>
-                    ПРІОРИТЕТ ДЛЯ ГАЛТОВКИ
-                  </label>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    {[
-                      { val: 1, label: '1 - ВИСОКИЙ', color: '#ef4444' },
-                      { val: 2, label: '2 - СЕРЕДНІЙ', color: '#3b82f6' },
-                      { val: 3, label: '3 - НИЗЬКИЙ', color: '#10b981' }
-                    ].map(p => {
-                      const active = galtPriority === p.val
-                      return (
-                        <button
-                          key={p.val}
-                          type="button"
-                          onClick={() => setGaltPriority(p.val)}
-                          style={{
-                            flex: 1,
-                            padding: '12px 6px',
-                            borderRadius: '10px',
-                            border: `1px solid ${active ? p.color : '#222'}`,
-                            background: active ? p.color : 'transparent',
-                            color: active ? '#000' : p.color,
-                            fontSize: '0.7rem',
-                            fontWeight: 900,
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease'
-                          }}
-                        >
-                          {p.label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-
               {/* Зміна */}
               <div>
                 <label style={labelStyle}>Зміна (якщо змінилася)</label>
@@ -4411,7 +4394,7 @@ export default function Shop1Terminal() {
 
               {/* Фактична кількість фрез (Тільки для Розкрою) */}
               {currentCard.operation === 'Розкрій' && (() => {
-                const cardCutters = [...getCuttersForCard(currentCard)].sort((a, b) => {
+                const cardCutters = [...completeModalCutters].sort((a, b) => {
                   const getDiam = (str) => {
                     const m = str.match(/(\d+(?:[.,]\d+)?)[xх]/i)
                     return m ? parseFloat(m[1].replace(',', '.')) : 999
@@ -4429,16 +4412,23 @@ export default function Shop1Terminal() {
                         <div key={cutterName} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#121212', padding: '10px 15px', borderRadius: '10px', border: '1px solid #222' }}>
                           <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#aaa', maxWidth: '60%', textAlign: 'left' }}>{cutterName}</span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <button onClick={() => setCuttersBreakdown(p => ({ ...p, [cutterName]: Math.max(0, currentVal - 1) }))}
+                            <button onClick={() => {
+                                setCuttersTouched(p => ({ ...p, [cutterName]: true }))
+                                setCuttersBreakdown(p => ({ ...p, [cutterName]: Math.max(0, currentVal - 1) }))
+                              }}
                               type="button"
                               style={{ width: '32px', height: '32px', background: '#1c1c1c', border: '1px solid #333', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
                             <input type="number" min={0} value={currentVal === 0 ? '' : currentVal} placeholder="0"
                               onChange={e => {
                                 const val = e.target.value
+                                setCuttersTouched(p => ({ ...p, [cutterName]: true }))
                                 setCuttersBreakdown(p => ({ ...p, [cutterName]: val === '' ? 0 : Math.max(0, parseInt(val) || 0) }))
                               }}
                               style={{ background: 'transparent', border: 'none', color: '#eab308', fontSize: '1.2rem', width: '50px', textAlign: 'center', fontWeight: 900 }} />
-                            <button onClick={() => setCuttersBreakdown(p => ({ ...p, [cutterName]: currentVal + 1 }))}
+                            <button onClick={() => {
+                                setCuttersTouched(p => ({ ...p, [cutterName]: true }))
+                                setCuttersBreakdown(p => ({ ...p, [cutterName]: currentVal + 1 }))
+                              }}
                               type="button"
                               style={{ width: '32px', height: '32px', background: '#1c1c1c', border: '1px solid #333', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
                           </div>
@@ -4448,6 +4438,11 @@ export default function Shop1Terminal() {
                     <div style={{ borderTop: '1px solid #222', paddingTop: '10px', textAlign: 'center', fontSize: '0.72rem', color: '#555' }}>
                       Всього використано: <strong style={{ color: '#eab308' }}>{Object.values(cuttersBreakdown).reduce((sum, v) => sum + (Number(v) || 0), 0)} шт</strong>
                     </div>
+                    {!hasCuttersFact && (
+                      <div style={{ textAlign: 'center', fontSize: '0.68rem', color: '#ef4444', fontWeight: 800 }}>
+                        Заповніть фактичну кількість по кожній фрезі
+                      </div>
+                    )}
                   </div>
                 )
               })()}
@@ -4499,8 +4494,8 @@ export default function Shop1Terminal() {
                   {isProcessing ? 'ЗБЕРЕЖЕННЯ...' : '♻ ЗАМОВИТИ ДОВИПУСК'}
                 </button>
               ) : (
-                <button onClick={handleCompleteToBuffer} disabled={isProcessing}
-                  style={{ ...btnGreen, opacity: isProcessing ? 0.5 : 1 }}>
+                <button onClick={handleCompleteToBuffer} disabled={completeToBufferDisabled}
+                  style={{ ...btnGreen, opacity: completeToBufferDisabled ? 0.5 : 1, cursor: completeToBufferDisabled ? 'not-allowed' : 'pointer' }}>
                   {isProcessing ? 'ЗБЕРЕЖЕННЯ...' : (
                     currentCard.operation === CHAIN[CHAIN.length - 1]
                       ? '✓ ПРИЙНЯТО · ЗАВЕРШИТИ'

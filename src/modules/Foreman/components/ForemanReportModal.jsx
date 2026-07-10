@@ -40,6 +40,79 @@ const getDeclaredRequestQty = (request, fallbackQty = 0) => {
   return fallbackQty
 }
 
+const getCutterDiameter = (name = '') => {
+  const lower = String(name || '').toLowerCase().replace(/,/g, '.')
+  const direct = lower.match(/ф\s*([0-9]+(?:\.[0-9]+)?)/)
+  if (direct) return parseFloat(direct[1])
+  const bySize = lower.match(/(?:кукурудза|двопера|однопера|спіральна|торцева|шарова|радіусна)?\s*([0-9][0-9.]*)(?:\s*[×xх])/)
+  return bySize ? parseFloat(bySize[1]) : null
+}
+
+const buildPlannedCuttersFromSnapshot = ({ task, nomenclatures = [], machineOperations = [], inventory = [] }) => {
+  const snapshot = task?.plan_snapshot || {}
+  const selectedCutters = snapshot.selectedCutters || {}
+  const result = {}
+
+  const resolveDisplayName = genericName => {
+    const selectedInvId = selectedCutters[genericName] || selectedCutters[String(genericName || '').toLowerCase()]
+    const selectedInv = (inventory || []).find(inv => String(inv.id) === String(selectedInvId))
+    const selectedNom = selectedInv ? (nomenclatures || []).find(n => String(n.id) === String(selectedInv.nomenclature_id)) : null
+    return selectedNom?.name || selectedInv?.name || genericName || 'Фреза'
+  }
+
+  Object.entries(snapshot).forEach(([partId, part]) => {
+    if (partId.startsWith('_') || ['materialSummary', 'arrivals', 'arrival_doc_id', 'arrival_doc', 'nomenclatures', 'selectedCutters', 'consumables'].includes(partId)) return
+    if (!part || typeof part !== 'object') return
+
+    const partNomId = part.id || partId
+    const override = part.cutter_override || '2'
+    const splits = Array.isArray(part.splits) ? part.splits : []
+    const sheetGroups = splits.length > 0
+      ? splits.map(split => ({ machine: split.machine || part.selected_machine || task?.machine_name, sheets: Number(split.sheets) || 0 }))
+      : [{
+          machine: part.selected_machine || task?.machine_name,
+          sheets: part.sheets_t300 !== undefined || part.sheets_t700 !== undefined
+            ? (Number(part.sheets_t300) || 0) + (Number(part.sheets_t700) || 0)
+            : Number(part.sheets) || 0
+        }]
+
+    sheetGroups.forEach(group => {
+      if (!group.machine || group.sheets <= 0) return
+
+      const opData = (machineOperations || []).find(op => {
+        if (String(op.nomenclature_id) !== String(partNomId)) return false
+        return op.machine_type === group.machine || op.machine_id === group.machine
+      })
+      if (!opData?.side2_cut_ops) return
+
+      opData.side2_cut_ops
+        .filter(op => op.startsWith('__CUTTER__Reference:') || op.startsWith('__CUTTER__:'))
+        .forEach(op => {
+          const [, cutterNomId, qtyPerSheetRaw] = op.split(':')
+          const qtyPerSheet = parseFloat(qtyPerSheetRaw) || 0
+          if (!cutterNomId || qtyPerSheet <= 0) return
+
+          let cutterNom = (nomenclatures || []).find(n => String(n.id) === String(cutterNomId))
+          if (!cutterNom) return
+
+          let cutterName = cutterNom.name?.trim() || ''
+          if (!cutterName || cutterName.toLowerCase() === 'фреза') return
+
+          const diameter = getCutterDiameter(cutterName)
+          if (override !== '1.5' && diameter && Math.abs(diameter - 1.5) < 0.01) return
+          if (override === '1.5' && diameter && Math.abs(diameter - 2) < 0.01) {
+            cutterName = 'Фреза ф1.5'
+          }
+
+          const displayName = resolveDisplayName(cutterName)
+          result[displayName] = (result[displayName] || 0) + Math.ceil(group.sheets * qtyPerSheet)
+        })
+    })
+  })
+
+  return result
+}
+
 export function ForemanReportModal({
   showReportModal,
   setShowReportModal,
@@ -62,6 +135,7 @@ export function ForemanReportModal({
   allOrdersMap,
   bomItems,
   nomenclatures,
+  machineOperations,
   inventory,
   workCards,
   getRequestQty
@@ -272,7 +346,12 @@ export function ForemanReportModal({
             const detailsStr = r.details?.toLowerCase() || ''
             return nomName.includes('фреза') || detailsStr.includes('фреза')
           })
-          const plannedCuttersBreakdown = {}
+          let plannedCuttersBreakdown = buildPlannedCuttersFromSnapshot({
+            task: currentTask,
+            nomenclatures,
+            machineOperations,
+            inventory
+          })
           const snapshotCutters = Array.isArray(currentTask?.plan_snapshot?.consumables)
             ? currentTask.plan_snapshot.consumables.filter(item => String(item?.name || '').toLowerCase().includes('фреза'))
             : []
@@ -284,7 +363,9 @@ export function ForemanReportModal({
             return selectedNom?.name || selectedInv?.name || item.name || 'Фреза'
           }
 
-          if (snapshotCutters.length > 0) {
+          if (Object.keys(plannedCuttersBreakdown).length > 0) {
+            // Freshly calculated from per-detail snapshot and machine operations.
+          } else if (snapshotCutters.length > 0) {
             snapshotCutters.forEach(item => {
               const name = resolveSnapshotCutterName(item)
               plannedCuttersBreakdown[name] = (plannedCuttersBreakdown[name] || 0) + (Number(item.total) || 0)
