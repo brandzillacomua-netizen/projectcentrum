@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { 
   ArrowLeft, 
@@ -15,12 +15,19 @@ import {
   Cpu
 } from 'lucide-react'
 import { useMES } from '../MESContext'
+import { supabase } from '../supabase'
+
+const FINAL_STAGES = new Set(['пакування/сгп', 'прийомка', 'склад бз', 'сгп', 'пакування', 'completed'])
+const ANALYTICS_PERIOD_DAYS = 30
 
 const AnalyticsModule = () => {
-  const { tasks, orders, workCards, workCardHistory, nomenclatures, machines, totalProduced, totalScrapCount } = useMES()
+  const { tasks, orders, workCards, workCardHistory, nomenclatures } = useMES()
   const [archiveTab, setArchiveTab] = useState('shop1')
   const [expandedOrders, setExpandedOrders] = useState({})
   const [expandedNoms, setExpandedNoms] = useState({})
+  const [analyticsHistory, setAnalyticsHistory] = useState([])
+  const [analyticsHistoryLoading, setAnalyticsHistoryLoading] = useState(false)
+  const [analyticsHistoryError, setAnalyticsHistoryError] = useState('')
 
   const toggleOrder = (orderNum) => setExpandedOrders(prev => ({ ...prev, [orderNum]: !prev[orderNum] }))
   const toggleNom = (orderNum, nomId) => {
@@ -29,6 +36,58 @@ const AnalyticsModule = () => {
   }
 
   // --- DATA AGGREGATION ---
+  useEffect(() => {
+    let cancelled = false
+
+    const loadFullHistory = async () => {
+      setAnalyticsHistoryLoading(true)
+      setAnalyticsHistoryError('')
+      try {
+        const pageSize = 1000
+        const rows = []
+
+        for (let offset = 0; !cancelled; offset += pageSize) {
+          const { data, error } = await supabase
+            .from('work_card_history')
+            .select('id,card_id,nomenclature_id,stage_name,operator_name,qty_completed,scrap_qty,completed_at,created_at,card_info')
+            .order('created_at', { ascending: false })
+            .range(offset, offset + pageSize - 1)
+
+          if (error) throw error
+          const page = data || []
+          rows.push(...page)
+          if (page.length < pageSize) break
+        }
+
+        if (!cancelled) {
+          setAnalyticsHistory(Array.from(new Map(rows.map(row => [String(row.id), row])).values()))
+        }
+      } catch (error) {
+        console.error('Failed to load full analytics history:', error)
+        if (!cancelled) setAnalyticsHistoryError(error.message || 'Не вдалося завантажити повну історію')
+      } finally {
+        if (!cancelled) setAnalyticsHistoryLoading(false)
+      }
+    }
+
+    loadFullHistory()
+    return () => { cancelled = true }
+  }, [])
+
+  const historyForAnalytics = analyticsHistory.length ? analyticsHistory : workCardHistory
+  const periodStart = useMemo(() => {
+    const date = new Date()
+    date.setDate(date.getDate() - ANALYTICS_PERIOD_DAYS)
+    date.setHours(0, 0, 0, 0)
+    return date
+  }, [])
+  const periodHistory = useMemo(() => historyForAnalytics.filter(h => {
+    const rawDate = h.completed_at || h.created_at
+    if (!rawDate) return false
+    const rowDate = new Date(rawDate)
+    return !Number.isNaN(rowDate.getTime()) && rowDate >= periodStart
+  }), [historyForAnalytics, periodStart])
+  const nomenclatureById = useMemo(() => new Map((nomenclatures || []).map(n => [String(n.id), n])), [nomenclatures])
 
   const stats = useMemo(() => {
     // 1. On-Time Delivery %
@@ -40,10 +99,13 @@ const AnalyticsModule = () => {
       return new Date(lastTask.completed_at) <= new Date(o.deadline)
     })
     const onTimeRate = completedOrders.length > 0 ? Math.round((onTimeOrders.length / completedOrders.length) * 100) : 0
-    const qualityRate = totalProduced > 0 ? (100 - Math.round((totalScrapCount / totalProduced) * 100)) : 0
+    const finalProductionHistory = periodHistory.filter(h => FINAL_STAGES.has(String(h.stage_name || '').toLowerCase().trim()))
+    const totalProducedFull = finalProductionHistory.reduce((acc, h) => acc + (Number(h.qty_completed) || 0), 0)
+    const totalScrapFull = periodHistory.reduce((acc, h) => acc + (Number(h.scrap_qty) || 0), 0)
+    const qualityRate = totalProducedFull > 0 ? (100 - Math.round((totalScrapFull / totalProducedFull) * 100)) : 0
 
     // 2. Operator Performance
-    const operatorStats = workCardHistory.reduce((acc, h) => {
+    const operatorStats = periodHistory.reduce((acc, h) => {
       const name = h.operator_name || 'Невідомий'
       if (!acc[name]) acc[name] = { name, produced: 0, scrap: 0, actions: 0 }
       acc[name].produced += (Number(h.qty_completed) || 0)
@@ -53,9 +115,9 @@ const AnalyticsModule = () => {
     }, {})
     const sortedOperators = Object.values(operatorStats).sort((a, b) => b.produced - a.produced)
 
-    // 3. Parts Produced by Type (Categories)
-    const partsByType = workCardHistory.reduce((acc, h) => {
-      const nom = nomenclatures.find(n => n.id === h.nomenclature_id)
+    // 3. Parts Produced by Type (Categories). Count only final output, not every intermediate operation.
+    const partsByType = finalProductionHistory.reduce((acc, h) => {
+      const nom = nomenclatureById.get(String(h.nomenclature_id))
       const type = nom?.material_type || 'Інше'
       acc[type] = (acc[type] || 0) + (Number(h.qty_completed) || 0)
       return acc
@@ -85,11 +147,15 @@ const AnalyticsModule = () => {
       shopLoad,
       sortedOperators,
       partsByType,
+      totalProducedFull,
+      totalScrapFull,
+      historyCount: periodHistory.length,
+      totalHistoryCount: historyForAnalytics.length,
       avgLeadTimeHours: Math.round(avgLeadTimeHours * 10) / 10,
       totalOrders: orders.length,
       activeTasks: tasks.filter(t => t.status === 'in-progress').length
     }
-  }, [tasks, orders, workCardHistory, nomenclatures])
+  }, [tasks, orders, periodHistory, historyForAnalytics.length, nomenclatureById])
 
   // --- RENDER HELPERS ---
 
@@ -131,8 +197,16 @@ const AnalyticsModule = () => {
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
            <div style={{ background: '#111', padding: '8px 16px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 800, color: '#555', border: '1px solid #1a1a1a' }}>
-             <Calendar size={14} style={{ marginRight: '8px', verticalAlign: 'middle' }} /> ОСТАННІ 30 ДНІВ
+             <Calendar size={14} style={{ marginRight: '8px', verticalAlign: 'middle' }} />
+             {analyticsHistoryLoading
+               ? 'ЗАВАНТАЖЕННЯ ІСТОРІЇ...'
+               : `ОСТАННІ ${ANALYTICS_PERIOD_DAYS} ДНІВ · ${stats.historyCount.toLocaleString()} ЗАПИСІВ`}
            </div>
+           {analyticsHistoryError && (
+             <div style={{ background: '#111', padding: '8px 16px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 800, color: '#ef4444', border: '1px solid #1a1a1a' }}>
+               {analyticsHistoryError}
+             </div>
+           )}
         </div>
       </nav>
 
@@ -140,8 +214,8 @@ const AnalyticsModule = () => {
         
         {/* ─── TOP KPI ROW ─── */}
         <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '40px' }}>
-          {renderKPI("Виконано одиниць", (Number(totalProduced) || 0).toLocaleString(), totalProduced > 0 ? "+12% від минулого тижня" : "Дані відсутні", <Zap size={24} />, "#ff9000")}
-          {renderKPI("Якість (Без браку)", totalProduced > 0 ? `${stats.qualityRate}%` : "0%", `${totalScrapCount} шт. браку всього`, <Target size={24} />, "#10b981")}
+          {renderKPI("Виконано одиниць", (Number(stats.totalProducedFull) || 0).toLocaleString(), stats.totalProducedFull > 0 ? `за останні ${ANALYTICS_PERIOD_DAYS} днів` : "Дані відсутні", <Zap size={24} />, "#ff9000")}
+          {renderKPI("Якість (Без браку)", stats.totalProducedFull > 0 ? `${stats.qualityRate}%` : "0%", `${stats.totalScrapFull.toLocaleString()} шт. браку всього`, <Target size={24} />, "#10b981")}
           {renderKPI("Дотримання термінів", stats.totalOrders > 0 ? `${stats.onTimeRate}%` : "0%", `${stats.totalOrders} замовлень оброблено`, <Clock size={24} />, "#3b82f6")}
           {renderKPI("Ефективність", stats.avgLeadTimeHours > 0 ? `${stats.avgLeadTimeHours}г` : "0г", "Середній час циклу наряду", <Zap size={24} />, "#8b5cf6")}
         </div>
@@ -155,8 +229,12 @@ const AnalyticsModule = () => {
                 <BarChart3 size={18} /> РОЗПОДІЛ ВИРОБНИЦТВА ЗА МАТЕРІАЛАМИ
              </h3>
              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {Object.entries(stats.partsByType).sort((a,b) => b[1] - a[1]).slice(0, 6).map(([type, qty], idx) => {
-                  const max = Math.max(...Object.values(stats.partsByType))
+                {Object.entries(stats.partsByType).length === 0 ? (
+                  <div style={{ color: '#555', textAlign: 'center', padding: '30px 10px', fontSize: '0.8rem', fontWeight: 800 }}>
+                    Немає фінальних записів виробництва для розподілу
+                  </div>
+                ) : Object.entries(stats.partsByType).sort((a,b) => b[1] - a[1]).slice(0, 6).map(([type, qty], idx) => {
+                  const max = Math.max(...Object.values(stats.partsByType), 1)
                   const percent = (qty / max) * 100
                   return (
                     <div key={type}>
@@ -192,7 +270,7 @@ const AnalyticsModule = () => {
                 </div>
                 <div style={{ background: '#000', padding: '20px', borderRadius: '20px', border: '1px solid #111' }}>
                    <div style={{ color: '#333', fontSize: '0.6rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '5px' }}>БЕЗ БРАКУ</div>
-                   <div style={{ fontSize: '1.8rem', fontWeight: 1000, color: '#10b981' }}>{totalProduced > 0 ? `${stats.qualityRate}%` : "0%"}</div>
+                   <div style={{ fontSize: '1.8rem', fontWeight: 1000, color: '#10b981' }}>{stats.totalProducedFull > 0 ? `${stats.qualityRate}%` : "0%"}</div>
                    <div style={{ fontSize: '0.65rem', color: '#333' }}>Показник якості</div>
                 </div>
                 <div style={{ background: '#000', padding: '20px', borderRadius: '20px', border: '1px solid #111', gridColumn: 'span 2' }}>
@@ -307,7 +385,7 @@ const AnalyticsModule = () => {
            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               {(() => {
                 // Filter by Shop
-                const filteredHistory = workCardHistory.filter(h => {
+                const filteredHistory = periodHistory.filter(h => {
                    const rootCard = (workCards || []).find(c => String(c.id) === String(h.card_id))
                    const cardInfoIsShop2 = ((rootCard?.card_info || '') + (h.card_info || '')).includes('[ЦЕХ №2]')
                    const stageIsShop2 = ['Пресування', 'Фарбування', 'Доопрацювання'].includes(h.stage_name)
@@ -360,7 +438,7 @@ const AnalyticsModule = () => {
                       {expandedOrders[orderNum] && (
                         <div style={{ padding: '15px 25px 25px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                           {nomKeys.map(nomId => {
-                            const nom = nomenclatures.find(n => String(n.id) === String(nomId))
+                            const nom = nomenclatureById.get(String(nomId))
                             const items = grouped[orderNum][nomId]
                             const key = `${orderNum}_${nomId}`
                             

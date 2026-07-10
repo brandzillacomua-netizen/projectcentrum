@@ -1727,6 +1727,7 @@ const SettingsModule = () => {
   const [filterPosition, setFilterPosition] = useState('all')
   const [filterShift, setFilterShift] = useState('all')
   const [filterOnlyOnline, setFilterOnlyOnline] = useState(false)
+  const [showMobileUserForm, setShowMobileUserForm] = useState(false)
 
   const handleSaveUser = async (e) => {
     e.preventDefault()
@@ -1778,6 +1779,7 @@ const SettingsModule = () => {
       position: companyPositions?.[0]?.name || 'Оператор', department: companyStructure?.[0]?.name || 'Цех №1', shift: 'Без зміни',
       access_rights: { dashboard: false, foreman_dashboard: false, manager: false, master: false, warehouse: false, warehouse_boxes: false, engineer: false, director: false, foreman: false, operator: true, prep_terminal: false, shipping: false, supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, kanban: false, reports: false, tumbling_terminal: false, tumbling_dashboard: false, reception_terminal: false, sorting_terminal: false, painting_terminal: false, pressing_terminal: false }
     })
+    setShowMobileUserForm(false)
   }
 
   const editUser = (user) => {
@@ -1792,6 +1794,7 @@ const SettingsModule = () => {
       }
     })
     setActiveTab('users')
+    setShowMobileUserForm(true)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -2165,10 +2168,21 @@ const SettingsModule = () => {
           <div className="admin-users-layout" style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: '30px', alignItems: 'start' }}>
             
             {/* Left Column: Form Editor */}
-            <section className="glass-panel" style={{ background: '#0e0e11', padding: '28px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.04)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', position: 'sticky', top: '24px' }}>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 900, marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '10px', color: '#ff9000', letterSpacing: '0.02em' }}>
-                <UserPlus size={18} /> {userForm.id ? 'РЕДАГУВАННЯ ДОСЬЄ' : 'СТВОРИТИ НОВОГО ПРАЦІВНИКА'}
-              </h3>
+            <section className={`glass-panel user-editor-panel ${showMobileUserForm ? 'mobile-open' : ''}`} style={{ background: '#0e0e11', padding: '28px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.04)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', position: 'sticky', top: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: '24px' }}>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 900, margin: 0, display: 'flex', alignItems: 'center', gap: '10px', color: '#ff9000', letterSpacing: '0.02em' }}>
+                  <UserPlus size={18} /> {userForm.id ? 'РЕДАГУВАННЯ ДОСЬЄ' : 'СТВОРИТИ НОВОГО ПРАЦІВНИКА'}
+                </h3>
+                <button
+                  type="button"
+                  className="mobile-user-form-close"
+                  onClick={() => setShowMobileUserForm(false)}
+                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#aaa', width: '38px', height: '38px', borderRadius: '10px', display: 'none', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                  title="Закрити форму"
+                >
+                  <X size={16} />
+                </button>
+              </div>
               
               <form onSubmit={handleSaveUser} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
@@ -2302,6 +2316,31 @@ const SettingsModule = () => {
                     <h3 style={{ fontSize: '0.9rem', color: '#888', margin: 0, fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <Users size={18} color="#ff9000" /> КАРТОТЕКА ПРАЦІВНИКІВ ({systemUsers.length})
                     </h3>
+                    <button
+                      onClick={() => {
+                        setUserForm({ id: null, login: '', password: '', first_name: '', last_name: '', position: companyPositions?.[0]?.name || 'Оператор', department: companyStructure?.[0]?.name || 'Цех №1', shift: 'Без зміни', access_rights: { operator: true } })
+                        setShowMobileUserForm(true)
+                        window.scrollTo({ top: 0, behavior: 'smooth' })
+                      }}
+                      style={{
+                        background: 'linear-gradient(135deg, #ff9000, #ff6a00)',
+                        border: 'none',
+                        color: '#000',
+                        padding: '8px 12px',
+                        borderRadius: '10px',
+                        fontSize: '0.72rem',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                        display: 'none',
+                        alignItems: 'center',
+                        gap: '6px',
+                        transition: '0.2s'
+                      }}
+                      className="mobile-new-user-btn"
+                      type="button"
+                    >
+                      <Plus size={14} /> Новий користувач
+                    </button>
                     <button 
                       onClick={() => {
                         setCsvFile(null)
@@ -2873,7 +2912,7 @@ const SettingsModule = () => {
 
         {/* ── TAB 3: SYSTEM CONFIG ── */}
         {activeTab === 'system' && isAdmin && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '30px', alignItems: 'start' }}>
+          <div className="system-settings-layout" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '30px', alignItems: 'start' }}>
             
             {/* Left Panel: Fortnet & API settings */}
             <section className="settings-panel glass-panel" style={{ background: '#0e0e11', padding: '30px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.04)' }}>
@@ -4591,7 +4630,241 @@ const SettingsModule = () => {
         }
         
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-        @media (max-width: 768px) { .hide-mobile { display: none !important; } }
+
+        @media (max-width: 900px) {
+          .settings-module-v2 {
+            min-height: 100dvh !important;
+            overflow-x: hidden !important;
+          }
+
+          .settings-module-v2 .module-nav {
+            height: auto !important;
+            min-height: 64px !important;
+            padding: 10px 12px !important;
+            gap: 10px !important;
+            align-items: center !important;
+          }
+
+          .settings-module-v2 .module-nav h1 {
+            font-size: 0.86rem !important;
+            line-height: 1.15 !important;
+            max-width: 46vw !important;
+            white-space: normal !important;
+          }
+
+          .settings-module-v2 .module-nav > div {
+            gap: 10px !important;
+            min-width: 0 !important;
+          }
+
+          .settings-module-v2 .module-content {
+            width: 100% !important;
+            max-width: none !important;
+            padding: 12px !important;
+            box-sizing: border-box !important;
+            overflow-x: hidden !important;
+          }
+
+          .settings-module-v2 .settings-tabs {
+            display: flex !important;
+            width: calc(100vw - 24px) !important;
+            max-width: calc(100vw - 24px) !important;
+            overflow-x: auto !important;
+            overflow-y: hidden !important;
+            margin-bottom: 16px !important;
+            border-radius: 14px !important;
+            padding: 5px !important;
+            gap: 5px !important;
+            scrollbar-width: none;
+          }
+
+          .settings-module-v2 .settings-tabs::-webkit-scrollbar {
+            display: none;
+          }
+
+          .settings-module-v2 .tab-btn-v2 {
+            flex: 0 0 auto !important;
+            min-height: 42px !important;
+            padding: 10px 12px !important;
+            font-size: 0.68rem !important;
+            border-radius: 10px !important;
+            white-space: nowrap !important;
+          }
+
+          .settings-module-v2 .admin-users-layout,
+          .settings-module-v2 .system-settings-layout {
+            display: grid !important;
+            grid-template-columns: 1fr !important;
+            gap: 14px !important;
+          }
+
+          .settings-module-v2 .user-editor-panel {
+            display: none !important;
+          }
+
+          .settings-module-v2 .user-editor-panel.mobile-open {
+            display: block !important;
+          }
+
+          .settings-module-v2 .mobile-new-user-btn,
+          .settings-module-v2 .mobile-user-form-close {
+            display: flex !important;
+          }
+
+          .settings-module-v2 section,
+          .settings-module-v2 .settings-panel,
+          .settings-module-v2 .glass-panel {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
+            padding: 16px !important;
+            border-radius: 16px !important;
+            position: static !important;
+            top: auto !important;
+            overflow-x: auto !important;
+          }
+
+          .settings-module-v2 form {
+            gap: 14px !important;
+          }
+
+          .settings-module-v2 form > div,
+          .settings-module-v2 section > div,
+          .settings-module-v2 .settings-panel > div {
+            min-width: 0 !important;
+          }
+
+          .settings-module-v2 form div[style*="grid-template-columns"],
+          .settings-module-v2 section div[style*="grid-template-columns"],
+          .settings-module-v2 .settings-panel div[style*="grid-template-columns"] {
+            grid-template-columns: 1fr !important;
+          }
+
+          .settings-module-v2 div[style*="display: flex"] {
+            min-width: 0 !important;
+          }
+
+          .settings-module-v2 input,
+          .settings-module-v2 select,
+          .settings-module-v2 textarea {
+            max-width: 100% !important;
+            min-height: 44px !important;
+            font-size: 16px !important;
+            box-sizing: border-box !important;
+          }
+
+          .settings-module-v2 button {
+            min-height: 42px !important;
+            touch-action: manipulation;
+          }
+
+          .settings-module-v2 .primary-btn,
+          .settings-module-v2 .logout-btn {
+            padding: 10px 12px !important;
+            white-space: nowrap !important;
+          }
+
+          .settings-module-v2 section h3,
+          .settings-module-v2 .settings-panel h3 {
+            font-size: 0.92rem !important;
+            line-height: 1.25 !important;
+            margin-bottom: 14px !important;
+            flex-wrap: wrap !important;
+          }
+
+          .settings-module-v2 section h4,
+          .settings-module-v2 .settings-panel h4 {
+            font-size: 0.76rem !important;
+            line-height: 1.3 !important;
+          }
+
+          .settings-module-v2 p {
+            font-size: 0.76rem !important;
+            line-height: 1.45 !important;
+          }
+
+          .settings-module-v2 table {
+            min-width: 680px !important;
+          }
+
+          .settings-module-v2 pre,
+          .settings-module-v2 code {
+            white-space: pre-wrap !important;
+            overflow-wrap: anywhere !important;
+          }
+
+          .settings-module-v2 .dossier-card {
+            transform: none !important;
+          }
+        }
+
+        @media (max-width: 560px) {
+          .hide-mobile { display: none !important; }
+
+          .settings-module-v2 .module-nav {
+            position: sticky !important;
+            top: 0 !important;
+          }
+
+          .settings-module-v2 .module-nav h1 {
+            font-size: 0.78rem !important;
+            max-width: 52vw !important;
+          }
+
+          .settings-module-v2 .module-content {
+            padding: 10px !important;
+          }
+
+          .settings-module-v2 .settings-tabs {
+            width: calc(100vw - 20px) !important;
+            max-width: calc(100vw - 20px) !important;
+            margin-bottom: 12px !important;
+          }
+
+          .settings-module-v2 .tab-btn-v2 {
+            min-height: 40px !important;
+            padding: 9px 10px !important;
+            font-size: 0.64rem !important;
+            gap: 6px !important;
+          }
+
+          .settings-module-v2 section,
+          .settings-module-v2 .settings-panel,
+          .settings-module-v2 .glass-panel {
+            padding: 14px !important;
+            border-radius: 14px !important;
+          }
+
+          .settings-module-v2 .admin-users-layout,
+          .settings-module-v2 .system-settings-layout {
+            gap: 12px !important;
+          }
+
+          .settings-module-v2 section div[style*="justify-content: space-between"],
+          .settings-module-v2 .settings-panel div[style*="justify-content: space-between"] {
+            align-items: stretch !important;
+            flex-wrap: wrap !important;
+          }
+
+          .settings-module-v2 section div[style*="display: flex"],
+          .settings-module-v2 .settings-panel div[style*="display: flex"] {
+            flex-wrap: wrap !important;
+          }
+
+          .settings-module-v2 .primary-btn {
+            width: 100% !important;
+          }
+
+          .settings-module-v2 select {
+            width: 100% !important;
+          }
+
+          .settings-module-v2 table {
+            min-width: 620px !important;
+            font-size: 0.7rem !important;
+          }
+        }
       `}} />
     </div>
   )
