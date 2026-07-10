@@ -31,6 +31,32 @@ export function createProductionActions({
   maintenanceCheckEnabled
 }) {
 
+  const stripMaterialTags = (s) => (s || '').toLowerCase()
+    .replace(/\[\s*підготовлений\s*\]/gi, '')
+    .replace(/\[\s*непідготовлений\s*\]/gi, '')
+    .trim()
+
+  const isRawMaterialNom = (n) => n && (n.type === 'raw' || n.type === 'material')
+
+  const findExplicitRawMaterialNom = (materialLabel) => {
+    const rawLabel = String(materialLabel || '').trim()
+    if (!rawLabel) return null
+
+    const lowerLabel = rawLabel.toLowerCase()
+    const normalizedLabel = normalizeName(stripMaterialTags(rawLabel))
+
+    return nomenclatures.find(n => {
+      if (!isRawMaterialNom(n)) return false
+      const name = String(n.name || '').trim()
+      const materialType = String(n.material_type || '').trim()
+      if (name.toLowerCase() === lowerLabel) return true
+      if (materialType && materialType.toLowerCase() === lowerLabel) return true
+      if (normalizeName(stripMaterialTags(name)) === normalizedLabel) return true
+      if (materialType && normalizeName(stripMaterialTags(materialType)) === normalizedLabel) return true
+      return normalizeName(stripMaterialTags(`${name} ${materialType}`)) === normalizedLabel
+    }) || null
+  }
+
   const approveWarehouse = async (taskId) => {
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, warehouse_conf: 'true' } : t))
     await supabase.from('tasks').update({ warehouse_conf: 'true' }).eq('id', taskId)
@@ -435,12 +461,6 @@ export function createProductionActions({
     try {
       const order = orders.find(o => String(o.id) === String(orderId))
 
-      // Strip tag variants for name matching
-      const stripTags = (s) => (s || '').toLowerCase()
-        .replace(/\[\s*підготовлений\s*\]/gi, '')
-        .replace(/\[\s*непідготовлений\s*\]/gi, '')
-        .trim()
-
       const task = tasks.find(t => String(t.id) === String(taskId))
       const snapshot = task?.plan_snapshot?.[partNom?.id]
 
@@ -454,21 +474,22 @@ export function createProductionActions({
           matKeyBase = matKeyBase.replace(/т700/gi, 'Т300').replace(/t700/gi, 'Т300')
         }
       }
-      const normalizedBase = normalizeName(stripTags(matKeyBase))
+      const explicitRawNom = findExplicitRawMaterialNom(matKeyBase)
+      const normalizedBase = normalizeName(stripMaterialTags(matKeyBase))
 
       // [Підготовлений] nom — ALWAYS used for main warehouse request
       const preparedNom = nomenclatures.find(n =>
         (n.type === 'raw' || n.type === 'material') &&
         n.name.toLowerCase().includes('підготовлений') &&
         !n.name.toLowerCase().includes('непідготовлений') &&
-        normalizeName(stripTags(n.name)) === normalizedBase
+        normalizeName(stripMaterialTags(n.name)) === normalizedBase
       )
 
       // [Непідготовлений] nom — for prep order / СВ request only
       const unpreparedNom = nomenclatures.find(n =>
         (n.type === 'raw' || n.type === 'material') &&
         n.name.toLowerCase().includes('непідготовлений') &&
-        normalizeName(stripTags(n.name)) === normalizedBase
+        normalizeName(stripMaterialTags(n.name)) === normalizedBase
       ) || nomenclatures.find(n =>
         (n.type === 'raw' || n.type === 'material') &&
         !n.name.toLowerCase().includes('підготовлений') &&
@@ -476,7 +497,7 @@ export function createProductionActions({
       )
 
       // Fallback: generic match if no prepared nom found
-      const finalPreparedNom = preparedNom || nomenclatures.find(n =>
+      const finalPreparedNom = explicitRawNom || preparedNom || nomenclatures.find(n =>
         (n.type === 'raw' || n.type === 'material') &&
         normalizeName(n.name) === normalizedBase
       )
@@ -1355,9 +1376,10 @@ export function createProductionActions({
           if (isSheet) {
             const addMaterialToSummary = (typePrefix, qty) => {
               const matKeyBase = (part.nom.material_type || part.nom.name || 'Інше').trim()
+              const explicitRawNom = findExplicitRawMaterialNom(matKeyBase)
               const thickMatch = matKeyBase.match(/\((\d+(?:\.\d+)?)мм\)/i)
               const thicknessClean = thickMatch ? `${thickMatch[1]}мм` : matKeyBase.toLowerCase().replace(' ', '')
-              let rawNom = nomenclatures.find(n =>
+              let rawNom = explicitRawNom || nomenclatures.find(n =>
                 (n.type === 'raw' || n.type === 'material') &&
                 n.name.includes('[Підготовлений]') &&
                 (n.name.toLowerCase().includes(typePrefix.toLowerCase()) || (typePrefix === 'Т300' && !n.name.toLowerCase().includes('т700') && !n.name.toLowerCase().includes('t700'))) &&

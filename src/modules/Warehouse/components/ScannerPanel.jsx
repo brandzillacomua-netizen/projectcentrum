@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { QrCode, X } from 'lucide-react'
 
 export const ScannerPanel = ({
@@ -10,12 +10,14 @@ export const ScannerPanel = ({
   color = '#ff9000'
 }) => {
   const [localError, setLocalError] = useState(null)
+  const scanHandledRef = useRef(false)
 
   useEffect(() => {
     if (!isScanning) return
 
     let html5QrCode = null
     let timer = null
+    scanHandledRef.current = false
 
     const startScanner = async () => {
       if (!window.Html5Qrcode) {
@@ -37,16 +39,25 @@ export const ScannerPanel = ({
           { facingMode: 'environment' }, 
           config, 
           async (decodedText) => {
+            if (scanHandledRef.current) return
+            scanHandledRef.current = true
+
             let cardId = decodedText.trim()
             if (cardId.startsWith('CENTRUM_CARD_')) {
               cardId = cardId.replace('CENTRUM_CARD_', '').trim()
             }
-            // Stop camera track
-            if (html5QrCode && html5QrCode.isScanning) {
-              await html5QrCode.stop().catch(() => {})
+
+            try {
+              if (html5QrCode && html5QrCode.isScanning) {
+                await html5QrCode.stop().catch(() => {})
+              }
+              setIsScanning(false)
+              await Promise.resolve(handleCardScan(cardId))
+            } catch (err) {
+              console.error('Card scan handler error:', err)
+              setLocalError(err?.message || String(err))
+              scanHandledRef.current = false
             }
-            setIsScanning(false)
-            handleCardScan(cardId)
           }
         )
       } catch (err) {

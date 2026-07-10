@@ -849,6 +849,9 @@ const ForemanWorkplace = () => {
                               const machineObjForCapacity = findMachine(rowMachineName)
                               const defaultCapacity = machineObjForCapacity?.min_capacity || machineObjForCapacity?.sheet_capacity || 1
                               const maxCapacity = machineObjForCapacity?.max_capacity || machineObjForCapacity?.sheet_capacity || 1
+                              const requiresCapacityInput = !isSplitMode && plan > 0 && !!rowMachineName && defaultCapacity !== maxCapacity
+                              const hasCapacityInput = rowCapacities[rowId] !== undefined && rowCapacities[rowId] !== ''
+                              const isCapacityMissing = requiresCapacityInput && !hasCapacityInput
                               const rawCapacity = (rowCapacities[rowId] !== undefined && rowCapacities[rowId] !== '') ? rowCapacities[rowId] : defaultCapacity
                               const machineCapacity = Math.min(maxCapacity, Math.max(defaultCapacity, rawCapacity))
 
@@ -920,7 +923,7 @@ const ForemanWorkplace = () => {
                                               type="number"
                                               title={`Листів за завантаження (від ${defaultCapacity} до ${maxCapacity})`}
                                               placeholder="Завант."
-                                              value={rowCapacities[rowId] !== undefined ? rowCapacities[rowId] : machineCapacity}
+                                              value={rowCapacities[rowId] !== undefined ? rowCapacities[rowId] : ''}
                                               min={defaultCapacity}
                                               max={maxCapacity}
                                               readOnly={productionCards.length > 0 && productionCards.length >= totalTargetLoads}
@@ -932,8 +935,11 @@ const ForemanWorkplace = () => {
                                               onBlur={(e) => {
                                                 if (productionCards.length > 0 && productionCards.length >= totalTargetLoads) return
                                                 let v = parseInt(e.target.value)
-                                                if (isNaN(v)) v = defaultCapacity;
-                                                else v = Math.min(maxCapacity, Math.max(defaultCapacity, v));
+                                                if (isNaN(v)) {
+                                                  setRowCapacities(p => ({ ...p, [rowId]: '' }));
+                                                  return
+                                                }
+                                                v = Math.min(maxCapacity, Math.max(defaultCapacity, v));
                                                 setRowCapacities(p => ({ ...p, [rowId]: v }));
                                               }}
                                               style={{
@@ -1091,6 +1097,7 @@ const ForemanWorkplace = () => {
                                           {(productionCards.length === 0 || productionCards.length < totalTargetLoads) && (
                                             <button
                                               disabled={!(rowMachineName || isSplitMode) || (() => {
+                                                if (isCapacityMissing) return true
                                                 const snapMat = (task.plan_snapshot || {})[String(part.nom?.id)]?.material; const baseMat = (snapMat || part.nom?.material_type || '').toLowerCase()
                                                 const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(task.id))
                                                 const extractThickness = (str) => {
@@ -1116,6 +1123,10 @@ const ForemanWorkplace = () => {
                                                 return hasKittingReqs && issued <= 0
                                               })()}
                                               onClick={() => {
+                                                if (isCapacityMissing) {
+                                                  alert(`Вкажіть кількість листів на одне завантаження (${defaultCapacity}-${maxCapacity} л.) перед генерацією карток.`)
+                                                  return
+                                                }
                                                 const snapMat = (task.plan_snapshot || {})[String(part.nom?.id)]?.material; const baseMat = (snapMat || part.nom?.material_type || '').toLowerCase()
                                                 const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(task.id))
                                                 const extractThickness = (str) => {
@@ -1208,6 +1219,7 @@ const ForemanWorkplace = () => {
                                                   const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
                                                     .reduce((sum, r) => sum + getRequestQty(r), 0)
                                                   const hasKittingReqs = sheetReqs.length > 0
+                                                  if (isCapacityMissing) return '#222';
                                                   if (hasKittingReqs && issued <= 0) return '#1e1b18';
                                                   return (rowMachineName || isSplitMode) ? '#ff9000' : '#222';
                                                 })(),
@@ -1234,6 +1246,7 @@ const ForemanWorkplace = () => {
                                                   const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
                                                     .reduce((sum, r) => sum + getRequestQty(r), 0)
                                                   const hasKittingReqs = sheetReqs.length > 0
+                                                  if (isCapacityMissing) return '#666';
                                                   if (hasKittingReqs && issued <= 0) return '#7f1d1d';
                                                   return (rowMachineName || isSplitMode) ? '#000' : '#444';
                                                 })(),
@@ -1260,6 +1273,7 @@ const ForemanWorkplace = () => {
                                                   const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
                                                     .reduce((sum, r) => sum + getRequestQty(r), 0)
                                                   const hasKittingReqs = sheetReqs.length > 0
+                                                  if (isCapacityMissing) return '1px solid #333';
                                                   if (hasKittingReqs && issued <= 0) return '1px solid rgba(239,68,68,0.2)';
                                                   return 'none';
                                                 })(),
@@ -1290,6 +1304,7 @@ const ForemanWorkplace = () => {
                                                   const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
                                                     .reduce((sum, r) => sum + getRequestQty(r), 0)
                                                   const hasKittingReqs = sheetReqs.length > 0
+                                                  if (isCapacityMissing) return 'not-allowed';
                                                   if (hasKittingReqs && issued <= 0) return 'not-allowed';
                                                   return (rowMachineName || isSplitMode) ? 'pointer' : 'not-allowed';
                                                 })(),
@@ -1320,6 +1335,7 @@ const ForemanWorkplace = () => {
                                                 const issued = sheetReqs.filter(r => r.status === 'issued' || r.status === 'completed')
                                                   .reduce((sum, r) => sum + getRequestQty(r), 0)
                                                 const hasKittingReqs = sheetReqs.length > 0
+                                                if (isCapacityMissing) return 'ВКАЖІТЬ ЛИСТИ';
                                                 return (hasKittingReqs && issued <= 0) ? 'НЕМАЄ ЛИСТІВ' : 'Генерувати';
                                               })()}
                                             </button>

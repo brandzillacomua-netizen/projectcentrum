@@ -46,6 +46,10 @@ export const useWarehouseHandlers = ({
   isProcessing,
   newItem
 }) => {
+  const isUuid = (value) => {
+    return typeof value === 'string' &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.trim())
+  }
 
   const handleToggleCutterCheck = (cardId, nomId) => {
     setCheckedCutters(prev => {
@@ -441,12 +445,20 @@ export const useWarehouseHandlers = ({
       const pendingReqs = scannedRequests.filter(r => r.status === 'pending' || r.status === 'issued')
       
       for (const req of pendingReqs) {
-        const { data: matchedInventory, error: invErr } = await supabaseClient
-          .from('inventory')
-          .select('*')
-          .or(`id.eq.${req.inventory_id || 0},nomenclature_id.eq.${req.nomenclature_id || 0}`)
-        
-        if (invErr) throw invErr
+        const inventoryFilters = []
+        if (isUuid(req.inventory_id)) inventoryFilters.push(`id.eq.${req.inventory_id.trim()}`)
+        if (isUuid(req.nomenclature_id)) inventoryFilters.push(`nomenclature_id.eq.${req.nomenclature_id.trim()}`)
+
+        let matchedInventory = []
+        if (inventoryFilters.length > 0) {
+          const { data, error: invErr } = await supabaseClient
+            .from('inventory')
+            .select('*')
+            .or(inventoryFilters.join(','))
+
+          if (invErr) throw invErr
+          matchedInventory = data || []
+        }
 
         const invItem = (matchedInventory || []).find(i => i.warehouse === 'operational' || !i.warehouse) 
           || (matchedInventory || [])[0]

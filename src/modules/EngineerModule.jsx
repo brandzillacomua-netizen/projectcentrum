@@ -39,12 +39,13 @@ const MACHINE_TYPES = [
 ]
 
 const renderCutterListEditorShared = (cutters, setCutters, nomenclatures) => {
-  let cutterNoms = nomenclatures.filter(n => n.type === 'cutter_type')
-  if (cutterNoms.length === 0) {
-    cutterNoms = nomenclatures.filter(n => {
-      return n.name.toLowerCase().match(/^фреза\s+[фf][0-9]/)
+  const cutterNoms = Array.from(new Map(nomenclatures
+    .filter(n => {
+      const name = String(n.name || '').toLowerCase()
+      return n.type === 'cutter_type' || name.includes('фреза') || name.match(/^ф\s*[0-9]/) || name.match(/^f\s*[0-9]/)
     })
-  }
+    .map(n => [String(n.id), n])
+  ).values()).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'uk'))
   return (
     <div style={{ flex: 1, minWidth: '280px', background: '#111', padding: '15px', borderRadius: '12px', border: '1px solid #222' }}>
       <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '6px' }}>

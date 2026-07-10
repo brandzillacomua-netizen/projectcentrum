@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../supabase'
 import { 
   Settings as SettingsIcon, 
@@ -75,6 +75,39 @@ const NomenclatureModule = () => {
     { id: 'raw', label: 'Сировина (Листи)', icon: <Layers size={16} />, color: '#eab308' },
     { id: 'consumable', label: 'Розхідники', icon: <Trash2 size={16} />, color: '#ef4444' }
   ]
+
+  const rawSheetOptions = useMemo(() => {
+    const rawSheets = nomenclatures
+      .filter(n => {
+        if (n.type !== 'raw' && n.type !== 'material') return false
+        const haystack = `${n.name || ''} ${n.material_type || ''}`.toLowerCase()
+        return haystack.includes('лист') || haystack.includes('sheet') || haystack.includes('мм')
+      })
+      .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'uk'))
+
+    const exactRawOptions = rawSheets.map(n => ({
+      id: `raw-${n.id}`,
+      value: n.name,
+      label: n.material_type ? `${n.name} (${n.material_type})` : n.name
+    }))
+
+    const thicknesses = Array.from(new Set(
+      rawSheets
+        .map(n => (n.material_type || '').trim())
+        .filter(Boolean)
+    )).sort((a, b) => {
+      const numA = parseFloat(a) || 0
+      const numB = parseFloat(b) || 0
+      return numA - numB
+    })
+
+    const genericOptions = thicknesses.map(thick => {
+      const label = `Лист (${thick})`
+      return { id: `generic-${thick}`, value: label, label }
+    })
+
+    return [...exactRawOptions, ...genericOptions]
+  }, [nomenclatures])
 
   const handleSaveNom = (e) => {
     e.preventDefault()
@@ -862,25 +895,12 @@ const NomenclatureModule = () => {
                       >
                         <option value="">Оберіть сировину...</option>
                         {(() => {
-                          const thicknesses = Array.from(new Set(
-                            nomenclatures
-                              .filter(n => n.type === 'raw' && n.material_type)
-                              .map(n => n.material_type.trim())
-                          )).sort((a, b) => {
-                            const numA = parseFloat(a) || 0;
-                            const numB = parseFloat(b) || 0;
-                            return numA - numB;
-                          });
+                          const rawOptions = [...rawSheetOptions]
 
-                          const rawOptions = thicknesses.map(thick => {
-                            const label = `Лист (${thick})`
-                            return { id: thick, value: label, label }
-                          })
-                          
                           if (newNom.material_type && !rawOptions.some(opt => opt.value === newNom.material_type)) {
                             rawOptions.unshift({ id: 'current', value: newNom.material_type, label: newNom.material_type })
                           }
-                          
+
                           return rawOptions.map(opt => (
                             <option key={opt.id} value={opt.value}>{opt.label}</option>
                           ))

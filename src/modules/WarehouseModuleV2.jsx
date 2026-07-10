@@ -104,51 +104,6 @@ const WarehouseModuleV2 = () => {
   const itemsPerPage = 8
   const [currentPage, setCurrentPage] = useState(1)
 
-  // Scanner effect (Identical to OperatorTerminalV2 but themed orange/handles warehouse logic)
-  useEffect(() => {
-    let html5QrCode = null
-    let timer = null
-    
-    if (isScanning && window.Html5Qrcode) {
-      const startScanner = () => {
-        const el = document.getElementById("reader")
-        if (!el) {
-          timer = setTimeout(startScanner, 50)
-          return
-        }
-        try {
-          html5QrCode = new window.Html5Qrcode("reader")
-          const config = { fps: 15, qrbox: { width: 260, height: 260 } }
-          const stopAndClose = async () => {
-            if (html5QrCode && html5QrCode.isScanning) await html5QrCode.stop().catch(() => { })
-            setIsScanning(false)
-          }
-          html5QrCode.start({ facingMode: "environment" }, config, async (decodedText) => {
-            let cardId = decodedText.trim()
-            if (cardId.startsWith("CENTRUM_CARD_")) {
-              cardId = cardId.replace("CENTRUM_CARD_", "").trim()
-            }
-            await stopAndClose()
-            handlers.handleCardScan(cardId)
-          }).catch(err => { 
-            console.error("Camera error:", err)
-            setIsScanning(false) 
-          })
-        } catch (e) {
-          console.error("Scanner init error:", e)
-          setIsScanning(false)
-        }
-      }
-
-      timer = setTimeout(startScanner, 120)
-    }
-    
-    return () => {
-      clearTimeout(timer)
-      if (html5QrCode && html5QrCode.isScanning) html5QrCode.stop().catch(() => { })
-    }
-  }, [isScanning])
-
   // Computed values
   const {
     cardsWithBoxes,
@@ -1027,19 +982,6 @@ const WarehouseModuleV2 = () => {
         handlePrepareBox={handlers.handlePrepareBox}
         isProcessing={isProcessing}
       />
-
-      {isScanning && (
-        <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 10050, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <button 
-            onClick={() => setIsScanning(false)} 
-            style={{ position: 'absolute', top: 30, right: 30, color: '#fff', background: '#1a1a1a', border: 'none', padding: '15px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-            <X size={32} />
-          </button>
-          <div style={{ width: '90%', maxWidth: '500px', border: '4px solid #ff9000', borderRadius: '32px', overflow: 'hidden' }} id="reader"></div>
-          <div style={{ marginTop: '20px', color: '#555', fontWeight: 700 }}>Тримайте код в центрі рамки</div>
-        </div>
-      )}
 
       <style>{`
         .warehouse-floating-controls {

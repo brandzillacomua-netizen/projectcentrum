@@ -55,51 +55,6 @@ const WarehouseBoxesModule = () => {
   // Active tab context is boxes
   const activeTab = 'boxes'
 
-  // Scanner effect (Identical to WarehouseModuleV2)
-  useEffect(() => {
-    let html5QrCode = null
-    let timer = null
-    
-    if (isScanning && window.Html5Qrcode) {
-      const startScanner = () => {
-        const el = document.getElementById("reader")
-        if (!el) {
-          timer = setTimeout(startScanner, 50)
-          return
-        }
-        try {
-          html5QrCode = new window.Html5Qrcode("reader")
-          const config = { fps: 15, qrbox: { width: 260, height: 260 } }
-          const stopAndClose = async () => {
-            if (html5QrCode && html5QrCode.isScanning) await html5QrCode.stop().catch(() => { })
-            setIsScanning(false)
-          }
-          html5QrCode.start({ facingMode: "environment" }, config, async (decodedText) => {
-            let cardId = decodedText.trim()
-            if (cardId.startsWith("CENTRUM_CARD_")) {
-              cardId = cardId.replace("CENTRUM_CARD_", "").trim()
-            }
-            await stopAndClose()
-            handlers.handleCardScan(cardId)
-          }).catch(err => { 
-            console.error("Camera error:", err)
-            setIsScanning(false) 
-          })
-        } catch (e) {
-          console.error("Scanner init error:", e)
-          setIsScanning(false)
-        }
-      }
-
-      timer = setTimeout(startScanner, 120)
-    }
-    
-    return () => {
-      clearTimeout(timer)
-      if (html5QrCode && html5QrCode.isScanning) html5QrCode.stop().catch(() => { })
-    }
-  }, [isScanning])
-
   const { cardsWithBoxes } = useWarehouseComputed({
     requests, tasks, receptionDocs, nomenclatures, inventory,
     activeTab, machineOperations, workCards, searchQuery
