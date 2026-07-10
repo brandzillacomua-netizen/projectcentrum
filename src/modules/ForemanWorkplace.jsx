@@ -2307,18 +2307,36 @@ const ForemanWorkplace = () => {
                 const detailsStr = r.details?.toLowerCase() || ''
                 return nomName.includes('╤Д╤А╨╡╨╖╨░') || detailsStr.includes('╤Д╤А╨╡╨╖╨░')
               })
-              const totalPlannedCutters = cutterRequests.length > 0
-                ? cutterRequests.reduce((sum, r) => sum + getRequestQty(r), 0)
-                : 0
-
               const plannedCuttersBreakdown = {}
-              cutterRequests.forEach(r => {
-                const name = r.nomenclature?.name || '╨д╤А╨╡╨╖╨░'
-                plannedCuttersBreakdown[name] = (plannedCuttersBreakdown[name] || 0) + getRequestQty(r)
-              })
+              const snapshotCutters = Array.isArray(currentTask?.plan_snapshot?.consumables)
+                ? currentTask.plan_snapshot.consumables.filter(item => String(item?.name || '').toLowerCase().includes('фреза'))
+                : []
+              const resolveSnapshotCutterName = item => {
+                const selectedCutters = currentTask?.plan_snapshot?.selectedCutters || {}
+                const selectedInvId = selectedCutters[item.name] || selectedCutters[String(item.name || '').toLowerCase()]
+                const selectedInv = (inventory || []).find(inv => String(inv.id) === String(selectedInvId))
+                const selectedNom = selectedInv ? (nomenclatures || []).find(n => String(n.id) === String(selectedInv.nomenclature_id)) : null
+                return selectedNom?.name || selectedInv?.name || item.name || 'Фреза'
+              }
+
+              if (snapshotCutters.length > 0) {
+                snapshotCutters.forEach(item => {
+                  const name = resolveSnapshotCutterName(item)
+                  plannedCuttersBreakdown[name] = (plannedCuttersBreakdown[name] || 0) + (Number(item.total) || 0)
+                })
+              } else {
+                cutterRequests.forEach(r => {
+                  const name = r.nomenclature?.name || '╨д╤А╨╡╨╖╨░'
+                  const declaredQty = Number(String(r.details || '').match(/[—-]\s*(\d+(?:[.,]\d+)?)/)?.[1]?.replace(',', '.') || 0)
+                  plannedCuttersBreakdown[name] = (plannedCuttersBreakdown[name] || 0) + (declaredQty || getRequestQty(r))
+                })
+              }
+
+              const totalPlannedCutters = Object.values(plannedCuttersBreakdown).reduce((sum, qty) => sum + (Number(qty) || 0), 0)
 
               const actualCuttersBreakdown = {}
-              reportData.historyRows.forEach(row => {
+              const cuttingHistoryRows = reportData.historyRows.filter(row => String(row.stage_name || '').trim().startsWith('Розкрій'))
+              cuttingHistoryRows.forEach(row => {
                 const info = row.card_info || ''
                 // Robust JSON extraction: find [CUTTERS_BREAKDOWN:{ ... }] using bracket counting
                 const markerIdx = info.indexOf('[CUTTERS_BREAKDOWN:')
@@ -2368,7 +2386,7 @@ const ForemanWorkplace = () => {
 
               const totalActualCutters = Object.keys(actualCuttersBreakdown).length > 0
                 ? Object.values(actualCuttersBreakdown).reduce((sum, val) => sum + val, 0)
-                : reportData.historyRows.reduce((sum, row) => sum + (Number(row.cutters_used) || 0), 0)
+                : cuttingHistoryRows.reduce((sum, row) => sum + (Number(row.cutters_used) || 0), 0)
 
               const totalActualMs = reportData.historyRows.reduce((sum, row) => {
                 if (row.started_at && row.completed_at && (row.stage_name === '╨а╨╛╨╖╨║╤А╤Ц╨╣' || row.stage_name === '╨а╨╛╨╖╨║╤А╤Ц╨╣ (╨┐╨╡╤А╨╡╨╖╨╝╤Ц╨╜╨║╨░)')) {

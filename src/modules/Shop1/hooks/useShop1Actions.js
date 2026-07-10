@@ -2,6 +2,37 @@ import { supabase } from '../../../supabase'
 import { useMES } from '../../../MESContext'
 import { translateCyrillic, CHAIN } from './useShop1Data'
 
+const stripCuttersBreakdown = (value = '') => {
+  let info = String(value || '')
+  let markerIdx = info.indexOf('[CUTTERS_BREAKDOWN:')
+
+  while (markerIdx !== -1) {
+    const jsonStart = info.indexOf('{', markerIdx)
+    if (jsonStart === -1) break
+
+    let depth = 0
+    let jsonEnd = -1
+    for (let i = jsonStart; i < info.length; i++) {
+      if (info[i] === '{') depth++
+      else if (info[i] === '}') {
+        depth--
+        if (depth === 0) {
+          jsonEnd = i
+          break
+        }
+      }
+    }
+
+    if (jsonEnd === -1) break
+
+    const markerEnd = info[jsonEnd + 1] === ']' ? jsonEnd + 2 : jsonEnd + 1
+    info = `${info.slice(0, markerIdx)}${info.slice(markerEnd)}`.replace(/\s{2,}/g, ' ').trim()
+    markerIdx = info.indexOf('[CUTTERS_BREAKDOWN:')
+  }
+
+  return info
+}
+
 export function useShop1Actions({
   currentCard,
   selectedOperator,
@@ -378,14 +409,16 @@ export function useShop1Actions({
       const qtyDone = Math.max(0, (currentCard.quantity || 0) - scrapCount)
       const op = finalOperator || currentCard.operator_name || 'Не вказано'
       const activeShift = selectedShift || currentCard.shift_name || 'Без зміни'
-      const cuttersQty = currentCard.operation === 'Розкрій' ? Object.values(cuttersBreakdown).reduce((sum, v) => sum + (Number(v) || 0), 0) : null
-      const priorityVal = currentCard.operation === 'Розкрій' ? galtPriority : (currentCard.galt_priority || 2)
+      const isCuttingOperation = currentCard.operation === 'Розкрій'
+      const cuttersQty = isCuttingOperation ? Object.values(cuttersBreakdown).reduce((sum, v) => sum + (Number(v) || 0), 0) : null
+      const priorityVal = isCuttingOperation ? galtPriority : (currentCard.galt_priority || 2)
 
       let breakdownStr = ''
-      if (currentCard.operation === 'Розкрій' && Object.keys(cuttersBreakdown).length > 0) {
+      if (isCuttingOperation && Object.keys(cuttersBreakdown).length > 0) {
         breakdownStr = ` [CUTTERS_BREAKDOWN:${JSON.stringify(cuttersBreakdown)}]`
       }
-      const historyCardInfo = ((currentCard.card_info || '') + breakdownStr).trim()
+      const baseCardInfo = isCuttingOperation ? (currentCard.card_info || '') : stripCuttersBreakdown(currentCard.card_info)
+      const historyCardInfo = (baseCardInfo + breakdownStr).trim()
 
       const promises = []
 
@@ -474,7 +507,7 @@ export function useShop1Actions({
         promises.push(updateInventoryStock(currentCard.nomenclature_id, scrapCount, 'scrap_ready'))
       }
 
-      if (currentCard.operation === 'Розкрій') {
+      if (isCuttingOperation) {
         promises.push(handleCuttersInventoryDeduction(currentCard, cuttersBreakdown))
       }
 
@@ -593,13 +626,15 @@ export function useShop1Actions({
     try {
       const op = finalOperator || currentCard.operator_name || 'Брак'
       const activeShift = selectedShift || currentCard.shift_name || 'Без зміни'
-      const cuttersQty = currentCard.operation === 'Розкрій' ? Object.values(cuttersBreakdown).reduce((sum, v) => sum + (Number(v) || 0), 0) : null
+      const isCuttingOperation = currentCard.operation === 'Розкрій'
+      const cuttersQty = isCuttingOperation ? Object.values(cuttersBreakdown).reduce((sum, v) => sum + (Number(v) || 0), 0) : null
 
       let breakdownStr = ''
-      if (currentCard.operation === 'Розкрій' && Object.keys(cuttersBreakdown).length > 0) {
+      if (isCuttingOperation && Object.keys(cuttersBreakdown).length > 0) {
         breakdownStr = ` [CUTTERS_BREAKDOWN:${JSON.stringify(cuttersBreakdown)}]`
       }
-      const historyCardInfo = ((currentCard.card_info || '') + breakdownStr).trim()
+      const baseCardInfo = isCuttingOperation ? (currentCard.card_info || '') : stripCuttersBreakdown(currentCard.card_info)
+      const historyCardInfo = (baseCardInfo + breakdownStr).trim()
 
       const promises = []
 
@@ -646,7 +681,7 @@ export function useShop1Actions({
 
       promises.push(updateInventoryStock(currentCard.nomenclature_id, currentCard.quantity, 'scrap_ready'))
 
-      if (currentCard.operation === 'Розкрій') {
+      if (isCuttingOperation) {
         promises.push(handleCuttersInventoryDeduction(currentCard, cuttersBreakdown))
       }
 

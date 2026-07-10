@@ -1632,15 +1632,35 @@ export default function Shop1ForemanModule() {
                     const name = r.nomenclature?.name?.toLowerCase() || ''
                     return name.includes('фреза') || (r.details || '').toLowerCase().includes('фреза')
                   })
-                  const getReqQty = r => r.quantity !== null && r.quantity !== undefined ? Number(r.quantity) : Number((r.details || '').match(/—\s*(\d+)/)?.[1] || 0)
-                  const totalPlannedCutters = cutterRequests.reduce((s, r) => s + getReqQty(r), 0)
-                  const plannedCuttersBreakdown = cutterRequests.reduce((result, request) => {
-                    const name = request.nomenclature?.name || 'Фреза'
-                    result[name] = (result[name] || 0) + getReqQty(request)
-                    return result
-                  }, {})
+                  const getReqQty = r => {
+                    const declaredQty = Number((r.details || '').match(/[—-]\s*(\d+(?:[.,]\d+)?)/)?.[1]?.replace(',', '.') || 0)
+                    return declaredQty || Number(r.quantity) || 0
+                  }
+                  const snapshotCutters = Array.isArray(snapshot?.consumables)
+                    ? snapshot.consumables.filter(item => String(item?.name || '').toLowerCase().includes('фреза'))
+                    : []
+                  const resolveSnapshotCutterName = item => {
+                    const selectedCutters = snapshot?.selectedCutters || {}
+                    const selectedInvId = selectedCutters[item.name] || selectedCutters[String(item.name || '').toLowerCase()]
+                    const selectedInv = (inventory || []).find(inv => String(inv.id) === String(selectedInvId))
+                    const selectedNom = selectedInv ? (nomenclatures || []).find(n => String(n.id) === String(selectedInv.nomenclature_id)) : null
+                    return selectedNom?.name || selectedInv?.name || item.name || 'Фреза'
+                  }
+                  const plannedCuttersBreakdown = snapshotCutters.length > 0
+                    ? snapshotCutters.reduce((result, item) => {
+                        const name = resolveSnapshotCutterName(item)
+                        result[name] = (result[name] || 0) + (Number(item.total) || 0)
+                        return result
+                      }, {})
+                    : cutterRequests.reduce((result, request) => {
+                        const name = request.nomenclature?.name || 'Фреза'
+                        result[name] = (result[name] || 0) + getReqQty(request)
+                        return result
+                      }, {})
+                  const totalPlannedCutters = Object.values(plannedCuttersBreakdown).reduce((s, qty) => s + (Number(qty) || 0), 0)
                   const actualCuttersBreakdown = {}
-                  rd.historyRows.forEach(row => {
+                  const cuttingHistoryRows = rd.historyRows.filter(row => String(row.stage_name || '').trim().startsWith('Розкрій'))
+                  cuttingHistoryRows.forEach(row => {
                     const info = row.card_info || ''
                     const idx = info.indexOf('[CUTTERS_BREAKDOWN:')
                     if (idx !== -1) {
@@ -1651,7 +1671,13 @@ export default function Shop1ForemanModule() {
                           if (info[i] === '{') depth++
                           else if (info[i] === '}') { depth--; if (depth === 0) { end = i; break } }
                         }
-                        if (end !== -1) { try { Object.assign(actualCuttersBreakdown, JSON.parse(info.slice(start, end + 1))) } catch(e){} }
+                        if (end !== -1) {
+                          try {
+                            Object.entries(JSON.parse(info.slice(start, end + 1))).forEach(([cutterName, qty]) => {
+                              actualCuttersBreakdown[cutterName] = (actualCuttersBreakdown[cutterName] || 0) + (Number(qty) || 0)
+                            })
+                          } catch(e){}
+                        }
                       }
                     } else if (Number(row.cutters_used) > 0) {
                       actualCuttersBreakdown['Фреза'] = (actualCuttersBreakdown['Фреза'] || 0) + Number(row.cutters_used)
@@ -1831,13 +1857,13 @@ export default function Shop1ForemanModule() {
                         <div style={{ background: '#0d0d0d', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '16px', padding: '16px' }}>
                           <div style={{ color: '#555', fontSize: '0.62rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>✂️ Фрези (Розкрій)</div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', borderBottom: '1px solid #1a1a1a', paddingBottom: '6px', marginBottom: '6px' }}>
-                            <span style={{ color: '#888' }}>План: <strong style={{ color: '#fff' }}>{totalPlannedCutters} шт</strong></span>
+                            <span style={{ color: '#888' }}>Потреба: <strong style={{ color: '#fff' }}>{totalPlannedCutters} шт</strong></span>
                             <span style={{ color: '#888' }}>Факт: <strong style={{ color: totalActualCutters > totalPlannedCutters ? '#ef4444' : '#eab308' }}>{totalActualCutters} шт</strong></span>
                           </div>
                           {[...new Set([...Object.keys(plannedCuttersBreakdown), ...Object.keys(actualCuttersBreakdown)])].map(name => (
                             <div key={name} style={{ fontSize: '0.65rem', color: '#555', marginBottom: '5px', borderBottom: '1px solid #171717', paddingBottom: '4px' }}>
                               <div style={{ color: '#777', fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2px' }}><span>План: <strong>{plannedCuttersBreakdown[name] || 0} шт</strong></span><span>Факт: <strong style={{ color: '#eab308' }}>{actualCuttersBreakdown[name] || 0} шт</strong></span></div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2px' }}><span>Потреба: <strong>{plannedCuttersBreakdown[name] || 0} шт</strong></span><span>Факт: <strong style={{ color: '#eab308' }}>{actualCuttersBreakdown[name] || 0} шт</strong></span></div>
                             </div>
                           ))}
                           {Object.keys(plannedCuttersBreakdown).length === 0 && Object.keys(actualCuttersBreakdown).length === 0 && <div style={{ fontSize: '0.62rem', color: '#333', fontStyle: 'italic' }}>Без витрат</div>}

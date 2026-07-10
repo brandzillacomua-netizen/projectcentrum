@@ -20,6 +20,67 @@ const translateCyrillic = (str) => {
   return String(str || '').split('').map(char => cyrillicToLatinMap[char] || char).join('')
 }
 
+const stripCuttersBreakdown = (value = '') => {
+  let info = String(value || '')
+  let markerIdx = info.indexOf('[CUTTERS_BREAKDOWN:')
+
+  while (markerIdx !== -1) {
+    const jsonStart = info.indexOf('{', markerIdx)
+    if (jsonStart === -1) break
+
+    let depth = 0
+    let jsonEnd = -1
+    for (let i = jsonStart; i < info.length; i++) {
+      if (info[i] === '{') depth++
+      else if (info[i] === '}') {
+        depth--
+        if (depth === 0) {
+          jsonEnd = i
+          break
+        }
+      }
+    }
+
+    if (jsonEnd === -1) break
+
+    const markerEnd = info[jsonEnd + 1] === ']' ? jsonEnd + 2 : jsonEnd + 1
+    info = `${info.slice(0, markerIdx)}${info.slice(markerEnd)}`.replace(/\s{2,}/g, ' ').trim()
+    markerIdx = info.indexOf('[CUTTERS_BREAKDOWN:')
+  }
+
+  return info
+}
+
+const parseCuttersBreakdown = (cardInfo = '') => {
+  const info = String(cardInfo || '')
+  const markerIdx = info.indexOf('[CUTTERS_BREAKDOWN:')
+  if (markerIdx === -1) return null
+
+  const jsonStart = info.indexOf('{', markerIdx)
+  if (jsonStart === -1) return null
+
+  let depth = 0
+  let jsonEnd = -1
+  for (let i = jsonStart; i < info.length; i++) {
+    if (info[i] === '{') depth++
+    else if (info[i] === '}') {
+      depth--
+      if (depth === 0) {
+        jsonEnd = i
+        break
+      }
+    }
+  }
+
+  if (jsonEnd === -1) return null
+
+  try {
+    return JSON.parse(info.slice(jsonStart, jsonEnd + 1))
+  } catch {
+    return null
+  }
+}
+
 // Ланцюжок Цеху №1
 const CHAIN = [
   'Розкрій',
@@ -1438,6 +1499,89 @@ export default function Shop1Terminal() {
     }
   }
 
+  const validateCuttersUsageLimit = async (addedQty) => {
+    if (!currentCard?.task_id || !addedQty || addedQty <= 0) return true
+
+    const currentTask = (tasks || []).find(task => String(task.id) === String(currentCard.task_id))
+    const snapshotCutters = Array.isArray(currentTask?.plan_snapshot?.consumables)
+      ? currentTask.plan_snapshot.consumables.filter(item => String(item?.name || '').toLowerCase().includes('фреза'))
+      : []
+
+    let plannedCutters = snapshotCutters.reduce((sum, item) => sum + (Number(item.total) || 0), 0)
+
+    if (plannedCutters <= 0) {
+      const { data: taskRequests, error: reqError } = await supabase
+        .from('material_requests')
+        .select('quantity, details, nomenclature_id, nomenclature:nomenclatures(name)')
+        .eq('task_id', currentCard.task_id)
+
+      if (reqError) {
+        console.warn('Failed to validate cutter usage limit:', reqError)
+        return true
+      }
+
+      const getReqQty = r => {
+        const declaredQty = Number(String(r.details || '').match(/[—-]\s*(\d+(?:[.,]\d+)?)/)?.[1]?.replace(',', '.') || 0)
+        return declaredQty || Number(r.quantity) || 0
+      }
+
+      plannedCutters = (taskRequests || []).reduce((sum, request) => {
+        const nomName = request.nomenclature?.name?.toLowerCase() || (nomenclatures || []).find(n => String(n.id) === String(request.nomenclature_id))?.name?.toLowerCase() || ''
+        const details = String(request.details || '').toLowerCase()
+        return nomName.includes('фреза') || details.includes('фреза') ? sum + getReqQty(request) : sum
+      }, 0)
+    }
+
+    if (plannedCutters <= 0) return true
+
+    const { data: taskCards, error: cardsError } = await supabase
+      .from('work_cards')
+      .select('id')
+      .eq('task_id', currentCard.task_id)
+      .limit(10000)
+
+    if (cardsError) {
+      console.warn('Failed to load task cards for cutter validation:', cardsError)
+      return true
+    }
+
+    const cardIds = (taskCards || []).map(card => card.id)
+    let existingActual = 0
+
+    for (let i = 0; i < cardIds.length; i += 75) {
+      const chunk = cardIds.slice(i, i + 75)
+      const { data: historyChunk, error: historyError } = await supabase
+        .from('work_card_history')
+        .select('card_id, stage_name, cutters_used, card_info')
+        .in('card_id', chunk)
+        .limit(10000)
+
+      if (historyError) {
+        console.warn('Failed to load cutter history for validation:', historyError)
+        return true
+      }
+
+      ;(historyChunk || []).forEach(row => {
+        if (!String(row.stage_name || '').trim().startsWith('Розкрій')) return
+        if (String(row.card_id) === String(currentCard.id)) return
+
+        const parsed = parseCuttersBreakdown(row.card_info)
+        if (parsed) {
+          existingActual += Object.values(parsed).reduce((sum, qty) => sum + (Number(qty) || 0), 0)
+        } else {
+          existingActual += Number(row.cutters_used) || 0
+        }
+      })
+    }
+
+    const nextActual = existingActual + addedQty
+    const allowedActual = Math.max(plannedCutters * 2, plannedCutters + 10)
+    if (nextActual <= allowedActual) return true
+
+    alert(`Неможливо списати фрези: факт по наряду стане ${nextActual} шт при плані ${plannedCutters} шт. Перевірте введення фрез або зверніться до керівника.`)
+    return false
+  }
+
   // ── ДІЯ 2: Завершити етап → БУФЕР (in-progress → at-buffer) ──────────
   const handleCompleteToBuffer = async () => {
     if (!currentCard) return
@@ -1446,14 +1590,24 @@ export default function Shop1Terminal() {
       const qtyDone = Math.max(0, (currentCard.quantity || 0) - scrapCount)
       const op = finalOperator || currentCard.operator_name || 'Не вказано'
       const activeShift = selectedShift || currentCard.shift_name || 'Без зміни'
-      const cuttersQty = currentCard.operation === 'Розкрій' ? Object.values(cuttersBreakdown).reduce((sum, v) => sum + (Number(v) || 0), 0) : null
-      const priorityVal = currentCard.operation === 'Розкрій' ? galtPriority : (currentCard.galt_priority || 2)
+      const isCuttingOperation = currentCard.operation === 'Розкрій'
+      const cuttersQty = isCuttingOperation ? Object.values(cuttersBreakdown).reduce((sum, v) => sum + (Number(v) || 0), 0) : null
+      const priorityVal = isCuttingOperation ? galtPriority : (currentCard.galt_priority || 2)
+
+      if (isCuttingOperation && cuttersQty > 0) {
+        const canSaveCutters = await validateCuttersUsageLimit(cuttersQty)
+        if (!canSaveCutters) {
+          setIsProcessing(false)
+          return
+        }
+      }
 
       let breakdownStr = ''
-      if (currentCard.operation === 'Розкрій' && Object.keys(cuttersBreakdown).length > 0) {
+      if (isCuttingOperation && Object.keys(cuttersBreakdown).length > 0) {
         breakdownStr = ` [CUTTERS_BREAKDOWN:${JSON.stringify(cuttersBreakdown)}]`
       }
-      const historyCardInfo = ((currentCard.card_info || '') + breakdownStr).trim()
+      const baseCardInfo = isCuttingOperation ? (currentCard.card_info || '') : stripCuttersBreakdown(currentCard.card_info)
+      const historyCardInfo = (baseCardInfo + breakdownStr).trim()
 
       const promises = []
 
@@ -1547,7 +1701,7 @@ export default function Shop1Terminal() {
         promises.push(updateInventoryStock(currentCard.nomenclature_id, scrapCount, 'scrap_ready'))
       }
 
-      if (currentCard.operation === 'Розкрій') {
+      if (isCuttingOperation) {
         promises.push(handleCuttersInventoryDeduction(currentCard, cuttersBreakdown))
       }
 
@@ -1665,13 +1819,23 @@ export default function Shop1Terminal() {
     try {
       const op = finalOperator || currentCard.operator_name || 'Брак'
       const activeShift = selectedShift || currentCard.shift_name || 'Без зміни'
-      const cuttersQty = currentCard.operation === 'Розкрій' ? Object.values(cuttersBreakdown).reduce((sum, v) => sum + (Number(v) || 0), 0) : null
+      const isCuttingOperation = currentCard.operation === 'Розкрій'
+      const cuttersQty = isCuttingOperation ? Object.values(cuttersBreakdown).reduce((sum, v) => sum + (Number(v) || 0), 0) : null
+
+      if (isCuttingOperation && cuttersQty > 0) {
+        const canSaveCutters = await validateCuttersUsageLimit(cuttersQty)
+        if (!canSaveCutters) {
+          setIsProcessing(false)
+          return
+        }
+      }
 
       let breakdownStr = ''
-      if (currentCard.operation === 'Розкрій' && Object.keys(cuttersBreakdown).length > 0) {
+      if (isCuttingOperation && Object.keys(cuttersBreakdown).length > 0) {
         breakdownStr = ` [CUTTERS_BREAKDOWN:${JSON.stringify(cuttersBreakdown)}]`
       }
-      const historyCardInfo = ((currentCard.card_info || '') + breakdownStr).trim()
+      const baseCardInfo = isCuttingOperation ? (currentCard.card_info || '') : stripCuttersBreakdown(currentCard.card_info)
+      const historyCardInfo = (baseCardInfo + breakdownStr).trim()
 
       const promises = []
 
@@ -1721,7 +1885,7 @@ export default function Shop1Terminal() {
       // 3. Записуємо брак на склад
       promises.push(updateInventoryStock(currentCard.nomenclature_id, currentCard.quantity, 'scrap_ready'))
 
-      if (currentCard.operation === 'Розкрій') {
+      if (isCuttingOperation) {
         promises.push(handleCuttersInventoryDeduction(currentCard, cuttersBreakdown))
       }
 

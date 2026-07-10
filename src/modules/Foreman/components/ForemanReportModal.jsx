@@ -1,6 +1,45 @@
 import React from 'react'
 import { X, Loader2, Clock, Printer, RefreshCw, CheckCircle2, AlertTriangle } from 'lucide-react'
 
+const isCuttingHistoryRow = row => String(row.stage_name || '').trim().startsWith('Розкрій')
+
+const parseCuttersBreakdown = (cardInfo = '') => {
+  const info = String(cardInfo || '')
+  const markerIdx = info.indexOf('[CUTTERS_BREAKDOWN:')
+  if (markerIdx === -1) return null
+
+  const jsonStart = info.indexOf('{', markerIdx)
+  if (jsonStart === -1) return null
+
+  let depth = 0
+  let jsonEnd = -1
+  for (let i = jsonStart; i < info.length; i++) {
+    if (info[i] === '{') depth++
+    else if (info[i] === '}') {
+      depth--
+      if (depth === 0) {
+        jsonEnd = i
+        break
+      }
+    }
+  }
+
+  if (jsonEnd === -1) return null
+
+  try {
+    return JSON.parse(info.slice(jsonStart, jsonEnd + 1))
+  } catch (e) {
+    console.warn('Failed to parse cutters breakdown from card_info:', e, info.slice(jsonStart, jsonEnd + 1))
+    return null
+  }
+}
+
+const getDeclaredRequestQty = (request, fallbackQty = 0) => {
+  const match = String(request?.details || '').match(/[—-]\s*(\d+(?:[.,]\d+)?)/)
+  if (match) return Number(match[1].replace(',', '.')) || fallbackQty
+  return fallbackQty
+}
+
 export function ForemanReportModal({
   showReportModal,
   setShowReportModal,
@@ -233,42 +272,37 @@ export function ForemanReportModal({
             const detailsStr = r.details?.toLowerCase() || ''
             return nomName.includes('фреза') || detailsStr.includes('фреза')
           })
-          const totalPlannedCutters = cutterRequests.length > 0
-            ? cutterRequests.reduce((sum, r) => sum + getRequestQty(r), 0)
-            : 0
-
           const plannedCuttersBreakdown = {}
-          cutterRequests.forEach(r => {
-            const name = r.nomenclature?.name || 'Фреза'
-            plannedCuttersBreakdown[name] = (plannedCuttersBreakdown[name] || 0) + getRequestQty(r)
-          })
+          const snapshotCutters = Array.isArray(currentTask?.plan_snapshot?.consumables)
+            ? currentTask.plan_snapshot.consumables.filter(item => String(item?.name || '').toLowerCase().includes('фреза'))
+            : []
+          const resolveSnapshotCutterName = item => {
+            const selectedCutters = currentTask?.plan_snapshot?.selectedCutters || {}
+            const selectedInvId = selectedCutters[item.name] || selectedCutters[String(item.name || '').toLowerCase()]
+            const selectedInv = (inventory || []).find(inv => String(inv.id) === String(selectedInvId))
+            const selectedNom = selectedInv ? (nomenclatures || []).find(n => String(n.id) === String(selectedInv.nomenclature_id)) : null
+            return selectedNom?.name || selectedInv?.name || item.name || 'Фреза'
+          }
+
+          if (snapshotCutters.length > 0) {
+            snapshotCutters.forEach(item => {
+              const name = resolveSnapshotCutterName(item)
+              plannedCuttersBreakdown[name] = (plannedCuttersBreakdown[name] || 0) + (Number(item.total) || 0)
+            })
+          } else {
+            cutterRequests.forEach(r => {
+              const name = r.nomenclature?.name || 'Фреза'
+              const fallbackQty = getRequestQty(r)
+              plannedCuttersBreakdown[name] = (plannedCuttersBreakdown[name] || 0) + getDeclaredRequestQty(r, fallbackQty)
+            })
+          }
+
+          const totalPlannedCutters = Object.values(plannedCuttersBreakdown).reduce((sum, qty) => sum + (Number(qty) || 0), 0)
 
           const actualCuttersBreakdown = {}
-          reportData.historyRows.forEach(row => {
-            const info = row.card_info || ''
-            const markerIdx = info.indexOf('[CUTTERS_BREAKDOWN:')
-            let parsed = null
-            if (markerIdx !== -1) {
-              const jsonStart = info.indexOf('{', markerIdx)
-              if (jsonStart !== -1) {
-                let depth = 0
-                let jsonEnd = -1
-                for (let i = jsonStart; i < info.length; i++) {
-                  if (info[i] === '{') depth++
-                  else if (info[i] === '}') {
-                    depth--
-                    if (depth === 0) { jsonEnd = i; break }
-                  }
-                }
-                if (jsonEnd !== -1) {
-                  try {
-                    parsed = JSON.parse(info.slice(jsonStart, jsonEnd + 1))
-                  } catch (e) {
-                    console.warn('Failed to parse cutters breakdown from card_info:', e, info.slice(jsonStart, jsonEnd + 1))
-                  }
-                }
-              }
-            }
+          const cuttingHistoryRows = reportData.historyRows.filter(isCuttingHistoryRow)
+          cuttingHistoryRows.forEach(row => {
+            const parsed = parseCuttersBreakdown(row.card_info)
             if (parsed) {
               Object.entries(parsed).forEach(([cutterName, qty]) => {
                 actualCuttersBreakdown[cutterName] = (actualCuttersBreakdown[cutterName] || 0) + (Number(qty) || 0)
@@ -290,7 +324,7 @@ export function ForemanReportModal({
 
           const totalActualCutters = Object.keys(actualCuttersBreakdown).length > 0
             ? Object.values(actualCuttersBreakdown).reduce((sum, val) => sum + val, 0)
-            : reportData.historyRows.reduce((sum, row) => sum + (Number(row.cutters_used) || 0), 0)
+            : cuttingHistoryRows.reduce((sum, row) => sum + (Number(row.cutters_used) || 0), 0)
 
           const totalActualMs = reportData.historyRows.reduce((sum, row) => {
             if (row.started_at && row.completed_at && (row.stage_name === 'Розкрій' || row.stage_name === 'Розкрій (перезмінка)')) {
@@ -354,7 +388,7 @@ export function ForemanReportModal({
                   <div style={{ color: '#888', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>Фрези (Розкрій)</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderBottom: '1px solid #222', paddingBottom: '6px' }}>
-                      <span>План: <strong style={{ color: '#fff' }}>{totalPlannedCutters} шт</strong></span>
+                      <span>Потреба: <strong style={{ color: '#fff' }}>{totalPlannedCutters} шт</strong></span>
                       <span>Факт: <strong style={{ color: '#eab308' }} className="text-accent-orange">{totalActualCutters} шт</strong></span>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -376,7 +410,7 @@ export function ForemanReportModal({
                                 {isExcess && '⚠️ '}{name}
                               </div>
                               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2px', color: '#888' }}>
-                                <span>План: <strong style={{ color: '#bbb' }}>{planVal} шт</strong></span>
+                                <span>Потреба: <strong style={{ color: '#bbb' }}>{planVal} шт</strong></span>
                                 <span>Факт: <strong style={{ color: isExcess ? '#ef4444' : '#bbb' }} className={isExcess ? 'text-accent-red' : 'text-accent-orange'}>{factVal} шт</strong></span>
                               </div>
                             </div>
