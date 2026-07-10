@@ -174,8 +174,9 @@ export function createWarehouseActions({
     return { error }
   }
 
-  const confirmReception = async (docId) => {
+  const confirmReception = async (docId, options = {}) => {
     try {
+      const receptionOptions = options && typeof options === 'object' ? options : {}
       const { data: lockedDocs, error: lockErr } = await supabase
         .from('reception_docs')
         .update({ status: 'in-progress' })
@@ -194,6 +195,41 @@ export function createWarehouseActions({
       const targetWarehouse = doc.target_warehouse || 'production'
       const sourceWarehouse = doc.source_warehouse || null
       const items = doc.items || []
+      const actualItems = Array.isArray(receptionOptions.actualItems) ? receptionOptions.actualItems : []
+      const actualByIndex = new Map(actualItems.map((actual, index) => [Number(actual.index ?? index), actual]))
+      const getExpectedQty = (item) => Number(item.expected_qty ?? item.qty ?? item.missingAmount ?? item.quantity ?? item.needed ?? 0) || 0
+      const getActualQty = (item, index) => {
+        const actual = actualByIndex.get(index)
+        if (!actual) return getExpectedQty(item)
+        const qty = Number(actual.actual_qty ?? actual.qty ?? actual.received_qty ?? 0)
+        return Number.isFinite(qty) ? Math.max(0, qty) : 0
+      }
+      const actNum = `ACT-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(docId).slice(0, 6).toUpperCase()}`
+      const completedItems = items.map((item, index) => {
+        const expectedQty = getExpectedQty(item)
+        const actualQty = getActualQty(item, index)
+        const discrepancyQty = actualQty - expectedQty
+        const actualMeta = actualByIndex.get(index) || {}
+        return {
+          ...item,
+          expected_qty: expectedQty,
+          actual_qty: actualQty,
+          accepted_qty: actualQty,
+          discrepancy_qty: discrepancyQty,
+          discrepancy_type: discrepancyQty < 0 ? 'shortage' : (discrepancyQty > 0 ? 'surplus' : 'matched'),
+          discrepancy_note: actualMeta.note || '',
+          discrepancy_act: discrepancyQty !== 0 ? {
+            act_num: actNum,
+            created_at: new Date().toISOString(),
+            target_warehouse: targetWarehouse,
+            source_warehouse: sourceWarehouse,
+            expected_qty: expectedQty,
+            actual_qty: actualQty,
+            discrepancy_qty: discrepancyQty,
+            reason: actualMeta.note || receptionOptions.note || 'Фактична кількість не збігається з документом прийомки'
+          } : null
+        }
+      })
 
       if (items.length === 0) {
         await supabase.from('reception_docs').update({ status: 'completed' }).eq('id', docId)
@@ -202,8 +238,8 @@ export function createWarehouseActions({
       }
 
       // ── Fetch both warehouse inventories IN PARALLEL, only needed columns ──
-      const nomIds = items.map(it => it.nomenclature_id).filter(Boolean)
-      const names = items.map(it => it.name || it.reqDetails || it.details || '').filter(Boolean)
+      const nomIds = completedItems.map(it => it.nomenclature_id).filter(Boolean)
+      const names = completedItems.map(it => it.name || it.reqDetails || it.details || '').filter(Boolean)
       const orFilters = []
       if (nomIds.length > 0) {
         orFilters.push(`nomenclature_id.in.(${nomIds.join(',')})`)
@@ -256,8 +292,8 @@ export function createWarehouseActions({
       const updatesMap = new Map()
       const insertsMap = new Map()
 
-      for (const it of items) {
-        const qtyToAdd = Number(it.qty ?? it.missingAmount ?? it.quantity ?? it.needed ?? 0)
+      for (const it of completedItems) {
+        const qtyToAdd = Number(it.actual_qty ?? it.accepted_qty ?? it.qty ?? it.missingAmount ?? it.quantity ?? it.needed ?? 0)
         if (isNaN(qtyToAdd) || qtyToAdd <= 0) continue
 
         const nomId = it.nomenclature_id
@@ -351,7 +387,7 @@ export function createWarehouseActions({
       const writeOps = []
       if (finalUpdates.length > 0) writeOps.push(supabase.from('inventory').upsert(finalUpdates))
       if (finalInserts.length > 0) writeOps.push(supabase.from('inventory').insert(finalInserts))
-      writeOps.push(supabase.from('reception_docs').update({ status: 'completed' }).eq('id', docId))
+      writeOps.push(supabase.from('reception_docs').update({ status: 'completed', items: completedItems }).eq('id', docId))
 
       const results = await Promise.all(writeOps)
       for (const r of results) {

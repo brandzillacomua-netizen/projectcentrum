@@ -21,6 +21,7 @@ import { useMES } from '../MESContext'
 import { apiService } from '../services/apiDispatcher'
 import { supabase } from '../supabase'
 import { ScannerPanel } from './Warehouse/components/ScannerPanel'
+import { ReceptionAcceptanceModal } from './Warehouse/components/ReceptionAcceptanceModal'
 
 const getQR = (nom) => {
   if (!nom || !nom.additional_info) return ''
@@ -64,6 +65,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
   const [expandedDoc, setExpandedDoc] = useState(null)
   const [showReception, setShowReception] = useState(false)
   const [shortageModal, setShortageModal] = useState(null)
+  const [receptionDocToAccept, setReceptionDocToAccept] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [processingDocs, setProcessingDocs] = useState(new Set())
   const [targetWarehouse, setTargetWarehouse] = useState('operational') // 'operational'=СО, 'production'=СВ
@@ -828,6 +830,21 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
     return val !== undefined && val !== null ? val : '—'
   }
 
+  const handleAcceptReceptionDoc = async (doc, payload) => {
+    if (!doc || processingDocs.has(doc.id)) return
+    setProcessingDocs(prev => new Set(prev).add(doc.id))
+    try {
+      await confirmReception(doc.id, payload)
+      setReceptionDocToAccept(null)
+    } finally {
+      setProcessingDocs(prev => {
+        const next = new Set(prev)
+        next.delete(doc.id)
+        return next
+      })
+    }
+  }
+
   return (
     <div className="supply-module-v2" style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
       <nav className="module-nav" style={{ flexShrink: 0, padding: '15px 25px', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #222' }}>
@@ -959,18 +976,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                       <span style={{ fontSize: '0.8rem', color: '#555' }}>Документ #{doc.id.slice(0, 8)}</span>
                       <button 
                         disabled={processingDocs.has(doc.id)}
-                        onClick={async () => {
-                          setProcessingDocs(prev => new Set(prev).add(doc.id))
-                          try {
-                            await confirmReception(doc.id)
-                          } finally {
-                            setProcessingDocs(prev => {
-                              const next = new Set(prev)
-                              next.delete(doc.id)
-                              return next
-                            })
-                          }
-                        }}
+                        onClick={() => setReceptionDocToAccept(doc)}
                         style={{ background: '#10b981', color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 900, opacity: processingDocs.has(doc.id) ? 0.5 : 1, cursor: processingDocs.has(doc.id) ? 'not-allowed' : 'pointer' }}
                       >
                         {processingDocs.has(doc.id) ? 'ОБРОБКА...' : 'ПРИЙНЯТИ НА СКЛАД'}
@@ -1763,10 +1769,25 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                           {(doc.items || []).map((it, idx) => {
                             const itemName = resolveItemName(it, idx)
                             const itemQty = resolveItemQty(it)
+                            const expectedQty = it.expected_qty ?? it.qty ?? it.needed ?? it.missingAmount ?? it.quantity
+                            const actualQty = it.actual_qty ?? it.accepted_qty
+                            const discrepancyQty = Number(it.discrepancy_qty) || 0
+                            const hasReceptionAudit = actualQty !== undefined || discrepancyQty !== 0
                             return (
-                              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #111' }}>
+                              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', padding: '8px 0', borderBottom: '1px solid #111' }}>
                                 <span style={{ fontSize: '0.8rem', color: '#888' }}>{itemName}</span>
-                                <strong style={{ fontSize: '0.8rem', color: '#fff' }}>{itemQty}</strong>
+                                {hasReceptionAudit ? (
+                                  <div style={{ textAlign: 'right', fontSize: '0.72rem', color: '#777' }}>
+                                    <div>Док: <strong style={{ color: '#fff' }}>{expectedQty}</strong> · Факт: <strong style={{ color: '#10b981' }}>{actualQty}</strong></div>
+                                    {discrepancyQty !== 0 && (
+                                      <div style={{ color: discrepancyQty < 0 ? '#ef4444' : '#f59e0b', fontWeight: 900 }}>
+                                        Акт розбіжності: {discrepancyQty > 0 ? `+${discrepancyQty}` : discrepancyQty}
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <strong style={{ fontSize: '0.8rem', color: '#fff' }}>{itemQty}</strong>
+                                )}
                               </div>
                             )
                           })}
@@ -1824,18 +1845,9 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                         {doc.status === 'shipped' && !isProcurementOnly && (
                           <button
                             disabled={processingDocs.has(doc.id)}
-                            onClick={async (e) => {
+                            onClick={(e) => {
                               e.stopPropagation()
-                              setProcessingDocs(prev => new Set(prev).add(doc.id))
-                              try {
-                                await apiService.submitConfirmReception(doc.id, () => confirmReception(doc.id, 'production'))
-                              } finally {
-                                setProcessingDocs(prev => {
-                                  const next = new Set(prev)
-                                  next.delete(doc.id)
-                                  return next
-                                })
-                              }
+                              setReceptionDocToAccept(doc)
                             }}
                             style={{ width: '100%', padding: '12px', background: '#10b981', color: '#000', border: 'none', borderRadius: '10px', fontWeight: 900, fontSize: '0.75rem', cursor: processingDocs.has(doc.id) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', opacity: processingDocs.has(doc.id) ? 0.5 : 1 }}
                           >
@@ -2344,6 +2356,16 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
 
         </div>
       </div>
+
+      {receptionDocToAccept && (
+        <ReceptionAcceptanceModal
+          doc={receptionDocToAccept}
+          nomenclatures={nomenclatures}
+          isProcessing={processingDocs.has(receptionDocToAccept.id)}
+          onClose={() => setReceptionDocToAccept(null)}
+          onConfirm={(payload) => handleAcceptReceptionDoc(receptionDocToAccept, payload)}
+        />
+      )}
 
       {shortageModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>

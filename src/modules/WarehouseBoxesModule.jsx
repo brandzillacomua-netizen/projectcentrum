@@ -183,7 +183,8 @@ const WarehouseBoxesModule = () => {
     }
 
     if (boxItem.isPrepared) {
-      alert('Бокс для цієї картки вже зібрано.')
+      const assignedBox = boxItem.card.box_number ? ` №${boxItem.card.box_number}` : ''
+      alert(`Бокс для цієї картки вже зібрано.${assignedBox ? ` Присвоєний бокс${assignedBox}.` : ' Номер бокса не вказаний у картці.'}`)
       return
     }
 
