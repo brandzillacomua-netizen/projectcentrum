@@ -29,6 +29,7 @@ const WarehouseBoxesModule = () => {
   const [cameraError, setCameraError] = useState(null)
   const [manualCardInput, setManualCardInput] = useState('')
   const [kittingBoxItem, setKittingBoxItem] = useState(null)
+  const [scannedCard, setScannedCard] = useState(null)
   const [scannedRequests, setScannedRequests] = useState([])
 
   // Local interactive states
@@ -117,8 +118,8 @@ const WarehouseBoxesModule = () => {
     checkedCutters, setCheckedCutters,
     editingQty, savingQty,
     editingInvTotal, editingInvReserved, savingInv,
-    scannedRequests, shortages, isProcessing, newItem,
-    setIsScanning, setKittingBoxItem, setScannedRequests, setCameraError, setManualCardInput
+    scannedCard, scannedRequests, shortages, isProcessing, newItem,
+    setIsScanning, setScannedCard, setKittingBoxItem, setScannedRequests, setCameraError, setManualCardInput
   })
 
   // Process & group all cards with boxes
