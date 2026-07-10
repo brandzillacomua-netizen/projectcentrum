@@ -25,7 +25,7 @@ const AnalyticsModule = () => {
   const [archiveTab, setArchiveTab] = useState('shop1')
   const [expandedOrders, setExpandedOrders] = useState({})
   const [expandedNoms, setExpandedNoms] = useState({})
-  const [analyticsHistory, setAnalyticsHistory] = useState([])
+  const [analyticsHistory, setAnalyticsHistory] = useState(null)
   const [analyticsHistoryLoading, setAnalyticsHistoryLoading] = useState(false)
   const [analyticsHistoryError, setAnalyticsHistoryError] = useState('')
 
@@ -35,22 +35,31 @@ const AnalyticsModule = () => {
     setExpandedNoms(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
+  const periodStart = useMemo(() => {
+    const date = new Date()
+    date.setDate(date.getDate() - ANALYTICS_PERIOD_DAYS)
+    date.setHours(0, 0, 0, 0)
+    return date
+  }, [])
+
   // --- DATA AGGREGATION ---
   useEffect(() => {
     let cancelled = false
 
-    const loadFullHistory = async () => {
+    const loadPeriodHistory = async () => {
       setAnalyticsHistoryLoading(true)
       setAnalyticsHistoryError('')
       try {
         const pageSize = 1000
         const rows = []
+        const startIso = periodStart.toISOString()
 
         for (let offset = 0; !cancelled; offset += pageSize) {
           const { data, error } = await supabase
             .from('work_card_history')
-            .select('id,card_id,nomenclature_id,stage_name,operator_name,qty_completed,scrap_qty,completed_at,created_at,card_info')
-            .order('created_at', { ascending: false })
+            .select('id,card_id,nomenclature_id,stage_name,operator_name,qty_at_start,qty_completed,scrap_qty,completed_at,created_at,card_info')
+            .gte('completed_at', startIso)
+            .order('completed_at', { ascending: false })
             .range(offset, offset + pageSize - 1)
 
           if (error) throw error
@@ -63,24 +72,18 @@ const AnalyticsModule = () => {
           setAnalyticsHistory(Array.from(new Map(rows.map(row => [String(row.id), row])).values()))
         }
       } catch (error) {
-        console.error('Failed to load full analytics history:', error)
-        if (!cancelled) setAnalyticsHistoryError(error.message || 'Не вдалося завантажити повну історію')
+        console.error('Failed to load analytics period history:', error)
+        if (!cancelled) setAnalyticsHistoryError(error.message || 'Не вдалося завантажити історію за період')
       } finally {
         if (!cancelled) setAnalyticsHistoryLoading(false)
       }
     }
 
-    loadFullHistory()
+    loadPeriodHistory()
     return () => { cancelled = true }
-  }, [])
+  }, [periodStart])
 
-  const historyForAnalytics = analyticsHistory.length ? analyticsHistory : workCardHistory
-  const periodStart = useMemo(() => {
-    const date = new Date()
-    date.setDate(date.getDate() - ANALYTICS_PERIOD_DAYS)
-    date.setHours(0, 0, 0, 0)
-    return date
-  }, [])
+  const historyForAnalytics = analyticsHistory || workCardHistory
   const periodHistory = useMemo(() => historyForAnalytics.filter(h => {
     const rawDate = h.completed_at || h.created_at
     if (!rawDate) return false
@@ -115,11 +118,21 @@ const AnalyticsModule = () => {
     }, {})
     const sortedOperators = Object.values(operatorStats).sort((a, b) => b.produced - a.produced)
 
-    // 3. Parts Produced by Type (Categories). Count only final output, not every intermediate operation.
-    const partsByType = finalProductionHistory.reduce((acc, h) => {
+    // 3. Estimated sheet usage. Count cutting input, not produced units.
+    const sheetUsageByMaterial = periodHistory.reduce((acc, h) => {
+      const stageName = String(h.stage_name || '').trim().toLowerCase()
+      if (stageName !== 'розкрій') return acc
+
       const nom = nomenclatureById.get(String(h.nomenclature_id))
-      const type = nom?.material_type || 'Інше'
-      acc[type] = (acc[type] || 0) + (Number(h.qty_completed) || 0)
+      const material = nom?.material_type || 'Матеріал не вказано'
+      const unitsPerSheet = Number(nom?.units_per_sheet) || 0
+      const startedQty = Number(h.qty_at_start) || ((Number(h.qty_completed) || 0) + (Number(h.scrap_qty) || 0))
+      const sheets = unitsPerSheet > 0 ? Math.ceil(startedQty / unitsPerSheet) : 0
+      if (sheets <= 0) return acc
+
+      if (!acc[material]) acc[material] = { sheets: 0, units: 0 }
+      acc[material].sheets += sheets
+      acc[material].units += startedQty
       return acc
     }, {})
 
@@ -146,7 +159,7 @@ const AnalyticsModule = () => {
       qualityRate,
       shopLoad,
       sortedOperators,
-      partsByType,
+      sheetUsageByMaterial,
       totalProducedFull,
       totalScrapFull,
       historyCount: periodHistory.length,
@@ -226,21 +239,24 @@ const AnalyticsModule = () => {
           {/* VOLUME BY MATERIAL (Chart) */}
           <div className="glass-panel" style={{ background: '#0a0a0a', padding: '30px', borderRadius: '32px', border: '1px solid #111' }}>
              <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1rem', fontWeight: 900, marginBottom: '30px', color: '#444' }}>
-                <BarChart3 size={18} /> РОЗПОДІЛ ВИРОБНИЦТВА ЗА МАТЕРІАЛАМИ
+                <BarChart3 size={18} /> ОРІЄНТОВНА ВИТРАТА ЛИСТІВ ЗА МАТЕРІАЛАМИ
              </h3>
              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {Object.entries(stats.partsByType).length === 0 ? (
+                {Object.entries(stats.sheetUsageByMaterial).length === 0 ? (
                   <div style={{ color: '#555', textAlign: 'center', padding: '30px 10px', fontSize: '0.8rem', fontWeight: 800 }}>
-                    Немає фінальних записів виробництва для розподілу
+                    Немає записів розкрою для розрахунку витрати листів
                   </div>
-                ) : Object.entries(stats.partsByType).sort((a,b) => b[1] - a[1]).slice(0, 6).map(([type, qty], idx) => {
-                  const max = Math.max(...Object.values(stats.partsByType), 1)
-                  const percent = (qty / max) * 100
+                ) : Object.entries(stats.sheetUsageByMaterial).sort((a,b) => b[1].sheets - a[1].sheets).slice(0, 6).map(([type, usage], idx) => {
+                  const max = Math.max(...Object.values(stats.sheetUsageByMaterial).map(item => item.sheets), 1)
+                  const percent = (usage.sheets / max) * 100
                   return (
                     <div key={type}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.85rem', fontWeight: 800 }}>
                         <span>{type}</span>
-                        <span style={{ color: '#ff9000' }}>{qty.toLocaleString()} шт</span>
+                        <span style={{ color: '#ff9000' }}>{usage.sheets.toLocaleString()} л.</span>
+                      </div>
+                      <div style={{ color: '#444', fontSize: '0.62rem', fontWeight: 800, marginBottom: '6px' }}>
+                        розкрій: {usage.units.toLocaleString()} деталей
                       </div>
                       <div style={{ height: '8px', background: '#111', borderRadius: '4px', overflow: 'hidden' }}>
                         <div style={{ 
