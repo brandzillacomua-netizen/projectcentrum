@@ -1174,8 +1174,10 @@ const ChatModule = () => {
                     <EmojiPicker 
                       theme="dark" 
                       width="100%"
-                      height={320}
+                      height={280}
                       emojiStyle="native"
+                      searchDisabled={true}
+                      previewConfig={{ showPreview: false }}
                       onEmojiClick={(emojiData) => {
                         setComposer(prev => prev + emojiData.emoji)
                       }} 
@@ -2343,6 +2345,8 @@ const ChatModule = () => {
             border-bottom: 0;
             border-left: 0;
             border-right: 0;
+            box-shadow: none;
+            background: #000;
           }
           .emoji-picker-container aside.EmojiPickerReact.epr-dark-theme {
             width: 100vw !important;
