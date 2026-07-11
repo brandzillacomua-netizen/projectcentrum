@@ -30,7 +30,8 @@ import {
   BellOff,
   ArrowLeft,
   Sun,
-  Moon
+  Moon,
+  MessageCircle
 } from 'lucide-react'
 
 // ── Lazy-loaded modules (loaded on demand, not at startup) ─────────────────────
@@ -71,6 +72,7 @@ const SimulatorModule = lazy(() => import('./modules/SimulatorModule'))
 const PaintingTerminal = lazy(() => import('./modules/PaintingTerminal'))
 const PressingTerminal = lazy(() => import('./modules/PressingTerminal'))
 const WarehouseBoxesModule = lazy(() => import('./modules/WarehouseBoxesModule'))
+const ChatModule = lazy(() => import('./modules/ChatModule'))
 
 import { MESProvider, useMES } from './MESContext'
 import { subscribeToPush } from './services/pushService'
@@ -89,7 +91,7 @@ const FileCodeIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /><path d="m10 13-2 2 2 2" /><path d="m14 17 2-2-2-2" /></svg>
 )
 
-const getAllModules = (badgeCount = 0) => [
+const getAllModules = (badgeCount = 0, chatBadgeCount = 0) => [
   // 1. Цех 1 (Розкрій та Підготовка)
   { id: 'prep_terminal', title: 'Підготовка', icon: <Tablet />, path: '/prep-terminal', desc: 'Відділ Підготовки', color: '#10b981' },
   { id: 'master', title: 'ЦЕХ №1 – Створення нарядів', icon: <Monitor />, path: '/master', desc: 'Управління зміною', color: '#3b82f6' },
@@ -121,6 +123,7 @@ const getAllModules = (badgeCount = 0) => [
   { id: 'foreman_dashboard', title: 'ДАШБОРД 2.0', icon: <LayoutDashboard />, path: '/foreman-dashboard', desc: 'Моніторинг нарядів Цеху №1', color: '#ff9000' },
   { id: 'manager', title: 'Менеджер', icon: <LayoutDashboard />, path: '/manager', desc: 'Замовлення та планування', color: '#ff9000' },
   { id: 'kanban', title: 'Задачі', icon: <KanbanSquare />, path: '/tasks', desc: 'Внутрішні доручення', color: '#8b5cf6', badge: badgeCount },
+  { id: 'chat', title: 'Чат', icon: <MessageCircle />, path: '/chat', desc: 'Внутрішня комунікація', color: '#3b82f6', badge: chatBadgeCount },
   { id: 'director', title: 'Директор Виробництва', icon: <ShieldCheck size={24} />, path: '/director', desc: 'Фінальне підтвердження', color: '#10b981' },
   { id: 'analytics', title: 'Аналітика', icon: <TrendingUp />, path: '/analytics', desc: 'Статистика та KPI', color: '#8b5cf6' },
   { id: 'reports', title: 'Звіти (1С)', icon: <BarChart2 />, path: '/reports', desc: 'Зведена аналітика та звіти', color: '#10b981' },
@@ -136,9 +139,9 @@ const getAllModules = (badgeCount = 0) => [
   { id: 'brak', title: 'ВКЯ', icon: <AlertTriangle />, path: '/brak', desc: 'Контроль якості та облік браку', color: '#ef4444' }
 ]
 
-const getAvailableModules = (currentUser, badgeCount) => {
+const getAvailableModules = (currentUser, badgeCount, chatBadgeCount = 0) => {
   if (!currentUser) return [];
-  const allModules = getAllModules(badgeCount);
+  const allModules = getAllModules(badgeCount, chatBadgeCount);
   return allModules.filter(m => {
     if (m.id === 'simulator') return currentUser?.position === 'Адмін' || currentUser?.role === 'admin';
     return currentUser?.access_rights?.[m.id] === true;
@@ -177,6 +180,7 @@ const CATEGORY_MAP = {
   foreman_dashboard: 'management_analytics',
   manager: 'management_analytics',
   kanban: 'management_analytics',
+  chat: 'management_analytics',
   director: 'management_analytics',
   analytics: 'management_analytics',
   reports: 'management_analytics',
@@ -199,6 +203,71 @@ const CATEGORIES = [
   { id: 'management_analytics', title: 'Керування та Аналітика', color: '#3b82f6' },
   { id: 'tech_settings', title: 'Технічні дані та Конфігурація', color: '#6b7280' }
 ];
+
+const useChatUnreadCount = (currentUser, supabase) => {
+  const [chatUnreadCount, setChatUnreadCount] = useState(0)
+
+  useEffect(() => {
+    if (!currentUser?.id || !supabase || currentUser?.access_rights?.chat !== true) {
+      setChatUnreadCount(0)
+      return undefined
+    }
+
+    let cancelled = false
+
+    const refreshUnread = async () => {
+      try {
+        const { data: participantRows, error: participantError } = await supabase
+          .from('chat_participants')
+          .select('thread_id, last_read_at')
+          .eq('user_id', currentUser.id)
+
+        if (participantError) throw participantError
+        if (!participantRows?.length) {
+          if (!cancelled) setChatUnreadCount(0)
+          return
+        }
+
+        const counts = await Promise.all(participantRows.map(async row => {
+          let query = supabase
+            .from('chat_messages')
+            .select('id', { count: 'exact', head: true })
+            .eq('thread_id', row.thread_id)
+            .is('deleted_at', null)
+            .neq('sender_id', currentUser.id)
+
+          if (row.last_read_at) query = query.gt('created_at', row.last_read_at)
+
+          const { count, error } = await query
+          if (error) throw error
+          return count || 0
+        }))
+
+        if (!cancelled) setChatUnreadCount(counts.reduce((sum, value) => sum + value, 0))
+      } catch (err) {
+        const message = err?.message || ''
+        if (!message.includes('chat_')) console.warn('Chat unread count failed:', err)
+        if (!cancelled) setChatUnreadCount(0)
+      }
+    }
+
+    refreshUnread()
+    const timer = setInterval(refreshUnread, 30000)
+    const channel = supabase
+      .channel(`chat-unread-${currentUser.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_messages' }, refreshUnread)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_participants' }, refreshUnread)
+      .subscribe()
+
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+      supabase.removeChannel(channel)
+    }
+  }, [currentUser?.id, currentUser?.access_rights?.chat, supabase])
+
+  return chatUnreadCount
+}
 
 const renderAvatar = (avatar, initials, size = '38px', fontSize = '0.85rem') => {
   const getGradient = (name) => {
@@ -256,6 +325,7 @@ const GlobalUserNav = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
   const [swRegistration, setSwRegistration] = useState(null);
+  const chatUnreadCount = useChatUnreadCount(currentUser, supabase);
   
   const handleUpdateApp = () => {
     if (swRegistration && swRegistration.waiting) {
@@ -1396,7 +1466,8 @@ const GlobalUserNav = () => {
     (t.assigned_to === currentUser.login || t.created_by === currentUser.login)
   ).length;
 
-  const modules = getAvailableModules(currentUser, myPendingTasksCount);
+  const modules = getAvailableModules(currentUser, myPendingTasksCount, chatUnreadCount);
+  const menuBadgeCount = unreadCount + chatUnreadCount;
 
   return (
     <>
@@ -1625,7 +1696,7 @@ const GlobalUserNav = () => {
           }}
         >
           <Menu size={22} strokeWidth={2.5} />
-          {unreadCount > 0 && (
+          {menuBadgeCount > 0 && (
             <span
               className="notif-badge-pulse"
               style={{
@@ -1647,7 +1718,7 @@ const GlobalUserNav = () => {
                 boxShadow: '0 0 8px rgba(239, 68, 68, 0.8)'
               }}
             >
-              {unreadCount}
+              {menuBadgeCount}
             </span>
           )}
         </button>
@@ -2544,8 +2615,9 @@ const GlobalUserNav = () => {
 };
 
 const Portal = () => {
-  const { currentUser, managementTasks, companyPositions } = useMES()
+  const { currentUser, managementTasks, companyPositions, supabase } = useMES()
   const location = useLocation()
+  const chatUnreadCount = useChatUnreadCount(currentUser, supabase)
 
   // Badge logic for Kanban Module
   const myPendingTasksCount = (managementTasks || []).filter(t =>
@@ -2553,7 +2625,7 @@ const Portal = () => {
     (t.assigned_to === currentUser?.login || t.created_by === currentUser?.login)
   ).length
 
-  const modules = getAvailableModules(currentUser, myPendingTasksCount)
+  const modules = getAvailableModules(currentUser, myPendingTasksCount, chatUnreadCount)
   const isAdmin = currentUser?.position === 'Адмін' || currentUser?.role === 'admin';
 
   // REDIRECT NON-ADMIN TO START PAGE OR FIRST AVAILABLE MODULE
@@ -2724,6 +2796,7 @@ const AppContent = () => {
           <Route path="/brak" element={<PermissionGuard id="brak"><BrakModule /></PermissionGuard>} />
           <Route path="/tasks" element={<PermissionGuard id="kanban"><KanbanModule /></PermissionGuard>} />
           <Route path="/tasks/projects" element={<PermissionGuard id="kanban"><TaskProjectsModule /></PermissionGuard>} />
+          <Route path="/chat" element={<PermissionGuard id="chat"><ChatModule /></PermissionGuard>} />
           <Route path="/access" element={<PermissionGuard id="access"><AccessModule /></PermissionGuard>} />
           <Route path="/procurement" element={<PermissionGuard id="procurement"><SupplyModule isProcurementOnly={true} /></PermissionGuard>} />
           <Route path="/reports" element={<PermissionGuard id="reports"><ReportsModule /></PermissionGuard>} />
