@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import EmojiPicker from 'emoji-picker-react'
 import {
   Check,
   ArrowLeft,
@@ -10,6 +11,7 @@ import {
   Search,
   Send,
   Settings as SettingsIcon,
+  Smile,
   Trash2,
   Users,
   X
@@ -227,6 +229,7 @@ const ChatModule = () => {
   const [settingsAvatar, setSettingsAvatar] = useState(null)
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [imagePreview, setImagePreview] = useState(null)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const fileInputRef = useRef(null)
   const avatarInputRef = useRef(null)
   const messagesEndRef = useRef(null)
@@ -1045,7 +1048,38 @@ const ChatModule = () => {
                   <div>
                     <h2>{activeTitle}</h2>
                     <div className="participants-line">
-                      {activeParticipants.map(p => p.user_name).join(', ') || 'Без обмеження учасників'}
+                      {activeParticipants.length === 2 ? (
+                        (() => {
+                          const otherId = activeParticipants.find(p => p.user_id !== me.id)?.user_id;
+                          const otherUser = users.find(u => u.id === otherId) || (systemUsers || []).find(u => u.id === otherId);
+                          if (!otherUser) return 'Особистий чат';
+                          
+                          const lastSeenISO = otherUser.last_seen;
+                          if (!lastSeenISO) return 'Був(ла) нещодавно';
+                          
+                          const lastSeen = new Date(lastSeenISO);
+                          const now = new Date();
+                          const diffMinutes = (now - lastSeen) / 1000 / 60;
+                          
+                          if (diffMinutes < 3) return <span style={{color: '#86efac'}}>В мережі</span>;
+                          
+                          const isToday = lastSeen.getDate() === now.getDate() && lastSeen.getMonth() === now.getMonth() && lastSeen.getFullYear() === now.getFullYear();
+                          const timeString = new Intl.DateTimeFormat('uk-UA', { hour: '2-digit', minute: '2-digit' }).format(lastSeen);
+                          
+                          if (isToday) return `Сьогодні о ${timeString}`;
+                          
+                          const yesterday = new Date(now);
+                          yesterday.setDate(now.getDate() - 1);
+                          const isYesterday = lastSeen.getDate() === yesterday.getDate() && lastSeen.getMonth() === yesterday.getMonth() && lastSeen.getFullYear() === yesterday.getFullYear();
+                          
+                          if (isYesterday) return `Вчора о ${timeString}`;
+                          
+                          const dateString = new Intl.DateTimeFormat('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(lastSeen);
+                          return `Був(ла) ${dateString} о ${timeString}`;
+                        })()
+                      ) : (
+                        activeParticipants.map(p => p.user_name).join(', ') || 'Без обмеження учасників'
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1135,6 +1169,19 @@ const ChatModule = () => {
                     </button>
                   </div>
                 )}
+                {showEmojiPicker && (
+                  <div className="emoji-picker-container">
+                    <EmojiPicker 
+                      theme="dark" 
+                      width="100%"
+                      height={320}
+                      emojiStyle="native"
+                      onEmojiClick={(emojiData) => {
+                        setComposer(prev => prev + emojiData.emoji)
+                      }} 
+                    />
+                  </div>
+                )}
                 <div className="composer-row">
                   <input
                     ref={fileInputRef}
@@ -1145,6 +1192,12 @@ const ChatModule = () => {
                   />
                   <button className="icon-btn" onClick={() => fileInputRef.current?.click()} title="Додати фото" disabled={sending}>
                     <ImageIcon size={18} />
+                  </button>
+                  <button className="icon-btn" onClick={() => {
+                    setShowEmojiPicker(!showEmojiPicker)
+                    setTimeout(() => scrollToBottom({ force: true }), 50)
+                  }} title="Смайли" disabled={sending}>
+                    <Smile size={18} />
                   </button>
                   <textarea
                     value={composer}
@@ -1848,10 +1901,17 @@ const ChatModule = () => {
           flex: 0 0 auto;
           border-top: 1px solid rgba(255,255,255,0.05);
         }
+        .emoji-picker-container {
+          margin-bottom: 12px;
+          border-radius: 8px;
+          overflow: hidden;
+          box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
+          border: 1px solid rgba(255,255,255,0.05);
+        }
         .composer-row {
           display: grid;
-          grid-template-columns: 42px 1fr 48px;
-          gap: 12px;
+          grid-template-columns: 42px 42px 1fr 48px;
+          gap: 8px;
           align-items: end;
           background: rgba(255,255,255,0.03);
           border: 1px solid rgba(255,255,255,0.06);
@@ -2273,8 +2333,21 @@ const ChatModule = () => {
             box-shadow: 0 -8px 22px rgba(0,0,0,0.35);
           }
           .composer-row {
-            grid-template-columns: 36px minmax(0, 1fr) 42px;
-            gap: 8px;
+            grid-template-columns: 36px 36px minmax(0, 1fr) 42px;
+            gap: 6px;
+          }
+          .emoji-picker-container {
+            margin: 0 -8px 8px -8px;
+            border-radius: 0;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            border-bottom: 0;
+            border-left: 0;
+            border-right: 0;
+          }
+          .emoji-picker-container aside.EmojiPickerReact.epr-dark-theme {
+            width: 100vw !important;
+            border-radius: 0 !important;
+            border: 0 !important;
           }
           .composer-row .icon-btn {
             width: 36px;
