@@ -235,6 +235,31 @@ const ChatModule = () => {
   const messagesEndRef = useRef(null)
   const activeThreadIdRef = useRef(null)
   const meIdRef = useRef(null)
+  const wasInChat = useRef(false)
+
+  const handleMobileBack = () => {
+    if (window.history.state?.chatModuleOpen) {
+      window.history.back()
+    } else {
+      setActiveThreadId(null)
+    }
+  }
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setActiveThreadId(null)
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  useEffect(() => {
+    const inChat = !!activeThreadId
+    if (inChat && !wasInChat.current) {
+      window.history.pushState({ chatModuleOpen: true }, '')
+    }
+    wasInChat.current = inChat
+  }, [activeThreadId])
 
   const me = useMemo(() => ({
     id: currentUser?.id,
@@ -1038,7 +1063,7 @@ const ChatModule = () => {
                 const activeTitle = getThreadDisplayTitle(activeThread)
                 return (
               <header className="chat-header">
-                <button className="icon-btn mobile-back" onClick={() => setActiveThreadId(null)} title="До списку чатів">
+                <button className="icon-btn mobile-back" onClick={handleMobileBack} title="До списку чатів">
                   <ArrowLeft size={18} />
                 </button>
                 <div className="active-chat-title">
