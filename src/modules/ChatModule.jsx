@@ -208,12 +208,13 @@ const ChatModule = () => {
   const [participants, setParticipants] = useState([])
   const [messages, setMessages] = useState([])
   const [activeThreadId, setActiveThreadId] = useState(null)
-  const [loadingThreads, setLoadingThreads] = useState(true)
+  const [loadingThreads, setLoadingThreads] = useState(false)
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [sending, setSending] = useState(false)
   const [composer, setComposer] = useState('')
   const [pendingImage, setPendingImage] = useState(null)
   const [error, setError] = useState('')
+  const [readHorizon, setReadHorizon] = useState(null)
   const [search, setSearch] = useState('')
   const [showNewChat, setShowNewChat] = useState(false)
   const [newTitle, setNewTitle] = useState('')
@@ -341,9 +342,10 @@ const ChatModule = () => {
     return merged
   }, [settingsUserIds, settingsUserSearch, users])
 
-  const scrollToBottom = () => {
+  const scrollToBottom = (options = {}) => {
+    const { instant = false } = options
     requestAnimationFrame(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+      messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth', block: 'end' })
     })
   }
 
@@ -356,8 +358,9 @@ const ChatModule = () => {
     setError(message)
   }
 
-  const loadThreads = async () => {
-    setLoadingThreads(true)
+  const loadThreads = async (options = {}) => {
+    const { silent = false } = options
+    if (!silent) setLoadingThreads(true)
     setError('')
     try {
       const { data: threadRows, error: threadError } = await supabase
@@ -375,22 +378,51 @@ const ChatModule = () => {
 
       if (participantError) throw participantError
 
-      const visibleThreads = (threadRows || []).filter(thread => {
+      // Для кожного чату паралельно дістаємо точну кількість нечитаних повідомлень
+      const threadsWithUnread = await Promise.all((threadRows || []).map(async thread => {
         const rows = (participantRows || []).filter(p => p.thread_id === thread.id)
-        return rows.length === 0 || rows.some(p => p.user_id === me.id)
+        const myPart = rows.find(p => String(p.user_id) === String(me.id))
+        
+        let unreadCount = 0
+        if (myPart) {
+          const numericMyId = Number(me.id) || me.id
+          let query = supabase
+            .from('chat_messages')
+            .select('id', { count: 'exact', head: true })
+            .eq('thread_id', thread.id)
+            .is('deleted_at', null)
+            .not('sender_id', 'eq', numericMyId)
+
+          if (myPart.last_read_at) {
+            const formattedIsoRead = new Date(myPart.last_read_at).toISOString()
+            query = query.gt('created_at', formattedIsoRead)
+          }
+          
+          const { count } = await query
+          unreadCount = count || 0
+        }
+        return {
+          ...thread,
+          unreadCount
+        }
+      }))
+
+      const visibleThreads = threadsWithUnread.filter(thread => {
+        const rows = (participantRows || []).filter(p => p.thread_id === thread.id)
+        return rows.length === 0 || rows.some(p => String(p.user_id) === String(me.id))
       })
 
       setThreads(visibleThreads)
       setParticipants(participantRows || [])
       setActiveThreadId(prev => {
         if (prev && visibleThreads.some(t => t.id === prev)) return prev
-        return visibleThreads[0]?.id || null
+        return null
       })
     } catch (err) {
       console.error(err)
       showSetupError(err)
     } finally {
-      setLoadingThreads(false)
+      if (!silent) setLoadingThreads(false)
     }
   }
 
@@ -413,19 +445,12 @@ const ChatModule = () => {
 
       if (msgError) throw msgError
       const nextMessages = data || []
-      setMessages(prev => {
-        const prevLastId = prev[prev.length - 1]?.id
-        const nextLastId = nextMessages[nextMessages.length - 1]?.id
-        if (nextLastId && nextLastId !== prevLastId) scrollToBottom()
-        return nextMessages
-      })
-
-      if (me.id) {
-        await supabase
-          .from('chat_participants')
-          .update({ last_read_at: new Date().toISOString() })
-          .eq('thread_id', threadId)
-          .eq('user_id', me.id)
+      
+      const isInitialLoad = messages.length === 0
+      setMessages(nextMessages)
+      
+      if (nextMessages.length > 0) {
+        scrollToBottom({ instant: isInitialLoad })
       }
     } catch (err) {
       console.error(err)
@@ -436,11 +461,35 @@ const ChatModule = () => {
   }
 
   useEffect(() => {
+    if (!me.id) return
     loadThreads()
   }, [me.id])
 
   useEffect(() => {
-    loadMessages(activeThreadId)
+    if (activeThreadId) {
+      loadMessages(activeThreadId, { silent: true })
+      
+      // Capture the current read horizon before updating the database
+      // so we know where to place the "Нові повідомлення" divider
+      const myPart = participants.find(p => p.thread_id === activeThreadId && String(p.user_id) === String(me.id))
+      setReadHorizon(myPart?.last_read_at ? new Date(myPart.last_read_at).getTime() : null)
+
+      // Позначаємо чат прочитаним лише при безпосередньому відкритті/перемиканні
+      if (me.id) {
+        const numericMyId = Number(me.id) || me.id
+        supabase
+          .from('chat_participants')
+          .update({ last_read_at: new Date().toISOString() })
+          .eq('thread_id', activeThreadId)
+          .eq('user_id', numericMyId)
+          .then(() => {
+            loadThreads({ silent: true })
+          })
+      }
+    } else {
+      setMessages([])
+      setReadHorizon(null)
+    }
   }, [activeThreadId])
 
   useEffect(() => {
@@ -462,15 +511,7 @@ const ChatModule = () => {
           return next
         })
         scrollToBottom()
-        if (meIdRef.current) {
-          supabase
-            .from('chat_participants')
-            .update({ last_read_at: new Date().toISOString() })
-            .eq('thread_id', incoming.thread_id)
-            .eq('user_id', meIdRef.current)
-            .then(() => {})
-        }
-        loadThreads()
+        loadThreads({ silent: true })
       })
       .on('postgres_changes', {
         event: '*',
@@ -486,7 +527,7 @@ const ChatModule = () => {
         schema: 'public',
         table: 'chat_threads'
       }, (payload) => {
-        loadThreads()
+        loadThreads({ silent: true })
         const changedThreadId = payload.new?.id || payload.old?.id
         if (changedThreadId === activeThreadId) {
           loadMessages(activeThreadId, { silent: true })
@@ -509,7 +550,7 @@ const ChatModule = () => {
         schema: 'public',
         table: 'chat_threads'
       }, () => {
-        loadThreads()
+        loadThreads({ silent: true })
       })
       .on('postgres_changes', {
         event: '*',
@@ -517,7 +558,14 @@ const ChatModule = () => {
         table: 'chat_participants',
         filter: `user_id=eq.${me.id}`
       }, () => {
-        loadThreads()
+        loadThreads({ silent: true })
+      })
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'chat_messages'
+      }, () => {
+        loadThreads({ silent: true })
       })
       .subscribe()
 
@@ -709,8 +757,8 @@ const ChatModule = () => {
 
       setComposer('')
       clearPendingImage()
-      await loadMessages(activeThreadId)
-      await loadThreads()
+      await loadMessages(activeThreadId, { silent: true })
+      await loadThreads({ silent: true })
     } catch (err) {
       console.error(err)
       const message = err?.message || String(err)
@@ -912,10 +960,15 @@ const ChatModule = () => {
               const rows = participants.filter(p => p.thread_id === thread.id)
               const threadAvatar = getThreadAvatar(thread)
               const displayTitle = getThreadDisplayTitle(thread)
+              
+              // Визначаємо нечитані повідомлення
+              const myParticipant = rows.find(p => String(p.user_id) === String(me.id))
+              const isUnread = thread.unreadCount > 0
+
               return (
                 <button
                   key={thread.id}
-                  className={`thread-card ${thread.id === activeThreadId ? 'active' : ''}`}
+                  className={`thread-card ${thread.id === activeThreadId ? 'active' : ''} ${isUnread ? 'unread' : ''}`}
                   onClick={() => setActiveThreadId(thread.id)}
                 >
                   <div className="thread-icon">
@@ -925,7 +978,14 @@ const ChatModule = () => {
                     <div className="thread-title">{displayTitle}</div>
                     <div className="thread-last">{thread.last_message || `${rows.length} учасн.`}</div>
                   </div>
-                  <div className="thread-time">{formatTime(thread.last_message_at || thread.updated_at)}</div>
+                  <div className="thread-time-col">
+                    <div className="thread-time">{formatTime(thread.last_message_at || thread.updated_at)}</div>
+                    {thread.unreadCount > 0 && (
+                      <span className="unread-badge" title={`${thread.unreadCount} нових повідомлень`}>
+                        {thread.unreadCount}
+                      </span>
+                    )}
+                  </div>
                 </button>
               )
             })}
@@ -973,34 +1033,54 @@ const ChatModule = () => {
                   <div className="empty-state"><Loader2 className="spin" size={20} /> Завантаження повідомлень...</div>
                 ) : messages.length === 0 ? (
                   <div className="empty-state">Тут ще немає повідомлень</div>
-                ) : messages.map(message => {
+                ) : messages.map((message, index) => {
                   const isMine = message.sender_id === me.id
+                  const msgTime = new Date(message.created_at).getTime()
+                  
+                  let showUnreadDivider = false
+                  if (readHorizon && msgTime > readHorizon) {
+                    const prevMsg = messages[index - 1]
+                    const prevTime = prevMsg ? new Date(prevMsg.created_at).getTime() : 0
+                    if (prevTime <= readHorizon) {
+                      showUnreadDivider = true
+                    }
+                  }
+
                   return (
-                    <div key={message.id} className={`message-row ${isMine ? 'mine' : ''}`}>
-                      <div className="message-bubble">
-                        {!isMine && <div className="message-author">{message.sender_name}</div>}
-                        {message.attachment_url && (
-                          <button
-                            type="button"
-                            className="message-image-link"
-                            onClick={() => setImagePreview({
-                              url: message.attachment_url,
-                              name: message.attachment_name || 'Фото',
-                              size: message.attachment_size,
-                              time: message.created_at,
-                              sender: message.sender_name
-                            })}
-                          >
-                            <img src={message.attachment_url} alt={message.attachment_name || 'Фото'} />
-                          </button>
-                        )}
-                        {message.body && <div className="message-text">{message.body}</div>}
-                        <div className="message-meta">
-                          {message.attachment_size ? <span>{bytesToLabel(message.attachment_size)}</span> : null}
-                          <span>{formatTime(message.created_at)}</span>
+                    <React.Fragment key={message.id}>
+                      {showUnreadDivider && (
+                        <div className="unread-divider">
+                          <span>Нові повідомлення</span>
+                        </div>
+                      )}
+                      <div className={`message-row ${isMine ? 'mine' : ''}`}>
+                        <div className="message-wrapper">
+                          {!isMine && <div className="message-author">{message.sender_name}</div>}
+                          <div className="message-bubble">
+                            {message.attachment_url && (
+                              <button
+                                type="button"
+                                className="message-image-link"
+                                onClick={() => setImagePreview({
+                                  url: message.attachment_url,
+                                  name: message.attachment_name || 'Фото',
+                                  size: message.attachment_size,
+                                  time: message.created_at,
+                                  sender: message.sender_name
+                                })}
+                              >
+                                <img src={message.attachment_url} alt={message.attachment_name || 'Фото'} />
+                              </button>
+                            )}
+                            {message.body && <div className="message-text">{message.body}</div>}
+                          </div>
+                          <div className="message-meta">
+                            {message.attachment_size ? <span className="meta-size">{bytesToLabel(message.attachment_size)}</span> : null}
+                            <span className="meta-time">{formatTime(message.created_at)}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    </React.Fragment>
                   )
                 })}
                 <div ref={messagesEndRef} />
@@ -1385,18 +1465,64 @@ const ChatModule = () => {
           display: grid;
           grid-template-columns: 38px 1fr auto;
           align-items: center;
-          gap: 10px;
+          gap: 12px;
           padding: 12px;
-          background: #0f0f10;
+          background: rgba(255,255,255,0.015);
           color: #fff;
-          border: 1px solid rgba(255,255,255,0.06);
-          border-radius: 8px;
+          border: 1px solid rgba(255,255,255,0.03);
+          border-radius: 14px;
           cursor: pointer;
           text-align: left;
+          position: relative;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .thread-card:hover {
+          background: rgba(255,255,255,0.04);
+          transform: translateY(-1px);
+        }
+        .thread-card.unread {
+          border-color: rgba(59, 130, 246, 0.4);
+          background: rgba(59, 130, 246, 0.08);
+          box-shadow: 0 4px 12px rgba(59, 130, 246, 0.05);
+        }
+        .thread-card.unread .thread-title {
+          font-weight: 900;
+          color: #fff;
+        }
+        .thread-card.unread .thread-last {
+          color: #ddd;
+          font-weight: 800;
+        }
+        .thread-time-col {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 6px;
+          min-width: 65px;
+        }
+        .unread-badge {
+          min-width: 20px;
+          height: 20px;
+          padding: 0 6px;
+          background: linear-gradient(135deg, #3b82f6, #2563eb);
+          color: #fff;
+          font-size: 0.65rem;
+          font-weight: 900;
+          border-radius: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 2px 10px rgba(59, 130, 246, 0.4);
+          animation: pulse-badge 2s infinite alternate;
+        }
+        @keyframes pulse-badge {
+          from { transform: scale(1); box-shadow: 0 2px 10px rgba(59, 130, 246, 0.4); }
+          to { transform: scale(1.05); box-shadow: 0 4px 14px rgba(59, 130, 246, 0.6); }
         }
         .thread-card.active {
-          border-color: rgba(59,130,246,0.7);
+          border-color: rgba(59,130,246,0.6);
           background: rgba(59,130,246,0.12);
+          box-shadow: 0 0 0 1px rgba(59,130,246,0.2) inset;
         }
         .thread-icon {
           width: 38px;
@@ -1514,50 +1640,105 @@ const ChatModule = () => {
           flex: 1;
           min-height: 0;
           overflow-y: auto;
-          padding: 18px;
+          padding: 24px;
           display: flex;
           flex-direction: column;
-          gap: 10px;
-          background:
-            linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px),
-            #09090a;
-          background-size: 100% 32px;
+          gap: 16px;
+          background: radial-gradient(circle at center, rgba(59, 130, 246, 0.02) 0%, transparent 100%), #070708;
+          scroll-behavior: smooth;
+        }
+        .messages-panel::-webkit-scrollbar {
+          width: 8px;
+        }
+        .messages-panel::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .messages-panel::-webkit-scrollbar-thumb {
+          background: rgba(255,255,255,0.1);
+          border-radius: 4px;
         }
         .message-row {
           display: flex;
           justify-content: flex-start;
+          animation: slide-up 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .message-row.mine {
           justify-content: flex-end;
         }
+        @keyframes slide-up {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .message-wrapper {
+          display: flex;
+          flex-direction: column;
+          max-width: min(680px, 75%);
+        }
+        .message-row.mine .message-wrapper {
+          align-items: flex-end;
+        }
         .message-bubble {
-          max-width: min(680px, 72%);
-          border: 1px solid rgba(255,255,255,0.08);
+          border: 1px solid rgba(255,255,255,0.05);
           background: #141416;
-          border-radius: 8px;
-          padding: 10px;
+          border-radius: 18px 18px 18px 4px;
+          padding: 12px 16px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+          backdrop-filter: blur(8px);
         }
         .message-row.mine .message-bubble {
-          background: rgba(59,130,246,0.18);
-          border-color: rgba(59,130,246,0.28);
+          background: linear-gradient(135deg, rgba(59,130,246,0.25), rgba(37,99,235,0.15));
+          border-color: rgba(59,130,246,0.3);
+          border-radius: 18px 18px 4px 18px;
         }
         .message-author {
           font-size: 0.72rem;
-          color: #60a5fa;
-          font-weight: 900;
-          margin-bottom: 6px;
+          color: #93c5fd;
+          font-weight: 800;
+          margin-bottom: 4px;
+          margin-left: 4px;
         }
         .message-text {
           white-space: pre-wrap;
           word-break: break-word;
-          font-size: 0.94rem;
-          line-height: 1.45;
+          font-size: 0.95rem;
+          line-height: 1.5;
+          letter-spacing: 0.2px;
         }
         .message-meta {
           display: flex;
-          justify-content: flex-end;
           gap: 8px;
-          margin-top: 6px;
+          margin-top: 4px;
+          padding: 0 6px;
+          opacity: 0.7;
+          transition: opacity 0.2s;
+        }
+        .message-wrapper:hover .message-meta {
+          opacity: 1;
+        }
+        .unread-divider {
+          display: flex;
+          align-items: center;
+          text-align: center;
+          margin: 16px 0;
+          color: #3b82f6;
+          font-size: 0.75rem;
+          font-weight: 900;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+        }
+        .unread-divider::before,
+        .unread-divider::after {
+          content: '';
+          flex: 1;
+          border-bottom: 1px solid rgba(59, 130, 246, 0.3);
+        }
+        .unread-divider span {
+          padding: 0 12px;
+          background: rgba(59, 130, 246, 0.1);
+          border-radius: 12px;
+          margin: 0 8px;
+          line-height: 24px;
+          box-shadow: 0 0 10px rgba(59, 130, 246, 0.1);
         }
         .message-image-link {
           display: block;
@@ -1625,43 +1806,78 @@ const ChatModule = () => {
           box-shadow: 0 18px 80px rgba(0,0,0,0.65);
         }
         .composer {
-          border-top: 1px solid rgba(255,255,255,0.08);
-          padding: 12px;
-          background: #0d0d0f;
+          padding: 16px 24px;
+          background: rgba(10, 10, 12, 0.85);
+          backdrop-filter: blur(12px);
           position: sticky;
           bottom: 0;
           z-index: 5;
           flex: 0 0 auto;
+          border-top: 1px solid rgba(255,255,255,0.05);
         }
         .composer-row {
           display: grid;
-          grid-template-columns: 38px 1fr 46px;
-          gap: 10px;
+          grid-template-columns: 42px 1fr 48px;
+          gap: 12px;
           align-items: end;
+          background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(255,255,255,0.06);
+          border-radius: 24px;
+          padding: 6px;
+          transition: border-color 0.2s;
+        }
+        .composer-row:focus-within {
+          border-color: rgba(59,130,246,0.4);
+          background: rgba(255,255,255,0.05);
         }
         .composer textarea {
-          min-height: 42px;
-          max-height: 120px;
-          resize: vertical;
-          padding: 12px;
-          border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 8px;
-          background: #151517;
+          min-height: 24px;
+          max-height: 140px;
+          resize: none;
+          padding: 12px 4px;
+          border: 0;
+          background: transparent;
+          font-size: 0.95rem;
+          line-height: 1.5;
+        }
+        .composer textarea::-webkit-scrollbar {
+          width: 4px;
+        }
+        .composer textarea::-webkit-scrollbar-thumb {
+          background: rgba(255,255,255,0.2);
+          border-radius: 4px;
         }
         .send-btn,
         .primary-btn,
         .create-btn {
           height: 42px;
           border: 0;
-          border-radius: 8px;
-          background: #16a34a;
+          border-radius: 21px;
+          background: linear-gradient(135deg, #3b82f6, #2563eb);
           color: #fff;
-          font-weight: 950;
+          font-weight: 900;
           display: inline-flex;
           align-items: center;
           justify-content: center;
           gap: 8px;
           cursor: pointer;
+          transition: all 0.2s;
+          box-shadow: 0 4px 12px rgba(59,130,246,0.3);
+        }
+        .send-btn:hover:not(:disabled),
+        .primary-btn:hover:not(:disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 6px 16px rgba(59,130,246,0.4);
+        }
+        .composer-row .icon-btn {
+          height: 42px;
+          width: 42px;
+          border-radius: 21px;
+          border: 0;
+          background: transparent;
+        }
+        .composer-row .icon-btn:hover {
+          background: rgba(255,255,255,0.08);
         }
         .send-btn {
           width: 46px;
