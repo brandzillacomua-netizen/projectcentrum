@@ -6,7 +6,7 @@ import {
   TrendingUp, Zap, Shield, Eye, EyeOff, Save, RotateCcw, Briefcase,
   ChevronDown, ChevronUp, ChevronLeft,
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useMES } from '../MESContext'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

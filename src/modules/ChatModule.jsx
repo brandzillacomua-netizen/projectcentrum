@@ -490,9 +490,22 @@ const ChatModule = () => {
           const { count } = await query
           unreadCount = count || 0
         }
+        
+        let lastMessageSenderId = null
+        const { data: lastMsgData } = await supabase
+          .from('chat_messages')
+          .select('sender_id')
+          .eq('thread_id', thread.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+        
+        if (lastMsgData && lastMsgData.length > 0) {
+          lastMessageSenderId = lastMsgData[0].sender_id
+        }
         return {
           ...thread,
-          unreadCount
+          unreadCount,
+          lastMessageSenderId
         }
       }))
 
@@ -663,8 +676,7 @@ const ChatModule = () => {
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
-        table: 'chat_participants',
-        filter: `user_id=eq.${me.id}`
+        table: 'chat_participants'
       }, () => {
         loadThreads({ silent: true })
       })
@@ -1108,7 +1120,15 @@ const ChatModule = () => {
                   </div>
                   <div className="thread-main">
                     <div className="thread-title">{displayTitle}</div>
-                    <div className="thread-last">{thread.last_message || `${rows.length} учасн.`}</div>
+                    
+                    <div className="thread-last">
+                      {thread.lastMessageSenderId === me.id && (
+                        <span style={{ marginRight: 4, color: (rows.find(p => p.user_id !== me.id)?.last_read_at && new Date(rows.find(p => p.user_id !== me.id).last_read_at).getTime() >= new Date(thread.last_message_at || thread.updated_at).getTime()) ? '#3b82f6' : '#888' }}>
+                          {(rows.find(p => p.user_id !== me.id)?.last_read_at && new Date(rows.find(p => p.user_id !== me.id).last_read_at).getTime() >= new Date(thread.last_message_at || thread.updated_at).getTime()) ? <CheckCheck size={14} /> : <Check size={14} />}
+                        </span>
+                      )}
+                      {thread.last_message || `${rows.length} учасн.`}
+                    </div>
                   </div>
                   <div className="thread-time-col">
                     <div className="thread-time">{formatThreadTime(thread.last_message_at || thread.updated_at)}</div>
@@ -1255,7 +1275,7 @@ const ChatModule = () => {
                           
                           <div className={`message-bubble ${message.attachment_type === 'system_task' ? 'sys-task-bubble' : ''}`}>
                             {message.attachment_type === 'system_task' ? (
-                              <div className="task-sys-message">
+                              <div className="task-sys-message" style={{ cursor: "pointer" }} onClick={() => navigate(`/tasks?taskId=${message.attachment_url}`)}>
                                 <div className="tsm-icon"><CheckSquare size={22} /></div>
                                 <div className="tsm-content">
                                   <h4><b>{message.sender_name}</b> створив(ла) для вас завдання</h4>
@@ -2682,6 +2702,11 @@ const ChatModule = () => {
           padding: 14px 18px;
           border-radius: 12px;
           margin-top: 4px;
+          transition: background 0.2s, transform 0.2s;
+        }
+        .task-sys-message:hover {
+          background: rgba(255, 144, 0, 0.2);
+          transform: translateY(-1px);
         }
         .mine .task-sys-message {
            background: rgba(255, 144, 0, 0.15);
@@ -2716,6 +2741,8 @@ const ChatModule = () => {
           font-size: 0.95rem;
           font-weight: 700;
           color: #ff9000;
+          text-decoration: underline;
+          text-underline-offset: 2px;
         }
         .tsm-deadline {
           margin-top: 4px;
