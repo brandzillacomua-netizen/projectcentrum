@@ -33,6 +33,42 @@ const getUserAvatar = (user) => {
   return user?.avatar || user?.notification_settings?.avatar || ''
 }
 
+const getInitials = (nameOrUser) => {
+  const name = typeof nameOrUser === 'string' ? nameOrUser : formatUserName(nameOrUser)
+  const parts = name.split(/\s+/).filter(Boolean)
+  return (parts.length >= 2 ? `${parts[0][0]}${parts[1][0]}` : name.slice(0, 2)).toUpperCase()
+}
+
+const getAvatarGradient = (value = '') => {
+  switch (value) {
+    case 'purple': return 'linear-gradient(135deg, #a855f7, #6366f1)'
+    case 'blue': return 'linear-gradient(135deg, #3b82f6, #06b6d4)'
+    case 'emerald': return 'linear-gradient(135deg, #10b981, #059669)'
+    case 'ruby': return 'linear-gradient(135deg, #f43f5e, #be123c)'
+    case 'orange': return 'linear-gradient(135deg, #ff9000, #ff5500)'
+    default: return 'linear-gradient(135deg, #1f2937, #111827)'
+  }
+}
+
+const ChatAvatar = ({ src, label, size = 'small' }) => {
+  const [failed, setFailed] = useState(false)
+  const canUseImage = src && !failed && (src.startsWith('data:image/') || src.startsWith('http') || src.startsWith('/'))
+
+  useEffect(() => {
+    setFailed(false)
+  }, [src])
+
+  if (canUseImage) {
+    return <img src={src} alt={label} onError={() => setFailed(true)} />
+  }
+
+  return (
+    <span className={`chat-initials-avatar ${size}`} style={{ background: getAvatarGradient(src) }}>
+      {getInitials(label)}
+    </span>
+  )
+}
+
 const formatTime = (value) => {
   if (!value) return ''
   try {
@@ -784,7 +820,7 @@ const ChatModule = () => {
                   onClick={() => setActiveThreadId(thread.id)}
                 >
                   <div className="thread-icon">
-                    {threadAvatar ? <img src={threadAvatar} alt={thread.title} /> : <Users size={16} />}
+                    <ChatAvatar src={threadAvatar} label={thread.title} />
                   </div>
                   <div className="thread-main">
                     <div className="thread-title">{thread.title}</div>
@@ -809,7 +845,7 @@ const ChatModule = () => {
                 </button>
                 <div className="active-chat-title">
                   <div className="active-chat-avatar">
-                    {activeAvatar ? <img src={activeAvatar} alt={activeThread.title} /> : <Users size={17} />}
+                    <ChatAvatar src={activeAvatar} label={activeThread.title} size="large" />
                   </div>
                   <div>
                     <h2>{activeThread.title}</h2>
@@ -1010,9 +1046,9 @@ const ChatModule = () => {
                 {settingsAvatar?.previewUrl ? (
                   <img src={settingsAvatar.previewUrl} alt="Нова аватарка" />
                 ) : activeThread.avatar_url ? (
-                  <img src={activeThread.avatar_url} alt={activeThread.title} />
+                  <ChatAvatar src={activeThread.avatar_url} label={activeThread.title} size="xlarge" />
                 ) : (
-                  <Users size={28} />
+                  <ChatAvatar src="" label={activeThread.title} size="xlarge" />
                 )}
               </div>
               <div>
@@ -1253,6 +1289,27 @@ const ChatModule = () => {
           height: 100%;
           object-fit: cover;
           display: block;
+        }
+        .chat-initials-avatar {
+          width: 100%;
+          height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #fff;
+          font-weight: 950;
+          letter-spacing: 0;
+          text-transform: uppercase;
+          user-select: none;
+        }
+        .chat-initials-avatar.small {
+          font-size: 0.72rem;
+        }
+        .chat-initials-avatar.large {
+          font-size: 0.82rem;
+        }
+        .chat-initials-avatar.xlarge {
+          font-size: 1.15rem;
         }
         .thread-main {
           min-width: 0;
