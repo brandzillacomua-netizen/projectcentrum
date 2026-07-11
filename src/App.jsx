@@ -252,16 +252,23 @@ const useChatUnreadCount = (currentUser, supabase) => {
     }
 
     refreshUnread()
-    const timer = setInterval(refreshUnread, 30000)
     const channel = supabase
       .channel(`chat-unread-${currentUser.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_messages' }, refreshUnread)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_participants' }, refreshUnread)
       .subscribe()
 
+    const handleVisibleRefresh = () => {
+      if (document.visibilityState === 'visible') refreshUnread()
+    }
+
+    document.addEventListener('visibilitychange', handleVisibleRefresh)
+    window.addEventListener('focus', refreshUnread)
+
     return () => {
       cancelled = true
-      clearInterval(timer)
+      document.removeEventListener('visibilitychange', handleVisibleRefresh)
+      window.removeEventListener('focus', refreshUnread)
       supabase.removeChannel(channel)
     }
   }, [currentUser?.id, currentUser?.access_rights?.chat, supabase])

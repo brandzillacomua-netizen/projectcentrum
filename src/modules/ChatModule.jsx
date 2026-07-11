@@ -229,12 +229,15 @@ const ChatModule = () => {
   const fileInputRef = useRef(null)
   const avatarInputRef = useRef(null)
   const messagesEndRef = useRef(null)
+  const activeThreadIdRef = useRef(null)
+  const meIdRef = useRef(null)
 
   const me = useMemo(() => ({
     id: currentUser?.id,
     login: currentUser?.login || '',
     name: formatUserName(currentUser)
   }), [currentUser])
+  const isSuperAdmin = currentUser?.position === 'Адмін' || currentUser?.role === 'admin'
 
   const users = useMemo(() => {
     return (systemUsers || [])
@@ -250,6 +253,14 @@ const ChatModule = () => {
     return participants.filter(p => p.thread_id === activeThreadId)
   }, [participants, activeThreadId])
 
+  useEffect(() => {
+    activeThreadIdRef.current = activeThreadId
+  }, [activeThreadId])
+
+  useEffect(() => {
+    meIdRef.current = me.id
+  }, [me.id])
+
   const getThreadAvatar = (thread) => {
     if (!thread) return ''
     if (thread.avatar_url) return thread.avatar_url
@@ -262,6 +273,16 @@ const ChatModule = () => {
     return getUserAvatar(user)
   }
 
+  const getThreadDisplayTitle = (thread) => {
+    if (!thread) return ''
+    const rows = participants.filter(p => p.thread_id === thread.id)
+    if (rows.length === 2) {
+      const other = rows.find(p => p.user_id !== me.id)
+      if (other?.user_name) return other.user_name
+    }
+    return thread.title || 'Чат'
+  }
+
   const filteredThreads = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return threads
@@ -270,7 +291,7 @@ const ChatModule = () => {
         .filter(p => p.thread_id === t.id)
         .map(p => p.user_name)
         .join(' ')
-      return `${t.title} ${t.last_message || ''} ${names}`.toLowerCase().includes(q)
+      return `${getThreadDisplayTitle(t)} ${t.title || ''} ${t.last_message || ''} ${names}`.toLowerCase().includes(q)
     })
   }, [participants, search, threads])
 
@@ -425,40 +446,51 @@ const ChatModule = () => {
   useEffect(() => {
     if (!activeThreadId) return undefined
 
-    const messagesTimer = setInterval(() => {
-      loadMessages(activeThreadId, { silent: true })
-    }, 5000)
-
-    const threadsTimer = setInterval(() => {
-      loadThreads()
-    }, 15000)
-
-    return () => {
-      clearInterval(messagesTimer)
-      clearInterval(threadsTimer)
-    }
-  }, [activeThreadId])
-
-  useEffect(() => {
-    if (!activeThreadId) return undefined
-
     const channel = supabase
       .channel(`chat-thread-${activeThreadId}`)
       .on('postgres_changes', {
-        event: '*',
+        event: 'INSERT',
         schema: 'public',
         table: 'chat_messages',
         filter: `thread_id=eq.${activeThreadId}`
-      }, () => {
-        loadMessages(activeThreadId)
+      }, (payload) => {
+        const incoming = payload.new
+        if (!incoming || incoming.deleted_at) return
+        setMessages(prev => {
+          if (prev.some(message => message.id === incoming.id)) return prev
+          const next = [...prev, incoming].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+          return next
+        })
+        scrollToBottom()
+        if (meIdRef.current) {
+          supabase
+            .from('chat_participants')
+            .update({ last_read_at: new Date().toISOString() })
+            .eq('thread_id', incoming.thread_id)
+            .eq('user_id', meIdRef.current)
+            .then(() => {})
+        }
         loadThreads()
       })
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
+        table: 'chat_messages',
+        filter: `thread_id=eq.${activeThreadId}`
+      }, (payload) => {
+        if (payload.eventType === 'INSERT') return
+        loadMessages(activeThreadId, { silent: true })
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
         table: 'chat_threads'
-      }, () => {
+      }, (payload) => {
         loadThreads()
+        const changedThreadId = payload.new?.id || payload.old?.id
+        if (changedThreadId === activeThreadId) {
+          loadMessages(activeThreadId, { silent: true })
+        }
       })
       .subscribe()
 
@@ -466,6 +498,45 @@ const ChatModule = () => {
       supabase.removeChannel(channel)
     }
   }, [activeThreadId])
+
+  useEffect(() => {
+    if (!me.id) return undefined
+
+    const channel = supabase
+      .channel(`chat-list-${me.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'chat_threads'
+      }, () => {
+        loadThreads()
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'chat_participants',
+        filter: `user_id=eq.${me.id}`
+      }, () => {
+        loadThreads()
+      })
+      .subscribe()
+
+    const handleVisibleRefresh = () => {
+      if (document.visibilityState === 'visible') {
+        loadThreads()
+        if (activeThreadIdRef.current) loadMessages(activeThreadIdRef.current, { silent: true })
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibleRefresh)
+    window.addEventListener('focus', handleVisibleRefresh)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibleRefresh)
+      window.removeEventListener('focus', handleVisibleRefresh)
+      supabase.removeChannel(channel)
+    }
+  }, [me.id])
 
   const createThread = async () => {
     if (selectedUserIds.length === 0) return
@@ -620,9 +691,10 @@ const ChatModule = () => {
       if (notifyUserIds.length > 0) {
         const preview = text || (attachment ? '[Фото]' : 'Нове повідомлення')
         const shortPreview = preview.length > 140 ? `${preview.slice(0, 137)}...` : preview
+        const isDirectChat = activeParticipants.length === 2
         sendPushToUsers(
           Array.from(new Set(notifyUserIds)),
-          activeThread?.title || 'Нове повідомлення в чаті',
+          isDirectChat ? me.name : (activeThread?.title || 'Нове повідомлення в чаті'),
           `${me.name}: ${shortPreview}`,
           '/chat',
           {
@@ -811,9 +883,11 @@ const ChatModule = () => {
         <aside className="chat-sidebar">
           <div className="chat-sidebar-head">
             <div className="chat-title-row">
-              <button className="icon-btn system-menu" onClick={() => navigate('/')} title="До системи">
-                <Menu size={18} />
-              </button>
+              {isSuperAdmin && (
+                <button className="icon-btn system-menu" onClick={() => navigate('/')} title="До системи">
+                  <Menu size={18} />
+                </button>
+              )}
               <div>
                 <div className="eyebrow"><MessageCircle size={14} /> Внутрішній чат</div>
                 <h1>Чат</h1>
@@ -837,6 +911,7 @@ const ChatModule = () => {
             ) : filteredThreads.map(thread => {
               const rows = participants.filter(p => p.thread_id === thread.id)
               const threadAvatar = getThreadAvatar(thread)
+              const displayTitle = getThreadDisplayTitle(thread)
               return (
                 <button
                   key={thread.id}
@@ -844,10 +919,10 @@ const ChatModule = () => {
                   onClick={() => setActiveThreadId(thread.id)}
                 >
                   <div className="thread-icon">
-                    <ChatAvatar src={threadAvatar} label={thread.title} />
+                    <ChatAvatar src={threadAvatar} label={displayTitle} />
                   </div>
                   <div className="thread-main">
-                    <div className="thread-title">{thread.title}</div>
+                    <div className="thread-title">{displayTitle}</div>
                     <div className="thread-last">{thread.last_message || `${rows.length} учасн.`}</div>
                   </div>
                   <div className="thread-time">{formatTime(thread.last_message_at || thread.updated_at)}</div>
@@ -862,6 +937,7 @@ const ChatModule = () => {
             <>
               {(() => {
                 const activeAvatar = getThreadAvatar(activeThread)
+                const activeTitle = getThreadDisplayTitle(activeThread)
                 return (
               <header className="chat-header">
                 <button className="icon-btn mobile-back" onClick={() => setActiveThreadId(null)} title="До списку чатів">
@@ -869,10 +945,10 @@ const ChatModule = () => {
                 </button>
                 <div className="active-chat-title">
                   <div className="active-chat-avatar">
-                    <ChatAvatar src={activeAvatar} label={activeThread.title} size="large" />
+                    <ChatAvatar src={activeAvatar} label={activeTitle} size="large" />
                   </div>
                   <div>
-                    <h2>{activeThread.title}</h2>
+                    <h2>{activeTitle}</h2>
                     <div className="participants-line">
                       {activeParticipants.map(p => p.user_name).join(', ') || 'Без обмеження учасників'}
                     </div>
@@ -1080,9 +1156,9 @@ const ChatModule = () => {
                 {settingsAvatar?.previewUrl ? (
                   <img src={settingsAvatar.previewUrl} alt="Нова аватарка" />
                 ) : activeThread.avatar_url ? (
-                  <ChatAvatar src={activeThread.avatar_url} label={activeThread.title} size="xlarge" />
+                  <ChatAvatar src={activeThread.avatar_url} label={getThreadDisplayTitle(activeThread)} size="xlarge" />
                 ) : (
-                  <ChatAvatar src="" label={activeThread.title} size="xlarge" />
+                  <ChatAvatar src="" label={getThreadDisplayTitle(activeThread)} size="xlarge" />
                 )}
               </div>
               <div>
@@ -1855,6 +1931,15 @@ const ChatModule = () => {
           }
           .chat-sidebar {
             display: ${activeThread ? 'none' : 'flex'};
+          }
+          .chat-sidebar-head {
+            min-height: 90px;
+            padding: 18px 14px 18px ${isSuperAdmin ? '14px' : '74px'};
+            gap: 10px;
+          }
+          .chat-sidebar-head h1 {
+            font-size: 1.8rem;
+            line-height: 1;
           }
           .chat-main {
             display: ${activeThread ? 'flex' : 'none'};
