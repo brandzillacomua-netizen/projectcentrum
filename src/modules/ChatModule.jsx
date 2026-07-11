@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useMES } from '../MESContext'
+import { sendPushToUsers } from '../services/pushService'
 
 const CHAT_BUCKET = 'chat-attachments'
 const MAX_IMAGE_EDGE = 1280
@@ -551,6 +552,28 @@ const ChatModule = () => {
         }])
 
       if (sendError) throw sendError
+
+      const notifyUserIds = activeParticipants
+        .map(p => p.user_id)
+        .filter(userId => userId && userId !== me.id)
+
+      if (notifyUserIds.length > 0) {
+        const preview = text || (attachment ? '[Фото]' : 'Нове повідомлення')
+        const shortPreview = preview.length > 140 ? `${preview.slice(0, 137)}...` : preview
+        sendPushToUsers(
+          Array.from(new Set(notifyUserIds)),
+          activeThread?.title || 'Нове повідомлення в чаті',
+          `${me.name}: ${shortPreview}`,
+          '/chat',
+          {
+            tag: `chat-${activeThreadId}-${Date.now()}`,
+            type: 'chat_message',
+            threadId: activeThreadId,
+            senderId: me.id,
+            senderName: me.name
+          }
+        ).catch(err => console.warn('[Chat] Push notification failed:', err))
+      }
 
       setComposer('')
       clearPendingImage()
@@ -1092,7 +1115,7 @@ const ChatModule = () => {
           padding: 18px;
           display: flex;
           align-items: center;
-          justify-content: space-between;
+          justify-content: flex-start;
           gap: 16px;
           border-bottom: 1px solid rgba(255,255,255,0.08);
         }
@@ -1280,6 +1303,7 @@ const ChatModule = () => {
           flex: 0 0 auto;
         }
         .chat-header-actions {
+          margin-left: auto;
           display: flex;
           align-items: center;
           gap: 8px;
