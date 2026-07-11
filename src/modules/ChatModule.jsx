@@ -1592,7 +1592,7 @@ const ChatModule = () => {
             <div className="image-preview-head">
               <div>
                 <b>{imagePreview.sender}</b>
-                <span>{[bytesToLabel(imagePreview.size), formatTime(imagePreview.time)].filter(Boolean).join(' · ')}</span>
+                <span>{[bytesToLabel(imagePreview.size), formatMessageTime(imagePreview.time)].filter(Boolean).join(' · ')}</span>
               </div>
               <button className="icon-btn" onClick={() => setImagePreview(null)} title="Закрити">
                 <X size={18} />
