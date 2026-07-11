@@ -261,6 +261,7 @@ const ChatModule = () => {
   const [readHorizon, setReadHorizon] = useState(null)
   const [search, setSearch] = useState('')
   const [showNewChat, setShowNewChat] = useState(false)
+  const [newChatType, setNewChatType] = useState('private')
   const [newTitle, setNewTitle] = useState('')
   const [userSearch, setUserSearch] = useState('')
   const [selectedUserIds, setSelectedUserIds] = useState([])
@@ -1193,7 +1194,10 @@ const ChatModule = () => {
                     <ChatAvatar src={threadAvatar} label={displayTitle} />
                   </div>
                   <div className="thread-main">
-                    <div className="thread-title">{displayTitle}</div>
+                    <div className="thread-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {rows.length > 2 && <Users size={12} style={{ opacity: 0.6 }} title="Груповий чат" />}
+                      {displayTitle}
+                    </div>
                     
                     <div className="thread-last">
                       {thread.lastMessageSenderId === me.id && (
@@ -1513,12 +1517,12 @@ const ChatModule = () => {
       </div>
 
       {showNewChat && (
-        <div className="modal-backdrop">
-          <div className="new-chat-modal">
-            <div className="modal-head">
+        <div className="modal-backdrop" onClick={() => setShowNewChat(false)}>
+          <div className="new-chat-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-head" style={{ borderBottom: 'none', paddingBottom: 0 }}>
               <div>
-                <div className="eyebrow"><Users size={14} /> Учасники</div>
-                <h3>Новий чат</h3>
+                <div className="eyebrow"><Users size={14} /> Нова бесіда</div>
+                <h3>Створити чат</h3>
               </div>
               <button
                 className="icon-btn"
@@ -1530,12 +1534,46 @@ const ChatModule = () => {
                 <X size={18} />
               </button>
             </div>
-            <div className="member-search">
+            
+            <div style={{ display: 'flex', gap: '8px', padding: '0 16px', marginTop: '12px', marginBottom: '8px' }}>
+              <button
+                onClick={() => { setNewChatType('private'); setSelectedUserIds([]); setNewTitle(''); }}
+                style={{
+                  flex: 1, padding: '8px', borderRadius: '6px',
+                  background: newChatType === 'private' ? 'rgba(255,144,0,0.15)' : 'transparent',
+                  color: newChatType === 'private' ? '#ff9000' : '#888',
+                  border: newChatType === 'private' ? '1px solid rgba(255,144,0,0.3)' : '1px solid rgba(255,255,255,0.05)',
+                  cursor: 'pointer', fontWeight: 600, transition: 'all 0.2s'
+                }}
+              >Особистий</button>
+              <button
+                onClick={() => { setNewChatType('group'); setSelectedUserIds([]); }}
+                style={{
+                  flex: 1, padding: '8px', borderRadius: '6px',
+                  background: newChatType === 'group' ? 'rgba(255,144,0,0.15)' : 'transparent',
+                  color: newChatType === 'group' ? '#ff9000' : '#888',
+                  border: newChatType === 'group' ? '1px solid rgba(255,144,0,0.3)' : '1px solid rgba(255,255,255,0.05)',
+                  cursor: 'pointer', fontWeight: 600, transition: 'all 0.2s'
+                }}
+              >Група</button>
+            </div>
+
+            {newChatType === 'group' && (
+              <input
+                className="title-input"
+                style={{ margin: '8px 16px', width: 'calc(100% - 32px)' }}
+                value={newTitle}
+                onChange={e => setNewTitle(e.target.value)}
+                placeholder="Введіть назву групи..."
+              />
+            )}
+
+            <div className="member-search" style={{ marginTop: newChatType === 'group' ? 0 : '12px' }}>
               <Search size={16} />
               <input
                 value={userSearch}
                 onChange={e => setUserSearch(e.target.value)}
-                placeholder="Пошук людини..."
+                placeholder={newChatType === 'private' ? "Пошук співрозмовника..." : "Пошук учасників групи..."}
                 autoFocus
               />
               {userSearch && (
@@ -1544,12 +1582,7 @@ const ChatModule = () => {
                 </button>
               )}
             </div>
-            <input
-              className="title-input"
-              value={newTitle}
-              onChange={e => setNewTitle(e.target.value)}
-              placeholder={selectedUserIds.length > 1 ? 'Назва групи (необовʼязково)...' : 'Назва чату підтягнеться з вибраної людини'}
-            />
+
             <div className="users-picker">
               {filteredUsers.length === 0 ? (
                 <div className="empty-state compact">Нікого не знайдено</div>
@@ -1559,7 +1592,13 @@ const ChatModule = () => {
                   <button
                     key={user.id}
                     className={`user-pick ${selected ? 'selected' : ''}`}
-                    onClick={() => toggleSelectedUser(user.id)}
+                    onClick={() => {
+                      if (newChatType === 'private') {
+                        setSelectedUserIds([user.id])
+                      } else {
+                        toggleSelectedUser(user.id)
+                      }
+                    }}
                   >
                     <span className="user-pick-main">
                       <b>{formatUserName(user)}</b>
@@ -1570,9 +1609,13 @@ const ChatModule = () => {
                 )
               })}
             </div>
-            <button className="create-btn" onClick={createThread} disabled={sending || selectedUserIds.length === 0}>
+            <button 
+              className="create-btn" 
+              onClick={createThread} 
+              disabled={sending || selectedUserIds.length === 0 || (newChatType === 'group' && selectedUserIds.length < 2)}
+            >
               {sending ? <Loader2 className="spin" size={18} /> : <Plus size={18} />}
-              {selectedUserIds.length > 1 ? `Створити групу (${selectedUserIds.length})` : 'Створити чат'}
+              {newChatType === 'group' ? `Створити групу (${selectedUserIds.length})` : 'Почати чат'}
             </button>
           </div>
         </div>
@@ -1753,7 +1796,7 @@ const ChatModule = () => {
           padding: 18px;
           display: flex;
           align-items: center;
-          justify-content: flex-start;
+          justify-content: space-between;
           gap: 16px;
           border-bottom: 1px solid rgba(255,255,255,0.08);
         }
@@ -2094,7 +2137,7 @@ const ChatModule = () => {
         }
         .message-row {
           display: flex;
-          justify-content: flex-start;
+          justify-content: space-between;
           animation: slide-up 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .message-row.mine {
