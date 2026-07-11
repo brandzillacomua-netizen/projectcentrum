@@ -343,10 +343,25 @@ const ChatModule = () => {
   }, [settingsUserIds, settingsUserSearch, users])
 
   const scrollToBottom = (options = {}) => {
-    const { instant = false } = options
-    requestAnimationFrame(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth', block: 'end' })
-    })
+    const { instant = false, isInitial = false, force = false } = options
+    setTimeout(() => {
+      const panel = document.querySelector('.messages-panel')
+      let isScrolledUp = false
+      if (panel) {
+        isScrolledUp = (panel.scrollHeight - panel.scrollTop - panel.clientHeight) > 150
+      }
+
+      if (!isInitial && !force && isScrolledUp) {
+        return
+      }
+
+      const unreadDivider = document.getElementById('unread-divider')
+      if (isInitial && unreadDivider) {
+        unreadDivider.scrollIntoView({ behavior: instant ? 'auto' : 'smooth', block: 'center' })
+      } else {
+        messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth', block: 'end' })
+      }
+    }, 10)
   }
 
   const showSetupError = (err) => {
@@ -427,7 +442,7 @@ const ChatModule = () => {
   }
 
   const loadMessages = async (threadId, options = {}) => {
-    const { silent = false } = options
+    const { silent = false, forceScroll = false } = options
     if (!threadId) {
       setMessages([])
       return
@@ -450,7 +465,7 @@ const ChatModule = () => {
       setMessages(nextMessages)
       
       if (nextMessages.length > 0) {
-        scrollToBottom({ instant: isInitialLoad })
+        scrollToBottom({ instant: isInitialLoad, isInitial: isInitialLoad, force: forceScroll })
       }
     } catch (err) {
       console.error(err)
@@ -510,7 +525,26 @@ const ChatModule = () => {
           const next = [...prev, incoming].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
           return next
         })
-        scrollToBottom()
+        const isMine = String(incoming.sender_id) === String(me.id)
+        
+        const panel = document.querySelector('.messages-panel')
+        const isScrolledUp = panel && (panel.scrollHeight - panel.scrollTop - panel.clientHeight) > 150
+        
+        if (isMine || !isScrolledUp) {
+          setReadHorizon(null)
+          
+          if (!isMine && me.id) {
+            const numericMyId = Number(me.id) || me.id
+            supabase
+              .from('chat_participants')
+              .update({ last_read_at: new Date().toISOString() })
+              .eq('thread_id', activeThreadId)
+              .eq('user_id', numericMyId)
+              .then(() => loadThreads({ silent: true }))
+          }
+        }
+
+        scrollToBottom({ force: isMine })
         loadThreads({ silent: true })
       })
       .on('postgres_changes', {
@@ -712,6 +746,7 @@ const ChatModule = () => {
     setSending(true)
     setError('')
     try {
+      setReadHorizon(null)
       const attachment = await uploadPendingImage(activeThreadId)
       const { error: sendError } = await supabase
         .from('chat_messages')
@@ -757,7 +792,7 @@ const ChatModule = () => {
 
       setComposer('')
       clearPendingImage()
-      await loadMessages(activeThreadId, { silent: true })
+      await loadMessages(activeThreadId, { silent: true, forceScroll: true })
       await loadThreads({ silent: true })
     } catch (err) {
       console.error(err)
@@ -1039,9 +1074,8 @@ const ChatModule = () => {
                   
                   let showUnreadDivider = false
                   if (readHorizon && msgTime > readHorizon) {
-                    const prevMsg = messages[index - 1]
-                    const prevTime = prevMsg ? new Date(prevMsg.created_at).getTime() : 0
-                    if (prevTime <= readHorizon) {
+                    const firstUnreadOtherIndex = messages.findIndex(m => new Date(m.created_at).getTime() > readHorizon && m.sender_id !== me.id)
+                    if (index === firstUnreadOtherIndex) {
                       showUnreadDivider = true
                     }
                   }
@@ -1049,7 +1083,7 @@ const ChatModule = () => {
                   return (
                     <React.Fragment key={message.id}>
                       {showUnreadDivider && (
-                        <div className="unread-divider">
+                        <div id="unread-divider" className="unread-divider">
                           <span>Нові повідомлення</span>
                         </div>
                       )}
@@ -1645,7 +1679,6 @@ const ChatModule = () => {
           flex-direction: column;
           gap: 16px;
           background: radial-gradient(circle at center, rgba(59, 130, 246, 0.02) 0%, transparent 100%), #070708;
-          scroll-behavior: smooth;
         }
         .messages-panel::-webkit-scrollbar {
           width: 8px;
