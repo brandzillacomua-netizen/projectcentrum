@@ -28,6 +28,10 @@ const formatUserName = (user) => {
   return fullName || user.login || 'Користувач'
 }
 
+const getUserAvatar = (user) => {
+  return user?.avatar || user?.notification_settings?.avatar || ''
+}
+
 const formatTime = (value) => {
   if (!value) return ''
   try {
@@ -207,6 +211,18 @@ const ChatModule = () => {
   const activeParticipants = useMemo(() => {
     return participants.filter(p => p.thread_id === activeThreadId)
   }, [participants, activeThreadId])
+
+  const getThreadAvatar = (thread) => {
+    if (!thread) return ''
+    if (thread.avatar_url) return thread.avatar_url
+
+    const rows = participants.filter(p => p.thread_id === thread.id)
+    const other = rows.find(p => p.user_id !== me.id)
+    if (!other) return ''
+
+    const user = (systemUsers || []).find(u => u.id === other.user_id || u.login === other.user_login)
+    return getUserAvatar(user)
+  }
 
   const filteredThreads = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -737,6 +753,7 @@ const ChatModule = () => {
               <div className="empty-state">Немає чатів</div>
             ) : filteredThreads.map(thread => {
               const rows = participants.filter(p => p.thread_id === thread.id)
+              const threadAvatar = getThreadAvatar(thread)
               return (
                 <button
                   key={thread.id}
@@ -744,7 +761,7 @@ const ChatModule = () => {
                   onClick={() => setActiveThreadId(thread.id)}
                 >
                   <div className="thread-icon">
-                    {thread.avatar_url ? <img src={thread.avatar_url} alt={thread.title} /> : <Users size={16} />}
+                    {threadAvatar ? <img src={threadAvatar} alt={thread.title} /> : <Users size={16} />}
                   </div>
                   <div className="thread-main">
                     <div className="thread-title">{thread.title}</div>
@@ -760,13 +777,16 @@ const ChatModule = () => {
         <main className="chat-main">
           {activeThread ? (
             <>
+              {(() => {
+                const activeAvatar = getThreadAvatar(activeThread)
+                return (
               <header className="chat-header">
                 <button className="icon-btn mobile-back" onClick={() => setActiveThreadId(null)} title="До списку чатів">
                   <ArrowLeft size={18} />
                 </button>
                 <div className="active-chat-title">
                   <div className="active-chat-avatar">
-                    {activeThread.avatar_url ? <img src={activeThread.avatar_url} alt={activeThread.title} /> : <Users size={17} />}
+                    {activeAvatar ? <img src={activeAvatar} alt={activeThread.title} /> : <Users size={17} />}
                   </div>
                   <div>
                     <h2>{activeThread.title}</h2>
@@ -784,6 +804,8 @@ const ChatModule = () => {
                   </button>
                 </div>
               </header>
+                )
+              })()}
 
               {error && <div className="error-box">{error}</div>}
 
