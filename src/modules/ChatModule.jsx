@@ -225,6 +225,7 @@ const ChatModule = () => {
   const [settingsUserIds, setSettingsUserIds] = useState([])
   const [settingsAvatar, setSettingsAvatar] = useState(null)
   const [settingsSaving, setSettingsSaving] = useState(false)
+  const [imagePreview, setImagePreview] = useState(null)
   const fileInputRef = useRef(null)
   const avatarInputRef = useRef(null)
   const messagesEndRef = useRef(null)
@@ -372,12 +373,13 @@ const ChatModule = () => {
     }
   }
 
-  const loadMessages = async (threadId) => {
+  const loadMessages = async (threadId, options = {}) => {
+    const { silent = false } = options
     if (!threadId) {
       setMessages([])
       return
     }
-    setLoadingMessages(true)
+    if (!silent) setLoadingMessages(true)
     setError('')
     try {
       const { data, error: msgError } = await supabase
@@ -389,8 +391,13 @@ const ChatModule = () => {
         .limit(300)
 
       if (msgError) throw msgError
-      setMessages(data || [])
-      scrollToBottom()
+      const nextMessages = data || []
+      setMessages(prev => {
+        const prevLastId = prev[prev.length - 1]?.id
+        const nextLastId = nextMessages[nextMessages.length - 1]?.id
+        if (nextLastId && nextLastId !== prevLastId) scrollToBottom()
+        return nextMessages
+      })
 
       if (me.id) {
         await supabase
@@ -403,7 +410,7 @@ const ChatModule = () => {
       console.error(err)
       showSetupError(err)
     } finally {
-      setLoadingMessages(false)
+      if (!silent) setLoadingMessages(false)
     }
   }
 
@@ -413,6 +420,23 @@ const ChatModule = () => {
 
   useEffect(() => {
     loadMessages(activeThreadId)
+  }, [activeThreadId])
+
+  useEffect(() => {
+    if (!activeThreadId) return undefined
+
+    const messagesTimer = setInterval(() => {
+      loadMessages(activeThreadId, { silent: true })
+    }, 5000)
+
+    const threadsTimer = setInterval(() => {
+      loadThreads()
+    }, 15000)
+
+    return () => {
+      clearInterval(messagesTimer)
+      clearInterval(threadsTimer)
+    }
   }, [activeThreadId])
 
   useEffect(() => {
@@ -880,9 +904,19 @@ const ChatModule = () => {
                       <div className="message-bubble">
                         {!isMine && <div className="message-author">{message.sender_name}</div>}
                         {message.attachment_url && (
-                          <a href={message.attachment_url} target="_blank" rel="noreferrer" className="message-image-link">
+                          <button
+                            type="button"
+                            className="message-image-link"
+                            onClick={() => setImagePreview({
+                              url: message.attachment_url,
+                              name: message.attachment_name || 'Фото',
+                              size: message.attachment_size,
+                              time: message.created_at,
+                              sender: message.sender_name
+                            })}
+                          >
                             <img src={message.attachment_url} alt={message.attachment_name || 'Фото'} />
-                          </a>
+                          </button>
                         )}
                         {message.body && <div className="message-text">{message.body}</div>}
                         <div className="message-meta">
@@ -1121,6 +1155,23 @@ const ChatModule = () => {
         </div>
       )}
 
+      {imagePreview && (
+        <div className="image-preview-backdrop" onClick={() => setImagePreview(null)}>
+          <div className="image-preview-modal" onClick={e => e.stopPropagation()}>
+            <div className="image-preview-head">
+              <div>
+                <b>{imagePreview.sender}</b>
+                <span>{[bytesToLabel(imagePreview.size), formatTime(imagePreview.time)].filter(Boolean).join(' · ')}</span>
+              </div>
+              <button className="icon-btn" onClick={() => setImagePreview(null)} title="Закрити">
+                <X size={18} />
+              </button>
+            </div>
+            <img src={imagePreview.url} alt={imagePreview.name} />
+          </div>
+        </div>
+      )}
+
       <style>{`
         .chat-module {
           min-height: 100vh;
@@ -1137,6 +1188,7 @@ const ChatModule = () => {
           border-radius: 8px;
           overflow: hidden;
           background: #0b0b0c;
+          min-height: 0;
         }
         .chat-sidebar {
           border-right: 1px solid rgba(255,255,255,0.08);
@@ -1337,6 +1389,7 @@ const ChatModule = () => {
         }
         .chat-main {
           min-width: 0;
+          min-height: 0;
           display: flex;
           flex-direction: column;
           background: #0b0b0c;
@@ -1346,6 +1399,14 @@ const ChatModule = () => {
           display: flex;
           align-items: center;
           gap: 12px;
+        }
+        .active-chat-title > div:last-child {
+          min-width: 0;
+        }
+        .active-chat-title h2 {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
         .active-chat-avatar {
           width: 42px;
@@ -1375,6 +1436,7 @@ const ChatModule = () => {
         }
         .messages-panel {
           flex: 1;
+          min-height: 0;
           overflow-y: auto;
           padding: 18px;
           display: flex;
@@ -1424,6 +1486,12 @@ const ChatModule = () => {
         .message-image-link {
           display: block;
           margin-bottom: 8px;
+          padding: 0;
+          border: 0;
+          background: transparent;
+          cursor: zoom-in;
+          width: 100%;
+          text-align: left;
         }
         .message-image-link img {
           display: block;
@@ -1433,10 +1501,61 @@ const ChatModule = () => {
           object-fit: contain;
           background: #050505;
         }
+        .image-preview-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 2000;
+          background: rgba(0,0,0,0.88);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 18px;
+        }
+        .image-preview-modal {
+          max-width: min(1100px, 96vw);
+          max-height: 94vh;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+        .image-preview-head {
+          min-height: 44px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          color: #fff;
+        }
+        .image-preview-head b,
+        .image-preview-head span {
+          display: block;
+        }
+        .image-preview-head b {
+          font-size: 0.88rem;
+          font-weight: 900;
+        }
+        .image-preview-head span {
+          margin-top: 2px;
+          color: #888;
+          font-size: 0.72rem;
+          font-weight: 800;
+        }
+        .image-preview-modal > img {
+          max-width: 100%;
+          max-height: calc(94vh - 58px);
+          object-fit: contain;
+          border-radius: 8px;
+          background: #050505;
+          box-shadow: 0 18px 80px rgba(0,0,0,0.65);
+        }
         .composer {
           border-top: 1px solid rgba(255,255,255,0.08);
           padding: 12px;
           background: #0d0d0f;
+          position: sticky;
+          bottom: 0;
+          z-index: 5;
+          flex: 0 0 auto;
         }
         .composer-row {
           display: grid;
@@ -1723,9 +1842,13 @@ const ChatModule = () => {
         @media (max-width: 860px) {
           .chat-module {
             padding: 0;
+            width: 100vw;
+            overflow: hidden;
           }
           .chat-shell {
             height: 100vh;
+            height: 100dvh;
+            width: 100vw;
             grid-template-columns: 1fr;
             border: 0;
             border-radius: 0;
@@ -1735,15 +1858,132 @@ const ChatModule = () => {
           }
           .chat-main {
             display: ${activeThread ? 'flex' : 'none'};
+            min-width: 0;
           }
           .mobile-back {
             display: inline-flex;
           }
-          .message-bubble {
-            max-width: 88%;
+          .chat-header {
+            min-height: 66px;
+            padding: 10px 10px 10px 74px;
+            gap: 8px;
+            display: grid;
+            grid-template-columns: 36px minmax(0, 1fr) auto;
+            align-items: center;
+          }
+          .chat-header .icon-btn {
+            width: 34px;
+            height: 34px;
+            border-radius: 8px;
+          }
+          .active-chat-title {
+            gap: 8px;
+            min-width: 0;
+          }
+          .active-chat-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+          }
+          .active-chat-title h2 {
+            max-width: 100%;
+            font-size: 1rem;
+            line-height: 1.08;
           }
           .participants-line {
-            max-width: 62vw;
+            max-width: 100%;
+            font-size: 0.62rem;
+            margin-top: 2px;
+          }
+          .chat-header-actions {
+            margin-left: 0;
+            gap: 6px;
+          }
+          .messages-panel {
+            padding: 12px 10px;
+            gap: 9px;
+          }
+          .message-bubble {
+            max-width: 86vw;
+            padding: 9px;
+          }
+          .message-row.mine .message-bubble,
+          .message-bubble {
+            border-radius: 8px;
+          }
+          .message-image-link img {
+            max-width: calc(86vw - 20px);
+            max-height: 48vh;
+          }
+          .image-preview-backdrop {
+            padding: 10px;
+          }
+          .image-preview-modal {
+            max-width: 100vw;
+            max-height: 96vh;
+          }
+          .image-preview-modal > img {
+            max-height: calc(96vh - 56px);
+          }
+          .message-text {
+            font-size: 0.9rem;
+          }
+          .message-author {
+            font-size: 0.68rem;
+          }
+          .message-meta {
+            font-size: 0.66rem;
+          }
+          .composer {
+            padding: 8px 8px max(8px, env(safe-area-inset-bottom));
+            box-shadow: 0 -8px 22px rgba(0,0,0,0.35);
+          }
+          .composer-row {
+            grid-template-columns: 36px minmax(0, 1fr) 42px;
+            gap: 8px;
+          }
+          .composer-row .icon-btn {
+            width: 36px;
+            height: 36px;
+          }
+          .composer textarea {
+            min-height: 38px;
+            padding: 10px;
+            font-size: 0.86rem;
+          }
+          .send-btn {
+            width: 42px;
+            height: 38px;
+          }
+          .pending-image {
+            grid-template-columns: 46px 1fr 36px;
+          }
+          .pending-image img {
+            width: 46px;
+            height: 46px;
+          }
+          .modal-backdrop {
+            padding: 10px;
+            align-items: flex-end;
+          }
+          .new-chat-modal {
+            max-height: 92vh;
+            width: 100%;
+            padding: 14px;
+          }
+          .users-picker {
+            max-height: 42vh;
+          }
+          .settings-users {
+            max-height: 32vh;
+          }
+          .avatar-editor {
+            grid-template-columns: 64px 1fr;
+            padding: 10px;
+          }
+          .group-avatar-preview {
+            width: 64px;
+            height: 64px;
           }
         }
       `}</style>
