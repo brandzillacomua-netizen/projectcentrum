@@ -5,6 +5,14 @@ import { useMES } from '../MESContext'
 import { supabase } from '../supabase'
 import { useScrapReasons } from '../hooks/useScrapReasons'
 
+const normalizeScrapReasonName = (reason) => {
+  const name = reason || 'Причина не вказана'
+  if (name.trim().toLowerCase() === 'легенькі сколи -потребує косметичного ремонту') {
+    return 'Легкі сколи-потребує косметичного ремонту'
+  }
+  return name
+}
+
 export default function BrakModule() {
   const { inventory, nomenclatures, fetchData, currentUser, disposeScrapItem, createReworkNaryad, productionStages, workCards, orders, machineCalls, machines, supabase, workCardHistory, systemUsers } = useMES()
   const [isProcessing, setIsProcessing] = useState(false)
@@ -276,7 +284,7 @@ export default function BrakModule() {
     reportScrapReasonsDb.forEach(row => {
       if (reportSelectedEmployeeFilter !== 'all' && !matchesOperator(row.source_operator_name, reportSelectedEmployeeFilter)) return;
 
-      const reason = row.reason_name || 'Причина не вказана';
+      const reason = normalizeScrapReasonName(row.reason_name || 'Причина не вказана');
       const qty = Number(row.quantity) || 0;
       if (qty <= 0) return;
 
@@ -323,7 +331,8 @@ export default function BrakModule() {
         const nom = nomenclatures.find(n => n.id === h.nomenclature_id);
         const nomName = nom ? nom.name : 'Невідома деталь';
 
-        Object.entries(reasons).forEach(([reason, qty]) => {
+        Object.entries(reasons).forEach(([rawReason, qty]) => {
+          const reason = normalizeScrapReasonName(rawReason);
           const numQty = Number(qty);
           if (numQty <= 0) return;
 

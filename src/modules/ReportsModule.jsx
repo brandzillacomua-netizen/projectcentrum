@@ -43,6 +43,14 @@ const matchesOperator = (opName, filterVal) => {
   return match1 || match2;
 };
 
+const normalizeScrapReasonName = (reason) => {
+  const name = reason || 'Причина не вказана'
+  if (name.trim().toLowerCase() === 'легенькі сколи -потребує косметичного ремонту') {
+    return 'Легкі сколи-потребує косметичного ремонту'
+  }
+  return name
+}
+
 const ReportsModule = () => {
   const { 
     inventory, 
@@ -588,7 +596,7 @@ const ReportsModule = () => {
       // Apply filters if needed
       if (selectedEmployeeFilter !== 'all' && !matchesOperator(row.source_operator_name, selectedEmployeeFilter)) return;
 
-      const reason = row.reason_name || 'Причина не вказана';
+      const reason = normalizeScrapReasonName(row.reason_name || 'Причина не вказана');
       const qty = Number(row.quantity) || 0;
       if (qty <= 0) return;
 
@@ -638,7 +646,8 @@ const ReportsModule = () => {
         const nom = nomenclatures.find(n => n.id === h.nomenclature_id);
         const nomName = nom ? nom.name : 'Невідома деталь';
 
-        Object.entries(reasons).forEach(([reason, qty]) => {
+        Object.entries(reasons).forEach(([rawReason, qty]) => {
+          const reason = normalizeScrapReasonName(rawReason);
           const numQty = Number(qty);
           if (numQty <= 0) return;
 
