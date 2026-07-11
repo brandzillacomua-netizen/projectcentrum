@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import EmojiPicker from 'emoji-picker-react'
 import {
   Check,
+  CheckCheck,
   ArrowLeft,
   Image as ImageIcon,
   Camera,
@@ -1231,6 +1232,11 @@ const ChatModule = () => {
                                    nextMessage.sender_id !== message.sender_id || 
                                    formatMessageTime(nextMessage.created_at) !== formatMessageTime(message.created_at)
 
+                  let isReadByOthers = false
+                  if (isMine) {
+                    isReadByOthers = activeParticipants.some(p => p.user_id !== me.id && p.last_read_at && new Date(p.last_read_at).getTime() >= msgTime)
+                  }
+
                   return (
                     <React.Fragment key={message.id}>
                       {isFirstOfDay && (
@@ -1284,6 +1290,11 @@ const ChatModule = () => {
                             <div className="message-meta">
                               {message.attachment_size ? <span className="meta-size">{bytesToLabel(message.attachment_size)}</span> : null}
                               {showMeta && <span className="meta-time">{formatMessageTime(message.created_at)}</span>}
+                              {isMine && showMeta && (
+                                <span className="meta-read-status" style={{ marginLeft: 4, color: isReadByOthers ? '#3b82f6' : '#888', display: 'inline-flex', alignItems: 'center' }}>
+                                  {isReadByOthers ? <CheckCheck size={14} /> : <Check size={14} />}
+                                </span>
+                              )}
                             </div>
                           )}
                         </div>
