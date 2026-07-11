@@ -7,6 +7,7 @@ import {
   Loader2,
   Menu,
   MessageCircle,
+  MoreVertical,
   Plus,
   Search,
   Send,
@@ -230,6 +231,7 @@ const ChatModule = () => {
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [imagePreview, setImagePreview] = useState(null)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [showChatMenu, setShowChatMenu] = useState(false)
   const fileInputRef = useRef(null)
   const avatarInputRef = useRef(null)
   const messagesEndRef = useRef(null)
@@ -836,7 +838,7 @@ const ChatModule = () => {
   }
 
   const archiveThread = async () => {
-    if (!activeThreadId || !window.confirm('Архівувати цей чат?')) return
+    if (!activeThreadId || !window.confirm('Видалити цей чат?')) return
     setSending(true)
     try {
       const { error: archiveError } = await supabase
@@ -847,6 +849,29 @@ const ChatModule = () => {
       if (archiveError) throw archiveError
       setActiveThreadId(null)
       await loadThreads()
+      setShowChatMenu(false)
+    } catch (err) {
+      console.error(err)
+      showSetupError(err)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const clearChatHistory = async () => {
+    if (!activeThreadId || !window.confirm('Очистити історію чату? Всі повідомлення будуть видалені.')) return
+    setSending(true)
+    try {
+      const { error: clearError } = await supabase
+        .from('chat_messages')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('thread_id', activeThreadId)
+        .is('deleted_at', null)
+
+      if (clearError) throw clearError
+      setMessages([])
+      await loadThreads()
+      setShowChatMenu(false)
     } catch (err) {
       console.error(err)
       showSetupError(err)
@@ -1109,12 +1134,27 @@ const ChatModule = () => {
                   </div>
                 </div>
                 <div className="chat-header-actions">
-                  <button className="icon-btn" onClick={openThreadSettings} title="Налаштування групи" disabled={sending}>
-                    <SettingsIcon size={17} />
+                  {activeParticipants.length > 2 && (
+                    <button className="icon-btn" onClick={openThreadSettings} title="Налаштування групи" disabled={sending}>
+                      <SettingsIcon size={17} />
+                    </button>
+                  )}
+                  <button className="icon-btn" onClick={() => setShowChatMenu(!showChatMenu)} title="Опції" disabled={sending}>
+                    <MoreVertical size={17} />
                   </button>
-                  <button className="icon-btn danger" onClick={archiveThread} title="Архівувати чат" disabled={sending}>
-                    <Trash2 size={17} />
-                  </button>
+                  {showChatMenu && (
+                    <>
+                      <div className="chat-menu-backdrop" onClick={() => setShowChatMenu(false)} />
+                      <div className="chat-options-menu">
+                        <button onClick={clearChatHistory} disabled={sending}>
+                          Очистити історію чату
+                        </button>
+                        <button onClick={archiveThread} className="danger" disabled={sending}>
+                          Видалити чат
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </header>
                 )
@@ -1742,6 +1782,48 @@ const ChatModule = () => {
           align-items: center;
           gap: 8px;
           flex: 0 0 auto;
+          position: relative;
+        }
+        .chat-menu-backdrop {
+          position: fixed;
+          top: 0; left: 0; right: 0; bottom: 0;
+          z-index: 40;
+        }
+        .chat-options-menu {
+          position: absolute;
+          top: 100%;
+          right: 0;
+          margin-top: 8px;
+          background: #111;
+          border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 12px;
+          padding: 6px;
+          min-width: 200px;
+          z-index: 50;
+          box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+        .chat-options-menu button {
+          width: 100%;
+          text-align: left;
+          padding: 10px 14px;
+          background: transparent;
+          border: 0;
+          color: #fff;
+          font-size: 0.9rem;
+          border-radius: 8px;
+          cursor: pointer;
+        }
+        .chat-options-menu button:hover {
+          background: rgba(255,255,255,0.05);
+        }
+        .chat-options-menu button.danger {
+          color: #ef4444;
+        }
+        .chat-options-menu button.danger:hover {
+          background: rgba(239, 68, 68, 0.1);
         }
         .participants-line {
           max-width: 70vw;
@@ -2308,13 +2390,19 @@ const ChatModule = () => {
           }
           .active-chat-title h2 {
             max-width: 100%;
-            font-size: 1rem;
-            line-height: 1.08;
+            font-size: 0.88rem;
+            line-height: 1.1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
           }
           .participants-line {
             max-width: 100%;
             font-size: 0.62rem;
             margin-top: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
           }
           .chat-header-actions {
             margin-left: 0;
