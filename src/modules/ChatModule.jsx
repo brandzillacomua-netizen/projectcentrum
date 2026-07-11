@@ -4,6 +4,8 @@ import {
   Check,
   ArrowLeft,
   Image as ImageIcon,
+  Camera,
+  CheckSquare,
   Loader2,
   Menu,
   MessageCircle,
@@ -20,6 +22,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { sendPushToUsers } from '../services/pushService'
+import { KanbanTaskModal } from './KanbanModule'
 
 const CHAT_BUCKET = 'chat-attachments'
 const MAX_IMAGE_EDGE = 1280
@@ -72,18 +75,54 @@ const ChatAvatar = ({ src, label, size = 'small' }) => {
   )
 }
 
-const formatTime = (value) => {
+const formatMessageTime = (value) => {
   if (!value) return ''
   try {
-    return new Intl.DateTimeFormat('uk-UA', {
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(new Date(value))
-  } catch {
-    return ''
-  }
+    return new Intl.DateTimeFormat('uk-UA', { hour: '2-digit', minute: '2-digit' }).format(new Date(value))
+  } catch { return '' }
+}
+
+const formatDateDivider = (value) => {
+  if (!value) return ''
+  try {
+    const d = new Date(value)
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const yesterday = new Date(today)
+    yesterday.setDate(today.getDate() - 1)
+    const targetDate = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+    if (targetDate.getTime() === today.getTime()) return 'Сьогодні'
+    if (targetDate.getTime() === yesterday.getTime()) return 'Вчора'
+    const diffDays = Math.ceil(Math.abs(today - targetDate) / (1000 * 60 * 60 * 24))
+    if (diffDays < 7) {
+      return new Intl.DateTimeFormat('uk-UA', { weekday: 'long' }).format(d).replace(/^./, str => str.toUpperCase())
+    }
+    if (targetDate.getFullYear() === today.getFullYear()) {
+      return new Intl.DateTimeFormat('uk-UA', { day: 'numeric', month: 'long' }).format(d)
+    }
+    return new Intl.DateTimeFormat('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' }).format(d)
+  } catch { return '' }
+}
+
+const formatThreadTime = (value) => {
+  if (!value) return ''
+  try {
+    const d = new Date(value)
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const yesterday = new Date(today)
+    yesterday.setDate(today.getDate() - 1)
+    const targetDate = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+    if (targetDate.getTime() === today.getTime()) {
+      return new Intl.DateTimeFormat('uk-UA', { hour: '2-digit', minute: '2-digit' }).format(d)
+    }
+    if (targetDate.getTime() === yesterday.getTime()) return 'Вчора'
+    const diffDays = Math.ceil(Math.abs(today - targetDate) / (1000 * 60 * 60 * 24))
+    if (diffDays < 7) {
+      return new Intl.DateTimeFormat('uk-UA', { weekday: 'short' }).format(d).replace(/^./, str => str.toUpperCase())
+    }
+    return new Intl.DateTimeFormat('uk-UA', { day: '2-digit', month: '2-digit' }).format(d)
+  } catch { return '' }
 }
 
 const bytesToLabel = (bytes) => {
@@ -205,7 +244,7 @@ const compressAvatar = async (file) => {
 }
 
 const ChatModule = () => {
-  const { currentUser, systemUsers, supabase } = useMES()
+  const { currentUser, systemUsers, supabase, addManagementTask } = useMES()
   const navigate = useNavigate()
   const [threads, setThreads] = useState([])
   const [participants, setParticipants] = useState([])
@@ -232,7 +271,11 @@ const ChatModule = () => {
   const [imagePreview, setImagePreview] = useState(null)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [showChatMenu, setShowChatMenu] = useState(false)
+  const [showAttachMenu, setShowAttachMenu] = useState(false)
+  const [showTaskModal, setShowTaskModal] = useState(false)
+  const [taskForm, setTaskForm] = useState({ title: '', description: '', assignee: null })
   const fileInputRef = useRef(null)
+  const cameraInputRef = useRef(null)
   const avatarInputRef = useRef(null)
   const messagesEndRef = useRef(null)
   const activeThreadIdRef = useRef(null)
@@ -1067,7 +1110,7 @@ const ChatModule = () => {
                     <div className="thread-last">{thread.last_message || `${rows.length} учасн.`}</div>
                   </div>
                   <div className="thread-time-col">
-                    <div className="thread-time">{formatTime(thread.last_message_at || thread.updated_at)}</div>
+                    <div className="thread-time">{formatThreadTime(thread.last_message_at || thread.updated_at)}</div>
                     {thread.unreadCount > 0 && (
                       <span className="unread-badge" title={`${thread.unreadCount} нових повідомлень`}>
                         {thread.unreadCount}
@@ -1179,8 +1222,22 @@ const ChatModule = () => {
                     }
                   }
 
+                  const prevMessage = index > 0 ? messages[index - 1] : null
+                  const nextMessage = index < messages.length - 1 ? messages[index + 1] : null
+                  
+                  const isFirstOfDay = !prevMessage || formatDateDivider(message.created_at) !== formatDateDivider(prevMessage.created_at)
+                  
+                  const showMeta = !nextMessage || 
+                                   nextMessage.sender_id !== message.sender_id || 
+                                   formatMessageTime(nextMessage.created_at) !== formatMessageTime(message.created_at)
+
                   return (
                     <React.Fragment key={message.id}>
+                      {isFirstOfDay && (
+                        <div className="date-divider">
+                          <span>{formatDateDivider(message.created_at)}</span>
+                        </div>
+                      )}
                       {showUnreadDivider && (
                         <div id="unread-divider" className="unread-divider">
                           <span>Нові повідомлення</span>
@@ -1189,7 +1246,21 @@ const ChatModule = () => {
                       <div className={`message-row ${isMine ? 'mine' : ''}`}>
                         <div className="message-wrapper">
                           {!isMine && <div className="message-author">{message.sender_name}</div>}
-                          <div className="message-bubble">
+                          
+                          <div className={`message-bubble ${message.attachment_type === 'system_task' ? 'sys-task-bubble' : ''}`}>
+                            {message.attachment_type === 'system_task' ? (
+                              <div className="task-sys-message">
+                                <div className="tsm-icon"><CheckSquare size={22} /></div>
+                                <div className="tsm-content">
+                                  <h4><b>{message.sender_name}</b> створив(ла) для вас завдання</h4>
+                                  <div className="tsm-card">
+                                    <div className="tsm-title">{message.attachment_name}</div>
+                                    {message.attachment_path && <div className="tsm-deadline">Дедлайн: {new Date(message.attachment_path).toLocaleDateString('uk-UA')}</div>}
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
                             {message.attachment_url && (
                               <button
                                 type="button"
@@ -1206,11 +1277,15 @@ const ChatModule = () => {
                               </button>
                             )}
                             {message.body && <div className="message-text">{message.body}</div>}
+                          </>
+                            )}
                           </div>
-                          <div className="message-meta">
-                            {message.attachment_size ? <span className="meta-size">{bytesToLabel(message.attachment_size)}</span> : null}
-                            <span className="meta-time">{formatTime(message.created_at)}</span>
-                          </div>
+                          {(showMeta || message.attachment_size) && (
+                            <div className="message-meta">
+                              {message.attachment_size ? <span className="meta-size">{bytesToLabel(message.attachment_size)}</span> : null}
+                              {showMeta && <span className="meta-time">{formatMessageTime(message.created_at)}</span>}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </React.Fragment>
@@ -1254,12 +1329,47 @@ const ChatModule = () => {
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
-                    onChange={e => handleFile(e.target.files?.[0])}
+                    onChange={e => { handleFile(e.target.files?.[0]); setShowAttachMenu(false) }}
                     style={{ display: 'none' }}
                   />
-                  <button className="icon-btn" onClick={() => fileInputRef.current?.click()} title="Додати фото" disabled={sending}>
-                    <ImageIcon size={18} />
-                  </button>
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={e => { handleFile(e.target.files?.[0]); setShowAttachMenu(false) }}
+                    style={{ display: 'none' }}
+                  />
+                  <div style={{ position: 'relative' }}>
+                    <button className="icon-btn" onClick={() => setShowAttachMenu(!showAttachMenu)} title="Додати" disabled={sending}>
+                      <Plus size={18} style={{ transform: showAttachMenu ? 'rotate(45deg)' : 'none', transition: 'transform 0.2s' }} />
+                    </button>
+                    {showAttachMenu && (
+                      <>
+                        <div className="chat-menu-backdrop" onClick={() => setShowAttachMenu(false)} style={{ zIndex: 10, position: 'fixed', inset: 0 }} />
+                        <div className="attach-options-menu" style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: '8px', zIndex: 11, background: '#111', border: '1px solid #222', borderRadius: '12px', padding: '6px', minWidth: '180px', boxShadow: '0 4px 20px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <button onClick={() => cameraInputRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'transparent', border: 'none', color: '#fff', textAlign: 'left', cursor: 'pointer', borderRadius: '6px', fontSize: '0.85rem' }} onMouseEnter={e => e.currentTarget.style.background='#222'} onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+                            <Camera size={16} color="#3b82f6" /> Зробити фото
+                          </button>
+                          <button onClick={() => fileInputRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'transparent', border: 'none', color: '#fff', textAlign: 'left', cursor: 'pointer', borderRadius: '6px', fontSize: '0.85rem' }} onMouseEnter={e => e.currentTarget.style.background='#222'} onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+                            <ImageIcon size={16} color="#10b981" /> Завантажити фото
+                          </button>
+                          {activeParticipants.length === 2 && (
+                            <button onClick={() => {
+                              const other = activeParticipants.find(p => p.user_id !== me.id)
+                              if (other) {
+                                setTaskForm({ title: '', description: '', assignee: other })
+                                setShowTaskModal(true)
+                                setShowAttachMenu(false)
+                              }
+                            }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'transparent', border: 'none', color: '#fff', textAlign: 'left', cursor: 'pointer', borderRadius: '6px', fontSize: '0.85rem', borderTop: '1px solid #222', marginTop: '4px', paddingTop: '8px' }} onMouseEnter={e => e.currentTarget.style.background='#222'} onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+                              <CheckSquare size={16} color="#ff9000" /> Створити завдання
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
                   <button className="icon-btn" onClick={() => {
                     setShowEmojiPicker(!showEmojiPicker)
                     setTimeout(() => scrollToBottom({ force: true }), 50)
@@ -1480,6 +1590,31 @@ const ChatModule = () => {
             <img src={imagePreview.url} alt={imagePreview.name} />
           </div>
         </div>
+      )}
+
+      {showTaskModal && (
+        <KanbanTaskModal
+          initialAssignee={taskForm.assignee?.user_login || taskForm.assignee?.user_id}
+          onClose={() => setShowTaskModal(false)}
+          onCreated={async (data) => {
+            const task = Array.isArray(data) ? data[0] : data
+            if (task && activeThreadId) {
+              try {
+                await supabase.from('chat_messages').insert([{
+                  thread_id: activeThreadId,
+                  sender_id: me.id || null,
+                  sender_login: me.login,
+                  sender_name: me.name,
+                  body: `Нове завдання: ${task.title}`,
+                  attachment_type: 'system_task',
+                  attachment_name: task.title,
+                  attachment_url: task.id?.toString(),
+                  attachment_path: task.deadline || null
+                }])
+              } catch(e) {}
+            }
+          }}
+        />
       )}
 
       <style>{`
@@ -1909,6 +2044,23 @@ const ChatModule = () => {
         }
         .message-wrapper:hover .message-meta {
           opacity: 1;
+        }
+        .message-wrapper:hover .message-meta {
+          opacity: 1;
+        }
+        .date-divider {
+          display: flex;
+          justify-content: center;
+          margin: 16px 0;
+        }
+        .date-divider span {
+          background: rgba(255,255,255,0.06);
+          color: rgba(255,255,255,0.6);
+          padding: 4px 12px;
+          border-radius: 12px;
+          font-size: 0.72rem;
+          font-weight: 800;
+          backdrop-filter: blur(8px);
         }
         .unread-divider {
           display: flex;
@@ -2509,6 +2661,58 @@ const ChatModule = () => {
             width: 64px;
             height: 64px;
           }
+        }
+        .sys-task-bubble { background: transparent !important; border: none !important; padding: 0 !important; }
+        .task-sys-message {
+          display: flex;
+          gap: 12px;
+          background: rgba(255, 144, 0, 0.1);
+          border: 1px solid rgba(255, 144, 0, 0.2);
+          padding: 14px 18px;
+          border-radius: 12px;
+          margin-top: 4px;
+        }
+        .mine .task-sys-message {
+           background: rgba(255, 144, 0, 0.15);
+        }
+        .tsm-icon {
+          color: #ff9000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 38px; height: 38px;
+          background: rgba(255, 144, 0, 0.15);
+          border-radius: 10px;
+          flex-shrink: 0;
+        }
+        .tsm-content h4 {
+          margin: 0 0 6px 0;
+          font-size: 0.85rem;
+          color: #bbb;
+          font-weight: 500;
+        }
+        .tsm-content h4 b {
+          color: #fff;
+          font-weight: 700;
+        }
+        .tsm-card {
+          background: rgba(0, 0, 0, 0.3);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          border-radius: 8px;
+          padding: 10px 14px;
+        }
+        .tsm-title {
+          font-size: 0.95rem;
+          font-weight: 700;
+          color: #ff9000;
+        }
+        .tsm-deadline {
+          margin-top: 4px;
+          font-size: 0.75rem;
+          color: #888;
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
         }
       `}</style>
     </div>
