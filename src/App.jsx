@@ -2009,26 +2009,33 @@ const GlobalUserNav = () => {
                   Технічна підтримка
                 </span>
               </div>
-              <a
-                href="tel:0960116699"
+              <button
+                onClick={() => { navigate('/chat?support=true'); setMenuOpen(false); }}
                 style={{
-                  fontSize: '1.05rem',
-                  fontWeight: 950,
+                  fontSize: '0.9rem',
+                  fontWeight: 800,
                   color: '#fff',
-                  textDecoration: 'none',
-                  display: 'inline-flex',
+                  background: 'rgba(255, 144, 0, 0.15)',
+                  border: '1px solid rgba(255, 144, 0, 0.3)',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  transition: 'color 0.2s'
+                  transition: 'all 0.2s',
+                  width: '100%',
+                  justifyContent: 'center',
+                  marginTop: '6px'
                 }}
-                onMouseEnter={e => e.currentTarget.style.color = '#ff9000'}
-                onMouseLeave={e => e.currentTarget.style.color = '#fff'}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255, 144, 0, 0.25)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255, 144, 0, 0.15)'; }}
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle', opacity: 0.7 }}>
-                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff9000" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
                 </svg>
-                096 011 66 99
-              </a>
+                Написати в підтримку
+              </button>
             </div>
 
             <button
