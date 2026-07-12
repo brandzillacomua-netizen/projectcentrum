@@ -590,8 +590,14 @@ export const useWarehouseHandlers = ({
           return r.id === reqId
         })
         .map(r => r.id)
+        .filter(Boolean)
 
-      const idsToDelete = allMatchingIds.length > 0 ? allMatchingIds : [reqId]
+      const idsToDelete = allMatchingIds.length > 0 ? allMatchingIds : [reqId].filter(Boolean)
+      
+      if (idsToDelete.length === 0) {
+        alert('Помилка: не знайдено валідного ID для видалення!')
+        return
+      }
 
       // Release inventory reservations for any issued requests before deleting
       const issuedToRelease = (allReqsInGroup || []).filter(r => idsToDelete.includes(r.id) && r.status === 'issued' && r.inventory_id)
@@ -604,11 +610,16 @@ export const useWarehouseHandlers = ({
         }
       }
 
-      const { error } = await supabaseClient
-        .from('material_requests')
-        .delete()
-        .in('id', idsToDelete)
-      if (error) throw error
+      const chunkSize = 100
+      for (let i = 0; i < idsToDelete.length; i += chunkSize) {
+        const chunk = idsToDelete.slice(i, i + chunkSize)
+        const { error } = await supabaseClient
+          .from('material_requests')
+          .delete()
+          .in('id', chunk)
+        if (error) throw error
+      }
+
       alert(`Запит успішно видалено! (${idsToDelete.length} записів)`)
       if (typeof fetchData === 'function') {
         fetchData(['material_requests', 'inventory'])
@@ -667,18 +678,14 @@ export const useWarehouseHandlers = ({
         }
       }
 
-      const { error } = await supabaseClient
-        .from('material_requests')
-        .delete()
-        .in('id', ids)
-      if (error) throw error
-
-      if (firstReq.task_id) {
-        const { error: taskError } = await supabaseClient
-          .from('tasks')
-          .update({ warehouse_conf: 'false' })
-          .eq('id', firstReq.task_id)
-        if (taskError) throw taskError
+      const chunkSize = 100
+      for (let i = 0; i < ids.length; i += chunkSize) {
+        const chunk = ids.slice(i, i + chunkSize)
+        const { error } = await supabaseClient
+          .from('material_requests')
+          .delete()
+          .in('id', chunk)
+        if (error) throw error
       }
 
       alert('Запит для наряду успішно видалено!')

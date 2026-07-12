@@ -515,7 +515,11 @@ export function ForemanTaskDetails({
                     const rawCapacity = (rowCapacities[rowId] !== undefined && rowCapacities[rowId] !== '') ? rowCapacities[rowId] : defaultCapacity
                     const machineCapacity = Math.min(maxCapacity, Math.max(defaultCapacity, rawCapacity))
 
-                    const baseLoads = rowMachineName ? Math.ceil(sheets / machineCapacity) : (sheets || 0)
+                    let generatedSheetsCalc = 0
+                    activeProductionCards.forEach(c => generatedSheetsCalc += Math.ceil(Number(c.quantity) / (unitsPerSheet || 1)))
+                    const remainingSheetsCalc = Math.max(0, sheets - generatedSheetsCalc)
+                    
+                    const baseLoads = rowMachineName ? (activeProductionCards.length + Math.ceil(remainingSheetsCalc / machineCapacity)) : (sheets || 0)
                     const loads = (plan === 0 && existing.some(c => c.operation === 'Склад БЗ')) ? 1 : baseLoads
 
                     let totalTargetLoads = loads
