@@ -92,9 +92,14 @@ export const findMachineByName = (name, machines) => {
   }
   if (found) {
     const result = { ...found }
+    const rawMachineName = ((result.name || '') + ' ' + (name || '')).toLowerCase()
     const searchName = ((result.name || '') + ' ' + (name || '')).replace(/\d+\s*[xх\*×]\s*\d+/gi, '')
+    const isSmallMachine = rawMachineName.includes('1200x800') || rawMachineName.includes('12x8') || rawMachineName.includes('малий')
     const match = searchName.match(/(\d+)\s*-\s*(\d+)\s*лист/i)
-    if (match) {
+    if (isSmallMachine) {
+      result.min_capacity = 1
+      result.max_capacity = 4
+    } else if (match) {
       result.min_capacity = parseInt(match[1])
       result.max_capacity = parseInt(match[2])
     } else {

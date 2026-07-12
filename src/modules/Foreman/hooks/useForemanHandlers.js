@@ -432,7 +432,7 @@ export function useForemanHandlers({
   }
 
 
-  const handleUpdateNomenclatureMachineAndRecalculate = async (task, nomId, newMachineName, newSplits = null, cutterSelection = {}) => {
+  const handleUpdateNomenclatureMachineAndRecalculate = async (task, nomId, newMachineName, newSplits = null, cutterSelection = {}, loadCapacity = null) => {
     if (!task || !nomId) return
     setIsChangingMachine(true)
 
@@ -471,7 +471,7 @@ export function useForemanHandlers({
           ? nomenclatures.find(n => String(n.id) === String(selectedInventory.nomenclature_id))
           : null
         const resolvedNom = selectedNom || genericNom
-        const key = String(resolvedNom.id)
+        const key = selectedInventory?.id ? `inventory:${selectedInventory.id}` : `nom:${resolvedNom.id}`
         if (!map[key]) map[key] = {
           nomenclature_id: resolvedNom.id,
           inventory_id: selectedInventory?.id || null,
@@ -492,6 +492,11 @@ export function useForemanHandlers({
         targetEntry.machine = newMachineName
         targetEntry.selected_machine = newMachineName
         targetEntry.splits = []
+      }
+      if (loadCapacity !== null) {
+        const normalizedLoadCapacity = Math.max(1, Number(loadCapacity) || 1)
+        targetEntry.load_capacity = normalizedLoadCapacity
+        targetEntry.custom_capacity = normalizedLoadCapacity
       }
       if (newSplits !== null) targetEntry.splits = newSplits
       const previousTargetSelections = currentSnapshot[targetId]?.selected_cutters || currentSnapshot.selectedCutters || {}
@@ -583,7 +588,7 @@ export function useForemanHandlers({
       })
       const requestsByNom = {}
       activeCutterRequests.forEach(request => {
-        const key = String(request.nomenclature_id)
+        const key = request.inventory_id ? `inventory:${request.inventory_id}` : `nom:${request.nomenclature_id}`
         if (!requestsByNom[key]) requestsByNom[key] = []
         requestsByNom[key].push(request)
       })
@@ -599,8 +604,9 @@ export function useForemanHandlers({
         if (desired > existing) {
           const item = desiredCutters[cutterId]
           const invItem = (item.inventory_id ? inventory.find(inv => String(inv.id) === String(item.inventory_id)) : null)
-            || inventory.find(inv => String(inv.nomenclature_id) === cutterId && inv.warehouse === 'operational')
-            || inventory.find(inv => String(inv.nomenclature_id) === cutterId)
+            || inventory.find(inv => String(inv.nomenclature_id) === String(item.nomenclature_id) && inv.warehouse === 'operational')
+            || inventory.find(inv => String(inv.nomenclature_id) === String(item.nomenclature_id))
+          const requestName = invItem?.name || item.name
           writeOperations.push(supabase.from('material_requests').insert({
             order_id: task.order_id,
             task_id: task.id,
@@ -608,7 +614,7 @@ export function useForemanHandlers({
             status: 'pending',
             inventory_id: invItem?.id || null,
             nomenclature_id: item.nomenclature_id,
-            details: `ВИТРАТНІ МАТЕРІАЛИ ПІСЛЯ ЗМІНИ ВЕРСТАТА: ${item.name} — ${desired - existing} од. [BALANCED_MACHINE_CHANGE]`
+            details: `ВИТРАТНІ МАТЕРІАЛИ ПІСЛЯ ЗМІНИ ВЕРСТАТА: ${requestName} — ${desired - existing} од. [BALANCED_MACHINE_CHANGE]`
           }))
           continue
         }

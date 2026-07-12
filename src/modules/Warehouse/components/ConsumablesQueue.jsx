@@ -97,7 +97,7 @@ export const ConsumablesQueue = ({
             
             const matchingInv = (inventory || []).filter(i => {
               if (i.warehouse !== 'operational' && i.warehouse) return false
-              if (i.id === req.inventory_id) return true
+              if (req.inventory_id) return String(i.id) === String(req.inventory_id)
               if (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) return true
               if (parsedName) {
                 const normName = normalize(i.name)
@@ -196,10 +196,11 @@ export const ConsumablesQueue = ({
                   const displayedRequests = []
                   actionableReqs.forEach(r => {
                     const parsedName = parseMaterialName(r.details)
-                    const key = r.nomenclature_id || parsedName
+                    const key = r.inventory_id ? `inventory:${r.inventory_id}` : (r.nomenclature_id || parsedName)
                     const existing = displayedRequests.find(dr => 
-                      (dr.nomenclature_id && dr.nomenclature_id === r.nomenclature_id) || 
-                      parseMaterialName(dr.details) === parsedName
+                      (r.inventory_id && dr.inventory_id && String(dr.inventory_id) === String(r.inventory_id)) ||
+                      (!r.inventory_id && !dr.inventory_id && dr.nomenclature_id && dr.nomenclature_id === r.nomenclature_id) || 
+                      (!r.inventory_id && !dr.inventory_id && parseMaterialName(dr.details) === parsedName)
                     )
                     if (existing) {
                       existing.quantity = (Number(existing.quantity) || 0) + (Number(r.quantity) || 0)
@@ -210,6 +211,8 @@ export const ConsumablesQueue = ({
                   
                   return displayedRequests.map(r => {
                     const parsedName = parseMaterialName(r.details)
+                    const invItem = r.inventory_id ? (inventory || []).find(item => String(item.id) === String(r.inventory_id)) : null
+                    const displayName = invItem?.name || parsedName || r.details
                     const nom = r.nomenclature_id ? (nomenclatures || []).find(n => String(n.id) === String(r.nomenclature_id)) : null
                     const isConsumable = nom?.type === 'consumable' || (parsedName || '').toLowerCase().includes('фреза')
                     const isEditing = editingQty.hasOwnProperty(r.id)
@@ -221,7 +224,7 @@ export const ConsumablesQueue = ({
                         borderBottom: '1px solid #1a1a1a'
                       }}>
                         <span style={{ flex: 1, marginRight: '8px' }}>
-                          {parsedName || r.details}
+                          {displayName}
                           {nom?.description && !(parsedName || r.details || '').toLowerCase().includes(nom.description.toLowerCase()) && (
                             <span style={{ 
                               color: '#06b6d4', 

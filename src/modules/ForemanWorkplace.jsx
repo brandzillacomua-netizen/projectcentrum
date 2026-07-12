@@ -123,6 +123,8 @@ const ForemanWorkplace = () => {
   } = useForemanData()
 
   const [selectedCutterTypes, setSelectedCutterTypes] = useState({})
+  const [selectedNomLoadCapacity, setSelectedNomLoadCapacity] = useState('')
+  const [nomLoadCapacityOverrides, setNomLoadCapacityOverrides] = useState({})
   const [localGeneratedCards, setLocalGeneratedCards] = useState([])
 
   useEffect(() => {
@@ -372,6 +374,32 @@ const ForemanWorkplace = () => {
   })
 
   const handleResolveCall = (callId) => handleResolveCallRaw(callId, currentUser)
+
+  const persistNomLoadCapacity = async (task, nomId, capacity) => {
+    if (!task || !nomId || !capacity) return
+    const normalizedCapacity = Math.max(1, Number(capacity) || 1)
+    setNomLoadCapacityOverrides(prev => ({ ...prev, [`${task.id}:${nomId}`]: normalizedCapacity }))
+    const snapshot = { ...(task.plan_snapshot || {}) }
+    const key = String(nomId)
+    snapshot[key] = {
+      ...(snapshot[key] || {}),
+      load_capacity: normalizedCapacity,
+      custom_capacity: normalizedCapacity
+    }
+
+    const { error } = await supabase
+      .from('tasks')
+      .update({ plan_snapshot: snapshot })
+      .eq('id', task.id)
+
+    if (error) {
+      console.error(error)
+      setCustomAlert({ title: 'Помилка', message: `Не вдалося зберегти завантаження: ${error.message}` })
+      return
+    }
+
+    fetchData(['tasks']).catch(() => {})
+  }
 
   // ── Dynamic document title for PDF printouts ──────────────
   useEffect(() => {
@@ -729,23 +757,6 @@ const ForemanWorkplace = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <span style={{ color: '#555' }}>ВЕРСТАТ:</span>
                           <span style={{ color: '#fff', background: '#222', padding: '4px 10px', borderRadius: '8px', fontSize: '0.95rem' }}>{task.machine_name || 'Не вказано'}</span>
-                          {task.status !== 'completed' && (
-                            <button
-                              onClick={() => {
-                                setChangeMachineTaskId(task.id)
-                                setSelectedNewMachine(task.machine_name || MACHINE_TYPES[0])
-                              }}
-                              style={{
-                                background: 'transparent', border: '1px solid #3b82f660', color: '#3b82f6',
-                                padding: '4px 10px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 800,
-                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.2s'
-                              }}
-                              onMouseEnter={e => { e.currentTarget.style.background = '#3b82f615' }}
-                              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-                            >
-                              ⚙️ ЗМІНИТИ ВЕРСТАТ
-                            </button>
-                          )}
                         </div>
                       </div>
                     </div>
@@ -849,10 +860,16 @@ const ForemanWorkplace = () => {
                               const machineObjForCapacity = findMachine(rowMachineName)
                               const defaultCapacity = machineObjForCapacity?.min_capacity || machineObjForCapacity?.sheet_capacity || 1
                               const maxCapacity = machineObjForCapacity?.max_capacity || machineObjForCapacity?.sheet_capacity || 1
-                              const requiresCapacityInput = !isSplitMode && plan > 0 && !!rowMachineName && defaultCapacity !== maxCapacity
-                              const hasCapacityInput = rowCapacities[rowId] !== undefined && rowCapacities[rowId] !== ''
-                              const isCapacityMissing = requiresCapacityInput && !hasCapacityInput
-                              const rawCapacity = (rowCapacities[rowId] !== undefined && rowCapacities[rowId] !== '') ? rowCapacities[rowId] : defaultCapacity
+                              const overrideLoadCapacity = Number(nomLoadCapacityOverrides[`${task.id}:${nomId}`]) || null
+                              const snapshotLoadCapacity = Number((task.plan_snapshot || {})[String(nomId)]?.load_capacity || (task.plan_snapshot || {})[String(nomId)]?.custom_capacity) || null
+                              const savedLoadCapacity = overrideLoadCapacity || snapshotLoadCapacity
+                              const minimumLoadsAtMaxCapacity = maxCapacity > 0 ? Math.ceil((Number(sheets) || 0) / maxCapacity) : 0
+                              const inferredLoadCapacity = productionCards.length >= minimumLoadsAtMaxCapacity && productionCards.length > 0
+                                ? Math.min(maxCapacity, Math.max(defaultCapacity, Math.ceil((Number(sheets) || 0) / productionCards.length)))
+                                : null
+                              const hasRowCapacityInput = rowCapacities[rowId] !== undefined && rowCapacities[rowId] !== ''
+                              const isCapacityMissing = false
+                              const rawCapacity = hasRowCapacityInput ? rowCapacities[rowId] : (savedLoadCapacity !== null ? savedLoadCapacity : (inferredLoadCapacity || maxCapacity))
                               const machineCapacity = Math.min(maxCapacity, Math.max(defaultCapacity, rawCapacity))
 
                               const baseLoads = rowMachineName ? Math.ceil(sheets / machineCapacity) : (sheets || 0)
@@ -900,7 +917,13 @@ const ForemanWorkplace = () => {
                                                 setChangeNomMachineTaskId(task.id)
                                                 setChangeNomMachineNomId(nomId)
                                                 setChangeNomMachineName(part.nom?.name || 'Деталь')
+                                                const selectedMachineInfo = findMachine(rowMachineName || MACHINE_TYPES[0])
+                                                const nextLoadCapacity = Number((task.plan_snapshot || {})[String(nomId)]?.load_capacity || (task.plan_snapshot || {})[String(nomId)]?.custom_capacity || rowCapacities[rowId])
+                                                  || selectedMachineInfo?.max_capacity
+                                                  || selectedMachineInfo?.sheet_capacity
+                                                  || 1
                                                 setSelectedNomNewMachine(rowMachineName || MACHINE_TYPES[0])
+                                                setSelectedNomLoadCapacity(nextLoadCapacity)
                                               }}
                                               style={{
                                                 background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.3)',
@@ -923,7 +946,7 @@ const ForemanWorkplace = () => {
                                               type="number"
                                               title={`Листів за завантаження (від ${defaultCapacity} до ${maxCapacity})`}
                                               placeholder="Завант."
-                                              value={rowCapacities[rowId] !== undefined ? rowCapacities[rowId] : ''}
+                                              value={rowCapacities[rowId] !== undefined ? rowCapacities[rowId] : (savedLoadCapacity ?? inferredLoadCapacity ?? maxCapacity)}
                                               min={defaultCapacity}
                                               max={maxCapacity}
                                               readOnly={productionCards.length > 0 && productionCards.length >= totalTargetLoads}
@@ -936,11 +959,14 @@ const ForemanWorkplace = () => {
                                                 if (productionCards.length > 0 && productionCards.length >= totalTargetLoads) return
                                                 let v = parseInt(e.target.value)
                                                 if (isNaN(v)) {
-                                                  setRowCapacities(p => ({ ...p, [rowId]: '' }));
+                                                  v = savedLoadCapacity || inferredLoadCapacity || maxCapacity
+                                                  setRowCapacities(p => ({ ...p, [rowId]: v }));
+                                                  persistNomLoadCapacity(task, nomId, v).catch(console.error)
                                                   return
                                                 }
                                                 v = Math.min(maxCapacity, Math.max(defaultCapacity, v));
                                                 setRowCapacities(p => ({ ...p, [rowId]: v }));
+                                                persistNomLoadCapacity(task, nomId, v).catch(console.error)
                                               }}
                                               style={{
                                                 width: '65px',
@@ -3272,6 +3298,11 @@ const ForemanWorkplace = () => {
           return sum + cardSheets
         }, 0))
         const remainingSheets = Math.max(0, totalSheetsPlanned - generatedSheets)
+        const targetMachineInfo = findMachine(selectedNomNewMachine)
+        const minLoadCapacity = targetMachineInfo?.min_capacity || 1
+        const maxLoadCapacity = targetMachineInfo?.max_capacity || targetMachineInfo?.sheet_capacity || 1
+        const safeNomLoadCapacity = Math.min(maxLoadCapacity, Math.max(minLoadCapacity, Number(selectedNomLoadCapacity) || maxLoadCapacity))
+        const plannedRemainingLoads = remainingSheets > 0 ? Math.ceil(remainingSheets / safeNomLoadCapacity) : 0
 
         const opData = machineOperations?.find(o =>
           String(o.nomenclature_id) === String(changeNomMachineNomId) &&
@@ -3345,6 +3376,7 @@ const ForemanWorkplace = () => {
                   setChangeNomMachineTaskId(null)
                   setChangeNomMachineNomId(null)
                   setSelectedCutterTypes({})
+                  setSelectedNomLoadCapacity('')
                 }}
                 style={{ position: 'absolute', top: '25px', right: '25px', background: '#222', border: 'none', color: '#fff', cursor: 'pointer', width: '35px', height: '35px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
@@ -3379,7 +3411,10 @@ const ForemanWorkplace = () => {
                   <select
                     value={selectedNomNewMachine}
                     onChange={(e) => {
-                      setSelectedNomNewMachine(e.target.value)
+                      const nextMachine = e.target.value
+                      const nextMachineInfo = findMachine(nextMachine)
+                      setSelectedNomNewMachine(nextMachine)
+                      setSelectedNomLoadCapacity(nextMachineInfo?.max_capacity || nextMachineInfo?.sheet_capacity || 1)
                       setSelectedCutterTypes({})
                     }}
                     style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#fff', padding: '15px', borderRadius: '15px', fontSize: '0.95rem', outline: 'none', fontWeight: 800 }}
@@ -3389,6 +3424,40 @@ const ForemanWorkplace = () => {
                     ))}
                   </select>
                 </div>
+
+                {remainingSheets > 0 && (
+                  <div style={{ background: '#09090c', border: '1px solid rgba(255, 144, 0, 0.22)', borderRadius: '16px', padding: '14px 16px' }}>
+                    <label style={{ display: 'block', color: '#ff9000', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>
+                      Листів за одне завантаження ({minLoadCapacity}-{maxLoadCapacity} л.)
+                    </label>
+                    <input
+                      type="number"
+                      value={selectedNomLoadCapacity}
+                      min={minLoadCapacity}
+                      max={maxLoadCapacity}
+                      onChange={(event) => {
+                        const value = parseInt(event.target.value)
+                        setSelectedNomLoadCapacity(isNaN(value) ? '' : value)
+                        if (!isNaN(value)) {
+                          const safeValue = Math.min(maxLoadCapacity, Math.max(minLoadCapacity, value))
+                          setNomLoadCapacityOverrides(prev => ({ ...prev, [`${targetTask.id}:${changeNomMachineNomId}`]: safeValue }))
+                        }
+                      }}
+                      onBlur={(event) => {
+                        let value = parseInt(event.target.value)
+                        if (isNaN(value)) value = maxLoadCapacity
+                        value = Math.min(maxLoadCapacity, Math.max(minLoadCapacity, value))
+                        setSelectedNomLoadCapacity(value)
+                        setNomLoadCapacityOverrides(prev => ({ ...prev, [`${targetTask.id}:${changeNomMachineNomId}`]: value }))
+                      }}
+                      style={{ width: '100%', background: '#000', border: '1px solid rgba(255,144,0,.45)', color: '#ff9000', padding: '12px', borderRadius: '12px', fontSize: '1.15rem', fontWeight: 950, textAlign: 'center', outline: 'none' }}
+                    />
+                    <div style={{ marginTop: '8px', color: '#777', fontSize: '0.72rem', fontWeight: 800, display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                      <span>Зміна тільки для залишку</span>
+                      <strong style={{ color: '#fff' }}>{plannedRemainingLoads} завант.</strong>
+                    </div>
+                  </div>
+                )}
 
                 {remainingSheets > 0 && cutters.length > 0 && (
                   <div style={{ background: '#09090c', padding: '16px', borderRadius: '16px', border: '1px solid #222' }}>
@@ -3436,10 +3505,12 @@ const ForemanWorkplace = () => {
                 onClick={async () => {
                   const resolvedSelections = {}
                   cutters.forEach(cut => { resolvedSelections[String(cut.id)] = getSelectedCutterId(cut) })
-                  await handleUpdateNomenclatureMachineAndRecalculate(targetTask, changeNomMachineNomId, selectedNomNewMachine, null, resolvedSelections)
+                  setNomLoadCapacityOverrides(prev => ({ ...prev, [`${targetTask.id}:${changeNomMachineNomId}`]: safeNomLoadCapacity }))
+                  await handleUpdateNomenclatureMachineAndRecalculate(targetTask, changeNomMachineNomId, selectedNomNewMachine, null, resolvedSelections, safeNomLoadCapacity)
                   setChangeNomMachineTaskId(null)
                   setChangeNomMachineNomId(null)
                   setSelectedCutterTypes({})
+                  setSelectedNomLoadCapacity('')
                 }}
                 disabled={isChangingMachine || hasMissingCutterSelection}
                 style={{

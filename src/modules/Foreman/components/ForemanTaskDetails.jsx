@@ -407,23 +407,6 @@ export function ForemanTaskDetails({
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ color: '#555' }}>ВЕРСТАТ:</span>
                 <span className="machine-name-display">{task.machine_name || 'Не вказано'}</span>
-                {task.status !== 'completed' && (
-                  <button
-                    onClick={() => {
-                      setChangeMachineTaskId(task.id)
-                      setSelectedNewMachine(task.machine_name || MACHINE_TYPES[0])
-                    }}
-                    style={{
-                      background: 'transparent', border: '1px solid #3b82f660', color: '#3b82f6',
-                      padding: '4px 10px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 800,
-                      cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = '#3b82f615' }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-                  >
-                    ⚙️ ЗМІНИТИ ВЕРСТАТ
-                  </button>
-                )}
               </div>
             </div>
           </div>
