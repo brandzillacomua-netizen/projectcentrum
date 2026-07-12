@@ -873,10 +873,18 @@ const ForemanWorkplace = () => {
                               const machineCapacity = Math.min(maxCapacity, Math.max(defaultCapacity, rawCapacity))
 
                               let generatedSheetsCalc = 0
-                              activeProductionCards.forEach(c => generatedSheetsCalc += Math.ceil(Number(c.quantity) / (unitsPerSheet || 1)))
-                              const remainingSheetsCalc = Math.max(0, sheets - generatedSheetsCalc)
+                              let generatedQtyCalc = 0
+                              activeProductionCards.forEach(c => {
+                                generatedSheetsCalc += Math.ceil(Number(c.quantity) / (unitsPerSheet || 1))
+                                generatedQtyCalc += Number(c.quantity)
+                              })
+                              
+                              let remainingSheetsCalc = Math.max(0, sheets - generatedSheetsCalc)
+                              if (generatedQtyCalc >= plan && plan > 0) {
+                                remainingSheetsCalc = 0
+                              }
 
-                              const baseLoads = rowMachineName ? (activeProductionCards.length + Math.ceil(remainingSheetsCalc / machineCapacity)) : (sheets || 0)
+                              const baseLoads = rowMachineName ? Math.max(activeProductionCards.length, Math.ceil(sheets / machineCapacity)) : (sheets || 0)
                               const loads = (plan === 0 && existing.some(c => c.operation === 'Склад БЗ')) ? 1 : baseLoads
 
                               // Split logic for totalTargetLoads
@@ -888,6 +896,11 @@ const ForemanWorkplace = () => {
                                   return sum + Math.ceil(sSheets / cap)
                                 }, 0)
                               }
+
+                              if (remainingSheetsCalc === 0 && activeProductionCards.length > 0) {
+                                totalTargetLoads = activeProductionCards.length
+                              }
+
 
                               const surplus = sheets > 0 ? Math.max(0, (sheets * unitsPerSheet) - plan) : 0
 
