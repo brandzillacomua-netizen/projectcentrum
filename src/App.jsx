@@ -31,7 +31,8 @@ import {
   ArrowLeft,
   Sun,
   Moon,
-  MessageCircle
+  MessageCircle,
+  MessagesSquare
 } from 'lucide-react'
 
 // ── Lazy-loaded modules (loaded on demand, not at startup) ─────────────────────
@@ -1761,25 +1762,45 @@ const GlobalUserNav = () => {
                 </span>
               </div>
             </div>
-            <button
-              onClick={handleCloseMenu}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: '#555',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '6px',
-                borderRadius: '8px',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-              onMouseLeave={e => e.currentTarget.style.color = '#555'}
-            >
-              <X size={20} />
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <button
+                onClick={toggleTheme}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: theme === 'light' ? '#eab308' : '#a78bfa',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '6px',
+                  borderRadius: '8px',
+                  transition: 'all 0.2s ease'
+                }}
+                title="Перемикання теми"
+              >
+                {theme === 'light' ? <Sun size={18} /> : <Moon size={18} />}
+              </button>
+              <button
+                onClick={handleCloseMenu}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#555',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '6px',
+                  borderRadius: '8px',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                onMouseLeave={e => e.currentTarget.style.color = '#555'}
+              >
+                <X size={20} />
+              </button>
+            </div>
           </div>
 
           {/* User Mini Profile */}
@@ -1810,24 +1831,6 @@ const GlobalUserNav = () => {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
               <button
-                onClick={toggleTheme}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: theme === 'light' ? '#eab308' : '#a78bfa',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '8px',
-                  borderRadius: '8px',
-                  transition: 'all 0.2s ease'
-                }}
-                title="Перемикання теми"
-              >
-                {theme === 'light' ? <Sun size={18} /> : <Moon size={18} />}
-              </button>
-              <button
                 onClick={() => setActiveSubPanel('notif_settings')}
                 style={{
                   background: 'transparent',
@@ -1843,9 +1846,60 @@ const GlobalUserNav = () => {
                 }}
                 onMouseEnter={e => e.currentTarget.style.color = '#ff9000'}
                 onMouseLeave={e => e.currentTarget.style.color = '#555'}
-                title="Налаштування сповіщень"
+                title="Налаштування профілю"
               >
                 <Settings size={18} />
+              </button>
+              <button
+                onClick={() => { handleCloseMenu(); navigate('/chat'); }}
+                style={{
+                  background: 'rgba(59, 130, 246, 0.1)',
+                  border: '1px solid rgba(59, 130, 246, 0.2)',
+                  color: '#60a5fa',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  justifyContent: 'center',
+                  padding: '6px 12px',
+                  borderRadius: '10px',
+                  transition: 'all 0.2s ease',
+                  position: 'relative'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)';
+                  e.currentTarget.style.color = '#93c5fd';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)';
+                  e.currentTarget.style.color = '#60a5fa';
+                }}
+                title="Відкрити чат"
+              >
+                <MessagesSquare size={18} />
+                <span style={{ fontSize: '0.75rem', fontWeight: 800, letterSpacing: '0.05em' }}>ЧАТ</span>
+                {chatUnreadCount > 0 && (
+                  <span style={{
+                    position: 'absolute',
+                    top: '-6px',
+                    right: '-6px',
+                    background: '#ef4444',
+                    color: '#fff',
+                    borderRadius: '50%',
+                    minWidth: '18px',
+                    height: '18px',
+                    fontSize: '0.6rem',
+                    fontWeight: 900,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '0 5px',
+                    border: '2px solid rgba(8, 8, 8, 0.95)',
+                    boxShadow: '0 2px 5px rgba(239, 68, 68, 0.5)'
+                  }}>
+                    {chatUnreadCount}
+                  </span>
+                )}
               </button>
             </div>
           </div>
