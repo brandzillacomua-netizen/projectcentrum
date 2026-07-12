@@ -48,6 +48,7 @@ export default function TaskProjectsModule() {
 
   const userDepartmentIds = useMemo(() => {
     const dept = (currentUser?.department || '').toLowerCase().trim()
+    if (!dept) return []
     return companyStructure.filter(d => {
       const name = (d.name || d.label || '').toLowerCase().trim()
       return name && (name === dept || name.includes(dept) || dept.includes(name))
