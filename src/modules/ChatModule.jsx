@@ -11,6 +11,7 @@ import {
   Menu,
   MessageCircle,
   MoreVertical,
+  Pin,
   Plus,
   Search,
   Send,
@@ -24,6 +25,19 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { sendPushToUsers } from '../services/pushService'
 import { KanbanTaskModal } from './KanbanModule'
+import {
+  ChannelBadge,
+  ChannelPollModal,
+  MessageReactions,
+  PollMessage,
+  ReadOnlyChannelNotice,
+  buildChannelParticipantRows,
+  canPostToThread,
+  channelStyles,
+  isChannelThread,
+  useChannelPolls,
+  useChatReactions
+} from './chat/ChatChannelModule'
 
 const CHAT_BUCKET = 'chat-attachments'
 const MAX_IMAGE_EDGE = 1280
@@ -285,6 +299,7 @@ const ChatModule = () => {
   const [showChatMenu, setShowChatMenu] = useState(false)
   const [showAttachMenu, setShowAttachMenu] = useState(false)
   const [showTaskModal, setShowTaskModal] = useState(false)
+  const [showPollModal, setShowPollModal] = useState(false)
   const [taskForm, setTaskForm] = useState({ title: '', description: '', assignee: null })
   const fileInputRef = useRef(null)
   const cameraInputRef = useRef(null)
@@ -413,6 +428,17 @@ const ChatModule = () => {
     return participants.filter(p => p.thread_id === activeThreadId)
   }, [participants, activeThreadId])
 
+  const canPostHere = canPostToThread({ thread: activeThread, currentUser, activeParticipants, systemUsers })
+  const activeIsChannel = isChannelThread(activeThread)
+  const { reactions, toggleReaction } = useChatReactions({ supabase, activeThreadId, messages, me })
+  const { polls, createPoll, votePoll } = useChannelPolls({
+    supabase,
+    activeThreadId,
+    messages,
+    me,
+    refreshMessages: () => loadMessages(activeThreadId, { silent: true, forceScroll: true })
+  })
+
   useEffect(() => {
     activeThreadIdRef.current = activeThreadId
   }, [activeThreadId])
@@ -445,13 +471,18 @@ const ChatModule = () => {
 
   const filteredThreads = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return threads
-    return threads.filter(t => {
+    const baseThreads = !q ? threads : threads.filter(t => {
       const names = participants
         .filter(p => p.thread_id === t.id)
         .map(p => p.user_name)
         .join(' ')
       return `${getThreadDisplayTitle(t)} ${t.title || ''} ${t.last_message || ''} ${names}`.toLowerCase().includes(q)
+    })
+    return [...baseThreads].sort((a, b) => {
+      const aPinned = a.is_pinned || isChannelThread(a)
+      const bPinned = b.is_pinned || isChannelThread(b)
+      if (aPinned !== bPinned) return aPinned ? -1 : 1
+      return new Date(b.last_message_at || b.updated_at || b.created_at || 0) - new Date(a.last_message_at || a.updated_at || a.created_at || 0)
     })
   }, [participants, search, threads])
 
@@ -975,7 +1006,8 @@ const ChatModule = () => {
         .from('chat_threads')
         .insert([{
           title,
-          thread_type: 'group',
+          thread_type: newChatType === 'channel' ? 'channel' : 'group',
+          is_pinned: newChatType === 'channel',
           created_by: me.id || null,
           created_by_login: me.login,
           created_by_name: me.name,
@@ -989,16 +1021,18 @@ const ChatModule = () => {
       const thread = threadRows?.[0]
       if (!thread?.id) throw new Error('Не вдалося створити чат')
 
-      const rows = memberIds.map(userId => {
-        const user = users.find(u => u.id === userId) || currentUser
-        return {
-          thread_id: thread.id,
-          user_id: userId,
-          user_login: user?.login || '',
-          user_name: formatUserName(user),
-          last_read_at: userId === me.id ? new Date().toISOString() : null
-        }
-      })
+      const rows = newChatType === 'channel'
+        ? buildChannelParticipantRows({ threadId: thread.id, memberIds, me, currentUser, users, systemUsers, formatUserName })
+        : memberIds.map(userId => {
+            const user = users.find(u => u.id === userId) || currentUser
+            return {
+              thread_id: thread.id,
+              user_id: userId,
+              user_login: user?.login || '',
+              user_name: formatUserName(user),
+              last_read_at: userId === me.id ? new Date().toISOString() : null
+            }
+          })
 
       const { error: partError } = await supabase
         .from('chat_participants')
@@ -1074,6 +1108,10 @@ const ChatModule = () => {
 
   const sendMessage = async () => {
     if (!activeThreadId || sending) return
+    if (!canPostHere) {
+      setError('У цьому каналі писати можуть тільки автори каналу.')
+      return
+    }
     const text = composer.trim()
     if (!text && !pendingImage) return
 
@@ -1264,16 +1302,19 @@ const ChatModule = () => {
       const toRemove = existingIds.filter(id => id !== me.id && !wantedIds.includes(id))
 
       if (toAdd.length > 0) {
-        const rows = toAdd.map(userId => {
-          const user = users.find(u => u.id === userId) || currentUser
-          return {
-            thread_id: activeThreadId,
-            user_id: userId,
-            user_login: user?.login || '',
-            user_name: formatUserName(user),
-            last_read_at: null
-          }
-        })
+        const rows = activeIsChannel
+          ? buildChannelParticipantRows({ threadId: activeThreadId, memberIds: toAdd, me, currentUser, users, systemUsers, formatUserName })
+              .map(row => ({ ...row, last_read_at: null }))
+          : toAdd.map(userId => {
+              const user = users.find(u => u.id === userId) || currentUser
+              return {
+                thread_id: activeThreadId,
+                user_id: userId,
+                user_login: user?.login || '',
+                user_name: formatUserName(user),
+                last_read_at: null
+              }
+            })
         const { error: addError } = await supabase.from('chat_participants').insert(rows)
         if (addError) throw addError
       }
@@ -1356,11 +1397,12 @@ const ChatModule = () => {
               // Визначаємо нечитані повідомлення
               const myParticipant = rows.find(p => String(p.user_id) === String(me.id))
               const isUnread = thread.unreadCount > 0
+              const isPinned = thread.is_pinned || isChannelThread(thread)
 
               return (
                 <button
                   key={thread.id}
-                  className={`thread-card ${thread.id === activeThreadId ? 'active' : ''} ${isUnread ? 'unread' : ''}`}
+                  className={`thread-card ${thread.id === activeThreadId ? 'active' : ''} ${isUnread ? 'unread' : ''} ${isPinned ? 'pinned' : ''}`}
                   onClick={() => setActiveThreadId(thread.id)}
                 >
                   <div className="thread-icon">
@@ -1370,6 +1412,7 @@ const ChatModule = () => {
                     <div className="thread-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       {rows.length > 2 && <Users size={12} style={{ opacity: 0.6 }} title="Груповий чат" />}
                       {displayTitle}
+                      <ChannelBadge thread={thread} />
                     </div>
                     
                     <div className="thread-last">
@@ -1383,6 +1426,7 @@ const ChatModule = () => {
                   </div>
                   <div className="thread-time-col">
                     <div className="thread-time">{formatThreadTime(thread.last_message_at || thread.updated_at)}</div>
+                    {isPinned && <Pin className="thread-pin" size={14} />}
                     {thread.unreadCount > 0 && (
                       <span className="unread-badge" title={`${thread.unreadCount} нових повідомлень`}>
                         {thread.unreadCount}
@@ -1395,7 +1439,7 @@ const ChatModule = () => {
           </div>
         </aside>
 
-        <main className="chat-main">
+        <main className={`chat-main ${activeIsChannel ? 'channel-mode' : ''}`}>
           {activeThread ? (
             <>
               {(() => {
@@ -1411,7 +1455,7 @@ const ChatModule = () => {
                     <ChatAvatar src={activeAvatar} label={activeTitle} size="large" />
                   </div>
                   <div>
-                    <h2>{activeTitle}</h2>
+                    <h2>{activeTitle} <ChannelBadge thread={activeThread} /></h2>
                     <div className="participants-line">
                       {activeParticipants.length === 2 ? (
                         (() => {
@@ -1525,7 +1569,17 @@ const ChatModule = () => {
                           {!isMine && <div className="message-author">{message.sender_name}</div>}
                           
                           <div className={`message-bubble ${message.attachment_type === 'system_task' ? 'sys-task-bubble' : ''}`}>
-                            {message.attachment_type === 'system_task' ? (
+                            {message.attachment_type === 'channel_poll' ? (
+                              <PollMessage
+                                poll={polls[message.attachment_url]}
+                                onVote={(poll, optionId) => {
+                                  votePoll(poll, optionId).catch(err => {
+                                    console.error(err)
+                                    showSetupError(err)
+                                  })
+                                }}
+                              />
+                            ) : message.attachment_type === 'system_task' ? (
                               <div className="task-sys-message" style={{ cursor: "pointer" }} onClick={() => navigate(`/tasks?taskId=${message.attachment_url}`)}>
                                 <div className="tsm-icon"><CheckSquare size={22} /></div>
                                 <div className="tsm-content">
@@ -1557,6 +1611,16 @@ const ChatModule = () => {
                           </>
                             )}
                           </div>
+                          <MessageReactions
+                            messageId={message.id}
+                            reactions={reactions}
+                            onToggle={(messageId, reaction) => {
+                              toggleReaction(messageId, reaction).catch(err => {
+                                console.error(err)
+                                showSetupError(err)
+                              })
+                            }}
+                          />
                           {(showMeta || message.attachment_size) && (
                             <div className="message-meta">
                               {message.attachment_size ? <span className="meta-size">{bytesToLabel(message.attachment_size)}</span> : null}
@@ -1576,7 +1640,9 @@ const ChatModule = () => {
                 <div ref={messagesEndRef} />
               </section>
 
-              <footer className="composer">
+              <ReadOnlyChannelNotice visible={activeIsChannel && !canPostHere} />
+
+              {canPostHere && <footer className="composer">
                 {pendingImage && (
                   <div className="pending-image">
                     <img src={pendingImage.previewUrl} alt="Підготовлене фото" />
@@ -1636,6 +1702,11 @@ const ChatModule = () => {
                           <button onClick={() => fileInputRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'transparent', border: 'none', color: '#fff', textAlign: 'left', cursor: 'pointer', borderRadius: '6px', fontSize: '0.85rem' }} onMouseEnter={e => e.currentTarget.style.background='#222'} onMouseLeave={e => e.currentTarget.style.background='transparent'}>
                             <ImageIcon size={16} color="#10b981" /> Завантажити фото
                           </button>
+                          {activeIsChannel && (
+                            <button onClick={() => { setShowPollModal(true); setShowAttachMenu(false) }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'transparent', border: 'none', color: '#fff', textAlign: 'left', cursor: 'pointer', borderRadius: '6px', fontSize: '0.85rem' }} onMouseEnter={e => e.currentTarget.style.background='#222'} onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+                              <CheckSquare size={16} color="#93c5fd" /> Опитування
+                            </button>
+                          )}
                           {activeParticipants.length === 2 && (
                             <button onClick={() => {
                               const other = activeParticipants.find(p => p.user_id !== me.id)
@@ -1674,7 +1745,7 @@ const ChatModule = () => {
                     {sending ? <Loader2 className="spin" size={18} /> : <Send size={18} />}
                   </button>
                 </div>
-              </footer>
+              </footer>}
             </>
           ) : (
             <div className="no-chat">
@@ -1729,24 +1800,36 @@ const ChatModule = () => {
                   cursor: 'pointer', fontWeight: 600, transition: 'all 0.2s'
                 }}
               >Група</button>
+              {isSuperAdmin && (
+                <button
+                  onClick={() => { setNewChatType('channel'); setSelectedUserIds(users.map(user => user.id)); setNewTitle(''); }}
+                  style={{
+                    flex: 1, padding: '8px', borderRadius: '6px',
+                    background: newChatType === 'channel' ? 'rgba(59,130,246,0.15)' : 'transparent',
+                    color: newChatType === 'channel' ? '#93c5fd' : '#888',
+                    border: newChatType === 'channel' ? '1px solid rgba(59,130,246,0.35)' : '1px solid rgba(255,255,255,0.05)',
+                    cursor: 'pointer', fontWeight: 600, transition: 'all 0.2s'
+                  }}
+                >Канал</button>
+              )}
             </div>
 
-            {newChatType === 'group' && (
+            {newChatType !== 'private' && (
               <input
                 className="title-input"
                 style={{ margin: '8px 16px', width: 'calc(100% - 32px)' }}
                 value={newTitle}
                 onChange={e => setNewTitle(e.target.value)}
-                placeholder="Введіть назву групи..."
+                placeholder={newChatType === 'channel' ? 'Назва каналу...' : 'Введіть назву групи...'}
               />
             )}
 
-            <div className="member-search" style={{ marginTop: newChatType === 'group' ? 0 : '12px' }}>
+            <div className="member-search" style={{ marginTop: newChatType !== 'private' ? 0 : '12px' }}>
               <Search size={16} />
               <input
                 value={userSearch}
                 onChange={e => setUserSearch(e.target.value)}
-                placeholder={newChatType === 'private' ? "Пошук співрозмовника..." : "Пошук учасників групи..."}
+                placeholder={newChatType === 'private' ? "Пошук співрозмовника..." : "Пошук учасників..."}
                 autoFocus
               />
               {userSearch && (
@@ -1785,14 +1868,34 @@ const ChatModule = () => {
             <button 
               className="create-btn" 
               onClick={createThread} 
-              disabled={sending || selectedUserIds.length === 0 || (newChatType === 'group' && selectedUserIds.length < 2)}
+              disabled={sending || selectedUserIds.length === 0 || (newChatType === 'group' && selectedUserIds.length < 2) || (newChatType === 'channel' && !newTitle.trim())}
             >
               {sending ? <Loader2 className="spin" size={18} /> : <Plus size={18} />}
-              {newChatType === 'group' ? `Створити групу (${selectedUserIds.length})` : 'Почати чат'}
+              {newChatType === 'channel' ? `Створити канал (${selectedUserIds.length})` : (newChatType === 'group' ? `Створити групу (${selectedUserIds.length})` : 'Почати чат')}
             </button>
           </div>
         </div>
       )}
+
+      <ChannelPollModal
+        visible={showPollModal}
+        sending={sending}
+        onClose={() => setShowPollModal(false)}
+        onCreate={async (payload) => {
+          setSending(true)
+          setError('')
+          try {
+            await createPoll({ threadId: activeThreadId, ...payload })
+            await loadMessages(activeThreadId, { silent: true, forceScroll: true })
+            await loadThreads({ silent: true })
+          } catch (err) {
+            console.error(err)
+            showSetupError(err)
+          } finally {
+            setSending(false)
+          }
+        }}
+      />
 
       {showThreadSettings && activeThread && (
         <div className="modal-backdrop">
@@ -2089,6 +2192,19 @@ const ChatModule = () => {
         .thread-card:hover {
           background: rgba(255,255,255,0.04);
           transform: translateY(-1px);
+        }
+        .thread-card.pinned {
+          border-color: rgba(59,130,246,0.18);
+          background: linear-gradient(90deg, rgba(59,130,246,0.08), rgba(16,185,129,0.035));
+        }
+        .thread-pin {
+          color: #6b879f;
+          fill: currentColor;
+          opacity: 0.9;
+        }
+        .thread-card.active .thread-pin,
+        .thread-card:hover .thread-pin {
+          color: #93c5fd;
         }
         .thread-card.unread {
           border-color: rgba(59, 130, 246, 0.4);
@@ -3042,6 +3158,7 @@ const ChatModule = () => {
           align-items: center;
           gap: 5px;
         }
+        ${channelStyles}
       `}</style>
     </div>
   )
