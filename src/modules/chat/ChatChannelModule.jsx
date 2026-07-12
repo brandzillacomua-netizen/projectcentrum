@@ -557,12 +557,16 @@ export const channelStyles = `
     font-size: 0.68rem;
   }
   .reaction-picker {
-    display: none;
+    display: inline-flex;
     gap: 4px;
+    opacity: 0.25;
+    filter: grayscale(100%);
+    transition: all 0.2s;
   }
   .message-wrapper:hover .reaction-picker,
   .message-reactions.has-reactions .reaction-picker {
-    display: inline-flex;
+    opacity: 1;
+    filter: none;
   }
   .channel-poll-modal {
     width: min(440px, calc(100vw - 28px));
