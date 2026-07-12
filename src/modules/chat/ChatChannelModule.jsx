@@ -10,8 +10,8 @@ export const isRomanPiletsky = (user) => {
     .toLowerCase()
   const login = String(user?.login || user?.user_login || '').toLowerCase()
   return (
-    (name.includes('РїС–Р»РµС†СЊРє') || name.includes('РїiР»РµС†СЊРє') || name.includes('piletsk')) &&
-    (name.includes('СЂРѕРјР°РЅ') || login.includes('roman') || login.includes('piletsk'))
+    (name.includes('пілецьк') || name.includes('пiлецьк') || name.includes('piletsk')) &&
+    (name.includes('роман') || login.includes('roman') || login.includes('piletsk'))
   )
 }
 
@@ -19,7 +19,7 @@ export const isChannelThread = (thread) => thread?.thread_type === 'channel'
 
 export const canPostToThread = ({ thread, currentUser, activeParticipants, systemUsers }) => {
   if (!isChannelThread(thread)) return true
-  if (currentUser?.role === 'admin' || currentUser?.position === 'РђРґРјС–РЅ') return true
+  if (currentUser?.role === 'admin' || currentUser?.position === 'Адмін') return true
 
   const participant = activeParticipants.find(row => String(row.user_id) === String(currentUser?.id))
   if (participant?.can_post || ['owner', 'editor'].includes(participant?.participant_role)) return true
@@ -51,8 +51,8 @@ export const buildChannelParticipantRows = ({ threadId, memberIds, me, currentUs
 export const ChannelBadge = ({ thread }) => {
   if (!isChannelThread(thread)) return null
   return (
-    <span className="channel-badge" title="РљР°РЅР°Р»">
-      <Megaphone size={12} /> РљР°РЅР°Р»
+    <span className="channel-badge" title="Канал">
+      <Megaphone size={12} /> Канал
     </span>
   )
 }
@@ -61,7 +61,7 @@ export const ReadOnlyChannelNotice = ({ visible }) => {
   if (!visible) return null
   return (
     <div className="channel-readonly-notice">
-      РљР°РЅР°Р» С‚С–Р»СЊРєРё РґР»СЏ С‡РёС‚Р°РЅРЅСЏ. РњРѕР¶РЅР° СЃС‚Р°РІРёС‚Рё СЂРµР°РєС†С–С— РЅР° РїРѕРІС–РґРѕРјР»РµРЅРЅСЏ.
+      Канал тільки для читання. Можна ставити реакції на повідомлення.
     </div>
   )
 }
@@ -255,7 +255,7 @@ export const useChannelPolls = ({ supabase, activeThreadId, messages, me, refres
 
     if (pollError) throw pollError
     const poll = pollRows?.[0]
-    if (!poll?.id) throw new Error('РќРµ РІРґР°Р»РѕСЃСЏ СЃС‚РІРѕСЂРёС‚Рё РѕРїРёС‚СѓРІР°РЅРЅСЏ')
+    if (!poll?.id) throw new Error('Не вдалося створити опитування')
 
     const { error: optionsError } = await supabase
       .from('chat_poll_options')
@@ -361,8 +361,8 @@ export const ChannelPollModal = ({ visible, sending, onClose, onCreate }) => {
       <div className="channel-poll-modal" onClick={event => event.stopPropagation()}>
         <div className="channel-poll-head">
           <div>
-            <span><BarChart3 size={14} /> РћРїРёС‚СѓРІР°РЅРЅСЏ РєР°РЅР°Р»Сѓ</span>
-            <h3>Р—Р°РїРёС‚Р°С‚Рё РІРµСЃСЊ Р·Р°РІРѕРґ</h3>
+            <span><BarChart3 size={14} /> Опитування каналу</span>
+            <h3>Запитати весь завод</h3>
           </div>
           <button className="icon-btn" onClick={resetAndClose}><X size={18} /></button>
         </div>
@@ -370,7 +370,7 @@ export const ChannelPollModal = ({ visible, sending, onClose, onCreate }) => {
           className="channel-poll-input"
           value={question}
           onChange={event => setQuestion(event.target.value)}
-          placeholder="РџРёС‚Р°РЅРЅСЏ..."
+          placeholder="Питання..."
           autoFocus
         />
         <div className="channel-poll-options">
@@ -379,7 +379,7 @@ export const ChannelPollModal = ({ visible, sending, onClose, onCreate }) => {
               <input
                 value={option}
                 onChange={event => setOptions(prev => prev.map((item, itemIndex) => itemIndex === index ? event.target.value : item))}
-                placeholder={`Р’Р°СЂС–Р°РЅС‚ ${index + 1}`}
+                placeholder={`Варіант ${index + 1}`}
               />
               {options.length > 2 && (
                 <button type="button" onClick={() => setOptions(prev => prev.filter((_, itemIndex) => itemIndex !== index))}>
@@ -390,11 +390,11 @@ export const ChannelPollModal = ({ visible, sending, onClose, onCreate }) => {
           ))}
         </div>
         <button className="channel-poll-add" type="button" onClick={() => setOptions(prev => [...prev, ''])}>
-          <Plus size={15} /> Р”РѕРґР°С‚Рё РІР°СЂС–Р°РЅС‚
+          <Plus size={15} /> Додати варіант
         </button>
         <label className="channel-poll-check">
           <input type="checkbox" checked={allowMultiple} onChange={event => setAllowMultiple(event.target.checked)} />
-          РњРѕР¶РЅР° РІРёР±СЂР°С‚Рё РєС–Р»СЊРєР° РІР°СЂС–Р°РЅС‚С–РІ
+          Можна вибрати кілька варіантів
         </label>
         <button
           className="channel-poll-create"
@@ -404,7 +404,7 @@ export const ChannelPollModal = ({ visible, sending, onClose, onCreate }) => {
             resetAndClose()
           }}
         >
-          РЎС‚РІРѕСЂРёС‚Рё РѕРїРёС‚СѓРІР°РЅРЅСЏ
+          Створити опитування
         </button>
       </div>
     </div>
@@ -413,14 +413,14 @@ export const ChannelPollModal = ({ visible, sending, onClose, onCreate }) => {
 
 export const PollMessage = ({ poll, onVote }) => {
   if (!poll) {
-    return <div className="channel-poll-card loading">РћРїРёС‚СѓРІР°РЅРЅСЏ Р·Р°РІР°РЅС‚Р°Р¶СѓС”С‚СЊСЃСЏ...</div>
+    return <div className="channel-poll-card loading">Опитування завантажується...</div>
   }
 
   return (
     <div className="channel-poll-card">
       <div className="channel-poll-card-head">
-        <span><BarChart3 size={14} /> РћРїРёС‚СѓРІР°РЅРЅСЏ</span>
-        {poll.allow_multiple && <b>РєС–Р»СЊРєР° РІС–РґРїРѕРІС–РґРµР№</b>}
+        <span><BarChart3 size={14} /> Опитування</span>
+        {poll.allow_multiple && <b>кілька відповідей</b>}
       </div>
       <h4>{poll.question}</h4>
       <div className="channel-poll-results">
@@ -441,7 +441,7 @@ export const PollMessage = ({ poll, onVote }) => {
           )
         })}
       </div>
-      <div className="channel-poll-total">{poll.total_votes || 0} РіРѕР»РѕСЃС–РІ</div>
+      <div className="channel-poll-total">{poll.total_votes || 0} голосів</div>
     </div>
   )
 }
