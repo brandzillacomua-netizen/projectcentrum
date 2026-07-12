@@ -47,3 +47,18 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     </BrowserRouter>
   </React.StrictMode>,
 )
+
+// TEMPORARY FIX SCRIPT TO DELETE 164th CARD FOR П-7-46
+setTimeout(async () => {
+  try {
+    const { supabase } = await import('./supabase.js');
+    const { data } = await supabase.from('work_cards').select('id, card_info').ilike('card_info', '%164/218%').limit(1);
+    if (data && data[0]) {
+      await supabase.from('work_cards').delete().eq('id', data[0].id);
+      console.log('DELETED CARD 164/218 SUCCESSFULLY!');
+      alert('164-та картка видалена! Будь ласка, натисніть ГЕНЕРУВАТИ ще раз, щоб створити її правильно на 1 лист!');
+    }
+  } catch (e) {
+    console.error(e);
+  }
+}, 3000);

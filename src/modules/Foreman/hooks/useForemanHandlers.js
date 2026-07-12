@@ -755,11 +755,18 @@ export function useForemanHandlers({
     setIsGenerating(true)
     try {
       const cardsBatch = []
-      let sheetsRemainingForThisSplit = sheets - (localGeneratedCount * capacity)
+      const activeCards = cardsForSequence.filter(c => !(c.card_info || '').includes('[REDO]'))
+      let actualGeneratedSheets = 0
+      let actualGeneratedQty = 0
+      activeCards.forEach(c => {
+        actualGeneratedSheets += Math.ceil((Number(c.quantity) || 0) / unitsPerSheet)
+        actualGeneratedQty += (Number(c.quantity) || 0)
+      })
+
+      let sheetsRemainingForThisSplit = Math.max(0, sheets - actualGeneratedSheets)
       if (maxSheetsToGenerate !== null && maxSheetsToGenerate !== undefined) {
         sheetsRemainingForThisSplit = Math.min(sheetsRemainingForThisSplit, Math.max(0, Number(maxSheetsToGenerate) || 0))
       }
-
       const snapshotEntry = task.plan_snapshot?.[String(part.nom?.id)]
       const originalNeed = snapshotEntry?.need || totalToReach || 0
 

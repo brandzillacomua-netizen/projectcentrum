@@ -884,7 +884,7 @@ const ForemanWorkplace = () => {
                                 remainingSheetsCalc = 0
                               }
 
-                              const baseLoads = rowMachineName ? Math.max(activeProductionCards.length, Math.ceil(sheets / machineCapacity)) : (sheets || 0)
+                              const baseLoads = rowMachineName ? (activeProductionCards.length + (remainingSheetsCalc > 0 ? Math.ceil(remainingSheetsCalc / machineCapacity) : 0)) : (sheets || 0)
                               const loads = (plan === 0 && existing.some(c => c.operation === 'Склад БЗ')) ? 1 : baseLoads
 
                               // Split logic for totalTargetLoads
