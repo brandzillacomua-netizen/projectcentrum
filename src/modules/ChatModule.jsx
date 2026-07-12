@@ -1544,25 +1544,29 @@ const ChatModule = () => {
                   </div>
                 </div>
                 <div className="chat-header-actions">
-                  {activeParticipants.length > 2 && (
+                  {activeParticipants.length > 2 && (isSuperAdmin || activeThread?.created_by === me?.id) && (
                     <button className="icon-btn" onClick={openThreadSettings} title="Налаштування групи" disabled={sending}>
                       <SettingsIcon size={17} />
                     </button>
                   )}
-                  <button className="icon-btn" onClick={() => setShowChatMenu(!showChatMenu)} title="Опції" disabled={sending}>
-                    <MoreVertical size={17} />
-                  </button>
-                  {showChatMenu && (
+                  {(activeParticipants.length <= 2 || isSuperAdmin || activeThread?.created_by === me?.id) && (
                     <>
-                      <div className="chat-menu-backdrop" onClick={() => setShowChatMenu(false)} />
-                      <div className="chat-options-menu">
-                        <button onClick={clearChatHistory} disabled={sending}>
-                          Очистити історію чату
-                        </button>
-                        <button onClick={archiveThread} className="danger" disabled={sending}>
-                          Видалити чат
-                        </button>
-                      </div>
+                      <button className="icon-btn" onClick={() => setShowChatMenu(!showChatMenu)} title="Опції" disabled={sending}>
+                        <MoreVertical size={17} />
+                      </button>
+                      {showChatMenu && (
+                        <>
+                          <div className="chat-menu-backdrop" onClick={() => setShowChatMenu(false)} />
+                          <div className="chat-options-menu">
+                            <button onClick={clearChatHistory} disabled={sending}>
+                              Очистити історію чату
+                            </button>
+                            <button onClick={archiveThread} className="danger" disabled={sending}>
+                              Видалити чат
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </>
                   )}
                 </div>
