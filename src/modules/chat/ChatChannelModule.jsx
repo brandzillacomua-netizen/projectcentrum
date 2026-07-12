@@ -1,5 +1,5 @@
-﻿import React, { useEffect, useMemo, useState } from 'react'
-import { BarChart3, Megaphone, Plus, Trash2, X } from 'lucide-react'
+import React, { useEffect, useMemo, useState } from 'react'
+import { BarChart3, Megaphone, Plus, Trash2, X, Check } from 'lucide-react'
 
 export const CHANNEL_REACTIONS = ['\u{1F44D}', '\u2764\uFE0F', '\u{1F525}', '\u{1F44F}', '\u{1F62E}', '\u2705']
 
@@ -435,7 +435,12 @@ export const PollMessage = ({ poll, onVote }) => {
               onClick={() => onVote(poll, option.id)}
             >
               <span className="channel-poll-fill" style={{ width: `${pct}%` }} />
-              <span className="channel-poll-label">{option.option_text}</span>
+              <span className="channel-poll-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', textAlign: 'left', flex: 1 }}>
+                <div className={`poll-checkbox ${option.mine ? 'checked' : ''}`}>
+                  {option.mine && <Check size={12} strokeWidth={4} />}
+                </div>
+                <span>{option.option_text}</span>
+              </span>
               <b>{option.votes_count}</b>
             </button>
           )
@@ -643,7 +648,8 @@ export const channelStyles = `
     cursor: not-allowed;
   }
   .channel-poll-card {
-    min-width: min(360px, 72vw);
+    width: 100%;
+    max-width: 400px;
   }
   .channel-poll-card.loading {
     color: rgba(255,255,255,0.62);
@@ -697,6 +703,22 @@ export const channelStyles = `
   .channel-poll-result b {
     position: relative;
     z-index: 1;
+  }
+  .poll-checkbox {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.2);
+    flex-shrink: 0;
+  }
+  .poll-checkbox.checked {
+    background: #10b981;
+    border-color: #10b981;
+    color: #fff;
   }
   .channel-poll-total {
     margin-top: 8px;
