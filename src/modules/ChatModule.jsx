@@ -57,6 +57,15 @@ const getAvatarGradient = (value = '') => {
   }
 }
 
+const getDirectThreadKey = (userIds) => {
+  const key = userIds
+    .map(userId => String(userId || '').trim())
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, 'en'))
+    .join(':')
+  return key ? `direct:${key}` : ''
+}
+
 const ChatAvatar = ({ src, label, size = 'small' }) => {
   const [failed, setFailed] = useState(false)
   const canUseImage = src && !failed && (src.startsWith('data:image/') || src.startsWith('http') || src.startsWith('/'))
@@ -284,6 +293,7 @@ const ChatModule = () => {
   const activeThreadIdRef = useRef(null)
   const meIdRef = useRef(null)
   const wasInChat = useRef(false)
+  const supportOpeningRef = useRef(false)
 
   const handleMobileBack = () => {
     if (window.history.state?.chatModuleOpen) {
@@ -328,7 +338,7 @@ const ChatModule = () => {
 
 
   useEffect(() => {
-    if (searchParams.get('support') === 'true' && systemUsers && systemUsers.length > 0) {
+    if (false && searchParams.get('support') === 'true' && systemUsers && systemUsers.length > 0) {
       console.log('Support triggered');
       
       const targetUser = systemUsers.find(u => {
@@ -543,54 +553,54 @@ const ChatModule = () => {
       if (participantError) throw participantError
 
       // Для кожного чату паралельно дістаємо точну кількість нечитаних повідомлень
-      const threadsWithUnread = await Promise.all((threadRows || []).map(async thread => {
-        const rows = (participantRows || []).filter(p => p.thread_id === thread.id)
-        const myPart = rows.find(p => String(p.user_id) === String(me.id))
-        
-        let unreadCount = 0
-        if (myPart) {
-          const numericMyId = Number(me.id) || me.id
-          let query = supabase
-            .from('chat_messages')
-            .select('id', { count: 'exact', head: true })
-            .eq('thread_id', thread.id)
-            .is('deleted_at', null)
-            .not('sender_id', 'eq', numericMyId)
-
-          if (myPart.last_read_at) {
-            const formattedIsoRead = new Date(myPart.last_read_at).toISOString()
-            query = query.gt('created_at', formattedIsoRead)
-          }
-          
-          const { count } = await query
-          unreadCount = count || 0
-        }
-        
-        let lastMessageSenderId = null
-        const { data: lastMsgData } = await supabase
-          .from('chat_messages')
-          .select('sender_id')
-          .eq('thread_id', thread.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-        
-        if (lastMsgData && lastMsgData.length > 0) {
-          lastMessageSenderId = lastMsgData[0].sender_id
-        }
-        return {
-          ...thread,
-          unreadCount,
-          lastMessageSenderId
-        }
-      }))
-
-      const visibleThreads = threadsWithUnread.filter(thread => {
+      const participantList = participantRows || []
+      const visibleBaseThreads = (threadRows || []).filter(thread => {
         const rows = (participantRows || []).filter(p => p.thread_id === thread.id)
         return rows.length === 0 || rows.some(p => String(p.user_id) === String(me.id))
       })
 
+      const visibleThreadIds = visibleBaseThreads.map(thread => thread.id)
+      let messageRows = []
+      if (visibleThreadIds.length > 0) {
+        const { data: recentRows, error: recentError } = await supabase
+          .from('chat_messages')
+          .select('thread_id, sender_id, created_at')
+          .in('thread_id', visibleThreadIds)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+          .limit(2000)
+
+        if (recentError) throw recentError
+        messageRows = recentRows || []
+      }
+
+      const messagesByThread = messageRows.reduce((map, message) => {
+        const rows = map.get(message.thread_id) || []
+        rows.push(message)
+        map.set(message.thread_id, rows)
+        return map
+      }, new Map())
+
+      const visibleThreads = visibleBaseThreads.map(thread => {
+        const rows = participantList.filter(p => p.thread_id === thread.id)
+        const myPart = rows.find(p => String(p.user_id) === String(me.id))
+        const threadMessages = messagesByThread.get(thread.id) || []
+        const lastReadAt = myPart?.last_read_at ? new Date(myPart.last_read_at).getTime() : 0
+        const unreadCount = threadMessages.filter(message => {
+          if (String(message.sender_id) === String(me.id)) return false
+          if (!lastReadAt) return true
+          return new Date(message.created_at).getTime() > lastReadAt
+        }).length
+
+        return {
+          ...thread,
+          unreadCount,
+          lastMessageSenderId: threadMessages[0]?.sender_id || null
+        }
+      })
+
       setThreads(visibleThreads)
-      setParticipants(participantRows || [])
+      setParticipants(participantList)
       setActiveThreadId(prev => {
         if (prev && visibleThreads.some(t => t.id === prev)) return prev
         return null
@@ -781,6 +791,158 @@ const ChatModule = () => {
     }
   }, [me.id])
 
+  const findExistingDirectThread = async (memberIds) => {
+    const directKey = getDirectThreadKey(memberIds)
+    if (!directKey) return null
+
+    const { data: keyedThread, error: keyedError } = await supabase
+      .from('chat_threads')
+      .select('*')
+      .eq('is_archived', false)
+      .eq('direct_key', directKey)
+      .maybeSingle()
+
+    if (keyedThread) return keyedThread
+    if (keyedError && !String(keyedError.message || '').includes('direct_key')) {
+      throw keyedError
+    }
+
+    const normalizedIds = memberIds.map(userId => String(userId))
+    const { data: partialRows, error: partialError } = await supabase
+      .from('chat_participants')
+      .select('thread_id, user_id')
+      .in('user_id', memberIds)
+
+    if (partialError) throw partialError
+
+    const candidateIds = Array.from(new Set((partialRows || []).map(row => row.thread_id)))
+    if (candidateIds.length === 0) return null
+
+    const { data: allRows, error: allRowsError } = await supabase
+      .from('chat_participants')
+      .select('thread_id, user_id')
+      .in('thread_id', candidateIds)
+
+    if (allRowsError) throw allRowsError
+
+    const exactThreadIds = candidateIds.filter(threadId => {
+      const rows = (allRows || []).filter(row => row.thread_id === threadId)
+      if (rows.length !== normalizedIds.length) return false
+      return normalizedIds.every(userId => rows.some(row => String(row.user_id) === userId))
+    })
+
+    if (exactThreadIds.length === 0) return null
+
+    const { data: threadsRows, error: threadsError } = await supabase
+      .from('chat_threads')
+      .select('*')
+      .in('id', exactThreadIds)
+      .eq('is_archived', false)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+
+    if (threadsError) throw threadsError
+    return threadsRows?.[0] || null
+  }
+
+  const openDirectThread = async (targetUser, options = {}) => {
+    if (!targetUser?.id || !me.id || String(targetUser.id) === String(me.id)) return null
+
+    const memberIds = [me.id, targetUser.id]
+    const directKey = getDirectThreadKey(memberIds)
+    const title = options.title || formatUserName(targetUser)
+    const rows = memberIds.map(userId => {
+      const user = String(userId) === String(me.id)
+        ? currentUser
+        : (systemUsers || []).find(item => String(item.id) === String(userId))
+      return {
+        thread_id: null,
+        user_id: userId,
+        user_login: user?.login || '',
+        user_name: formatUserName(user),
+        last_read_at: String(userId) === String(me.id) ? new Date().toISOString() : null
+      }
+    })
+
+    const openThread = async (thread) => {
+      if (!thread?.id) return null
+      const participantRows = rows.map(row => ({ ...row, thread_id: thread.id }))
+      const { error: participantError } = await supabase
+        .from('chat_participants')
+        .upsert(participantRows, { onConflict: 'thread_id,user_id' })
+      if (participantError) throw participantError
+      await loadThreads({ silent: true })
+      setActiveThreadId(thread.id)
+      return thread
+    }
+
+    const existingThread = await findExistingDirectThread(memberIds)
+    if (existingThread) return openThread(existingThread)
+
+    const now = new Date().toISOString()
+    const threadPayload = {
+      title,
+      thread_type: 'direct',
+      direct_key: directKey,
+      created_by: me.id || null,
+      created_by_login: me.login,
+      created_by_name: me.name,
+      last_message: 'Чат створено',
+      last_message_at: now
+    }
+
+    let result = await supabase
+      .from('chat_threads')
+      .insert([threadPayload])
+      .select()
+
+    if (result.error && String(result.error.message || '').includes('direct_key')) {
+      const { direct_key, ...fallbackPayload } = threadPayload
+      result = await supabase
+        .from('chat_threads')
+        .insert([fallbackPayload])
+        .select()
+    }
+
+    if (result.error?.code === '23505') {
+      const thread = await findExistingDirectThread(memberIds)
+      return openThread(thread)
+    }
+    if (result.error) throw result.error
+
+    const thread = result.data?.[0]
+    if (!thread?.id) throw new Error('Не вдалося створити чат')
+    return openThread(thread)
+  }
+
+  useEffect(() => {
+    if (searchParams.get('support') !== 'true' || !me.id || !systemUsers?.length || supportOpeningRef.current) return
+
+    const targetUser = systemUsers.find(user => {
+      const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ').trim().toUpperCase()
+      const login = String(user.login || '').trim().toLowerCase()
+      return fullName === 'ADMIN SYSTEM' ||
+        fullName === 'SYSTEM ADMIN' ||
+        login === 'admin' ||
+        String(user.id) === '00000000-0000-0000-0000-000000000000' ||
+        user.role === 'admin' ||
+        user.is_admin
+    })
+
+    setSearchParams({}, { replace: true })
+    if (!targetUser) return
+
+    supportOpeningRef.current = true
+    openDirectThread(targetUser, { title: 'Технічна підтримка' })
+      .catch(err => {
+        console.error('Support chat failed:', err)
+        showSetupError(err)
+      })
+      .finally(() => {
+        supportOpeningRef.current = false
+      })
+  }, [searchParams, me.id, systemUsers])
+
   const createThread = async () => {
     if (selectedUserIds.length === 0) return
 
@@ -798,6 +960,17 @@ const ChatModule = () => {
     setSending(true)
     setError('')
     try {
+      if (newChatType === 'private') {
+        const thread = await openDirectThread(selectedUsers[0], { title })
+        if (thread) {
+          setShowNewChat(false)
+          setNewTitle('')
+          setUserSearch('')
+          setSelectedUserIds([])
+        }
+        return
+      }
+
       const { data: threadRows, error: threadError } = await supabase
         .from('chat_threads')
         .insert([{
