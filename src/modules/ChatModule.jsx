@@ -476,7 +476,7 @@ const ChatModule = () => {
         .filter(p => p.thread_id === t.id)
         .map(p => p.user_name)
         .join(' ')
-      return `${getThreadDisplayTitle(t)} ${t.title || ''} ${t.last_message || ''} ${names}`.toLowerCase().includes(q)
+      return `${getThreadDisplayTitle(t)} ${t.title || ''} ${t.lastMessagePreview || t.last_message || ''} ${names}`.toLowerCase().includes(q)
     })
     return [...baseThreads].sort((a, b) => {
       const aPinned = a.is_pinned || isChannelThread(a)
@@ -563,6 +563,56 @@ const ChatModule = () => {
     setError(message)
   }
 
+  const signChatAttachment = async (message) => {
+    if (!message?.attachment_url || message.attachment_type === 'channel_poll' || message.attachment_type === 'system_task') {
+      return message
+    }
+
+    const path = message.attachment_path || message.attachment_url
+    const looksLikeStoragePath = path && !String(path).startsWith('http')
+    if (!looksLikeStoragePath) return message
+
+    const { data, error } = await supabase.storage
+      .from(CHAT_BUCKET)
+      .createSignedUrl(path, 60 * 60)
+
+    if (error) {
+      console.warn('[Chat] Failed to sign attachment:', error)
+      return { ...message, attachment_url: '' }
+    }
+
+    return {
+      ...message,
+      attachment_url: data?.signedUrl || '',
+      attachment_path: path
+    }
+  }
+
+  const signChatAttachments = async (rows = []) => {
+    return Promise.all((rows || []).map(signChatAttachment))
+  }
+
+  const getMessagePreview = (message) => {
+    if (!message) return ''
+    const body = String(message.body || '').trim()
+    if (body) return body.length > 120 ? `${body.slice(0, 117)}...` : body
+    if (message.attachment_type === 'channel_poll') return '[Опитування]'
+    if (message.attachment_type === 'system_task') return '[Завдання]'
+    if (message.attachment_url || message.attachment_path) return '[Фото]'
+    return '[Повідомлення]'
+  }
+
+  const getThreadPreview = (thread, message, rows) => {
+    if (!message) return thread.last_message || `${rows.length} учасн.`
+
+    const preview = getMessagePreview(message)
+    const isMultiUserThread = rows.length > 2 || isChannelThread(thread)
+    if (!isMultiUserThread) return preview
+
+    if (String(message.sender_id) === String(me.id)) return `Ви: ${preview}`
+    return `${message.sender_name || 'Учасник'}: ${preview}`
+  }
+
   const loadThreads = async (options = {}) => {
     const { silent = false } = options
     if (!silent) setLoadingThreads(true)
@@ -595,7 +645,7 @@ const ChatModule = () => {
       if (visibleThreadIds.length > 0) {
         const { data: recentRows, error: recentError } = await supabase
           .from('chat_messages')
-          .select('thread_id, sender_id, created_at')
+          .select('thread_id, sender_id, sender_name, body, attachment_url, attachment_path, attachment_type, created_at')
           .in('thread_id', visibleThreadIds)
           .is('deleted_at', null)
           .order('created_at', { ascending: false })
@@ -626,7 +676,8 @@ const ChatModule = () => {
         return {
           ...thread,
           unreadCount,
-          lastMessageSenderId: threadMessages[0]?.sender_id || null
+          lastMessageSenderId: threadMessages[0]?.sender_id || null,
+          lastMessagePreview: getThreadPreview(thread, threadMessages[0], rows)
         }
       })
 
@@ -662,7 +713,7 @@ const ChatModule = () => {
         .limit(300)
 
       if (msgError) throw msgError
-      const nextMessages = data || []
+      const nextMessages = await signChatAttachments(data || [])
       
       const isInitialLoad = messages.length === 0
       setMessages(nextMessages)
@@ -720,8 +771,8 @@ const ChatModule = () => {
         schema: 'public',
         table: 'chat_messages',
         filter: `thread_id=eq.${activeThreadId}`
-      }, (payload) => {
-        const incoming = payload.new
+      }, async (payload) => {
+        const incoming = await signChatAttachment(payload.new)
         if (!incoming || incoming.deleted_at) return
         setMessages(prev => {
           if (prev.some(message => message.id === incoming.id)) return prev
@@ -1094,9 +1145,8 @@ const ChatModule = () => {
 
     if (uploadError) throw uploadError
 
-    const { data } = supabase.storage.from(CHAT_BUCKET).getPublicUrl(path)
     return {
-      url: data?.publicUrl || '',
+      url: path,
       path,
       type: pendingImage.mime,
       name: pendingImage.name,
@@ -1144,13 +1194,14 @@ const ChatModule = () => {
         .filter(userId => userId && userId !== me.id)
 
       if (notifyUserIds.length > 0) {
-        const preview = text || (attachment ? '[Фото]' : 'Нове повідомлення')
-        const shortPreview = preview.length > 140 ? `${preview.slice(0, 137)}...` : preview
         const isDirectChat = activeParticipants.length === 2
+        const notificationTitle = activeIsChannel
+          ? (activeThread?.title || 'Нове повідомлення в каналі')
+          : (isDirectChat ? 'Нове приватне повідомлення' : (activeThread?.title || 'Нове повідомлення в чаті'))
         sendPushToUsers(
           Array.from(new Set(notifyUserIds)),
-          isDirectChat ? me.name : (activeThread?.title || 'Нове повідомлення в чаті'),
-          `${me.name}: ${shortPreview}`,
+          notificationTitle,
+          activeIsChannel ? 'У каналі є нове повідомлення' : 'Відкрийте чат, щоб переглянути повідомлення',
           '/chat',
           {
             tag: `chat-${activeThreadId}-${Date.now()}`,
@@ -1421,7 +1472,7 @@ const ChatModule = () => {
                           {(rows.find(p => p.user_id !== me.id)?.last_read_at && new Date(rows.find(p => p.user_id !== me.id).last_read_at).getTime() >= new Date(thread.last_message_at || thread.updated_at).getTime()) ? <CheckCheck size={14} /> : <Check size={14} />}
                         </span>
                       )}
-                      {thread.last_message || `${rows.length} учасн.`}
+                      {thread.lastMessagePreview || thread.last_message || `${rows.length} учасн.`}
                     </div>
                   </div>
                   <div className="thread-time-col">
