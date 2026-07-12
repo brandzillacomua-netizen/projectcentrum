@@ -454,9 +454,10 @@ export const PollMessage = ({ poll, onVote }) => {
 export const MessageReactions = ({ messageId, reactions, onToggle }) => {
   const messageReactions = reactions?.[messageId] || {}
   const hasAny = Object.keys(messageReactions).length > 0
+  const [showPicker, setShowPicker] = useState(false)
 
   return (
-    <div className={`message-reactions ${hasAny ? 'has-reactions' : ''}`}>
+    <div className={`message-reactions ${hasAny ? 'has-reactions' : ''}`} onMouseLeave={() => setShowPicker(false)}>
       {Object.entries(messageReactions).map(([reaction, item]) => (
         <button
           key={reaction}
@@ -469,12 +470,23 @@ export const MessageReactions = ({ messageId, reactions, onToggle }) => {
           <b>{item.count}</b>
         </button>
       ))}
-      <div className="reaction-picker">
-        {CHANNEL_REACTIONS.map(reaction => (
-          <button key={reaction} type="button" onClick={() => onToggle(messageId, reaction)}>
-            {reaction}
-          </button>
-        ))}
+      <div style={{ position: 'relative', display: 'inline-block' }}>
+        <button 
+          className="reaction-add-btn" 
+          onClick={() => setShowPicker(!showPicker)}
+          title="Додати реакцію"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+        </button>
+        {showPicker && (
+          <div className="reaction-picker popup">
+            {CHANNEL_REACTIONS.map(reaction => (
+              <button key={reaction} type="button" onClick={() => { onToggle(messageId, reaction); setShowPicker(false); }}>
+                {reaction}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -535,7 +547,8 @@ export const channelStyles = `
     margin-top: 5px;
   }
   .message-reactions .reaction-pill,
-  .reaction-picker button {
+  .reaction-picker.popup button,
+  .reaction-add-btn {
     min-width: 30px;
     height: 24px;
     border-radius: 999px;
@@ -548,6 +561,24 @@ export const channelStyles = `
     gap: 4px;
     cursor: pointer;
     font-size: 0.78rem;
+    transition: all 0.2s;
+  }
+  .reaction-add-btn {
+    width: 26px;
+    min-width: unset;
+    border-radius: 50%;
+    color: #666;
+    background: transparent;
+    border-color: transparent;
+    opacity: 0.4;
+  }
+  .message-wrapper:hover .reaction-add-btn {
+    opacity: 1;
+    color: #aaa;
+  }
+  .reaction-add-btn:hover {
+    background: rgba(255,255,255,0.1) !important;
+    color: #3b82f6 !important;
   }
   .message-reactions .reaction-pill.mine {
     border-color: rgba(59,130,246,0.45);
@@ -556,17 +587,36 @@ export const channelStyles = `
   .message-reactions .reaction-pill b {
     font-size: 0.68rem;
   }
-  .reaction-picker {
-    display: inline-flex;
+  .reaction-picker.popup {
+    display: flex;
     gap: 4px;
-    opacity: 0.25;
-    filter: grayscale(100%);
-    transition: all 0.2s;
+    position: absolute;
+    bottom: calc(100% + 4px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(20,20,22,0.95);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 6px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    z-index: 100;
   }
-  .message-wrapper:hover .reaction-picker,
-  .message-reactions.has-reactions .reaction-picker {
-    opacity: 1;
-    filter: none;
+  .message-row.mine .reaction-picker.popup {
+    left: auto;
+    right: 0;
+    transform: none;
+  }
+  .reaction-picker.popup button {
+    border: none;
+    background: transparent;
+    font-size: 1.25rem;
+    padding: 4px;
+    min-width: 34px;
+    height: 34px;
+  }
+  .reaction-picker.popup button:hover {
+    background: rgba(255,255,255,0.1);
+    transform: scale(1.15);
   }
   .channel-poll-modal {
     width: min(440px, calc(100vw - 28px));
