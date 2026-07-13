@@ -368,34 +368,6 @@ export function ForemanTaskDetails({
               >
                 <Printer size={14} /> ЗВІТ ПО НАРЯДУ
               </button>
-
-              <button
-                onClick={() => handleOpenNaryadPrint(task, order)}
-                disabled={naryadPrintLoading}
-                style={{
-                  background: 'rgba(16, 185, 129, 0.1)',
-                  border: '1px solid #10b981',
-                  color: '#10b981',
-                  fontSize: '0.8rem',
-                  fontWeight: 900,
-                  padding: '8px 18px',
-                  borderRadius: '10px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  transition: '0.2s',
-                  boxShadow: '0 4px 15px rgba(16, 185, 129, 0.1)',
-                  marginTop: '5px'
-                }}
-              >
-                {naryadPrintLoading ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <Printer size={14} />
-                )}
-                ДРУК НАРЯДУ
-              </button>
             </div>
             <div style={{ color: '#555', marginTop: '5px', fontSize: '1.1rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
               <div>ВИРІБ: <strong style={{ color: '#ef4444' }}>{productNames || '—'}</strong> | {order?.customer}</div>
