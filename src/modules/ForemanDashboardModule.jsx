@@ -69,8 +69,34 @@ const fetchWorkCardHistoryByCardIds = async (cardIds = []) => {
       const to = from + pageSize - 1
       const { data, error } = await supabase
         .from('work_card_history')
-        .select('*')
+        .select('id, card_id, nomenclature_id, scrap_qty, created_at, completed_at')
         .in('card_id', chunk)
+        .gt('scrap_qty', 0)
+        .order('created_at', { ascending: true })
+        .range(from, to)
+
+      if (error) throw error
+      rows.push(...(data || []))
+      if (!data || data.length < pageSize) break
+    }
+  }
+
+  return Array.from(new Map(rows.filter(Boolean).map(row => [String(row.id), row])).values())
+}
+
+const fetchWorkCardsByTaskIds = async (taskIds = [], columns = '*') => {
+  const rows = []
+  const chunkSize = 25
+  const pageSize = 1000
+
+  for (let i = 0; i < taskIds.length; i += chunkSize) {
+    const chunk = taskIds.slice(i, i + chunkSize)
+    for (let from = 0; ; from += pageSize) {
+      const to = from + pageSize - 1
+      const { data, error } = await supabase
+        .from('work_cards')
+        .select(columns)
+        .in('task_id', chunk)
         .order('created_at', { ascending: true })
         .range(from, to)
 
@@ -293,7 +319,7 @@ const TD_SUM = { ...TD, background: '#1c130d', borderRight: '1px solid #27272a',
 const ForemanDashboardModule = () => {
   const {
     currentUser, workCards, inventory, nomenclatures, fetchData,
-    orders, bomItems, tasks, workCardHistory, fetchModuleData
+    orders, bomItems, tasks, workCardHistory, workCardScrapTotals = [], fetchModuleData
   } = useMES()
 
   const [selectedTaskId, setSelectedTaskId] = useState(null)
@@ -368,6 +394,30 @@ const ForemanDashboardModule = () => {
   const [allTasksCards, setAllTasksCards] = useState([])
   const [allCardsHistory, setAllCardsHistory] = useState([])
   const [loadingAllData, setLoadingAllData] = useState(false)
+  const dashboardCards = useMemo(() => {
+    return Array.from(new Map([...(workCards || []), ...(allTasksCards || [])].filter(Boolean).map(card => [String(card.id), card])).values())
+  }, [workCards, allTasksCards])
+  const totalsHistoryRows = useMemo(() => {
+    return (workCardScrapTotals || [])
+      .filter(row => (Number(row.total_scrap) || 0) > 0)
+      .map(row => ({
+        id: `scrap-total-${row.id || `${row.card_id}-${row.nomenclature_id}`}`,
+        card_id: row.card_id,
+        task_id: row.task_id,
+        order_id: row.order_id,
+        nomenclature_id: row.nomenclature_id,
+        scrap_qty: Number(row.total_scrap) || 0,
+        created_at: row.last_scrap_at || row.updated_at,
+        completed_at: row.last_scrap_at || row.updated_at,
+        is_scrap_total: true
+      }))
+  }, [workCardScrapTotals])
+  const dashboardHistory = useMemo(() => {
+    const sourceRows = totalsHistoryRows.length > 0
+      ? totalsHistoryRows
+      : [...(workCardHistory || []), ...(allCardsHistory || [])]
+    return Array.from(new Map(sourceRows.filter(Boolean).map(row => [String(row.id || `${row.card_id}-${row.created_at || row.completed_at || Math.random()}`), row])).values())
+  }, [workCardHistory, allCardsHistory, totalsHistoryRows])
 
   const loadAllTasksCards = async (taskList) => {
     if (!taskList || taskList.length === 0) {
@@ -383,34 +433,19 @@ const ForemanDashboardModule = () => {
       
       const taskIds = allTaskIdsForOrders.length > 0 ? allTaskIdsForOrders : taskList.map(t => t.id)
 
-      const { data: cards, error } = await supabase
-        .from('work_cards')
-        .select('id, task_id, nomenclature_id, status, quantity, operation, used_in_shop2_qty, card_info')
-        .in('task_id', taskIds)
-      
-      if (!error && cards) {
+      const cards = await fetchWorkCardsByTaskIds(taskIds, 'id, task_id, nomenclature_id, status, quantity, operation, used_in_shop2_qty, card_info, created_at')
+
+      if (cards) {
         setAllTasksCards(cards)
         const cardIds = cards.map(c => c.id)
-        if (cardIds.length > 0) {
-          const chunkSize = 100
-          const promises = []
-          for (let i = 0; i < cardIds.length; i += chunkSize) {
-            const chunk = cardIds.slice(i, i + chunkSize)
-            promises.push(
-              supabase
-                .from('work_card_history')
-                .select('card_id, scrap_qty')
-                .in('card_id', chunk)
-            )
-          }
-          const results = await Promise.all(promises)
-          const history = results.flatMap(r => r.data || [])
+        if (totalsHistoryRows.length > 0) {
+          setAllCardsHistory(totalsHistoryRows)
+        } else if (cardIds.length > 0) {
+          const history = await fetchWorkCardHistoryByCardIds(cardIds)
           setAllCardsHistory(history)
         } else {
           setAllCardsHistory([])
         }
-      } else if (error) {
-        console.error(error)
       }
     } catch (e) {
       console.error(e)
@@ -421,21 +456,20 @@ const ForemanDashboardModule = () => {
   useEffect(() => {
     setLoadingAllData(true)
     loadAllTasksCards(relevantTasks).finally(() => setLoadingAllData(false))
-  }, [relevantTasks])
+  }, [relevantTasks, totalsHistoryRows.length])
 
   // ── Load all cards for a specific task (for drill-down) ──
   useEffect(() => {
     if (!selectedTaskId) return
     if (orderAllCards[selectedTaskId]) return // already loaded
     setLoadingCards(prev => ({ ...prev, [selectedTaskId]: true }))
-    supabase
-      .from('work_cards')
-      .select('*')
-      .eq('task_id', selectedTaskId)
-      .then(({ data, error }) => {
-        if (!error && data) {
-          setOrderAllCards(prev => ({ ...prev, [selectedTaskId]: data }))
-        }
+    fetchWorkCardsByTaskIds([selectedTaskId], '*')
+      .then(data => {
+        setOrderAllCards(prev => ({ ...prev, [selectedTaskId]: data || [] }))
+        setLoadingCards(prev => ({ ...prev, [selectedTaskId]: false }))
+      })
+      .catch(error => {
+        console.error(error)
         setLoadingCards(prev => ({ ...prev, [selectedTaskId]: false }))
       })
   }, [selectedTaskId])
@@ -443,12 +477,12 @@ const ForemanDashboardModule = () => {
   // ── Index cards by task_id for O(1) lookups (instead of O(n) filter everywhere) ──
   const cardsByTaskId = useMemo(() => {
     const map = {}
-    allTasksCards.forEach(c => {
+    dashboardCards.forEach(c => {
       if (!map[c.task_id]) map[c.task_id] = []
       map[c.task_id].push(c)
     })
     return map
-  }, [allTasksCards])
+  }, [dashboardCards])
 
   // ── Production cache: task_id -> nom_id -> produced qty ──
   const productionCache = useMemo(() => {
@@ -506,9 +540,9 @@ const ForemanDashboardModule = () => {
   const scrapCache = useMemo(() => {
     const cache = {}
     const cardMap = {}
-    allTasksCards.forEach(c => { cardMap[c.id] = c })
+    dashboardCards.forEach(c => { cardMap[c.id] = c })
     
-    allCardsHistory.forEach(h => {
+    dashboardHistory.forEach(h => {
       if (!h.card_id) return
       const card = cardMap[h.card_id]
       if (!card) return
@@ -518,7 +552,7 @@ const ForemanDashboardModule = () => {
       cache[tid][nid] = (cache[tid][nid] || 0) + (Number(h.scrap_qty) || 0)
     })
     return cache
-  }, [allCardsHistory, allTasksCards])
+  }, [dashboardHistory, dashboardCards])
 
   // ── Task status map ──
   const taskStatusMap = useMemo(() => {
@@ -640,7 +674,7 @@ const ForemanDashboardModule = () => {
     const allTaskIdsForOrders = allTasksForOrders.map(t => t.id)
 
     const filterSet = new Set(allTaskIdsForOrders)
-    const filteredCards = allTasksCards.filter(c => c.task_id && filterSet.has(c.task_id))
+    const filteredCards = dashboardCards.filter(c => c.task_id && filterSet.has(c.task_id))
 
     // Build parent->children map from snapshots or static BOM
     const parentToChildren = {}
@@ -798,7 +832,7 @@ const ForemanDashboardModule = () => {
           if (c.task_id && taskParentMap[c.task_id] && taskParentMap[c.task_id] !== parentId) return false
           return true
         }).map(c => c.id))
-        const qScrap = allCardsHistory.filter(h => h.card_id && cardIdsForThisPart.has(h.card_id)).reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
+        const qScrap = dashboardHistory.filter(h => h.card_id && cardIdsForThisPart.has(h.card_id)).reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
 
         const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf + qSgp + qBz
 
@@ -831,13 +865,13 @@ const ForemanDashboardModule = () => {
     }
     return buildWipGroups([selectedTaskId])
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTaskId, allTasksCards, allCardsHistory, inventory, nomenclatures, bomItems, tasks, orders, searchQuery])
+  }, [selectedTaskId, dashboardCards, dashboardHistory, inventory, nomenclatures, bomItems, tasks, orders, searchQuery])
 
   // ── Refresh ──
   const handleRefresh = async () => {
     setIsRefreshing(true)
     try {
-      await fetchData(['orders', 'tasks', 'inventory', 'work_cards', 'nomenclatures', 'bom_items', 'work_card_history'])
+      await fetchData(['orders', 'tasks', 'inventory', 'nomenclatures', 'bom_items'])
       await loadAllTasksCards(relevantTasks)
       // Clear per-order card cache
       setOrderAllCards({})
@@ -1117,9 +1151,9 @@ const ForemanDashboardModule = () => {
             ordersMap={ordersMap}
             tasks={tasks}
             workCards={workCards}
-            allTasksCards={allTasksCards}
+            allTasksCards={dashboardCards}
             cardsByTaskId={cardsByTaskId}
-            allCardsHistory={allCardsHistory}
+            allCardsHistory={dashboardHistory}
             nomenclatures={nomenclatures}
             bomItems={bomItems}
             inventory={inventory}

@@ -3,6 +3,7 @@ import { countAsProduced, getDisplayPartsForOrderItem, SHORTAGE_CACHE_KEY } from
 
 export function useForemanComputed({
   tasks, orders, allOrdersMap, workCards, workCardHistory,
+  workCardScrapTotals = [],
   staticCompletedCards, staticHistory, archiveCards, taskHistory,
   nomenclatures, bomItems, taskDataCacheRef,
   cachedShortageMap,
@@ -57,33 +58,49 @@ export function useForemanComputed({
       })
     }
 
-    const historyMap = new Map()
-    ;[...staticHistory, ...activeHistory, ...cachedHistory].forEach(h => {
-      if (h && h.id && !historyMap.has(h.id)) historyMap.set(h.id, h)
-    })
-    const allHistory = Array.from(historyMap.values())
-
     const cardsById = new Map(allCards.map(card => [String(card.id), card]))
     workCards.forEach(card => {
       const key = String(card.id)
       if (!cardsById.has(key)) cardsById.set(key, card)
     })
 
-    allHistory.forEach(h => {
-      if (h.card_id) {
-        csCache[h.card_id] = (csCache[h.card_id] || 0) + (Number(h.scrap_qty) || 0)
-      }
-      const card = h.card_id ? cardsById.get(String(h.card_id)) : null
-      if (card) {
-        const tid = card.task_id
-        const nid = String(card.nomenclature_id)
+    const totals = (workCardScrapTotals || []).filter(row => (Number(row.total_scrap) || 0) > 0)
+
+    if (totals.length > 0) {
+      totals.forEach(row => {
+        const scrap = Number(row.total_scrap) || 0
+        const cardId = row.card_id ? String(row.card_id) : null
+        if (cardId) csCache[cardId] = (csCache[cardId] || 0) + scrap
+        const card = cardId ? cardsById.get(cardId) : null
+        const tid = row.task_id || card?.task_id
+        const nid = String(row.nomenclature_id || card?.nomenclature_id || '')
+        if (!tid || !nid) return
         if (!sCache[tid]) sCache[tid] = {}
-        sCache[tid][nid] = (sCache[tid][nid] || 0) + (Number(h.scrap_qty) || 0)
-      }
-    })
+        sCache[tid][nid] = (sCache[tid][nid] || 0) + scrap
+      })
+    } else {
+      const historyMap = new Map()
+      ;[...staticHistory, ...activeHistory, ...cachedHistory].forEach(h => {
+        if (h && h.id && !historyMap.has(h.id)) historyMap.set(h.id, h)
+      })
+      const allHistory = Array.from(historyMap.values())
+
+      allHistory.forEach(h => {
+        if (h.card_id) {
+          csCache[h.card_id] = (csCache[h.card_id] || 0) + (Number(h.scrap_qty) || 0)
+        }
+        const card = h.card_id ? cardsById.get(String(h.card_id)) : null
+        if (card) {
+          const tid = card.task_id
+          const nid = String(card.nomenclature_id)
+          if (!sCache[tid]) sCache[tid] = {}
+          sCache[tid][nid] = (sCache[tid][nid] || 0) + (Number(h.scrap_qty) || 0)
+        }
+      })
+    }
 
     return { productionCache: prodCache, scrapCache: sCache, redoCache: rCache, allCardsCache: allCards, cardScrapCache: csCache }
-  }, [tasks, workCards, workCardHistory, staticCompletedCards, staticHistory, archiveCards, taskHistory])
+  }, [tasks, workCards, workCardHistory, workCardScrapTotals, staticCompletedCards, staticHistory, archiveCards, taskHistory])
 
   // ── taskCardsCountMap ──────────────────────────────────────────────
   const taskCardsCountMap = useMemo(() => {

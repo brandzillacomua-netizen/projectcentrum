@@ -1209,6 +1209,7 @@ export function createProductionActions({
     setWorkCards(prev => prev.map(c => c.id === cardId ? { ...c, ...cardUpdate } : c))
     setWorkCardHistory(prev => [{ card_id: cardId, nomenclature_id: card.nomenclature_id, stage_name: card.operation || 'Розкрій', operator_name: card.operator_name || 'Не вказано', card_info: historyCardInfo, qty_at_start: card.quantity, qty_completed: qtyCompleted, scrap_qty: totalScrap, started_at: card.started_at, completed_at: new Date().toISOString() }, ...prev])
     refreshTable('work_cards')
+    if (totalScrap > 0) refreshTable('work_card_scrap_totals')
     refreshTable('inventory')
   }
 

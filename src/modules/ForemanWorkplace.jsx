@@ -14,7 +14,36 @@ import ForemanPrintNaryadQueue from './Foreman/components/ForemanPrintNaryadQueu
 import { ForemanReportModal } from './Foreman/components/ForemanReportModal'
 import { getDisplayPartsForOrderItem as getDisplayPartsForOrderItemHelper, getStandardMachineType, findMachineByName, MACHINE_TYPES } from './Foreman/utils/foremanHelpers'
 
-const fetchWorkCardHistoryByCardIds = async (cardIds = [], columns = '*') => {
+const uniqueById = (rows = []) => {
+  return Array.from(new Map(rows.filter(Boolean).map(row => [String(row.id), row])).values())
+}
+
+const fetchWorkCardsByTaskIds = async (taskIds = [], columns = '*') => {
+  const rows = []
+  const chunkSize = 8
+  const pageSize = 1000
+
+  for (let i = 0; i < taskIds.length; i += chunkSize) {
+    const chunk = taskIds.slice(i, i + chunkSize)
+    for (let from = 0; ; from += pageSize) {
+      const to = from + pageSize - 1
+      const { data, error } = await supabase
+        .from('work_cards')
+        .select(columns)
+        .in('task_id', chunk)
+        .order('created_at', { ascending: true })
+        .range(from, to)
+
+      if (error) throw error
+      rows.push(...(data || []))
+      if (!data || data.length < pageSize) break
+    }
+  }
+
+  return uniqueById(rows)
+}
+
+const fetchScrapHistoryByCardIds = async (cardIds = []) => {
   const rows = []
   const chunkSize = 25
   const pageSize = 1000
@@ -25,8 +54,9 @@ const fetchWorkCardHistoryByCardIds = async (cardIds = [], columns = '*') => {
       const to = from + pageSize - 1
       const { data, error } = await supabase
         .from('work_card_history')
-        .select(columns)
+        .select('id, card_id, nomenclature_id, scrap_qty, created_at, completed_at, stage_name, operator_name')
         .in('card_id', chunk)
+        .gt('scrap_qty', 0)
         .order('created_at', { ascending: true })
         .range(from, to)
 
@@ -36,7 +66,7 @@ const fetchWorkCardHistoryByCardIds = async (cardIds = [], columns = '*') => {
     }
   }
 
-  return Array.from(new Map(rows.filter(Boolean).map(row => [String(row.id), row])).values())
+  return uniqueById(rows)
 }
 
 const getRequestQty = (r) => {
@@ -84,6 +114,7 @@ const ForemanWorkplace = () => {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const { tasks, orders, workCards, createWorkCard, createWorkCardsBatch, inventory, completeTaskByMaster, nomenclatures, bomItems, machines, machineOperations, workCardHistory, confirmBuffer, fetchData, reserveBZForTask, fetchTaskArchiveCards, fetchModuleData, fetchTaskPlanSnapshot, machineCalls, currentUser, createDovyпускMaterialRequests, requests: materialRequests, theme, toggleTheme } = useMES()
+  const { workCardScrapTotals = [] } = useMES()
 
   const countAsProduced = (card) => {
     if (card.status === 'completed') return true
@@ -153,6 +184,21 @@ const ForemanWorkplace = () => {
   const [nomLoadCapacityOverrides, setNomLoadCapacityOverrides] = useState({})
   const [localGeneratedCards, setLocalGeneratedCards] = useState([])
   const archiveLoadSeqRef = useRef(0)
+  const activeTaskCardsForArchive = useMemo(() => {
+    if (!activeTaskId) return []
+    return workCards.filter(c => c.task_id === activeTaskId)
+  }, [workCards, activeTaskId])
+  const activeTaskCardsKey = useMemo(() => {
+    return activeTaskCardsForArchive.map(c => String(c.id)).sort().join('|')
+  }, [activeTaskCardsForArchive])
+  const activeTaskScrapTotalsKey = useMemo(() => {
+    if (!activeTaskId) return ''
+    return (workCardScrapTotals || [])
+      .filter(row => row.task_id === activeTaskId && (Number(row.total_scrap) || 0) > 0)
+      .map(row => `${row.card_id}:${row.nomenclature_id}:${row.total_scrap}`)
+      .sort()
+      .join('|')
+  }, [workCardScrapTotals, activeTaskId])
 
   useEffect(() => {
     if (localGeneratedCards.length === 0 || workCards.length === 0) return
@@ -213,12 +259,27 @@ const ForemanWorkplace = () => {
         if (archiveLoadSeqRef.current !== loadSeq) return
         setArchiveCards(cards || [])
 
-        const activeTaskCards = workCards.filter(c => c.task_id === activeTaskId)
-        const allTaskCards = Array.from(new Map([...activeTaskCards, ...(cards || [])].map(card => [String(card.id), card])).values())
+        const allTaskCards = Array.from(new Map([...activeTaskCardsForArchive, ...(cards || [])].map(card => [String(card.id), card])).values())
         const cardIds = allTaskCards.map(c => c.id)
         let histData = []
         if (cardIds.length > 0) {
-          histData = await fetchWorkCardHistoryByCardIds(cardIds)
+          const cardIdSet = new Set(cardIds.map(id => String(id)))
+          const totalRows = (workCardScrapTotals || []).filter(row =>
+            row.card_id &&
+            cardIdSet.has(String(row.card_id)) &&
+            (Number(row.total_scrap) || 0) > 0
+          )
+          histData = totalRows.length > 0
+            ? totalRows.map(row => ({
+                id: `scrap-total-${row.id || `${row.card_id}-${row.nomenclature_id}`}`,
+                card_id: row.card_id,
+                nomenclature_id: row.nomenclature_id,
+                scrap_qty: Number(row.total_scrap) || 0,
+                created_at: row.last_scrap_at || row.updated_at,
+                completed_at: row.last_scrap_at || row.updated_at,
+                is_scrap_total: true
+              }))
+            : await fetchScrapHistoryByCardIds(cardIds)
           if (archiveLoadSeqRef.current !== loadSeq) return
           setTaskHistory(histData)
         } else {
@@ -229,8 +290,22 @@ const ForemanWorkplace = () => {
         taskDataCacheRef.current.archiveCards[activeTaskId] = cards || []
         taskDataCacheRef.current.taskHistory[activeTaskId] = histData
         if (archiveLoadSeqRef.current === loadSeq) setIsLoadingHistory(false)
-      }).catch(() => {
-        if (archiveLoadSeqRef.current === loadSeq) setIsLoadingHistory(false)
+      }).catch((error) => {
+        console.warn('Error loading archive cards/history:', error?.message || error)
+        if (archiveLoadSeqRef.current !== loadSeq) return
+        if (cachedCards) setArchiveCards(cachedCards)
+        if (hasCachedHistory) {
+          setTaskHistory(cachedHistory)
+        } else {
+          const activeIds = new Set(activeTaskCardsForArchive.map(c => String(c.id)))
+          const recentScrap = (workCardHistory || []).filter(h =>
+            h?.card_id &&
+            activeIds.has(String(h.card_id)) &&
+            (Number(h.scrap_qty) || 0) > 0
+          )
+          setTaskHistory(recentScrap)
+        }
+        setIsLoadingHistory(false)
       })
     } else {
       archiveLoadSeqRef.current += 1
@@ -238,7 +313,7 @@ const ForemanWorkplace = () => {
       setTaskHistory([])
       setIsLoadingHistory(false)
     }
-  }, [activeTaskId, workCards, fetchTaskPlanSnapshot, fetchTaskArchiveCards])
+  }, [activeTaskId, activeTaskCardsKey, activeTaskScrapTotalsKey, fetchTaskPlanSnapshot, fetchTaskArchiveCards])
 
   // ── Load orders for ALL relevant tasks (pagination-independent) ──────────────
   useEffect(() => {
@@ -283,28 +358,24 @@ const ForemanWorkplace = () => {
     const taskIds = tasks.filter(t => t.status !== 'completed').map(t => t.id);
     if (taskIds.length === 0) return;
 
-    supabase
-      .from('work_cards')
-      .select('id, task_id, nomenclature_id, quantity, operation, status, card_info')
-      .in('task_id', taskIds)
-      .then(async ({ data: cardsData, error: cardsError }) => {
-        if (cardsError) {
-          console.error('Error fetching cards for static progress:', cardsError);
-          return;
-        }
+    fetchWorkCardsByTaskIds(taskIds, 'id, task_id, nomenclature_id, quantity, operation, status, card_info, created_at')
+      .then(async (cardsData) => {
 
         // Only track completed cards in staticCompletedCards — active cards come from workCards global state
         const completedCards = (cardsData || []).filter(c => c.status === 'completed');
         setStaticCompletedCards(completedCards);
 
-        // Fetch history for ALL cards (completed and active) to ensure scrap quantities are 100% accurate
+        // For shortage/scrap math we only need rows where scrap_qty > 0.
         const cardIds = (cardsData || []).map(c => c.id);
         if (cardIds.length > 0) {
-          const historyData = await fetchWorkCardHistoryByCardIds(cardIds, 'id, card_id, nomenclature_id, scrap_qty, created_at');
+          const historyData = await fetchScrapHistoryByCardIds(cardIds);
           setStaticHistory(historyData);
         } else {
           setStaticHistory([]);
         }
+      })
+      .catch((error) => {
+        console.warn('Error fetching cards/history for static progress:', error?.message || error);
       });
   }, [tasks, activeTaskId]);
 
@@ -334,7 +405,7 @@ const ForemanWorkplace = () => {
     taskShortageMap,
     relevantTasks, activeQueueCount
   } = useForemanComputed({
-    tasks, orders, allOrdersMap, workCards, workCardHistory,
+    tasks, orders, allOrdersMap, workCards, workCardHistory, workCardScrapTotals,
     staticCompletedCards, staticHistory, archiveCards, taskHistory,
     nomenclatures, bomItems, taskDataCacheRef,
     cachedShortageMap,
@@ -1428,7 +1499,7 @@ const ForemanWorkplace = () => {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     {isLoadingHistory ? (
                       <div style={{ background: '#0f0f0f', border: '1px solid #222', borderRadius: '12px', padding: '14px 18px', color: '#ff9000', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-                        Завантажуємо повну історію карток...
+                        Оновлюємо архів карток...
                       </div>
                     ) : Object.keys(task.plan_snapshot || {}).map((nomIdStr) => {
                       const nomId = isNaN(nomIdStr) ? nomIdStr : Number(nomIdStr)
