@@ -1,6 +1,7 @@
 import { asId, asNumber } from '../../utils/normalize.js'
 import { countAsProduced, getProducedQty, isBufferCard } from '../scrap/scrapCalculations.js'
 import { getSnapshotPartEntries } from '../task-loading/taskSelectors.js'
+import { getBestKnownProducedFromFlow } from './flowUtils.js'
 
 export const getCardSheets = (card, unitsPerSheet, cardScrap = 0) => {
   const explicit = asNumber(card?.actual_sheets || card?.actualSheets)
@@ -9,7 +10,7 @@ export const getCardSheets = (card, unitsPerSheet, cardScrap = 0) => {
   return Math.ceil(originalQty / Math.max(1, asNumber(unitsPerSheet, 1)))
 }
 
-export const calculatePartShortage = ({ task, entry, cards, cardScrapMap, scrapByNom }) => {
+export const calculatePartShortage = ({ task, entry, cards, cardScrapMap, scrapByNom, flowTotalsByTaskNom = {} }) => {
   const nomId = asId(entry.nomId)
   const snapshot = entry.snapshot || {}
   const unitsPerSheet = Math.max(1, asNumber(snapshot.units_per_sheet || entry.nom?.units_per_sheet, 1))
@@ -20,7 +21,17 @@ export const calculatePartShortage = ({ task, entry, cards, cardScrapMap, scrapB
 
   const nomCards = cards.filter(card => asId(card.task_id) === asId(task.id) && asId(card.nomenclature_id) === nomId)
   const productionCards = nomCards.filter(card => !isBufferCard(card))
-  const produced = getProducedQty(nomCards)
+  
+  const flowRows = flowTotalsByTaskNom?.[asId(task.id)]?.[nomId] || []
+  
+  // Filter flow rows to only include active cards to avoid summing deleted cards
+  const activeCardIds = new Set(nomCards.map(c => String(c.id)))
+  const activeFlowRows = flowRows.filter(row => activeCardIds.has(String(row.card_id)))
+  
+  const flowProduced = activeFlowRows.length > 0 ? getBestKnownProducedFromFlow(activeFlowRows) : 0
+  const sumProduced = getProducedQty(nomCards)
+  const produced = flowProduced > 0 ? flowProduced : sumProduced
+
   const activeRedo = nomCards.some(card => {
     const info = String(card.card_info || '')
     return !countAsProduced(card) && (card.is_rework || info.includes('[REDO]'))
@@ -34,6 +45,9 @@ export const calculatePartShortage = ({ task, entry, cards, cardScrapMap, scrapB
   const spareFromSheets = (totalSheets * unitsPerSheet) + stockBZ - need
   const scrap = asNumber(scrapByNom?.[nomId])
   const shortage = Math.max(0, scrap - spareFromSheets)
+
+  const splits = Array.isArray(snapshot.splits) ? snapshot.splits : []
+  const isSplitMode = splits.length > 0
 
   return {
     taskId: asId(task.id),
@@ -56,11 +70,13 @@ export const calculatePartShortage = ({ task, entry, cards, cardScrapMap, scrapB
     activeRedo,
     cards: nomCards,
     productionCards,
-    machine: snapshot.machine || snapshot.selected_machine || task.machine_name || productionCards[0]?.machine || ''
+    machine: snapshot.machine || snapshot.selected_machine || task.machine_name || productionCards[0]?.machine || '',
+    splits,
+    isSplitMode
   }
 }
 
-export const calculateTaskParts = ({ task, cards, scrapModel, nomenclatures }) => {
+export const calculateTaskParts = ({ task, cards, scrapModel, nomenclatures, flowTotalsByTaskNom = {} }) => {
   const entries = getSnapshotPartEntries(task, nomenclatures)
   const taskScrap = scrapModel.scrapByTask?.[asId(task.id)] || {}
 
@@ -69,7 +85,8 @@ export const calculateTaskParts = ({ task, cards, scrapModel, nomenclatures }) =
     entry,
     cards,
     cardScrapMap: scrapModel.cardScrap || {},
-    scrapByNom: taskScrap
+    scrapByNom: taskScrap,
+    flowTotalsByTaskNom
   }))
 }
 

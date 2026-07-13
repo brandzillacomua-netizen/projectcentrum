@@ -29,7 +29,7 @@ const stateRank = {
   completed: 6
 }
 
-export default function TaskQueue({ taskModels, activeId, onSelect, isDrawerOpen, setIsDrawerOpen }) {
+export default function TaskQueue({ taskModels, nomenclatures = [], activeId, onSelect, isDrawerOpen, setIsDrawerOpen }) {
   const handleSelect = (id) => {
     onSelect(id)
     if (typeof setIsDrawerOpen === 'function') setIsDrawerOpen(false)
@@ -61,7 +61,10 @@ export default function TaskQueue({ taskModels, activeId, onSelect, isDrawerOpen
           const borderSize = active ? '6px' : '4px'
           const bgColor = active ? 'rgba(255,255,255,.08)' : state.bg
           const title = model.title || model.task.id
-          const product = model.order?.product_name || model.order?.nomenclature?.name || model.task.step || 'Цех №1'
+          const prodId = model.order?.nomenclature_id || model.order?.order_items?.[0]?.nomenclature_id
+          const prod = nomenclatures?.find(n => String(n.id) === String(prodId))
+          const product = prod ? prod.name : (model.order?.product_name || model.order?.nomenclature?.name || model.task.step || 'Цех №1')
+          const qty = model.task.planned_sets || model.order?.quantity || 0
           const customer = model.order?.customer || model.order?.client || ''
 
           return (
@@ -98,7 +101,7 @@ export default function TaskQueue({ taskModels, activeId, onSelect, isDrawerOpen
               </div>
 
               <div style={{ fontSize: '0.83rem', color: state.key === 'completed' ? '#555' : '#eaeaea', fontWeight: 900, margin: '4px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {product}
+                {product} • <span style={{ color: state.key === 'completed' ? '#777' : '#ff9000' }}>{qty} шт.</span>
               </div>
               {customer && (
                 <div style={{ fontSize: '0.7rem', color: state.key === 'completed' ? '#333' : '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

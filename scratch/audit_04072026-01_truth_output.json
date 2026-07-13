@@ -1,0 +1,305 @@
+{
+  "order_num": "04072026-01",
+  "order_id": "a8e83dc0-79b2-4c0d-aade-8af7b9500cb1",
+  "task_count": 2,
+  "card_count": 544,
+  "flow_row_count": 1000,
+  "scrap_row_count": 113,
+  "parts": [
+    {
+      "id": "ef976ad5-8c88-4f03-a53e-2b914f15d4ba",
+      "name": "KH-10(210)-П-7-62",
+      "need": 88000,
+      "stock_from_snapshot": 0,
+      "planned_reserve": 40,
+      "scrap": 753,
+      "shortage_from_scrap": 713,
+      "shop1_accepted": 43267,
+      "buffer_shop2": 1929,
+      "waiting_cut": 744,
+      "real_sgp_by_flow": 0,
+      "real_sgp_by_cards": 41338,
+      "flow_bz": 0,
+      "forecast_sum_cards": 44011,
+      "card_status_qty": {
+        "at-shop2-buffer": 43267,
+        "completed": 45732,
+        "waiting-materials": 744
+      },
+      "operation_status_qty": {
+        "Сортування / at-shop2-buffer": 43267,
+        "Пакування/СГП / completed": 45732,
+        "Розкрій / waiting-materials": 744
+      },
+      "global_inventory_not_order_scoped": [
+        {
+          "type": "bz_shop2",
+          "warehouse": "operational",
+          "total_qty": 0,
+          "reserved_qty": 0
+        },
+        {
+          "type": "bz",
+          "warehouse": "operational",
+          "total_qty": 1796,
+          "reserved_qty": 0
+        },
+        {
+          "type": "finished",
+          "warehouse": "operational",
+          "total_qty": 48861,
+          "reserved_qty": 0
+        },
+        {
+          "type": "scrap_cat_4",
+          "warehouse": "operational",
+          "total_qty": 466,
+          "reserved_qty": 0
+        },
+        {
+          "type": "scrap_cat_3",
+          "warehouse": "operational",
+          "total_qty": 500,
+          "reserved_qty": 0
+        },
+        {
+          "type": "semi_shop2",
+          "warehouse": "operational",
+          "total_qty": 1929,
+          "reserved_qty": 0
+        },
+        {
+          "type": "scrap_ready",
+          "warehouse": "operational",
+          "total_qty": 965,
+          "reserved_qty": 0
+        },
+        {
+          "type": "scrap_restoration",
+          "warehouse": "operational",
+          "total_qty": 58,
+          "reserved_qty": 0
+        }
+      ]
+    },
+    {
+      "id": "dc154eb4-a568-4944-8608-9cb0dae1180e",
+      "name": "KH-10(210)-Х-4-109",
+      "need": 44000,
+      "stock_from_snapshot": 0,
+      "planned_reserve": 36,
+      "scrap": 23,
+      "shortage_from_scrap": 0,
+      "shop1_accepted": 22104,
+      "buffer_shop2": 109,
+      "waiting_cut": 0,
+      "real_sgp_by_flow": 0,
+      "real_sgp_by_cards": 21995,
+      "flow_bz": 0,
+      "forecast_sum_cards": 22104,
+      "card_status_qty": {
+        "at-shop2-buffer": 22104,
+        "completed": 22431
+      },
+      "operation_status_qty": {
+        "Сортування / at-shop2-buffer": 22104,
+        "Пакування/СГП / completed": 22431
+      },
+      "global_inventory_not_order_scoped": [
+        {
+          "type": "scrap_cat_4",
+          "warehouse": "operational",
+          "total_qty": 181,
+          "reserved_qty": 0
+        },
+        {
+          "type": "scrap_cat_3",
+          "warehouse": "operational",
+          "total_qty": 12,
+          "reserved_qty": 0
+        },
+        {
+          "type": "bz",
+          "warehouse": "operational",
+          "total_qty": 474,
+          "reserved_qty": 0
+        },
+        {
+          "type": "bz_shop2",
+          "warehouse": "operational",
+          "total_qty": 18,
+          "reserved_qty": 0
+        },
+        {
+          "type": "finished",
+          "warehouse": "operational",
+          "total_qty": 23154,
+          "reserved_qty": 0
+        },
+        {
+          "type": "scrap_ready",
+          "warehouse": "operational",
+          "total_qty": 193,
+          "reserved_qty": 0
+        },
+        {
+          "type": "semi_shop2",
+          "warehouse": "operational",
+          "total_qty": 200,
+          "reserved_qty": 0
+        }
+      ]
+    },
+    {
+      "id": "8300e002-0169-46ec-9cc6-39cef0971269",
+      "name": "KR-10(210)-Н-3-18",
+      "need": 22000,
+      "stock_from_snapshot": 30,
+      "planned_reserve": 26,
+      "scrap": 23,
+      "shortage_from_scrap": 0,
+      "shop1_accepted": 10975,
+      "buffer_shop2": 0,
+      "waiting_cut": 0,
+      "real_sgp_by_flow": 30,
+      "real_sgp_by_cards": 11005,
+      "flow_bz": 15,
+      "forecast_sum_cards": 11020,
+      "card_status_qty": {
+        "completed": 10990,
+        "at-shop2-buffer": 10975
+      },
+      "operation_status_qty": {
+        "Склад БЗ / completed": 15,
+        "Сортування / at-shop2-buffer": 10975,
+        "Пакування/СГП / completed": 10975
+      },
+      "global_inventory_not_order_scoped": [
+        {
+          "type": "finished",
+          "warehouse": "operational",
+          "total_qty": 11192,
+          "reserved_qty": 0
+        },
+        {
+          "type": "bz",
+          "warehouse": "operational",
+          "total_qty": 6,
+          "reserved_qty": 0
+        },
+        {
+          "type": "scrap",
+          "warehouse": "operational",
+          "total_qty": 0,
+          "reserved_qty": 0
+        },
+        {
+          "type": "scrap_cat_3",
+          "warehouse": "operational",
+          "total_qty": 2,
+          "reserved_qty": 0
+        },
+        {
+          "type": "bz_shop2",
+          "warehouse": "operational",
+          "total_qty": 0,
+          "reserved_qty": 0
+        },
+        {
+          "type": "semi_shop2",
+          "warehouse": "operational",
+          "total_qty": 0,
+          "reserved_qty": 0
+        },
+        {
+          "type": "scrap_cat_4",
+          "warehouse": "operational",
+          "total_qty": 5,
+          "reserved_qty": 0
+        },
+        {
+          "type": "scrap_ready",
+          "warehouse": "operational",
+          "total_qty": 32,
+          "reserved_qty": 0
+        },
+        {
+          "type": "scrap_restoration",
+          "warehouse": "operational",
+          "total_qty": 25,
+          "reserved_qty": 0
+        }
+      ]
+    },
+    {
+      "id": "076ba504-b3f6-4ec8-8844-fe9515077d9c",
+      "name": "KR-Line-210-415-В-3-28",
+      "need": 22000,
+      "stock_from_snapshot": 0,
+      "planned_reserve": 8,
+      "scrap": 3,
+      "shortage_from_scrap": 0,
+      "shop1_accepted": 11001,
+      "buffer_shop2": 0,
+      "waiting_cut": 5404,
+      "real_sgp_by_flow": 11001,
+      "real_sgp_by_cards": 11001,
+      "flow_bz": 0,
+      "forecast_sum_cards": 16405,
+      "card_status_qty": {
+        "at-shop2-buffer": 11001,
+        "new": 5404,
+        "completed": 11001
+      },
+      "operation_status_qty": {
+        "Сортування / at-shop2-buffer": 11001,
+        "Розкрій / new": 5404,
+        "Пакування/СГП / completed": 11001
+      },
+      "global_inventory_not_order_scoped": [
+        {
+          "type": "bz_shop2",
+          "warehouse": "operational",
+          "total_qty": 0,
+          "reserved_qty": 0
+        },
+        {
+          "type": "semi_shop2",
+          "warehouse": "operational",
+          "total_qty": 0,
+          "reserved_qty": 0
+        },
+        {
+          "type": "finished",
+          "warehouse": "operational",
+          "total_qty": 11215,
+          "reserved_qty": 0
+        },
+        {
+          "type": "scrap_cat_1",
+          "warehouse": "operational",
+          "total_qty": 50,
+          "reserved_qty": 0
+        },
+        {
+          "type": "scrap_cat_4",
+          "warehouse": "operational",
+          "total_qty": 8,
+          "reserved_qty": 0
+        },
+        {
+          "type": "scrap_ready",
+          "warehouse": "operational",
+          "total_qty": 11,
+          "reserved_qty": 0
+        },
+        {
+          "type": "bz",
+          "warehouse": "operational",
+          "total_qty": 1,
+          "reserved_qty": 0
+        }
+      ]
+    }
+  ]
+}

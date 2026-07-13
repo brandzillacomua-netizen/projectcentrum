@@ -130,6 +130,29 @@ const fetchWorkCardScrapTotals = async () => {
   }
 }
 
+const fetchWorkCardFlowTotals = async () => {
+  const pageSize = 1000
+  const allRows = []
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from('work_card_flow_totals')
+      .select('*')
+      .order('updated_at', { ascending: false })
+      .range(from, from + pageSize - 1)
+
+    if (error) return { data: allRows.length > 0 ? allRows : null, error }
+    const page = data || []
+    allRows.push(...page)
+    if (page.length < pageSize) break
+  }
+
+  return {
+    data: Array.from(new Map(allRows.map(row => [String(row.id), row])).values()),
+    error: null
+  }
+}
+
 const mergeTaskRows = (existing = [], incoming = []) => {
   const merged = new Map(existing.map(item => [String(item.id), item]))
   incoming.forEach(item => {
@@ -161,6 +184,7 @@ export function useData() {
   const [workCards, setWorkCards] = useState(fromCache('workCards', []))
   const [workCardHistory, setWorkCardHistory] = useState(fromCache('workCardHistory', []))
   const [workCardScrapTotals, setWorkCardScrapTotals] = useState(fromCache('workCardScrapTotals', []))
+  const [workCardFlowTotals, setWorkCardFlowTotals] = useState(fromCache('workCardFlowTotals', []))
   const [machines, setMachines] = useState(fromCache('machines', []))
   const [systemUsers, setSystemUsers] = useState(fromCache('systemUsers', []))
   const [machineOperations, setMachineOperations] = useState(fromCache('machineOperations', []))
@@ -238,6 +262,7 @@ export function useData() {
   const inventoryRef = useRef([])
   const workCardHistoryRef = useRef([])
   const workCardScrapTotalsRef = useRef([])
+  const workCardFlowTotalsRef = useRef([])
   const receptionDocsRef = useRef([])
   const purchaseRequestsRef = useRef([])
   const requestsRef = useRef([])
@@ -248,6 +273,7 @@ export function useData() {
   inventoryRef.current = inventory
   workCardHistoryRef.current = workCardHistory
   workCardScrapTotalsRef.current = workCardScrapTotals
+  workCardFlowTotalsRef.current = workCardFlowTotals
   receptionDocsRef.current = receptionDocs
   purchaseRequestsRef.current = purchaseRequests
   requestsRef.current = requests
@@ -273,6 +299,7 @@ export function useData() {
       restore(setWorkCards, 'workCards')
       restore(setWorkCardHistory, 'workCardHistory')
       restore(setWorkCardScrapTotals, 'workCardScrapTotals')
+      restore(setWorkCardFlowTotals, 'workCardFlowTotals')
       restore(setMachines, 'machines')
       restore(setSystemUsers, 'systemUsers')
       restore(setMachineOperations, 'machineOperations')
@@ -364,6 +391,7 @@ export function useData() {
         { data: pr },
         { data: wch },
         scrapTotalsRes,
+        flowTotalsRes,
         { data: mo },
         { data: mCalls }
       ] = await Promise.all([
@@ -393,6 +421,7 @@ export function useData() {
         purchaseRequestsRef.current.length > 0 ? Promise.resolve({ data: purchaseRequestsRef.current }) : supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300),
         workCardHistoryRef.current.length > 0 ? Promise.resolve({ data: workCardHistoryRef.current }) : supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(500),
         workCardScrapTotalsRef.current.length > 0 ? Promise.resolve({ data: workCardScrapTotalsRef.current, error: null }) : fetchWorkCardScrapTotals(),
+        workCardFlowTotalsRef.current.length > 0 ? Promise.resolve({ data: workCardFlowTotalsRef.current, error: null }) : fetchWorkCardFlowTotals(),
         supabase.from('machine_operations').select('*'),
         supabase.from('machine_calls').select('*').order('created_at', { ascending: false })
       ])
@@ -415,6 +444,7 @@ export function useData() {
       if (pr) setPurchaseRequests(pr)
       if (wch) setWorkCardHistory(wch)
       if (scrapTotalsRes?.data) setWorkCardScrapTotals(scrapTotalsRes.data)
+      if (flowTotalsRes?.data) setWorkCardFlowTotals(flowTotalsRes.data)
       if (mo) setMachineOperations(mo)
       if (mCalls) setMachineCalls(mCalls)
 
@@ -492,6 +522,7 @@ export function useData() {
         { data: pr },
         { data: wch },
         scrapTotalsRes,
+        flowTotalsRes,
         { data: mo },
         { data: mCalls }
       ] = await Promise.all([
@@ -512,6 +543,7 @@ export function useData() {
         supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300),
         supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(500),
         !force && workCardScrapTotalsRef.current.length > 0 ? Promise.resolve({ data: null, error: null }) : fetchWorkCardScrapTotals(),
+        !force && workCardFlowTotalsRef.current.length > 0 ? Promise.resolve({ data: null, error: null }) : fetchWorkCardFlowTotals(),
         needOperations ? supabase.from('machine_operations').select('*') : Promise.resolve({ data: null }),
         supabase.from('machine_calls').select('*').order('created_at', { ascending: false })
       ])
@@ -545,6 +577,7 @@ export function useData() {
       if (pr) setPurchaseRequests(pr)
       if (wch) setWorkCardHistory(wch)
       if (scrapTotalsRes?.data) setWorkCardScrapTotals(scrapTotalsRes.data)
+      if (flowTotalsRes?.data) setWorkCardFlowTotals(flowTotalsRes.data)
       if (needOperations && mo) setMachineOperations(mo)
       if (mCalls) setMachineCalls(mCalls)
 
@@ -679,6 +712,10 @@ export function useData() {
         const { data, error } = await fetchWorkCardScrapTotals()
         if (error) throw error
         if (data) setWorkCardScrapTotals(data)
+      } else if (tableName === 'work_card_flow_totals') {
+        const { data, error } = await fetchWorkCardFlowTotals()
+        if (error) throw error
+        if (data) setWorkCardFlowTotals(data)
       }
     } catch (e) { console.error(`Error refreshing ${tableName}:`, e) }
   }
@@ -731,7 +768,8 @@ export function useData() {
           receptionDocs,
           purchaseRequests,
           workCardHistory,
-          workCardScrapTotals
+          workCardScrapTotals,
+          workCardFlowTotals
         }
         setIndexedCache(CACHE_KEY, dataToCache)
           .then(() => localStorage.removeItem(CACHE_KEY))
@@ -743,7 +781,7 @@ export function useData() {
         } catch (innerErr) { }
       }
     }, 2000) // Затримка 2с після останньої зміни
-  }, [orders, customers, tasks, managementTasks, taskProjects, requests, nomenclatures, bomItems, machines, systemUsers, machineOperations, machineCalls, companyStructure, companyPositions, workCards, inventory, receptionDocs, purchaseRequests, workCardHistory, workCardScrapTotals])
+  }, [orders, customers, tasks, managementTasks, taskProjects, requests, nomenclatures, bomItems, machines, systemUsers, machineOperations, machineCalls, companyStructure, companyPositions, workCards, inventory, receptionDocs, purchaseRequests, workCardHistory, workCardScrapTotals, workCardFlowTotals])
 
   // --- REAL-TIME ---
   useEffect(() => {
@@ -840,6 +878,15 @@ export function useData() {
             setWorkCardScrapTotals(prev => prev.map(row => row.id === payload.new.id ? { ...row, ...payload.new } : row))
           } else if (payload.eventType === 'DELETE') {
             setWorkCardScrapTotals(prev => prev.filter(row => row.id !== payload.old.id))
+          }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'work_card_flow_totals' }, (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setWorkCardFlowTotals(prev => prev.some(row => row.id === payload.new.id) ? prev : [payload.new, ...prev])
+          } else if (payload.eventType === 'UPDATE') {
+            setWorkCardFlowTotals(prev => prev.map(row => row.id === payload.new.id ? { ...row, ...payload.new } : row))
+          } else if (payload.eventType === 'DELETE') {
+            setWorkCardFlowTotals(prev => prev.filter(row => row.id !== payload.old.id))
           }
         })
     }
@@ -1405,6 +1452,7 @@ export function useData() {
     setWorkCards([])
     setWorkCardHistory([])
     setWorkCardScrapTotals([])
+    setWorkCardFlowTotals([])
     setMachines([])
     setSystemUsers([])
     setMachineOperations([])
@@ -1442,6 +1490,7 @@ export function useData() {
     workCards, setWorkCards,
     workCardHistory, setWorkCardHistory,
     workCardScrapTotals, setWorkCardScrapTotals,
+    workCardFlowTotals, setWorkCardFlowTotals,
     machines, setMachines,
     systemUsers, setSystemUsers,
     machineOperations, setMachineOperations,

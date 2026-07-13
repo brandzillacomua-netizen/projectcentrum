@@ -34,6 +34,8 @@ export function useForeman2Data({ mes }) {
     workCards = [],
     workCardHistory = [],
     nomenclatures = [],
+    workCardScrapTotals = [],
+    workCardFlowTotals = [],
     fetchData
   } = mes
 
@@ -129,14 +131,71 @@ export function useForeman2Data({ mes }) {
   }, [relevantTasks, orders, orderCache])
 
   const allCards = useMemo(() => uniqueById([...workCards, ...dbCards]), [workCards, dbCards])
-  const allHistory = useMemo(() => uniqueById([...workCardHistory, ...dbHistory]), [workCardHistory, dbHistory])
+  
+  const scrapTotalsHistoryRows = useMemo(() => {
+    return (workCardScrapTotals || [])
+      .filter(row => (Number(row.total_scrap) || 0) > 0)
+      .map(row => ({
+        id: `scrap-total-${row.id || `${row.card_id}-${row.nomenclature_id}`}`,
+        card_id: row.card_id,
+        task_id: row.task_id,
+        order_id: row.order_id,
+        nomenclature_id: row.nomenclature_id,
+        scrap_qty: Number(row.total_scrap) || 0,
+        created_at: row.last_scrap_at || row.updated_at,
+        completed_at: row.last_scrap_at || row.updated_at,
+        is_scrap_total: true
+      }))
+  }, [workCardScrapTotals])
+
+  const flowScrapHistoryRows = useMemo(() => {
+    return (workCardFlowTotals || [])
+      .filter(row => (Number(row.total_scrap) || 0) > 0)
+      .map(row => ({
+        id: `flow-scrap-total-${row.id || `${row.card_id}-${row.nomenclature_id}-${row.stage_name}`}`,
+        card_id: row.card_id,
+        task_id: row.task_id,
+        order_id: row.order_id,
+        nomenclature_id: row.nomenclature_id,
+        scrap_qty: Number(row.total_scrap) || 0,
+        created_at: row.last_event_at || row.updated_at,
+        completed_at: row.last_event_at || row.updated_at,
+        is_scrap_total: true,
+        stage_name: row.stage_name,
+        operator_name: row.operator_name
+      }))
+  }, [workCardFlowTotals])
+
+  const totalsHistoryRows = useMemo(() => {
+    return scrapTotalsHistoryRows.length > 0 ? scrapTotalsHistoryRows : flowScrapHistoryRows
+  }, [scrapTotalsHistoryRows, flowScrapHistoryRows])
+
+  const allHistory = useMemo(() => {
+    const sourceRows = totalsHistoryRows.length > 0
+      ? totalsHistoryRows
+      : [...workCardHistory, ...dbHistory]
+    return Array.from(new Map(sourceRows.filter(Boolean).map(row => [String(row.id || `${row.card_id}-${row.created_at || Math.random()}`), row])).values())
+  }, [workCardHistory, dbHistory, totalsHistoryRows])
 
   const scrapModel = useMemo(() => buildScrapModel(allCards, allHistory), [allCards, allHistory])
+
+  const flowTotalsByTaskNom = useMemo(() => {
+    const cache = {}
+    ;(workCardFlowTotals || []).forEach(row => {
+      const tid = row.task_id
+      const nid = row.nomenclature_id ? String(row.nomenclature_id) : null
+      if (!tid || !nid) return
+      if (!cache[tid]) cache[tid] = {}
+      if (!cache[tid][nid]) cache[tid][nid] = []
+      cache[tid][nid].push(row)
+    })
+    return cache
+  }, [workCardFlowTotals])
 
   const taskModels = useMemo(() => {
     return relevantTasks.map(task => {
       const order = getOrderForTask(task, orders, orderCache)
-      const parts = calculateTaskParts({ task, cards: allCards, scrapModel, nomenclatures })
+      const parts = calculateTaskParts({ task, cards: allCards, scrapModel, nomenclatures, flowTotalsByTaskNom })
       const summary = summarizeTaskState({ task, cards: allCards, parts })
       const taskScrapRows = scrapModel.scrapRows.filter(row => asId(row.taskId) === asId(task.id))
       const scrapSummary = summarizeScrap(taskScrapRows, nomenclatures)
@@ -169,6 +228,7 @@ export function useForeman2Data({ mes }) {
     allCards,
     allHistory,
     scrapModel,
+    nomenclatures,
     refreshForeman2
   }
 }

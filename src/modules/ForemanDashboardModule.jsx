@@ -109,6 +109,40 @@ const fetchWorkCardsByTaskIds = async (taskIds = [], columns = '*') => {
   return Array.from(new Map(rows.filter(Boolean).map(row => [String(row.id), row])).values())
 }
 
+const normalizeStage = (value) => String(value || '').toLowerCase().replace(/\s+/g, '')
+
+const FLOW_STAGE = {
+  cut: ['\u0440\u043e\u0437\u043a\u0440\u0456\u0439'],
+  tumbling: ['\u0433\u0430\u043b\u0442\u043e\u0432\u043a\u0430'],
+  reception: ['\u043f\u0440\u0438\u0439\u043e\u043c', '\u043f\u0440\u0438\u0439\u043c'],
+  sorting: ['\u0441\u043e\u0440\u0442\u0443\u0432\u0430\u043d\u043d\u044f'],
+  painting: ['\u0444\u0430\u0440\u0431\u0443\u0432\u0430\u043d\u043d\u044f', '\u043c\u0430\u043b\u044f\u0440\u043a\u0430'],
+  pressing: ['\u043f\u0440\u0435\u0441\u0443\u0432\u0430\u043d\u043d\u044f'],
+  finishing: ['\u0434\u043e\u043e\u043f\u0440\u0430\u0446\u044e\u0432\u0430\u043d\u043d\u044f'],
+  sgp: ['\u0441\u0433\u043f', '\u043f\u0430\u043a\u0443\u0432\u0430\u043d\u043d\u044f'],
+  bz: ['\u0431\u0437', 'bz']
+}
+
+const flowStageMatches = (stageName, keys) => {
+  const stage = normalizeStage(stageName)
+  return keys.some(key => (FLOW_STAGE[key] || [key]).some(needle => stage.includes(needle)))
+}
+
+const sumFlowField = (rows, field, stageKeys = null) => {
+  return rows.reduce((sum, row) => {
+    if (stageKeys && !flowStageMatches(row.stage_name, stageKeys)) return sum
+    return sum + (Number(row[field]) || 0)
+  }, 0)
+}
+
+const getBestKnownProducedFromFlow = (rows) => {
+  const finalGood = sumFlowField(rows, 'total_good', ['sgp'])
+  if (finalGood > 0) return finalGood
+
+  const priority = ['finishing', 'pressing', 'painting', 'sorting', 'reception', 'tumbling', 'cut']
+  return Math.max(0, ...priority.map(key => sumFlowField(rows, 'total_good', [key])))
+}
+
 // ─────────────────────────────────────────────────────────────
 // WIP Table component (reusable for overview & per-order)
 // ─────────────────────────────────────────────────────────────
@@ -319,7 +353,7 @@ const TD_SUM = { ...TD, background: '#1c130d', borderRight: '1px solid #27272a',
 const ForemanDashboardModule = () => {
   const {
     currentUser, workCards, inventory, nomenclatures, fetchData,
-    orders, bomItems, tasks, workCardHistory, workCardScrapTotals = [], fetchModuleData
+    orders, bomItems, tasks, workCardHistory, workCardScrapTotals = [], workCardFlowTotals = [], fetchModuleData
   } = useMES()
 
   const [selectedTaskId, setSelectedTaskId] = useState(null)
@@ -337,7 +371,7 @@ const ForemanDashboardModule = () => {
     if (typeof fetchData === 'function') {
       // Don't fetch work_cards/work_card_history globally — they are loaded
       // per-task via loadAllTasksCards to avoid pulling the entire table
-      fetchData(['orders', 'tasks', 'inventory', 'nomenclatures', 'bom_items'])
+      fetchData(['orders', 'tasks', 'inventory', 'nomenclatures', 'bom_items', 'work_card_scrap_totals', 'work_card_flow_totals'])
     }
   }, [])
 
@@ -397,7 +431,22 @@ const ForemanDashboardModule = () => {
   const dashboardCards = useMemo(() => {
     return Array.from(new Map([...(workCards || []), ...(allTasksCards || [])].filter(Boolean).map(card => [String(card.id), card])).values())
   }, [workCards, allTasksCards])
-  const totalsHistoryRows = useMemo(() => {
+  const flowTotalsRows = useMemo(() => {
+    return (workCardFlowTotals || []).filter(Boolean)
+  }, [workCardFlowTotals])
+  const flowTotalsByTaskNom = useMemo(() => {
+    const cache = {}
+    flowTotalsRows.forEach(row => {
+      const tid = row.task_id
+      const nid = row.nomenclature_id ? String(row.nomenclature_id) : null
+      if (!tid || !nid) return
+      if (!cache[tid]) cache[tid] = {}
+      if (!cache[tid][nid]) cache[tid][nid] = []
+      cache[tid][nid].push(row)
+    })
+    return cache
+  }, [flowTotalsRows])
+  const scrapTotalsHistoryRows = useMemo(() => {
     return (workCardScrapTotals || [])
       .filter(row => (Number(row.total_scrap) || 0) > 0)
       .map(row => ({
@@ -412,6 +461,24 @@ const ForemanDashboardModule = () => {
         is_scrap_total: true
       }))
   }, [workCardScrapTotals])
+  const flowScrapHistoryRows = useMemo(() => {
+    return flowTotalsRows
+      .filter(row => (Number(row.total_scrap) || 0) > 0)
+      .map(row => ({
+        id: `flow-scrap-total-${row.id || `${row.card_id}-${row.nomenclature_id}-${row.stage_name}`}`,
+        card_id: row.card_id,
+        task_id: row.task_id,
+        order_id: row.order_id,
+        nomenclature_id: row.nomenclature_id,
+        scrap_qty: Number(row.total_scrap) || 0,
+        created_at: row.last_event_at || row.updated_at,
+        completed_at: row.last_event_at || row.updated_at,
+        is_scrap_total: true
+      }))
+  }, [flowTotalsRows])
+  const totalsHistoryRows = useMemo(() => {
+    return scrapTotalsHistoryRows.length > 0 ? scrapTotalsHistoryRows : flowScrapHistoryRows
+  }, [scrapTotalsHistoryRows, flowScrapHistoryRows])
   const dashboardHistory = useMemo(() => {
     const sourceRows = totalsHistoryRows.length > 0
       ? totalsHistoryRows
@@ -484,17 +551,31 @@ const ForemanDashboardModule = () => {
     return map
   }, [dashboardCards])
 
+  const taskScopeIdsMap = useMemo(() => {
+    const map = {}
+    relevantTasks.forEach(task => {
+      const scopedIds = tasks
+        .filter(t => String(t.order_id) === String(task.order_id))
+        .map(t => t.id)
+        .filter(Boolean)
+      map[task.id] = scopedIds.length > 0 ? scopedIds : [task.id]
+    })
+    return map
+  }, [relevantTasks, tasks])
+
   // ── Production cache: task_id -> nom_id -> produced qty ──
   const productionCache = useMemo(() => {
     const cache = {}
     
     relevantTasks.forEach(task => {
       cache[task.id] = {}
-      const taskCards = cardsByTaskId[task.id] || []
+      const scopeIds = taskScopeIdsMap[task.id] || [task.id]
+      const taskCards = scopeIds.flatMap(taskId => cardsByTaskId[taskId] || [])
       const snapshot = task.plan_snapshot || {}
       
       Object.keys(snapshot).forEach(nid => {
         const nomCards = taskCards.filter(c => String(c.nomenclature_id) === nid)
+        const flowRows = scopeIds.flatMap(taskId => flowTotalsByTaskNom[taskId]?.[nid] || [])
         
         const getQ = (ops, statuses) => {
           return nomCards.filter(c => {
@@ -526,15 +607,31 @@ const ForemanDashboardModule = () => {
 
         const bzCardsQty = nomCards.filter(c => c.operation === 'Склад БЗ').reduce((s, c) => s + (Number(c.quantity) || 0), 0)
         
-        const qBz = Math.max(0, groupProduced - qSort - totalShop2Qty) + bzCardsQty
+        const flowBzQty = sumFlowField(flowRows, 'total_bz')
+        const qBz = flowRows.length > 0
+          ? flowBzQty
+          : Math.max(0, groupProduced - qSort - totalShop2Qty) + bzCardsQty
 
         const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qBz
         
-        cache[task.id][nid] = sum
+        const snap = snapshot[nid] || {}
+        const need = Number(snap.need) || 0
+        const initialStock = Number(snap.stock) || 0
+        const plannedReserve = Math.max(0, ((Number(snap.sheets) || 0) * (Number(snap.units_per_sheet) || 1)) + (Number(snap.stock) || 0) - need)
+        const flowProducedRaw = getBestKnownProducedFromFlow(flowRows)
+        const flowScrapQty = sumFlowField(flowRows, 'total_scrap')
+        const flowProducedNet = Math.max(0, flowProducedRaw - flowScrapQty + plannedReserve)
+        const earlyWipQty = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct
+        const nonReissueEarlyWip = Math.max(0, flowScrapQty - plannedReserve) > 0 ? 0 : earlyWipQty
+        const sgpProducedFromCards = Math.max(0, groupProduced - qSort)
+        const sgpForProgress = need > 0
+          ? Math.min(need, sgpProducedFromCards, Math.max(0, need - nonReissueEarlyWip))
+          : sgpProducedFromCards
+        cache[task.id][nid] = groupProduced > 0 ? sgpForProgress : (flowProducedRaw > 0 ? Math.min(need || flowProducedNet, flowProducedNet) : sum)
       })
     })
     return cache
-  }, [cardsByTaskId, relevantTasks])
+  }, [cardsByTaskId, relevantTasks, flowTotalsByTaskNom, taskScopeIdsMap])
 
   // ── Scrap cache ──
   const scrapCache = useMemo(() => {
@@ -543,16 +640,38 @@ const ForemanDashboardModule = () => {
     dashboardCards.forEach(c => { cardMap[c.id] = c })
     
     dashboardHistory.forEach(h => {
-      if (!h.card_id) return
+      if (!h.card_id && (!h.task_id || !h.nomenclature_id)) return
       const card = cardMap[h.card_id]
-      if (!card) return
-      const tid = card.task_id
-      const nid = String(card.nomenclature_id)
+      const tid = h.task_id || card?.task_id
+      const nid = h.nomenclature_id ? String(h.nomenclature_id) : (card?.nomenclature_id ? String(card.nomenclature_id) : null)
+      if (!tid || !nid) return
       if (!cache[tid]) cache[tid] = {}
       cache[tid][nid] = (cache[tid][nid] || 0) + (Number(h.scrap_qty) || 0)
     })
     return cache
   }, [dashboardHistory, dashboardCards])
+
+  const scopedScrapCache = useMemo(() => {
+    const cache = {}
+    const cardMap = {}
+    dashboardCards.forEach(c => { cardMap[c.id] = c })
+
+    relevantTasks.forEach(task => {
+      const scopeSet = new Set(taskScopeIdsMap[task.id] || [task.id])
+      cache[task.id] = {}
+
+      dashboardHistory.forEach(h => {
+        if (!h.card_id && (!h.task_id || !h.nomenclature_id)) return
+        const card = cardMap[h.card_id]
+        const tid = h.task_id || card?.task_id
+        const nid = h.nomenclature_id ? String(h.nomenclature_id) : (card?.nomenclature_id ? String(card.nomenclature_id) : null)
+        if (!tid || !nid || !scopeSet.has(tid)) return
+        cache[task.id][nid] = (cache[task.id][nid] || 0) + (Number(h.scrap_qty) || 0)
+      })
+    })
+
+    return cache
+  }, [dashboardHistory, dashboardCards, relevantTasks, taskScopeIdsMap])
 
   // ── Task status map ──
   const taskStatusMap = useMemo(() => {
@@ -574,13 +693,18 @@ const ForemanDashboardModule = () => {
         return s2Cards.some(c => c.status !== 'completed')
       })
 
-      if (task.status === 'completed' && !hasActiveShop2Task) { map[task.id] = 'completed'; return }
-      const taskCards = (cardsByTaskId[task.id] || []).filter(c => c.operation !== 'Склад БЗ')
-      if (taskCards.length === 0 && task.status !== 'completed') { map[task.id] = 'new'; return }
-
       const snapshot = task.plan_snapshot || {}
       const taskProd = productionCache[task.id] || {}
-      const taskScrap = scrapCache[task.id] || {}
+      const taskScrap = scopedScrapCache[task.id] || {}
+      const scopeIds = taskScopeIdsMap[task.id] || [task.id]
+      const taskCards = scopeIds
+        .flatMap(taskId => cardsByTaskId[taskId] || [])
+        .filter(c => c.operation !== 'Склад БЗ')
+      const hasAggregateData = Object.values(taskProd).some(qty => (Number(qty) || 0) > 0) ||
+        Object.values(taskScrap).some(qty => (Number(qty) || 0) > 0)
+
+      if (task.status === 'completed' && !hasActiveShop2Task) { map[task.id] = 'completed'; return }
+      if (taskCards.length === 0 && !hasAggregateData && task.status !== 'completed') { map[task.id] = 'new'; return }
 
       let allDone = true
       let hasShortage = false
@@ -625,7 +749,7 @@ const ForemanDashboardModule = () => {
       else map[task.id] = 'in_progress'
     })
     return map
-  }, [relevantTasks, cardsByTaskId, productionCache, scrapCache, tasks])
+  }, [relevantTasks, cardsByTaskId, productionCache, scopedScrapCache, taskScopeIdsMap, tasks])
 
   // ── Per-task progress (actual / demand sets) ──
   const taskProgressMap = useMemo(() => {
@@ -656,7 +780,7 @@ const ForemanDashboardModule = () => {
       }
 
       map[task.id] = {
-        actual: minSets === Infinity ? 0 : minSets,
+        actual: minSets === Infinity ? 0 : Math.min(planned, minSets),
         demand: planned
       }
     })
@@ -784,12 +908,19 @@ const ForemanDashboardModule = () => {
 
         // Find booked BZ from plan snapshot (which is already ready/finished for this order), summing across all relevant orders
         let initialStock = 0
+        let plannedReserve = 0
         const orderTasks = tasks.filter(t => t.order_id && orderIds.includes(t.order_id))
         const ordersWithTasks = Array.from(new Set(orderTasks.map(t => t.order_id)))
         ordersWithTasks.forEach(oid => {
           const taskWithSnap = orderTasks.find(t => t.order_id === oid && t.plan_snapshot && t.plan_snapshot[String(nom.id)])
           if (taskWithSnap) {
-            initialStock += Number(taskWithSnap.plan_snapshot[String(nom.id)].stock) || 0
+            const snapEntry = taskWithSnap.plan_snapshot[String(nom.id)] || {}
+            const stock = Number(snapEntry.stock) || 0
+            const sheets = Number(snapEntry.sheets) || 0
+            const units = Number(snapEntry.units_per_sheet) || 1
+            const need = Number(snapEntry.need) || 0
+            initialStock += stock
+            plannedReserve += Math.max(0, (sheets * units) + stock - need)
           }
         })
 
@@ -803,7 +934,14 @@ const ForemanDashboardModule = () => {
         }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
 
         const totalPotentialSgp = completedShop2Qty + initialStock
-        const qSgp = Math.min(demandForParent, totalPotentialSgp)
+        const flowRowsForThisPart = flowTotalsRows.filter(row => {
+          if (String(row.nomenclature_id) !== String(nom.id)) return false
+          if (!row.task_id || !filterSet.has(row.task_id)) return false
+          return !taskParentMap[row.task_id] || taskParentMap[row.task_id] === parentId
+        })
+        const flowScrapQty = sumFlowField(flowRowsForThisPart, 'total_scrap')
+        const flowSgpQty = sumFlowField(flowRowsForThisPart, 'total_good', ['sgp'])
+        const netSgpQty = Math.max(0, flowSgpQty - flowScrapQty)
 
         // Shop 1 completed or at-shop2-buffer cards count as total produced by Shop 1
         const groupProduced = filteredCards.filter(c => {
@@ -813,6 +951,14 @@ const ForemanDashboardModule = () => {
           const isShop1 = ['розкрій', 'галтовка', 'прийомка', 'сортування'].some(o => op.includes(o))
           return isShop1 && (c.status === 'completed' || c.status === 'at-shop2-buffer')
         }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
+
+        const sgpProduced = Math.max(0, groupProduced - qSort)
+        const producedForSgp = groupProduced > 0 ? sgpProduced : netSgpQty
+        const earlyWipQty = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf
+        const nonReissueEarlyWip = Math.max(0, flowScrapQty - plannedReserve) > 0 ? 0 : earlyWipQty
+        const qSgp = demandForParent > 0
+          ? Math.min(demandForParent, producedForSgp, Math.max(0, demandForParent - nonReissueEarlyWip))
+          : Math.max(0, producedForSgp)
 
         // All Shop 2 cards for this task
         const totalShop2Qty = filteredCards.filter(c => {
@@ -824,7 +970,12 @@ const ForemanDashboardModule = () => {
 
         // qBz is newly produced BZ (not yet in Shop 2) + excess SGP
         const bzExcess = Math.max(0, totalPotentialSgp - demandForParent)
-        const qBz = Math.max(0, groupProduced - qSort - totalShop2Qty) + bzExcess
+        const flowBzQty = sumFlowField(flowRowsForThisPart, 'total_bz')
+        const qBz = groupProduced > 0
+          ? initialStock + Math.max(0, sgpProduced - demandForParent)
+          : (flowRowsForThisPart.length > 0
+            ? initialStock + Math.max(flowBzQty, Math.max(0, netSgpQty - demandForParent))
+            : Math.max(0, groupProduced - qSort - totalShop2Qty) + bzExcess)
 
         // Scrap from task card history
         const cardIdsForThisPart = new Set(filteredCards.filter(c => {
@@ -832,7 +983,13 @@ const ForemanDashboardModule = () => {
           if (c.task_id && taskParentMap[c.task_id] && taskParentMap[c.task_id] !== parentId) return false
           return true
         }).map(c => c.id))
-        const qScrap = dashboardHistory.filter(h => h.card_id && cardIdsForThisPart.has(h.card_id)).reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
+        const qScrapByScope = dashboardHistory.filter(h => {
+          if (String(h.nomenclature_id) !== String(nom.id)) return false
+          if (!h.task_id || !filterSet.has(h.task_id)) return false
+          return !taskParentMap[h.task_id] || taskParentMap[h.task_id] === parentId
+        }).reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
+        const qScrapByCard = dashboardHistory.filter(h => h.card_id && cardIdsForThisPart.has(h.card_id)).reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
+        const qScrap = qScrapByScope || qScrapByCard || flowScrapQty
 
         const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf + qSgp + qBz
 
@@ -865,13 +1022,13 @@ const ForemanDashboardModule = () => {
     }
     return buildWipGroups([selectedTaskId])
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTaskId, dashboardCards, dashboardHistory, inventory, nomenclatures, bomItems, tasks, orders, searchQuery])
+  }, [selectedTaskId, dashboardCards, dashboardHistory, flowTotalsRows, inventory, nomenclatures, bomItems, tasks, orders, searchQuery])
 
   // ── Refresh ──
   const handleRefresh = async () => {
     setIsRefreshing(true)
     try {
-      await fetchData(['orders', 'tasks', 'inventory', 'nomenclatures', 'bom_items'])
+      await fetchData(['orders', 'tasks', 'inventory', 'nomenclatures', 'bom_items', 'work_card_scrap_totals', 'work_card_flow_totals'])
       await loadAllTasksCards(relevantTasks)
       // Clear per-order card cache
       setOrderAllCards({})
@@ -1154,11 +1311,12 @@ const ForemanDashboardModule = () => {
             allTasksCards={dashboardCards}
             cardsByTaskId={cardsByTaskId}
             allCardsHistory={dashboardHistory}
+            flowTotalsRows={flowTotalsRows}
             nomenclatures={nomenclatures}
             bomItems={bomItems}
             inventory={inventory}
             productionCache={productionCache}
-            scrapCache={scrapCache}
+            scrapCache={scopedScrapCache}
             taskStatusMap={taskStatusMap}
             taskProgressMap={taskProgressMap}
             orderAllCards={orderAllCards[selectedTaskId] || []}
@@ -1293,7 +1451,7 @@ const ForemanDashboardModule = () => {
 // Order Detail View component
 // ─────────────────────────────────────────────────────────────
 const OrderDetailView = ({
-  task, order, tasks, workCards, allTasksCards, cardsByTaskId, allCardsHistory, nomenclatures, bomItems, inventory,
+  task, order, tasks, workCards, allTasksCards, cardsByTaskId, allCardsHistory, flowTotalsRows = [], nomenclatures, bomItems, inventory,
   productionCache, scrapCache, taskStatusMap, taskProgressMap,
   orderAllCards, isLoadingCards, wipGroups, searchQuery, setSearchQuery
 }) => {
@@ -1350,6 +1508,7 @@ const OrderDetailView = ({
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     const snapshot = task.plan_snapshot || {}
     const taskProd = productionCache[task.id] || {}
+    const taskScrap = scrapCache[task.id] || {}
     const list = []
 
     Object.keys(snapshot).filter(k => uuidRegex.test(k)).forEach(nomIdStr => {
@@ -1360,17 +1519,23 @@ const OrderDetailView = ({
 
       const need = snap.need || 0
       const produced = taskProd[nomIdStr] || 0
-      const shortage = Math.max(0, need - produced)
+      const stock = Number(snap.stock) || 0
+      const sheets = Number(snap.sheets) || 0
+      const units = Number(snap.units_per_sheet) || 1
+      const scrap = taskScrap[nomIdStr] || 0
+      const plannedReserve = Math.max(0, (sheets * units) + stock - need)
+      const shortage = Math.max(0, scrap - plannedReserve)
+      const sgpGap = Math.max(0, need - produced)
       const qtyPer = progress.demand > 0 ? Math.round(need / progress.demand) : 1
       const potential = qtyPer > 0 ? Math.floor(produced / qtyPer) : 0
 
       if (shortage > 0) {
-        list.push({ name: nom.name, code: nom.code, potential, qty: produced, needed: need, shortage, qtyPer })
+        list.push({ name: nom.name, code: nom.code, potential, qty: produced, needed: need, shortage, qtyPer, scrap, plannedReserve, sgpGap })
       }
     })
     list.sort((a, b) => a.potential - b.potential)
     return list
-  }, [task, productionCache, nomenclatures, progress.demand])
+  }, [task, productionCache, scrapCache, nomenclatures, progress.demand])
 
   // Per-part detail table from workCards
   const partDetails = useMemo(() => {
@@ -1437,15 +1602,37 @@ const OrderDetailView = ({
       }).reduce((s, c) => s + (Number(c.quantity) || 0), 0)
 
       const initialStock = Number(snap.stock) || 0
+      const plannedReserve = Math.max(0, ((Number(snap.sheets) || 0) * (Number(snap.units_per_sheet) || 1)) + initialStock - (snap.need || 0))
       const totalPotentialSgp = completedShop2Qty + initialStock
-      const qSgp = Math.min(snap.need || 0, totalPotentialSgp)
+      const flowRowsForThisPart = flowTotalsRows.filter(row =>
+        String(row.nomenclature_id) === nomIdStr && row.task_id && orderTaskIdSet.has(row.task_id)
+      )
+      const flowSgpQty = sumFlowField(flowRowsForThisPart, 'total_good', ['sgp'])
+      const flowScrapQty = sumFlowField(flowRowsForThisPart, 'total_scrap')
+      const netSgpQty = Math.max(0, flowSgpQty - flowScrapQty)
+      const sgpProduced = Math.max(0, groupProduced - qSort)
+      const producedForSgp = groupProduced > 0 ? sgpProduced : netSgpQty
+      const earlyWipQty = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf
+      const nonReissueEarlyWip = Math.max(0, flowScrapQty - plannedReserve) > 0 ? 0 : earlyWipQty
+      const qSgp = (snap.need || 0) > 0
+        ? Math.min(snap.need || 0, producedForSgp, Math.max(0, (snap.need || 0) - nonReissueEarlyWip))
+        : Math.max(0, producedForSgp)
 
       // qBz is newly produced BZ + excess SGP
       const bzExcess = Math.max(0, totalPotentialSgp - (snap.need || 0))
-      const qBz = Math.max(0, groupProduced - qSort - totalShop2Qty) + bzExcess
+      const flowBzQty = sumFlowField(flowRowsForThisPart, 'total_bz')
+      const qBz = groupProduced > 0
+        ? initialStock + Math.max(0, sgpProduced - (snap.need || 0))
+        : (flowRowsForThisPart.length > 0
+          ? initialStock + Math.max(flowBzQty, Math.max(0, netSgpQty - (snap.need || 0)))
+          : Math.max(0, groupProduced - qSort - totalShop2Qty) + bzExcess)
 
       const cardIdsForThisPart = new Set(nomCards.map(c => c.id))
-      const scrap = allCardsHistory.filter(h => h.card_id && cardIdsForThisPart.has(h.card_id)).reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
+      const scrapByScope = allCardsHistory.filter(h =>
+        String(h.nomenclature_id) === nomIdStr && h.task_id && orderTaskIdSet.has(h.task_id)
+      ).reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
+      const scrapByCard = allCardsHistory.filter(h => h.card_id && cardIdsForThisPart.has(h.card_id)).reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
+      const scrap = scrapByScope || scrapByCard || flowScrapQty
 
       const sum = qCutWait + qCut + qCutBuf + qGalt + qGaltBuf + qPriy + qSortAct + qSort + qMalWait + qMal + qMalBuf + qPresWait + qPres + qPresBuf + qDoopWait + qDoop + qDoopBuf + qBz + qSgp
 
@@ -1464,7 +1651,7 @@ const OrderDetailView = ({
       }
     })
     return parts
-  }, [task, orderAllCards, nomenclatures, allCardsHistory, searchQuery])
+  }, [task, orderAllCards, nomenclatures, allCardsHistory, flowTotalsRows, searchQuery])
 
   const detailGroup = partDetails.length > 0
     ? [{ id: 'detail', name: prodNames, code: '', rows: partDetails, trend: { potential: progress.actual, actual: progress.actual, demand: progress.demand } }]
@@ -1537,7 +1724,7 @@ const OrderDetailView = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
             <AlertTriangle size={16} color="#ef4444" />
             <span style={{ fontSize: '0.8rem', fontWeight: 900, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Вузькі місця — нестача деталей ({bottlenecks.length})
+              Вузькі місця — потрібен довипуск ({bottlenecks.length})
             </span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '10px' }}>
@@ -1545,8 +1732,12 @@ const OrderDetailView = ({
               <div key={b.name} style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: '12px', padding: '12px 14px' }}>
                 <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#fff', marginBottom: '6px' }}>{b.name}{b.code ? ` (${b.code})` : ''}</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem' }}>
-                  <span style={{ color: '#9ca3af' }}>Є: <strong style={{ color: '#fca5a5' }}>{b.qty}</strong> / {b.needed} шт.</span>
-                  <span style={{ color: '#ef4444', fontWeight: 700 }}>Дефіцит: -{b.shortage}</span>
+                  <span style={{ color: '#9ca3af' }}>СГП: <strong style={{ color: '#fca5a5' }}>{b.qty}</strong> / {b.needed} шт.</span>
+                  <span style={{ color: '#ef4444', fontWeight: 700 }}>Довипуск: {b.shortage}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', marginTop: '5px', color: '#71717a' }}>
+                  <span>Брак: {b.scrap}</span>
+                  <span>Запас: {b.plannedReserve}</span>
                 </div>
               </div>
             ))}
