@@ -619,15 +619,15 @@ export default function BrakModule() {
           : { data: [] }
         const sourceOrders = sourceOrdersData || []
 
-        // A card's human number is its 1-based position inside the task,
-        // ordered exactly as cards were created. Load every card in those
-        // tasks page-by-page so numbering also works beyond 1000 records.
+        // A card's human number in production is its 1-based position inside
+        // the same task and nomenclature. The old task-wide sequence could show
+        // numbers like 437 for a detail that only has 178 cards.
         const taskCards = []
         if (taskIds.length) {
           const pageSize = 1000
           for (let from = 0; ; from += pageSize) {
             const { data: page, error: pageError } = await supabase.from('work_cards')
-              .select('id,task_id,created_at').in('task_id', taskIds)
+              .select('id,task_id,nomenclature_id,created_at').in('task_id', taskIds)
               .order('created_at', { ascending: true }).order('id', { ascending: true })
               .range(from, from + pageSize - 1)
             if (pageError || !page?.length) break
@@ -642,15 +642,26 @@ export default function BrakModule() {
           return result
         }, {})
         const sequences = {}
+        const taskSequences = {}
         Object.values(cardsByTask).forEach(cards => {
-          cards.forEach((card, index) => { sequences[String(card.id)] = index + 1 })
+          cards.forEach((card, index) => { taskSequences[String(card.id)] = index + 1 })
+          const cardsByNom = cards.reduce((result, card) => {
+            const key = String(card.nomenclature_id || '')
+            if (!result[key]) result[key] = []
+            result[key].push(card)
+            return result
+          }, {})
+          Object.values(cardsByNom).forEach(nomCards => {
+            nomCards.forEach((card, index) => { sequences[String(card.id)] = index + 1 })
+          })
         })
 
         setScrapSourceMeta({
           cards: Object.fromEntries(sourceCards.map(card => [String(card.id), card])),
           tasks: Object.fromEntries(sourceTasks.map(task => [String(task.id), task])),
           orders: Object.fromEntries(sourceOrders.map(order => [String(order.id), order])),
-          sequences
+          sequences,
+          taskSequences
         })
         setLocalScrapHistory(activeScrap)
       }
@@ -758,6 +769,7 @@ export default function BrakModule() {
         updated_at: h.created_at,
         card_number: h.card_id ? String(h.card_id).slice(-8).toUpperCase() : '—',
         card_sequence: h.card_id ? scrapSourceMeta.sequences[String(h.card_id)] || null : null,
+        task_card_sequence: h.card_id ? scrapSourceMeta.taskSequences?.[String(h.card_id)] || null : null,
         card_id: h.card_id,
         naryad_number: taskNumber
       };
@@ -1579,6 +1591,9 @@ export default function BrakModule() {
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px 12px', marginTop: '5px', fontSize: '0.67rem', fontWeight: 850 }}>
                             <span style={{ color: '#f59e0b' }}>Наряд №{item.naryad_number}</span>
                             <span style={{ color: '#38bdf8' }}>Картка №{item.card_sequence || '—'}</span>
+                            {item.task_card_sequence && item.task_card_sequence !== item.card_sequence && (
+                              <span style={{ color: '#64748b' }}>у наряді №{item.task_card_sequence}</span>
+                            )}
                             <span style={{ color: '#64748b' }} title={item.card_id ? String(item.card_id) : ''}>Системна #{item.card_number}</span>
                             <span style={{ color: '#666' }}>Отримано: {new Date(item.updated_at).toLocaleDateString('uk-UA')}</span>
                           </div>
@@ -1711,6 +1726,9 @@ export default function BrakModule() {
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 12px', marginTop: '10px', fontSize: '0.7rem', fontWeight: 900 }}>
                             <span style={{ color: '#f59e0b' }}>Наряд №{selectedItem.naryad_number}</span>
                             <span style={{ color: '#38bdf8' }}>Картка №{selectedItem.card_sequence || '—'}</span>
+                            {selectedItem.task_card_sequence && selectedItem.task_card_sequence !== selectedItem.card_sequence && (
+                              <span style={{ color: '#64748b' }}>у наряді №{selectedItem.task_card_sequence}</span>
+                            )}
                             <span style={{ color: '#64748b' }} title={selectedItem.card_id ? String(selectedItem.card_id) : ''}>Системна #{selectedItem.card_number}</span>
                           </div>
                           <div style={{ marginTop: '8px', color: '#a78bfa', fontSize: '0.72rem', fontWeight: 900 }}>
