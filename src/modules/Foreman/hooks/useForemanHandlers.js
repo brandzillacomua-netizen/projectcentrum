@@ -132,16 +132,24 @@ export function useForemanHandlers({
 
       const { data: allTaskCardsDB } = await supabase
         .from('work_cards')
-        .select('id')
+        .select('*')
         .eq('task_id', task.id)
         .limit(10000)
 
-      const stateCardIds = taskCards.map(c => c.id)
-      const dbCardIds = (allTaskCardsDB || []).map(c => c.id)
-      const allCardIds = [...new Set([...stateCardIds, ...dbCardIds])]
+      const cardsById = new Map()
+      if (!forceRefresh) {
+        ;(taskCards || []).forEach(card => {
+          if (card?.id) cardsById.set(String(card.id), card)
+        })
+      }
+      ;(allTaskCardsDB || []).forEach(card => {
+        if (card?.id) cardsById.set(String(card.id), card)
+      })
+      const finalTaskCards = Array.from(cardsById.values())
+      const allCardIds = finalTaskCards.map(c => c.id)
 
       if (allCardIds.length === 0) {
-        const finalData = { historyRows: [], taskCards, materialRequests: materialRequests || [] }
+        const finalData = { historyRows: [], taskCards: finalTaskCards, materialRequests: materialRequests || [] }
         setReportData(finalData)
         setReportLoading(false)
         return
@@ -151,7 +159,7 @@ export function useForemanHandlers({
 
       historyRows.sort((a, b) => new Date(a.completed_at || 0) - new Date(b.completed_at || 0))
 
-      const finalData = { historyRows: historyRows || [], taskCards, materialRequests: materialRequests || [] }
+      const finalData = { historyRows: historyRows || [], taskCards: finalTaskCards, materialRequests: materialRequests || [] }
       setReportData(finalData)
 
       const updatedSnapshot = {

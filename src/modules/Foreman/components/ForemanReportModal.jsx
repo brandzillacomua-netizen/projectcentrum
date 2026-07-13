@@ -40,6 +40,35 @@ const getDeclaredRequestQty = (request, fallbackQty = 0) => {
   return fallbackQty
 }
 
+const getMaterialRequestQty = (request) => {
+  const directQty = Number(request?.quantity)
+  if (Number.isFinite(directQty) && directQty > 0) return directQty
+  const match = String(request?.details || '').match(/[—-]\s*(\d+(?:[.,]\d+)?)/)
+  if (match) return Number(match[1].replace(',', '.')) || 0
+  return getDeclaredRequestQty(request, 0)
+}
+
+const isIssuedMaterialRequest = (request) => ['issued', 'completed'].includes(String(request?.status || '').toLowerCase())
+
+const isReissueSheetMaterialRequest = (request) => {
+  const text = `${request?.details || ''} ${request?.nomenclature?.name || ''}`.toLowerCase()
+  const isSheet = text.includes('лист') || text.includes('т300') || text.includes('т700') || text.includes('t300') || text.includes('t700')
+  const isReissue = text.includes('довипуск') || text.includes('дозапит') || text.includes('брак') || text.includes('нестача')
+  return isSheet && isReissue
+}
+
+const parseSheetMaterialFromRequest = (request) => {
+  const text = `${request?.nomenclature?.name || ''} ${request?.details || ''}`
+  const compact = text.toLowerCase().replace(/\s+/g, '')
+  const typePrefix = compact.includes('т700') || compact.includes('t700') ? 'Т700' : 'Т300'
+  const thicknessMatch = text.match(/(\d+(?:[.,]\d+)?)\s*мм/i)
+  if (!thicknessMatch) return null
+  return {
+    typePrefix,
+    thickness: `${thicknessMatch[1].replace(',', '.')}мм`
+  }
+}
+
 const getCutterDiameter = (name = '') => {
   const lower = String(name || '').toLowerCase().replace(/,/g, '.')
   const direct = lower.match(/ф\s*([0-9]+(?:\.[0-9]+)?)/)
@@ -281,13 +310,21 @@ export function ForemanReportModal({
             return rawNom ? rawNom.name : `Лист ${typePrefix} (${thickness}) [Підготовлений]`
           }
 
+          const issuedReissueSheetsByMaterial = {}
+          ;(reportData.materialRequests || []).forEach(request => {
+            if (!isIssuedMaterialRequest(request) || !isReissueSheetMaterialRequest(request)) return
+            const material = parseSheetMaterialFromRequest(request)
+            if (!material) return
+            const materialName = getMaterialName(material.typePrefix, material.thickness)
+            issuedReissueSheetsByMaterial[materialName] = (issuedReissueSheetsByMaterial[materialName] || 0) + getMaterialRequestQty(request)
+          })
+
           partsList.forEach(p => {
             const partHistory = reportData.historyRows.filter(h => String(h.nomenclature_id) === String(p.nomId))
             const cuttingHistory = partHistory.filter(h => h.stage_name === 'Розкрій')
             const acceptedHistory = partHistory.filter(h => h.stage_name === 'Прийомка' || h.stage_name === 'completed')
 
-            const totalQtyDone = cuttingHistory.reduce((s, h) => s + (Number(h.qty_completed) || 0), 0)
-            const sheetsDone = p.unitsPerSheet > 0 ? Math.ceil(totalQtyDone / p.unitsPerSheet) : 0
+            const sheetsDone = p.sheets || 0
 
             const acceptedQty = acceptedHistory.reduce((s, h) => s + (Number(h.qty_completed) || 0), 0)
 
@@ -305,12 +342,8 @@ export function ForemanReportModal({
             if (isNaN(plannedT300)) plannedT300 = defaultT300
             if (isNaN(plannedT700)) plannedT700 = defaultT700
 
-            const totalPlanned = plannedT300 + plannedT700
-            const ratioT300 = totalPlanned > 0 ? (plannedT300 / totalPlanned) : 1
-            const ratioT700 = totalPlanned > 0 ? (plannedT700 / totalPlanned) : 0
-
-            const actualT300 = Math.round(sheetsDone * ratioT300)
-            const actualT700 = Math.round(sheetsDone * ratioT700)
+            const actualT300 = plannedT300
+            const actualT700 = plannedT700
 
             const rawMat = p.material || '—'
             const thickMatch = rawMat.match(/(\d+(?:\.\d+)?)мм/i)
@@ -337,6 +370,18 @@ export function ForemanReportModal({
             } else {
               addToStats(rawMat, p.sheets, sheetsDone)
             }
+          })
+
+          Object.entries(issuedReissueSheetsByMaterial).forEach(([materialName, sheets]) => {
+            if (!sheets) return
+            if (!materialStats[materialName]) {
+              materialStats[materialName] = {
+                plannedSheets: 0,
+                actualSheets: 0
+              }
+            }
+            materialStats[materialName].actualSheets += sheets
+            totalActualSheets += sheets
           })
 
           totalScrap = reportData.historyRows.reduce((sum, row) => sum + (Number(row.scrap_qty) || 0), 0)

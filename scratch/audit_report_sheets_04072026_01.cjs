@@ -23,7 +23,7 @@ async function fetchHistory(cardIds) {
     const ids = cardIds.slice(i, i + 80)
     rows.push(...await must('work_card_history', supabase
       .from('work_card_history')
-      .select('id,card_id,nomenclature_id,stage_name,operator_name,qty_at_start,qty_completed,scrap_qty,card_info,completed_at,created_at')
+      .select('id,card_id,nomenclature_id,stage_name,operator_name,qty_at_start,qty_completed,scrap_qty,cutters_used,card_info,completed_at,created_at')
       .in('card_id', ids)
       .limit(10000)
     ))
@@ -38,6 +38,65 @@ function isCutting(row) {
 function isRedo(card) {
   const info = str(card.card_info)
   return card.is_rework || info.includes('[REDO]') || info.toLowerCase().includes('довипуск')
+}
+
+function parseCuttersBreakdown(cardInfo = '') {
+  const info = String(cardInfo || '')
+  const markerIdx = info.indexOf('[CUTTERS_BREAKDOWN:')
+  if (markerIdx === -1) return null
+  const jsonStart = info.indexOf('{', markerIdx)
+  if (jsonStart === -1) return null
+  let depth = 0
+  let jsonEnd = -1
+  for (let i = jsonStart; i < info.length; i++) {
+    if (info[i] === '{') depth++
+    else if (info[i] === '}') {
+      depth--
+      if (depth === 0) {
+        jsonEnd = i
+        break
+      }
+    }
+  }
+  if (jsonEnd === -1) return null
+  try {
+    return JSON.parse(info.slice(jsonStart, jsonEnd + 1))
+  } catch {
+    return null
+  }
+}
+
+function summarizeActualCutters(label, history) {
+  const cuttingRows = (history || []).filter(isCutting)
+  const breakdown = {}
+  let rowsWithBreakdown = 0
+  let rowsWithCuttersUsed = 0
+  let rowsWithoutCutterFact = 0
+  let cuttersUsedFallbackTotal = 0
+
+  for (const row of cuttingRows) {
+    const parsed = parseCuttersBreakdown(row.card_info)
+    if (parsed) {
+      rowsWithBreakdown++
+      for (const [name, qty] of Object.entries(parsed)) {
+        breakdown[name] = (breakdown[name] || 0) + num(qty)
+      }
+    } else if (num(row.cutters_used) > 0) {
+      rowsWithCuttersUsed++
+      cuttersUsedFallbackTotal += num(row.cutters_used)
+      breakdown['Фреза (без деталізації)'] = (breakdown['Фреза (без деталізації)'] || 0) + num(row.cutters_used)
+    } else {
+      rowsWithoutCutterFact++
+    }
+  }
+
+  const total = Object.values(breakdown).reduce((sum, qty) => sum + qty, 0)
+  console.log(`\n${label} CUTTERS FACT`)
+  console.log(`cuttingRows=${cuttingRows.length}, withBreakdown=${rowsWithBreakdown}, withCuttersUsedOnly=${rowsWithCuttersUsed}, withoutCutterFact=${rowsWithoutCutterFact}`)
+  console.log(`totalActualCutters=${total}, cuttersUsedFallbackTotal=${cuttersUsedFallbackTotal}`)
+  Object.entries(breakdown)
+    .sort((a, b) => b[1] - a[1])
+    .forEach(([name, qty]) => console.log(`  ${name}: ${qty}`))
 }
 
 function calculateReportFormula({ label, snapshot, cards, history, noms }) {
@@ -180,6 +239,7 @@ async function main() {
   console.log(`ORDER ${order.order_num} | task=${cuttingTask.id} | ${cuttingTask.step} | cards=${cards.length} | history=${history.length}`)
   console.log('REPORT FORMULA: sheetsDone = ceil(sum(cutting history qty_completed) / units_per_sheet)')
   const live = calculateReportFormula({ label: 'LIVE', snapshot, cards, history, noms })
+  summarizeActualCutters('LIVE', history)
 
   const cached = snapshot._report_snapshot
   if (cached) {
@@ -194,6 +254,7 @@ async function main() {
     }
     console.log(`\nCACHED SNAPSHOT: cards=${cachedCards.length}, history=${cachedHistory.length}, scrapRows=${cachedHistory.filter(h => num(h.scrap_qty) > 0).length}`)
     calculateReportFormula({ label: 'CACHED', snapshot, cards: cachedCards, history: cachedHistory, noms: allNoms })
+    summarizeActualCutters('CACHED', cachedHistory)
   } else {
     console.log('\nCACHED SNAPSHOT: none')
   }
