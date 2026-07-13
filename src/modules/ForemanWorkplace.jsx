@@ -13,6 +13,32 @@ import ForemanPrintQueue from './Foreman/components/ForemanPrintQueue'
 import ForemanPrintNaryadQueue from './Foreman/components/ForemanPrintNaryadQueue'
 import { ForemanReportModal } from './Foreman/components/ForemanReportModal'
 import { getDisplayPartsForOrderItem as getDisplayPartsForOrderItemHelper, getStandardMachineType, findMachineByName, MACHINE_TYPES } from './Foreman/utils/foremanHelpers'
+
+const fetchWorkCardHistoryByCardIds = async (cardIds = [], columns = '*') => {
+  const rows = []
+  const chunkSize = 25
+  const pageSize = 1000
+
+  for (let i = 0; i < cardIds.length; i += chunkSize) {
+    const chunk = cardIds.slice(i, i + chunkSize)
+    for (let from = 0; ; from += pageSize) {
+      const to = from + pageSize - 1
+      const { data, error } = await supabase
+        .from('work_card_history')
+        .select(columns)
+        .in('card_id', chunk)
+        .order('created_at', { ascending: true })
+        .range(from, to)
+
+      if (error) throw error
+      rows.push(...(data || []))
+      if (!data || data.length < pageSize) break
+    }
+  }
+
+  return Array.from(new Map(rows.filter(Boolean).map(row => [String(row.id), row])).values())
+}
+
 const getRequestQty = (r) => {
   if (r.quantity !== null && r.quantity !== undefined) return Number(r.quantity);
   const match = (r.details || '').match(/—\s*(\d+)/);
@@ -194,20 +220,7 @@ const ForemanWorkplace = () => {
         const cardIds = allTaskCards.map(c => c.id)
         let histData = []
         if (cardIds.length > 0) {
-          const chunkSize = 100
-          const promises = []
-          for (let i = 0; i < cardIds.length; i += chunkSize) {
-            const chunk = cardIds.slice(i, i + chunkSize)
-            promises.push(
-              supabase
-                .from('work_card_history')
-                .select('*')
-                .in('card_id', chunk)
-                .limit(5000)
-            )
-          }
-          const results = await Promise.all(promises)
-          histData = Array.from(new Map(results.flatMap(r => r.data || []).map(row => [String(row.id), row])).values())
+          histData = await fetchWorkCardHistoryByCardIds(cardIds)
           setTaskHistory(histData)
         } else {
           setTaskHistory([])
@@ -284,23 +297,9 @@ const ForemanWorkplace = () => {
         setStaticCompletedCards(completedCards);
 
         // Fetch history for ALL cards (completed and active) to ensure scrap quantities are 100% accurate
-        // Chunk size 100 to avoid PostgREST URL length limits with large .in() arrays
         const cardIds = (cardsData || []).map(c => c.id);
         if (cardIds.length > 0) {
-          const chunkSize = 100;
-          const promises = [];
-          for (let i = 0; i < cardIds.length; i += chunkSize) {
-            const chunk = cardIds.slice(i, i + chunkSize);
-            promises.push(
-              supabase
-                .from('work_card_history')
-                .select('id, card_id, nomenclature_id, scrap_qty')
-                .in('card_id', chunk)
-                .limit(5000)
-            );
-          }
-          const results = await Promise.all(promises);
-          const historyData = results.flatMap(res => res.data || []);
+          const historyData = await fetchWorkCardHistoryByCardIds(cardIds, 'id, card_id, nomenclature_id, scrap_qty, created_at');
           setStaticHistory(historyData);
         } else {
           setStaticHistory([]);

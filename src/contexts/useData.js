@@ -7,6 +7,7 @@ import { fetchProductionSummary } from '../services/statisticsService'
 
 const CACHE_KEY = 'MES_APP_CACHE_V1'
 const USER_CACHE_KEY = 'MES_SESSION_USER'  // Full user object for instant restore
+const TARGET_REFRESH_TTL_MS = 900
 
 const fallbackStructure = [
   { id: '1', name: 'Цех №1', type: 'shop' },
@@ -96,6 +97,14 @@ const fetchAllRows = async (table, { orderBy = 'created_at', ascending = false, 
 
   const uniqueRows = Array.from(new Map(allRows.map(row => [String(row.id), row])).values())
   return { data: uniqueRows, error: null }
+}
+
+const fetchOperationalMaterialRequests = async () => {
+  return supabase
+    .from('material_requests')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(1500)
 }
 
 const mergeTaskRows = (existing = [], incoming = []) => {
@@ -196,6 +205,8 @@ export function useData() {
   const [serverProductionData, setServerProductionData] = useState(null)
 
   const fetchInProgressRef = useRef(false)
+  const targetRefreshInFlightRef = useRef({})
+  const targetRefreshLastRef = useRef({})
   const nomenclaturesLoadedRef = useRef(false)
   const bomItemsLoadedRef = useRef(false)
   const nomenclaturesRef = useRef([])
@@ -204,6 +215,7 @@ export function useData() {
   const workCardHistoryRef = useRef([])
   const receptionDocsRef = useRef([])
   const purchaseRequestsRef = useRef([])
+  const requestsRef = useRef([])
   const companyStructureRef = useRef([])
   const companyPositionsRef = useRef([])
   nomenclaturesRef.current = nomenclatures
@@ -212,6 +224,7 @@ export function useData() {
   workCardHistoryRef.current = workCardHistory
   receptionDocsRef.current = receptionDocs
   purchaseRequestsRef.current = purchaseRequests
+  requestsRef.current = requests
   companyStructureRef.current = companyStructure
   companyPositionsRef.current = companyPositions
 
@@ -347,7 +360,7 @@ export function useData() {
         companyPositionsRef.current.length > fallbackPositions.length ? Promise.resolve({ data: companyPositionsRef.current }) : supabase.from('company_positions').select('*').order('name').then(res => res, () => ({ data: fallbackPositions, error: null })),
         // Global Real-time Tables
         inventoryRef.current.length > 0 ? Promise.resolve({ data: inventoryRef.current }) : supabase.from('inventory').select('*').order('name').limit(3000),
-        fetchAllRows('material_requests'),
+        requestsRef.current.length > 0 ? Promise.resolve({ data: requestsRef.current }) : fetchOperationalMaterialRequests(),
         receptionDocsRef.current.length > 0 ? Promise.resolve({ data: receptionDocsRef.current }) : supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300),
         purchaseRequestsRef.current.length > 0 ? Promise.resolve({ data: purchaseRequestsRef.current }) : supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300),
         workCardHistoryRef.current.length > 0 ? Promise.resolve({ data: workCardHistoryRef.current }) : supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(500),
@@ -397,8 +410,26 @@ export function useData() {
   // ── LEVEL 2: Full data — called lazily by modules that need it ────────────
   const fetchData = async (forceOrTargets = false) => {
     if (typeof forceOrTargets === 'string' || Array.isArray(forceOrTargets)) {
-      const targets = Array.isArray(forceOrTargets) ? forceOrTargets : [forceOrTargets]
-      await Promise.all(targets.map(t => refreshTable(t).catch(() => { })))
+      const targets = [...new Set((Array.isArray(forceOrTargets) ? forceOrTargets : [forceOrTargets])
+        .map(tableName => tableName === 'requests' ? 'material_requests' : tableName))]
+      await Promise.all(targets.map(tableName => {
+        const now = Date.now()
+        const inFlight = targetRefreshInFlightRef.current[tableName]
+        if (inFlight) return inFlight
+
+        const lastRun = targetRefreshLastRef.current[tableName] || 0
+        if (now - lastRun < TARGET_REFRESH_TTL_MS) return Promise.resolve()
+
+        const refreshPromise = refreshTable(tableName)
+          .catch(error => console.warn(`refreshTable(${tableName}) failed:`, error))
+          .finally(() => {
+            targetRefreshLastRef.current[tableName] = Date.now()
+            delete targetRefreshInFlightRef.current[tableName]
+          })
+
+        targetRefreshInFlightRef.current[tableName] = refreshPromise
+        return refreshPromise
+      }))
       return
     }
     const force = forceOrTargets === true
@@ -445,7 +476,7 @@ export function useData() {
         fetchActiveWorkCards(),
         needStructure ? supabase.from('company_structure').select('*').order('name').then(res => res, () => ({ data: fallbackStructure, error: null })) : Promise.resolve({ data: null }),
         supabase.from('inventory').select('*').order('name').limit(3000),
-        fetchAllRows('material_requests'),
+        !force && requestsRef.current.length > 0 ? Promise.resolve({ data: null }) : fetchOperationalMaterialRequests(),
         supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300),
         supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300),
         supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(500),
@@ -604,8 +635,8 @@ export function useData() {
       } else if (tableName === 'reception_docs') {
         const { data } = await supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300)
         if (data) setReceptionDocs(data)
-      } else if (tableName === 'material_requests') {
-        const { data, error } = await fetchAllRows('material_requests')
+      } else if (tableName === 'material_requests' || tableName === 'requests') {
+        const { data, error } = await fetchOperationalMaterialRequests()
         if (error) throw error
         if (data) setRequests(data)
       } else if (tableName === 'work_card_history') {

@@ -47,6 +47,7 @@ const ShippingModule = lazy(() => import('./modules/ShippingModule'))
 const SupplyModule = lazy(() => import('./modules/SupplyModuleV2'))
 const PreparationTerminal = lazy(() => import('./modules/PreparationTerminal'))
 const ForemanWorkplace = lazy(() => import('./modules/ForemanWorkplace'))
+const Foreman2Module = lazy(() => import('./modules/Foreman2/Foreman2Module'))
 const PackagingModule = lazy(() => import('./modules/PackagingModule'))
 const MachinesModule = lazy(() => import('./modules/MachinesModule'))
 const SettingsModule = lazy(() => import('./modules/SettingsModule'))
@@ -97,6 +98,7 @@ const getAllModules = (badgeCount = 0, chatBadgeCount = 0) => [
   { id: 'prep_terminal', title: 'Підготовка', icon: <Tablet />, path: '/prep-terminal', desc: 'Відділ Підготовки', color: '#10b981' },
   { id: 'master', title: 'ЦЕХ №1 – Створення нарядів', icon: <Monitor />, path: '/master', desc: 'Управління зміною', color: '#3b82f6' },
   { id: 'foreman', title: 'ЦЕХ №1 – Створення РК', icon: <Users />, path: '/foreman', desc: 'Розподіл нарядів', color: '#f59e0b' },
+  { id: 'foreman2', title: 'Foreman 2.0', icon: <Users />, path: '/foreman2', desc: 'Новий модуль нарядів Цеху №1', color: '#ff9000' },
   { id: 'shop1', title: 'Цех №1 · Термінал', icon: <Tablet />, path: '/shop1', desc: 'Розкрій → Галтовка → Прийомка', color: '#eab308' },
   { id: 'shop1_foreman', title: 'Кабінет Нач. Цеху №1', icon: <Users />, path: '/shop1-foreman', desc: 'Управління персоналом, календар та верстати', color: '#ff9000' },
   { id: 'tumbling_terminal', title: 'Екран Галтовки', icon: <Tablet />, path: '/tumbling-terminal', desc: 'Дільниця галтовки', color: '#06b6d4' },
@@ -153,6 +155,7 @@ const CATEGORY_MAP = {
   // Цех 1
   master: 'shop1',
   foreman: 'shop1',
+  foreman2: 'shop1',
   shop1: 'shop1',
   shop1_foreman: 'shop1',
   prep_terminal: 'shop1',
@@ -2839,6 +2842,7 @@ const AppContent = () => {
           <Route path="/warehouse-boxes" element={<PermissionGuard id="warehouse_boxes"><WarehouseBoxesModule /></PermissionGuard>} />
           <Route path="/master" element={<PermissionGuard id="master"><MasterModule /></PermissionGuard>} />
           <Route path="/foreman" element={<PermissionGuard id="foreman"><ForemanWorkplace /></PermissionGuard>} />
+          <Route path="/foreman2" element={<PermissionGuard id="foreman2"><Foreman2Module /></PermissionGuard>} />
           <Route path="/operator" element={<PermissionGuard id="operator"><OperatorTerminal /></PermissionGuard>} />
           <Route path="/prep-terminal" element={<PermissionGuard id="prep_terminal"><PreparationTerminal /></PermissionGuard>} />
           <Route path="/shop1" element={<PermissionGuard id="shop1"><Shop1Terminal /></PermissionGuard>} />

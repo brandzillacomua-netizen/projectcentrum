@@ -723,6 +723,10 @@ export function createProductionActions({
     }
   }
   const createWorkCard = async (taskId, orderId, nomenclatureId, operation, machine, estimatedTime, cardInfo, quantity, bufferQty, isRework = false) => {
+    if (isRework && (Number(quantity) || 0) <= 0) {
+      throw new Error('Довипуск з нульовою кількістю заблоковано.')
+    }
+
     const status = isRework ? 'waiting-materials' : 'new'
     const { data: list, error } = await supabase.from('work_cards').insert([{
       task_id: taskId, order_id: orderId, nomenclature_id: nomenclatureId,
@@ -751,6 +755,11 @@ export function createProductionActions({
   }
 
   const createWorkCardsBatch = async (taskId, orderId, nomenclatureId, cardsArray) => {
+    const invalidReworkCards = (cardsArray || []).filter(c => c.is_rework && (Number(c.quantity) || 0) <= 0)
+    if (invalidReworkCards.length > 0) {
+      throw new Error('Довипуск з нульовими картками заблоковано.')
+    }
+
     const payloads = cardsArray.map(c => ({
       task_id: taskId,
       order_id: orderId,

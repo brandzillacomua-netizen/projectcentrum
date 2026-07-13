@@ -1,6 +1,31 @@
 import { useEffect } from 'react'
 import { findMachineByName } from '../utils/foremanHelpers'
 
+const fetchWorkCardHistoryByCardIds = async (supabase, cardIds = []) => {
+  const rows = []
+  const chunkSize = 25
+  const pageSize = 1000
+
+  for (let i = 0; i < cardIds.length; i += chunkSize) {
+    const chunk = cardIds.slice(i, i + chunkSize)
+    for (let from = 0; ; from += pageSize) {
+      const to = from + pageSize - 1
+      const { data, error } = await supabase
+        .from('work_card_history')
+        .select('*')
+        .in('card_id', chunk)
+        .order('created_at', { ascending: true })
+        .range(from, to)
+
+      if (error) throw error
+      rows.push(...(data || []))
+      if (!data || data.length < pageSize) break
+    }
+  }
+
+  return Array.from(new Map(rows.filter(Boolean).map(row => [String(row.id), row])).values())
+}
+
 export function useForemanHandlers({
   // From useMES
   createWorkCard,
@@ -122,20 +147,7 @@ export function useForemanHandlers({
         return
       }
 
-      let historyRows = []
-      for (let i = 0; i < allCardIds.length; i += 100) {
-        const chunk = allCardIds.slice(i, i + 100)
-        const { data: histChunk, error: histErr } = await supabase
-          .from('work_card_history')
-          .select('*')
-          .in('card_id', chunk)
-          .limit(10000)
-
-        if (histErr) throw histErr
-        if (histChunk) {
-          historyRows = historyRows.concat(histChunk)
-        }
-      }
+      const historyRows = await fetchWorkCardHistoryByCardIds(supabase, allCardIds)
 
       historyRows.sort((a, b) => new Date(a.completed_at || 0) - new Date(b.completed_at || 0))
 
@@ -755,7 +767,7 @@ export function useForemanHandlers({
     setIsGenerating(true)
     try {
       const cardsBatch = []
-      const activeCards = cardsForSequence.filter(c => !(c.card_info || '').includes('[REDO]'))
+      const activeCards = isRepair ? [] : cardsForSequence.filter(c => !(c.card_info || '').includes('[REDO]'))
       let actualGeneratedSheets = 0
       let actualGeneratedQty = 0
       activeCards.forEach(c => {
@@ -770,12 +782,15 @@ export function useForemanHandlers({
       const snapshotEntry = task.plan_snapshot?.[String(part.nom?.id)]
       const originalNeed = snapshotEntry?.need || totalToReach || 0
 
-      let reqRemainingForThisSplit = originalNeed - (localGeneratedCount * capacity * unitsPerSheet)
+      let reqRemainingForThisSplit = isRepair
+        ? Number(totalToReach) || (Number(sheets) * unitsPerSheet)
+        : originalNeed - (localGeneratedCount * capacity * unitsPerSheet)
       if (reqRemainingForThisSplit < 0) reqRemainingForThisSplit = 0
 
       for (let i = 1; i <= finalCount; i++) {
         const currentSeq = startSeqForThisBatch + (i - 1)
         const sheetsInThisLoading = Math.min(sheetsRemainingForThisSplit, capacity)
+        if (sheetsInThisLoading <= 0) break
         const qtyInThisLoading = Math.ceil(sheetsInThisLoading * unitsPerSheet)
         const reqInThisLoading = Math.min(qtyInThisLoading, reqRemainingForThisSplit)
         const bzInThisLoading = Math.max(0, qtyInThisLoading - reqInThisLoading)
@@ -798,6 +813,10 @@ export function useForemanHandlers({
         if (reqRemainingForThisSplit < 0) reqRemainingForThisSplit = 0
       }
 
+      if (cardsBatch.length === 0) {
+        throw new Error('Немає листів для довипуску. Перевірте розрахунок нестачі.')
+      }
+
       const createdCards = await apiService.submitCreateWorkCardsBatch(task.id, task.order_id, part.nom.id, cardsBatch, createWorkCardsBatch)
 
       // Генерація може виконуватися будь-якою кількістю пакетів. Після додавання
@@ -813,7 +832,7 @@ export function useForemanHandlers({
       }
 
       if (isRepair && sheets > 0) {
-        const totalQty = finalCount * capacity * unitsPerSheet
+        const totalQty = cardsBatch.reduce((sum, card) => sum + (Number(card.quantity) || 0), 0)
         const reissueCardId = createdCards?.[0]?.id || null
         await createDovyпускMaterialRequests(task.id, task.order_id, part.nom, sheets, totalQty, selectedMachineName, reissueCardId)
       }

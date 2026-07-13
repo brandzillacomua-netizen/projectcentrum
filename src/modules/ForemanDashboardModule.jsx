@@ -58,6 +58,31 @@ const getGroupTotals = (rows) => {
   return r
 }
 
+const fetchWorkCardHistoryByCardIds = async (cardIds = []) => {
+  const rows = []
+  const chunkSize = 25
+  const pageSize = 1000
+
+  for (let i = 0; i < cardIds.length; i += chunkSize) {
+    const chunk = cardIds.slice(i, i + chunkSize)
+    for (let from = 0; ; from += pageSize) {
+      const to = from + pageSize - 1
+      const { data, error } = await supabase
+        .from('work_card_history')
+        .select('*')
+        .in('card_id', chunk)
+        .order('created_at', { ascending: true })
+        .range(from, to)
+
+      if (error) throw error
+      rows.push(...(data || []))
+      if (!data || data.length < pageSize) break
+    }
+  }
+
+  return Array.from(new Map(rows.filter(Boolean).map(row => [String(row.id), row])).values())
+}
+
 // ─────────────────────────────────────────────────────────────
 // WIP Table component (reusable for overview & per-order)
 // ─────────────────────────────────────────────────────────────
@@ -1255,17 +1280,18 @@ const OrderDetailView = ({
     }
     setLoadingHistory(true)
     const cardIds = orderAllCards.map(c => c.id)
-    supabase
-      .from('work_card_history')
-      .select('*')
-      .in('card_id', cardIds)
-      .order('completed_at', { ascending: true })
-      .then(({ data, error }) => {
-        if (!error && data) {
-          setTaskHistory(data)
+    let cancelled = false
+    fetchWorkCardHistoryByCardIds(cardIds)
+      .then(data => {
+        if (!cancelled) {
+          setTaskHistory(data.sort((a, b) => new Date(a.completed_at || a.created_at || 0) - new Date(b.completed_at || b.created_at || 0)))
         }
-        setLoadingHistory(false)
       })
+      .catch(error => console.warn('Error loading task history:', error?.message || error))
+      .finally(() => {
+        if (!cancelled) setLoadingHistory(false)
+      })
+    return () => { cancelled = true }
   }, [task?.id, orderAllCards])
 
   const accentColor = status === 'ready' ? '#10b981'

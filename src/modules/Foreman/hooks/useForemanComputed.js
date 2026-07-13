@@ -63,11 +63,17 @@ export function useForemanComputed({
     })
     const allHistory = Array.from(historyMap.values())
 
+    const cardsById = new Map(allCards.map(card => [String(card.id), card]))
+    workCards.forEach(card => {
+      const key = String(card.id)
+      if (!cardsById.has(key)) cardsById.set(key, card)
+    })
+
     allHistory.forEach(h => {
       if (h.card_id) {
         csCache[h.card_id] = (csCache[h.card_id] || 0) + (Number(h.scrap_qty) || 0)
       }
-      const card = allCards.find(c => c.id === h.card_id)
+      const card = h.card_id ? cardsById.get(String(h.card_id)) : null
       if (card) {
         const tid = card.task_id
         const nid = String(card.nomenclature_id)
