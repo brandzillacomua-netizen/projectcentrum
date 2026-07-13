@@ -152,6 +152,7 @@ const ForemanWorkplace = () => {
   const [selectedNomLoadCapacity, setSelectedNomLoadCapacity] = useState('')
   const [nomLoadCapacityOverrides, setNomLoadCapacityOverrides] = useState({})
   const [localGeneratedCards, setLocalGeneratedCards] = useState([])
+  const archiveLoadSeqRef = useRef(0)
 
   useEffect(() => {
     if (localGeneratedCards.length === 0 || workCards.length === 0) return
@@ -192,27 +193,24 @@ const ForemanWorkplace = () => {
   // ── Load archive cards and history on active task change ──────────────
   useEffect(() => {
     if (activeTaskId) {
-      if (taskDataCacheRef.current.lastWorkCards !== workCards) {
-        delete taskDataCacheRef.current.archiveCards[activeTaskId]
-        delete taskDataCacheRef.current.taskHistory[activeTaskId]
-        taskDataCacheRef.current.lastWorkCards = workCards
-      }
-
       if (typeof fetchTaskPlanSnapshot === 'function') {
         fetchTaskPlanSnapshot(activeTaskId).catch(() => {})
       }
 
+      const loadSeq = archiveLoadSeqRef.current + 1
+      archiveLoadSeqRef.current = loadSeq
       const cachedCards = taskDataCacheRef.current.archiveCards[activeTaskId]
       const cachedHistory = taskDataCacheRef.current.taskHistory[activeTaskId]
+      const hasCachedHistory = Array.isArray(cachedHistory)
 
-      if (cachedCards && cachedHistory) {
+      if (cachedCards && hasCachedHistory) {
         setArchiveCards(cachedCards)
         setTaskHistory(cachedHistory)
-        setIsLoadingHistory(false)
       }
 
-      setIsLoadingHistory(true)
+      setIsLoadingHistory(!hasCachedHistory)
       fetchTaskArchiveCards(activeTaskId).then(async (cards) => {
+        if (archiveLoadSeqRef.current !== loadSeq) return
         setArchiveCards(cards || [])
 
         const activeTaskCards = workCards.filter(c => c.task_id === activeTaskId)
@@ -221,18 +219,21 @@ const ForemanWorkplace = () => {
         let histData = []
         if (cardIds.length > 0) {
           histData = await fetchWorkCardHistoryByCardIds(cardIds)
+          if (archiveLoadSeqRef.current !== loadSeq) return
           setTaskHistory(histData)
         } else {
+          if (archiveLoadSeqRef.current !== loadSeq) return
           setTaskHistory([])
         }
 
         taskDataCacheRef.current.archiveCards[activeTaskId] = cards || []
         taskDataCacheRef.current.taskHistory[activeTaskId] = histData
-        setIsLoadingHistory(false)
+        if (archiveLoadSeqRef.current === loadSeq) setIsLoadingHistory(false)
       }).catch(() => {
-        setIsLoadingHistory(false)
+        if (archiveLoadSeqRef.current === loadSeq) setIsLoadingHistory(false)
       })
     } else {
+      archiveLoadSeqRef.current += 1
       setArchiveCards([])
       setTaskHistory([])
       setIsLoadingHistory(false)
@@ -1425,7 +1426,11 @@ const ForemanWorkplace = () => {
                   </h3>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    {Object.keys(task.plan_snapshot || {}).map((nomIdStr) => {
+                    {isLoadingHistory ? (
+                      <div style={{ background: '#0f0f0f', border: '1px solid #222', borderRadius: '12px', padding: '14px 18px', color: '#ff9000', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                        Завантажуємо повну історію карток...
+                      </div>
+                    ) : Object.keys(task.plan_snapshot || {}).map((nomIdStr) => {
                       const nomId = isNaN(nomIdStr) ? nomIdStr : Number(nomIdStr)
                       const nom = nomenclatures.find(n => String(n.id) === String(nomId))
 
@@ -1433,9 +1438,7 @@ const ForemanWorkplace = () => {
 
                       const activeCards = taskCards.filter(c => String(c.nomenclature_id) === String(nomId))
                       const cardIdsStrings = activeCards.map(c => String(c.id))
-                      const groupHistory = taskHistory.length > 0
-                        ? taskHistory.filter(h => h.card_id && cardIdsStrings.includes(String(h.card_id)))
-                        : workCardHistory.filter(h => h.card_id && cardIdsStrings.includes(String(h.card_id)))
+                      const groupHistory = taskHistory.filter(h => h.card_id && cardIdsStrings.includes(String(h.card_id)))
 
                       // Вироблено = всі картки що вже виготовлені (completed, at-buffer, на прийомці)
                       const groupProduced = activeCards.reduce((sum, c) => sum + (countAsProduced(c) ? (Number(c.quantity) || 0) : 0), 0)
