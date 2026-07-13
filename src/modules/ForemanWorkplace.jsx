@@ -254,7 +254,10 @@ const ForemanWorkplace = () => {
         setTaskHistory(cachedHistory)
       }
 
-      setIsLoadingHistory(!hasCachedHistory)
+      const hasTaskScrapTotals = (workCardScrapTotals || []).some(row =>
+        row.task_id === activeTaskId && (Number(row.total_scrap) || 0) > 0
+      )
+      setIsLoadingHistory(!hasCachedHistory && !hasTaskScrapTotals)
       fetchTaskArchiveCards(activeTaskId).then(async (cards) => {
         if (archiveLoadSeqRef.current !== loadSeq) return
         setArchiveCards(cards || [])
@@ -367,7 +370,9 @@ const ForemanWorkplace = () => {
 
         // For shortage/scrap math we only need rows where scrap_qty > 0.
         const cardIds = (cardsData || []).map(c => c.id);
-        if (cardIds.length > 0) {
+        if ((workCardScrapTotals || []).length > 0) {
+          setStaticHistory([]);
+        } else if (cardIds.length > 0) {
           const historyData = await fetchScrapHistoryByCardIds(cardIds);
           setStaticHistory(historyData);
         } else {
@@ -377,7 +382,7 @@ const ForemanWorkplace = () => {
       .catch((error) => {
         console.warn('Error fetching cards/history for static progress:', error?.message || error);
       });
-  }, [tasks, activeTaskId]);
+  }, [tasks, activeTaskId, workCardScrapTotals]);
 
   // ── Sync staticHistory з реалтайм workCardHistory (без зайвих DB-запитів) ──
   // При новому браку через realtime INSERT → workCardHistory оновлюється →
@@ -1497,11 +1502,7 @@ const ForemanWorkplace = () => {
                   </h3>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    {isLoadingHistory ? (
-                      <div style={{ background: '#0f0f0f', border: '1px solid #222', borderRadius: '12px', padding: '14px 18px', color: '#ff9000', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-                        Оновлюємо архів карток...
-                      </div>
-                    ) : Object.keys(task.plan_snapshot || {}).map((nomIdStr) => {
+                    {Object.keys(task.plan_snapshot || {}).map((nomIdStr) => {
                       const nomId = isNaN(nomIdStr) ? nomIdStr : Number(nomIdStr)
                       const nom = nomenclatures.find(n => String(n.id) === String(nomId))
 
