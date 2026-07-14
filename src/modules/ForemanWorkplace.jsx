@@ -184,6 +184,7 @@ const ForemanWorkplace = () => {
   const [selectedNomLoadCapacity, setSelectedNomLoadCapacity] = useState('')
   const [nomLoadCapacityOverrides, setNomLoadCapacityOverrides] = useState({})
   const [localGeneratedCards, setLocalGeneratedCards] = useState([])
+  const [expandedArchiveMachines, setExpandedArchiveMachines] = useState({})
   const archiveLoadSeqRef = useRef(0)
   const activeTaskCardsForArchive = useMemo(() => {
     if (!activeTaskId) return []
@@ -1663,15 +1664,56 @@ const ForemanWorkplace = () => {
 
                           {/* ───── КАРТКИ ───── */}
                           {expandedGroups[nomId] && (
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '15px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                               {(() => {
                                 const getCardSeq = (card) => {
                                   const match = (card.card_info || '').match(/(\d+)\/(\d+)/)
                                   return match ? parseInt(match[1]) : 999999
                                 }
                                 const sortedCards = [...activeCards].sort((a, b) => getCardSeq(a) - getCardSeq(b))
+                                const machineGroups = sortedCards.reduce((acc, card) => {
+                                  const machineName = card.machine || snapshot?.machine || 'Верстат не вказано'
+                                  if (!acc.has(machineName)) acc.set(machineName, [])
+                                  acc.get(machineName).push(card)
+                                  return acc
+                                }, new Map())
 
-                                return sortedCards.map(card => {
+                                return Array.from(machineGroups.entries()).map(([machineName, machineCards]) => {
+                                  const machineKey = `${nomId}:${machineName}`
+                                  const isMachineExpanded = !!expandedArchiveMachines[machineKey]
+                                  const machineProduced = machineCards.reduce((sum, c) => sum + (countAsProduced(c) ? (Number(c.quantity) || 0) : 0), 0)
+                                  const machineScrap = machineCards.reduce((sum, c) => {
+                                    return sum + groupHistory
+                                      .filter(h => String(h.card_id) === String(c.id))
+                                      .reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
+                                  }, 0)
+                                  const machineWaiting = machineCards.filter(c => c.status === 'new' || c.status === 'waiting-materials').length
+                                  const machineDone = machineCards.filter(c => c.status === 'completed' || c.status === 'at-buffer' || c.status === 'waiting-buffer').length
+
+                                  return (
+                                    <div key={machineKey} style={{ background: '#0b0b0b', border: '1px solid #1f1f1f', borderRadius: '14px', overflow: 'hidden' }}>
+                                      <div
+                                        onClick={() => setExpandedArchiveMachines(prev => ({ ...prev, [machineKey]: !prev[machineKey] }))}
+                                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 14px', background: '#101010', cursor: 'pointer', userSelect: 'none', flexWrap: 'wrap' }}
+                                      >
+                                        <div style={{ minWidth: 0 }}>
+                                          <div style={{ color: '#fff', fontSize: '0.78rem', fontWeight: 950, lineHeight: 1.25 }}>{machineName}</div>
+                                          <div style={{ color: '#555', fontSize: '0.6rem', fontWeight: 800, marginTop: '3px' }}>
+                                            КАРТОК: <span style={{ color: '#fff' }}>{machineCards.length}</span>
+                                            {machineWaiting > 0 && <span style={{ color: '#eab308' }}> | ОЧІКУЄ: {machineWaiting}</span>}
+                                            {machineDone > 0 && <span style={{ color: '#10b981' }}> | ГОТОВІ: {machineDone}</span>}
+                                          </div>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                                          <div style={{ color: '#555', fontSize: '0.65rem', fontWeight: 900 }}>ПРИЙНЯТО: <span style={{ color: '#3b82f6' }}>{machineProduced}</span></div>
+                                          <div style={{ color: machineScrap > 0 ? '#ef4444' : '#555', fontSize: '0.65rem', fontWeight: 950 }}>БРАК: {machineScrap}</div>
+                                          <div style={{ color: '#555', fontWeight: 950, fontSize: '0.75rem' }}>{isMachineExpanded ? '▼' : '▶'}</div>
+                                        </div>
+                                      </div>
+
+                                      {isMachineExpanded && (
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '15px', padding: '12px' }}>
+                                          {machineCards.map(card => {
                                   const loadingText = card.card_info?.split(' [')[0]
                                   const isRedo = (card.card_info || '').includes('[REDO]')
                                   const cardScrap = groupHistory
@@ -1741,6 +1783,11 @@ const ForemanWorkplace = () => {
                                           )
                                         })()}
                                       </div>
+                                    </div>
+                                  )
+                                })}
+                                        </div>
+                                      )}
                                     </div>
                                   )
                                 })
