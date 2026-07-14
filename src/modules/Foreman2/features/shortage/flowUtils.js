@@ -31,10 +31,28 @@ export const sumFlowField = (rows, field, stageKeys = null) => {
 }
 
 export const getBestKnownProducedFromFlow = (rows) => {
-  const finalGood = sumFlowField(rows, 'total_good', ['sgp'])
-  const bzGood = sumFlowField(rows, 'total_bz')
-  if (finalGood + bzGood > 0) return finalGood + bzGood
-
-  const priority = ['finishing', 'pressing', 'painting', 'sorting', 'reception', 'tumbling', 'cut']
-  return Math.max(0, ...priority.map(key => sumFlowField(rows, 'total_good', [key])), bzGood)
+  const latestByCard = {}
+  
+  rows.forEach(row => {
+    const stage = normalizeStage(row.stage_name)
+    // Ignore buffer stages so they don't corrupt the latest actual production event
+    if (stage.includes('буфер') || stage.includes('buffer')) return
+    
+    const cardId = String(row.card_id || 'unknown')
+    const currentLatest = latestByCard[cardId]
+    
+    const rowTime = new Date(row.last_event_at || row.updated_at || 0).getTime()
+    const latestTime = currentLatest ? new Date(currentLatest.last_event_at || currentLatest.updated_at || 0).getTime() : -1
+    
+    if (!currentLatest || rowTime > latestTime) {
+      latestByCard[cardId] = row
+    }
+  })
+  
+  let totalProduced = 0
+  Object.values(latestByCard).forEach(row => {
+    totalProduced += (Number(row.total_good) || 0) + (Number(row.total_bz) || 0)
+  })
+  
+  return totalProduced
 }

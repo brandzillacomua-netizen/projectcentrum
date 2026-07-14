@@ -14,6 +14,8 @@ import { useMachineChange } from './features/machine-change/useMachineChange.js'
 import MachineChangeModal from './features/machine-change/MachineChangeModal.jsx'
 import { useCardGeneration } from './features/card-generation/useCardGeneration.js'
 import GenerateCardsModal from './features/card-generation/GenerateCardsModal.jsx'
+import AdminCardDeletePanel from './features/admin-card-delete/AdminCardDeletePanel.jsx'
+import { useAdminCardDelete } from './features/admin-card-delete/useAdminCardDelete.js'
 import ForemanPrintQueue from '../Foreman/components/ForemanPrintQueue.jsx'
 import { getDisplayMaterial } from '../Foreman/utils/foremanHelpers.js'
 
@@ -52,6 +54,11 @@ export default function Foreman2Module() {
   })
 
   const cardGen = useCardGeneration({ mes })
+  const adminCardDelete = useAdminCardDelete({
+    currentUser: mes.currentUser,
+    fetchData: mes.fetchData,
+    onDeleted: refreshForeman2
+  })
 
   const activeCalls = (mes.machineCalls || []).filter(c =>
     c.status === 'pending' &&
@@ -137,6 +144,18 @@ export default function Foreman2Module() {
             onMachineChange={(part) => machineChange.openMachineChange(activeModel.task, part)}
             onGenerateCards={(part, count, capacityOverride) => cardGen.openGenModal({ task: activeModel.task, part, count, capacityOverride, isRepair: false })}
             onPrintCards={(part, metadata) => cardGen.setPrintQueue({ task: activeModel.task, part, metadata })}
+            adminCardsPanel={
+              adminCardDelete.isSuperAdmin ? (
+                <AdminCardDeletePanel
+                  model={activeModel}
+                  currentUser={mes.currentUser}
+                  onDeleteCards={adminCardDelete.deleteCards}
+                  isDeleting={adminCardDelete.isDeleting}
+                  error={adminCardDelete.error}
+                  lastResult={adminCardDelete.lastResult}
+                />
+              ) : null
+            }
             onCompleteTask={async (taskId) => {
               try {
                 await apiService.submitCompleteTaskByMaster(taskId, mes.completeTaskByMaster)

@@ -305,7 +305,7 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
   )
 }
 
-export default function TaskDetails({ model, nomenclatures = [], allCards, onOpenReissue, onCompleteTask, onOpenReport, onMachineChange, onGenerateCards, onPrintCards }) {
+export default function TaskDetails({ model, nomenclatures = [], allCards, onOpenReissue, onCompleteTask, onOpenReport, onMachineChange, onGenerateCards, onPrintCards, adminCardsPanel }) {
   const [expandedPartId, setExpandedPartId] = useState(null)
   const [expandedArchivePartId, setExpandedArchivePartId] = useState(null)
   const [isCompletingTask, setIsCompletingTask] = useState(false)
@@ -751,6 +751,7 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
         onOpenReissue={onOpenReissue}
         onPrintCards={onPrintCards}
       />
+      {adminCardsPanel}
     </main>
   )
 }

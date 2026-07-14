@@ -12,6 +12,7 @@ import ForemanTaskQueue from './Foreman/components/ForemanTaskQueue'
 import ForemanPrintQueue from './Foreman/components/ForemanPrintQueue'
 import ForemanPrintNaryadQueue from './Foreman/components/ForemanPrintNaryadQueue'
 import { ForemanReportModal } from './Foreman/components/ForemanReportModal'
+import ForemanAdminCardDeletePanel from './Foreman/features/admin-card-delete/ForemanAdminCardDeletePanel.jsx'
 import { getDisplayPartsForOrderItem as getDisplayPartsForOrderItemHelper, getStandardMachineType, findMachineByName, MACHINE_TYPES } from './Foreman/utils/foremanHelpers'
 
 const uniqueById = (rows = []) => {
@@ -450,6 +451,24 @@ const ForemanWorkplace = () => {
   })
 
   const handleResolveCall = (callId) => handleResolveCallRaw(callId, currentUser)
+
+  const handleAdminCardsDeleted = (result) => {
+    const deletedIds = new Set((result?.deletedIds || []).map(id => String(id)))
+    if (deletedIds.size === 0) return
+
+    setArchiveCards(prev => prev.filter(card => !deletedIds.has(String(card.id))))
+    setLocalGeneratedCards(prev => prev.filter(card => !deletedIds.has(String(card.id))))
+    setTaskHistory(prev => prev.filter(row => !deletedIds.has(String(row.card_id))))
+
+    if (activeTaskId && taskDataCacheRef.current?.archiveCards?.[activeTaskId]) {
+      taskDataCacheRef.current.archiveCards[activeTaskId] = taskDataCacheRef.current.archiveCards[activeTaskId]
+        .filter(card => !deletedIds.has(String(card.id)))
+    }
+    if (activeTaskId && taskDataCacheRef.current?.taskHistory?.[activeTaskId]) {
+      taskDataCacheRef.current.taskHistory[activeTaskId] = taskDataCacheRef.current.taskHistory[activeTaskId]
+        .filter(row => !deletedIds.has(String(row.card_id)))
+    }
+  }
 
   const persistNomLoadCapacity = async (task, nomId, capacity) => {
     if (!task || !nomId || !capacity) return
@@ -1732,6 +1751,16 @@ const ForemanWorkplace = () => {
                       )
                     })}
                   </div>
+
+                  <ForemanAdminCardDeletePanel
+                    task={task}
+                    workCards={workCards}
+                    archiveCards={archiveCards}
+                    nomenclatures={nomenclatures}
+                    currentUser={currentUser}
+                    fetchData={fetchData}
+                    onDeleted={handleAdminCardsDeleted}
+                  />
                 </div>
               )
             })()

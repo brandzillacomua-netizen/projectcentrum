@@ -24,11 +24,7 @@ export const calculatePartShortage = ({ task, entry, cards, cardScrapMap, scrapB
   
   const flowRows = flowTotalsByTaskNom?.[asId(task.id)]?.[nomId] || []
   
-  // Filter flow rows to only include active cards to avoid summing deleted cards
-  const activeCardIds = new Set(nomCards.map(c => String(c.id)))
-  const activeFlowRows = flowRows.filter(row => activeCardIds.has(String(row.card_id)))
-  
-  const flowProduced = activeFlowRows.length > 0 ? getBestKnownProducedFromFlow(activeFlowRows) : 0
+  const flowProduced = flowRows.length > 0 ? getBestKnownProducedFromFlow(flowRows) : 0
   const sumProduced = getProducedQty(nomCards)
   const produced = flowProduced > 0 ? flowProduced : sumProduced
 
