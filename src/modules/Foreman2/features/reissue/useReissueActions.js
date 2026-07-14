@@ -21,15 +21,22 @@ export function useReissueActions({ createWorkCardsBatch, createDovypuskMaterial
       }
 
       if (typeof createDovypuskMaterialRequests === 'function') {
-        await createDovypuskMaterialRequests(
-          task.id,
-          task.order_id,
-          part.nom,
-          plan.sheets,
-          plan.totalQty,
-          plan.machine.name,
-          createdCards[0]?.id || null
-        )
+        for (let idx = 0; idx < plan.cards.length; idx += 1) {
+          const plannedCard = plan.cards[idx]
+          const createdCard = createdCards[idx]
+          const qtyForCard = Number(plannedCard.quantity) || 0
+          const sheetsForCard = Number(plannedCard.sheets) || Math.ceil(qtyForCard / plan.unitsPerSheet)
+          if (sheetsForCard <= 0 || qtyForCard <= 0) continue
+          await createDovypuskMaterialRequests(
+            task.id,
+            task.order_id,
+            part.nom,
+            sheetsForCard,
+            qtyForCard,
+            plannedCard.machine || plan.machine.name,
+            createdCard?.id || null
+          )
+        }
       }
 
       if (typeof fetchData === 'function') {

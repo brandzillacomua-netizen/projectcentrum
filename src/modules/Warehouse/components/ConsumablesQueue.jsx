@@ -2,6 +2,27 @@ import React from 'react'
 import { Bell, Trash2, Pencil, Check } from 'lucide-react'
 import { parseMaterialName, normalize } from '../hooks/useWarehouseComputed'
 
+const isPreparedSheetName = (name) => {
+  const nameLower = String(name || '').toLowerCase()
+  return nameLower.includes('лист') &&
+    nameLower.includes('підготовлений') &&
+    !nameLower.includes('непідготовлений')
+}
+
+const isPreparedSheetRequest = (req, nomenclatures, inventory) => {
+  const nom = req?.nomenclature_id
+    ? (nomenclatures || []).find(n => String(n.id) === String(req.nomenclature_id))
+    : null
+  if (nom) return isPreparedSheetName(nom.name)
+
+  const inv = req?.inventory_id
+    ? (inventory || []).find(i => String(i.id) === String(req.inventory_id))
+    : null
+  if (inv) return isPreparedSheetName(inv.name)
+
+  return isPreparedSheetName(parseMaterialName(req?.details))
+}
+
 export const ConsumablesQueue = ({
   groupedRequests,
   tasks,
@@ -43,6 +64,8 @@ export const ConsumablesQueue = ({
           const reissueCard = isCardGroup
             ? (workCards || []).find(c => String(c.id) === String(firstReq.card_id))
             : null
+          const isReissueCard = !!reissueCard && (reissueCard.is_rework || String(reissueCard.card_info || '').includes('[REDO]'))
+          const isMachineChangeGroup = reqList.some(req => String(req.details || '').includes('[BALANCED_MACHINE_CHANGE]'))
           const reissueNom = reissueCard
             ? (nomenclatures || []).find(n => String(n.id) === String(reissueCard.nomenclature_id))
             : null
@@ -55,8 +78,9 @@ export const ConsumablesQueue = ({
           const orderNum = order?.order_num || '???'
           const displayNum = task?.batch_index ? `${orderNum}/${task.batch_index}` : orderNum
 
+          const cardGroupType = isReissueCard ? 'Довипуск' : (isMachineChangeGroup ? 'Зміна верстата' : 'Картка')
           const cardLabel = isCardGroup
-            ? `НАРЯД #${displayNum} (Довипуск${reissueNom ? ': ' + reissueNom.name : ''}${cardSeq ? ' [' + cardSeq + ']' : ''})`
+            ? `НАРЯД #${displayNum} (${cardGroupType}${reissueNom ? ': ' + reissueNom.name : ''}${cardSeq ? ' [' + cardSeq + ']' : ''})`
             : `НАРЯД #${displayNum}`
 
           const documentCoversCard = (doc) => {
@@ -103,7 +127,7 @@ export const ConsumablesQueue = ({
                 const normName = normalize(i.name)
                 const normParsed = normalize(parsedName)
                 if (normName === normParsed) return true
-                if (normName.includes('[підготовлений]') && normName.replace(' [підготовлений]', '').replace('[підготовлений]', '').trim() === normParsed) return true
+                if (normName.includes('[підготовлений]') && !normName.includes('[непідготовлений]') && normName.replace(' [підготовлений]', '').replace('[підготовлений]', '').trim() === normParsed) return true
                 const normNameNoParens = normalize(i.name.replace(/\s*\([^)]*\)$/, ''))
                 if (normNameNoParens === normParsed) return true
               }
@@ -135,14 +159,11 @@ export const ConsumablesQueue = ({
           const isPartiallyIssued = task?.warehouse_conf === 'partial'
 
           const allRemainingArePreparedSheets = actionableReqs.length > 0 && actionableReqs.every(r => {
-            const nameLower = (parseMaterialName(r.details) || '').toLowerCase()
-            return nameLower.includes('лист') && nameLower.includes('підготовлений')
+            return isPreparedSheetRequest(r, nomenclatures, inventory)
           })
 
           const allMissingArePreparedSheets = missingItems.length > 0 && missingItems.every(item => {
-            const parsedName = parseMaterialName(item.details)
-            const nameLower = (parsedName || '').toLowerCase()
-            return nameLower.includes('лист') && nameLower.includes('підготовлений')
+            return isPreparedSheetRequest(item, nomenclatures, inventory)
           })
 
           let btnLabel = ''

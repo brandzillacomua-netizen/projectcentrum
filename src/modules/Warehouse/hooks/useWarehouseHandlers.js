@@ -51,6 +51,20 @@ export const useWarehouseHandlers = ({
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.trim())
   }
 
+  const isPreparedSheetByRef = (item) => {
+    const nom = item?.nomenclature_id
+      ? (nomenclatures || []).find(n => String(n.id) === String(item.nomenclature_id))
+      : null
+    const inv = item?.inventory_id
+      ? (inventory || []).find(i => String(i.id) === String(item.inventory_id))
+      : null
+    const sourceName = String(nom?.name || inv?.name || item?.name || item?.reqDetails || item?.details || '')
+    const nameLower = sourceName.toLowerCase()
+    return nameLower.includes('лист') &&
+      nameLower.includes('підготовлений') &&
+      !nameLower.includes('непідготовлений')
+  }
+
   const handleToggleCutterCheck = (cardId, nomId) => {
     setCheckedCutters(prev => {
       const cardState = prev[cardId] || {}
@@ -801,7 +815,7 @@ export const useWarehouseHandlers = ({
           const normName = normalize(i.name)
           const normParsed = normalize(parsedName)
           if (normName === normParsed) return true
-          if (normName.includes('[підготовлений]') && normName.replace(' [підготовлений]', '').replace('[підготовлений]', '').trim() === normParsed) return true
+          if (normName.includes('[підготовлений]') && !normName.includes('[непідготовлений]') && normName.replace(' [підготовлений]', '').replace('[підготовлений]', '').trim() === normParsed) return true
           const normNameNoParens = normalize(i.name.replace(/\s*\([^)]*\)$/, ''))
           if (normNameNoParens === normParsed) return true
         }
@@ -834,7 +848,7 @@ export const useWarehouseHandlers = ({
           const normName = normalize(i.name)
           const normParsed = normalize(parsedName)
           if (normName === normParsed) return true
-          if (normName.includes('[підготовлений]') && normName.replace(' [підготовлений]', '').replace('[підготовлений]', '').trim() === normParsed) return true
+          if (normName.includes('[підготовлений]') && !normName.includes('[непідготовлений]') && normName.replace(' [підготовлений]', '').replace('[підготовлений]', '').trim() === normParsed) return true
         }
         return false
       }).reduce((acc, i) => acc + (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0), 0)
@@ -873,10 +887,7 @@ export const useWarehouseHandlers = ({
         return next
       })
       
-      const nonPreparedMissing = missingItems.filter(item => {
-        const nameLower = (item.name || item.reqDetails || '').toLowerCase()
-        return !(nameLower.includes('лист') && nameLower.includes('підготовлений'))
-      })
+      const nonPreparedMissing = missingItems.filter(item => !isPreparedSheetByRef(item))
       if (nonPreparedMissing.length > 0) {
         setShortages({ orderId, orderNum, taskId, items: nonPreparedMissing, reqList })
       } else if (missingItems.length > 0) {
@@ -924,8 +935,7 @@ export const useWarehouseHandlers = ({
     setIsProcessing(true)
     try {
       const itemsToRequest = shortages.items.filter(item => {
-         const nom = nomenclatures.find(n => n.id === item.nomenclature_id)
-         return !(nom && nom.name.includes('[Підготовлений]'))
+         return !isPreparedSheetByRef(item)
       })
       
       if (itemsToRequest.length === 0) {

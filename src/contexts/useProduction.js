@@ -496,14 +496,21 @@ export function createProductionActions({
         normalizeName(n.name) === normalizedBase
       )
 
-      // Fallback: generic match if no prepared nom found
-      const finalPreparedNom = explicitRawNom || preparedNom || nomenclatures.find(n =>
-        (n.type === 'raw' || n.type === 'material') &&
-        normalizeName(n.name) === normalizedBase
-      )
+      const explicitPreparedNom = explicitRawNom &&
+        String(explicitRawNom.name || '').toLowerCase().includes('підготовлений') &&
+        !String(explicitRawNom.name || '').toLowerCase().includes('непідготовлений')
+          ? explicitRawNom
+          : null
 
-      const requestNomId = finalPreparedNom?.id || partNom?.id || null
-      const requestNomName = finalPreparedNom?.name || matKeyBase
+      // Main warehouse request must point only to prepared sheets. Unprepared
+      // material is requested separately through the preparation flow below.
+      const finalPreparedNom = preparedNom || explicitPreparedNom
+
+      const requestNomId = finalPreparedNom?.id || null
+      const requestNomName = finalPreparedNom?.name ||
+        (matKeyBase.toLowerCase().includes('підготовлений') && !matKeyBase.toLowerCase().includes('непідготовлений')
+          ? matKeyBase
+          : `${stripMaterialTags(matKeyBase)} [Підготовлений]`)
 
       const requestsToInsert = []
 
@@ -728,11 +735,13 @@ export function createProductionActions({
     }
 
     const status = isRework ? 'waiting-materials' : 'new'
+    const baseCardInfo = String(cardInfo || '')
+    const cardInfoText = `${baseCardInfo}${Number(bufferQty) > 0 && !baseCardInfo.includes('[BZ:') ? ` [BZ:${bufferQty}]` : ''}${isRework && !baseCardInfo.includes('[REDO]') ? ' [REDO]' : ''}`
     const { data: list, error } = await supabase.from('work_cards').insert([{
       task_id: taskId, order_id: orderId, nomenclature_id: nomenclatureId,
       operation: operation || 'Нова', machine, quantity: Number(quantity) || 0,
       estimated_time: Number(estimatedTime) || 0, status, is_rework: isRework,
-      card_info: `${cardInfo || ''}${Number(bufferQty) > 0 ? ` [BZ:${bufferQty}]` : ''}${isRework ? ' [REDO]' : ''}`
+      card_info: cardInfoText
     }]).select()
     if (error) {
       console.error('Error inserting work_card:', error)
@@ -759,19 +768,23 @@ export function createProductionActions({
     if (invalidReworkCards.length > 0) {
       throw new Error('Довипуск з нульовими картками заблоковано.')
     }
+    const isReworkBatch = (cardsArray || []).some(c => c.is_rework || String(c.cardInfo || '').includes('[REDO]'))
 
-    const payloads = cardsArray.map(c => ({
-      task_id: taskId,
-      order_id: orderId,
-      nomenclature_id: nomenclatureId,
-      operation: c.operation || 'Нова',
-      machine: c.machine,
-      quantity: Number(c.quantity) || 0,
-      estimated_time: Number(c.estimatedTime) || 0,
-      status: c.status || 'new',
-      is_rework: c.is_rework || false,
-      card_info: `${c.cardInfo || ''}${Number(c.bufferQty) > 0 ? ` [BZ:${c.bufferQty}]` : ''}`
-    }))
+    const payloads = cardsArray.map(c => {
+      const baseCardInfo = String(c.cardInfo || '')
+      return {
+        task_id: taskId,
+        order_id: orderId,
+        nomenclature_id: nomenclatureId,
+        operation: c.operation || 'Нова',
+        machine: c.machine,
+        quantity: Number(c.quantity) || 0,
+        estimated_time: Number(c.estimatedTime) || 0,
+        status: c.status || 'new',
+        is_rework: c.is_rework || false,
+        card_info: `${baseCardInfo}${Number(c.bufferQty) > 0 && !baseCardInfo.includes('[BZ:') ? ` [BZ:${c.bufferQty}]` : ''}`
+      }
+    })
 
     const { data, error } = await supabase.from('work_cards').insert(payloads).select()
     if (error) {
@@ -782,6 +795,21 @@ export function createProductionActions({
     // Proportional splitting of material_requests for this task
     if (data && data.length > 0) {
       setWorkCards(prev => [...prev, ...data])
+
+      if (isReworkBatch) {
+        const { error: taskStatusError } = await supabase
+          .from('tasks')
+          .update({ status: 'in-progress' })
+          .eq('id', taskId)
+        if (taskStatusError) console.warn('Failed to update task status:', taskStatusError.message)
+        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'in-progress' } : t))
+        await Promise.all([
+          refreshTable('work_cards'),
+          refreshTable('material_requests'),
+          refreshTable('tasks')
+        ])
+        return data
+      }
       
       try {
         // Fetch general material requests for this task that are not yet assigned to any card

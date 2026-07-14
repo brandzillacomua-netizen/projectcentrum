@@ -84,7 +84,7 @@ export function useCardGeneration({ mes }) {
       }
     })
 
-    const startSeqForThisBatch = maxExistingSeq + 1
+    const startSeqForThisBatch = isRepair ? ((Number(globalSeqOffset) || 0) + 1) : (maxExistingSeq + 1)
 
     setIsGenerating(true)
     try {
@@ -153,11 +153,15 @@ export function useCardGeneration({ mes }) {
         if (renumberUpdates.length > 0) await Promise.all(renumberUpdates)
       }
 
-      if (isRepair && sheets > 0) {
-        const totalQty = cardsBatch.reduce((sum, card) => sum + (Number(card.quantity) || 0), 0)
-        const reissueCardId = createdCards?.[0]?.id || null
-        if (typeof createDovypuskMaterialRequests === 'function') {
-          await createDovypuskMaterialRequests(task.id, task.order_id, part.nom, sheets, totalQty, selectedMachineName, reissueCardId)
+      if (isRepair && sheets > 0 && typeof createDovypuskMaterialRequests === 'function') {
+        for (let idx = 0; idx < cardsBatch.length; idx += 1) {
+          const batchItem = cardsBatch[idx]
+          const createdCard = createdCards?.[idx]
+          const cardSheets = Number(batchItem.actualSheets || batchItem.sheets)
+          const sheetsForCard = cardSheets > 0 ? cardSheets : Math.ceil((Number(batchItem.quantity) || 0) / unitsPerSheet)
+          const qtyForCard = Number(batchItem.quantity) || 0
+          if (sheetsForCard <= 0 || qtyForCard <= 0) continue
+          await createDovypuskMaterialRequests(task.id, task.order_id, part.nom, sheetsForCard, qtyForCard, batchItem.machine || selectedMachineName, createdCard?.id || null)
         }
       }
 
