@@ -732,7 +732,7 @@ export function useForemanHandlers({
       try {
         const { data, error } = await supabase
           .from('work_cards')
-          .select('id, is_rework, operation, card_info')
+          .select('id, is_rework, operation, card_info, quantity')
           .eq('task_id', task.id)
           .eq('nomenclature_id', part.nom?.id)
         if (!error && data) {
@@ -777,10 +777,12 @@ export function useForemanHandlers({
       const cardsBatch = []
       const activeCards = isRepair ? [] : cardsForSequence.filter(c => !(c.card_info || '').includes('[REDO]'))
       let actualGeneratedSheets = 0
-      let actualGeneratedQty = 0
+      let actualGeneratedRequiredQty = 0
       activeCards.forEach(c => {
-        actualGeneratedSheets += Math.ceil((Number(c.quantity) || 0) / unitsPerSheet)
-        actualGeneratedQty += (Number(c.quantity) || 0)
+        const cardQty = Number(c.quantity) || 0
+        const reqMatch = String(c.card_info || '').match(/\[REQ:(\d+)\]/)
+        actualGeneratedSheets += Math.ceil(cardQty / unitsPerSheet)
+        actualGeneratedRequiredQty += reqMatch ? (Number(reqMatch[1]) || 0) : cardQty
       })
 
       let sheetsRemainingForThisSplit = Math.max(0, sheets - actualGeneratedSheets)
@@ -792,7 +794,7 @@ export function useForemanHandlers({
 
       let reqRemainingForThisSplit = isRepair
         ? Number(totalToReach) || (Number(sheets) * unitsPerSheet)
-        : originalNeed - (localGeneratedCount * capacity * unitsPerSheet)
+        : originalNeed - actualGeneratedRequiredQty
       if (reqRemainingForThisSplit < 0) reqRemainingForThisSplit = 0
 
       for (let i = 1; i <= finalCount; i++) {

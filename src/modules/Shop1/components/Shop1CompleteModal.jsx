@@ -111,21 +111,22 @@ export function Shop1CompleteModal({
                   ФАКТИЧНА КІЛЬКІСТЬ ФРЕЗ
                 </label>
                 {cardCutters.map(cutterName => {
-                  const currentVal = cuttersBreakdown[cutterName] || 0
+                  const rawVal = cuttersBreakdown[cutterName]
+                  const currentVal = rawVal !== undefined ? rawVal : ''
                   return (
                     <div key={cutterName} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#121212', padding: '10px 15px', borderRadius: '10px', border: '1px solid #222' }}>
                       <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#aaa', maxWidth: '60%', textAlign: 'left' }}>{cutterName}</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <button onClick={() => setCuttersBreakdown(p => ({ ...p, [cutterName]: Math.max(0, currentVal - 1) }))}
+                        <button onClick={() => setCuttersBreakdown(p => ({ ...p, [cutterName]: Math.max(0, (Number(currentVal) || 0) - 1) }))}
                           type="button"
                           style={{ width: '32px', height: '32px', background: '#1c1c1c', border: '1px solid #333', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
-                        <input type="number" min={0} value={currentVal === 0 ? '' : currentVal} placeholder="0"
+                        <input type="number" min={0} value={currentVal} placeholder="0"
                           onChange={e => {
                             const val = e.target.value
-                            setCuttersBreakdown(p => ({ ...p, [cutterName]: val === '' ? 0 : Math.max(0, parseInt(val) || 0) }))
+                            setCuttersBreakdown(p => ({ ...p, [cutterName]: val === '' ? '' : Math.max(0, parseInt(val) || 0) }))
                           }}
                           style={{ background: 'transparent', border: 'none', color: '#eab308', fontSize: '1.2rem', width: '50px', textAlign: 'center', fontWeight: 900 }} />
-                        <button onClick={() => setCuttersBreakdown(p => ({ ...p, [cutterName]: currentVal + 1 }))}
+                        <button onClick={() => setCuttersBreakdown(p => ({ ...p, [cutterName]: (Number(currentVal) || 0) + 1 }))}
                           type="button"
                           style={{ width: '32px', height: '32px', background: '#1c1c1c', border: '1px solid #333', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
                       </div>

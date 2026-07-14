@@ -389,7 +389,8 @@ export default function GenerateCardsModal({
                     isRepair,
                     null,
                     0,
-                    capacity
+                    capacity,
+                    config.maxSheetsToGenerate
                   )
                 }
               }}

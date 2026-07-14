@@ -142,7 +142,7 @@ export default function Foreman2Module() {
             allCards={allCards}
             onOpenReissue={handleOpenReissue}
             onMachineChange={(part) => machineChange.openMachineChange(activeModel.task, part)}
-            onGenerateCards={(part, count, capacityOverride) => cardGen.openGenModal({ task: activeModel.task, part, count, capacityOverride, isRepair: false })}
+            onGenerateCards={(part, count, capacityOverride, maxSheetsToGenerate) => cardGen.openGenModal({ task: activeModel.task, part, count, capacityOverride, maxSheetsToGenerate, isRepair: false })}
             onPrintCards={(part, metadata) => cardGen.setPrintQueue({ task: activeModel.task, part, metadata })}
             adminCardsPanel={
               adminCardDelete.isSuperAdmin ? (

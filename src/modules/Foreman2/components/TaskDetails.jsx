@@ -645,7 +645,7 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
                                       alert(`Вкажіть кількість листів на одне завантаження (${capacityRangeByMachine(part.machine).defaultCapacity}-${capacityRangeByMachine(part.machine).maxCapacity} л.) перед генерацією карток.`)
                                       return
                                     }
-                                    if (onGenerateCards) onGenerateCards(part, load.expectedLoads - load.loaded)
+                                    if (onGenerateCards) onGenerateCards(part, load.expectedLoads - load.loaded, rowCapacities[part.nomId], load.remainingSheets)
                                   }}
                                   style={{
                                     background: (part.machine && capacityRangeByMachine(part.machine).defaultCapacity !== capacityRangeByMachine(part.machine).maxCapacity && !rowCapacities[part.nomId]) ? '#222' : (part.machine || part.isSplitMode ? '#ff9000' : '#222'),

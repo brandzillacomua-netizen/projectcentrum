@@ -166,6 +166,7 @@ export default function AdminCardDeletePanel({
   const [expandedNomId, setExpandedNomId] = useState(null)
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [dialog, setDialog] = useState(null)
+  const [pendingDeleteCards, setPendingDeleteCards] = useState(null)
 
   const isAdmin = isForeman2CardDeleteAdmin(currentUser)
 
@@ -221,6 +222,7 @@ export default function AdminCardDeletePanel({
 
   const handleDelete = async () => {
     if (selectedCards.length === 0 || isDeleting) return
+    setPendingDeleteCards(selectedCards)
     setDialog({
       type: 'confirm-delete',
       title: 'Підтвердити видалення',
@@ -228,11 +230,23 @@ export default function AdminCardDeletePanel({
     })
   }
 
+  const handleDeleteSingle = (card) => {
+    if (!isSafeCardToDelete(card) || isDeleting) return
+    setPendingDeleteCards([card])
+    setDialog({
+      type: 'confirm-delete',
+      title: 'Підтвердити видалення',
+      message: `Видалити одну робочу картку: ${card.card_info || String(card.id).slice(0, 8)}?`
+    })
+  }
+
   const confirmDelete = async () => {
-    if (selectedCards.length === 0 || isDeleting) return
+    const cardsToDelete = pendingDeleteCards || selectedCards
+    if (cardsToDelete.length === 0 || isDeleting) return
     try {
-      const result = await onDeleteCards(selectedCards)
+      const result = await onDeleteCards(cardsToDelete)
       setSelectedIds(new Set())
+      setPendingDeleteCards(null)
       setDialog({
         type: 'success',
         title: 'Картки видалено',
@@ -261,7 +275,10 @@ export default function AdminCardDeletePanel({
         dialog={dialog}
         isBusy={isDeleting}
         onClose={() => {
-          if (!isDeleting) setDialog(null)
+          if (!isDeleting) {
+            setDialog(null)
+            setPendingDeleteCards(null)
+          }
         }}
         onConfirm={confirmDelete}
       />
@@ -428,11 +445,9 @@ export default function AdminCardDeletePanel({
                     const safe = isSafeCardToDelete(card)
                     const selected = selectedIds.has(String(card.id))
                     return (
-                      <button
+                      <div
                         key={card.id}
-                        type="button"
                         onClick={() => toggleCard(card)}
-                        disabled={!safe || isDeleting}
                         title={!safe ? 'Ця картка вже стартувала або завершена, з інтерфейсу не видаляємо.' : 'Вибрати картку для видалення'}
                         style={{
                           background: selected ? 'rgba(239,68,68,.14)' : '#080808',
@@ -449,7 +464,31 @@ export default function AdminCardDeletePanel({
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           {selected ? <CheckSquare size={16} color="#ef4444" /> : <Square size={16} color={safe ? '#777' : '#333'} />}
-                          <strong style={{ fontSize: '.78rem' }}>Картка {card.card_info || String(card.id).slice(0, 8)}</strong>
+                          <strong style={{ fontSize: '.78rem', flex: 1 }}>Картка {card.card_info || String(card.id).slice(0, 8)}</strong>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              handleDeleteSingle(card)
+                            }}
+                            disabled={!safe || isDeleting}
+                            title="Видалити тільки цю картку"
+                            style={{
+                              width: 28,
+                              height: 28,
+                              borderRadius: '7px',
+                              border: '1px solid rgba(239,68,68,.35)',
+                              background: safe ? 'rgba(239,68,68,.12)' : '#111',
+                              color: safe ? '#ef4444' : '#333',
+                              cursor: !safe || isDeleting ? 'not-allowed' : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </div>
                         <div style={{ color: safe ? '#888' : '#555', fontSize: '.68rem', fontWeight: 800 }}>
                           {card.operation || 'операція не вказана'} | {cardStatusLabel(card.status)}
@@ -458,7 +497,7 @@ export default function AdminCardDeletePanel({
                           <span>к-сть: {formatQty(card.quantity)}</span>
                           <span>БЗ: {formatQty(card.buffer_qty || card.bufferQty)}</span>
                         </div>
-                      </button>
+                      </div>
                     )
                   })}
                 </div>

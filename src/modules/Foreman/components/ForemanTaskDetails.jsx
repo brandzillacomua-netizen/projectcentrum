@@ -776,7 +776,7 @@ export function ForemanTaskDetails({
                                       if (isSplitMode) {
                                         setGenModal({
                                           task, part,
-                                          total: Math.max(1, totalTargetLoads - productionCards.length), targetTotal: totalTargetLoads, requirement: plan, created: productionCards.length, rowId, machineName: rowMachineName || splits[0]?.machine, sheets, splits: splits
+                                          total: Math.max(1, totalTargetLoads - productionCards.length), targetTotal: totalTargetLoads, requirement: plan, created: productionCards.length, rowId, machineName: rowMachineName || splits[0]?.machine, sheets, splits: splits, maxSheetsToGenerate: remainingSheetsCalc
                                         })
                                       } else {
                                         if (!rowMachineName) return;
@@ -808,7 +808,7 @@ export function ForemanTaskDetails({
                                         const maxAllowed = hasKittingReqs ? Math.floor(issued / machineCapacity) : totalTargetLoads
                                         const initialTotal = Math.min(Math.max(1, totalTargetLoads - productionCards.length), maxAllowed)
 
-                                        setGenModal({ task, part, total: initialTotal, targetTotal: totalTargetLoads, requirement: plan, created: productionCards.length, rowId, machineName: rowMachineName, sheets, capacity: machineCapacity })
+                                        setGenModal({ task, part, total: initialTotal, targetTotal: totalTargetLoads, requirement: plan, created: productionCards.length, rowId, machineName: rowMachineName, sheets, capacity: machineCapacity, maxSheetsToGenerate: remainingSheetsCalc })
                                       }
                                     }}
                                     style={{
@@ -1424,7 +1424,8 @@ export function ForemanTaskDetails({
                                   genModal.isRepair,
                                   globalTotalLoadings,
                                   splitGlobalOffsetForThisMachine,
-                                  currentCapacity
+                                  currentCapacity,
+                                  genModal.maxSheetsToGenerate
                                 )
                               }}
                               style={{ 
@@ -1568,7 +1569,7 @@ export function ForemanTaskDetails({
                   onClick={() => {
                     const v = parseInt(document.getElementById('gen_count_input').value)
                     if (v > 0) {
-                      handleGenerateFromWorksheet(genModal.task, genModal.part, genModal.sheets, genModal.machineName, v, genModal.created, genModal.requirement, genModal.isRepair, null, 0, genModal.capacity)
+                      handleGenerateFromWorksheet(genModal.task, genModal.part, genModal.sheets, genModal.machineName, v, genModal.created, genModal.requirement, genModal.isRepair, null, 0, genModal.capacity, genModal.maxSheetsToGenerate)
                       setGenModal(null)
                     }
                   }}
