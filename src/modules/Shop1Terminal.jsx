@@ -1596,14 +1596,22 @@ export default function Shop1Terminal() {
       const isCuttingOperation = currentCard.operation === 'Розкрій'
       const cuttersQty = isCuttingOperation ? Object.values(cuttersBreakdown).reduce((sum, v) => sum + (Number(v) || 0), 0) : null
 
+      const finalCuttersBreakdown = { ...cuttersBreakdown }
       if (isCuttingOperation) {
         const requiredCutters = getCuttersForCard(currentCard)
         const missingCutters = requiredCutters.filter(name => !cuttersTouched[name])
-        if (missingCutters.length > 0) {
+        const hasAnyCutters = requiredCutters.some(name => Number(cuttersBreakdown[name]) > 0)
+        if (missingCutters.length > 0 && !hasAnyCutters) {
           alert('Заповніть фактичну кількість фрез перед передачею в буфер розкрою.')
           setIsProcessing(false)
           return
         }
+
+        requiredCutters.forEach(name => {
+          if (finalCuttersBreakdown[name] === undefined || finalCuttersBreakdown[name] === '') {
+            finalCuttersBreakdown[name] = 0
+          }
+        })
       }
 
       if (isCuttingOperation && cuttersQty > 0) {
@@ -1615,8 +1623,8 @@ export default function Shop1Terminal() {
       }
 
       let breakdownStr = ''
-      if (isCuttingOperation && Object.keys(cuttersBreakdown).length > 0) {
-        breakdownStr = ` [CUTTERS_BREAKDOWN:${JSON.stringify(cuttersBreakdown)}]`
+      if (isCuttingOperation && Object.keys(finalCuttersBreakdown).length > 0) {
+        breakdownStr = ` [CUTTERS_BREAKDOWN:${JSON.stringify(finalCuttersBreakdown)}]`
       }
       const baseCardInfo = isCuttingOperation ? (currentCard.card_info || '') : stripCuttersBreakdown(currentCard.card_info)
       const historyCardInfo = (baseCardInfo + breakdownStr).trim()
@@ -1713,7 +1721,7 @@ export default function Shop1Terminal() {
       }
 
       if (isCuttingOperation) {
-        promises.push(handleCuttersInventoryDeduction(currentCard, cuttersBreakdown))
+        promises.push(handleCuttersInventoryDeduction(currentCard, finalCuttersBreakdown))
       }
 
       const results = await Promise.all(promises)
