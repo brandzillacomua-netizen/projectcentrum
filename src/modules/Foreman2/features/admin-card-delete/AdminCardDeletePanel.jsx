@@ -1,5 +1,16 @@
 import React, { useMemo, useState } from 'react'
-import { AlertTriangle, CheckSquare, ChevronDown, ChevronRight, Loader2, ShieldAlert, Square, Trash2 } from 'lucide-react'
+import {
+  AlertTriangle,
+  CheckCircle2,
+  CheckSquare,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  ShieldAlert,
+  Square,
+  Trash2,
+  X
+} from 'lucide-react'
 import { isForeman2CardDeleteAdmin, isSafeCardToDelete } from './useAdminCardDelete.js'
 
 const cardStatusLabel = (status) => {
@@ -23,6 +34,127 @@ const getPartCards = (part) => {
     })
 }
 
+function SystemDialog({ dialog, isBusy, onClose, onConfirm }) {
+  if (!dialog) return null
+
+  const isConfirm = dialog.type === 'confirm-delete'
+  const isSuccess = dialog.type === 'success'
+  const isError = dialog.type === 'error'
+  const accent = isSuccess ? '#10b981' : '#ef4444'
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 40000,
+        background: 'rgba(0,0,0,.72)',
+        backdropFilter: 'blur(10px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '18px'
+      }}
+      onClick={isBusy ? undefined : onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        style={{
+          width: 'min(520px, 100%)',
+          background: '#111',
+          border: `1px solid ${accent}55`,
+          borderRadius: '14px',
+          boxShadow: '0 24px 80px rgba(0,0,0,.55)',
+          overflow: 'hidden'
+        }}
+        onClick={event => event.stopPropagation()}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '18px 20px', borderBottom: '1px solid #222' }}>
+          <div style={{ width: 36, height: 36, borderRadius: '10px', background: `${accent}18`, border: `1px solid ${accent}55`, color: accent, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {isSuccess ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ color: '#fff', fontWeight: 950, fontSize: '.95rem', letterSpacing: '.02em' }}>{dialog.title}</div>
+            <div style={{ color: '#666', fontWeight: 800, fontSize: '.72rem', marginTop: '3px', textTransform: 'uppercase' }}>Системне повідомлення</div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isBusy}
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: '9px',
+              border: '1px solid #2a2a2a',
+              background: '#171717',
+              color: isBusy ? '#444' : '#aaa',
+              cursor: isBusy ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <X size={17} />
+          </button>
+        </div>
+
+        <div style={{ padding: '18px 20px 6px', color: '#cbd5e1', fontSize: '.86rem', lineHeight: 1.55, fontWeight: 750 }}>
+          {dialog.message}
+          {isConfirm && (
+            <div style={{ marginTop: '12px', color: '#ef4444', background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.25)', borderRadius: '9px', padding: '10px 12px', fontSize: '.78rem', fontWeight: 900 }}>
+              Видаляємо тільки помилково згенеровані картки, які ще не стартували. Дія прибере прив'язані заявки й історію цих карток.
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding: '16px 20px 20px', display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
+          {isConfirm && (
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isBusy}
+              style={{
+                background: '#171717',
+                border: '1px solid #333',
+                color: isBusy ? '#444' : '#aaa',
+                borderRadius: '9px',
+                padding: '10px 14px',
+                fontWeight: 900,
+                cursor: isBusy ? 'not-allowed' : 'pointer'
+              }}
+            >
+              Скасувати
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={isConfirm ? onConfirm : onClose}
+            disabled={isBusy}
+            style={{
+              background: isError ? '#ef4444' : accent,
+              border: 'none',
+              color: '#fff',
+              borderRadius: '9px',
+              padding: '10px 15px',
+              fontWeight: 950,
+              cursor: isBusy ? 'not-allowed' : 'pointer',
+              minWidth: isConfirm ? 150 : 90,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px'
+            }}
+          >
+            {isBusy && <Loader2 size={16} className="spin" />}
+            {isConfirm ? 'Видалити картки' : 'OK'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function AdminCardDeletePanel({
   model,
   currentUser,
@@ -33,6 +165,7 @@ export default function AdminCardDeletePanel({
 }) {
   const [expandedNomId, setExpandedNomId] = useState(null)
   const [selectedIds, setSelectedIds] = useState(new Set())
+  const [dialog, setDialog] = useState(null)
 
   const isAdmin = isForeman2CardDeleteAdmin(currentUser)
 
@@ -88,16 +221,29 @@ export default function AdminCardDeletePanel({
 
   const handleDelete = async () => {
     if (selectedCards.length === 0 || isDeleting) return
-    const firstConfirm = window.confirm(`Видалити ${selectedCards.length} робочих карток з бази? Це прибере також історію, заявки на матеріали та легкі підсумки по цих картках.`)
-    if (!firstConfirm) return
+    setDialog({
+      type: 'confirm-delete',
+      title: 'Підтвердити видалення',
+      message: `Видалити ${selectedCards.length} робочих карток з бази?`
+    })
+  }
 
-    const secondConfirm = window.confirm('Підтверди ще раз: видаляємо тільки помилково згенеровані картки, які ще не стартували. Продовжити?')
-    if (!secondConfirm) return
-
-    const result = await onDeleteCards(selectedCards)
-    if (result?.deletedCount > 0) {
+  const confirmDelete = async () => {
+    if (selectedCards.length === 0 || isDeleting) return
+    try {
+      const result = await onDeleteCards(selectedCards)
       setSelectedIds(new Set())
-      alert(`Видалено карток: ${result.deletedCount}`)
+      setDialog({
+        type: 'success',
+        title: 'Картки видалено',
+        message: `Видалено карток: ${result?.deletedCount || 0}. Дані оновлюються в системі.`
+      })
+    } catch (err) {
+      setDialog({
+        type: 'error',
+        title: 'Не вдалося видалити картки',
+        message: err?.message || 'Система не змогла виконати видалення. Перевір доступ і стан карток.'
+      })
     }
   }
 
@@ -111,6 +257,15 @@ export default function AdminCardDeletePanel({
         overflow: 'hidden'
       }}
     >
+      <SystemDialog
+        dialog={dialog}
+        isBusy={isDeleting}
+        onClose={() => {
+          if (!isDeleting) setDialog(null)
+        }}
+        onConfirm={confirmDelete}
+      />
+
       <div style={{ padding: '14px 16px', borderBottom: '1px solid #222', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
         <ShieldAlert size={18} color="#ef4444" />
         <div style={{ flex: 1, minWidth: '220px' }}>

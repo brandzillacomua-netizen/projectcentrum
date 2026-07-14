@@ -2790,6 +2790,104 @@ const ScrollToTop = () => {
   return null
 }
 
+const SystemAlertHost = () => {
+  const [message, setMessage] = useState(null)
+
+  useEffect(() => {
+    const originalAlert = window.alert
+    window.alert = (value) => {
+      setMessage(value === undefined || value === null ? '' : String(value))
+    }
+    return () => {
+      window.alert = originalAlert
+    }
+  }, [])
+
+  if (message === null) return null
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 50000,
+        background: 'rgba(0,0,0,.72)',
+        backdropFilter: 'blur(10px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '18px'
+      }}
+      onClick={() => setMessage(null)}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        style={{
+          width: 'min(520px, 100%)',
+          background: '#111',
+          border: '1px solid rgba(59,130,246,.45)',
+          borderRadius: '14px',
+          boxShadow: '0 24px 80px rgba(0,0,0,.55)',
+          overflow: 'hidden'
+        }}
+        onClick={event => event.stopPropagation()}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '18px 20px', borderBottom: '1px solid #222' }}>
+          <div style={{ width: 36, height: 36, borderRadius: '10px', background: 'rgba(59,130,246,.14)', border: '1px solid rgba(59,130,246,.45)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <AlertTriangle size={20} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ color: '#fff', fontWeight: 950, fontSize: '.95rem', letterSpacing: '.02em' }}>Повідомлення системи</div>
+            <div style={{ color: '#666', fontWeight: 800, fontSize: '.72rem', marginTop: '3px', textTransform: 'uppercase' }}>Centrum MES</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMessage(null)}
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: '9px',
+              border: '1px solid #2a2a2a',
+              background: '#171717',
+              color: '#aaa',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <X size={17} />
+          </button>
+        </div>
+
+        <div style={{ padding: '18px 20px 6px', color: '#cbd5e1', fontSize: '.88rem', lineHeight: 1.55, fontWeight: 750, whiteSpace: 'pre-wrap' }}>
+          {message}
+        </div>
+
+        <div style={{ padding: '16px 20px 20px', display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            type="button"
+            onClick={() => setMessage(null)}
+            style={{
+              background: '#3b82f6',
+              border: 'none',
+              color: '#fff',
+              borderRadius: '9px',
+              padding: '10px 18px',
+              fontWeight: 950,
+              cursor: 'pointer',
+              minWidth: 90
+            }}
+          >
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const AppContent = () => {
   const { currentUser, sessionLoading } = useMES()
   const location = useLocation()
@@ -2824,6 +2922,7 @@ const AppContent = () => {
   return (
     <>
       <ScrollToTop />
+      <SystemAlertHost />
       <Suspense fallback={<ModuleLoader />}>
         {currentUser &&
           currentUser.position !== 'Адмін' &&
