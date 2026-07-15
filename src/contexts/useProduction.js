@@ -769,6 +769,12 @@ export function createProductionActions({
       throw new Error('Довипуск з нульовими картками заблоковано.')
     }
     const isReworkBatch = (cardsArray || []).some(c => c.is_rework || String(c.cardInfo || '').includes('[REDO]'))
+    // A regular production batch must keep the task-level material request
+    // consolidated. Splitting it by every generated work card creates dozens
+    // (sometimes hundreds) of duplicate-looking warehouse request tiles.
+    // Card-scoped requests are created explicitly by the reissue / machine
+    // change flows and must not be inferred from ordinary cards.
+    const shouldSplitMaterialRequestsByCard = (cardsArray || []).some(c => c.splitMaterialRequests === true)
 
     const payloads = cardsArray.map(c => {
       const baseCardInfo = String(c.cardInfo || '')
@@ -811,7 +817,7 @@ export function createProductionActions({
         return data
       }
       
-      try {
+      if (shouldSplitMaterialRequestsByCard) try {
         // Fetch general material requests for this task that are not yet assigned to any card
         const { data: allTaskRequests } = await supabase
           .from('material_requests')
@@ -1414,7 +1420,12 @@ export function createProductionActions({
           if (isSheet) {
             const addMaterialToSummary = (typePrefix, qty) => {
               const matKeyBase = (part.nom.material_type || part.nom.name || 'Інше').trim()
-              const explicitRawNom = findExplicitRawMaterialNom(matKeyBase)
+              const explicitRawCandidate = findExplicitRawMaterialNom(matKeyBase)
+              const explicitRawNom = explicitRawCandidate &&
+                String(explicitRawCandidate.name || '').toLowerCase().includes('підготовлений') &&
+                !String(explicitRawCandidate.name || '').toLowerCase().includes('непідготовлений')
+                  ? explicitRawCandidate
+                  : null
               const thickMatch = matKeyBase.match(/\((\d+(?:\.\d+)?)мм\)/i)
               const thicknessClean = thickMatch ? `${thickMatch[1]}мм` : matKeyBase.toLowerCase().replace(' ', '')
               let rawNom = explicitRawNom || nomenclatures.find(n =>

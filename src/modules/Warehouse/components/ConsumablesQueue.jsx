@@ -246,7 +246,9 @@ export const ConsumablesQueue = ({
                       }}>
                         <span style={{ flex: 1, marginRight: '8px' }}>
                           {displayName}
-                          {nom?.description && !(parsedName || r.details || '').toLowerCase().includes(nom.description.toLowerCase()) && (
+                          {nom?.description &&
+                            !normalize(displayName).includes(normalize(nom.description)) &&
+                            !normalize(parsedName || r.details).includes(normalize(nom.description)) && (
                             <span style={{ 
                               color: '#06b6d4', 
                               fontSize: '0.72rem', 

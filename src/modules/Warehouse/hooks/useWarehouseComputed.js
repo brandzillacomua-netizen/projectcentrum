@@ -263,6 +263,14 @@ export const useWarehouseComputed = ({
   const pendingRequests = useMemo(() => {
     return (requests || []).filter(r => {
       if (r.status !== 'pending' && r.status !== 'issued') return false
+      if (r.card_id) {
+        const card = (workCards || []).find(c => String(c.id) === String(r.card_id))
+        const isReissue = !!card && (card.is_rework || String(card.card_info || '').includes('[REDO]'))
+        const isMachineChange = String(r.details || '').includes('[BALANCED_MACHINE_CHANGE]')
+        // Initial work cards belong to the one consolidated task request.
+        // Only explicit reissues and machine changes get their own warehouse tile.
+        if (!isReissue && !isMachineChange) return false
+      }
       if (r.status === 'issued') {
         const task = tasks.find(t => t.id === r.task_id)
         if (!task || task.warehouse_conf === 'true' || task.warehouse_conf === 'partial') return false
@@ -270,7 +278,7 @@ export const useWarehouseComputed = ({
       if (isPrepRequest(r, tasks)) return false
       return getMaterialType(r, nomenclatures, inventory) === activeTab
     })
-  }, [requests, tasks, nomenclatures, inventory, activeTab])
+  }, [requests, tasks, nomenclatures, inventory, workCards, activeTab])
 
   const groupedRequests = useMemo(() => {
     return pendingRequests.reduce((acc, req) => {
