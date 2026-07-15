@@ -100,6 +100,23 @@ const MACHINE_TYPES = [
   'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
 ]
 
+const getMachineSequenceConfig = (machineName = '') => {
+  const name = machineName.toLowerCase().replace(/х/g, 'x')
+  if (name.includes('ke xin') || name.includes('kexin') || name.includes('фея')) return { prefix: 'Ф', min: 1, max: 20 }
+  if (name.includes('1200x800') || name.includes('12x8') || name.includes('малий')) return { prefix: '1.', min: 1, max: 27 }
+  if (name.includes('3050') || name.includes('16x16') || name.includes('швидкісний')) return { prefix: '2.', min: 1, max: 2 }
+  if (name.includes('3060') || name.includes('30x16') || name.includes('три голов')) return { prefix: '3.', min: 1, max: 4 }
+  if (name.includes('6000x2000') || name.includes('60x20') || name.includes('дракон')) return { prefix: 'D', min: 1, max: null }
+  return { prefix: '', min: 1, max: null }
+}
+
+const formatMachineSequence = (machineName, sequence) => {
+  const value = String(sequence || '').trim()
+  if (!value) return ''
+  const { prefix } = getMachineSequenceConfig(machineName)
+  return prefix && !value.toLowerCase().startsWith(prefix.toLowerCase()) ? `${prefix}${value}` : value
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Статусний потік картки:
 //
@@ -1186,12 +1203,24 @@ export default function Shop1Terminal() {
     setIsProcessing(true)
     try {
       const startOp = CHAIN.includes(currentCard.operation) ? currentCard.operation : CHAIN[0]
-      const targetMachine = machineNumber ? `${selectedMachine} №${machineNumber}`.trim() : (selectedMachine?.trim() || 'Не вказано')
+      const machineSequenceConfig = getMachineSequenceConfig(selectedMachine)
+      const sequenceNumber = Number(machineNumber)
+      if (startOp === 'Розкрій' && machineNumber && (
+        !Number.isInteger(sequenceNumber) || sequenceNumber < machineSequenceConfig.min ||
+        (machineSequenceConfig.max !== null && sequenceNumber > machineSequenceConfig.max)
+      )) {
+        setIsProcessing(false)
+        const range = machineSequenceConfig.max === null ? `від ${machineSequenceConfig.min}` : `${machineSequenceConfig.min}–${machineSequenceConfig.max}`
+        showAlert(`Введіть порядковий номер верстата в діапазоні ${range}.`, '❌ Некоректний номер верстата')
+        return
+      }
+      const fullMachineNumber = formatMachineSequence(selectedMachine, machineNumber)
+      const targetMachine = fullMachineNumber ? `${selectedMachine} №${fullMachineNumber}`.trim() : (selectedMachine?.trim() || 'Не вказано')
 
       // ⚠️ Check if machine exists in the system (if operation is Cutting / "Розкрій")
       if (startOp === 'Розкрій' && targetMachine && targetMachine !== 'Не вказано') {
         const cleanName = (selectedMachine || '').trim().toLowerCase()
-        const cleanNum = (machineNumber || '').trim().toLowerCase()
+        const cleanNum = fullMachineNumber.toLowerCase()
 
         const machineExists = (machines || []).some(m => {
           const mName = String(m.name || '').trim().toLowerCase()
@@ -2665,6 +2694,7 @@ export default function Shop1Terminal() {
           {/* ── СТАН: NEW → Форма старту ──────────────────────────────────── */}
           {(status === 'new' || (status === 'in-progress' && !CHAIN.includes(currentCard.operation))) && (() => {
             const displayOp = CHAIN.includes(currentCard.operation) ? currentCard.operation : CHAIN[0]
+            const machineSequenceConfig = getMachineSequenceConfig(selectedMachine)
             return (
               <div style={{ maxWidth: '440px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
@@ -2719,13 +2749,14 @@ export default function Shop1Terminal() {
                         <datalist id="machine-types-list">
                           {MACHINE_TYPES.map(t => <option key={t} value={t} />)}
                         </datalist>
-                        <div style={{ position: 'relative', width: '90px' }}>
-                          <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#555', fontWeight: 1000, fontSize: '1.1rem' }}>№</span>
-                          <input type="text" placeholder="1-88"
-                            value={machineNumber} onChange={e => setMachineNumber(e.target.value)}
+                        <div style={{ position: 'relative', width: '100px' }}>
+                          <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#eab308', fontWeight: 1000, fontSize: '1.1rem', zIndex: 1 }}>{machineSequenceConfig.prefix || '№'}</span>
+                          <input type="number" min={machineSequenceConfig.min} max={machineSequenceConfig.max || undefined} step="1"
+                            placeholder={machineSequenceConfig.max ? `${machineSequenceConfig.min}-${machineSequenceConfig.max}` : `${machineSequenceConfig.min}+`}
+                            value={machineNumber} onChange={e => setMachineNumber(e.target.value.replace(/\D/g, ''))}
                             style={{
                               ...selectStyle, fontSize: '1.2rem', fontWeight: 1000, color: '#eab308',
-                              paddingLeft: '32px', width: '100%', cursor: 'text',
+                              paddingLeft: machineSequenceConfig.prefix.length > 1 ? '40px' : '32px', width: '100%', cursor: 'text',
                               borderColor: machineNumber ? '#eab308' : '#333'
                             }}
                             onKeyDown={e => {
