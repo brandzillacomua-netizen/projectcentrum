@@ -76,6 +76,31 @@ const getRequestQty = (r) => {
   return match ? Number(match[1]) : 0;
 };
 
+const getArchiveMachineGroup = (machineName) => {
+  const rawName = String(machineName || '').trim()
+  const standardType = getStandardMachineType(rawName)
+  const normalized = (standardType || rawName).toLowerCase()
+
+  if (normalized.includes('1200x800') || normalized.includes('12x8') || normalized.includes('малий')) {
+    return { key: 'small', label: 'Малий' }
+  }
+  if (normalized.includes('ke xin') || normalized.includes('фея')) {
+    return { key: 'fairy', label: 'Фея' }
+  }
+  if (normalized.includes('6000x2000') || normalized.includes('60x20') || normalized.includes('дракон')) {
+    return { key: 'dragon', label: 'Дракон' }
+  }
+  if (normalized.includes('3060') || normalized.includes('30x16') || normalized.includes('триголов')) {
+    return { key: 'three-head', label: 'Триголовий' }
+  }
+  if (normalized.includes('3050') || normalized.includes('16x16') || normalized.includes('швидкіс')) {
+    return { key: 'speed', label: 'Швидкісний' }
+  }
+
+  const baseName = rawName.replace(/\s*№\s*[\w.-]+.*$/iu, '').trim()
+  return { key: `other:${baseName || 'unknown'}`, label: baseName || 'Верстат не вказано' }
+}
+
 
 const getDisplayMaterial = (partNom, snapshot) => {
   const baseMat = partNom?.material_type || '—'
@@ -1673,13 +1698,18 @@ const ForemanWorkplace = () => {
                                 const sortedCards = [...activeCards].sort((a, b) => getCardSeq(a) - getCardSeq(b))
                                 const machineGroups = sortedCards.reduce((acc, card) => {
                                   const machineName = card.machine || snapshot?.machine || 'Верстат не вказано'
-                                  if (!acc.has(machineName)) acc.set(machineName, [])
-                                  acc.get(machineName).push(card)
+                                  const machineGroup = getArchiveMachineGroup(machineName)
+                                  if (!acc.has(machineGroup.key)) {
+                                    acc.set(machineGroup.key, { label: machineGroup.label, cards: [] })
+                                  }
+                                  acc.get(machineGroup.key).cards.push(card)
                                   return acc
                                 }, new Map())
 
-                                return Array.from(machineGroups.entries()).map(([machineName, machineCards]) => {
-                                  const machineKey = `${nomId}:${machineName}`
+                                return Array.from(machineGroups.entries()).map(([machineTypeKey, machineGroup]) => {
+                                  const machineCards = machineGroup.cards
+                                  const machineName = machineGroup.label
+                                  const machineKey = `${nomId}:${machineTypeKey}`
                                   const isMachineExpanded = !!expandedArchiveMachines[machineKey]
                                   const machineProduced = machineCards.reduce((sum, c) => sum + (countAsProduced(c) ? (Number(c.quantity) || 0) : 0), 0)
                                   const machineScrap = machineCards.reduce((sum, c) => {
