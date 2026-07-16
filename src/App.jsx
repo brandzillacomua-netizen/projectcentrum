@@ -74,6 +74,7 @@ const SimulatorModule = lazy(() => import('./modules/SimulatorModule'))
 const PaintingTerminal = lazy(() => import('./modules/PaintingTerminal'))
 const PressingTerminal = lazy(() => import('./modules/PressingTerminal'))
 const WarehouseBoxesModule = lazy(() => import('./modules/WarehouseBoxesModule'))
+const PreparationDashboard = lazy(() => import('./modules/PreparationDashboard'))
 const ChatModule = lazy(() => import('./modules/ChatModule'))
 
 import { MESProvider, useMES } from './MESContext'
@@ -96,6 +97,7 @@ const FileCodeIcon = () => (
 const getAllModules = (badgeCount = 0, chatBadgeCount = 0) => [
   // 1. Цех 1 (Розкрій та Підготовка)
   { id: 'prep_terminal', title: 'Підготовка', icon: <Tablet />, path: '/prep-terminal', desc: 'Відділ Підготовки', color: '#10b981' },
+  { id: 'preparation_dashboard', title: 'Дашборд підготовки (TV)', icon: <LayoutDashboard />, path: '/preparation-dashboard', desc: 'Спільний екран підготовки та боксів', color: '#22c55e' },
   { id: 'master', title: 'ЦЕХ №1 – Створення нарядів', icon: <Monitor />, path: '/master', desc: 'Управління зміною', color: '#3b82f6' },
   { id: 'foreman', title: 'ЦЕХ №1 – Створення РК', icon: <Users />, path: '/foreman', desc: 'Розподіл нарядів', color: '#f59e0b' },
   { id: 'foreman2', title: 'Foreman 2.0', icon: <Users />, path: '/foreman2', desc: 'Новий модуль нарядів Цеху №1', color: '#ff9000' },
@@ -159,6 +161,7 @@ const CATEGORY_MAP = {
   shop1: 'shop1',
   shop1_foreman: 'shop1',
   prep_terminal: 'shop1',
+  preparation_dashboard: 'shop1',
   tumbling_terminal: 'shop1',
   tumbling_dashboard: 'shop1',
   reception_terminal: 'shop1',
@@ -2944,6 +2947,7 @@ const AppContent = () => {
           <Route path="/foreman2" element={<PermissionGuard id="foreman2"><Foreman2Module /></PermissionGuard>} />
           <Route path="/operator" element={<PermissionGuard id="operator"><OperatorTerminal /></PermissionGuard>} />
           <Route path="/prep-terminal" element={<PermissionGuard id="prep_terminal"><PreparationTerminal /></PermissionGuard>} />
+          <Route path="/preparation-dashboard" element={<PermissionGuard id="preparation_dashboard"><PreparationDashboard /></PermissionGuard>} />
           <Route path="/shop1" element={<PermissionGuard id="shop1"><Shop1Terminal /></PermissionGuard>} />
           <Route path="/shop1-foreman" element={<PermissionGuard id="shop1_foreman"><Shop1ForemanModule /></PermissionGuard>} />
           <Route path="/tumbling-terminal" element={<PermissionGuard id="tumbling_terminal"><TumblingTerminal /></PermissionGuard>} />

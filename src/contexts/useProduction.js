@@ -1255,7 +1255,23 @@ export function createProductionActions({
   }
 
   const addManagementTask = async (taskPayload, currentUserLogin) => {
-    const { data, error } = await supabase.from('management_tasks').insert([{ ...taskPayload, created_by: currentUserLogin || 'system', created_at: new Date().toISOString() }]).select()
+    const allowedFields = [
+      'title', 'description', 'priority', 'color', 'assigned_to', 'assignees',
+      'is_collective', 'department', 'deadline', 'checklist', 'status', 'project_id'
+    ]
+    const cleanPayload = allowedFields.reduce((result, field) => {
+      if (taskPayload[field] !== undefined) result[field] = taskPayload[field]
+      return result
+    }, {})
+    cleanPayload.deadline = cleanPayload.deadline || null
+    cleanPayload.assignees = Array.isArray(cleanPayload.assignees) ? cleanPayload.assignees : []
+    cleanPayload.checklist = Array.isArray(cleanPayload.checklist) ? cleanPayload.checklist : []
+
+    const { data, error } = await supabase.from('management_tasks').insert([{
+      ...cleanPayload,
+      created_by: currentUserLogin || 'system',
+      created_at: new Date().toISOString()
+    }]).select()
     if (!error && data?.[0]) setManagementTasks(prev => [data[0], ...prev])
     return { data: data?.[0], error }
   }

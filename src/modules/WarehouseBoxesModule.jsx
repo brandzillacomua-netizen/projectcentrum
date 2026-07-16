@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { Warehouse as WarehouseIcon, ArrowLeft, Search, Check, ListFilter, AlertCircle, Box, QrCode } from 'lucide-react'
+import { Warehouse as WarehouseIcon, ArrowLeft, Search, Check, AlertCircle, Box, QrCode, ChevronDown, Layers3 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { useWarehouseComputed } from './Warehouse/hooks/useWarehouseComputed'
@@ -38,6 +38,7 @@ const WarehouseBoxesModule = () => {
   const [filterStatus, setFilterStatus] = useState('pending') // 'all', 'pending', 'prepared'
   const [boxNumberState, setBoxNumberState] = useState({}) 
   const [checkedSheets, setCheckedSheets] = useState({})
+  const [expandedGroups, setExpandedGroups] = useState({})
 
   // Screen size check for responsive UI layout
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
@@ -142,6 +143,50 @@ const WarehouseBoxesModule = () => {
     })
     return Object.values(ordersMap).sort((a, b) => b.pending - a.pending)
   }, [allBoxes])
+
+  // Group the work queue by nomenclature. A stable id keeps accordions open while
+  // filters or live warehouse data update.
+  const nomenclatureGroups = useMemo(() => {
+    const groups = new Map()
+
+    filteredBoxes.forEach(box => {
+      const nomenclatureId = box.nom?.id || box.card?.nomenclature_id || box.partName
+      const key = String(nomenclatureId || 'without-nomenclature')
+      if (!groups.has(key)) {
+        groups.set(key, {
+          key,
+          name: box.partName,
+          items: [],
+          prepared: 0,
+          pending: 0
+        })
+      }
+
+      const group = groups.get(key)
+      group.items.push(box)
+      if (box.isPrepared) group.prepared += 1
+      else group.pending += 1
+    })
+
+    return Array.from(groups.values()).sort((a, b) => {
+      if (a.pending !== b.pending) return b.pending - a.pending
+      return a.name.localeCompare(b.name, 'uk')
+    })
+  }, [filteredBoxes])
+
+  useEffect(() => {
+    if (nomenclatureGroups.length === 0) return
+    setExpandedGroups(previous => {
+      const hasVisibleOpenGroup = nomenclatureGroups.some(group => previous[group.key])
+      if (hasVisibleOpenGroup) return previous
+      const firstPending = nomenclatureGroups.find(group => group.pending > 0) || nomenclatureGroups[0]
+      return { ...previous, [firstPending.key]: true }
+    })
+  }, [nomenclatureGroups])
+
+  const toggleGroup = (groupKey) => {
+    setExpandedGroups(previous => ({ ...previous, [groupKey]: !previous[groupKey] }))
+  }
 
   const normalizeScannedCardId = (rawValue) => {
     let value = String(rawValue || '').trim()
@@ -440,19 +485,77 @@ const WarehouseBoxesModule = () => {
             </div>
           </div>
 
-          {/* Cards Grid */}
+          {/* Nomenclature accordions */}
           {filteredBoxes.length === 0 ? (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '2px dashed #222', borderRadius: '16px', padding: '40px 20px' }}>
               <Box size={32} style={{ color: '#333', marginBottom: '10px' }} />
               <span style={{ color: '#555', fontSize: '0.78rem', fontWeight: 600 }}>Немає відповідних боксів</span>
             </div>
           ) : (
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))',
-              gap: isMobile ? '12px' : '16px'
-            }}>
-              {filteredBoxes.map(boxItem => {
+            <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '10px' : '14px', paddingBottom: isMobile ? '86px' : '20px' }}>
+              {nomenclatureGroups.map(group => {
+                const isExpanded = !!expandedGroups[group.key]
+                const progress = group.items.length ? Math.round((group.prepared / group.items.length) * 100) : 0
+
+                return (
+                  <section
+                    key={group.key}
+                    style={{
+                      background: '#0e0e0e',
+                      border: isExpanded ? '1px solid rgba(255, 144, 0, 0.32)' : '1px solid #242424',
+                      borderRadius: isMobile ? '14px' : '16px',
+                      overflow: 'hidden',
+                      boxShadow: isExpanded ? '0 8px 28px rgba(0,0,0,0.28)' : 'none'
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup(group.key)}
+                      aria-expanded={isExpanded}
+                      style={{
+                        width: '100%',
+                        minHeight: isMobile ? '72px' : '78px',
+                        padding: isMobile ? '12px' : '14px 18px',
+                        border: 'none',
+                        background: isExpanded ? 'rgba(255, 144, 0, 0.055)' : '#111',
+                        color: '#fff',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        display: 'grid',
+                        gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+                        alignItems: 'center',
+                        gap: isMobile ? '10px' : '14px'
+                      }}
+                    >
+                      <span style={{ width: '38px', height: '38px', flexShrink: 0, borderRadius: '11px', display: 'grid', placeItems: 'center', background: group.pending ? 'rgba(255,144,0,.12)' : 'rgba(16,185,129,.12)', color: group.pending ? '#ff9000' : '#10b981' }}>
+                        <Layers3 size={19} />
+                      </span>
+                      <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '7px' }}>
+                        <strong style={{ fontSize: isMobile ? '0.82rem' : '0.9rem', lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {group.name}
+                        </strong>
+                        <span style={{ height: '4px', borderRadius: '99px', background: '#252525', overflow: 'hidden' }}>
+                          <span style={{ display: 'block', width: `${progress}%`, height: '100%', borderRadius: 'inherit', background: progress === 100 ? '#10b981' : '#ff9000', transition: 'width .25s ease' }} />
+                        </span>
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+                        <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', whiteSpace: 'nowrap' }}>
+                          <strong style={{ fontSize: '0.82rem', color: group.pending ? '#ff9000' : '#10b981' }}>{group.prepared}/{group.items.length}</strong>
+                          <span style={{ fontSize: '0.56rem', color: '#777', fontWeight: 800, textTransform: 'uppercase' }}>готово</span>
+                        </span>
+                        <ChevronDown size={19} style={{ color: '#888', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform .2s ease' }} />
+                      </span>
+                    </button>
+
+                    {isExpanded && (
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))',
+                        gap: isMobile ? '10px' : '14px',
+                        padding: isMobile ? '10px' : '14px',
+                        borderTop: '1px solid #242424'
+                      }}>
+              {group.items.map(boxItem => {
                 const cardId = boxItem.card.id
                 const isAllChecked = boxItem.cutters.every(c => checkedCutters[cardId]?.[c.nomenclature_id])
                 const isSheetChecked = !!checkedSheets[cardId] || boxItem.isPrepared
@@ -643,6 +746,11 @@ const WarehouseBoxesModule = () => {
                       </button>
                     )}
                   </div>
+                )
+              })}
+                      </div>
+                    )}
+                  </section>
                 )
               })}
             </div>

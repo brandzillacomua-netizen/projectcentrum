@@ -1,5 +1,9 @@
 import { supabase } from '../supabase'
 
+const OFFLINE_RETRY_MS = 5 * 60 * 1000
+let nextFortnetAttemptAt = 0
+let lastOfflineWarningAt = 0
+
 /**
  * Fortnet access-control sync logic
  */
@@ -7,9 +11,11 @@ export function createFortnetActions({ fortnetUrl, accessLogs, setAccessLogs, up
 
   const syncFortnetEvents = async () => {
     if (!fortnetUrl) return
+    if (Date.now() < nextFortnetAttemptAt) return
     try {
       const response = await fetch('/fortnet-api/online/')
       if (!response.ok) throw new Error('Fortnet offline')
+      nextFortnetAttemptAt = 0
       const data = await response.json()
       const events = Array.isArray(data) ? data : (data?.Event ? [data.Event] : [])
 
@@ -42,7 +48,11 @@ export function createFortnetActions({ fortnetUrl, accessLogs, setAccessLogs, up
         }
       }
     } catch (err) {
-      console.warn('Sync Fortnet failed:', err.message)
+      nextFortnetAttemptAt = Date.now() + OFFLINE_RETRY_MS
+      if (Date.now() - lastOfflineWarningAt >= OFFLINE_RETRY_MS) {
+        console.warn(`Fortnet недоступний. Наступна спроба через ${OFFLINE_RETRY_MS / 60000} хв.`)
+        lastOfflineWarningAt = Date.now()
+      }
     }
   }
 

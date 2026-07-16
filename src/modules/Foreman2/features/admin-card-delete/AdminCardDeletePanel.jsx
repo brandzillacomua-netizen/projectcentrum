@@ -374,9 +374,17 @@ export default function AdminCardDeletePanel({
           const selectedInPart = part.adminCards.filter(card => selectedIds.has(String(card.id))).length
           return (
             <div key={part.nomId} style={{ border: '1px solid #222', borderRadius: '8px', background: '#0b0b0b', overflow: 'hidden' }}>
-              <button
-                type="button"
+              <div
+                role="button"
+                tabIndex={0}
                 onClick={() => setExpandedNomId(isExpanded ? null : String(part.nomId))}
+                onKeyDown={(event) => {
+                  if (event.target !== event.currentTarget) return
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    setExpandedNomId(isExpanded ? null : String(part.nomId))
+                  }
+                }}
                 style={{
                   width: '100%',
                   border: 'none',
@@ -437,7 +445,7 @@ export default function AdminCardDeletePanel({
                 >
                   скинути
                 </button>
-              </button>
+              </div>
 
               {isExpanded && (
                 <div style={{ borderTop: '1px solid #1b1b1b', padding: '10px 12px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '8px' }}>
