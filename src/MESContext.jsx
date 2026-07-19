@@ -3,7 +3,6 @@ import { supabase } from './supabase'
 
 import { useData } from './contexts/useData'
 import { createAuthActions } from './contexts/useAuth'
-import { createFortnetActions } from './contexts/useFortnet'
 import { createProductionActions } from './contexts/useProduction'
 import { createWarehouseActions } from './contexts/useWarehouse'
 
@@ -29,19 +28,6 @@ export const MESProvider = ({ children }) => {
     setThemeState(next)
     localStorage.setItem('app-theme', next)
   }
-
-  // ── FORTNET SYNC LOGIC ──
-  const { syncFortnetEvents } = createFortnetActions({ 
-    fortnetUrl: data.fortnetUrl, 
-    accessLogs: data.accessLogs, 
-    setAccessLogs: data.setAccessLogs, 
-    updateFortnetUrl: data.setFortnetUrl 
-  })
-
-  useEffect(() => {
-    const timer = setInterval(syncFortnetEvents, 60000); // Every 60 seconds
-    return () => clearInterval(timer);
-  }, [data.fortnetUrl, data.accessLogs]);
 
   // ── USER PRESENCE HEARTBEAT ──
   useEffect(() => {
