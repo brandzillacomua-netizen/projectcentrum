@@ -2,6 +2,7 @@ import { requestBuilder } from '../api/requestBuilder';
 import { supabase } from '../supabase';
 
 const baseUrl = '/api';
+const rustBackendEnabled = import.meta.env.VITE_ENABLE_RUST_BACKEND === 'true';
 
 // ── Rust availability cache ────────────────────────────────────────────────
 // Avoids N×1200ms timeouts when Rust is offline.
@@ -333,6 +334,10 @@ export const apiService = {
   },
 
   submitLogin: async (login, password) => {
+    // Production currently has no Vercel /api/auth/login handler. Keep the
+    // optional Rust synchronization fully disabled unless its backend is
+    // explicitly deployed and enabled for this build.
+    if (!rustBackendEnabled) return null;
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 500);
