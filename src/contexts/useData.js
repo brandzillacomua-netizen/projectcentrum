@@ -4,10 +4,152 @@ import { supabase, isLocalWrite } from '../supabase'
 import { sendPushToUsers } from '../services/pushService'
 import { getIndexedCache, setIndexedCache, removeIndexedCache } from '../services/indexedDbCache'
 import { fetchProductionSummary } from '../services/statisticsService'
+import { fetchFulfillmentTasks, fetchMissingOrdersForTasks, isFulfillmentRoute } from '../services/fulfillmentQueueService'
 
-const CACHE_KEY = 'MES_APP_CACHE_V1'
+const CACHE_KEY = 'MES_APP_CACHE_V2'
+const LEGACY_CACHE_KEYS = ['MES_APP_CACHE_V1']
 const USER_CACHE_KEY = 'MES_SESSION_USER'  // Full user object for instant restore
 const TARGET_REFRESH_TTL_MS = 900
+const TARGET_REFRESH_TTL_BY_TABLE = Object.freeze({
+  work_card_flow_totals: 5 * 60 * 1000,
+  work_card_scrap_totals: 60 * 1000
+})
+const INITIAL_FETCH_JITTER_MS = 8000
+const INITIAL_FETCH_RETRY_BASE_MS = 30 * 1000
+const INITIAL_FETCH_RETRY_JITTER_MS = 30 * 1000
+const ROUTE_ENTRY_REFRESH_TTL_MS = 60 * 1000
+const ROUTE_ENTRY_JITTER_MS = 1500
+const VISIBILITY_REFRESH_COOLDOWN_MS = 2 * 60 * 1000
+const VISIBILITY_REFRESH_JITTER_MS = 5000
+
+const OPERATOR_REALTIME_ROUTES = new Set([
+  '/operator',
+  '/prep-terminal',
+  '/shop1',
+  '/tumbling-terminal',
+  '/reception-terminal',
+  '/sorting-terminal',
+  '/shop2-terminal',
+  '/pressing-terminal',
+  '/painting-terminal',
+  '/packaging'
+])
+
+const WAREHOUSE_REALTIME_ROUTES = new Set([
+  '/warehouse',
+  '/warehouse-boxes',
+  '/supply',
+  '/procurement'
+])
+
+const MANAGEMENT_REALTIME_ROUTES = new Set([
+  '/tumbling-dashboard',
+  '/shop1-foreman',
+  '/preparation-dashboard',
+  '/foreman-dashboard',
+  '/foreman2'
+])
+
+const FLOW_TOTALS_REALTIME_ROUTES = new Set([
+  '/foreman-dashboard',
+  '/foreman2'
+])
+
+// Each screen receives only the data it actually renders. Users always land
+// on `/`, so keeping the portal profile tiny is what prevents a login/restart
+// wave from turning into the former 20-table bootstrap on every device.
+const ROUTE_DATA_PROFILES = Object.freeze({
+  '/': ['management_tasks', 'company_positions', 'system_users'],
+  '/dashboard': ['orders', 'tasks', 'inventory', 'work_cards', 'nomenclatures', 'bom_items', 'work_card_history'],
+  '/foreman-dashboard': ['orders', 'tasks', 'inventory', 'work_cards', 'nomenclatures', 'bom_items', 'work_card_scrap_totals', 'work_card_flow_totals'],
+  '/manager': ['orders', 'tasks', 'nomenclatures'],
+  '/warehouse': ['inventory', 'material_requests', 'nomenclatures', 'reception_docs', 'orders', 'tasks', 'purchase_requests', 'machine_operations', 'work_cards', 'system_users'],
+  '/warehouse-boxes': ['inventory', 'material_requests', 'nomenclatures', 'orders', 'tasks', 'machine_operations', 'work_cards'],
+  '/master': ['orders', 'tasks', 'nomenclatures', 'bom_items', 'inventory', 'material_requests', 'machines', 'machine_calls', 'machine_operations'],
+  '/foreman': ['orders', 'tasks', 'work_cards', 'nomenclatures', 'bom_items', 'inventory', 'material_requests', 'machines', 'machine_calls', 'machine_operations', 'work_card_scrap_totals'],
+  '/foreman2': ['orders', 'tasks', 'work_cards', 'nomenclatures', 'bom_items', 'inventory', 'material_requests', 'machines', 'machine_calls', 'machine_operations', 'work_card_scrap_totals', 'work_card_flow_totals'],
+  '/operator': ['work_cards', 'orders', 'nomenclatures', 'machines', 'system_users', 'machine_operations', 'tasks', 'inventory', 'work_card_history'],
+  '/prep-terminal': ['tasks', 'nomenclatures', 'material_requests', 'inventory', 'orders', 'system_users'],
+  '/preparation-dashboard': ['tasks', 'nomenclatures', 'material_requests', 'inventory', 'reception_docs', 'machine_operations', 'work_cards', 'orders'],
+  '/shop1': ['work_cards', 'tasks', 'nomenclatures', 'inventory', 'orders', 'machines', 'system_users', 'machine_operations', 'material_requests', 'work_card_history'],
+  '/shop1-foreman': ['system_users', 'company_positions', 'company_structure', 'work_cards', 'work_card_history', 'machines', 'nomenclatures', 'tasks', 'orders', 'bom_items', 'inventory', 'machine_operations'],
+  '/tumbling-terminal': ['work_cards', 'nomenclatures', 'bom_items', 'orders', 'tasks', 'work_card_history', 'system_users'],
+  '/tumbling-dashboard': ['work_cards', 'nomenclatures', 'bom_items', 'orders', 'tasks', 'work_card_history'],
+  '/reception-terminal': ['work_cards', 'nomenclatures', 'system_users'],
+  '/sorting-terminal': ['work_cards', 'nomenclatures', 'system_users'],
+  '/shop2': ['orders', 'tasks', 'work_cards', 'nomenclatures', 'bom_items', 'work_card_history'],
+  '/shop2-terminal': ['work_cards', 'orders', 'nomenclatures', 'inventory', 'system_users', 'tasks', 'work_card_history', 'machines'],
+  '/pressing-terminal': ['work_cards', 'nomenclatures', 'system_users'],
+  '/painting-terminal': ['work_cards', 'nomenclatures', 'system_users'],
+  '/packaging': ['orders', 'tasks', 'nomenclatures', 'bom_items', 'material_requests', 'inventory', 'system_users'],
+  '/engineer': ['nomenclatures', 'bom_items', 'machines', 'machine_operations', 'tasks', 'orders', 'machine_calls'],
+  '/director': ['tasks', 'orders', 'nomenclatures', 'material_requests', 'work_cards'],
+  '/shipping': ['orders', 'tasks', 'nomenclatures', 'system_users'],
+  '/supply': ['inventory', 'nomenclatures', 'reception_docs', 'purchase_requests', 'material_requests', 'tasks', 'system_users'],
+  '/procurement': ['inventory', 'nomenclatures', 'reception_docs', 'purchase_requests', 'system_users'],
+  '/nomenclature': ['nomenclatures', 'bom_items'],
+  '/nomenclature-v2': [],
+  '/machines': ['machines', 'work_cards', 'work_card_history', 'nomenclatures', 'orders', 'tasks', 'machine_calls'],
+  '/analytics': ['tasks', 'orders', 'work_cards', 'work_card_history', 'nomenclatures'],
+  '/brak': ['inventory', 'nomenclatures', 'work_cards', 'orders', 'machine_calls', 'machines', 'work_card_history', 'system_users', 'tasks'],
+  '/tasks': ['management_tasks', 'task_projects', 'system_users', 'company_structure'],
+  '/tasks/projects': ['management_tasks', 'task_projects', 'system_users', 'company_structure'],
+  '/chat': ['system_users'],
+  '/access': [],
+  '/reports': ['inventory', 'system_users', 'work_card_history', 'tasks', 'orders', 'nomenclatures', 'reception_docs', 'material_requests'],
+  '/settings': ['system_users', 'company_structure', 'company_positions', 'nomenclatures', 'bom_items', 'inventory'],
+  '/simulator': ['nomenclatures', 'bom_items']
+})
+
+const PRODUCTION_SUMMARY_ROUTES = new Set([
+  '/master',
+  '/dashboard',
+  '/foreman-dashboard',
+  '/foreman2',
+  '/analytics'
+])
+
+const normalizeRoutePath = (pathname = '') => String(pathname).toLowerCase().replace(/\/+$/, '') || '/'
+
+const getRouteDataTables = (pathname = '') => {
+  const normalized = normalizeRoutePath(pathname)
+  return [...new Set(ROUTE_DATA_PROFILES[normalized] || [])]
+}
+
+const getTaskDataProfileKey = (pathname = '') => {
+  const normalized = normalizeRoutePath(pathname)
+  return isFulfillmentRoute(normalized)
+    ? `tasks:${normalized}`
+    : 'tasks:operational'
+}
+
+const FINAL_PRODUCTION_STAGES = new Set([
+  'пакування/сгп',
+  'прийомка',
+  'склад бз',
+  'сгп',
+  'пакування',
+  'completed'
+])
+
+const productionHistoryContribution = (row) => ({
+  produced: FINAL_PRODUCTION_STAGES.has(String(row?.stage_name || '').toLowerCase().trim())
+    ? Number(row?.qty_completed) || 0
+    : 0,
+  scrap: Number(row?.scrap_qty) || 0
+})
+
+const getRealtimeProfile = (pathname = '') => {
+  const normalized = normalizeRoutePath(pathname)
+  if (normalized === '/login' || /^\/machines\/[^/]+\/call$/.test(normalized)) return 'public'
+  if (normalized === '/') return 'portal'
+  if (normalized === '/settings') return 'settings'
+  if (FLOW_TOTALS_REALTIME_ROUTES.has(normalized)) return 'flow-dashboard'
+  if (MANAGEMENT_REALTIME_ROUTES.has(normalized)) return 'management'
+  if (WAREHOUSE_REALTIME_ROUTES.has(normalized)) return 'warehouse'
+  if (OPERATOR_REALTIME_ROUTES.has(normalized)) return 'operator'
+  return 'management'
+}
 
 const fallbackStructure = [
   { id: '1', name: 'Цех №1', type: 'shop' },
@@ -67,7 +209,7 @@ const fetchActiveWorkCards = async () => {
       .order('created_at', { ascending: false })
       .range(from, from + pageSize - 1)
 
-    if (error) return { data: allCards.length > 0 ? allCards : null, error }
+    if (error) return { data: null, error }
     allCards.push(...(data || []))
     if (!data || data.length < pageSize) break
   }
@@ -100,28 +242,68 @@ const fetchAllRows = async (table, { orderBy = 'created_at', ascending = false, 
 }
 
 const fetchOperationalMaterialRequests = async () => {
-  return supabase
+  const pageSize = 500
+  const activeRows = []
+
+  // Every unresolved request must remain visible even when completed history
+  // grows beyond PostgREST's response cap.
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from('material_requests')
+      .select('*')
+      .neq('status', 'completed')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(from, from + pageSize - 1)
+
+    if (error) return { data: null, error }
+    const page = data || []
+    activeRows.push(...page)
+    if (page.length < pageSize) break
+  }
+
+  // A bounded completed slice preserves current packaging/report previews
+  // without downloading the entire historical request table into every tab.
+  const { data: recentCompleted, error: completedError } = await supabase
     .from('material_requests')
     .select('*')
+    .eq('status', 'completed')
     .order('created_at', { ascending: false })
-    .limit(1500)
+    .order('id', { ascending: false })
+    .limit(1000)
+
+  if (completedError) return { data: null, error: completedError }
+
+  const rows = [...activeRows, ...(recentCompleted || [])]
+  return {
+    data: Array.from(new Map(rows.map(row => [String(row.id), row])).values())
+      .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)),
+    error: null
+  }
 }
 
-const fetchWorkCardScrapTotals = async () => {
+const fetchWorkCardScrapTotals = async (taskIds = []) => {
+  const scopedTaskIds = [...new Set((taskIds || []).filter(Boolean).map(String))]
+  if (scopedTaskIds.length === 0) return { data: [], error: null }
+
   const pageSize = 1000
   const allRows = []
 
-  for (let from = 0; ; from += pageSize) {
-    const { data, error } = await supabase
-      .from('work_card_scrap_totals')
-      .select('*')
-      .order('updated_at', { ascending: false })
-      .range(from, from + pageSize - 1)
+  for (let chunkStart = 0; chunkStart < scopedTaskIds.length; chunkStart += 40) {
+    const taskChunk = scopedTaskIds.slice(chunkStart, chunkStart + 40)
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from('work_card_scrap_totals')
+        .select('*')
+        .in('task_id', taskChunk)
+        .order('updated_at', { ascending: false })
+        .range(from, from + pageSize - 1)
 
-    if (error) return { data: allRows.length > 0 ? allRows : null, error }
-    const page = data || []
-    allRows.push(...page)
-    if (page.length < pageSize) break
+      if (error) return { data: null, error }
+      const page = data || []
+      allRows.push(...page)
+      if (page.length < pageSize) break
+    }
   }
 
   return {
@@ -130,27 +312,113 @@ const fetchWorkCardScrapTotals = async () => {
   }
 }
 
-const fetchWorkCardFlowTotals = async () => {
+const fetchWorkCardFlowTotals = async (taskIds = []) => {
+  const scopedTaskIds = [...new Set((taskIds || []).filter(Boolean).map(String))]
+  if (scopedTaskIds.length === 0) return { data: [], error: null }
+
   const pageSize = 1000
   const allRows = []
 
-  for (let from = 0; ; from += pageSize) {
-    const { data, error } = await supabase
-      .from('work_card_flow_totals')
-      .select('*')
-      .order('updated_at', { ascending: false })
-      .range(from, from + pageSize - 1)
+  // Keep PostgREST URLs bounded while still supporting more than one shop's
+  // active tasks. The result is de-duplicated after all task chunks are read.
+  for (let chunkStart = 0; chunkStart < scopedTaskIds.length; chunkStart += 40) {
+    const taskChunk = scopedTaskIds.slice(chunkStart, chunkStart + 40)
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from('work_card_flow_totals')
+        .select('*')
+        .in('task_id', taskChunk)
+        .order('updated_at', { ascending: false })
+        .range(from, from + pageSize - 1)
 
-    if (error) return { data: allRows.length > 0 ? allRows : null, error }
-    const page = data || []
-    allRows.push(...page)
-    if (page.length < pageSize) break
+      if (error) return { data: allRows.length > 0 ? allRows : null, error }
+      const page = data || []
+      allRows.push(...page)
+      if (page.length < pageSize) break
+    }
   }
 
   return {
     data: Array.from(new Map(allRows.map(row => [String(row.id), row])).values()),
     error: null
   }
+}
+
+const OPERATIONAL_TASK_FIELDS = 'id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,batch_index,planned_deadline,machine_name,created_at,completed_at,plan_snapshot'
+
+const fetchOperationalTasks = async () => {
+  const recentCompletedCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  const pageSize = 500
+  const rows = []
+
+  // A single unbounded response was both truncated by PostgREST's row cap and
+  // large enough to fail during database pressure. Serial page requests are
+  // kept behind the per-tab read semaphore in supabase.js.
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from('tasks')
+      .select(OPERATIONAL_TASK_FIELDS)
+      .or(`status.neq.completed,completed_at.gte.${recentCompletedCutoff}`)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(from, from + pageSize - 1)
+
+    if (error) return { data: null, error }
+    const page = data || []
+    rows.push(...page)
+    if (page.length < pageSize) break
+  }
+
+  return {
+    data: Array.from(new Map(rows.map(row => [String(row.id), row])).values()),
+    error: null
+  }
+}
+
+const fetchActiveTasksOnly = async () => {
+  const pageSize = 500
+  const rows = []
+
+  // Fulfillment screens get their completed/open queue from the bounded RPC.
+  // The shared state still needs every unfinished task for notifications and
+  // instant route changes, but repeating the 30-day completed slice here would
+  // recreate most of the read pressure the queue is designed to remove.
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from('tasks')
+      .select(OPERATIONAL_TASK_FIELDS)
+      .neq('status', 'completed')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(from, from + pageSize - 1)
+
+    if (error) return { data: null, error }
+    const page = data || []
+    rows.push(...page)
+    if (page.length < pageSize) break
+  }
+
+  return {
+    data: Array.from(new Map(rows.map(row => [String(row.id), row])).values()),
+    error: null
+  }
+}
+
+const fetchPendingMachineCalls = async () => {
+  const pageSize = 500
+  const rows = []
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from('machine_calls')
+      .select('*')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .range(from, from + pageSize - 1)
+    if (error) return { data: null, error }
+    rows.push(...(data || []))
+    if (!data || data.length < pageSize) break
+  }
+  return { data: rows, error: null }
 }
 
 const mergeTaskRows = (existing = [], incoming = []) => {
@@ -165,15 +433,51 @@ const mergeTaskRows = (existing = [], incoming = []) => {
   })
   return Array.from(merged.values()).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
 }
+
+const mergeOrderRows = (existing = [], incoming = []) => {
+  const merged = new Map(existing.map(item => [String(item.id), item]))
+  incoming.forEach(item => {
+    if (!item?.id) return
+    const cached = merged.get(String(item.id))
+    merged.set(String(item.id), { ...cached, ...item })
+  })
+  return Array.from(merged.values()).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+}
+
+const isTaskInFulfillmentSlice = (task, pathname) => {
+  const metadata = task?.plan_snapshot?._metadata || {}
+  if (pathname === '/packaging') {
+    return task?.status === 'completed' || metadata.is_packaged === true
+  }
+  if (pathname === '/shipping') {
+    return metadata.is_packaged === true || metadata.is_shipped === true
+  }
+  return false
+}
+
+const reconcileFulfillmentTaskRows = (existing = [], incoming = [], pathname = '') => {
+  const incomingIds = new Set(incoming.map(task => String(task?.id || '')).filter(Boolean))
+  const retained = existing.filter(task => (
+    !isTaskInFulfillmentSlice(task, pathname) || incomingIds.has(String(task?.id || ''))
+  ))
+  return mergeTaskRows(retained, incoming)
+}
 export function useData() {
   const location = useLocation()
   const path = location.pathname
+  const normalizedPath = useMemo(() => normalizeRoutePath(path), [path])
+  const realtimeProfile = useMemo(() => getRealtimeProfile(path), [path])
+  const routeDataTables = useMemo(() => getRouteDataTables(path), [path])
+  const routeDataTableKey = routeDataTables.join('|')
+  const routeHasTable = (tableName) => routeDataTables.includes(tableName)
+  const needsProductionSummary = PRODUCTION_SUMMARY_ROUTES.has(normalizedPath)
+  const isPublicDataRoute = realtimeProfile === 'public'
 
   // ── Lazy initialisers: localStorage is parsed ONCE per mount, not on every render ──
   const [orders, setOrders] = useState(fromCache('orders', []))
   const [customers, setCustomers] = useState(fromCache('customers', []))
   const [inventory, setInventory] = useState(fromCache('inventory', []))
-  const [tasks, setTasks] = useState(fromCache('tasks', []))
+  const [tasks, setTasksState] = useState(fromCache('tasks', []))
   const [managementTasks, setManagementTasks] = useState(fromCache('managementTasks', []))
   const [taskProjects, setTaskProjects] = useState(fromCache('taskProjects', []))
   const [requests, setRequests] = useState(fromCache('requests', []))
@@ -184,7 +488,8 @@ export function useData() {
   const [workCards, setWorkCards] = useState(fromCache('workCards', []))
   const [workCardHistory, setWorkCardHistory] = useState(fromCache('workCardHistory', []))
   const [workCardScrapTotals, setWorkCardScrapTotals] = useState(fromCache('workCardScrapTotals', []))
-  const [workCardFlowTotals, setWorkCardFlowTotals] = useState(fromCache('workCardFlowTotals', []))
+  // Large dashboard projection: never hydrate globally from the general cache.
+  const [workCardFlowTotals, setWorkCardFlowTotals] = useState(() => [])
   const [machines, setMachines] = useState(fromCache('machines', []))
   const [systemUsers, setSystemUsers] = useState(fromCache('systemUsers', []))
   const [machineOperations, setMachineOperations] = useState(fromCache('machineOperations', []))
@@ -234,6 +539,8 @@ export function useData() {
   }
 
   useEffect(() => {
+    if (!currentUser?.id) return undefined
+
     supabase.from('system_configs').select('*').eq('key', 'maintenance_check_enabled').maybeSingle()
       .then(({ data }) => {
         if (data && data.value) {
@@ -245,43 +552,113 @@ export function useData() {
       .catch(e => {
         console.warn('system_configs table not created yet or inaccessible:', e)
       })
-  }, [])
+  }, [currentUser?.id])
 
   const [loading, setLoading] = useState(false)
   const [hasMoreOrders, setHasMoreOrders] = useState(true)
-  const [lastFetchTime, setLastFetchTime] = useState(0)
   const [serverProductionData, setServerProductionData] = useState(null)
 
-  const fetchInProgressRef = useRef(false)
+  const fullFetchInFlightRef = useRef(null)
+  const currentUserIdRef = useRef(currentUser?.id || null)
+  const initialFetchCompletedUserIdRef = useRef(null)
+  const initialFetchScheduleRef = useRef({ userId: null, notBefore: 0 })
+  const productionSummaryInFlightRef = useRef(null)
+  const moduleLoadInFlightRef = useRef({})
   const targetRefreshInFlightRef = useRef({})
   const targetRefreshLastRef = useRef({})
   const nomenclaturesLoadedRef = useRef(false)
   const bomItemsLoadedRef = useRef(false)
   const nomenclaturesRef = useRef([])
   const bomItemsRef = useRef([])
+  const ordersRef = useRef(orders)
+  const tasksRef = useRef(tasks)
   const inventoryRef = useRef([])
   const workCardHistoryRef = useRef([])
-  const workCardScrapTotalsRef = useRef([])
-  const workCardFlowTotalsRef = useRef([])
   const receptionDocsRef = useRef([])
   const purchaseRequestsRef = useRef([])
-  const requestsRef = useRef([])
   const companyStructureRef = useRef([])
   const companyPositionsRef = useRef([])
+  const normalizedPathRef = useRef(normalizedPath)
+  const setTasks = useCallback((nextOrUpdater) => {
+    const nextTasks = typeof nextOrUpdater === 'function'
+      ? nextOrUpdater(tasksRef.current)
+      : nextOrUpdater
+    tasksRef.current = nextTasks
+    setTasksState(nextTasks)
+  }, [currentUser?.id])
+
+  currentUserIdRef.current = currentUser?.id || null
+  normalizedPathRef.current = normalizedPath
   nomenclaturesRef.current = nomenclatures
   bomItemsRef.current = bomItems
+  ordersRef.current = orders
+  tasksRef.current = tasks
   inventoryRef.current = inventory
   workCardHistoryRef.current = workCardHistory
-  workCardScrapTotalsRef.current = workCardScrapTotals
-  workCardFlowTotalsRef.current = workCardFlowTotals
   receptionDocsRef.current = receptionDocs
   purchaseRequestsRef.current = purchaseRequests
-  requestsRef.current = requests
   companyStructureRef.current = companyStructure
   companyPositionsRef.current = companyPositions
 
+  const getInitialFetchDelayMs = () => {
+    if (!currentUser?.id) return 0
+    if (initialFetchScheduleRef.current.userId !== currentUser.id) {
+      initialFetchScheduleRef.current = {
+        userId: currentUser.id,
+        notBefore: Date.now() + Math.floor(Math.random() * (INITIAL_FETCH_JITTER_MS + 1))
+      }
+    }
+    return Math.max(0, initialFetchScheduleRef.current.notBefore - Date.now())
+  }
+
+  const fetchTasksForCurrentRoute = async () => {
+    const profileKey = getTaskDataProfileKey(normalizedPath)
+    if (!isFulfillmentRoute(normalizedPath)) {
+      const result = await fetchOperationalTasks()
+      return { ...result, profileKey }
+    }
+
+    const fulfillmentResult = await fetchFulfillmentTasks(supabase, normalizedPath)
+    if (fulfillmentResult.error) return fulfillmentResult
+
+    // Keep the shared tasks state complete for global notifications and quick
+    // navigation without repeating the normal 30-day completed-history read.
+    // The RPC is authoritative for this route's completed queue/archive, while
+    // this query contributes every unfinished operational task.
+    const operationalResult = await fetchActiveTasksOnly()
+    if (operationalResult.error) return operationalResult
+
+    return {
+      data: mergeTaskRows(operationalResult.data || [], fulfillmentResult.data || []),
+      error: null,
+      source: fulfillmentResult.source,
+      profileKey
+    }
+  }
+
+  const getTargetRefreshKey = (tableName) => {
+    if (tableName !== 'tasks') return tableName
+    return getTaskDataProfileKey(normalizedPath)
+  }
+
+  const hydrateOrdersForTaskRows = async (taskRows, knownOrders = ordersRef.current) => {
+    if (!isFulfillmentRoute(normalizedPath) || !Array.isArray(taskRows) || taskRows.length === 0) {
+      return { data: [], error: null }
+    }
+
+    const result = await fetchMissingOrdersForTasks(supabase, taskRows, knownOrders)
+    if (result.data?.length) {
+      setOrders(prev => mergeOrderRows(prev, result.data))
+    }
+    return result
+  }
+
   useEffect(() => {
     let cancelled = false
+    LEGACY_CACHE_KEYS.forEach(cacheKey => {
+      try { localStorage.removeItem(cacheKey) } catch { /* ignore unavailable storage */ }
+      removeIndexedCache(cacheKey).catch(() => {})
+    })
     getIndexedCache(CACHE_KEY).then(cached => {
       if (cancelled || !cached) return
       const restore = (setter, field) => setter(prev => Array.isArray(prev) && prev.length > 0 ? prev : (cached[field] ?? prev))
@@ -299,7 +676,6 @@ export function useData() {
       restore(setWorkCards, 'workCards')
       restore(setWorkCardHistory, 'workCardHistory')
       restore(setWorkCardScrapTotals, 'workCardScrapTotals')
-      restore(setWorkCardFlowTotals, 'workCardFlowTotals')
       restore(setMachines, 'machines')
       restore(setSystemUsers, 'systemUsers')
       restore(setMachineOperations, 'machineOperations')
@@ -308,21 +684,6 @@ export function useData() {
       restore(setCompanyPositions, 'companyPositions')
     }).catch(error => console.warn('Failed to restore IndexedDB cache:', error))
     return () => { cancelled = true }
-  }, [])
-
-  useEffect(() => {
-    let cancelled = false
-    const refreshSummary = async () => {
-      try {
-        const summary = await fetchProductionSummary()
-        if (!cancelled) setServerProductionData(summary)
-      } catch (error) {
-        console.warn('Failed to refresh production summary:', error)
-      }
-    }
-    refreshSummary()
-    const timer = setInterval(refreshSummary, 60000)
-    return () => { cancelled = true; clearInterval(timer) }
   }, [])
 
   const PAGE_SIZE = 20
@@ -367,19 +728,22 @@ export function useData() {
 
   // ── LEVEL 1: Critical data only — loads in ~300ms, shows portal immediately ──
   const fetchCritical = async () => {
-    if (fetchInProgressRef.current) return
-    fetchInProgressRef.current = true
-    setLoading(true)
-    try {
-      const threeDaysAgoTasks = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-      const [
+    if (fullFetchInFlightRef.current) return fullFetchInFlightRef.current
+
+    const request = (async () => {
+      setLoading(true)
+      let criticalCoreSucceeded = false
+      try {
+        const needsTable = (tableName) => routeDataTables.includes(tableName)
+        const skippedTable = () => Promise.resolve({ data: null, error: null })
+        const [
         { data: su },
         { data: mc },
         { data: mt },
         { data: tp },
         { data: c },
         { data: latest, error: oErr },
-        { data: t },
+        { data: t, profileKey: taskProfileKey },
         { data: n },
         { data: b },
         { data: wc },
@@ -391,202 +755,219 @@ export function useData() {
         { data: pr },
         { data: wch },
         scrapTotalsRes,
-        flowTotalsRes,
         { data: mo },
         { data: mCalls }
-      ] = await Promise.all([
+        ] = await Promise.all([
         // Users & machines — needed for portal access filtering
-        supabase.from('system_users').select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar, last_seen, shift_calendar').order('login'),
-        supabase.from('machines').select('*').order('name'),
+        needsTable('system_users') ? supabase.from('system_users').select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar, last_seen, shift_calendar').order('login') : skippedTable(),
+        needsTable('machines') ? supabase.from('machines').select('*').order('name') : skippedTable(),
         // Kanban badge counter
-        supabase.from('management_tasks').select('*').neq('status', 'completed').order('created_at', { ascending: false }),
-        supabase.from('task_projects').select('*').order('created_at', { ascending: false }),
+        needsTable('management_tasks') ? supabase.from('management_tasks').select('*').neq('status', 'completed').order('created_at', { ascending: false }) : skippedTable(),
+        needsTable('task_projects') ? supabase.from('task_projects').select('*').order('created_at', { ascending: false }) : skippedTable(),
         // Customers for manager
-        supabase.from('customers').select('id,name,official_name').limit(50).order('name'),
+        needsTable('customers') ? supabase.from('customers').select('id,name,official_name').limit(50).order('name') : skippedTable(),
         // Latest orders WITH order_items — needed by Master, Foreman, Director for naryad creation
-        supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).range(0, 99),
+        needsTable('orders') ? supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).range(0, 99) : skippedTable(),
         // Active tasks WITHOUT nested order JOIN — order data is already in orders state
-        supabase.from('tasks').select('id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,batch_index,planned_deadline,machine_name,created_at,completed_at,plan_snapshot').or(`status.neq.completed,completed_at.gte.${threeDaysAgoTasks}`).order('created_at', { ascending: false }),
+        needsTable('tasks') ? fetchTasksForCurrentRoute() : skippedTable(),
         // Nomenclatures & BOM needed for naryad creation
-        nomenclaturesLoadedRef.current ? Promise.resolve({ data: nomenclaturesRef.current }) : supabase.from('nomenclatures').select('*').limit(2000).then(res => { nomenclaturesLoadedRef.current = true; return res; }),
-        bomItemsLoadedRef.current ? Promise.resolve({ data: bomItemsRef.current }) : supabase.from('bom_items').select('*').limit(4000).then(res => { bomItemsLoadedRef.current = true; return res; }),
+        !needsTable('nomenclatures') ? skippedTable() : nomenclaturesLoadedRef.current ? Promise.resolve({ data: nomenclaturesRef.current }) : supabase.from('nomenclatures').select('*').limit(2000).then(res => { if (!res.error && Array.isArray(res.data)) nomenclaturesLoadedRef.current = true; return res; }),
+        !needsTable('bom_items') ? skippedTable() : bomItemsLoadedRef.current ? Promise.resolve({ data: bomItemsRef.current }) : supabase.from('bom_items').select('*').limit(4000).then(res => { if (!res.error && Array.isArray(res.data)) bomItemsLoadedRef.current = true; return res; }),
         // Active (non-completed) work cards for real-time sync — completed are loaded separately per-task in ForemanWorkplace
-        fetchActiveWorkCards(),
-        companyStructureRef.current.length > fallbackStructure.length ? Promise.resolve({ data: companyStructureRef.current }) : supabase.from('company_structure').select('*').order('name').then(res => res, () => ({ data: fallbackStructure, error: null })),
-        companyPositionsRef.current.length > fallbackPositions.length ? Promise.resolve({ data: companyPositionsRef.current }) : supabase.from('company_positions').select('*').order('name').then(res => res, () => ({ data: fallbackPositions, error: null })),
+        needsTable('work_cards') ? fetchActiveWorkCards() : skippedTable(),
+        !needsTable('company_structure') ? skippedTable() : companyStructureRef.current.length > fallbackStructure.length ? Promise.resolve({ data: companyStructureRef.current }) : supabase.from('company_structure').select('*').order('name').then(res => res, () => ({ data: fallbackStructure, error: null })),
+        !needsTable('company_positions') ? skippedTable() : companyPositionsRef.current.length > fallbackPositions.length ? Promise.resolve({ data: companyPositionsRef.current }) : supabase.from('company_positions').select('*').order('name').then(res => res, () => ({ data: fallbackPositions, error: null })),
         // Global Real-time Tables
-        inventoryRef.current.length > 0 ? Promise.resolve({ data: inventoryRef.current }) : supabase.from('inventory').select('*').order('name').limit(3000),
-        requestsRef.current.length > 0 ? Promise.resolve({ data: requestsRef.current }) : fetchOperationalMaterialRequests(),
-        receptionDocsRef.current.length > 0 ? Promise.resolve({ data: receptionDocsRef.current }) : supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300),
-        purchaseRequestsRef.current.length > 0 ? Promise.resolve({ data: purchaseRequestsRef.current }) : supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300),
-        workCardHistoryRef.current.length > 0 ? Promise.resolve({ data: workCardHistoryRef.current }) : supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(500),
-        workCardScrapTotalsRef.current.length > 0 ? Promise.resolve({ data: workCardScrapTotalsRef.current, error: null }) : fetchWorkCardScrapTotals(),
-        workCardFlowTotalsRef.current.length > 0 ? Promise.resolve({ data: workCardFlowTotalsRef.current, error: null }) : fetchWorkCardFlowTotals(),
-        supabase.from('machine_operations').select('*'),
-        supabase.from('machine_calls').select('*').order('created_at', { ascending: false })
-      ])
+        // IndexedDB is only an instant rendering layer. Always reconcile these
+        // operational tables once after login because changes may have happened
+        // while the browser (and its Realtime channel) was closed.
+        needsTable('inventory') ? supabase.from('inventory').select('*').order('name').limit(3000) : skippedTable(),
+        needsTable('material_requests') ? fetchOperationalMaterialRequests() : skippedTable(),
+        needsTable('reception_docs') ? supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300) : skippedTable(),
+        needsTable('purchase_requests') ? supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300) : skippedTable(),
+        needsTable('work_card_history') ? supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(500) : skippedTable(),
+        skippedTable(),
+        needsTable('machine_operations') ? supabase.from('machine_operations').select('*') : skippedTable(),
+        needsTable('machine_calls') ? fetchPendingMachineCalls() : skippedTable()
+        ])
 
-      if (su) setSystemUsers(su)
-      if (mc) setMachines(mc)
-      if (mt) setManagementTasks(mt)
-      if (tp) setTaskProjects(tp)
-      if (c) setCustomers(c)
-      if (!oErr && latest) setOrders(latest)
-      if (t) {
-        setTasks(prev => mergeTaskRows(prev, t))
-      }
-      if (n) setNomenclatures(n)
-      if (b) setBomItems(b)
-      if (wc) setWorkCards(wc)
-      if (inv) setInventory(inv)
-      if (req) setRequests(req)
-      if (rec) setReceptionDocs(rec)
-      if (pr) setPurchaseRequests(pr)
-      if (wch) setWorkCardHistory(wch)
-      if (scrapTotalsRes?.data) setWorkCardScrapTotals(scrapTotalsRes.data)
-      if (flowTotalsRes?.data) setWorkCardFlowTotals(flowTotalsRes.data)
-      if (mo) setMachineOperations(mo)
-      if (mCalls) setMachineCalls(mCalls)
+        const recentProjectionCutoff = Date.now() - 3 * 24 * 60 * 60 * 1000
+        const projectionTaskIds = (t || tasksRef.current || [])
+          .filter(task => task.status !== 'completed' || new Date(task.completed_at || task.updated_at || 0).getTime() > recentProjectionCutoff)
+          .map(task => task.id)
+          .filter(Boolean)
+        const scopedScrapTotalsRes = needsTable('work_card_scrap_totals')
+          ? await fetchWorkCardScrapTotals(projectionTaskIds)
+          : scrapTotalsRes
 
-      if (structRes && structRes.data && structRes.data.length > 0) {
-        setCompanyStructure(structRes.data)
-      } else {
-        setCompanyStructure(fallbackStructure)
+        const taskProfileIsCurrent = !taskProfileKey || taskProfileKey === getTaskDataProfileKey(normalizedPathRef.current)
+        const currentTaskRows = taskProfileIsCurrent ? t : null
+        let fulfillmentOrders = []
+        let fulfillmentHydrationSucceeded = true
+        if (taskProfileIsCurrent && isFulfillmentRoute(normalizedPath) && Array.isArray(t)) {
+          const hydrationResult = await fetchMissingOrdersForTasks(
+            supabase,
+            t,
+            [...ordersRef.current, ...(latest || [])]
+          )
+          fulfillmentOrders = hydrationResult.data || []
+          if (hydrationResult.error) {
+            fulfillmentHydrationSucceeded = false
+            console.warn('Fulfillment order hydration failed:', hydrationResult.error)
+          }
+        }
+
+        // A module may request one of these tables while the initial bootstrap
+        // is still running. Remember only the queries that actually succeeded:
+        // the module request can then skip a duplicate read, while a transiently
+        // failed non-core query is retried below instead of being discarded.
+        const bootstrapResults = [
+          ['system_users', su],
+          ['machines', mc],
+          ['management_tasks', mt],
+          ['task_projects', tp],
+          ['customers', c],
+          ['orders', oErr ? null : latest],
+          ['tasks', fulfillmentHydrationSucceeded ? currentTaskRows : null],
+          ['nomenclatures', n],
+          ['bom_items', b],
+          ['work_cards', wc],
+          ['company_structure', structRes?.error ? null : structRes?.data],
+          ['company_positions', posRes?.error ? null : posRes?.data],
+          ['inventory', inv],
+          ['material_requests', req],
+          ['reception_docs', rec],
+          ['purchase_requests', pr],
+          ['work_card_history', wch],
+          ['work_card_scrap_totals', scopedScrapTotalsRes?.error ? null : scopedScrapTotalsRes?.data],
+          ['machine_operations', mo],
+          ['machine_calls', mCalls]
+        ]
+        const bootstrapResultByTable = new Map(bootstrapResults)
+        criticalCoreSucceeded = routeDataTables
+          .filter(tableName => bootstrapResultByTable.has(tableName))
+          .every(tableName => Array.isArray(bootstrapResultByTable.get(tableName)))
+        const bootstrapCompletedAt = Date.now()
+        bootstrapResults.forEach(([tableName, data]) => {
+          if (Array.isArray(data)) targetRefreshLastRef.current[getTargetRefreshKey(tableName)] = bootstrapCompletedAt
+        })
+
+        if (su) setSystemUsers(su)
+        if (mc) setMachines(mc)
+        if (mt) setManagementTasks(mt)
+        if (tp) setTaskProjects(tp)
+        if (c) setCustomers(c)
+        if (!oErr && latest) {
+          setOrders(isFulfillmentRoute(normalizedPath)
+            ? mergeOrderRows(latest, fulfillmentOrders)
+            : latest)
+        } else if (fulfillmentOrders.length > 0) {
+          setOrders(prev => mergeOrderRows(prev, fulfillmentOrders))
+        }
+        if (currentTaskRows) {
+          setTasks(prev => isFulfillmentRoute(normalizedPath)
+            ? reconcileFulfillmentTaskRows(prev, currentTaskRows, normalizedPath)
+            : mergeTaskRows(prev, currentTaskRows))
+        }
+        if (n) setNomenclatures(n)
+        if (b) setBomItems(b)
+        if (wc) setWorkCards(wc)
+        if (inv) setInventory(inv)
+        if (req) setRequests(req)
+        if (rec) setReceptionDocs(rec)
+        if (pr) setPurchaseRequests(pr)
+        if (wch) setWorkCardHistory(wch)
+        if (scopedScrapTotalsRes?.data) setWorkCardScrapTotals(scopedScrapTotalsRes.data)
+        if (mo) setMachineOperations(mo)
+        if (mCalls) setMachineCalls(mCalls)
+
+        if (needsTable('company_structure')) {
+          if (structRes && structRes.data && structRes.data.length > 0) {
+            setCompanyStructure(structRes.data)
+          } else {
+            setCompanyStructure(fallbackStructure)
+          }
+        }
+        if (needsTable('company_positions')) {
+          if (posRes && posRes.data && posRes.data.length > 0) {
+            setCompanyPositions(posRes.data)
+          } else {
+            setCompanyPositions(fallbackPositions)
+          }
+        }
+      } catch (e) {
+        console.error('fetchCritical error:', e)
+      } finally {
+        if (criticalCoreSucceeded && currentUser?.id && currentUserIdRef.current === currentUser.id) {
+          initialFetchCompletedUserIdRef.current = currentUser.id
+        }
+        setLoading(false)
       }
-      if (posRes && posRes.data && posRes.data.length > 0) {
-        setCompanyPositions(posRes.data)
-      } else {
-        setCompanyPositions(fallbackPositions)
-      }
-    } catch (e) {
-      console.error('fetchCritical error:', e)
+    })()
+
+    fullFetchInFlightRef.current = request
+    try {
+      return await request
     } finally {
-      setLoading(false)
-      fetchInProgressRef.current = false
+      if (fullFetchInFlightRef.current === request) fullFetchInFlightRef.current = null
     }
   }
 
   // ── LEVEL 2: Full data — called lazily by modules that need it ────────────
-  // ── LEVEL 2: Full data — called lazily by modules that need it ────────────
   const fetchData = async (forceOrTargets = false) => {
     if (typeof forceOrTargets === 'string' || Array.isArray(forceOrTargets)) {
-      const targets = [...new Set((Array.isArray(forceOrTargets) ? forceOrTargets : [forceOrTargets])
+      let targets = [...new Set((Array.isArray(forceOrTargets) ? forceOrTargets : [forceOrTargets])
         .map(tableName => tableName === 'requests' ? 'material_requests' : tableName))]
+
+      // Child module effects run before the provider's effect on mount. Wait for
+      // the bootstrap first; successful tables receive a fresh TTL there, while
+      // any requested table whose bootstrap query failed is retried below.
+      if (currentUser?.id && initialFetchCompletedUserIdRef.current !== currentUser.id) {
+        const requestedUserId = currentUser.id
+        const delay = getInitialFetchDelayMs()
+        if (delay > 0) await new Promise(resolve => setTimeout(resolve, delay))
+        if (currentUserIdRef.current !== requestedUserId) return
+        await fetchCritical()
+        if (currentUserIdRef.current !== requestedUserId) return
+      }
+
       await Promise.all(targets.map(tableName => {
         const now = Date.now()
-        const inFlight = targetRefreshInFlightRef.current[tableName]
+        const refreshKey = getTargetRefreshKey(tableName)
+        const inFlight = targetRefreshInFlightRef.current[refreshKey]
         if (inFlight) return inFlight
 
-        const lastRun = targetRefreshLastRef.current[tableName] || 0
-        if (now - lastRun < TARGET_REFRESH_TTL_MS) return Promise.resolve()
+        const lastRun = targetRefreshLastRef.current[refreshKey] || 0
+        const tableTtl = TARGET_REFRESH_TTL_BY_TABLE[tableName] || TARGET_REFRESH_TTL_MS
+        if (now - lastRun < tableTtl) return Promise.resolve()
 
         const refreshPromise = refreshTable(tableName)
+          .then(result => {
+            targetRefreshLastRef.current[refreshKey] = Date.now()
+            return result
+          })
           .catch(error => console.warn(`refreshTable(${tableName}) failed:`, error))
           .finally(() => {
-            targetRefreshLastRef.current[tableName] = Date.now()
-            delete targetRefreshInFlightRef.current[tableName]
+            delete targetRefreshInFlightRef.current[refreshKey]
           })
 
-        targetRefreshInFlightRef.current[tableName] = refreshPromise
+        targetRefreshInFlightRef.current[refreshKey] = refreshPromise
         return refreshPromise
       }))
       return
     }
-    const force = forceOrTargets === true
-    if (!force && Date.now() - lastFetchTime < 1000) return
-    try {
-      setLastFetchTime(Date.now())
-      const threeDaysAgoTasks = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
-      const needNomenclatures = nomenclaturesRef.current.length === 0
-      const needBOM = bomItemsRef.current.length === 0
-      const needMachines = machines.length === 0
-      const needUsers = systemUsers.length === 0
-      const needStructure = companyStructure.length <= fallbackStructure.length
-      const needOperations = machineOperations.length === 0
+    // A bare refresh is deliberately route-scoped. The old default refreshed
+    // every operational table and was the main amplifier during recovery.
+    if (forceOrTargets !== true) return fetchData(routeDataTables)
 
-      const [
-        { data: latest, error: oErr },
-        { data: t },
-        { data: n },
-        { data: b },
-        { data: mc },
-        { data: su },
-        { data: mt },
-        { data: tp },
-        { data: wc },
-        structRes,
-        { data: inv },
-        { data: req },
-        { data: rec },
-        { data: pr },
-        { data: wch },
-        scrapTotalsRes,
-        flowTotalsRes,
-        { data: mo },
-        { data: mCalls }
-      ] = await Promise.all([
-        supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).range(0, 99),
-        // tasks WITHOUT nested JOIN — avoids the orders(order_items(*)) waterfall
-        supabase.from('tasks').select('id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,batch_index,planned_deadline,machine_name,created_at,completed_at,plan_snapshot').or(`status.neq.completed,completed_at.gte.${threeDaysAgoTasks}`).order('created_at', { ascending: false }),
-        needNomenclatures && !nomenclaturesLoadedRef.current ? supabase.from('nomenclatures').select('*').limit(2000).then(res => { nomenclaturesLoadedRef.current = true; return res; }) : Promise.resolve({ data: null }),
-        needBOM && !bomItemsLoadedRef.current ? supabase.from('bom_items').select('*').limit(4000).then(res => { bomItemsLoadedRef.current = true; return res; }) : Promise.resolve({ data: null }),
-        needMachines ? supabase.from('machines').select('*').order('name') : Promise.resolve({ data: null }),
-        needUsers ? supabase.from('system_users').select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar, last_seen').order('login') : Promise.resolve({ data: null }),
-        supabase.from('management_tasks').select('*').neq('status', 'completed').order('created_at', { ascending: false }),
-        supabase.from('task_projects').select('*').order('created_at', { ascending: false }),
-        fetchActiveWorkCards(),
-        needStructure ? supabase.from('company_structure').select('*').order('name').then(res => res, () => ({ data: fallbackStructure, error: null })) : Promise.resolve({ data: null }),
-        supabase.from('inventory').select('*').order('name').limit(3000),
-        !force && requestsRef.current.length > 0 ? Promise.resolve({ data: null }) : fetchOperationalMaterialRequests(),
-        supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300),
-        supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300),
-        supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(500),
-        !force && workCardScrapTotalsRef.current.length > 0 ? Promise.resolve({ data: null, error: null }) : fetchWorkCardScrapTotals(),
-        !force && workCardFlowTotalsRef.current.length > 0 ? Promise.resolve({ data: null, error: null }) : fetchWorkCardFlowTotals(),
-        needOperations ? supabase.from('machine_operations').select('*') : Promise.resolve({ data: null }),
-        supabase.from('machine_calls').select('*').order('created_at', { ascending: false })
-      ])
-
-      if (!oErr && latest) {
-        setOrders(prev => {
-          const existingIds = new Set(prev.map(o => o.id))
-          const merged = [...prev]
-          latest.forEach(newItem => {
-            const idx = merged.findIndex(o => o.id === newItem.id)
-            if (idx >= 0) merged[idx] = newItem
-            else merged.unshift(newItem)
-          })
-          return merged.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-        })
-      }
-
-      if (t) {
-        setTasks(prev => mergeTaskRows(prev, t))
-      }
-      if (needNomenclatures && n) setNomenclatures(n)
-      if (needBOM && b) setBomItems(b)
-      if (needMachines && mc) setMachines(mc)
-      if (needUsers && su) setSystemUsers(su)
-      if (mt) setManagementTasks(mt)
-      if (tp) setTaskProjects(tp)
-      if (wc) setWorkCards(wc)
-      if (inv) setInventory(inv)
-      if (req) setRequests(req)
-      if (rec) setReceptionDocs(rec)
-      if (pr) setPurchaseRequests(pr)
-      if (wch) setWorkCardHistory(wch)
-      if (scrapTotalsRes?.data) setWorkCardScrapTotals(scrapTotalsRes.data)
-      if (flowTotalsRes?.data) setWorkCardFlowTotals(flowTotalsRes.data)
-      if (needOperations && mo) setMachineOperations(mo)
-      if (mCalls) setMachineCalls(mCalls)
-
-      if (needStructure && structRes && structRes.data && structRes.data.length > 0) {
-        setCompanyStructure(structRes.data)
-      }
-    } catch (e) {
-      console.error('fetchData error:', e)
-    }
+    // `true` used to mean "download every operational table" and made a
+    // single legacy caller capable of recreating the outage. Preserve the
+    // force semantics, but only for the current route's allow-list.
+    routeDataTables.forEach(tableName => {
+      targetRefreshLastRef.current[getTargetRefreshKey(tableName)] = 0
+    })
+    return fetchData(routeDataTables)
   }
 
   // ── On-demand loader for the big plan_snapshot data ─────────────────────────
@@ -609,11 +990,53 @@ export function useData() {
     return null
   }
 
+  const refreshProductionSummary = async (options = {}) => {
+    if (productionSummaryInFlightRef.current) return productionSummaryInFlightRef.current
+
+    const request = fetchProductionSummary(null, null, options)
+      .then(summary => {
+        setServerProductionData(summary)
+        return summary
+      })
+      .catch(error => {
+        // Keep the safe in-memory fallback based on the recent history slice.
+        // In particular, never replace it with an expensive browser-side full scan.
+        console.warn('Failed to refresh production summary:', error)
+        return null
+      })
+      .finally(() => {
+        if (productionSummaryInFlightRef.current === request) {
+          productionSummaryInFlightRef.current = null
+        }
+      })
+
+    productionSummaryInFlightRef.current = request
+    return request
+  }
+
   // ── Module-specific lazy loaders (called on module mount) ─────────────────
   const fetchModuleData = async (moduleName) => {
-    // Lazy module fetching is disabled.
-    // All critical operational data is now eagerly loaded in fetchCritical() and fetchData().
-    // This allows background real-time updates to seamlessly sync global application state.
+    const key = String(moduleName || '').toLowerCase()
+    if (!key) return
+    if (moduleLoadInFlightRef.current[key]) return moduleLoadInFlightRef.current[key]
+
+    const request = (async () => {
+      if (key === 'master') {
+        // Keep the aggregate behind the staggered bootstrap instead of adding
+        // another expensive query to the login burst.
+        await fetchData(['orders', 'tasks', 'inventory', 'material_requests'])
+        await refreshProductionSummary()
+      } else if (key === 'foreman' && path.includes('foreman-dashboard')) {
+        // This projection is large, so only the dashboard that consumes it
+        // receives it. ForemanWorkplace keeps using its task-scoped history.
+        await fetchData(['work_card_scrap_totals', 'work_card_flow_totals'])
+      }
+    })().finally(() => {
+      delete moduleLoadInFlightRef.current[key]
+    })
+
+    moduleLoadInFlightRef.current[key] = request
+    return request
   }
 
   const fetchHistoryRange = async (startDate, endDate) => {
@@ -646,28 +1069,38 @@ export function useData() {
 
   const refreshTable = async (tableName) => {
     try {
+      const requireData = (result) => {
+        if (result?.error) throw result.error
+        return result?.data
+      }
+
       if (tableName === 'work_cards') {
-        const { data } = await fetchActiveWorkCards()
+        const data = requireData(await fetchActiveWorkCards())
         if (data) setWorkCards(data)
       } else if (tableName === 'inventory') {
-        const { data } = await supabase.from('inventory').select('*').order('name')
+        const data = requireData(await supabase.from('inventory').select('*').order('name'))
         if (data) setInventory(data)
       } else if (tableName === 'tasks') {
-        const threeDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
         // No nested JOIN — tasks reference orders via order_id already in state
-        const { data } = await supabase.from('tasks').select('id,order_id,step,status,planned_sets,estimated_time,engineer_conf,warehouse_conf,director_conf,batch_index,planned_deadline,machine_name,created_at,completed_at,plan_snapshot').or(`status.neq.completed,completed_at.gte.${threeDaysAgo}`).order('created_at', { ascending: false })
+        const taskResult = await fetchTasksForCurrentRoute()
+        const data = requireData(taskResult)
+        if (taskResult.profileKey !== getTaskDataProfileKey(normalizedPathRef.current)) return
         if (data) {
+          const hydrationResult = await hydrateOrdersForTaskRows(data)
+          if (hydrationResult.error) throw hydrationResult.error
           setTasks(prev => {
             // Keep archived tasks already restored from IndexedDB. Some legacy
             // completed tasks have completed_at = null and are absent from the
             // rolling query; replacing state here made packaging lose their
             // freshly updated snapshots.
-            return mergeTaskRows(prev, data)
+            return isFulfillmentRoute(normalizedPath)
+              ? reconcileFulfillmentTaskRows(prev, data, normalizedPath)
+              : mergeTaskRows(prev, data)
           })
         }
       } else if (tableName === 'orders') {
         // Include order_items so modules that need quantities work correctly
-        const { data } = await supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).range(0, 50)
+        const data = requireData(await supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).range(0, 50))
         if (data) setOrders(prev => {
           const next = [...prev]
           data.forEach(item => {
@@ -678,51 +1111,89 @@ export function useData() {
           return next.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
         })
       } else if (tableName === 'machine_operations') {
-        const { data } = await supabase.from('machine_operations').select('*')
+        const data = requireData(await supabase.from('machine_operations').select('*'))
         if (data) setMachineOperations(data)
+      } else if (tableName === 'machines') {
+        const data = requireData(await supabase.from('machines').select('*').order('name'))
+        if (data) setMachines(data)
+      } else if (tableName === 'machine_calls') {
+        const data = requireData(await fetchPendingMachineCalls())
+        if (data) setMachineCalls(data)
+      } else if (tableName === 'management_tasks') {
+        const data = requireData(await supabase.from('management_tasks').select('*').neq('status', 'completed').order('created_at', { ascending: false }))
+        if (data) setManagementTasks(data)
+      } else if (tableName === 'task_projects') {
+        const data = requireData(await supabase.from('task_projects').select('*').order('created_at', { ascending: false }))
+        if (data) setTaskProjects(data)
+      } else if (tableName === 'system_users') {
+        const data = requireData(await supabase
+          .from('system_users')
+          .select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar, last_seen, shift_calendar')
+          .order('login'))
+        if (data) setSystemUsers(data)
+      } else if (tableName === 'company_structure') {
+        const data = requireData(await supabase.from('company_structure').select('*').order('name'))
+        if (data?.length) setCompanyStructure(data)
+      } else if (tableName === 'company_positions') {
+        const data = requireData(await supabase.from('company_positions').select('*').order('name'))
+        if (data?.length) setCompanyPositions(data)
       } else if (tableName === 'nomenclatures') {
-        const { data } = await supabase.from('nomenclatures').select('*').limit(2000)
+        const data = requireData(await supabase.from('nomenclatures').select('*').limit(2000))
         if (data) {
           setNomenclatures(data)
           nomenclaturesLoadedRef.current = true
         }
       } else if (tableName === 'bom_items') {
-        const { data } = await supabase.from('bom_items').select('*').limit(4000)
+        const data = requireData(await supabase.from('bom_items').select('*').limit(4000))
         if (data) {
           setBomItems(data)
           bomItemsLoadedRef.current = true
         }
       } else if (tableName === 'customers') {
-        const { data } = await supabase.from('customers').select('id,name,official_name').order('name').limit(500)
+        const data = requireData(await supabase.from('customers').select('id,name,official_name').order('name').limit(500))
         if (data) setCustomers(data)
       } else if (tableName === 'purchase_requests') {
-        const { data } = await supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300)
+        const data = requireData(await supabase.from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(300))
         if (data) setPurchaseRequests(data)
       } else if (tableName === 'reception_docs') {
-        const { data } = await supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300)
+        const data = requireData(await supabase.from('reception_docs').select('*').order('created_at', { ascending: false }).limit(300))
         if (data) setReceptionDocs(data)
       } else if (tableName === 'material_requests' || tableName === 'requests') {
-        const { data, error } = await fetchOperationalMaterialRequests()
-        if (error) throw error
+        const data = requireData(await fetchOperationalMaterialRequests())
         if (data) setRequests(data)
       } else if (tableName === 'work_card_history') {
-        const { data } = await supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(500)
-        if (data) setWorkCardHistory(data)
+        const data = requireData(await supabase.from('work_card_history').select('*').order('created_at', { ascending: false }).limit(500))
+        if (data) {
+          workCardHistoryRef.current = data
+          setWorkCardHistory(data)
+        }
       } else if (tableName === 'work_card_scrap_totals') {
-        const { data, error } = await fetchWorkCardScrapTotals()
-        if (error) throw error
+        const recentCutoff = Date.now() - 3 * 24 * 60 * 60 * 1000
+        const relevantTaskIds = tasksRef.current
+          .filter(task => task.status !== 'completed' || new Date(task.completed_at || task.updated_at || 0).getTime() > recentCutoff)
+          .map(task => task.id)
+          .filter(Boolean)
+        const data = requireData(await fetchWorkCardScrapTotals(relevantTaskIds))
         if (data) setWorkCardScrapTotals(data)
       } else if (tableName === 'work_card_flow_totals') {
-        const { data, error } = await fetchWorkCardFlowTotals()
-        if (error) throw error
+        const recentCutoff = Date.now() - 3 * 24 * 60 * 60 * 1000
+        const relevantTaskIds = tasksRef.current
+          .filter(task => task.status !== 'completed' || new Date(task.completed_at || task.updated_at || 0).getTime() > recentCutoff)
+          .map(task => task.id)
+          .filter(Boolean)
+        const data = requireData(await fetchWorkCardFlowTotals(relevantTaskIds))
         if (data) setWorkCardFlowTotals(data)
+      } else {
+        throw new Error(`Unsupported refresh table: ${tableName}`)
       }
-    } catch (e) { console.error(`Error refreshing ${tableName}:`, e) }
+    } catch (e) {
+      console.error(`Error refreshing ${tableName}:`, e)
+      throw e
+    }
   }
 
   const productionData = useMemo(() => {
-    const finishingStages = ['пакування/сгп', 'прийомка', 'склад бз', 'сгп', 'пакування']
-    const finalRecords = (workCardHistory || []).filter(h => finishingStages.includes((h.stage_name || '').toLowerCase().trim()))
+    const finalRecords = (workCardHistory || []).filter(h => FINAL_PRODUCTION_STAGES.has((h.stage_name || '').toLowerCase().trim()))
     const fallback = {
       totalProduced: finalRecords.reduce((acc, h) => acc + (Number(h.qty_completed) || 0), 0),
       totalScrap: (workCardHistory || []).reduce((acc, h) => acc + (Number(h.scrap_qty) || 0), 0)
@@ -740,10 +1211,6 @@ export function useData() {
   useEffect(() => { systemUsersRef.current = systemUsers }, [systemUsers])
   const machinesRef = useRef([])
   useEffect(() => { machinesRef.current = machines }, [machines])
-  const tasksRef = useRef([])
-  useEffect(() => { tasksRef.current = tasks }, [tasks])
-  const ordersRef = useRef([])
-  useEffect(() => { ordersRef.current = orders }, [orders])
   useEffect(() => {
     if (cacheTimerRef.current) clearTimeout(cacheTimerRef.current)
     cacheTimerRef.current = setTimeout(() => {
@@ -768,8 +1235,7 @@ export function useData() {
           receptionDocs,
           purchaseRequests,
           workCardHistory,
-          workCardScrapTotals,
-          workCardFlowTotals
+          workCardScrapTotals
         }
         setIndexedCache(CACHE_KEY, dataToCache)
           .then(() => localStorage.removeItem(CACHE_KEY))
@@ -781,15 +1247,40 @@ export function useData() {
         } catch (innerErr) { }
       }
     }, 2000) // Затримка 2с після останньої зміни
-  }, [orders, customers, tasks, managementTasks, taskProjects, requests, nomenclatures, bomItems, machines, systemUsers, machineOperations, machineCalls, companyStructure, companyPositions, workCards, inventory, receptionDocs, purchaseRequests, workCardHistory, workCardScrapTotals, workCardFlowTotals])
+  }, [orders, customers, tasks, managementTasks, taskProjects, requests, nomenclatures, bomItems, machines, systemUsers, machineOperations, machineCalls, companyStructure, companyPositions, workCards, inventory, receptionDocs, purchaseRequests, workCardHistory, workCardScrapTotals])
 
   // --- REAL-TIME ---
   useEffect(() => {
-    const isOperator = path.includes('operator') || path.includes('shop1') || path.includes('shop2-terminal') || path.includes('tumbling') || path.includes('pressing') || path.includes('painting') || path.includes('sorting') || path.includes('reception') || path.includes('preparation') || path.includes('packaging')
-    const isWarehouse = path.includes('warehouse') || path.includes('supply') || path.includes('procurement')
+    const needsPrimaryChannel = needsProductionSummary || [
+      'work_cards',
+      'tasks',
+      'inventory',
+      'work_card_history',
+      'work_card_scrap_totals',
+      'work_card_flow_totals'
+    ].some(tableName => routeHasTable(tableName))
+    if (!currentUser?.id || realtimeProfile === 'public' || !needsPrimaryChannel) return undefined
+
+    const needsProductionHistory = routeHasTable('work_card_history') || needsProductionSummary
+    const shouldLoadHistorySnapshot = routeHasTable('work_card_history')
+    const needsScrapTotals = routeHasTable('work_card_scrap_totals')
+    const needsFlowTotals = routeHasTable('work_card_flow_totals')
+    let productionSummaryRefreshTimer = null
+
+    const scheduleProductionSummaryRefresh = () => {
+      if (!needsProductionSummary) return
+      if (productionSummaryRefreshTimer) clearTimeout(productionSummaryRefreshTimer)
+      productionSummaryRefreshTimer = setTimeout(() => {
+        productionSummaryRefreshTimer = null
+        refreshProductionSummary({ force: true })
+          .catch(error => console.warn('Realtime production summary refresh failed:', error))
+      }, 1500)
+    }
 
     let activeChannel = supabase.channel('mes-global-updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_cards' }, (payload) => {
+
+    if (routeHasTable('work_cards')) {
+      activeChannel = activeChannel.on('postgres_changes', { event: '*', schema: 'public', table: 'work_cards' }, (payload) => {
         if (payload.eventType === 'UPDATE') {
           if (payload.new.status === 'completed') {
             setWorkCards(prev => prev.filter(c => c.id !== payload.new.id))
@@ -804,7 +1295,10 @@ export function useData() {
           setWorkCards(prev => prev.filter(c => c.id !== payload.old.id))
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (payload) => {
+    }
+
+    if (routeHasTable('tasks')) {
+      activeChannel = activeChannel.on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (payload) => {
         if (payload.eventType === 'UPDATE') {
           setTasks(prev => {
             const exists = prev.some(t => t.id === payload.new.id);
@@ -852,7 +1346,10 @@ export function useData() {
           setTasks(prev => prev.filter(t => t.id !== payload.old.id))
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, (payload) => {
+    }
+
+    if (routeHasTable('inventory')) {
+      activeChannel = activeChannel.on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, (payload) => {
         if (payload.eventType === 'UPDATE') {
           setInventory(prev => prev.map(i => i.id === payload.new.id ? { ...i, ...payload.new } : i))
         } else if (payload.eventType === 'INSERT') {
@@ -861,16 +1358,66 @@ export function useData() {
           setInventory(prev => prev.filter(i => i.id !== payload.old.id))
         }
       })
+    }
 
     // Subscriptions for work_card_history are only needed for dashboards and manager modules, not operator terminals or warehouse
-    if (!isOperator && !isWarehouse) {
+    if (needsProductionHistory) {
       activeChannel = activeChannel
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'work_card_history' }, (payload) => {
-          setWorkCardHistory(prev => prev.some(h => h.id === payload.new.id) ? prev : [payload.new, ...prev].slice(0, 500))
+          const alreadyKnown = workCardHistoryRef.current.some(h => String(h.id) === String(payload.new.id))
+          if (alreadyKnown) return
+
+          const nextHistory = [payload.new, ...workCardHistoryRef.current].slice(0, 500)
+          workCardHistoryRef.current = nextHistory
+          setWorkCardHistory(nextHistory)
+
+          // The database aggregate is loaded on demand, but once present it
+          // must remain live without polling or another full-history scan.
+          const contribution = productionHistoryContribution(payload.new)
+          setServerProductionData(prev => prev ? {
+            ...prev,
+            totalProduced: (Number(prev.totalProduced) || 0) + contribution.produced,
+            totalScrap: (Number(prev.totalScrap) || 0) + contribution.scrap,
+            historyCount: Number.isFinite(Number(prev.historyCount))
+              ? Number(prev.historyCount) + 1
+              : prev.historyCount
+          } : prev)
         })
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'work_card_history' }, (payload) => {
-          setWorkCardHistory(prev => prev.map(h => h.id === payload.new.id ? { ...h, ...payload.new } : h))
+          const previous = workCardHistoryRef.current.find(h => String(h.id) === String(payload.new.id))
+          const nextHistory = workCardHistoryRef.current.map(h => h.id === payload.new.id ? { ...h, ...payload.new } : h)
+          workCardHistoryRef.current = nextHistory
+          setWorkCardHistory(nextHistory)
+
+          if (previous) {
+            const before = productionHistoryContribution(previous)
+            const after = productionHistoryContribution({ ...previous, ...payload.new })
+            setServerProductionData(prev => prev ? {
+              ...prev,
+              totalProduced: (Number(prev.totalProduced) || 0) + after.produced - before.produced,
+              totalScrap: (Number(prev.totalScrap) || 0) + after.scrap - before.scrap
+            } : prev)
+          } else {
+            // The local slice only contains the latest 500 rows, so an update
+            // outside that slice cannot be reconciled safely with a delta.
+            scheduleProductionSummaryRefresh()
+          }
         })
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'work_card_history' }, (payload) => {
+          const deletedId = payload.old?.id
+          if (deletedId != null) {
+            const nextHistory = workCardHistoryRef.current.filter(h => String(h.id) !== String(deletedId))
+            workCardHistoryRef.current = nextHistory
+            setWorkCardHistory(nextHistory)
+          }
+          // DELETE payloads commonly contain only the primary key, so refresh
+          // the aggregate once after a short burst instead of guessing a delta.
+          scheduleProductionSummaryRefresh()
+        })
+    }
+
+    if (needsScrapTotals) {
+      activeChannel = activeChannel
         .on('postgres_changes', { event: '*', schema: 'public', table: 'work_card_scrap_totals' }, (payload) => {
           if (payload.eventType === 'INSERT') {
             setWorkCardScrapTotals(prev => prev.some(row => row.id === payload.new.id) ? prev : [payload.new, ...prev])
@@ -880,6 +1427,10 @@ export function useData() {
             setWorkCardScrapTotals(prev => prev.filter(row => row.id !== payload.old.id))
           }
         })
+    }
+
+    if (needsFlowTotals) {
+      activeChannel = activeChannel
         .on('postgres_changes', { event: '*', schema: 'public', table: 'work_card_flow_totals' }, (payload) => {
           if (payload.eventType === 'INSERT') {
             setWorkCardFlowTotals(prev => prev.some(row => row.id === payload.new.id) ? prev : [payload.new, ...prev])
@@ -891,9 +1442,37 @@ export function useData() {
         })
     }
 
-    activeChannel.subscribe()
-    return () => { supabase.removeChannel(activeChannel) }
-  }, [path])
+    let hasSubscribed = false
+    let reconnectRefreshTimer = null
+    activeChannel.subscribe((status) => {
+      if (status !== 'SUBSCRIBED') return
+      // The first SUBSCRIBED belongs to this route's initial channel. Route
+      // loading already reconciles its snapshot; catch up only after an actual
+      // disconnect/reconnect on the same channel instance.
+      const shouldCatchUp = hasSubscribed
+      hasSubscribed = true
+      if (!shouldCatchUp) return
+
+      if (reconnectRefreshTimer) clearTimeout(reconnectRefreshTimer)
+      reconnectRefreshTimer = setTimeout(() => {
+        const targets = ['tasks', 'work_cards', 'inventory']
+          .filter(tableName => routeHasTable(tableName))
+        if (shouldLoadHistorySnapshot) targets.push('work_card_history')
+        if (needsScrapTotals) targets.push('work_card_scrap_totals')
+        if (needsFlowTotals) targets.push('work_card_flow_totals')
+        targets.forEach(tableName => { delete targetRefreshLastRef.current[getTargetRefreshKey(tableName)] })
+        const catchUp = targets.length > 0 ? fetchData(targets) : Promise.resolve()
+        catchUp
+          .then(() => needsProductionSummary ? refreshProductionSummary({ force: true }) : null)
+          .catch(error => console.warn('Core Realtime catch-up failed:', error))
+      }, Math.floor(Math.random() * 2001))
+    })
+    return () => {
+      if (reconnectRefreshTimer) clearTimeout(reconnectRefreshTimer)
+      if (productionSummaryRefreshTimer) clearTimeout(productionSummaryRefreshTimer)
+      supabase.removeChannel(activeChannel)
+    }
+  }, [currentUser?.id, realtimeProfile, routeDataTableKey, needsProductionSummary])
 
   // --- REAL-TIME для решти таблиць (orders, склад, Kanban тощо) ---
   // Точкові підписки замість глобального fetchData() на кожну подію
@@ -903,17 +1482,60 @@ export function useData() {
   const matReqPushBufferRef = useRef({}) // { [orderId]: { timer, items[], isPackaging, notifyIds[] } }
 
   useEffect(() => {
-    const isOperator = path.includes('operator') || path.includes('shop1') || path.includes('shop2-terminal') || path.includes('tumbling') || path.includes('pressing') || path.includes('painting') || path.includes('sorting') || path.includes('reception') || path.includes('preparation') || path.includes('packaging')
-    const isWarehouse = path.includes('warehouse') || path.includes('supply') || path.includes('procurement')
-    const isSettings = path === '/settings'
+    const secondaryTables = [
+      'orders',
+      'management_tasks',
+      'task_projects',
+      'customers',
+      'material_requests',
+      'reception_docs',
+      'purchase_requests',
+      'machines',
+      'machine_operations',
+      'machine_calls',
+      'system_users',
+      'company_structure',
+      'company_positions'
+    ]
+    if (!currentUser?.id || realtimeProfile === 'public' || !secondaryTables.some(tableName => routeHasTable(tableName))) return undefined
+
+    const isSettings = realtimeProfile === 'settings'
+    const orderHydrationTimers = new Map()
+
+    const mergeRealtimeOrder = (incoming) => {
+      if (!incoming?.id) return
+      setOrders(prev => {
+        const existing = prev.find(order => String(order.id) === String(incoming.id))
+        const merged = existing
+          ? { ...existing, ...incoming, order_items: incoming.order_items || existing.order_items || [] }
+          : { ...incoming, order_items: incoming.order_items || [] }
+        return [merged, ...prev.filter(order => String(order.id) !== String(incoming.id))]
+          .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+      })
+    }
+
+    const scheduleOrderHydration = (orderId) => {
+      if (!orderId || orderHydrationTimers.has(String(orderId))) return
+      const timer = setTimeout(async () => {
+        orderHydrationTimers.delete(String(orderId))
+        const { data, error } = await supabase
+          .from('orders')
+          .select('*, order_items(*)')
+          .eq('id', orderId)
+          .maybeSingle()
+        if (!error && data) mergeRealtimeOrder(data)
+      }, 750 + Math.floor(Math.random() * 1751))
+      orderHydrationTimers.set(String(orderId), timer)
+    }
 
     let activeChannel2 = supabase.channel('mes-secondary-updates')
 
     // Orders & Kanban — manager, director, foreman, settings (not operators or warehouse)
-    if (!isOperator && !isWarehouse) {
+    if (routeHasTable('orders')) {
       activeChannel2 = activeChannel2
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
-          refreshTable('orders')
+          mergeRealtimeOrder(payload.new)
+          scheduleOrderHydration(payload.new?.id)
           if (isLocalWrite('orders', payload.new)) {
             const notifyIds = (systemUsersRef.current || []).filter(u => {
               if (!u?.access_rights) return false
@@ -934,30 +1556,43 @@ export function useData() {
             }
           }
         })
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, () => {
-          refreshTable('orders')
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
+          mergeRealtimeOrder(payload.new)
         })
-        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'orders' }, () => {
-          refreshTable('orders')
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'management_tasks' }, (payload) => {
-          if (payload.eventType === 'INSERT') {
-            setManagementTasks(prev => prev.some(t => t.id === payload.new.id) ? prev : [payload.new, ...prev])
-          } else if (payload.eventType === 'UPDATE') {
-            setManagementTasks(prev => prev.map(t => t.id === payload.new.id ? { ...t, ...payload.new } : t))
-          } else if (payload.eventType === 'DELETE') {
-            setManagementTasks(prev => prev.filter(t => t.id !== payload.old.id))
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'orders' }, (payload) => {
+          const deletedId = payload.old?.id
+          if (deletedId != null) {
+            setOrders(prev => prev.filter(order => String(order.id) !== String(deletedId)))
           }
         })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'task_projects' }, (payload) => {
-          if (payload.eventType === 'INSERT') {
-            setTaskProjects(prev => prev.some(p => p.id === payload.new.id) ? prev : [payload.new, ...prev])
-          } else if (payload.eventType === 'UPDATE') {
-            setTaskProjects(prev => prev.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p))
-          } else if (payload.eventType === 'DELETE') {
-            setTaskProjects(prev => prev.filter(p => p.id !== payload.old.id))
-          }
-        })
+    }
+
+    if (routeHasTable('management_tasks')) {
+      activeChannel2 = activeChannel2.on('postgres_changes', { event: '*', schema: 'public', table: 'management_tasks' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setManagementTasks(prev => prev.some(t => t.id === payload.new.id) ? prev : [payload.new, ...prev])
+        } else if (payload.eventType === 'UPDATE') {
+          setManagementTasks(prev => prev.map(t => t.id === payload.new.id ? { ...t, ...payload.new } : t))
+        } else if (payload.eventType === 'DELETE') {
+          setManagementTasks(prev => prev.filter(t => t.id !== payload.old.id))
+        }
+      })
+    }
+
+    if (routeHasTable('task_projects')) {
+      activeChannel2 = activeChannel2.on('postgres_changes', { event: '*', schema: 'public', table: 'task_projects' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setTaskProjects(prev => prev.some(p => p.id === payload.new.id) ? prev : [payload.new, ...prev])
+        } else if (payload.eventType === 'UPDATE') {
+          setTaskProjects(prev => prev.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p))
+        } else if (payload.eventType === 'DELETE') {
+          setTaskProjects(prev => prev.filter(p => p.id !== payload.old.id))
+        }
+      })
+    }
+
+    if (routeHasTable('customers')) {
+      activeChannel2 = activeChannel2
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'customers' }, (payload) => {
           setCustomers(prev => prev.some(c => c.id === payload.new.id) ? prev : [...prev, payload.new].sort((a, b) => (a.name || '').localeCompare(b.name || '')))
         })
@@ -967,8 +1602,9 @@ export function useData() {
     }
 
     // Material requests — always needed for warehouse, supply and operator screens to check stock requests
-    activeChannel2 = activeChannel2
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'material_requests' }, (payload) => {
+    if (routeHasTable('material_requests')) {
+      activeChannel2 = activeChannel2
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'material_requests' }, (payload) => {
         setRequests(prev => prev.some(r => r.id === payload.new.id) ? prev : [payload.new, ...prev])
         if (isLocalWrite('material_requests', payload.new)) {
           const isPackaging = payload.new?.details?.includes('КОМПЛЕКТУВАННЯ')
@@ -1026,17 +1662,17 @@ export function useData() {
           }
         }
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'material_requests' }, (payload) => {
-        setRequests(prev => prev.map(r => r.id === payload.new.id ? { ...r, ...payload.new } : r))
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'material_requests' }, (payload) => {
-        setRequests(prev => prev.filter(r => r.id !== payload.old.id))
-      })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'material_requests' }, (payload) => {
+          setRequests(prev => prev.map(r => r.id === payload.new.id ? { ...r, ...payload.new } : r))
+        })
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'material_requests' }, (payload) => {
+          setRequests(prev => prev.filter(r => r.id !== payload.old.id))
+        })
+    }
 
     // Reception docs & Purchase requests — only needed for warehouse, supply and management, not operator terminals
-    if (isWarehouse || !isOperator) {
-      activeChannel2 = activeChannel2
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'reception_docs' }, (payload) => {
+    if (routeHasTable('reception_docs')) {
+      activeChannel2 = activeChannel2.on('postgres_changes', { event: '*', schema: 'public', table: 'reception_docs' }, (payload) => {
           if (payload.eventType === 'INSERT') {
             setReceptionDocs(prev => prev.some(d => d.id === payload.new.id) ? prev : [payload.new, ...prev])
           } else if (payload.eventType === 'UPDATE') {
@@ -1045,6 +1681,10 @@ export function useData() {
             setReceptionDocs(prev => prev.filter(d => d.id !== payload.old.id))
           }
         })
+    }
+
+    if (routeHasTable('purchase_requests')) {
+      activeChannel2 = activeChannel2
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'purchase_requests' }, (payload) => {
           setPurchaseRequests(prev => prev.some(p => p.id === payload.new.id) ? prev : [payload.new, ...prev])
           if (isLocalWrite('purchase_requests', payload.new)) {
@@ -1076,12 +1716,24 @@ export function useData() {
     }
 
     // Machine updates, calls, operations — only needed for operators, foremen, engineering and management, not warehouse
-    if (isOperator || !isWarehouse) {
-      activeChannel2 = activeChannel2
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'machines' }, () => {
-          supabase.from('machines').select('*').order('name').then(({ data }) => { if (data) setMachines(data) })
+    if (routeHasTable('machines')) {
+      activeChannel2 = activeChannel2.on('postgres_changes', { event: '*', schema: 'public', table: 'machines' }, (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setMachines(prev => prev.some(machine => machine.id === payload.new.id)
+              ? prev
+              : [...prev, payload.new].sort((a, b) => (a.name || '').localeCompare(b.name || '')))
+          } else if (payload.eventType === 'UPDATE') {
+            setMachines(prev => prev.map(machine => machine.id === payload.new.id
+              ? { ...machine, ...payload.new }
+              : machine))
+          } else if (payload.eventType === 'DELETE') {
+            setMachines(prev => prev.filter(machine => machine.id !== payload.old.id))
+          }
         })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'machine_operations' }, (payload) => {
+    }
+
+    if (routeHasTable('machine_operations')) {
+      activeChannel2 = activeChannel2.on('postgres_changes', { event: '*', schema: 'public', table: 'machine_operations' }, (payload) => {
           if (payload.eventType === 'INSERT') {
             setMachineOperations(prev => prev.some(o => o.id === payload.new.id) ? prev : [payload.new, ...prev])
           } else if (payload.eventType === 'UPDATE') {
@@ -1090,7 +1742,10 @@ export function useData() {
             setMachineOperations(prev => prev.filter(o => o.id !== payload.old.id))
           }
         })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'machine_calls' }, (payload) => {
+    }
+
+    if (routeHasTable('machine_calls')) {
+      activeChannel2 = activeChannel2.on('postgres_changes', { event: '*', schema: 'public', table: 'machine_calls' }, (payload) => {
           if (payload.eventType === 'INSERT') {
             setMachineCalls(prev => prev.some(c => c.id === payload.new.id) ? prev : [payload.new, ...prev])
             if (isLocalWrite('machine_calls', payload.new)) {
@@ -1187,9 +1842,30 @@ export function useData() {
         })
     }
 
-    activeChannel2.subscribe()
-    return () => { supabase.removeChannel(activeChannel2) }
-  }, [path])
+    let hasSubscribed = false
+    let reconnectRefreshTimer = null
+    activeChannel2.subscribe((status) => {
+      if (status !== 'SUBSCRIBED') return
+      const shouldCatchUp = hasSubscribed
+      hasSubscribed = true
+      if (!shouldCatchUp) return
+
+      if (reconnectRefreshTimer) clearTimeout(reconnectRefreshTimer)
+      reconnectRefreshTimer = setTimeout(() => {
+        const targetList = secondaryTables.filter(tableName => routeHasTable(tableName))
+        if (targetList.length === 0) return
+
+        targetList.forEach(tableName => { delete targetRefreshLastRef.current[tableName] })
+        fetchData(targetList).catch(error => console.warn('Secondary Realtime catch-up failed:', error))
+      }, Math.floor(Math.random() * 2001))
+    })
+    return () => {
+      if (reconnectRefreshTimer) clearTimeout(reconnectRefreshTimer)
+      orderHydrationTimers.forEach(timer => clearTimeout(timer))
+      orderHydrationTimers.clear()
+      supabase.removeChannel(activeChannel2)
+    }
+  }, [currentUser?.id, realtimeProfile, routeDataTableKey])
 
   // --- SESSION INIT — INSTANT RESTORE ————————————————————————————— ---
   // Strategy: user object cached in localStorage → show portal INSTANTLY (0ms)
@@ -1272,22 +1948,131 @@ export function useData() {
     }
   }, [currentUser])
 
-  // --- INITIAL DATA FETCH + SESSION init run in parallel ---
-  // fetchCritical does NOT depend on currentUser, so start it immediately
+  // --- AUTH-GATED INITIAL FETCH + LIGHTWEIGHT REACTIVATION CATCH-UP ---
+  // Login/session verification is independent. Operational data starts exactly
+  // once after a user is available, so the public login screen cannot create a
+  // full database burst.
   const lastVisibilityRefreshRef = useRef(0)
-
+  const initialFetchTimerRef = useRef(null)
+  const visibilityRefreshTimerRef = useRef(null)
 
   useEffect(() => {
-    fetchCritical()
+    let cancelled = false
+    if (!currentUser?.id || isPublicDataRoute) {
+      initialFetchCompletedUserIdRef.current = null
+      initialFetchScheduleRef.current = { userId: null, notBefore: 0 }
+      if (initialFetchTimerRef.current) {
+        clearTimeout(initialFetchTimerRef.current)
+        initialFetchTimerRef.current = null
+      }
+      return undefined
+    }
+
+    if (initialFetchCompletedUserIdRef.current !== currentUser.id && !initialFetchTimerRef.current) {
+      lastVisibilityRefreshRef.current = Date.now()
+      const scheduledUserId = currentUser.id
+      const delay = getInitialFetchDelayMs()
+
+      const runInitialFetch = () => {
+        initialFetchTimerRef.current = null
+        if (currentUserIdRef.current !== scheduledUserId) return
+        fetchCritical()
+          .catch(error => console.error('Initial critical data fetch failed:', error))
+          .finally(() => {
+            if (cancelled) return
+            if (currentUserIdRef.current !== scheduledUserId) return
+            if (initialFetchCompletedUserIdRef.current === scheduledUserId) return
+            if (initialFetchTimerRef.current) return
+
+            const retryDelay = INITIAL_FETCH_RETRY_BASE_MS
+              + Math.floor(Math.random() * (INITIAL_FETCH_RETRY_JITTER_MS + 1))
+            initialFetchTimerRef.current = setTimeout(runInitialFetch, retryDelay)
+          })
+      }
+
+      initialFetchTimerRef.current = setTimeout(runInitialFetch, delay)
+    }
+
+    return () => {
+      cancelled = true
+      if (initialFetchTimerRef.current) {
+        clearTimeout(initialFetchTimerRef.current)
+        initialFetchTimerRef.current = null
+      }
+    }
+  }, [currentUser?.id, isPublicDataRoute, routeDataTableKey])
+
+  // Most terminals historically relied on the global bootstrap and did not
+  // have their own mount loader. Load the current route's exact table set here
+  // so `/` can stay tiny without making a terminal open with empty data.
+  useEffect(() => {
+    if (!currentUser?.id || isPublicDataRoute || routeDataTables.length === 0) return undefined
+
+    let cancelled = false
+    const now = Date.now()
+    const missingOrStale = routeDataTables.filter(tableName => {
+      const lastRun = targetRefreshLastRef.current[getTargetRefreshKey(tableName)] || 0
+      return now - lastRun >= ROUTE_ENTRY_REFRESH_TTL_MS
+    })
+    if (missingOrStale.length === 0) return undefined
+
+    const timer = setTimeout(() => {
+      if (cancelled || currentUserIdRef.current !== currentUser.id) return
+      const routeTargets = missingOrStale.filter(tableName => {
+        const lastRun = targetRefreshLastRef.current[getTargetRefreshKey(tableName)] || 0
+        return Date.now() - lastRun >= ROUTE_ENTRY_REFRESH_TTL_MS
+      })
+      const routeLoad = routeTargets.length > 0 ? fetchData(routeTargets) : Promise.resolve()
+      routeLoad
+        .then(() => needsProductionSummary ? refreshProductionSummary() : null)
+        .catch(error => console.warn(`Route data load failed for ${normalizedPath}:`, error))
+    }, Math.floor(Math.random() * (ROUTE_ENTRY_JITTER_MS + 1)))
+
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [currentUser?.id, isPublicDataRoute, routeDataTableKey, normalizedPath, needsProductionSummary])
+
+  useEffect(() => {
+    if (!currentUser?.id || path !== '/foreman2') return
+    fetchData(['work_card_scrap_totals', 'work_card_flow_totals'])
+      .catch(error => console.warn('Failed to load Foreman2 projections:', error))
+  }, [currentUser?.id, path])
+
+  useEffect(() => {
+    if (!currentUser?.id || isPublicDataRoute) return undefined
+
+    const getReactivationTargets = () => {
+      const staticTables = new Set([
+        'nomenclatures',
+        'bom_items',
+        'system_users',
+        'company_structure',
+        'company_positions',
+        'customers'
+      ])
+      return routeDataTables.filter(tableName => !staticTables.has(tableName))
+    }
 
     const handleRefresh = () => {
       const now = Date.now()
-      // Throttle: minimum 30s between reloads — prevents window.confirm focus events racing with async deletes
-      if (now - lastVisibilityRefreshRef.current > 30000) {
-        lastVisibilityRefreshRef.current = now
-        console.log('[App Reactivation] Refreshing critical data on focus/visibility change')
-        fetchCritical().catch(err => console.error(err))
-      }
+      if (fullFetchInFlightRef.current) return
+      if (visibilityRefreshTimerRef.current) return
+      if (now - lastVisibilityRefreshRef.current < VISIBILITY_REFRESH_COOLDOWN_MS) return
+
+      // focus + visibilitychange often fire together; the pending timer itself
+      // is the deduplication guard. The cooldown begins only when work starts,
+      // so a route change that cancels this timer cannot suppress the next sync.
+      const delay = Math.floor(Math.random() * VISIBILITY_REFRESH_JITTER_MS)
+      visibilityRefreshTimerRef.current = setTimeout(() => {
+        visibilityRefreshTimerRef.current = null
+        if (document.visibilityState !== 'visible') return
+        lastVisibilityRefreshRef.current = Date.now()
+        fetchData(getReactivationTargets())
+          .then(() => needsProductionSummary ? refreshProductionSummary() : null)
+          .catch(error => console.warn('Targeted reactivation refresh failed:', error))
+      }, delay)
     }
 
     const handleVisibilityChange = () => {
@@ -1302,8 +2087,12 @@ export function useData() {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('focus', handleRefresh)
+      if (visibilityRefreshTimerRef.current) {
+        clearTimeout(visibilityRefreshTimerRef.current)
+        visibilityRefreshTimerRef.current = null
+      }
     }
-  }, [])
+  }, [currentUser?.id, isPublicDataRoute, routeDataTableKey, needsProductionSummary])
 
 
   const upsertCompanyStructure = async (node) => {
@@ -1461,7 +2250,25 @@ export function useData() {
     setCompanyStructure(fallbackStructure)
     setCompanyPositions(fallbackPositions)
     setCurrentUser(null)
-    setLastFetchTime(0)
+    nomenclaturesLoadedRef.current = false
+    bomItemsLoadedRef.current = false
+    nomenclaturesRef.current = []
+    bomItemsRef.current = []
+    ordersRef.current = []
+    tasksRef.current = []
+    inventoryRef.current = []
+    workCardHistoryRef.current = []
+    receptionDocsRef.current = []
+    purchaseRequestsRef.current = []
+    companyStructureRef.current = []
+    companyPositionsRef.current = []
+    targetRefreshInFlightRef.current = {}
+    targetRefreshLastRef.current = {}
+    moduleLoadInFlightRef.current = {}
+    productionSummaryInFlightRef.current = null
+    fullFetchInFlightRef.current = null
+    initialFetchCompletedUserIdRef.current = null
+    initialFetchScheduleRef.current = { userId: null, notBefore: 0 }
 
     try {
       localStorage.removeItem(CACHE_KEY)
@@ -1501,7 +2308,7 @@ export function useData() {
     sessionLoading, setSessionLoading,
     loading, setLoading,
     hasMoreOrders, setHasMoreOrders,
-    normalize, fetchOrders, fetchData, fetchCritical, fetchModuleData, fetchTaskPlanSnapshot, fetchHistoryRange, fetchTaskArchiveCards, refreshTable, clearAllData,
+    normalize, fetchOrders, fetchData, fetchCritical, fetchModuleData, refreshProductionSummary, fetchTaskPlanSnapshot, fetchHistoryRange, fetchTaskArchiveCards, refreshTable, clearAllData,
     productionData,
     companyStructure, setCompanyStructure, upsertCompanyStructure, deleteCompanyStructure,
     companyPositions, setCompanyPositions, upsertCompanyPosition, deleteCompanyPosition,

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { BarChart3, Megaphone, Plus, Trash2, X, Check } from 'lucide-react'
 
 export const CHANNEL_REACTIONS = ['\u{1F44D}', '\u2764\uFE0F', '\u{1F525}', '\u{1F44F}', '\u{1F62E}', '\u2705']
@@ -68,57 +68,143 @@ export const ReadOnlyChannelNotice = ({ visible }) => {
 
 export const useChatReactions = ({ supabase, activeThreadId, messages, me }) => {
   const [reactions, setReactions] = useState({})
+  const messageIds = useMemo(() => messages
+    .filter(message => String(message.thread_id) === String(activeThreadId))
+    .map(message => message.id)
+    .filter(Boolean), [messages, activeThreadId])
+  const activeThreadIdRef = useRef(activeThreadId)
+  const messageIdsRef = useRef(messageIds)
+  const meRef = useRef(me)
+  const reactionRowIdsRef = useRef(new Set())
+  const pendingReactionMessageIdsRef = useRef(new Set())
+  const loadedThreadRef = useRef(null)
+  const loadedMessageIdsRef = useRef(new Set())
+  const loadInFlightRef = useRef(null)
+  const loadQueuedRef = useRef(false)
+  const reloadTimerRef = useRef(null)
 
-  const messageIds = useMemo(() => messages.map(message => message.id).filter(Boolean), [messages])
+  activeThreadIdRef.current = activeThreadId
+  messageIdsRef.current = messageIds
+  meRef.current = me
 
   const loadReactions = async () => {
-    if (!activeThreadId || messageIds.length === 0) {
+    const threadId = activeThreadIdRef.current
+    const ids = [...messageIdsRef.current]
+    if (!threadId || ids.length === 0) {
+      reactionRowIdsRef.current = new Set()
       setReactions({})
       return
     }
-
-    const { data, error } = await supabase
-      .from('chat_message_reactions')
-      .select('*')
-      .in('message_id', messageIds)
-      .order('created_at', { ascending: true })
-
-    if (error) {
-      if (!String(error.message || '').includes('chat_message_reactions')) throw error
-      setReactions({})
-      return
+    if (loadInFlightRef.current) {
+      loadQueuedRef.current = true
+      return loadInFlightRef.current
     }
 
-    const grouped = {}
-    ;(data || []).forEach(row => {
-      if (!grouped[row.message_id]) grouped[row.message_id] = {}
-      if (!grouped[row.message_id][row.reaction]) {
-        grouped[row.message_id][row.reaction] = { count: 0, mine: false, users: [] }
+    const request = (async () => {
+      const { data, error } = await supabase
+        .from('chat_message_reactions')
+        .select('*')
+        .in('message_id', ids)
+        .order('created_at', { ascending: true })
+
+      if (error) {
+        if (!String(error.message || '').includes('chat_message_reactions')) throw error
+        if (activeThreadIdRef.current === threadId) setReactions({})
+        return
       }
-      grouped[row.message_id][row.reaction].count += 1
-      grouped[row.message_id][row.reaction].users.push(row.user_name)
-      if (String(row.user_id) === String(me.id)) grouped[row.message_id][row.reaction].mine = true
-    })
-    setReactions(grouped)
+
+      if (activeThreadIdRef.current !== threadId) return
+      const grouped = {}
+      ;(data || []).forEach(row => {
+        if (!grouped[row.message_id]) grouped[row.message_id] = {}
+        if (!grouped[row.message_id][row.reaction]) {
+          grouped[row.message_id][row.reaction] = { count: 0, mine: false, users: [] }
+        }
+        grouped[row.message_id][row.reaction].count += 1
+        grouped[row.message_id][row.reaction].users.push(row.user_name)
+        if (String(row.user_id) === String(meRef.current.id)) grouped[row.message_id][row.reaction].mine = true
+      })
+      reactionRowIdsRef.current = new Set((data || []).map(row => String(row.id)))
+      setReactions(grouped)
+    })()
+
+    loadInFlightRef.current = request
+    try {
+      return await request
+    } finally {
+      if (loadInFlightRef.current === request) loadInFlightRef.current = null
+      if (loadQueuedRef.current) {
+        loadQueuedRef.current = false
+        if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current)
+        reloadTimerRef.current = setTimeout(() => {
+          loadReactions().catch(err => console.warn('[Chat] reactions refresh failed:', err))
+        }, 100)
+      }
+    }
+  }
+
+  const scheduleReactionsLoad = (delay = 150) => {
+    if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current)
+    reloadTimerRef.current = setTimeout(() => {
+      reloadTimerRef.current = null
+      loadReactions().catch(err => console.warn('[Chat] reactions refresh failed:', err))
+    }, delay)
   }
 
   useEffect(() => {
-    loadReactions().catch(err => console.warn('[Chat] reactions load failed:', err))
-  }, [activeThreadId, messageIds.join('|'), me.id])
+    const currentIds = new Set(messageIds.map(String))
+    const threadChanged = loadedThreadRef.current !== activeThreadId
+    const hasPendingReaction = Array.from(currentIds).some(messageId => {
+      const pending = pendingReactionMessageIdsRef.current.has(messageId)
+      if (pending) pendingReactionMessageIdsRef.current.delete(messageId)
+      return pending
+    })
+    const needsInitialLoad = threadChanged || hasPendingReaction ||
+      (loadedMessageIdsRef.current.size === 0 && currentIds.size > 0)
+
+    if (!activeThreadId || currentIds.size === 0) {
+      setReactions({})
+    } else if (needsInitialLoad) {
+      scheduleReactionsLoad(0)
+    } else {
+      setReactions(previous => Object.fromEntries(
+        Object.entries(previous).filter(([messageId]) => currentIds.has(String(messageId)))
+      ))
+    }
+
+    loadedThreadRef.current = activeThreadId
+    loadedMessageIdsRef.current = currentIds
+  }, [activeThreadId, messageIds.join('|')])
 
   useEffect(() => {
     if (!activeThreadId) return undefined
+    let subscribedOnce = false
     const channel = supabase
       .channel(`chat-reactions-${activeThreadId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_message_reactions' }, () => {
-        loadReactions().catch(err => console.warn('[Chat] reactions refresh failed:', err))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_message_reactions' }, payload => {
+        const row = payload.new || payload.old
+        const belongsToActiveMessages = row?.message_id && messageIdsRef.current.some(id => String(id) === String(row.message_id))
+        const removesLoadedReaction = payload.eventType === 'DELETE' && row?.id && reactionRowIdsRef.current.has(String(row.id))
+        if (row?.message_id && !belongsToActiveMessages && payload.eventType !== 'DELETE') {
+          pendingReactionMessageIdsRef.current.add(String(row.message_id))
+          if (pendingReactionMessageIdsRef.current.size > 5000) {
+            const oldest = pendingReactionMessageIdsRef.current.values().next().value
+            pendingReactionMessageIdsRef.current.delete(oldest)
+          }
+        }
+        if (belongsToActiveMessages || removesLoadedReaction) scheduleReactionsLoad()
       })
-      .subscribe()
+      .subscribe(status => {
+        if (status !== 'SUBSCRIBED') return
+        if (subscribedOnce) scheduleReactionsLoad(100)
+        subscribedOnce = true
+      })
 
     return () => {
+      if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current)
       supabase.removeChannel(channel)
     }
-  }, [activeThreadId, messageIds.join('|'), me.id])
+  }, [activeThreadId, supabase])
 
   const toggleReaction = async (messageId, reaction) => {
     if (!messageId || !reaction || !me.id) return
@@ -143,98 +229,170 @@ export const useChatReactions = ({ supabase, activeThreadId, messages, me }) => 
         }], { onConflict: 'message_id,user_id,reaction' })
       if (error) throw error
     }
-    await loadReactions()
+    scheduleReactionsLoad(0)
   }
 
   return { reactions, toggleReaction }
 }
 
-export const useChannelPolls = ({ supabase, activeThreadId, messages, me, refreshMessages }) => {
+export const useChannelPolls = ({ supabase, activeThreadId, messages, me }) => {
   const [polls, setPolls] = useState({})
   const pollIds = useMemo(() => {
     return messages
+      .filter(message => String(message.thread_id) === String(activeThreadId))
       .filter(message => message.attachment_type === 'channel_poll' && message.attachment_url)
       .map(message => message.attachment_url)
-  }, [messages])
+  }, [messages, activeThreadId])
+  const activeThreadIdRef = useRef(activeThreadId)
+  const pollIdsRef = useRef(pollIds)
+  const meRef = useRef(me)
+  const pollRowIdsRef = useRef(new Set())
+  const optionRowIdsRef = useRef(new Set())
+  const voteRowIdsRef = useRef(new Set())
+  const loadInFlightRef = useRef(null)
+  const loadQueuedRef = useRef(false)
+  const reloadTimerRef = useRef(null)
+
+  activeThreadIdRef.current = activeThreadId
+  pollIdsRef.current = pollIds
+  meRef.current = me
 
   const loadPolls = async () => {
+    if (reloadTimerRef.current) {
+      clearTimeout(reloadTimerRef.current)
+      reloadTimerRef.current = null
+    }
+    const threadId = activeThreadIdRef.current
+    const ids = [...pollIdsRef.current]
+    if (!threadId || ids.length === 0) {
+      pollRowIdsRef.current = new Set()
+      optionRowIdsRef.current = new Set()
+      voteRowIdsRef.current = new Set()
+      setPolls({})
+      return
+    }
+    if (loadInFlightRef.current) {
+      loadQueuedRef.current = true
+      return loadInFlightRef.current
+    }
+
+    const request = (async () => {
+      const { data: pollRows, error: pollError } = await supabase
+        .from('chat_polls')
+        .select('*')
+        .in('id', ids)
+
+      if (pollError) {
+        if (!String(pollError.message || '').includes('chat_polls')) throw pollError
+        if (activeThreadIdRef.current === threadId) setPolls({})
+        return
+      }
+
+      const { data: optionRows, error: optionError } = await supabase
+        .from('chat_poll_options')
+        .select('*')
+        .in('poll_id', ids)
+        .order('sort_order', { ascending: true })
+
+      if (optionError) throw optionError
+
+      const { data: voteRows, error: voteError } = await supabase
+        .from('chat_poll_votes')
+        .select('*')
+        .in('poll_id', ids)
+
+      if (voteError) throw voteError
+      if (activeThreadIdRef.current !== threadId) return
+
+      const grouped = {}
+      ;(pollRows || []).forEach(poll => {
+        const options = (optionRows || [])
+          .filter(option => option.poll_id === poll.id)
+          .map(option => {
+            const votes = (voteRows || []).filter(vote => vote.option_id === option.id)
+            return {
+              ...option,
+              votes,
+              votes_count: votes.length,
+              mine: votes.some(vote => String(vote.user_id) === String(meRef.current.id))
+            }
+          })
+        grouped[poll.id] = {
+          ...poll,
+          options,
+          total_votes: options.reduce((sum, option) => sum + option.votes_count, 0),
+          my_votes: (voteRows || []).filter(vote => vote.poll_id === poll.id && String(vote.user_id) === String(meRef.current.id))
+        }
+      })
+      pollRowIdsRef.current = new Set((pollRows || []).map(row => String(row.id)))
+      optionRowIdsRef.current = new Set((optionRows || []).map(row => String(row.id)))
+      voteRowIdsRef.current = new Set((voteRows || []).map(row => String(row.id)))
+      setPolls(grouped)
+    })()
+
+    loadInFlightRef.current = request
+    try {
+      return await request
+    } finally {
+      if (loadInFlightRef.current === request) loadInFlightRef.current = null
+      if (loadQueuedRef.current) {
+        loadQueuedRef.current = false
+        if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current)
+        reloadTimerRef.current = setTimeout(() => {
+          loadPolls().catch(err => console.warn('[Chat] polls refresh failed:', err))
+        }, 100)
+      }
+    }
+  }
+
+  const schedulePollsLoad = (delay = 150) => {
+    if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current)
+    reloadTimerRef.current = setTimeout(() => {
+      reloadTimerRef.current = null
+      loadPolls().catch(err => console.warn('[Chat] polls refresh failed:', err))
+    }, delay)
+  }
+
+  useEffect(() => {
     if (!activeThreadId || pollIds.length === 0) {
       setPolls({})
       return
     }
-
-    const { data: pollRows, error: pollError } = await supabase
-      .from('chat_polls')
-      .select('*')
-      .in('id', pollIds)
-
-    if (pollError) {
-      if (!String(pollError.message || '').includes('chat_polls')) throw pollError
-      setPolls({})
-      return
-    }
-
-    const { data: optionRows, error: optionError } = await supabase
-      .from('chat_poll_options')
-      .select('*')
-      .in('poll_id', pollIds)
-      .order('sort_order', { ascending: true })
-
-    if (optionError) throw optionError
-
-    const { data: voteRows, error: voteError } = await supabase
-      .from('chat_poll_votes')
-      .select('*')
-      .in('poll_id', pollIds)
-
-    if (voteError) throw voteError
-
-    const grouped = {}
-    ;(pollRows || []).forEach(poll => {
-      const options = (optionRows || [])
-        .filter(option => option.poll_id === poll.id)
-        .map(option => {
-          const votes = (voteRows || []).filter(vote => vote.option_id === option.id)
-          return {
-            ...option,
-            votes,
-            votes_count: votes.length,
-            mine: votes.some(vote => String(vote.user_id) === String(me.id))
-          }
-        })
-      grouped[poll.id] = {
-        ...poll,
-        options,
-        total_votes: options.reduce((sum, option) => sum + option.votes_count, 0),
-        my_votes: (voteRows || []).filter(vote => vote.poll_id === poll.id && String(vote.user_id) === String(me.id))
-      }
-    })
-    setPolls(grouped)
-  }
-
-  useEffect(() => {
-    loadPolls().catch(err => console.warn('[Chat] polls load failed:', err))
+    schedulePollsLoad(0)
   }, [activeThreadId, pollIds.join('|'), me.id])
 
   useEffect(() => {
     if (!activeThreadId) return undefined
+    let subscribedOnce = false
+    const affectsActivePoll = (payload, rowIdsRef) => {
+      const row = payload.new || payload.old
+      if (row?.poll_id && pollIdsRef.current.some(id => String(id) === String(row.poll_id))) return true
+      if (row?.id && pollIdsRef.current.some(id => String(id) === String(row.id))) return true
+      return payload.eventType === 'DELETE' && row?.id && rowIdsRef.current.has(String(row.id))
+    }
+
     const channel = supabase
       .channel(`chat-polls-${activeThreadId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_polls' }, () => {
-        loadPolls().catch(err => console.warn('[Chat] polls refresh failed:', err))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_polls' }, payload => {
+        if (affectsActivePoll(payload, pollRowIdsRef)) schedulePollsLoad()
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_poll_options' }, () => {
-        loadPolls().catch(err => console.warn('[Chat] poll options refresh failed:', err))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_poll_options' }, payload => {
+        if (affectsActivePoll(payload, optionRowIdsRef)) schedulePollsLoad()
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_poll_votes' }, () => {
-        loadPolls().catch(err => console.warn('[Chat] poll votes refresh failed:', err))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_poll_votes' }, payload => {
+        if (affectsActivePoll(payload, voteRowIdsRef)) schedulePollsLoad()
       })
-      .subscribe()
+      .subscribe(status => {
+        if (status !== 'SUBSCRIBED') return
+        if (subscribedOnce) schedulePollsLoad(100)
+        subscribedOnce = true
+      })
 
     return () => {
+      if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current)
       supabase.removeChannel(channel)
     }
-  }, [activeThreadId, pollIds.join('|'), me.id])
+  }, [activeThreadId, supabase])
 
   const createPoll = async ({ threadId, question, options, allowMultiple }) => {
     const cleanQuestion = question.trim()
@@ -291,9 +449,7 @@ export const useChannelPolls = ({ supabase, activeThreadId, messages, me, refres
         .eq('id', poll.id)
     }
 
-    await refreshMessages?.()
-    await loadPolls()
-    return poll
+    return { ...poll, message }
   }
 
   const votePoll = async (poll, optionId) => {

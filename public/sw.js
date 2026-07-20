@@ -1,26 +1,120 @@
 // ─── Centrum Service Worker ───────────────────────────────────────────────────
-const CACHE_NAME = 'centrum-v2';
+const CACHE_NAME = 'centrum-v3';
+const APP_SHELL = ['/', '/index.html'];
+const EMERGENCY_AUTO_ACTIVATE = CACHE_NAME === 'centrum-v3';
 
 self.addEventListener('install', function(event) {
-  // НЕ викликаємо skipWaiting() тут — нова версія
-  // буде чекати в стані 'waiting', поки користувач
-  // не натисне кнопку "ОНОВИТИ" в інтерфейсі.
-  // Це дозволяє UI-сповіщенню коректно з'явитися.
-  event.waitUntil(Promise.resolve());
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(async function(cache) {
+      // Відсутність необов'язкового shell-файла не повинна блокувати оновлення SW.
+      await Promise.allSettled(APP_SHELL.map(function(url) { return cache.add(url); }));
+      const cachedShell = await Promise.all(APP_SHELL.map(function(url) { return cache.match(url); }));
+      if (!cachedShell.some(Boolean)) {
+        await caches.delete(CACHE_NAME);
+        throw new Error('Centrum shell cache is empty; keeping the previous service worker active.');
+      }
+      // v3 is a one-time recovery release: old login clients are generating a
+      // database request storm and cannot render the normal update prompt.
+      if (EMERGENCY_AUTO_ACTIVATE) await self.skipWaiting();
+    })
+  );
 });
 
 self.addEventListener('activate', function(event) {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(function(cache) {
+      return Promise.all(APP_SHELL.map(function(url) { return cache.match(url); }));
+    }).then(function(cachedShell) {
+      if (!cachedShell.some(Boolean)) {
+        // Зберігаємо попередній кеш: caches.match() нижче все ще може
+        // використати його як офлайн-оболонку.
+        return undefined;
+      }
+
+      return caches.keys().then(function(names) {
+        return Promise.all(names
+          .filter(function(name) { return name.startsWith('centrum-') && name !== CACHE_NAME; })
+          .map(function(name) { return caches.delete(name); }));
+      }).then(function() {
+        return self.clients.claim();
+      }).then(function() {
+        if (!EMERGENCY_AUTO_ACTIVATE) return undefined;
+        return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+          return Promise.all(clientList.map(function(client) {
+            try {
+              const clientUrl = new URL(client.url);
+              if ((clientUrl.pathname === '/' || clientUrl.pathname === '/login') && 'navigate' in client) {
+                return client.navigate(client.url).catch(function() { return undefined; });
+              }
+            } catch (error) {
+              return undefined;
+            }
+            return undefined;
+          }));
+        });
+      });
+    })
+  );
 });
 
 // ─── FETCH EVENT: Необхідно для коректної роботи PWA в офлайні та фоні ─────────
 self.addEventListener('fetch', function(event) {
-  // Пропускаємо запити і за потреби повертаємо з кешу
-  event.respondWith(
-    fetch(event.request).catch(function() {
-      return caches.match(event.request);
-    })
-  );
+  if (event.request.method !== 'GET') return;
+
+  const requestUrl = new URL(event.request.url);
+  if (requestUrl.origin !== self.location.origin) return;
+
+  // Навігація залишається network-first, щоб новий інтерфейс швидко підхоплювався.
+  if (event.request.mode === 'navigate') {
+    const networkResponse = fetch(event.request);
+    const cacheUpdate = networkResponse.then(function(response) {
+      if (!response || !response.ok) return undefined;
+      const copy = response.clone();
+      return caches.open(CACHE_NAME).then(function(cache) {
+        return Promise.all([
+          cache.put(event.request, copy.clone()),
+          cache.put('/', copy)
+        ]);
+      });
+    }).catch(function() {
+      // Гілка відповіді нижче сама поверне офлайн-кеш.
+      return undefined;
+    });
+
+    event.waitUntil(cacheUpdate);
+    event.respondWith(
+      networkResponse.catch(function() {
+        return caches.match(event.request).then(function(cached) {
+          if (cached) return cached;
+          return caches.match('/').then(function(rootShell) {
+            return rootShell || caches.match('/index.html');
+          });
+        });
+      })
+    );
+    return;
+  }
+
+  // Кешуємо лише статичну оболонку. Запити та мутації Supabase є cross-origin
+  // і навмисно ніколи не потрапляють у цей кеш.
+  if (['script', 'style', 'image', 'font'].includes(event.request.destination)) {
+    const networkResponse = fetch(event.request);
+    const cacheUpdate = networkResponse.then(function(response) {
+      if (!response || !response.ok) return undefined;
+      return caches.open(CACHE_NAME).then(function(cache) {
+        return cache.put(event.request, response.clone());
+      });
+    }).catch(function() {
+      return undefined;
+    });
+
+    event.waitUntil(cacheUpdate);
+    event.respondWith(
+      caches.match(event.request).then(function(cached) {
+        return cached || networkResponse;
+      })
+    );
+  }
 });
 
 // ─── UTILS FOR SUBSCRIPTION RENEWAL ───────────────────────────────────────────

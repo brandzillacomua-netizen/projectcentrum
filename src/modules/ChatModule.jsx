@@ -307,6 +307,20 @@ const ChatModule = () => {
   const messagesEndRef = useRef(null)
   const activeThreadIdRef = useRef(null)
   const meIdRef = useRef(null)
+  const threadsRef = useRef([])
+  const participantsRef = useRef([])
+  const messagesRef = useRef([])
+  const loadThreadsInFlightRef = useRef(null)
+  const loadThreadsQueuedRef = useRef(false)
+  const loadMessagesInFlightRef = useRef(new Map())
+  const loadMessagesQueuedRef = useRef(new Map())
+  const threadsReloadTimerRef = useRef(null)
+  const messagesReloadTimersRef = useRef(new Map())
+  const readReceiptTimersRef = useRef(new Map())
+  const pendingReadReceiptsRef = useRef(new Map())
+  const lastVisibilitySyncRef = useRef(0)
+  const sidebarMessageIdsRef = useRef(new Set())
+  const listSubscribedOnceRef = useRef(false)
   const wasInChat = useRef(false)
   const supportOpeningRef = useRef(false)
 
@@ -435,8 +449,7 @@ const ChatModule = () => {
     supabase,
     activeThreadId,
     messages,
-    me,
-    refreshMessages: () => loadMessages(activeThreadId, { silent: true, forceScroll: true })
+    me
   })
 
   useEffect(() => {
@@ -446,6 +459,41 @@ const ChatModule = () => {
   useEffect(() => {
     meIdRef.current = me.id
   }, [me.id])
+
+  useEffect(() => {
+    threadsRef.current = threads
+  }, [threads])
+
+  useEffect(() => {
+    participantsRef.current = participants
+  }, [participants])
+
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
+
+  useEffect(() => () => {
+    if (threadsReloadTimerRef.current) clearTimeout(threadsReloadTimerRef.current)
+    messagesReloadTimersRef.current.forEach(timer => clearTimeout(timer))
+    messagesReloadTimersRef.current.clear()
+
+    readReceiptTimersRef.current.forEach(timer => clearTimeout(timer))
+    readReceiptTimersRef.current.clear()
+    const numericMyId = Number(meIdRef.current) || meIdRef.current
+    if (numericMyId) {
+      pendingReadReceiptsRef.current.forEach((lastReadAt, threadId) => {
+        supabase
+          .from('chat_participants')
+          .update({ last_read_at: lastReadAt })
+          .eq('thread_id', threadId)
+          .eq('user_id', numericMyId)
+          .then(({ error: readError }) => {
+            if (readError) console.warn('[Chat] Failed to flush read receipt:', readError)
+          })
+      })
+    }
+    pendingReadReceiptsRef.current.clear()
+  }, [supabase])
 
   const getThreadAvatar = (thread) => {
     if (!thread) return ''
@@ -613,46 +661,124 @@ const ChatModule = () => {
     return `${message.sender_name || 'Учасник'}: ${preview}`
   }
 
-  const loadThreads = async (options = {}) => {
+  const performLoadThreads = async (options = {}) => {
     const { silent = false } = options
     if (!silent) setLoadingThreads(true)
     setError('')
     try {
-      const { data: threadRows, error: threadError } = await supabase
-        .from('chat_threads')
-        .select('*')
-        .eq('is_archived', false)
-        .order('updated_at', { ascending: false })
-
-      if (threadError) throw threadError
-
-      const { data: participantRows, error: participantError } = await supabase
+      // Resolve membership first. The previous implementation downloaded every
+      // thread and every participant in the company, then filtered in JS.
+      const { data: myParticipantRows, error: participantError } = await supabase
         .from('chat_participants')
         .select('*')
+        .eq('user_id', me.id)
         .order('created_at', { ascending: true })
+        .limit(500)
 
       if (participantError) throw participantError
 
-      // Для кожного чату паралельно дістаємо точну кількість нечитаних повідомлень
-      const participantList = participantRows || []
-      const visibleBaseThreads = (threadRows || []).filter(thread => {
-        const rows = (participantRows || []).filter(p => p.thread_id === thread.id)
-        return rows.length === 0 || rows.some(p => String(p.user_id) === String(me.id))
-      })
+      const membershipThreadIds = [...new Set((myParticipantRows || []).map(row => row.thread_id).filter(Boolean))]
+      const threadRows = []
+      for (let offset = 0; offset < membershipThreadIds.length; offset += 40) {
+        const { data, error } = await supabase
+          .from('chat_threads')
+          .select('*')
+          .in('id', membershipThreadIds.slice(offset, offset + 40))
+          .eq('is_archived', false)
+          .order('updated_at', { ascending: false })
+        if (error) throw error
+        threadRows.push(...(data || []))
+      }
 
+      const visibleBaseThreads = threadRows
+        .sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0))
+        .slice(0, 200)
       const visibleThreadIds = visibleBaseThreads.map(thread => thread.id)
+      const visibleThreadIdSet = new Set(visibleThreadIds.map(String))
+      const visibleParticipantList = []
+      for (let offset = 0; offset < visibleThreadIds.length; offset += 40) {
+        const { data, error } = await supabase
+          .from('chat_participants')
+          .select('*')
+          .in('thread_id', visibleThreadIds.slice(offset, offset + 40))
+          .order('created_at', { ascending: true })
+        if (error) throw error
+        visibleParticipantList.push(...(data || []))
+      }
+
+      let unreadCountsByThread = null
       let messageRows = []
       if (visibleThreadIds.length > 0) {
-        const { data: recentRows, error: recentError } = await supabase
-          .from('chat_messages')
-          .select('thread_id, sender_id, sender_name, body, attachment_url, attachment_path, attachment_type, created_at')
-          .in('thread_id', visibleThreadIds)
-          .is('deleted_at', null)
-          .order('created_at', { ascending: false })
-          .limit(2000)
+        const rpcUserId = Number(me.id) || me.id
+        const { data: unreadRows, error: unreadRpcError } = await supabase
+          .rpc('chat_unread_counts', { p_user_id: rpcUserId })
 
-        if (recentError) throw recentError
-        messageRows = recentRows || []
+        if (unreadRpcError) {
+          const rpcErrorCode = String(unreadRpcError.code || '')
+          const rpcErrorMessage = String(unreadRpcError.message || '').toLowerCase()
+          const rpcIsUnavailable = ['PGRST202', '42883'].includes(rpcErrorCode) ||
+            (rpcErrorMessage.includes('chat_unread_counts') && (
+              rpcErrorMessage.includes('not find') ||
+              rpcErrorMessage.includes('does not exist') ||
+              rpcErrorMessage.includes('schema cache')
+            ))
+          if (!rpcIsUnavailable) {
+            console.warn('[Chat] Unread counts are temporarily unavailable; keeping the last known values:', unreadRpcError)
+            const previousUnreadCounts = new Map((threadsRef.current || []).map(thread => [
+              String(thread.id),
+              Number(thread.unreadCount) || 0
+            ]))
+            unreadCountsByThread = new Map(visibleThreadIds.map(threadId => [
+              String(threadId),
+              previousUnreadCounts.get(String(threadId)) || 0
+            ]))
+          }
+        } else {
+          unreadCountsByThread = new Map(visibleThreadIds.map(threadId => [String(threadId), 0]))
+          ;(unreadRows || []).forEach(row => {
+            const threadId = String(row.thread_id)
+            if (visibleThreadIdSet.has(threadId)) {
+              unreadCountsByThread.set(threadId, Number(row.unread_count) || 0)
+            }
+          })
+        }
+
+        // Compatibility fallback only when the aggregate RPC is not installed.
+        // Normal chat-list loads use chat_threads.last_message and read no
+        // message history at all.
+        if (!unreadCountsByThread) {
+          const myVisibleParticipants = (myParticipantRows || [])
+            .filter(row => visibleThreadIdSet.has(String(row.thread_id)))
+          const validReadTimes = myVisibleParticipants
+            .map(row => row.last_read_at ? new Date(row.last_read_at).getTime() : 0)
+            .filter(value => Number.isFinite(value) && value > 0)
+          const canBoundByReadTime = validReadTimes.length === myVisibleParticipants.length
+          const oldestReadAt = canBoundByReadTime && validReadTimes.length > 0
+            ? new Date(Math.min(...validReadTimes)).toISOString()
+            : null
+
+          for (let offset = 0; offset < visibleThreadIds.length && messageRows.length < 1000; offset += 40) {
+            let query = supabase
+              .from('chat_messages')
+              .select('id, thread_id, sender_id, sender_name, body, attachment_url, attachment_path, attachment_type, created_at')
+              .in('thread_id', visibleThreadIds.slice(offset, offset + 40))
+              .is('deleted_at', null)
+              .order('created_at', { ascending: false })
+              .limit(Math.min(1000 - messageRows.length, 1000))
+            if (oldestReadAt) query = query.gt('created_at', oldestReadAt)
+            const { data, error } = await query
+            if (error) throw error
+            messageRows.push(...(data || []))
+          }
+        }
+
+        messageRows.forEach(message => {
+          if (message.id) sidebarMessageIdsRef.current.add(String(message.id))
+        })
+        while (sidebarMessageIdsRef.current.size > 5000) {
+          const oldest = sidebarMessageIdsRef.current.values().next().value
+          sidebarMessageIdsRef.current.delete(oldest)
+        }
       }
 
       const messagesByThread = messageRows.reduce((map, message) => {
@@ -663,15 +789,17 @@ const ChatModule = () => {
       }, new Map())
 
       const visibleThreads = visibleBaseThreads.map(thread => {
-        const rows = participantList.filter(p => p.thread_id === thread.id)
+        const rows = visibleParticipantList.filter(p => p.thread_id === thread.id)
         const myPart = rows.find(p => String(p.user_id) === String(me.id))
         const threadMessages = messagesByThread.get(thread.id) || []
         const lastReadAt = myPart?.last_read_at ? new Date(myPart.last_read_at).getTime() : 0
-        const unreadCount = threadMessages.filter(message => {
-          if (String(message.sender_id) === String(me.id)) return false
-          if (!lastReadAt) return true
-          return new Date(message.created_at).getTime() > lastReadAt
-        }).length
+        const unreadCount = unreadCountsByThread
+          ? (unreadCountsByThread.get(String(thread.id)) || 0)
+          : threadMessages.filter(message => {
+              if (String(message.sender_id) === String(me.id)) return false
+              if (!lastReadAt) return true
+              return new Date(message.created_at).getTime() > lastReadAt
+            }).length
 
         return {
           ...thread,
@@ -681,8 +809,11 @@ const ChatModule = () => {
         }
       })
 
+      if (meIdRef.current !== me.id) return
+      threadsRef.current = visibleThreads
+      participantsRef.current = visibleParticipantList
       setThreads(visibleThreads)
-      setParticipants(participantList)
+      setParticipants(visibleParticipantList)
       setActiveThreadId(prev => {
         if (prev && visibleThreads.some(t => t.id === prev)) return prev
         return null
@@ -695,7 +826,27 @@ const ChatModule = () => {
     }
   }
 
-  const loadMessages = async (threadId, options = {}) => {
+  const loadThreads = async (options = {}) => {
+    if (loadThreadsInFlightRef.current) {
+      loadThreadsQueuedRef.current = true
+      return loadThreadsInFlightRef.current
+    }
+
+    const request = performLoadThreads(options)
+    loadThreadsInFlightRef.current = request
+    try {
+      return await request
+    } finally {
+      if (loadThreadsInFlightRef.current === request) loadThreadsInFlightRef.current = null
+      if (loadThreadsQueuedRef.current) {
+        loadThreadsQueuedRef.current = false
+        if (threadsReloadTimerRef.current) clearTimeout(threadsReloadTimerRef.current)
+        threadsReloadTimerRef.current = setTimeout(() => loadThreads({ silent: true }), 100)
+      }
+    }
+  }
+
+  const performLoadMessages = async (threadId, options = {}) => {
     const { silent = false, forceScroll = false } = options
     if (!threadId) {
       setMessages([])
@@ -715,7 +866,9 @@ const ChatModule = () => {
       if (msgError) throw msgError
       const nextMessages = await signChatAttachments(data || [])
       
-      const isInitialLoad = messages.length === 0
+      if (activeThreadIdRef.current !== threadId) return
+      const isInitialLoad = messagesRef.current.length === 0
+      messagesRef.current = nextMessages
       setMessages(nextMessages)
       
       if (nextMessages.length > 0) {
@@ -725,7 +878,226 @@ const ChatModule = () => {
       console.error(err)
       showSetupError(err)
     } finally {
-      if (!silent) setLoadingMessages(false)
+      if (!silent && activeThreadIdRef.current === threadId) setLoadingMessages(false)
+    }
+  }
+
+  const loadMessages = async (threadId, options = {}) => {
+    const { forceScroll = false } = options
+    const currentRequest = loadMessagesInFlightRef.current.get(threadId)
+    if (currentRequest) {
+      const queued = loadMessagesQueuedRef.current.get(threadId) || { forceScroll: false }
+      loadMessagesQueuedRef.current.set(threadId, { forceScroll: queued.forceScroll || forceScroll })
+      return currentRequest
+    }
+
+    const request = performLoadMessages(threadId, options)
+    loadMessagesInFlightRef.current.set(threadId, request)
+    try {
+      return await request
+    } finally {
+      if (loadMessagesInFlightRef.current.get(threadId) === request) {
+        loadMessagesInFlightRef.current.delete(threadId)
+      }
+      const queued = loadMessagesQueuedRef.current.get(threadId)
+      if (queued) {
+        loadMessagesQueuedRef.current.delete(threadId)
+        const previousTimer = messagesReloadTimersRef.current.get(threadId)
+        if (previousTimer) clearTimeout(previousTimer)
+        const timer = setTimeout(() => {
+          messagesReloadTimersRef.current.delete(threadId)
+          if (activeThreadIdRef.current === threadId) {
+            loadMessages(threadId, { silent: true, forceScroll: queued.forceScroll })
+          }
+        }, 100)
+        messagesReloadTimersRef.current.set(threadId, timer)
+      }
+    }
+  }
+
+  const updateThreadsState = (updater) => {
+    setThreads(previous => {
+      const next = typeof updater === 'function' ? updater(previous) : updater
+      threadsRef.current = next
+      return next
+    })
+  }
+
+  const updateParticipantsState = (updater) => {
+    setParticipants(previous => {
+      const next = typeof updater === 'function' ? updater(previous) : updater
+      participantsRef.current = next
+      return next
+    })
+  }
+
+  const updateMessagesState = (updater) => {
+    setMessages(previous => {
+      const next = typeof updater === 'function' ? updater(previous) : updater
+      messagesRef.current = next
+      return next
+    })
+  }
+
+  const scheduleThreadsReload = (delay = 300) => {
+    if (threadsReloadTimerRef.current) clearTimeout(threadsReloadTimerRef.current)
+    threadsReloadTimerRef.current = setTimeout(() => {
+      threadsReloadTimerRef.current = null
+      loadThreads({ silent: true })
+    }, delay)
+  }
+
+  const scheduleMessagesReload = (threadId, options = {}) => {
+    if (!threadId) return
+    const previousTimer = messagesReloadTimersRef.current.get(threadId)
+    if (previousTimer) clearTimeout(previousTimer)
+    const timer = setTimeout(() => {
+      messagesReloadTimersRef.current.delete(threadId)
+      if (activeThreadIdRef.current === threadId) {
+        loadMessages(threadId, { silent: true, ...options })
+      }
+    }, options.delay ?? 250)
+    messagesReloadTimersRef.current.set(threadId, timer)
+  }
+
+  const rememberSidebarMessage = (messageId) => {
+    if (!messageId) return false
+    const key = String(messageId)
+    if (sidebarMessageIdsRef.current.has(key)) return true
+    sidebarMessageIdsRef.current.add(key)
+    if (sidebarMessageIdsRef.current.size > 5000) {
+      const oldest = sidebarMessageIdsRef.current.values().next().value
+      sidebarMessageIdsRef.current.delete(oldest)
+    }
+    return false
+  }
+
+  const isActiveThreadAtBottom = (threadId) => {
+    if (String(activeThreadIdRef.current) !== String(threadId)) return false
+    const panel = document.querySelector('.messages-panel')
+    return !panel || (panel.scrollHeight - panel.scrollTop - panel.clientHeight) <= 150
+  }
+
+  const markThreadReadLocally = (threadId, readAt) => {
+    updateParticipantsState(previous => previous.map(row => (
+      String(row.thread_id) === String(threadId) && String(row.user_id) === String(meIdRef.current)
+        ? { ...row, last_read_at: readAt }
+        : row
+    )))
+    updateThreadsState(previous => previous.map(thread => (
+      String(thread.id) === String(threadId) ? { ...thread, unreadCount: 0 } : thread
+    )))
+  }
+
+  const scheduleReadReceipt = (threadId, readAt = new Date().toISOString(), delay = 250) => {
+    if (!threadId || !meIdRef.current) return
+    pendingReadReceiptsRef.current.set(threadId, readAt)
+    markThreadReadLocally(threadId, readAt)
+
+    const previousTimer = readReceiptTimersRef.current.get(threadId)
+    if (previousTimer) clearTimeout(previousTimer)
+    const timer = setTimeout(async () => {
+      readReceiptTimersRef.current.delete(threadId)
+      const latestReadAt = pendingReadReceiptsRef.current.get(threadId)
+      pendingReadReceiptsRef.current.delete(threadId)
+      const numericMyId = Number(meIdRef.current) || meIdRef.current
+      const { error: readError } = await supabase
+        .from('chat_participants')
+        .update({ last_read_at: latestReadAt })
+        .eq('thread_id', threadId)
+        .eq('user_id', numericMyId)
+      if (readError) console.warn('[Chat] Failed to update read receipt:', readError)
+    }, delay)
+    readReceiptTimersRef.current.set(threadId, timer)
+  }
+
+  const applyMessageToThreadList = (message) => {
+    if (!message?.thread_id || message.deleted_at || rememberSidebarMessage(message.id)) return
+    const threadId = String(message.thread_id)
+    if (!threadsRef.current.some(thread => String(thread.id) === threadId)) return
+
+    const isMine = String(message.sender_id) === String(meIdRef.current)
+    const readImmediately = !isMine && isActiveThreadAtBottom(threadId)
+    updateThreadsState(previous => previous.map(thread => {
+      if (String(thread.id) !== threadId) return thread
+      const rows = participantsRef.current.filter(row => String(row.thread_id) === threadId)
+      return {
+        ...thread,
+        last_message: getMessagePreview(message),
+        last_message_at: message.created_at || thread.last_message_at,
+        updated_at: message.created_at || thread.updated_at,
+        lastMessageSenderId: message.sender_id || null,
+        lastMessagePreview: getThreadPreview(thread, message, rows),
+        unreadCount: isMine
+          ? (thread.unreadCount || 0)
+          : (readImmediately ? 0 : (thread.unreadCount || 0) + 1)
+      }
+    }))
+
+    if (readImmediately) scheduleReadReceipt(threadId, new Date().toISOString())
+  }
+
+  const applyThreadChange = (payload) => {
+    const row = payload.new || payload.old
+    const threadId = row?.id ? String(row.id) : ''
+    if (!threadId) {
+      scheduleThreadsReload()
+      return
+    }
+
+    if (payload.eventType === 'DELETE' || row.is_archived) {
+      updateThreadsState(previous => previous.filter(thread => String(thread.id) !== threadId))
+      if (String(activeThreadIdRef.current) === threadId) setActiveThreadId(null)
+      return
+    }
+
+    const exists = threadsRef.current.some(thread => String(thread.id) === threadId)
+    if (!exists) {
+      return
+    }
+    updateThreadsState(previous => previous.map(thread => (
+      String(thread.id) === threadId ? { ...thread, ...row } : thread
+    )))
+  }
+
+  const applyParticipantChange = (payload) => {
+    const incoming = payload.new || payload.old
+    const existing = incoming?.id
+      ? participantsRef.current.find(row => String(row.id) === String(incoming.id))
+      : null
+    const row = { ...(existing || {}), ...(incoming || {}) }
+    if (!row.id) {
+      scheduleThreadsReload()
+      return
+    }
+
+    const belongsToMe = String(row.user_id) === String(meIdRef.current)
+    const threadIsVisible = threadsRef.current.some(thread => String(thread.id) === String(row.thread_id))
+    if (!belongsToMe && !threadIsVisible) return
+
+    if (payload.eventType === 'DELETE') {
+      updateParticipantsState(previous => previous.filter(item => String(item.id) !== String(row.id)))
+      if (belongsToMe) {
+        updateThreadsState(previous => previous.filter(thread => String(thread.id) !== String(row.thread_id)))
+        if (String(activeThreadIdRef.current) === String(row.thread_id)) setActiveThreadId(null)
+      }
+      return
+    }
+
+    updateParticipantsState(previous => {
+      const index = previous.findIndex(item => String(item.id) === String(row.id))
+      if (index === -1) return [...previous, row]
+      return previous.map((item, itemIndex) => itemIndex === index ? { ...item, ...row } : item)
+    })
+
+    if (belongsToMe) {
+      if (!threadsRef.current.some(thread => String(thread.id) === String(row.thread_id))) {
+        scheduleThreadsReload(150)
+      } else if (row.last_read_at) {
+        updateThreadsState(previous => previous.map(thread => (
+          String(thread.id) === String(row.thread_id) ? { ...thread, unreadCount: 0 } : thread
+        )))
+      }
     }
   }
 
@@ -745,17 +1117,10 @@ const ChatModule = () => {
 
       // Позначаємо чат прочитаним лише при безпосередньому відкритті/перемиканні
       if (me.id) {
-        const numericMyId = Number(me.id) || me.id
-        supabase
-          .from('chat_participants')
-          .update({ last_read_at: new Date().toISOString() })
-          .eq('thread_id', activeThreadId)
-          .eq('user_id', numericMyId)
-          .then(() => {
-            loadThreads({ silent: true })
-          })
+        scheduleReadReceipt(activeThreadId, new Date().toISOString(), 50)
       }
     } else {
+      messagesRef.current = []
       setMessages([])
       setReadHorizon(null)
     }
@@ -764,64 +1129,53 @@ const ChatModule = () => {
   useEffect(() => {
     if (!activeThreadId) return undefined
 
+    let subscribedOnce = false
     const channel = supabase
       .channel(`chat-thread-${activeThreadId}`)
       .on('postgres_changes', {
-        event: 'INSERT',
+        event: '*',
         schema: 'public',
         table: 'chat_messages',
         filter: `thread_id=eq.${activeThreadId}`
       }, async (payload) => {
-        const incoming = await signChatAttachment(payload.new)
-        if (!incoming || incoming.deleted_at) return
-        setMessages(prev => {
-          if (prev.some(message => message.id === incoming.id)) return prev
-          const next = [...prev, incoming].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
-          return next
-        })
-        const isMine = String(incoming.sender_id) === String(me.id)
-        
-        const panel = document.querySelector('.messages-panel')
-        const isScrolledUp = panel && (panel.scrollHeight - panel.scrollTop - panel.clientHeight) > 150
-        
-        if (isMine || !isScrolledUp) {
-          setReadHorizon(null)
-          
-          if (!isMine && me.id) {
-            const numericMyId = Number(me.id) || me.id
-            supabase
-              .from('chat_participants')
-              .update({ last_read_at: new Date().toISOString() })
-              .eq('thread_id', activeThreadId)
-              .eq('user_id', numericMyId)
-              .then(() => loadThreads({ silent: true }))
+        if (payload.eventType === 'DELETE' || payload.new?.deleted_at) {
+          const removedId = payload.old?.id || payload.new?.id
+          if (removedId) {
+            updateMessagesState(previous => previous.filter(message => String(message.id) !== String(removedId)))
+          } else {
+            scheduleMessagesReload(activeThreadId)
           }
+          return
         }
 
-        scrollToBottom({ force: isMine })
-        loadThreads({ silent: true })
-      })
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'chat_messages',
-        filter: `thread_id=eq.${activeThreadId}`
-      }, (payload) => {
-        if (payload.eventType === 'INSERT') return
-        loadMessages(activeThreadId, { silent: true })
-      })
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'chat_threads'
-      }, (payload) => {
-        loadThreads({ silent: true })
-        const changedThreadId = payload.new?.id || payload.old?.id
-        if (changedThreadId === activeThreadId) {
-          loadMessages(activeThreadId, { silent: true })
+        const incoming = await signChatAttachment(payload.new)
+        if (!incoming || String(incoming.thread_id) !== String(activeThreadIdRef.current)) return
+
+        if (payload.eventType === 'INSERT') {
+          updateMessagesState(previous => {
+            if (previous.some(message => String(message.id) === String(incoming.id))) return previous
+            return [...previous, incoming].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+          })
+          applyMessageToThreadList(incoming)
+
+          const isMine = String(incoming.sender_id) === String(meIdRef.current)
+          if (isMine || isActiveThreadAtBottom(activeThreadId)) {
+            setReadHorizon(null)
+            if (!isMine) scheduleReadReceipt(activeThreadId, new Date().toISOString())
+          }
+          scrollToBottom({ force: isMine })
+          return
         }
+
+        updateMessagesState(previous => previous.map(message => (
+          String(message.id) === String(incoming.id) ? { ...message, ...incoming } : message
+        )))
       })
-      .subscribe()
+      .subscribe(status => {
+        if (status !== 'SUBSCRIBED') return
+        if (subscribedOnce) scheduleMessagesReload(activeThreadId, { delay: 100 })
+        subscribedOnce = true
+      })
 
     return () => {
       supabase.removeChannel(channel)
@@ -831,35 +1185,47 @@ const ChatModule = () => {
   useEffect(() => {
     if (!me.id) return undefined
 
+    listSubscribedOnceRef.current = false
     const channel = supabase
       .channel(`chat-list-${me.id}`)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'chat_threads'
-      }, () => {
-        loadThreads({ silent: true })
+      }, (payload) => {
+        applyThreadChange(payload)
       })
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'chat_participants'
-      }, () => {
-        loadThreads({ silent: true })
+      }, (payload) => {
+        applyParticipantChange(payload)
       })
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'chat_messages'
-      }, () => {
-        loadThreads({ silent: true })
+      }, (payload) => {
+        applyMessageToThreadList(payload.new)
       })
-      .subscribe()
+      .subscribe(status => {
+        if (status !== 'SUBSCRIBED') return
+        if (listSubscribedOnceRef.current) {
+          scheduleThreadsReload(100)
+          if (activeThreadIdRef.current) scheduleMessagesReload(activeThreadIdRef.current, { delay: 100 })
+        }
+        listSubscribedOnceRef.current = true
+      })
 
     const handleVisibleRefresh = () => {
       if (document.visibilityState === 'visible') {
-        loadThreads()
-        if (activeThreadIdRef.current) loadMessages(activeThreadIdRef.current, { silent: true })
+        const now = Date.now()
+        if (now - lastVisibilitySyncRef.current < 60 * 1000) return
+        lastVisibilitySyncRef.current = now
+        const delay = 250 + Math.floor(Math.random() * 1501)
+        scheduleThreadsReload(delay)
+        if (activeThreadIdRef.current) scheduleMessagesReload(activeThreadIdRef.current, { delay })
       }
     }
 
@@ -1170,7 +1536,7 @@ const ChatModule = () => {
     try {
       setReadHorizon(null)
       const attachment = await uploadPendingImage(activeThreadId)
-      const { error: sendError } = await supabase
+      const { data: sentMessage, error: sendError } = await supabase
         .from('chat_messages')
         .insert([{
           thread_id: activeThreadId,
@@ -1186,8 +1552,20 @@ const ChatModule = () => {
           image_width: attachment?.width || null,
           image_height: attachment?.height || null
         }])
+        .select()
+        .single()
 
       if (sendError) throw sendError
+
+      if (sentMessage) {
+        const displayedMessage = await signChatAttachment(sentMessage)
+        updateMessagesState(previous => {
+          if (previous.some(message => String(message.id) === String(displayedMessage.id))) return previous
+          return [...previous, displayedMessage].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+        })
+        applyMessageToThreadList(displayedMessage)
+        scrollToBottom({ force: true })
+      }
 
       const notifyUserIds = activeParticipants
         .map(p => p.user_id)
@@ -1215,8 +1593,6 @@ const ChatModule = () => {
 
       setComposer('')
       clearPendingImage()
-      await loadMessages(activeThreadId, { silent: true, forceScroll: true })
-      await loadThreads({ silent: true })
     } catch (err) {
       console.error(err)
       const message = err?.message || String(err)
@@ -1940,9 +2316,15 @@ const ChatModule = () => {
           setSending(true)
           setError('')
           try {
-            await createPoll({ threadId: activeThreadId, ...payload })
-            await loadMessages(activeThreadId, { silent: true, forceScroll: true })
-            await loadThreads({ silent: true })
+            const createdPoll = await createPoll({ threadId: activeThreadId, ...payload })
+            if (createdPoll?.message) {
+              updateMessagesState(previous => {
+                if (previous.some(message => String(message.id) === String(createdPoll.message.id))) return previous
+                return [...previous, createdPoll.message].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+              })
+              applyMessageToThreadList(createdPoll.message)
+              scrollToBottom({ force: true })
+            }
           } catch (err) {
             console.error(err)
             showSetupError(err)

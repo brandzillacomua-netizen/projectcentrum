@@ -33,20 +33,48 @@ export const MESProvider = ({ children }) => {
   useEffect(() => {
     if (!data.currentUser?.id) return
 
+    let cancelled = false
+    let timer = null
+    let inFlight = false
+
     const updatePresence = async () => {
+      if (cancelled || inFlight || document.visibilityState !== 'visible' || !navigator.onLine) return
+      inFlight = true
       try {
-        await supabase
+        const { error } = await supabase
           .from('system_users')
           .update({ last_seen: new Date().toISOString() })
           .eq('id', data.currentUser.id)
+        if (error) throw error
       } catch (err) {
         console.error('Failed to update presence:', err)
+      } finally {
+        inFlight = false
       }
     }
 
+    const schedulePresence = () => {
+      if (cancelled) return
+      // Jitter prevents every terminal from writing last_seen in the same second.
+      timer = setTimeout(async () => {
+        await updatePresence()
+        schedulePresence()
+      }, 60000 + Math.floor(Math.random() * 30000))
+    }
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') updatePresence()
+    }
+
     updatePresence()
-    const timer = setInterval(updatePresence, 60000) // every 60s
-    return () => clearInterval(timer)
+    schedulePresence()
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
   }, [data.currentUser?.id])
 
   // ── AUTH ──
@@ -54,7 +82,6 @@ export const MESProvider = ({ children }) => {
     currentUser: data.currentUser, 
     setCurrentUser: data.setCurrentUser, 
     setSystemUsers: data.setSystemUsers, 
-    fetchData: data.fetchData,
     clearAllData: data.clearAllData,
     setSessionLoading: data.setSessionLoading
   })

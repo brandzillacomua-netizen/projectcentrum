@@ -3,10 +3,196 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = 'https://hurzutjytlcvtbvihnry.supabase.co'
 export const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1cnp1dGp5dGxjdnRidmlobnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMjc4NzksImV4cCI6MjA4OTYwMzg3OX0.0GETYIfUpEDVcpcMoZcAe3dLXtiafNNE1eegbbK1XUI'
 
+const SUPABASE_READ_CONCURRENCY = 1
+const SUPABASE_READ_TIMEOUT_MS = 20 * 1000
+const SUPABASE_READ_ONLY_RPCS = new Set([
+  'chat_unread_counts',
+  'mes_fulfillment_queue',
+  'mes_production_summary',
+  'shop1_naryad_catalog',
+  'shop1_naryad_report',
+  'verify_user_password'
+])
+let activeSupabaseReads = 0
+const pendingSupabaseReads = []
+
+const acquireSupabaseReadSlot = () => new Promise(resolve => {
+  const start = () => {
+    activeSupabaseReads += 1
+    let released = false
+    resolve(() => {
+      if (released) return
+      released = true
+      activeSupabaseReads = Math.max(0, activeSupabaseReads - 1)
+      const next = pendingSupabaseReads.shift()
+      if (next) next()
+    })
+  }
+
+  if (activeSupabaseReads < SUPABASE_READ_CONCURRENCY) start()
+  else pendingSupabaseReads.push(start)
+})
+
+const trackedSupabaseFetch = async (...args) => {
+  const requestMethod = String(args[1]?.method || args[0]?.method || 'GET').toUpperCase()
+  let rpcName = null
+  try {
+    const requestUrl = new URL(
+      typeof args[0] === 'string' ? args[0] : args[0]?.url,
+      window.location.origin
+    )
+    const rpcMarker = '/rest/v1/rpc/'
+    const rpcMarkerIndex = requestUrl.pathname.indexOf(rpcMarker)
+    if (rpcMarkerIndex >= 0) {
+      rpcName = decodeURIComponent(requestUrl.pathname.slice(rpcMarkerIndex + rpcMarker.length)).split('/')[0]
+    }
+  } catch {
+    // Unknown URLs keep the conservative method-only classification below.
+  }
+  const isReadRequest = ['GET', 'HEAD'].includes(requestMethod)
+    || (requestMethod === 'POST' && SUPABASE_READ_ONLY_RPCS.has(rpcName))
+  let releaseReadSlot = () => {}
+  let readTimeout = null
+  let detachCallerAbort = null
+  let fetchArgs = args
+  let readAbortController = null
+
+  if (isReadRequest) {
+    readAbortController = new AbortController()
+    const callerAbortSignal = args[1]?.signal || args[0]?.signal || null
+
+    const abortFromCaller = () => {
+      if (!readAbortController.signal.aborted) {
+        readAbortController.abort(callerAbortSignal?.reason)
+      }
+    }
+
+    if (callerAbortSignal?.aborted) {
+      abortFromCaller()
+    } else if (callerAbortSignal) {
+      callerAbortSignal.addEventListener('abort', abortFromCaller, { once: true })
+      detachCallerAbort = () => callerAbortSignal.removeEventListener('abort', abortFromCaller)
+    }
+
+    readTimeout = setTimeout(() => {
+      if (!readAbortController.signal.aborted) {
+        readAbortController.abort(new DOMException(
+          `Supabase read timed out after ${SUPABASE_READ_TIMEOUT_MS}ms`,
+          'TimeoutError'
+        ))
+      }
+    }, SUPABASE_READ_TIMEOUT_MS)
+
+    fetchArgs = [args[0], {
+      ...(args[1] || {}),
+      signal: readAbortController.signal
+    }]
+  }
+
+  // The deadline includes time spent waiting in the per-tab queue. If the
+  // database is unavailable, every queued bootstrap read expires together
+  // instead of blocking the tab for N × 20 seconds.
+  if (isReadRequest) releaseReadSlot = await acquireSupabaseReadSlot()
+
+  const startedAt = performance.now()
+  const health = window.__mesApiHealth || {
+    active: 0,
+    maxActive: 0,
+    total: 0,
+    failed: 0,
+    slow: 0,
+    lastErrorAt: null
+  }
+
+  health.active += 1
+  health.total += 1
+  health.maxActive = Math.max(health.maxActive, health.active)
+  window.__mesApiHealth = health
+
+  try {
+    const response = await fetch(...fetchArgs)
+    const durationMs = Math.round(performance.now() - startedAt)
+    if (durationMs >= 3000) health.slow += 1
+    if (!response.ok) {
+      health.failed += 1
+      health.lastErrorAt = Date.now()
+    }
+    return response
+  } catch (error) {
+    health.failed += 1
+    health.lastErrorAt = Date.now()
+    throw error
+  } finally {
+    if (readTimeout) clearTimeout(readTimeout)
+    if (detachCallerAbort) detachCallerAbort()
+    health.active = Math.max(0, health.active - 1)
+    releaseReadSlot()
+    window.dispatchEvent(new CustomEvent('mes:api-health', {
+      detail: { ...health }
+    }))
+  }
+}
+
+const realtimeChannelStates = new Map()
+
+const publishRealtimeChannelHealth = (topic, status, error) => {
+  if (typeof window === 'undefined') return
+
+  if (status === 'CLOSED') {
+    realtimeChannelStates.delete(topic)
+  } else {
+    realtimeChannelStates.set(topic, status)
+  }
+
+  const unhealthy = Array.from(realtimeChannelStates.values())
+    .some(value => value === 'CHANNEL_ERROR' || value === 'TIMED_OUT')
+  const detail = {
+    topic,
+    status,
+    unhealthy,
+    error: error?.message || null,
+    at: Date.now()
+  }
+
+  window.__mesRealtimeChannels = Object.fromEntries(realtimeChannelStates)
+  window.dispatchEvent(new CustomEvent('mes:realtime-channel', { detail }))
+}
+
+const wrapRealtimeChannel = (channel, topic) => {
+  if (!channel || channel.__mesHealthWrapped) return channel
+
+  const originalSubscribe = channel.subscribe.bind(channel)
+  channel.subscribe = (callback, timeout) => originalSubscribe((status, error) => {
+    publishRealtimeChannelHealth(topic, status, error)
+    if (callback) callback(status, error)
+  }, timeout)
+  channel.__mesHealthWrapped = true
+  return channel
+}
+
 export const rawSupabase = createClient(supabaseUrl, supabaseAnonKey, {
   global: {
+    fetch: trackedSupabaseFetch,
     headers: {
       'x-mes-secret': 'CentrumMES2026SecretKey_a9f8'
+    }
+  },
+  realtime: {
+    // Keep heartbeat timers alive when a terminal/browser tab is backgrounded.
+    // Without the worker browsers may throttle timers and leave the UI looking
+    // connected while the websocket has already gone stale.
+    worker: true,
+    heartbeatCallback: (status, latency) => {
+      if (typeof window === 'undefined') return
+
+      const detail = {
+        status,
+        latency: Number.isFinite(latency) ? latency : null,
+        at: Date.now()
+      }
+
+      window.__mesRealtimeHealth = detail
+      window.dispatchEvent(new CustomEvent('mes:realtime-health', { detail }))
     }
   }
 })
@@ -252,7 +438,11 @@ export const supabase = new Proxy(rawSupabase, {
         return wrapQueryBuilder(builder, tableName)
       }
     }
+    if (prop === 'channel') {
+      return function (topic, options) {
+        return wrapRealtimeChannel(target.channel(topic, options), topic)
+      }
+    }
     return Reflect.get(target, prop, receiver)
   }
 })
-

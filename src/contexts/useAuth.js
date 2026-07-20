@@ -7,7 +7,7 @@ const USER_CACHE_KEY = 'MES_SESSION_USER'
  * Auth & User Management hooks
  * Returns: { login, logout, upsertUser, deleteUser, searchCustomers }
  */
-export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers, fetchData, clearAllData, setSessionLoading }) {
+export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers, clearAllData, setSessionLoading }) {
 
   const login = async (loginName, password) => {
     // ── Step 1: Authenticate via Supabase (primary, fast) ──────────────────
@@ -54,13 +54,6 @@ export function createAuthActions({ currentUser, setCurrentUser, setSystemUsers,
     // Immediately unblock the session gate — no spinner after login
     if (setSessionLoading) setSessionLoading(false)
     setCurrentUser(userWithToken)
-
-    // Force data refresh on successful login without blocking the login UI
-    if (fetchData) {
-      fetchData(true).catch(err => {
-        console.error('Failed to force refresh data after login:', err)
-      })
-    }
 
     return { success: true, user: userWithToken }
   }

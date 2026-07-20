@@ -133,7 +133,7 @@ const formatMachineSequence = (machineName, sequence) => {
 
 export default function Shop1Terminal() {
   const { names: scrapReasons } = useScrapReasons()
-  const { workCards, setWorkCards, nomenclatures, operators, getFilteredOperators, getFilteredManagers, managers, workCardHistory, inventory, fetchData, createWorkCard, orders, bomItems, tasks, currentUser, machines, systemUsers, machineOperations, formatUserName, requests, theme, toggleTheme, maintenanceCheckEnabled } = useMES()
+  const { workCards, setWorkCards, nomenclatures, operators, getFilteredOperators, getFilteredManagers, managers, workCardHistory, inventory, fetchData, createWorkCard, orders, tasks, currentUser, machines, systemUsers, machineOperations, formatUserName, requests, theme, toggleTheme, maintenanceCheckEnabled } = useMES()
 
   const [currentTime, setCurrentTime] = useState(getCurrentTime())
   useEffect(() => {
@@ -182,6 +182,25 @@ export default function Shop1Terminal() {
 
     loadSelectedCardHistory()
     return () => { cancelled = true }
+  }, [selectedCardId])
+
+  // Realtime rows for other cards must not re-run the complete selected-card
+  // query. Merge only matching payloads into the already loaded local slice.
+  useEffect(() => {
+    if (!selectedCardId) return
+    const matchingRows = (workCardHistory || [])
+      .filter(row => String(row.card_id) === String(selectedCardId))
+    if (matchingRows.length === 0) return
+
+    setSelectedCardHistory(prev => {
+      const byId = new Map(prev.map(row => [String(row.id), row]))
+      matchingRows.forEach(row => {
+        const key = String(row.id)
+        byId.set(key, { ...byId.get(key), ...row })
+      })
+      return Array.from(byId.values())
+        .sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0))
+    })
   }, [selectedCardId, workCardHistory])
 
   // Сканування та ручний ввід

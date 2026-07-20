@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
+import { claimNextPackingSlipNumber } from '../services/fulfillmentQueueService'
 
 // Форматування назви номенклатури спеціально для пакувального листа
 const formatPackingSlipName = (nomName, materialType, productNames = '') => {
@@ -362,20 +363,11 @@ const ShippingModule = () => {
       }
 
       // 1.5. Визначаємо наступний номер пакувального листа
-      const { data: allTasks, error: fetchErr } = await supabase
-        .from('tasks')
-        .select('plan_snapshot')
-      if (fetchErr) throw fetchErr
-
-      const shippedTasks = (allTasks || []).filter(t => t.plan_snapshot?._metadata?.is_shipped === true)
-      let maxSlipNum = 856 // default starting base
-      shippedTasks.forEach(t => {
-        const num = Number(t.plan_snapshot?._metadata?.packing_slip_number)
-        if (num && num > maxSlipNum) {
-          maxSlipNum = num
-        }
-      })
-      const nextSlipNumber = maxSlipNum + 1
+      const slipNumberResult = await claimNextPackingSlipNumber(supabase)
+      if (slipNumberResult.error || !slipNumberResult.data) {
+        throw slipNumberResult.error || new Error('Failed to reserve the next packing-slip number')
+      }
+      const nextSlipNumber = slipNumberResult.data
 
       // 2. Оновлюємо метадані в завданнях
       for (const t of batch.batchTasks) {

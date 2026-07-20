@@ -51,9 +51,11 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
 
   useEffect(() => {
     if (typeof fetchData === 'function') {
-      fetchData(['inventory', 'nomenclatures', 'reception_docs', 'purchase_requests', 'requests'])
+      const targets = ['inventory', 'nomenclatures', 'reception_docs', 'purchase_requests']
+      if (!isProcurementOnly) targets.push('material_requests', 'tasks')
+      fetchData(targets)
     }
-  }, [])
+  }, [isProcurementOnly])
 
   const [activeTab, setActiveTab] = useState('requests') // 'requests', 'registry', 'stock'
   const [requestSubTab, setRequestSubTab] = useState('all') // 'all', 'prep', 'deficit'

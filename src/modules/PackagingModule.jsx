@@ -90,7 +90,17 @@ const PackagingModule = () => {
   useEffect(() => { 
     document.title = 'Відділ Пакування | Centrum'
     if (typeof fetchData === 'function') {
-      fetchData()
+      // Packaging must not trigger the legacy all-table refresh. Everything
+      // this screen renders is covered by this explicit, route-scoped set.
+      fetchData([
+        'orders',
+        'tasks',
+        'nomenclatures',
+        'bom_items',
+        'material_requests',
+        'inventory',
+        'system_users'
+      ])
     }
   }, [])
 

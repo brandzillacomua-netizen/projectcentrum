@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "inspect": "node inspect_users.cjs"
+    "inspect": "node inspect_users.cjs",
+    "load:test:staging": "node scripts/loadtest-readonly.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

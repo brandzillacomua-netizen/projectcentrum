@@ -64,7 +64,7 @@ const WarehouseBoxesModule = () => {
 
   const handlers = useWarehouseHandlers({
     inventory, nomenclatures, orders, tasks, requests,
-    purchaseRequests, receptionDocs, workCards, currentUser,
+    purchaseRequests, receptionDocs, workCards, machineOperations, activeTab, currentUser,
     issueMaterials, issueMaterialsBatch, approveWarehouse,
     confirmReception, createPurchaseRequest, receiveInventory,
     fetchData, fetchModuleData,

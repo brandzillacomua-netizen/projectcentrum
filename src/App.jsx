@@ -221,8 +221,27 @@ const useChatUnreadCount = (currentUser, supabase) => {
     }
 
     let cancelled = false
+    let refreshTimer = null
+    let refreshInFlight = null
+    let rerunAfterFlight = false
+    let hasLoaded = false
+    let lastRefreshAt = 0
+    let subscribedOnce = false
+    let participantsByThread = new Map()
+    let unreadByThread = new Map()
+    const seenMessageIds = new Set()
+    const rememberMessageId = (messageId) => {
+      if (!messageId) return false
+      const key = String(messageId)
+      if (seenMessageIds.has(key)) return true
+      seenMessageIds.add(key)
+      if (seenMessageIds.size > 5000) {
+        seenMessageIds.delete(seenMessageIds.values().next().value)
+      }
+      return false
+    }
 
-    const refreshUnread = async () => {
+    const performRefresh = async () => {
       try {
         const { data: participantRows, error: participantError } = await supabase
           .from('chat_participants')
@@ -231,51 +250,181 @@ const useChatUnreadCount = (currentUser, supabase) => {
 
         if (participantError) throw participantError
         if (!participantRows?.length) {
+          participantsByThread = new Map()
+          unreadByThread = new Map()
+          seenMessageIds.clear()
+          hasLoaded = true
+          lastRefreshAt = Date.now()
           if (!cancelled) setChatUnreadCount(0)
           return
         }
 
-        const counts = await Promise.all(participantRows.map(async row => {
+        const nextParticipantsByThread = new Map(
+          participantRows.map(row => [String(row.thread_id), row.last_read_at || null])
+        )
+        const threadIds = Array.from(nextParticipantsByThread.keys())
+
+        const rpcUserId = Number(currentUser.id) || currentUser.id
+        const { data: unreadRows, error: unreadRpcError } = await supabase
+          .rpc('chat_unread_counts', { p_user_id: rpcUserId })
+
+        if (!unreadRpcError) {
+          const nextUnreadByThread = new Map(threadIds.map(threadId => [threadId, 0]))
+          ;(unreadRows || []).forEach(row => {
+            nextUnreadByThread.set(String(row.thread_id), Number(row.unread_count) || 0)
+          })
+          if (cancelled) return
+          participantsByThread = nextParticipantsByThread
+          unreadByThread = nextUnreadByThread
+          hasLoaded = true
+          lastRefreshAt = Date.now()
+          setChatUnreadCount(Array.from(nextUnreadByThread.values()).reduce((sum, value) => sum + value, 0))
+          return
+        }
+
+        const rpcErrorCode = String(unreadRpcError.code || '')
+        const rpcErrorMessage = String(unreadRpcError.message || '').toLowerCase()
+        const rpcIsUnavailable = ['PGRST202', '42883'].includes(rpcErrorCode) ||
+          (rpcErrorMessage.includes('chat_unread_counts') && (
+            rpcErrorMessage.includes('not find') ||
+            rpcErrorMessage.includes('does not exist') ||
+            rpcErrorMessage.includes('schema cache')
+          ))
+        if (!rpcIsUnavailable) throw unreadRpcError
+
+        const validReadTimes = participantRows
+          .map(row => row.last_read_at ? new Date(row.last_read_at).getTime() : 0)
+          .filter(value => Number.isFinite(value) && value > 0)
+        const canBoundByOldestRead = validReadTimes.length === participantRows.length
+        const oldestReadAt = canBoundByOldestRead ? Math.min(...validReadTimes) : 0
+        const messageRows = []
+        const pageSize = 1000
+        const maxUnreadRows = 5000
+
+        for (let offset = 0; !cancelled && offset < maxUnreadRows; offset += pageSize) {
+          const currentPageSize = Math.min(pageSize, maxUnreadRows - offset)
           let query = supabase
             .from('chat_messages')
-            .select('id', { count: 'exact', head: true })
-            .eq('thread_id', row.thread_id)
+            .select('id, thread_id, sender_id, created_at')
+            .in('thread_id', threadIds)
             .is('deleted_at', null)
             .neq('sender_id', currentUser.id)
+            .order('created_at', { ascending: true })
+            .order('id', { ascending: true })
+            .range(offset, offset + currentPageSize - 1)
 
-          if (row.last_read_at) query = query.gt('created_at', row.last_read_at)
+          if (oldestReadAt) query = query.gt('created_at', new Date(oldestReadAt).toISOString())
 
-          const { count, error } = await query
+          const { data: rows, error } = await query
           if (error) throw error
-          return count || 0
-        }))
+          messageRows.push(...(rows || []))
+          if (!rows || rows.length < currentPageSize) break
+        }
 
-        if (!cancelled) setChatUnreadCount(counts.reduce((sum, value) => sum + value, 0))
+        if (cancelled) return
+
+        const nextUnreadByThread = new Map(threadIds.map(threadId => [threadId, 0]))
+        messageRows.forEach(message => {
+          const threadId = String(message.thread_id)
+          const lastReadAt = nextParticipantsByThread.get(threadId)
+          const lastReadTime = lastReadAt ? new Date(lastReadAt).getTime() : 0
+          const messageTime = new Date(message.created_at).getTime()
+          if (!lastReadTime || messageTime > lastReadTime) {
+            nextUnreadByThread.set(threadId, (nextUnreadByThread.get(threadId) || 0) + 1)
+          }
+          rememberMessageId(message.id)
+        })
+
+        participantsByThread = nextParticipantsByThread
+        unreadByThread = nextUnreadByThread
+        hasLoaded = true
+        lastRefreshAt = Date.now()
+        setChatUnreadCount(Array.from(nextUnreadByThread.values()).reduce((sum, value) => sum + value, 0))
       } catch (err) {
         const message = err?.message || ''
         if (!message.includes('chat_')) console.warn('Chat unread count failed:', err)
-        if (!cancelled) setChatUnreadCount(0)
+        if (!cancelled && !hasLoaded) setChatUnreadCount(0)
       }
+    }
+
+    const refreshUnread = () => {
+      if (cancelled) return Promise.resolve()
+      if (refreshInFlight) {
+        rerunAfterFlight = true
+        return refreshInFlight
+      }
+
+      refreshInFlight = performRefresh().finally(() => {
+        refreshInFlight = null
+        if (rerunAfterFlight && !cancelled) {
+          rerunAfterFlight = false
+          if (refreshTimer) clearTimeout(refreshTimer)
+          refreshTimer = setTimeout(refreshUnread, 100)
+        }
+      })
+      return refreshInFlight
+    }
+
+    const scheduleRefresh = (delay = 300, respectCooldown = false) => {
+      if (cancelled) return
+      const cooldownDelay = respectCooldown ? Math.max(0, 5000 - (Date.now() - lastRefreshAt)) : 0
+      if (refreshTimer) clearTimeout(refreshTimer)
+      refreshTimer = setTimeout(refreshUnread, Math.max(delay, cooldownDelay))
+    }
+
+    const handleMessageChange = (payload) => {
+      const row = payload.new || payload.old
+      const messageId = row?.id ? String(row.id) : ''
+      const threadId = row?.thread_id ? String(row.thread_id) : ''
+
+      if (payload.eventType !== 'INSERT' || !row || !participantsByThread.has(threadId)) {
+        if (payload.eventType !== 'INSERT' || !hasLoaded) scheduleRefresh(350)
+        return
+      }
+
+      if (refreshInFlight) rerunAfterFlight = true
+      if (rememberMessageId(messageId)) return
+      if (row.deleted_at || String(row.sender_id) === String(currentUser.id)) return
+
+      const lastReadAt = participantsByThread.get(threadId)
+      const lastReadTime = lastReadAt ? new Date(lastReadAt).getTime() : 0
+      const messageTime = new Date(row.created_at).getTime()
+      if (lastReadTime && messageTime <= lastReadTime) return
+
+      unreadByThread.set(threadId, (unreadByThread.get(threadId) || 0) + 1)
+      setChatUnreadCount(value => value + 1)
     }
 
     refreshUnread()
     const channel = supabase
       .channel(`chat-unread-${currentUser.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_messages' }, refreshUnread)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_participants' }, refreshUnread)
-      .subscribe()
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_messages' }, handleMessageChange)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'chat_participants',
+        filter: `user_id=eq.${currentUser.id}`
+      }, () => scheduleRefresh(300))
+      .subscribe(status => {
+        if (status !== 'SUBSCRIBED') return
+        if (subscribedOnce) scheduleRefresh(100)
+        subscribedOnce = true
+      })
 
     const handleVisibleRefresh = () => {
-      if (document.visibilityState === 'visible') refreshUnread()
+      if (document.visibilityState === 'visible') scheduleRefresh(100, true)
     }
 
+    const handleFocusRefresh = () => scheduleRefresh(100, true)
+
     document.addEventListener('visibilitychange', handleVisibleRefresh)
-    window.addEventListener('focus', refreshUnread)
+    window.addEventListener('focus', handleFocusRefresh)
 
     return () => {
       cancelled = true
+      if (refreshTimer) clearTimeout(refreshTimer)
       document.removeEventListener('visibilitychange', handleVisibleRefresh)
-      window.removeEventListener('focus', refreshUnread)
+      window.removeEventListener('focus', handleFocusRefresh)
       supabase.removeChannel(channel)
     }
   }, [currentUser?.id, currentUser?.access_rights?.chat, supabase])
@@ -332,22 +481,11 @@ const renderAvatar = (avatar, initials, size = '38px', fontSize = '0.85rem') => 
   );
 };
 
-const GlobalUserNav = () => {
-  const { currentUser, managementTasks, requests, workCards, purchaseRequests, receptionDocs, nomenclatures, machineCalls, machines, tasks, orders, bomItems, workCardHistory, supabase, upsertUser, theme, toggleTheme } = useMES();
+const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
+  const { currentUser, managementTasks, requests, workCards, purchaseRequests, receptionDocs, nomenclatures, machineCalls, machines, tasks, orders, bomItems, workCardHistory, fetchData, supabase, upsertUser, theme, toggleTheme } = useMES();
   const location = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
-  const [swRegistration, setSwRegistration] = useState(null);
-  const chatUnreadCount = useChatUnreadCount(currentUser, supabase);
-  
-  const handleUpdateApp = () => {
-    if (swRegistration && swRegistration.waiting) {
-      swRegistration.waiting.postMessage('SKIP_WAITING');
-    } else {
-      window.location.reload();
-    }
-  };
 
   const [activeSubPanel, setActiveSubPanel] = useState(null); // 'notifications', 'notif_settings' or null
   const [notifSettings, setNotifSettings] = useState({
@@ -533,49 +671,97 @@ const GlobalUserNav = () => {
   const activeTasks = useMemo(() => {
     return (tasks || []).filter(t => t.status !== 'completed');
   }, [tasks]);
+  const activeTaskIds = useMemo(() => [...new Set(activeTasks.map(task => task.id).filter(Boolean))], [activeTasks]);
+  const activeTaskIdsKey = useMemo(() => activeTaskIds.map(String).sort().join('|'), [activeTaskIds]);
+  const activeTaskIdSet = useMemo(() => new Set(activeTaskIds.map(String)), [activeTaskIdsKey]);
+  const activeWorkCardIdsKey = useMemo(() => (workCards || [])
+    .filter(card => activeTaskIdSet.has(String(card.task_id)))
+    .map(card => String(card.id))
+    .sort()
+    .join('|'), [workCards, activeTaskIdSet]);
+
+  // The global bell used to force every screen (including the portal) to load
+  // production, warehouse and management datasets. Load only the sources the
+  // current user may see, and only after they explicitly open notifications.
+  useEffect(() => {
+    if (activeSubPanel !== 'notifications' || !currentUser?.id) return;
+
+    const moduleIds = new Set(getAvailableModules(currentUser, 0).map(module => module.id));
+    const hasAnyModule = (...ids) => ids.some(id => moduleIds.has(id));
+    const targets = new Set();
+
+    if (moduleIds.has('kanban')) targets.add('management_tasks');
+
+    if (hasAnyModule('director', 'master', 'foreman', 'shop1', 'shop2', 'shop2_terminal', 'packaging')) {
+      ['orders', 'tasks', 'work_cards', 'nomenclatures', 'bom_items']
+        .forEach(tableName => targets.add(tableName));
+    }
+
+    if (hasAnyModule('warehouse', 'supply', 'master', 'foreman', 'director')) {
+      ['material_requests', 'orders', 'tasks'].forEach(tableName => targets.add(tableName));
+    }
+
+    if (hasAnyModule('warehouse', 'supply', 'procurement')) {
+      ['purchase_requests', 'reception_docs'].forEach(tableName => targets.add(tableName));
+    }
+
+    if (hasAnyModule('master', 'foreman', 'engineer', 'brak', 'machines')) {
+      ['machine_calls', 'machines'].forEach(tableName => targets.add(tableName));
+    }
+
+    if (targets.size > 0) {
+      fetchData([...targets]).catch(error => console.warn('Notification data refresh failed:', error));
+    }
+  }, [activeSubPanel, currentUser?.id]);
 
   useEffect(() => {
-    if (!currentUser || !isManager || activeTasks.length === 0) {
+    if (activeSubPanel !== 'notifications' || !currentUser?.id || !isManager || activeTaskIds.length === 0) {
       setCompletedCards([]);
       setCompletedHistory([]);
       return;
     }
 
-    const taskIds = activeTasks.map(t => t.id);
-
-    supabase
-      .from('work_cards')
-      .select('*')
-      .in('task_id', taskIds)
-      .eq('status', 'completed')
-      .then(async ({ data: cardsData, error: cardsError }) => {
-        if (cardsError) {
-          console.error('Error fetching completed cards for notifications:', cardsError);
-          return;
+    let cancelled = false;
+    const loadCompletedNotificationData = async () => {
+      try {
+        const chunkSize = 40;
+        const cardsData = [];
+        for (let offset = 0; offset < activeTaskIds.length; offset += chunkSize) {
+          const { data, error } = await supabase
+            .from('work_cards')
+            .select('*')
+            .in('task_id', activeTaskIds.slice(offset, offset + chunkSize))
+            .eq('status', 'completed');
+          if (error) throw error;
+          cardsData.push(...(data || []));
         }
-        setCompletedCards(cardsData || []);
 
-        const cardIds = (cardsData || []).map(c => c.id);
-        if (cardIds.length > 0) {
-          const chunkSize = 500;
-          const promises = [];
-          for (let i = 0; i < cardIds.length; i += chunkSize) {
-            const chunk = cardIds.slice(i, i + chunkSize);
-            promises.push(
-              supabase
-                .from('work_card_history')
-                .select('card_id, nomenclature_id, scrap_qty')
-                .in('card_id', chunk)
-            );
-          }
-          const results = await Promise.all(promises);
-          const historyData = results.flatMap(res => res.data || []);
-          setCompletedHistory(historyData);
-        } else {
-          setCompletedHistory([]);
+        if (cancelled) return;
+        setCompletedCards(cardsData);
+
+        const activeCardIds = (workCards || [])
+          .filter(card => activeTaskIdSet.has(String(card.task_id)))
+          .map(card => card.id)
+        const cardIds = [...new Set([...cardsData.map(card => card.id), ...activeCardIds].filter(Boolean))];
+        const historyData = [];
+        for (let offset = 0; offset < cardIds.length; offset += chunkSize) {
+          const { data, error } = await supabase
+            .from('work_card_history')
+            .select('card_id, nomenclature_id, scrap_qty')
+            .in('card_id', cardIds.slice(offset, offset + chunkSize));
+          if (error) throw error;
+          historyData.push(...(data || []));
         }
-      });
-  }, [currentUser, isManager, tasks, workCards, workCardHistory, supabase]);
+
+        if (!cancelled) setCompletedHistory(historyData);
+      } catch (error) {
+        if (!cancelled) console.error('Error fetching completed cards for notifications:', error);
+      }
+    };
+
+    loadCompletedNotificationData();
+    return () => { cancelled = true; };
+  }, [activeSubPanel, currentUser?.id, isManager, activeTaskIdsKey, activeWorkCardIdsKey, supabase]);
 
   const handleCloseMenu = () => {
     setMenuOpen(false);
@@ -1304,48 +1490,6 @@ const GlobalUserNav = () => {
   const unreadCount = useMemo(() => {
     return notifications.filter(n => !readIds.includes(n.id)).length;
   }, [notifications, readIds]);
-
-  // ─── Service Worker реєстрація + Web Push підписка ──────────────────────────
-  useEffect(() => {
-    if (!('serviceWorker' in navigator)) return;
-    // Реєструємо SW (завжди, незалежно від логіну)
-    navigator.serviceWorker.register('/sw.js')
-      .then(reg => {
-        console.log('[SW] Registered:', reg.scope);
-        setSwRegistration(reg);
-
-        // Якщо сервіс-воркер вже чекає (наприклад, після перезавантаження вкладки)
-        if (reg.waiting) {
-          setShowUpdatePrompt(true);
-        }
-
-        // Слухаємо появу нових оновлень у черзі
-        reg.addEventListener('updatefound', () => {
-          const newWorker = reg.installing;
-          if (newWorker) {
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                // Оновлення завантажилось і чекає на активацію
-                setShowUpdatePrompt(true);
-              }
-            });
-          }
-        });
-
-        // Періодично перевіряємо оновлення
-        reg.update();
-      })
-      .catch(err => console.error('[SW] Registration failed:', err));
-
-    // Автоматично оновлюємо сторінку після активації нового SW
-    let refreshing = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (!refreshing) {
-        refreshing = true;
-        window.location.reload();
-      }
-    });
-  }, []);
 
   // Підписуємо пристрій на Web Push кожного разу при вході з нового пристрою
   useEffect(() => {
@@ -2645,53 +2789,13 @@ const GlobalUserNav = () => {
         </div>
       </div>
 
-      {showUpdatePrompt && (
-        <div style={{
-          position: 'fixed',
-          top: '20px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          background: 'rgba(10, 10, 15, 0.95)',
-          border: '1px solid #ff9000',
-          boxShadow: '0 0 25px rgba(255, 144, 0, 0.25)',
-          borderRadius: '16px',
-          padding: '16px 24px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '20px',
-          zIndex: 999999,
-          backdropFilter: 'blur(15px)',
-          animation: 'slideInDown 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
-        }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#fff' }}>Доступна нова версія додатка</span>
-            <span style={{ fontSize: '0.7rem', color: '#888' }}>Оновіть додаток для стабільної роботи та отримання нових функцій.</span>
-          </div>
-          <button onClick={handleUpdateApp} style={{
-            background: '#ff9000',
-            color: '#000',
-            border: 'none',
-            padding: '8px 18px',
-            borderRadius: '10px',
-            fontSize: '0.75rem',
-            fontWeight: 900,
-            cursor: 'pointer',
-            boxShadow: '0 4px 15px rgba(255, 144, 0, 0.3)',
-            transition: 'all 0.2s',
-            whiteSpace: 'nowrap'
-          }}>
-            ОНОВИТИ
-          </button>
-        </div>
-      )}
     </>
   );
 };
 
-const Portal = () => {
-  const { currentUser, managementTasks, companyPositions, supabase } = useMES()
+const Portal = ({ chatUnreadCount = 0 }) => {
+  const { currentUser, managementTasks, companyPositions } = useMES()
   const location = useLocation()
-  const chatUnreadCount = useChatUnreadCount(currentUser, supabase)
 
   // Badge logic for Kanban Module
   const myPendingTasksCount = (managementTasks || []).filter(t =>
@@ -2892,8 +2996,11 @@ const SystemAlertHost = () => {
 }
 
 const AppContent = () => {
-  const { currentUser, sessionLoading } = useMES()
+  const { currentUser, sessionLoading, supabase } = useMES()
   const location = useLocation()
+  // Own unread tracking once for the lifetime of the authenticated app. This
+  // avoids overlapping REST/RPC reads while Portal redirects to a role module.
+  const chatUnreadCount = useChatUnreadCount(currentUser, supabase)
 
   // Поки перевіряємо сесію з Supabase — показуємо спіннер (не редіректимо)
   if (sessionLoading) {
@@ -2932,11 +3039,11 @@ const AppContent = () => {
           currentUser.role !== 'admin' &&
           location.pathname !== '/login' &&
           location.pathname !== '/' && (
-            <GlobalUserNav key={currentUser.id} />
+            <GlobalUserNav key={currentUser.id} chatUnreadCount={chatUnreadCount} />
           )}
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/" element={<Portal />} />
+          <Route path="/" element={<Portal chatUnreadCount={chatUnreadCount} />} />
           <Route path="/dashboard" element={<PermissionGuard id="dashboard"><DashboardModule /></PermissionGuard>} />
           <Route path="/foreman-dashboard" element={<PermissionGuard id="foreman_dashboard"><ForemanDashboardModule /></PermissionGuard>} />
           <Route path="/manager" element={<PermissionGuard id="manager"><ManagerModule /></PermissionGuard>} />
