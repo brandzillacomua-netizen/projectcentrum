@@ -7,7 +7,8 @@ import {
 import { useMES } from '../MESContext'
 import { useWarehouseComputed } from './Warehouse/hooks/useWarehouseComputed'
 
-const PAGE_SIZE = 5
+const PREP_PAGE_SIZE = 4
+const BOX_PAGE_SIZE = 3
 const ROTATION_MS = 12000
 
 const formatElapsed = (start, now) => {
@@ -136,8 +137,8 @@ const PreparationDashboard = () => {
     return result.slice(0, 4)
   }, [prepQueue, boxOrders, now])
 
-  const prepPages = Math.max(1, Math.ceil(prepQueue.length / PAGE_SIZE))
-  const boxesPages = Math.max(1, boxOrders.length)
+  const prepPages = Math.max(1, Math.ceil(prepQueue.length / PREP_PAGE_SIZE))
+  const boxesPages = Math.max(1, Math.ceil(boxOrders.length / BOX_PAGE_SIZE))
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -150,8 +151,8 @@ const PreparationDashboard = () => {
   useEffect(() => setPrepPage(page => Math.min(page, prepPages - 1)), [prepPages])
   useEffect(() => setBoxesPage(page => Math.min(page, boxesPages - 1)), [boxesPages])
 
-  const visiblePrep = prepQueue.slice(prepPage * PAGE_SIZE, prepPage * PAGE_SIZE + PAGE_SIZE)
-  const visibleBoxOrders = boxOrders.slice(boxesPage, boxesPage + 1)
+  const visiblePrep = prepQueue.slice(prepPage * PREP_PAGE_SIZE, prepPage * PREP_PAGE_SIZE + PREP_PAGE_SIZE)
+  const visibleBoxOrders = boxOrders.slice(boxesPage * BOX_PAGE_SIZE, boxesPage * BOX_PAGE_SIZE + BOX_PAGE_SIZE)
   const staleSeconds = Math.floor((now - lastDataChange) / 1000)
 
   const toggleFullscreen = async () => {
@@ -210,42 +211,40 @@ const PreparationDashboard = () => {
           </div>
         </section>
 
-        <section className="prep-tv__panel prep-tv__panel--boxes">
-          <div className="prep-tv__panel-head">
-            <div><PackageCheck size={21} /><strong>БОКСИ ФРЕЗ</strong></div>
-            <span>АВТОСЛАЙД · {boxesPage + 1} ІЗ {boxesPages}</span>
-          </div>
-          <div className="boxes-summary">
-            <div><strong>{totals.boxesPrepared}</strong><span>готово</span></div>
-            <div className="boxes-summary__bar"><i style={{ width: `${totals.boxesTotal ? Math.round(totals.boxesPrepared / totals.boxesTotal * 100) : 100}%` }} /></div>
-            <div><strong>{totals.boxesTotal ? Math.round(totals.boxesPrepared / totals.boxesTotal * 100) : 100}%</strong><span>виконано</span></div>
-          </div>
-          <div className="box-orders">
-            {visibleBoxOrders.map(order => {
-              const orderPercent = order.total ? Math.round(order.prepared / order.total * 100) : 100
-              return (
-              <article className={`box-order ${order.pending === 0 ? 'is-complete' : ''}`} key={order.id}>
+        {visibleBoxOrders.map((order, cardIndex) => {
+          const orderPercent = order.total ? Math.round(order.prepared / order.total * 100) : 100
+          return (
+          <section className={`prep-tv__panel prep-tv__panel--box ${order.pending === 0 ? 'is-complete' : ''}`} key={order.id}>
+            <div className="prep-tv__panel-head">
+              <div><PackageCheck size={19} /><strong>БОКСИ ФРЕЗ · {cardIndex + 1}</strong></div>
+              <span>група {boxesPage + 1}/{boxesPages}</span>
+            </div>
+              <article className="box-order">
                 <div className="box-order__head">
                   <div><span>НАРЯД</span><strong>№{order.orderNum}</strong></div>
                   <div className="box-order__result"><strong>{order.prepared}<i>/ {order.total}</i></strong><span>{order.pending ? `ЗАЛИШИЛОСЯ ${order.pending}` : 'УСІ БОКСИ ГОТОВІ'}</span></div>
                 </div>
                 <div className="box-order__progress"><i style={{ width: `${orderPercent}%` }} /><strong>{orderPercent}%</strong></div>
                 <div className="box-order__items">
-                  {order.items.slice(0, 6).map(item => {
+                  {order.items.slice(0, 5).map(item => {
                     const ready = item.prepared === item.total
                     return <div key={item.id} className={ready ? 'is-ready' : ''}><span title={item.name}>{item.name}</span><b>{item.prepared}<i>/{item.total}</i></b></div>
                   })}
-                  {order.items.length > 6 && <small>+ ще {order.items.length - 6} номенклатур</small>}
+                  {order.items.length > 5 && <small>+ ще {order.items.length - 5} номенклатур</small>}
                 </div>
                 <div className="box-order__slider">
-                  <div>{boxOrders.map((_, index) => <i key={index} className={index === boxesPage ? 'is-active' : ''} />)}</div>
-                  <span>Наступний наряд автоматично через 12 секунд</span>
+                  <div>{boxOrders.map((_, index) => <i key={index} className={index >= boxesPage * BOX_PAGE_SIZE && index < (boxesPage + 1) * BOX_PAGE_SIZE ? 'is-active' : ''} />)}</div>
+                  <span>Оновлення через 12 с</span>
                 </div>
               </article>
-            )})}
-            {visibleBoxOrders.length === 0 && <div className="prep-tv__empty"><CheckCircle2 size={54} /><strong>Усі бокси зібрано</strong><span>Активних карток немає</span></div>}
-          </div>
-        </section>
+          </section>
+        )})}
+        {Array.from({ length: Math.max(0, BOX_PAGE_SIZE - visibleBoxOrders.length) }).map((_, index) => (
+          <section className="prep-tv__panel prep-tv__panel--box is-empty" key={`empty-box-${index}`}>
+            <div className="prep-tv__panel-head"><div><PackageCheck size={19} /><strong>БОКСИ ФРЕЗ</strong></div></div>
+            <div className="prep-tv__empty"><CheckCircle2 size={42} /><strong>Усі доступні бокси готові</strong><span>Очікуємо наступний наряд</span></div>
+          </section>
+        ))}
       </main>
 
       <footer className={`prep-tv__alerts ${alerts.some(a => a.level === 'danger') ? 'has-danger' : ''}`}>
@@ -298,7 +297,53 @@ const PreparationDashboard = () => {
         .prep-tv__alerts { min-width:0; display:grid; grid-template-columns:210px 1fr; align-items:center; padding:0 28px; background:#201805; border-top:1px solid #6b4b0b; color:#f59e0b; }
         .prep-tv__alerts.has-danger { background:#260c0c; border-color:#7f1d1d; color:#ef4444; } .prep-tv__alerts>div:first-child { display:flex; gap:10px; align-items:center; font-size:12px; letter-spacing:.04em; }
         .prep-tv__alerts-list { min-width:0; display:flex; gap:24px; overflow:hidden; } .prep-tv__alerts-list span { min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:12px; color:#f1d59c; } .prep-tv__alerts-list span+span:before { content:'•'; margin-right:24px; color:#705721; } .prep-tv__alerts-list .is-clear { color:#86c69e; }
-        @media (max-width:1000px) { .prep-tv { height:auto; min-height:100vh; overflow:auto; grid-template-rows:auto auto auto auto; } .prep-tv__grid { grid-template-columns:1fr; } .prep-tv__panel { min-height:520px; } .prep-tv__kpis { grid-template-columns:1fr 1fr; } .prep-tv__alerts { min-height:70px; } }
+        /* Compact 1200×800 TV layout: one preparation quadrant + three box quadrants. */
+        .prep-tv { grid-template-rows:58px 68px 1fr 44px; }
+        .prep-tv__header { padding:0 18px; }
+        .prep-tv__logo { width:36px; height:36px; border-radius:10px; }
+        .prep-tv__clock strong { font-size:23px; }
+        .prep-tv__kpis { padding:8px 18px; gap:8px; }
+        .prep-tv__kpis>div { border-radius:10px; padding:7px 12px; grid-template-columns:25px 1fr auto; gap:6px; }
+        .prep-tv__kpis svg { width:19px; }
+        .prep-tv__kpis span { font-size:10px; }
+        .prep-tv__kpis strong { font-size:20px; }
+        .prep-tv__grid { padding:0 18px 10px; grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-rows:repeat(2,minmax(0,1fr)); gap:10px; }
+        .prep-tv__panel { border-radius:13px; grid-template-rows:38px 1fr; }
+        .prep-tv__panel--box { border-top:3px solid #f59e0b; }
+        .prep-tv__panel--box.is-complete { border-top-color:#22c55e; }
+        .prep-tv__panel-head { padding:0 12px; }
+        .prep-tv__panel-head>div { gap:7px; }
+        .prep-tv__panel--box .prep-tv__panel-head>div { color:#f59e0b; }
+        .prep-tv__panel-head strong { font-size:12px; }
+        .prep-tv__panel-head>span { font-size:9px; }
+        .prep-tv__list { padding:7px; gap:5px; }
+        .prep-task { min-height:48px; grid-template-columns:32px minmax(0,1fr) 52px 62px; gap:7px; border-radius:9px; padding:5px 8px; }
+        .prep-task__status { width:29px; height:29px; border-radius:8px; }
+        .prep-task h3 { margin:2px 0; font-size:12px; }
+        .prep-task small { font-size:9px; }
+        .prep-task__metric strong,.prep-task__time strong { font-size:14px; }
+        .prep-task__metric span,.prep-task__time span { font-size:8px; }
+        .box-order { border:0; border-radius:0; background:linear-gradient(145deg,#151711,#10120f); padding:9px 12px 7px; grid-template-rows:auto 15px 1fr auto; gap:6px; }
+        .prep-tv__panel--box.is-complete .box-order { background:linear-gradient(145deg,#111b14,#0e120f); }
+        .box-order__head { padding-bottom:6px; }
+        .box-order__head>div:first-child strong { font-size:19px; }
+        .box-order__result strong { font-size:22px; }
+        .prep-tv__panel--box.is-complete .box-order__result strong,
+        .prep-tv__panel--box.is-complete .box-order__result span { color:#22c55e; }
+        .box-order__progress { height:8px; margin-right:42px; }
+        .box-order__progress>strong { left:calc(100% + 8px); top:-5px; font-size:13px; }
+        .box-order__items { gap:4px; }
+        .box-order__items>div { gap:10px; padding:5px 8px; border-radius:6px; border-left-width:3px; }
+        .box-order__items span { font-size:11px; }
+        .box-order__items b { font-size:13px; }
+        .box-order__items small { font-size:9px; padding-left:8px; }
+        .box-order__slider { gap:8px; padding-top:5px; }
+        .box-order__slider>div { gap:4px; }
+        .box-order__slider i { width:5px; height:5px; }
+        .box-order__slider i.is-active { width:14px; }
+        .box-order__slider span { font-size:8px; }
+        .prep-tv__alerts { grid-template-columns:180px 1fr; padding:0 18px; }
+        @media (max-width:700px) { .prep-tv { height:auto; min-height:100vh; overflow:auto; grid-template-rows:auto auto auto auto; } .prep-tv__grid { grid-template-columns:1fr; grid-template-rows:none; } .prep-tv__panel { min-height:330px; } .prep-tv__kpis { grid-template-columns:1fr 1fr; } .prep-tv__alerts { min-height:60px; } }
       `}</style>
     </div>
   )
