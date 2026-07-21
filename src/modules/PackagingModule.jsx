@@ -40,8 +40,22 @@ function isFinishedComponent(nom) {
 function isProductionOnlyMaterial(nom) {
   const name = (nom?.name || '').toLowerCase()
   const type = (nom?.type || '').toLowerCase()
-  return name.includes('лист') || name.includes('sheet') || name.includes('фрез') ||
-    type.includes('sheet') || type.includes('cutter')
+  const isRubberPackaging = name.includes('гума') || name.includes('rubber')
+  const isSheetMaterial = !isRubberPackaging && (name.includes('лист') || name.includes('sheet') || type.includes('sheet'))
+  return isSheetMaterial || name.includes('фрез') || type.includes('cutter')
+}
+
+const REQUEST_STATUS_PRIORITY = {
+  completed: 4,
+  issued: 3,
+  processing: 2,
+  pending: 1
+}
+
+function getBestRequestForNomenclature(requests, nomenclatureId) {
+  return requests
+    .filter(request => String(request.nomenclature_id) === String(nomenclatureId))
+    .sort((a, b) => (REQUEST_STATUS_PRIORITY[b.status] || 0) - (REQUEST_STATUS_PRIORITY[a.status] || 0))[0]
 }
 
 const PackagingModule = () => {
@@ -509,7 +523,7 @@ const PackagingModule = () => {
   const pickedItemsWithoutBox = useMemo(() => {
     if (!isWarehouseConfirmed) return []
     return allBOMItems.filter(item => {
-      const reqRequest = orderRequests.find(r => String(r.nomenclature_id) === String(item.nom.id))
+      const reqRequest = getBestRequestForNomenclature(orderRequests, item.nom.id)
       const isPicked = reqRequest?.status === 'completed' || reqRequest?.status === 'issued'
       const isExcluded = excludedNomIds.has(item.nom.id)
       if (!isPicked || isExcluded) return false
@@ -987,7 +1001,7 @@ const PackagingModule = () => {
                             ) : (
                               <div className="bom-required-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '10px' }}>
                                 {cat.items.map((item, idx) => {
-                                  const reqRequest = orderRequests.find(r => String(r.nomenclature_id) === String(item.nom.id))
+                                  const reqRequest = getBestRequestForNomenclature(orderRequests, item.nom.id)
                                   const isPicked = reqRequest?.status === 'completed' || reqRequest?.status === 'issued'
                                   const isPending = reqRequest?.status === 'pending'
                                   const isExcluded = excludedNomIds.has(item.nom.id)
@@ -1042,7 +1056,17 @@ const PackagingModule = () => {
                                         </div>
 
                                         <div style={{ flex: 1, minWidth: 0 }}>
-                                          <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#fff', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                          <div
+                                            title={item.nom.name}
+                                            style={{
+                                              fontSize: '0.85rem',
+                                              fontWeight: 800,
+                                              color: '#fff',
+                                              lineHeight: 1.25,
+                                              whiteSpace: 'normal',
+                                              overflowWrap: 'anywhere'
+                                            }}
+                                          >
                                             {item.nom.name}
                                             {item.nom.material_type && <span style={{ fontSize: '0.7rem', color: '#666', marginLeft: '5px', fontWeight: 500 }}>{item.nom.material_type}</span>}
                                           </div>
@@ -1123,8 +1147,8 @@ const PackagingModule = () => {
                                           ) : (
                                             <div>
                                               <div style={{ fontSize: '1.2rem', fontWeight: 1000, color: isExcluded ? '#444' : (isPicked ? '#10b981' : (isPending ? '#eab308' : '#fff')) }}>
-                                                {isPicked && orderRequests.find(r => String(r.nomenclature_id) === String(item.nom.id))?.quantity
-                                                  ? orderRequests.find(r => String(r.nomenclature_id) === String(item.nom.id)).quantity
+                                                {isPicked && reqRequest?.quantity
+                                                  ? reqRequest.quantity
                                                   : (customQty[String(item.nom.id)] !== undefined ? customQty[String(item.nom.id)] : item.qty)}
                                               </div>
                                               <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 800 }}>{item.nom.unit || 'шт'}</div>
