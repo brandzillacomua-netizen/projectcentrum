@@ -4,6 +4,7 @@ import { ArrowLeft, Camera, X, ChevronRight, Package, AlertTriangle, ClipboardLi
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { supabase, getCurrentTime } from '../supabase'
+import { recordSortingHistoryGuaranteed } from '../services/sortingHistoryService'
 
 // Map Cyrillic keyboard characters to English QWERTY for barcode scanners under Ukrainian/Russian layout
 const cyrillicToLatinMap = {
@@ -2165,38 +2166,18 @@ export default function Shop1Terminal() {
         }
       }
 
-      const historyToInsert = []
-      historyToInsert.push({
-        card_id: currentCard.id,
-        nomenclature_id: currentCard.nomenclature_id,
-        stage_name: 'Сортування',
-        operator_name: scrapOperator,
-        qty_at_start: currentCard.quantity,
-        qty_completed: goodQty,
-        scrap_qty: scrapCount,
-        started_at: currentCard.started_at || new Date().toISOString(),
-        completed_at: currentCard.completed_at || new Date().toISOString(),
-        is_archived_scrap: scrapCount > 0,
-        shift_name: activeShift,
-        manager_name: currentCard.manager_name,
-        machine_name: currentCard.machine
+      // Guarantee the VKYA source row before advancing the card. The database
+      // operation is atomic and can be retried without duplicating scrap.
+      const historyDelivery = await recordSortingHistoryGuaranteed(supabase, {
+        card: currentCard,
+        operatorName: scrapOperator,
+        bufferOperatorName: op,
+        shiftName: activeShift,
+        qtyCompleted: goodQty,
+        scrapQty: scrapCount,
+        recordedAt: new Date().toISOString()
       })
-
-      const bufferStart = currentCard.completed_at || currentCard.started_at || new Date().toISOString()
-      historyToInsert.push({
-        card_id: currentCard.id,
-        nomenclature_id: currentCard.nomenclature_id,
-        stage_name: 'Буфер Сортування',
-        operator_name: op,
-        qty_at_start: goodQty,
-        qty_completed: goodQty,
-        scrap_qty: 0,
-        started_at: bufferStart,
-        completed_at: new Date().toISOString(),
-        shift_name: activeShift,
-        manager_name: currentCard.manager_name,
-        machine_name: currentCard.machine
-      })
+      if (historyDelivery.error) throw historyDelivery.error
 
       // Task & Card writes
       let shop2TaskId = null
@@ -2293,9 +2274,6 @@ export default function Shop1Terminal() {
       // Inventory writes
       if (invUpdates.length > 0) writePromises.push(supabase.from('inventory').upsert(invUpdates))
       if (invInserts.length > 0) writePromises.push(supabase.from('inventory').insert(invInserts))
-
-      // History writes
-      writePromises.push(supabase.from('work_card_history').insert(historyToInsert))
 
       // Execute all writes in parallel!
       const results = await Promise.all(writePromises)

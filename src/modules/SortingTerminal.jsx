@@ -3,6 +3,7 @@ import { ArrowLeft, Tablet, Search, RefreshCw, Play, CheckCircle, AlertTriangle,
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { supabase } from '../supabase'
+import { recordSortingHistoryGuaranteed } from '../services/sortingHistoryService'
 
 // Map Cyrillic keyboard characters to English QWERTY for barcode scanners
 const cyrillicToLatinMap = {
@@ -305,37 +306,19 @@ export default function SortingTerminal() {
         }
       }
 
-      const historyRows = [
-        {
-          card_id: activeCompletingCard.id,
-          nomenclature_id: activeCompletingCard.nomenclature_id,
-          stage_name: 'Сортування',
-          operator_name: scrapOperator,
-          qty_at_start: activeCompletingCard.quantity,
-          qty_completed: goodQty,
-          scrap_qty: scrapCount,
-          started_at: activeCompletingCard.started_at || now,
-          completed_at: activeCompletingCard.completed_at || now,
-          is_archived_scrap: scrapCount > 0,
-          shift_name: activeShift,
-          manager_name: activeCompletingCard.manager_name,
-          machine_name: activeCompletingCard.machine
-        },
-        {
-          card_id: activeCompletingCard.id,
-          nomenclature_id: activeCompletingCard.nomenclature_id,
-          stage_name: 'Буфер Сортування',
-          operator_name: op,
-          qty_at_start: goodQty,
-          qty_completed: goodQty,
-          scrap_qty: 0,
-          started_at: activeCompletingCard.completed_at || activeCompletingCard.started_at || now,
-          completed_at: now,
-          shift_name: activeShift,
-          manager_name: activeCompletingCard.manager_name,
-          machine_name: activeCompletingCard.machine
-        }
-      ]
+      // VKYA delivery is recorded before any card/inventory/task mutation.
+      // The RPC is atomic and idempotent, so a timeout or retry cannot lose
+      // or duplicate the scrap history for this card.
+      const historyDelivery = await recordSortingHistoryGuaranteed(supabase, {
+        card: activeCompletingCard,
+        operatorName: scrapOperator,
+        bufferOperatorName: op,
+        shiftName: activeShift,
+        qtyCompleted: goodQty,
+        scrapQty: scrapCount,
+        recordedAt: now
+      })
+      if (historyDelivery.error) throw historyDelivery.error
 
       // Task arrivals
       let shop2TaskId = null
@@ -402,8 +385,6 @@ export default function SortingTerminal() {
 
       if (invUpdates.length > 0) writePromises.push(supabase.from('inventory').upsert(invUpdates))
       if (invInserts.length > 0) writePromises.push(supabase.from('inventory').insert(invInserts))
-      writePromises.push(supabase.from('work_card_history').insert(historyRows))
-
       const results = await Promise.all(writePromises)
       for (const res of results) { if (res.error) throw res.error }
 
