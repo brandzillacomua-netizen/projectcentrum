@@ -455,14 +455,41 @@ export default function BrakModule() {
       }
       html5QrCode.start({ facingMode: "environment" }, config, async (decodedText) => {
         try {
-          let cardIdStr = decodedText
+          let cardIdStr = String(decodedText || '').trim()
           try {
             const qrData = JSON.parse(decodedText)
-            if (qrData.id) cardIdStr = qrData.id
+            cardIdStr = String(qrData.id || qrData.card_id || qrData.cardId || cardIdStr).trim()
           } catch (e) { }
 
+          // Робочі картки друкуються у форматі CENTRUM_CARD_<UUID>.
+          cardIdStr = cardIdStr.replace(/^CENTRUM_CARD_/i, '').replace(/^#/, '').trim()
+
+          if (!cardIdStr) {
+            await stopAndClose()
+            setScanError('QR-код картки порожній або має невірний формат.')
+            return
+          }
+
           await stopAndClose()
-          const foundCard = (workCards || []).find(c => String(c.id).trim() === String(cardIdStr).trim() || String(c.id).endsWith(String(cardIdStr).trim()))
+          let foundCard = (workCards || []).find(c => {
+            const currentId = String(c.id || '').trim().toLowerCase()
+            const scannedId = cardIdStr.toLowerCase()
+            return currentId === scannedId || currentId.endsWith(scannedId)
+          })
+
+          // Завершені/архівні картки можуть бути відсутні у поточному списку
+          // екрана ВКЯ, тому шукаємо повний UUID безпосередньо в БД.
+          if (!foundCard) {
+            const { data: dbCard, error: dbError } = await supabase
+              .from('work_cards')
+              .select('*')
+              .eq('id', cardIdStr)
+              .maybeSingle()
+
+            if (dbError) throw dbError
+            foundCard = dbCard
+          }
+
           if (!foundCard) {
             setScanError(`Картку №${cardIdStr} не знайдено в базі.`)
           } else {
@@ -471,7 +498,8 @@ export default function BrakModule() {
             setScanError(null)
           }
         } catch (e) {
-          setScanError("Невірний формат QR або помилка зчитування.")
+          console.error('QC card scan error:', e)
+          setScanError(`Не вдалося відкрити картку: ${e?.message || 'помилка зчитування QR'}`)
         }
       }).catch(err => { setScanError("Помилка камери: " + err); setIsScanning(false) })
     }
@@ -480,7 +508,7 @@ export default function BrakModule() {
         html5QrCode.stop().catch(() => {})
       }
     }
-  }, [isScanning, workCards])
+  }, [isScanning, workCards, supabase])
 
   // Уніфікована функція запису в інвентар
   const updateInventoryStock = async (nomId, qty, type = 'scrap_ready') => {
