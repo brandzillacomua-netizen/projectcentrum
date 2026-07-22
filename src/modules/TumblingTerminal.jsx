@@ -265,22 +265,75 @@ export default function TumblingTerminal() {
       const actualScrap = Math.min(totalQty, Math.max(0, Number(scrapCount) || 0))
       const actualFinished = Math.max(0, totalQty - actualScrap)
 
+      const rawTumblingOperator = String(activeCompletingCard.operator_name || '').trim()
+      const tumblingOperator = !rawTumblingOperator || rawTumblingOperator === 'Команда'
+        ? 'Команда галтовки'
+        : rawTumblingOperator
+      let scrapOperator = tumblingOperator
+      let scrapShift = activeCompletingCard.shift_name || selectedShift || 'Не вказано'
+
+      if (actualScrap > 0) {
+        const { data: cuttingHistory, error: cuttingHistoryError } = await supabase
+          .from('work_card_history')
+          .select('operator_name, shift_name')
+          .eq('card_id', activeCompletingCard.id)
+          .eq('stage_name', 'Розкрій')
+
+        if (cuttingHistoryError) {
+          console.warn('Не вдалося визначити оператора розкрою:', cuttingHistoryError.message)
+        } else {
+          const cuttingOperators = [...new Set(
+            (cuttingHistory || []).map(row => String(row.operator_name || '').trim()).filter(Boolean)
+          )]
+          if (cuttingOperators.length === 1) {
+            scrapOperator = cuttingOperators[0]
+            scrapShift = (cuttingHistory || []).find(row => String(row.operator_name || '').trim() === scrapOperator)?.shift_name || scrapShift
+          }
+        }
+      }
+
       // 1. Insert history log for tumbling stage
-      const { error: historyError } = await supabase.from('work_card_history').insert([{
+      const historyBase = {
         card_id: activeCompletingCard.id,
         nomenclature_id: activeCompletingCard.nomenclature_id,
         stage_name: activeCompletingCard.operation,
-        operator_name: activeCompletingCard.operator_name || 'Команда',
-        qty_at_start: totalQty,
-        qty_completed: actualFinished,
-        scrap_qty: actualScrap,
         started_at: activeCompletingCard.started_at || now,
         completed_at: now,
-        is_archived_scrap: true,
         shift_name: activeCompletingCard.shift_name || selectedShift || 'Не вказано',
         manager_name: activeCompletingCard.manager_name || 'Не вказано',
         machine_name: activeCompletingCard.machine || 'Не вказано'
-      }])
+      }
+      const historyRows = actualScrap > 0 && scrapOperator !== tumblingOperator
+        ? [
+            ...(actualFinished > 0 ? [{
+              ...historyBase,
+              operator_name: tumblingOperator,
+              qty_at_start: actualFinished,
+              qty_completed: actualFinished,
+              scrap_qty: 0,
+              is_archived_scrap: false
+            }] : []),
+            {
+              ...historyBase,
+              operator_name: scrapOperator,
+              shift_name: scrapShift,
+              qty_at_start: actualScrap,
+              qty_completed: 0,
+              scrap_qty: actualScrap,
+              is_archived_scrap: true,
+              card_info: `${activeCompletingCard.card_info || ''} [SCRAP_ASSIGNED_FROM_TUMBLING]`.trim()
+            }
+          ]
+        : [{
+            ...historyBase,
+            operator_name: tumblingOperator,
+            qty_at_start: totalQty,
+            qty_completed: actualFinished,
+            scrap_qty: actualScrap,
+            is_archived_scrap: actualScrap > 0
+          }]
+
+      const { error: historyError } = await supabase.from('work_card_history').insert(historyRows)
       if (historyError) throw new Error(`Не вдалося передати брак у ВКЯ: ${historyError.message}`)
 
       // 2. Update card to buffer of the current stage
