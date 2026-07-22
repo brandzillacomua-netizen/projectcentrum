@@ -34,9 +34,12 @@ export function useCardGeneration({ mes }) {
     const maxCardsForThisSplit = Math.ceil(sheets / capacity)
     const displayTotal = globalTotalCards || maxCardsForThisSplit
 
-    let finalCount = Math.min(count, maxCardsForThisSplit - localGeneratedCount)
+    // Existing cards may have been produced with another machine capacity.
+    // Limit the new batch by the remaining sheets, not by the old card count.
+    let finalCount = Math.max(0, Number(count) || 0)
     if (finalCount <= 0) {
       generatingLockRef.current = false
+      alert('Немає карток для генерації. Оновіть наряд і перевірте залишок листів.')
       return
     }
 
@@ -54,11 +57,6 @@ export function useCardGeneration({ mes }) {
       } catch (err) {
         console.error("Error fetching existing work cards:", err)
       }
-    }
-
-    if (finalCount <= 0) {
-      generatingLockRef.current = false
-      return
     }
 
     const existingNomenclatureCards = (workCards || []).filter(wc =>

@@ -262,11 +262,11 @@ export default function TumblingTerminal() {
     try {
       const now = new Date().toISOString()
       const totalQty = activeCompletingCard.quantity || 0
-      const actualFinished = Math.max(0, finishedCount)
-      const actualScrap = Math.max(0, scrapCount)
+      const actualScrap = Math.min(totalQty, Math.max(0, Number(scrapCount) || 0))
+      const actualFinished = Math.max(0, totalQty - actualScrap)
 
       // 1. Insert history log for tumbling stage
-      await supabase.from('work_card_history').insert([{
+      const { error: historyError } = await supabase.from('work_card_history').insert([{
         card_id: activeCompletingCard.id,
         nomenclature_id: activeCompletingCard.nomenclature_id,
         stage_name: activeCompletingCard.operation,
@@ -281,14 +281,16 @@ export default function TumblingTerminal() {
         manager_name: activeCompletingCard.manager_name || 'Не вказано',
         machine_name: activeCompletingCard.machine || 'Не вказано'
       }])
+      if (historyError) throw new Error(`Не вдалося передати брак у ВКЯ: ${historyError.message}`)
 
       // 2. Update card to buffer of the current stage
-      await supabase.from('work_cards').update({
+      const { error: cardUpdateError } = await supabase.from('work_cards').update({
         status: 'at-buffer',
         operation: activeCompletingCard.operation === 'Галтовка (Сушка)' ? 'Галтовка' : activeCompletingCard.operation,
         quantity: actualFinished,
         completed_at: now
       }).eq('id', activeCompletingCard.id)
+      if (cardUpdateError) throw new Error(`Не вдалося завершити етап: ${cardUpdateError.message}`)
 
       // 3. Register scrap in inventory if any
       if (actualScrap > 0) {
@@ -933,14 +935,25 @@ export default function TumblingTerminal() {
                           <Play size={11} fill="currentColor" /> В РОБОТУ
                         </button>
                       ) : (
-                        <button
-                          onClick={() => openCompleteModal(card)}
-                          disabled={isProcessing}
-                          style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#10b981', padding: '8px 12px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: '0.2s' }}
-                          className="btn-green card-action-btn"
-                        >
-                          <CheckCircle size={11} /> ЗАВЕРШИТИ
-                        </button>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
+                          <button
+                            onClick={() => openCompleteModal(card)}
+                            disabled={isProcessing}
+                            style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', color: '#ef4444', padding: '8px 12px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 950, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', transition: '0.2s' }}
+                            className="card-action-btn"
+                            title="Внести кількість браку та передати запис у ВКЯ"
+                          >
+                            <AlertTriangle size={12} /> ВНЕСТИ БРАК У ВКЯ
+                          </button>
+                          <button
+                            onClick={() => openCompleteModal(card)}
+                            disabled={isProcessing}
+                            style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#10b981', padding: '8px 12px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', transition: '0.2s' }}
+                            className="btn-green card-action-btn"
+                          >
+                            <CheckCircle size={11} /> ЗАВЕРШИТИ
+                          </button>
+                        </div>
                       )}
                     </div>
 
@@ -1026,7 +1039,7 @@ export default function TumblingTerminal() {
       {/* COMPLETE WORK MODAL */}
       {showCompleteModal && activeCompletingCard && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px', backdropFilter: 'blur(8px)' }}>
-          <div style={{ background: '#0e0e11', width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid rgba(16,185,129,0.2)', overflow: 'hidden', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
+          <div style={{ background: '#0e0e11', width: '100%', maxWidth: '420px', maxHeight: 'calc(100vh - 40px)', borderRadius: '28px', border: '1px solid rgba(16,185,129,0.2)', overflowY: 'auto', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
 
             {/* Header */}
             <div style={{ padding: '20px 24px', background: 'rgba(255,255,255,0.01)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
@@ -1082,7 +1095,7 @@ export default function TumblingTerminal() {
 
                 {/* Scrap/brak count input */}
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.65rem', color: '#ef4444', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>Брак (шт)</label>
+                  <label style={{ display: 'block', fontSize: '0.65rem', color: '#ef4444', fontWeight: 900, textTransform: 'uppercase', marginBottom: '6px' }}>Брак на галтовці → у ВКЯ (шт)</label>
                   <input
                     type="number"
                     min="0"

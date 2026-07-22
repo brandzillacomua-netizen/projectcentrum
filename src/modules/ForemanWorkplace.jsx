@@ -957,8 +957,8 @@ const ForemanWorkplace = () => {
                               const snapshotLoadCapacity = Number((task.plan_snapshot || {})[String(nomId)]?.load_capacity || (task.plan_snapshot || {})[String(nomId)]?.custom_capacity) || null
                               const savedLoadCapacity = overrideLoadCapacity || snapshotLoadCapacity
                               const minimumLoadsAtMaxCapacity = maxCapacity > 0 ? Math.ceil((Number(sheets) || 0) / maxCapacity) : 0
-                              const inferredLoadCapacity = productionCards.length >= minimumLoadsAtMaxCapacity && productionCards.length > 0
-                                ? Math.min(maxCapacity, Math.max(defaultCapacity, Math.ceil((Number(sheets) || 0) / productionCards.length)))
+                              const inferredLoadCapacity = activeProductionCards.length >= minimumLoadsAtMaxCapacity && activeProductionCards.length > 0
+                                ? Math.min(maxCapacity, Math.max(defaultCapacity, Math.ceil((Number(sheets) || 0) / activeProductionCards.length)))
                                 : null
                               const hasRowCapacityInput = rowCapacities[rowId] !== undefined && rowCapacities[rowId] !== ''
                               const isCapacityMissing = false
@@ -1063,14 +1063,14 @@ const ForemanWorkplace = () => {
                                               value={rowCapacities[rowId] !== undefined ? rowCapacities[rowId] : (savedLoadCapacity ?? inferredLoadCapacity ?? maxCapacity)}
                                               min={defaultCapacity}
                                               max={maxCapacity}
-                                              readOnly={productionCards.length > 0 && productionCards.length >= totalTargetLoads}
+                                              readOnly={activeProductionCards.length > 0 && activeProductionCards.length >= totalTargetLoads}
                                               onChange={(e) => {
-                                                if (productionCards.length > 0 && productionCards.length >= totalTargetLoads) return
+                                                if (activeProductionCards.length > 0 && activeProductionCards.length >= totalTargetLoads) return
                                                 const v = parseInt(e.target.value)
                                                 setRowCapacities(p => ({ ...p, [rowId]: isNaN(v) ? '' : v }))
                                               }}
                                               onBlur={(e) => {
-                                                if (productionCards.length > 0 && productionCards.length >= totalTargetLoads) return
+                                                if (activeProductionCards.length > 0 && activeProductionCards.length >= totalTargetLoads) return
                                                 let v = parseInt(e.target.value)
                                                 if (isNaN(v)) {
                                                   v = savedLoadCapacity || inferredLoadCapacity || maxCapacity
@@ -1085,14 +1085,14 @@ const ForemanWorkplace = () => {
                                               style={{
                                                 width: '65px',
                                                 background: '#000',
-                                                border: `1px solid ${productionCards.length > 0 && productionCards.length >= totalTargetLoads ? '#222' : '#ff9000'}`,
-                                                color: productionCards.length > 0 && productionCards.length >= totalTargetLoads ? '#444' : '#ff9000',
+                                                border: `1px solid ${activeProductionCards.length > 0 && activeProductionCards.length >= totalTargetLoads ? '#222' : '#ff9000'}`,
+                                                color: activeProductionCards.length > 0 && activeProductionCards.length >= totalTargetLoads ? '#444' : '#ff9000',
                                                 padding: '10px 5px',
                                                 borderRadius: '8px',
                                                 fontSize: '0.9rem',
                                                 fontWeight: 950,
                                                 textAlign: 'center',
-                                                cursor: productionCards.length > 0 && productionCards.length >= totalTargetLoads ? 'default' : 'text',
+                                                cursor: activeProductionCards.length > 0 && activeProductionCards.length >= totalTargetLoads ? 'default' : 'text',
                                                 outline: 'none'
                                               }}
                                             />
@@ -1234,7 +1234,7 @@ const ForemanWorkplace = () => {
                                               ЗАБРОНЬОВАНО: {Math.min(need, stockBZ)} шт
                                             </div>
                                           )}
-                                          {(productionCards.length === 0 || productionCards.length < totalTargetLoads) && (
+                                          {(activeProductionCards.length === 0 || activeProductionCards.length < totalTargetLoads) && (
                                             <button
                                               disabled={!(rowMachineName || isSplitMode) || (() => {
                                                 if (isCapacityMissing) return true
@@ -1300,7 +1300,7 @@ const ForemanWorkplace = () => {
                                                 if (isSplitMode) {
                                                   setGenModal({
                                                     task, part,
-                                                    total: Math.max(1, totalTargetLoads - productionCards.length), targetTotal: totalTargetLoads, requirement: plan, created: productionCards.length, rowId, machineName: rowMachineName || splits[0]?.machine, sheets, splits: splits
+                                                    total: Math.max(1, totalTargetLoads - activeProductionCards.length), targetTotal: totalTargetLoads, requirement: plan, created: activeProductionCards.length, rowId, machineName: rowMachineName || splits[0]?.machine, sheets, splits: splits
                                                   })
                                                 } else {
                                                   if (!rowMachineName) return;
@@ -1330,9 +1330,9 @@ const ForemanWorkplace = () => {
                                                   const hasKittingReqs = sheetReqs.length > 0
 
                                                   const maxAllowed = hasKittingReqs ? Math.floor(issued / machineCapacity) : totalTargetLoads
-                                                  const initialTotal = Math.min(Math.max(1, totalTargetLoads - productionCards.length), maxAllowed)
+                                                  const initialTotal = Math.min(Math.max(1, totalTargetLoads - activeProductionCards.length), maxAllowed)
 
-                                                  setGenModal({ task, part, total: initialTotal, targetTotal: totalTargetLoads, requirement: plan, created: productionCards.length, rowId, machineName: rowMachineName, sheets, capacity: machineCapacity })
+                                                  setGenModal({ task, part, total: initialTotal, targetTotal: totalTargetLoads, requirement: plan, created: activeProductionCards.length, rowId, machineName: rowMachineName, sheets, capacity: machineCapacity, maxSheetsToGenerate: remainingSheetsCalc })
                                                 }
                                               }}
                                               style={{
@@ -2247,7 +2247,7 @@ const ForemanWorkplace = () => {
                   onClick={() => {
                     const v = parseInt(document.getElementById('gen_count_input').value)
                     if (v > 0) {
-                      handleGenerateFromWorksheet(genModal.task, genModal.part, genModal.sheets, genModal.machineName, v, genModal.created, genModal.requirement, genModal.isRepair, null, 0, genModal.capacity)
+                      handleGenerateFromWorksheet(genModal.task, genModal.part, genModal.sheets, genModal.machineName, v, genModal.created, genModal.requirement, genModal.isRepair, genModal.targetTotal, 0, genModal.capacity, genModal.maxSheetsToGenerate)
                       setGenModal(null)
                     }
                   }}
