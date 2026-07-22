@@ -171,7 +171,7 @@ export default function ReceptionTerminal() {
       const bufferStart = card.completed_at || card.started_at || now
 
       // Запис в historical log про буфер Галтовки або Розкрою
-      await supabase.from('work_card_history').insert([{
+      const { error: historyError } = await supabase.from('work_card_history').insert([{
         card_id: card.id,
         nomenclature_id: card.nomenclature_id,
         stage_name: card.operation?.startsWith('Галтовка') ? 'Буфер Галтовки' : 'Буфер Розкрій',
@@ -185,14 +185,16 @@ export default function ReceptionTerminal() {
         manager_name: card.manager_name || 'Не вказано',
         machine_name: card.machine || 'Не вказано'
       }])
+      if (historyError) throw new Error(`Не вдалося записати буфер прийомки: ${historyError.message}`)
 
-      await supabase.from('work_cards').update({
+      const { error: startCardError } = await supabase.from('work_cards').update({
         status: 'in-progress',
         operation: 'Прийомка',
         started_at: now,
         operator_name: selectedOperator || card.operator_name || 'Команда',
         shift_name: selectedShift
       }).eq('id', card.id)
+      if (startCardError) throw new Error(`Не вдалося запустити прийомку: ${startCardError.message}`)
 
       setScanError(null)
       setManualId('')
@@ -221,7 +223,7 @@ export default function ReceptionTerminal() {
       const actualScrap = Math.max(0, scrapCount)
 
       // Записуємо Прийомку в history
-      await supabase.from('work_card_history').insert([{
+      const { error: historyError } = await supabase.from('work_card_history').insert([{
         card_id: activeCompletingCard.id,
         nomenclature_id: activeCompletingCard.nomenclature_id,
         stage_name: 'Прийомка',
@@ -231,19 +233,21 @@ export default function ReceptionTerminal() {
         scrap_qty: actualScrap,
         started_at: activeCompletingCard.started_at || now,
         completed_at: now,
-        is_archived_scrap: true,
+        is_archived_scrap: actualScrap > 0,
         shift_name: activeCompletingCard.shift_name || selectedShift || 'Не вказано',
         manager_name: activeCompletingCard.manager_name || 'Не вказано',
         machine_name: activeCompletingCard.machine || 'Не вказано'
       }])
+      if (historyError) throw new Error(`Не вдалося передати брак у ВКЯ: ${historyError.message}`)
 
       // Переводимо в буфер Сортування
-      await supabase.from('work_cards').update({
+      const { error: cardUpdateError } = await supabase.from('work_cards').update({
         status: 'at-buffer',
         operation: 'Сортування',
         quantity: actualFinished,
         completed_at: now
       }).eq('id', activeCompletingCard.id)
+      if (cardUpdateError) throw new Error(`Не вдалося завершити прийомку: ${cardUpdateError.message}`)
 
       // Брак в інвентар якщо є
       if (actualScrap > 0) {
@@ -265,25 +269,29 @@ export default function ReceptionTerminal() {
   const updateInventoryStock = async (nomId, qty, type = 'scrap_ready') => {
     if (!nomId || qty <= 0) return
     try {
-      const { data: existing } = await supabase.from('inventory')
+      const { data: existing, error: lookupError } = await supabase.from('inventory')
         .select('*').eq('nomenclature_id', nomId).eq('type', type).limit(1).maybeSingle()
+      if (lookupError) throw lookupError
       if (existing) {
-        await supabase.from('inventory').update({
+        const { error } = await supabase.from('inventory').update({
           total_qty: (Number(existing.total_qty) || 0) + Number(qty),
           updated_at: new Date().toISOString()
         }).eq('id', existing.id)
+        if (error) throw error
       } else {
         const nom = nomenclatures.find(n => n.id === nomId)
-        await supabase.from('inventory').insert([{
+        const { error } = await supabase.from('inventory').insert([{
           name: nom?.name || 'Деталь',
           unit: nom?.unit || 'шт',
           total_qty: Number(qty),
           type: type,
           nomenclature_id: nomId
         }])
+        if (error) throw error
       }
     } catch (e) {
       console.warn('Scrap inventory update failed:', e)
+      throw e
     }
   }
 

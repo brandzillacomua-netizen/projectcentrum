@@ -185,7 +185,7 @@ export default function PressingTerminal() {
       const now = new Date().toISOString()
       const bufferStart = card.completed_at || card.started_at || now
 
-      await supabase.from('work_card_history').insert([{
+      const { error: historyError } = await supabase.from('work_card_history').insert([{
         card_id: card.id,
         nomenclature_id: card.nomenclature_id,
         stage_name: card.operation === 'Сортування' ? 'Буфер Пресування (після Сортування)' : 'Буфер Пресування',
@@ -199,14 +199,16 @@ export default function PressingTerminal() {
         manager_name: card.manager_name || 'Не вказано',
         machine_name: card.machine || 'Не вказано'
       }])
+      if (historyError) throw new Error(`Не вдалося записати буфер пресування: ${historyError.message}`)
 
-      await supabase.from('work_cards').update({
+      const { error: cardUpdateError } = await supabase.from('work_cards').update({
         status: 'in-progress',
         operation: 'Пресування',
         started_at: now,
         operator_name: selectedOperator || card.operator_name || 'Команда',
         shift_name: selectedShift
       }).eq('id', card.id)
+      if (cardUpdateError) throw new Error(`Не вдалося запустити пресування: ${cardUpdateError.message}`)
 
       setScanError(null)
       setManualId('')
@@ -235,8 +237,28 @@ export default function PressingTerminal() {
       const actualScrap = Math.max(0, scrapCount)
       const op = selectedOperator || activeCompletingCard.operator_name || 'Команда'
       const activeShift = selectedShift || activeCompletingCard.shift_name || 'Без зміни'
+      const isVkyaRestoration = String(activeCompletingCard.card_info || '').includes('[VKYA_RESTORATION]')
 
-      await supabase.from('work_card_history').insert([{
+      if (isVkyaRestoration) {
+        const { error: completionError } = await supabase.rpc('complete_vkya_shop2_card_to_bz', {
+          p_card_id: activeCompletingCard.id,
+          p_stage: 'Пресування',
+          p_operator_name: op,
+          p_shift_name: activeShift,
+          p_finished_quantity: actualFinished,
+          p_scrap_quantity: actualScrap
+        })
+        if (completionError) throw completionError
+        setShowCompleteModal(false)
+        setActiveCompletingCard(null)
+        setManualId('')
+        setScanError(null)
+        await fetchData(['work_cards', 'work_card_history', 'inventory'])
+        alert(`✅ ${actualFinished} шт передано в базовий залишок.${actualScrap > 0 ? ` ${actualScrap} шт передано у ВКЯ.` : ''}`)
+        return
+      }
+
+      const { error: historyError } = await supabase.from('work_card_history').insert([{
         card_id: activeCompletingCard.id,
         nomenclature_id: activeCompletingCard.nomenclature_id,
         stage_name: 'Пресування',
@@ -251,13 +273,15 @@ export default function PressingTerminal() {
         manager_name: activeCompletingCard.manager_name,
         machine_name: activeCompletingCard.machine
       }])
+      if (historyError) throw new Error(`Не вдалося передати брак у ВКЯ: ${historyError.message}`)
 
-      await supabase.from('work_cards').update({
+      const { error: cardUpdateError } = await supabase.from('work_cards').update({
         status: 'at-buffer',
         operation: 'Пресування',
         quantity: actualFinished,
         completed_at: now
       }).eq('id', activeCompletingCard.id)
+      if (cardUpdateError) throw new Error(`Не вдалося завершити пресування: ${cardUpdateError.message}`)
 
       if (actualScrap > 0) {
         await updateInventoryStock(activeCompletingCard.nomenclature_id, actualScrap, 'scrap_ready')
@@ -279,25 +303,29 @@ export default function PressingTerminal() {
   const updateInventoryStock = async (nomId, qty, type = 'scrap_ready') => {
     if (!nomId || qty <= 0) return
     try {
-      const { data: existing } = await supabase.from('inventory')
+      const { data: existing, error: lookupError } = await supabase.from('inventory')
         .select('*').eq('nomenclature_id', nomId).eq('type', type).limit(1).maybeSingle()
+      if (lookupError) throw lookupError
       if (existing) {
-        await supabase.from('inventory').update({
+        const { error } = await supabase.from('inventory').update({
           total_qty: (Number(existing.total_qty) || 0) + Number(qty),
           updated_at: new Date().toISOString()
         }).eq('id', existing.id)
+        if (error) throw error
       } else {
         const nom = nomenclatures.find(n => n.id === nomId)
-        await supabase.from('inventory').insert([{
+        const { error } = await supabase.from('inventory').insert([{
           name: nom?.name || 'Деталь',
           unit: nom?.unit || 'шт',
           total_qty: Number(qty),
           type: type,
           nomenclature_id: nomId
         }])
+        if (error) throw error
       }
     } catch (e) {
       console.warn('Scrap inventory update failed:', e)
+      throw e
     }
   }
 

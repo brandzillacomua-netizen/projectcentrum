@@ -366,29 +366,33 @@ export default function TumblingTerminal() {
   const updateInventoryStock = async (nomId, qty, type = 'scrap_ready') => {
     if (!nomId || qty <= 0) return
     try {
-      const { data: existing } = await supabase.from('inventory')
+      const { data: existing, error: lookupError } = await supabase.from('inventory')
         .select('*')
         .eq('nomenclature_id', nomId)
         .eq('type', type)
         .limit(1).maybeSingle()
+      if (lookupError) throw lookupError
 
       if (existing) {
-        await supabase.from('inventory').update({
+        const { error } = await supabase.from('inventory').update({
           total_qty: (Number(existing.total_qty) || 0) + Number(qty),
           updated_at: new Date().toISOString()
         }).eq('id', existing.id)
+        if (error) throw error
       } else {
         const nom = nomenclatures.find(n => n.id === nomId)
-        await supabase.from('inventory').insert([{
+        const { error } = await supabase.from('inventory').insert([{
           name: nom?.name || 'Деталь',
           unit: nom?.unit || 'шт',
           total_qty: Number(qty),
           type: type,
           nomenclature_id: nomId
         }])
+        if (error) throw error
       }
     } catch (e) {
       console.warn('Scrap inventory update failed:', e)
+      throw e
     }
   }
 

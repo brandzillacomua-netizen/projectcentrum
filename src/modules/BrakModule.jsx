@@ -605,7 +605,6 @@ export default function BrakModule() {
       const [historyResult, restorationReturnsResult] = await Promise.all([
         supabase.from('work_card_history').select('*').gt('scrap_qty', 0)
           .or('is_archived_scrap.eq.true,card_info.ilike.%[ЦЕХ №2]%')
-          .or('qc_scrap_comment.is.null,qc_scrap_comment.not.ilike.%[scrap_cat:%')
           .order('created_at', { ascending: false }),
         supabase.from('vkya_reclassification_queue').select('*').eq('status', 'pending').order('created_at', { ascending: false })
       ])

@@ -1050,8 +1050,8 @@ export function createProductionActions({
         operator_name: card.operator_name || 'Не вказано', card_info: historyCardInfo,
         qty_at_start: card.quantity, qty_completed: qtyCompleted, scrap_qty: totalScrap,
         cutters_used: Number(cuttersUsed) || 0, started_at: card.started_at, completed_at: new Date().toISOString(),
-        // Брак із Цеху №2 одразу має потрапляти в чергу класифікації ВКЯ.
-        is_archived_scrap: isShop2 && totalScrap > 0,
+        // Брак з будь-якого виробничого етапу одразу потрапляє в чергу ВКЯ.
+        is_archived_scrap: totalScrap > 0,
         shift_name: card.shift_name || null,
         manager_name: card.manager_name || null,
         machine_name: card.machine || null
