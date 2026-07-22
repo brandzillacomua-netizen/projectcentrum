@@ -626,6 +626,58 @@ export default function Shop1Terminal() {
 
   // ── Хелпери ──────────────────────────────────────────────────────────────
   const currentCard = workCards.find(c => c.id === selectedCardId)
+  const qcScrapEntries = React.useMemo(() => (selectedCardHistory || [])
+    .filter(row => row.stage_name === 'Контроль ВКЯ' && Number(row.scrap_qty) > 0)
+    .sort((a, b) => new Date(b.completed_at || b.created_at || 0) - new Date(a.completed_at || a.created_at || 0)), [selectedCardHistory])
+  const qcScrapTotal = qcScrapEntries.reduce((sum, row) => sum + (Number(row.scrap_qty) || 0), 0)
+
+  const verifyCardBeforeMasterScrap = async () => {
+    if (!currentCard) return false
+    try {
+      const [cardResult, qcResult] = await Promise.all([
+        supabase.from('work_cards').select('id,quantity,status').eq('id', currentCard.id).maybeSingle(),
+        supabase.from('work_card_history').select('*')
+          .eq('card_id', currentCard.id)
+          .eq('stage_name', 'Контроль ВКЯ')
+          .gt('scrap_qty', 0)
+          .order('created_at', { ascending: true })
+      ])
+      if (cardResult.error) throw cardResult.error
+      if (qcResult.error) throw qcResult.error
+      if (!cardResult.data) throw new Error('Картку не знайдено в базі')
+
+      const knownQcIds = new Set(qcScrapEntries.map(row => String(row.id)))
+      const freshQcRows = qcResult.data || []
+      const hasNewQcScrap = freshQcRows.some(row => !knownQcIds.has(String(row.id)))
+      const quantityChanged = Number(cardResult.data.quantity) !== Number(currentCard.quantity)
+
+      setSelectedCardHistory(previous => {
+        const byId = new Map(previous.map(row => [String(row.id), row]))
+        freshQcRows.forEach(row => byId.set(String(row.id), { ...byId.get(String(row.id)), ...row }))
+        return Array.from(byId.values()).sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0))
+      })
+
+      if (quantityChanged) {
+        setWorkCards(previous => previous.map(card => String(card.id) === String(currentCard.id)
+          ? { ...card, quantity: cardResult.data.quantity, status: cardResult.data.status }
+          : card))
+      }
+
+      if (hasNewQcScrap || quantityChanged) {
+        setScrapCount(0)
+        const addedByQc = freshQcRows
+          .filter(row => !knownQcIds.has(String(row.id)))
+          .reduce((sum, row) => sum + (Number(row.scrap_qty) || 0), 0)
+        alert(`ВКЯ вже внесло${addedByQc > 0 ? ` ${addedByQc} шт` : ''} браку по цій картці. Дані оновлено, введення майстра скинуто — перевірте актуальну кількість.`)
+        return false
+      }
+      return true
+    } catch (error) {
+      console.error('Failed to verify QC scrap before master action:', error)
+      alert('Не вдалося перевірити актуальний брак ВКЯ. Збереження зупинено, щоб не створити дубль. Повторіть спробу.')
+      return false
+    }
+  }
   const cardOperators = React.useMemo(() => {
     if (!currentCard) return []
     const ops = new Set()
@@ -1639,6 +1691,7 @@ export default function Shop1Terminal() {
     if (!currentCard) return
     setIsProcessing(true)
     try {
+      if (!await verifyCardBeforeMasterScrap()) return
       const qtyDone = Math.max(0, (currentCard.quantity || 0) - scrapCount)
       const op = finalOperator || currentCard.operator_name || 'Не вказано'
       const activeShift = selectedShift || currentCard.shift_name || 'Без зміни'
@@ -2016,6 +2069,7 @@ export default function Shop1Terminal() {
     if (!currentCard) return
     setIsProcessing(true)
     try {
+      if (!await verifyCardBeforeMasterScrap()) return
       const goodQty = Math.max(0, (currentCard.quantity || 0) - scrapCount - reworkCount)
       const op = selectedOperator || currentCard.operator_name || 'Сортування'
       const activeShift = selectedShift || currentCard.shift_name || 'Без зміни'
@@ -2685,6 +2739,18 @@ export default function Shop1Terminal() {
             </button>
           </div>
         </div>
+
+        {qcScrapTotal > 0 && (
+          <div style={{ background: '#ef444415', border: '1px solid #ef444455', borderRadius: '16px', padding: '14px 16px', marginBottom: '18px' }}>
+            <div style={{ color: '#ef4444', fontSize: '0.78rem', fontWeight: 1000 }}>🛡️ ВКЯ ВЖЕ ВНЕСЛО БРАК: {qcScrapTotal} ШТ</div>
+            {qcScrapEntries.slice(0, 3).map(row => (
+              <div key={row.id} style={{ color: '#fca5a5', fontSize: '0.68rem', fontWeight: 800, marginTop: '6px' }}>
+                {row.completed_at ? new Date(row.completed_at).toLocaleString('uk-UA') : 'Дата не вказана'} · {row.qc_scrap_reason || row.qc_scrap_comment || 'Причина не вказана'} · {Number(row.scrap_qty) || 0} шт · Відповідальний: {row.operator_name || 'не вказаний'}
+              </div>
+            ))}
+            <div style={{ color: '#888', fontSize: '0.64rem', marginTop: '8px' }}>Поточна кількість картки вже зменшена на цей брак. Повторно його не вносьте.</div>
+          </div>
+        )}
 
         <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '24px', border: '1px solid #1a1a1a', padding: '25px 20px' }}>
 
@@ -4405,6 +4471,13 @@ export default function Shop1Terminal() {
             </div>
             <div style={{ padding: '24px 22px', display: 'flex', flexDirection: 'column', gap: '18px', overflowY: 'auto', flex: 1 }}>
               <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900 }}>{getNom(currentCard)?.name}</h3>
+
+              {qcScrapTotal > 0 && (
+                <div style={{ background: '#ef444418', border: '1px solid #ef444455', borderRadius: '14px', padding: '14px 16px' }}>
+                  <div style={{ color: '#ef4444', fontSize: '0.76rem', fontWeight: 1000 }}>ВКЯ ВЖЕ СПИСАЛО: {qcScrapTotal} ШТ</div>
+                  <div style={{ color: '#aaa', fontSize: '0.66rem', marginTop: '6px' }}>Ця кількість уже віднята від картки й не повинна вноситися майстром повторно.</div>
+                </div>
+              )}
 
               {/* Зміна */}
               <div>

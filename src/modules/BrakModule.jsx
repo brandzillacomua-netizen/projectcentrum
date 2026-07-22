@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { ArrowLeft, AlertTriangle, CheckCircle2, Package, Layers, ChevronRight, Info, Camera, X, Scan, BarChart2, Filter, Search, Calendar, Trash2 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { ArrowLeft, AlertTriangle, CheckCircle2, Package, Layers, ChevronRight, Info, Camera, X, Scan, BarChart2, Filter, Search, Calendar, Wrench, Settings } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { supabase } from '../supabase'
 import { useScrapReasons } from '../hooks/useScrapReasons'
+import { useRestorationStages } from '../hooks/useRestorationStages'
 
 const normalizeScrapReasonName = (reason) => {
   const name = reason || 'Причина не вказана'
@@ -18,17 +19,19 @@ const isScrapReadyForQc = (historyRow) => Boolean(
 )
 
 export default function BrakModule() {
+  const navigate = useNavigate()
   const { inventory, nomenclatures, fetchData, currentUser, disposeScrapItem, createReworkNaryad, productionStages, workCards, orders, machineCalls, machines, supabase, workCardHistory, systemUsers } = useMES()
   const [isProcessing, setIsProcessing] = useState(false)
   const [selectedItem, setSelectedItem] = useState(null)
   const [distribution, setDistribution] = useState({ 1: 0, 2: 0, 3: 0, 4: 0 })
   const [reasonAllocations, setReasonAllocations] = useState([{ reason: '', qty: 0 }])
   const [viewingCategory, setViewingCategory] = useState(null)
-  const { rows: scrapReasonRows, names: scrapReasons, reload: reloadScrapReasons } = useScrapReasons({ includeInactive: true })
-  const [newScrapReason, setNewScrapReason] = useState('')
-  const [showReasonCatalog, setShowReasonCatalog] = useState(false)
-  const [editingScrapReasonId, setEditingScrapReasonId] = useState(null)
-  const [editingScrapReasonName, setEditingScrapReasonName] = useState('')
+  const [restorationDraft, setRestorationDraft] = useState(null)
+  const [restorationQuantity, setRestorationQuantity] = useState('')
+  const [restorationStageId, setRestorationStageId] = useState('')
+  const showReasonCatalog = false
+  const { rows: scrapReasonRows, names: scrapReasons } = useScrapReasons()
+  const { rows: restorationStages } = useRestorationStages()
 
   const [isScanning, setIsScanning] = useState(false)
   const [scanError, setScanError] = useState(null)
@@ -37,6 +40,8 @@ export default function BrakModule() {
   const [qcScrapCount, setQcScrapCount] = useState(0)
   const [qcReason, setQcReason] = useState('Биття цанги')
   const [qcCustomReason, setQcCustomReason] = useState('')
+  const [qcCardOperators, setQcCardOperators] = useState([])
+  const [qcResponsibleOperator, setQcResponsibleOperator] = useState('')
 
   // QC Reports Modal States
   const [showReportPage, setShowReportPage] = useState(false)
@@ -371,61 +376,6 @@ export default function BrakModule() {
       .sort((a, b) => b.quantity - a.quantity);
   }, [reportWorkCardHistory, reportScrapReasonsDb, reportClassifiedHistoryIds, nomenclatures, reportStartDate, reportEndDate, reportSelectedShiftFilter, reportSelectedEmployeeFilter]);
 
-  const handleAddScrapReason = async () => {
-    const name = newScrapReason.trim()
-    if (!name) return
-    const maxSort = scrapReasonRows
-      .filter(row => row.name !== 'Інше (коментар)')
-      .reduce((max, row) => Math.max(max, Number(row.sort_order) || 0), 0)
-    const { error } = await supabase.from('scrap_reasons').insert({ name, sort_order: maxSort + 10 })
-    if (error) return alert('Не вдалося додати причину: ' + error.message)
-    setNewScrapReason('')
-    await reloadScrapReasons()
-  }
-
-  const handleToggleScrapReason = async row => {
-    const { error } = await supabase.from('scrap_reasons')
-      .update({ is_active: !row.is_active, updated_at: new Date().toISOString() }).eq('id', row.id)
-    if (error) return alert('Не вдалося змінити причину: ' + error.message)
-    await reloadScrapReasons()
-  }
-
-  const handleUpdateScrapReason = async row => {
-    const name = editingScrapReasonName.trim()
-    if (!name) return
-    const { error } = await supabase.from('scrap_reasons')
-      .update({ name, updated_at: new Date().toISOString() }).eq('id', row.id)
-    if (error) return alert('Не вдалося перейменувати причину: ' + error.message)
-    setEditingScrapReasonId(null)
-    setEditingScrapReasonName('')
-    await reloadScrapReasons()
-  }
-
-  const handleDeleteScrapReason = async row => {
-    if (!window.confirm(`Ви впевнені, що хочете остаточно видалити причину "${row.name}"?`)) return
-    const archiveReason = async () => {
-      const { error: archiveError } = await supabase.from('scrap_reasons')
-        .update({ is_active: false, updated_at: new Date().toISOString() })
-        .eq('id', row.id)
-      if (archiveError) {
-        alert('Не вдалося видалити причину: ' + archiveError.message)
-        return false
-      }
-      alert('Причину вимкнено, бо вона вже використовується в історії браку.')
-      return true
-    }
-
-    const { data: deletedRows, error } = await supabase.from('scrap_reasons').delete().eq('id', row.id).select('id')
-    if (error) {
-      const canArchiveInstead = ['23503', '42501'].includes(error.code)
-      if (!canArchiveInstead) return alert('Не вдалося видалити причину: ' + error.message)
-      await archiveReason()
-    } else if (!deletedRows?.length) {
-      await archiveReason()
-    }
-    await reloadScrapReasons()
-  }
-
   const activeCalls = (machineCalls || []).filter(c => 
     c.status === 'pending' && 
     (c.called_role === 'quality' || c.called_role === 'qc') && 
@@ -497,7 +447,25 @@ export default function BrakModule() {
           if (!foundCard) {
             setScanError(`Картку №${cardIdStr} не знайдено в базі.`)
           } else {
+            const { data: operatorHistory, error: operatorHistoryError } = await supabase
+              .from('work_card_history')
+              .select('operator_name,stage_name')
+              .eq('card_id', foundCard.id)
+              .order('created_at', { ascending: true })
+            if (operatorHistoryError) throw operatorHistoryError
+
+            const operators = [...new Set([
+              foundCard.operator_name,
+              ...(operatorHistory || [])
+                .filter(row => row.stage_name !== 'Контроль ВКЯ')
+                .map(row => row.operator_name)
+            ]
+              .map(name => String(name || '').trim())
+              .filter(name => name && !name.toLowerCase().startsWith('вкя') && name !== 'Не вказано'))]
+
             setScannedCard(foundCard)
+            setQcCardOperators(operators)
+            setQcResponsibleOperator(operators.length === 1 ? operators[0] : '')
             setQcScrapCount(0)
             setScanError(null)
           }
@@ -518,51 +486,74 @@ export default function BrakModule() {
   const updateInventoryStock = async (nomId, qty, type = 'scrap_ready') => {
     if (!nomId || qty <= 0) return
     try {
-      const { data: existing } = await supabase.from('inventory')
+      const { data: existing, error: lookupError } = await supabase.from('inventory')
         .select('*')
         .eq('nomenclature_id', nomId)
         .eq('type', type)
         .limit(1).maybeSingle()
+      if (lookupError) throw lookupError
 
       if (existing) {
-        await supabase.from('inventory').update({
+        const { error } = await supabase.from('inventory').update({
           total_qty: (Number(existing.total_qty) || 0) + Number(qty),
           updated_at: new Date().toISOString()
         }).eq('id', existing.id)
+        if (error) throw error
       } else {
         const nom = (nomenclatures || []).find(n => n.id === nomId)
-        await supabase.from('inventory').insert([{
+        const { error } = await supabase.from('inventory').insert([{
           name: nom?.name || 'Деталь',
           unit: nom?.unit || 'шт',
           total_qty: Number(qty),
           type: type,
           nomenclature_id: nomId
         }])
+        if (error) throw error
       }
-    } catch (e) { console.warn(`Stock update failed for type ${type}:`, e) }
+    } catch (e) {
+      console.warn(`Stock update failed for type ${type}:`, e)
+      throw e
+    }
   }
 
   // Обробник списання додаткового браку ВКЯ
   const handleQCScrapOverride = async () => {
     if (!scannedCard || qcScrapCount <= 0) return
+    if (!qcResponsibleOperator) {
+      alert(qcCardOperators.length > 1
+        ? 'Оберіть оператора, якому потрібно присвоїти цей брак.'
+        : 'У картці не знайдено виробничого оператора. Спочатку вкажіть відповідального оператора.')
+      return
+    }
     if (qcScrapCount > scannedCard.quantity) {
       alert('Кількість браку не може перевищувати поточну кількість деталей у картці!')
       return
     }
     setIsProcessing(true)
     try {
-      const reasonText = qcReason === 'Інше (коментар)'
-        ? `Інше (${qcCustomReason || 'без коментаря'})`
-        : qcReason
-      const op = `ВКЯ (${qcInspector || 'відповідальний'}) — Причина: ${reasonText}`
+      const { data: freshCard, error: freshCardError } = await supabase
+        .from('work_cards')
+        .select('*')
+        .eq('id', scannedCard.id)
+        .maybeSingle()
+      if (freshCardError) throw freshCardError
+      if (!freshCard) throw new Error('Картку не знайдено в базі')
+      if (Number(freshCard.quantity) !== Number(scannedCard.quantity)) {
+        setScannedCard(freshCard)
+        setQcScrapCount(0)
+        alert('Кількість у картці вже змінилася. Дані оновлено, введення браку скинуто — перевірте картку та введіть актуальну кількість.')
+        return
+      }
+
+      const inspectorName = qcInspector || 'відповідальний ВКЯ'
       const newQty = Math.max(0, scannedCard.quantity - qcScrapCount)
 
       // 1. Запис у work_card_history
-      await supabase.from('work_card_history').insert([{
+      const { error: historyError } = await supabase.from('work_card_history').insert([{
         card_id: scannedCard.id,
         nomenclature_id: scannedCard.nomenclature_id,
         stage_name: 'Контроль ВКЯ',
-        operator_name: op,
+        operator_name: qcResponsibleOperator,
         qty_at_start: scannedCard.quantity,
         qty_completed: newQty,
         scrap_qty: qcScrapCount,
@@ -573,15 +564,18 @@ export default function BrakModule() {
         manager_name: scannedCard.manager_name,
         machine_name: scannedCard.machine,
         qc_scrap_reason: qcReason,
-        qc_scrap_comment: qcReason === 'Інше (коментар)' ? qcCustomReason : null
+        qc_scrap_comment: qcReason === 'Інше (коментар)' ? qcCustomReason : null,
+        card_info: `${scannedCard.card_info || ''} [QC_INSPECTOR:${inspectorName}]`.trim()
       }])
+      if (historyError) throw historyError
 
       // 2. Оновлюємо кількість картки
       const updatePayload = { quantity: newQty }
       if (newQty === 0) {
         updatePayload.status = 'completed'
       }
-      await supabase.from('work_cards').update(updatePayload).eq('id', scannedCard.id)
+      const { error: cardUpdateError } = await supabase.from('work_cards').update(updatePayload).eq('id', scannedCard.id)
+      if (cardUpdateError) throw cardUpdateError
 
       // 3. Записуємо виявлений брак на склад
       await updateInventoryStock(scannedCard.nomenclature_id, qcScrapCount, 'scrap_ready')
@@ -592,6 +586,8 @@ export default function BrakModule() {
       setQcInspector('')
       setQcReason('Биття цанги')
       setQcCustomReason('')
+      setQcCardOperators([])
+      setQcResponsibleOperator('')
       await fetchData(['work_cards', 'work_card_history', 'inventory', 'tasks'])
       alert(`✅ Успішно списано ${recordedScrap} шт у брак за рішенням відділу ВКЯ!`)
     } catch (e) {
@@ -606,14 +602,35 @@ export default function BrakModule() {
 
   const loadScrapHistory = async () => {
     try {
-      const { data, error } = await supabase
-        .from('work_card_history')
-        .select('*')
-        .gt('scrap_qty', 0)
-        .or('is_archived_scrap.eq.true,card_info.ilike.%[ЦЕХ №2]%')
-        .or('qc_scrap_comment.is.null,qc_scrap_comment.not.ilike.%[scrap_cat:%')
-        .order('created_at', { ascending: false })
-      if (!error && data) {
+      const [historyResult, restorationReturnsResult] = await Promise.all([
+        supabase.from('work_card_history').select('*').gt('scrap_qty', 0)
+          .or('is_archived_scrap.eq.true,card_info.ilike.%[ЦЕХ №2]%')
+          .or('qc_scrap_comment.is.null,qc_scrap_comment.not.ilike.%[scrap_cat:%')
+          .order('created_at', { ascending: false }),
+        supabase.from('vkya_reclassification_queue').select('*').eq('status', 'pending').order('created_at', { ascending: false })
+      ])
+      if (restorationReturnsResult.error && restorationReturnsResult.error.code !== '42P01') {
+        console.warn('Failed to load VKYA restoration returns:', restorationReturnsResult.error.message)
+      }
+      const restorationReturns = (restorationReturnsResult.data || []).map(row => ({
+        id: row.id,
+        card_id: null,
+        nomenclature_id: row.nomenclature_id,
+        operator_name: 'Термінал відновлення ВКЯ',
+        stage_name: row.source_stage,
+        scrap_qty: row.quantity,
+        qc_scrap_comment: row.classified_quantity > 0
+          ? `[SCRAP_CAT:${JSON.stringify({ classified: row.classified_quantity })}]`
+          : null,
+        is_archived_scrap: true,
+        is_vkya_return: true,
+        restoration_return_row: row,
+        created_at: row.created_at,
+        completed_at: row.created_at
+      }))
+      const data = [...(historyResult.data || []), ...restorationReturns]
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      if (!historyResult.error) {
         // Filter first to only include items that actually have remaining unclassified scrap
         const activeScrap = data.filter(h => {
           let sum = 0;
@@ -790,10 +807,11 @@ export default function BrakModule() {
           : sourceTask?.plan_snapshot?._prep_num || '—'
       return {
         id: h.id, // we use history id as item id
-        is_history_row: true,
+        is_history_row: !h.is_vkya_return,
+        is_vkya_return: Boolean(h.is_vkya_return),
         history_row: h,
         nomenclature_id: h.nomenclature_id,
-        name: nom?.name || 'Деталь',
+        name: h.restoration_return_row?.nomenclature_name || nom?.name || 'Деталь',
         unit: nom?.unit || 'шт',
         total_qty: remaining, // Show remaining as total_qty for UI compatibility
         operator: h.operator_name,
@@ -922,7 +940,7 @@ export default function BrakModule() {
         }
 
         const { error: rpcErr } = await supabase.rpc('record_scrap_classification', {
-          p_source_history_id: selectedItem.id,
+          p_source_history_id: selectedItem.is_vkya_return ? null : selectedItem.id,
           p_card_id: selectedItem.card_id || null,
           p_task_id: sourceCard?.task_id || null,
           p_order_id: sourceOrderId || null,
@@ -941,10 +959,11 @@ export default function BrakModule() {
         })
 
         if (rpcErr) {
-          console.error('RPC record_scrap_classification error:', rpcErr.message)
+          throw rpcErr
         }
       } catch (rpcEx) {
         console.error('Failed to execute scrap classification RPC:', rpcEx)
+        throw rpcEx
       }
       
       // We need to update the work_card_history with the new JSON distribution
@@ -984,6 +1003,15 @@ export default function BrakModule() {
         const newComment = [baseComment, jsonStr, reasonsJson].filter(Boolean).join(' ');
         
         await supabase.from('work_card_history').update({ qc_scrap_comment: newComment }).eq('id', selectedItem.id);
+      } else if (selectedItem.is_vkya_return) {
+        const returnRow = selectedItem.history_row.restoration_return_row
+        const classifiedQuantity = Number(returnRow.classified_quantity || 0) + totalDistributed
+        const { error: returnUpdateError } = await supabase.from('vkya_reclassification_queue').update({
+          classified_quantity: classifiedQuantity,
+          status: classifiedQuantity >= Number(returnRow.quantity) ? 'classified' : 'pending',
+          updated_at: new Date().toISOString()
+        }).eq('id', returnRow.id)
+        if (returnUpdateError) throw returnUpdateError
       }
       
       if (absoluteRemaining > 0) {
@@ -1014,36 +1042,31 @@ export default function BrakModule() {
     alert(`Створено незалежний наряд на ${stage} для ${item.total_qty} шт.`)
   }
 
-  const handleSendToRestoration = async (item) => {
+  const openRestorationModal = (item) => {
+    setRestorationDraft(item)
+    setRestorationQuantity('')
+    setRestorationStageId('')
+  }
+
+  const handleSendToRestoration = async () => {
+    const item = restorationDraft
+    const quantity = Number(restorationQuantity)
+    if (!item || !Number.isInteger(quantity) || quantity <= 0 || quantity > Number(item.total_qty) || !restorationStageId) return
     setIsProcessing(true)
     try {
-      // Переносимо зі scrap_cat_X у scrap_restoration
-      const { data: existing } = await supabase.from('inventory')
-        .select('*')
-        .eq('nomenclature_id', item.nomenclature_id)
-        .eq('type', 'scrap_restoration')
-        .limit(1).maybeSingle()
-
-      if (existing) {
-        await supabase.from('inventory').update({
-          total_qty: (Number(existing.total_qty) || 0) + Number(item.total_qty),
-          updated_at: new Date().toISOString()
-        }).eq('id', existing.id)
-      } else {
-        const nom = (nomenclatures || []).find(n => n.id === item.nomenclature_id)
-        await supabase.from('inventory').insert([{
-          nomenclature_id: item.nomenclature_id,
-          name: nom?.name || item.name,
-          unit: item.unit || 'шт',
-          total_qty: Number(item.total_qty),
-          type: 'scrap_restoration',
-          updated_at: new Date().toISOString()
-        }])
-      }
-
-      await supabase.from('inventory').delete().eq('id', item.id)
+      const creatorName = currentUser ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.name || currentUser.login : null
+      const { error } = await supabase.rpc('create_vkya_restoration_card', {
+        p_inventory_id: item.id,
+        p_quantity: quantity,
+        p_restoration_stage_id: restorationStageId,
+        p_created_by_user_id: currentUser?.id || null,
+        p_created_by_name: creatorName
+      })
+      if (error) throw error
       await fetchData('inventory')
-      alert(`Деталі (${item.total_qty} шт.) перенесено до внутрішнього відділу відновлення ВКЯ!`)
+      setRestorationDraft(null)
+      const stageName = restorationStages.find(stage => stage.id === restorationStageId)?.name || 'не вказано'
+      alert(`Створено карту відновлення на ${quantity} шт. Етап: ${stageName}.`)
     } catch (e) {
       alert('Помилка відправки на відновлення: ' + e.message)
     } finally {
@@ -1403,14 +1426,23 @@ export default function BrakModule() {
               <BarChart2 size={18} /> ЗВІТИ ВКЯ
             </button>
           )}
-          <button
-            onClick={() => setShowReasonCatalog(value => !value)}
-            style={{ background: '#f59e0b20', border: '1px solid #f59e0b55', color: '#f59e0b', padding: '12px 24px', borderRadius: '14px', fontSize: '0.85rem', fontWeight: 900, cursor: 'pointer' }}
+          {!showReasonCatalog && (
+            <Link
+              to="/brak/restoration"
+              style={{ background: '#06b6d420', border: '1px solid #06b6d455', color: '#06b6d4', padding: '12px 24px', borderRadius: '14px', fontSize: '0.85rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}
+            >
+              <Wrench size={18} /> ТЕРМІНАЛ ВІДНОВЛЕННЯ
+            </Link>
+          )}
+          <Link
+            to="/brak/settings"
+            style={{ background: '#f59e0b20', border: '1px solid #f59e0b55', color: '#f59e0b', padding: '12px 24px', borderRadius: '14px', fontSize: '0.85rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}
           >
-            {showReasonCatalog ? '← ЧЕРГА КЛАСИФІКАЦІЇ' : `ДОВІДНИК ПРИЧИН БРАКУ (${scrapReasonRows.filter(row => row.is_active).length})`}
-          </button>
+            <Settings size={18}/> НАЛАШТУВАННЯ ВКЯ
+          </Link>
         </div>
 
+        {/* Довідник перенесено до окремого підмодуля /brak/settings.
         {showReasonCatalog && (
           <div className="qc-catalog-container" style={{ background: '#0d0d0d', border: '1px solid #f59e0b33', borderRadius: '24px', padding: '26px', marginBottom: '25px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '20px', alignItems: 'flex-start', marginBottom: '25px', flexWrap: 'wrap' }}>
@@ -1479,6 +1511,7 @@ export default function BrakModule() {
             </div>
           </div>
         )}
+        */}
 
         {!showReasonCatalog && <>
         {/* Stats Dashboard */}
@@ -1492,6 +1525,10 @@ export default function BrakModule() {
           ].map(s => (
             <div key={s.label} 
               onClick={() => {
+                if (s.cat === 'restoration') {
+                  navigate('/brak/restoration')
+                  return
+                }
                 setViewingCategory(s.cat === viewingCategory ? null : s.cat)
                 setSelectedItem(null)
               }}
@@ -1584,7 +1621,7 @@ export default function BrakModule() {
                              style={{ background: '#10b981', border: 'none', color: '#fff', padding: '10px 15px', borderRadius: '12px', fontWeight: 900, fontSize: '0.75rem', cursor: 'pointer' }}
                            >НА ДООПРАЦЮВАННЯ</button>
                            <button 
-                             onClick={() => handleSendToRestoration(item)}
+                             onClick={() => openRestorationModal(item)}
                              style={{ background: '#06b6d4', border: 'none', color: '#fff', padding: '10px 15px', borderRadius: '12px', fontWeight: 900, fontSize: '0.75rem', cursor: 'pointer' }}
                            >НА ВІДНОВЛЕННЯ</button>
                          </>
@@ -1961,6 +1998,28 @@ export default function BrakModule() {
                 />
               </div>
 
+              {/* Виробничий оператор, якому присвоюється брак */}
+              <div style={{ background: '#ef444410', border: '1px solid #ef444435', borderRadius: '14px', padding: '14px' }}>
+                <label style={{ color: '#fca5a5', fontWeight: 900, fontSize: '0.7rem', display: 'block', marginBottom: '8px' }}>КОМУ ПРИСВОЇТИ БРАК</label>
+                {qcCardOperators.length === 1 ? (
+                  <div style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 900 }}>
+                    {qcResponsibleOperator}
+                    <div style={{ color: '#777', fontSize: '0.64rem', fontWeight: 700, marginTop: '4px' }}>Єдиний оператор картки — обрано автоматично</div>
+                  </div>
+                ) : qcCardOperators.length > 1 ? (
+                  <select
+                    value={qcResponsibleOperator}
+                    onChange={event => setQcResponsibleOperator(event.target.value)}
+                    style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: `1px solid ${qcResponsibleOperator ? '#10b98155' : '#ef444455'}`, background: '#000', color: '#fff', fontSize: '0.9rem', fontWeight: 800, boxSizing: 'border-box', outline: 'none' }}
+                  >
+                    <option value="">— Оберіть оператора картки —</option>
+                    {qcCardOperators.map(operator => <option key={operator} value={operator}>{operator}</option>)}
+                  </select>
+                ) : (
+                  <div style={{ color: '#ef4444', fontSize: '0.72rem', fontWeight: 850 }}>У картці не знайдено виробничого оператора. Брак неможливо записати без відповідального.</div>
+                )}
+              </div>
+
               {/* Причина браку */}
               <div>
                 <label style={{ color: '#888', fontWeight: 800, fontSize: '0.7rem', display: 'block', marginBottom: '8px' }}>Причина браку</label>
@@ -2014,12 +2073,12 @@ export default function BrakModule() {
                 </div>
               </div>
 
-              <button onClick={handleQCScrapOverride} disabled={isProcessing || qcScrapCount <= 0}
+              <button onClick={handleQCScrapOverride} disabled={isProcessing || qcScrapCount <= 0 || !qcResponsibleOperator}
                 style={{
                   background: '#ef4444', color: '#fff', border: 'none', padding: '16px', borderRadius: '14px',
                   fontSize: '1.05rem', fontWeight: 1000, cursor: 'pointer',
                   boxShadow: '0 10px 30px rgba(239,68,68,0.3)',
-                  opacity: (isProcessing || qcScrapCount <= 0) ? 0.5 : 1
+                  opacity: (isProcessing || qcScrapCount <= 0 || !qcResponsibleOperator) ? 0.5 : 1
                 }}>
                 {isProcessing ? 'ЗБЕРЕЖЕННЯ...' : '⚠️ СПИСАТИ У БРАК ВКЯ'}
               </button>
@@ -2028,6 +2087,23 @@ export default function BrakModule() {
         </div>
       )}
 
+
+      {restorationDraft && (
+        <div onClick={() => !isProcessing && setRestorationDraft(null)} style={{ position: 'fixed', inset: 0, zIndex: 10060, background: 'rgba(0,0,0,0.88)', display: 'grid', placeItems: 'center', padding: '20px' }}>
+          <div onClick={event => event.stopPropagation()} style={{ width: '100%', maxWidth: '520px', background: '#0d0d0d', border: '1px solid #06b6d455', borderRadius: '24px', padding: '28px', boxShadow: '0 30px 90px rgba(0,0,0,.7)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '15px' }}>
+              <div><div style={{ color: '#06b6d4', fontSize: '.7rem', fontWeight: 1000 }}>НОВА КАРТА ВІДНОВЛЕННЯ</div><h2 style={{ margin: '8px 0 5px', overflowWrap: 'anywhere' }}>{restorationDraft.name}</h2><div style={{ color: '#777', fontSize: '.8rem' }}>Доступно: {restorationDraft.total_qty} {restorationDraft.unit || 'шт'}</div></div>
+              <button onClick={() => setRestorationDraft(null)} disabled={isProcessing} style={{ alignSelf: 'flex-start', background: 'transparent', border: 0, color: '#777', cursor: 'pointer' }}><X size={22}/></button>
+            </div>
+            <label style={{ display: 'block', margin: '24px 0 8px', color: '#888', fontSize: '.7rem', fontWeight: 950 }}>КІЛЬКІСТЬ НА ВІДНОВЛЕННЯ</label>
+            <input autoFocus type="number" min="1" max={restorationDraft.total_qty} value={restorationQuantity} onChange={event => setRestorationQuantity(event.target.value)} placeholder={`Від 1 до ${restorationDraft.total_qty}`} style={{ boxSizing: 'border-box', width: '100%', background: '#050505', border: '1px solid #333', borderRadius: '12px', color: '#fff', padding: '14px', fontSize: '1.1rem', fontWeight: 900 }} />
+            <label style={{ display: 'block', margin: '18px 0 8px', color: '#888', fontSize: '.7rem', fontWeight: 950 }}>ЕТАП ВІДНОВЛЕННЯ</label>
+            <select value={restorationStageId} onChange={event => setRestorationStageId(event.target.value)} style={{ boxSizing: 'border-box', width: '100%', background: '#050505', border: '1px solid #333', borderRadius: '12px', color: '#fff', padding: '14px', fontWeight: 850 }}><option value="">Оберіть етап відновлення</option>{restorationStages.map(stage => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select>
+            <div style={{ color: '#555', fontSize: '.68rem', marginTop: '8px' }}>Список етапів редагується у підмодулі «Налаштування ВКЯ». У категорії залишиться невибрана кількість.</div>
+            <button onClick={handleSendToRestoration} disabled={isProcessing || !restorationStageId || !Number.isInteger(Number(restorationQuantity)) || Number(restorationQuantity) <= 0 || Number(restorationQuantity) > Number(restorationDraft.total_qty)} style={{ width: '100%', marginTop: '24px', background: '#06b6d4', border: 0, color: '#001014', borderRadius: '13px', padding: '15px', fontWeight: 1000, cursor: 'pointer' }}>{isProcessing ? 'СТВОРЕННЯ...' : 'СТВОРИТИ КАРТУ ВІДНОВЛЕННЯ'}</button>
+          </div>
+        </div>
+      )}
 
       <style dangerouslySetInnerHTML={{ __html: `
         .glass-panel { backdrop-filter: blur(10px); }

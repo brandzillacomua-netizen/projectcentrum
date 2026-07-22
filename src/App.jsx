@@ -59,6 +59,8 @@ const Shop2Terminal = lazy(() => import('./modules/Shop2Terminal'))
 const NomenclatureV2 = lazy(() => import('./modules/NomenclatureV2'))
 const AnalyticsModule = lazy(() => import('./modules/AnalyticsModule'))
 const BrakModule = lazy(() => import('./modules/BrakModule'))
+const VKYARestorationTerminal = lazy(() => import('./modules/VKYARestorationTerminal'))
+const VKYASettings = lazy(() => import('./modules/VKYASettings'))
 const KanbanModule = lazy(() => import('./modules/KanbanModule'))
 const TaskProjectsModule = lazy(() => import('./modules/TaskProjectsModule'))
 const AccessModule = lazy(() => import('./modules/AccessModule'))
@@ -3076,6 +3078,8 @@ const AppContent = () => {
           <Route path="/machines/:id/call" element={<PermissionGuard id="public_call"><MachineCallModule /></PermissionGuard>} />
           <Route path="/analytics" element={<PermissionGuard id="analytics"><AnalyticsModule /></PermissionGuard>} />
           <Route path="/brak" element={<PermissionGuard id="brak"><BrakModule /></PermissionGuard>} />
+          <Route path="/brak/restoration" element={<PermissionGuard id="brak"><VKYARestorationTerminal /></PermissionGuard>} />
+          <Route path="/brak/settings" element={<PermissionGuard id="brak"><VKYASettings /></PermissionGuard>} />
           <Route path="/tasks" element={<PermissionGuard id="kanban"><KanbanModule /></PermissionGuard>} />
           <Route path="/tasks/projects" element={<PermissionGuard id="kanban"><TaskProjectsModule /></PermissionGuard>} />
           <Route path="/chat" element={<PermissionGuard id="chat"><ChatModule /></PermissionGuard>} />
