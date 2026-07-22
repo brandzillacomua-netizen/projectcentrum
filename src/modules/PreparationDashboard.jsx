@@ -112,6 +112,13 @@ const PreparationDashboard = () => {
     })).sort((a, b) => b.pending - a.pending || String(a.orderNum).localeCompare(String(b.orderNum), 'uk'))
   }, [cardsWithBoxes, orderById])
 
+  // The TV queue is operational: completed orders stay in totals, but never
+  // occupy a dashboard card or a rotation slot.
+  const activeBoxOrders = useMemo(
+    () => boxOrders.filter(order => order.pending > 0),
+    [boxOrders]
+  )
+
   const totals = useMemo(() => {
     const boxesTotal = boxOrders.reduce((sum, order) => sum + order.total, 0)
     const boxesPrepared = boxOrders.reduce((sum, order) => sum + order.prepared, 0)
@@ -131,14 +138,14 @@ const PreparationDashboard = () => {
       if (item.hasScrap) result.push({ level: 'danger', text: `${item.prepNum}: зафіксовано брак — потрібна повторна підготовка` })
       else if (item.status === 'in-progress' && age >= 120) result.push({ level: 'warning', text: `${item.prepNum}: ${item.name} у роботі вже ${formatElapsed(item.startedAt, now)}` })
     })
-    boxOrders.filter(order => order.pending > 0).slice(0, 3).forEach(order => {
+    activeBoxOrders.slice(0, 3).forEach(order => {
       result.push({ level: order.pending >= 5 ? 'danger' : 'warning', text: `Наряд №${order.orderNum}: потрібно зібрати ще ${order.pending} боксів` })
     })
     return result.slice(0, 4)
-  }, [prepQueue, boxOrders, now])
+  }, [prepQueue, activeBoxOrders, now])
 
   const prepPages = Math.max(1, Math.ceil(prepQueue.length / PREP_PAGE_SIZE))
-  const boxesPages = Math.max(1, Math.ceil(boxOrders.length / BOX_PAGE_SIZE))
+  const boxesPages = Math.max(1, Math.ceil(activeBoxOrders.length / BOX_PAGE_SIZE))
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -152,7 +159,7 @@ const PreparationDashboard = () => {
   useEffect(() => setBoxesPage(page => Math.min(page, boxesPages - 1)), [boxesPages])
 
   const visiblePrep = prepQueue.slice(prepPage * PREP_PAGE_SIZE, prepPage * PREP_PAGE_SIZE + PREP_PAGE_SIZE)
-  const visibleBoxOrders = boxOrders.slice(boxesPage * BOX_PAGE_SIZE, boxesPage * BOX_PAGE_SIZE + BOX_PAGE_SIZE)
+  const visibleBoxOrders = activeBoxOrders.slice(boxesPage * BOX_PAGE_SIZE, boxesPage * BOX_PAGE_SIZE + BOX_PAGE_SIZE)
   const staleSeconds = Math.floor((now - lastDataChange) / 1000)
 
   const toggleFullscreen = async () => {
@@ -184,7 +191,7 @@ const PreparationDashboard = () => {
         <div className={totals.boxesPending ? 'is-warning' : 'is-ready'}><Box /><span>Ще зібрати</span><strong>{totals.boxesPending}</strong></div>
       </div>
 
-      <main className="prep-tv__grid">
+      <main className={`prep-tv__grid prep-tv__grid--boxes-${visibleBoxOrders.length}`}>
         <section className="prep-tv__panel prep-tv__panel--prep">
           <div className="prep-tv__panel-head">
             <div><PlayCircle size={21} /><strong>ПІДГОТОВКА МАТЕРІАЛІВ</strong></div>
@@ -233,18 +240,12 @@ const PreparationDashboard = () => {
                   {order.items.length > 5 && <small>+ ще {order.items.length - 5} номенклатур</small>}
                 </div>
                 <div className="box-order__slider">
-                  <div>{boxOrders.map((_, index) => <i key={index} className={index >= boxesPage * BOX_PAGE_SIZE && index < (boxesPage + 1) * BOX_PAGE_SIZE ? 'is-active' : ''} />)}</div>
+                  <div>{activeBoxOrders.map((_, index) => <i key={index} className={index >= boxesPage * BOX_PAGE_SIZE && index < (boxesPage + 1) * BOX_PAGE_SIZE ? 'is-active' : ''} />)}</div>
                   <span>Оновлення через 12 с</span>
                 </div>
               </article>
           </section>
         )})}
-        {Array.from({ length: Math.max(0, BOX_PAGE_SIZE - visibleBoxOrders.length) }).map((_, index) => (
-          <section className="prep-tv__panel prep-tv__panel--box is-empty" key={`empty-box-${index}`}>
-            <div className="prep-tv__panel-head"><div><PackageCheck size={19} /><strong>БОКСИ ФРЕЗ</strong></div></div>
-            <div className="prep-tv__empty"><CheckCircle2 size={42} /><strong>Усі доступні бокси готові</strong><span>Очікуємо наступний наряд</span></div>
-          </section>
-        ))}
       </main>
 
       <footer className={`prep-tv__alerts ${alerts.some(a => a.level === 'danger') ? 'has-danger' : ''}`}>
@@ -308,6 +309,10 @@ const PreparationDashboard = () => {
         .prep-tv__kpis span { font-size:10px; }
         .prep-tv__kpis strong { font-size:20px; }
         .prep-tv__grid { padding:0 18px 10px; grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-rows:repeat(2,minmax(0,1fr)); gap:10px; }
+        .prep-tv__grid--boxes-0 .prep-tv__panel--prep { grid-column:1 / -1; grid-row:1 / -1; }
+        .prep-tv__grid--boxes-1 .prep-tv__panel--prep,
+        .prep-tv__grid--boxes-2 .prep-tv__panel--prep { grid-row:1 / -1; }
+        .prep-tv__grid--boxes-1 .prep-tv__panel--box { grid-row:1 / -1; }
         .prep-tv__panel { border-radius:13px; grid-template-rows:38px 1fr; }
         .prep-tv__panel--box { border-top:3px solid #f59e0b; }
         .prep-tv__panel--box.is-complete { border-top-color:#22c55e; }
