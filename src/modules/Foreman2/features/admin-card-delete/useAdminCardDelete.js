@@ -21,7 +21,15 @@ const isMissingOptionalRelation = (error) => {
 
 export const isForeman2CardDeleteAdmin = (user) => {
   const position = String(user?.position || '').toLowerCase()
-  return user?.role === 'admin' || position === 'адмін'
+  const department = String(user?.department || '').toLowerCase()
+  const accessRights = user?.access_rights || {}
+  const isAdmin = user?.role === 'admin' || position === 'адмін'
+  const isShop1Head = position.includes('начальник цеху') && (
+    /цех\s*(?:№|#)?\s*1\b/i.test(department) ||
+    accessRights.shop1_foreman === true
+  )
+
+  return isAdmin || isShop1Head
 }
 
 export const isSafeCardToDelete = (card) => {
@@ -45,7 +53,7 @@ export function useAdminCardDelete({ currentUser, fetchData, onDeleted } = {}) {
     setLastResult(null)
 
     if (!isSuperAdmin) {
-      throw new Error('Видалення робочих карток доступне тільки супер-адміну.')
+      throw new Error('Видалення робочих карток доступне тільки адміну або Начальнику цеху №1.')
     }
 
     const uniqueCards = Array.from(
