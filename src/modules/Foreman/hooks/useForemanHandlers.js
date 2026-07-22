@@ -728,7 +728,6 @@ export function useForemanHandlers({
 
     let dbCardsForRenumber = []
     if (!isRepair) {
-      let dbCardsCount = 0
       try {
         const { data, error } = await supabase
           .from('work_cards')
@@ -737,16 +736,9 @@ export function useForemanHandlers({
           .eq('nomenclature_id', part.nom?.id)
         if (!error && data) {
           dbCardsForRenumber = data.filter(c => !c.is_rework && c.operation !== 'Склад БЗ')
-          dbCardsCount = dbCardsForRenumber.length
         }
       } catch (err) {
-        console.error("Error fetching dbCardsCount:", err)
-      }
-      const allowedCount = displayTotal - dbCardsCount
-      if (allowedCount > 0) {
-        finalCount = Math.min(finalCount, allowedCount)
-      } else {
-        finalCount = 0
+        console.error("Error fetching existing work cards:", err)
       }
     }
 
@@ -776,12 +768,18 @@ export function useForemanHandlers({
     try {
       const cardsBatch = []
       const activeCards = isRepair ? [] : cardsForSequence.filter(c => !(c.card_info || '').includes('[REDO]'))
+      const activeCardsForSelectedMachine = selectedMachineName
+        ? activeCards.filter(c => String(c.machine || '') === String(selectedMachineName))
+        : activeCards
       let actualGeneratedSheets = 0
       let actualGeneratedRequiredQty = 0
+      activeCardsForSelectedMachine.forEach(c => {
+        const cardQty = Number(c.quantity) || 0
+        actualGeneratedSheets += Math.ceil(cardQty / unitsPerSheet)
+      })
       activeCards.forEach(c => {
         const cardQty = Number(c.quantity) || 0
         const reqMatch = String(c.card_info || '').match(/\[REQ:(\d+)\]/)
-        actualGeneratedSheets += Math.ceil(cardQty / unitsPerSheet)
         actualGeneratedRequiredQty += reqMatch ? (Number(reqMatch[1]) || 0) : cardQty
       })
 
