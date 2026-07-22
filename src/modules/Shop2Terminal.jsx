@@ -599,6 +599,11 @@ const Shop2Terminal = () => {
 
   const handleFinalFinish = async () => {
     if (!currentCard) return
+    const totalScrap = Object.values(scrapCounts || {}).reduce((sum, qty) => sum + (Number(qty) || 0), 0)
+    if (totalScrap < 0 || totalScrap > Number(currentCard.quantity || 0)) {
+      alert(`Кількість браку має бути від 0 до ${currentCard.quantity || 0} шт.`)
+      return
+    }
     setIsProcessing(true)
     try {
       await apiService.submitBufferConfirmation(currentCard.id, scrapCounts, confirmBuffer)
@@ -838,8 +843,8 @@ const Shop2Terminal = () => {
               <label style={{ color: '#ef4444', fontWeight: 900, display: 'block', marginBottom: '15px', fontSize: '0.75rem' }}>КІЛЬКІСТЬ БРАКОВАНИХ ДЕТАЛЕЙ</label>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px' }}>
                 <button onClick={() => setScrapCounts(p => ({ ...p, [nom?.id]: Math.max(0, currentScrap - 1) }))} style={{ width: '60px', height: '60px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', borderRadius: '15px', fontSize: '1.5rem' }}>-</button>
-                <input type="number" value={currentScrap === 0 ? '' : currentScrap} placeholder="0" onChange={e => { const val = e.target.value; setScrapCounts(p => ({ ...p, [nom?.id]: val === '' ? 0 : (parseInt(val) || 0) })) }} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '3.5rem', width: '120px', textAlign: 'center', fontWeight: 900 }} />
-                <button onClick={() => setScrapCounts(p => ({ ...p, [nom?.id]: currentScrap + 1 }))} style={{ width: '60px', height: '60px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', borderRadius: '15px', fontSize: '1.5rem' }}>+</button>
+                <input type="number" min="0" max={currentCard.quantity || 0} value={currentScrap === 0 ? '' : currentScrap} placeholder="0" onChange={e => { const val = e.target.value; const qty = val === '' ? 0 : Math.min(Number(currentCard.quantity || 0), Math.max(0, parseInt(val) || 0)); setScrapCounts(p => ({ ...p, [nom?.id]: qty })) }} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '3.5rem', width: '120px', textAlign: 'center', fontWeight: 900 }} />
+                <button onClick={() => setScrapCounts(p => ({ ...p, [nom?.id]: Math.min(Number(currentCard.quantity || 0), currentScrap + 1) }))} style={{ width: '60px', height: '60px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', borderRadius: '15px', fontSize: '1.5rem' }}>+</button>
               </div>
             </div>
             <button disabled={isProcessing} onClick={handleFinalFinish} style={{ width: '100%', background: '#10b981', color: '#fff', border: 'none', padding: '20px', borderRadius: '18px', fontSize: '1.3rem', fontWeight: 900, marginTop: '30px', cursor: 'pointer', opacity: isProcessing ? 0.5 : 1 }}>ПІДТВЕРДИТИ</button>

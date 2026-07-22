@@ -13,6 +13,10 @@ const normalizeScrapReasonName = (reason) => {
   return name
 }
 
+const isScrapReadyForQc = (historyRow) => Boolean(
+  historyRow?.is_archived_scrap || String(historyRow?.card_info || '').includes('[ЦЕХ №2]')
+)
+
 export default function BrakModule() {
   const { inventory, nomenclatures, fetchData, currentUser, disposeScrapItem, createReworkNaryad, productionStages, workCards, orders, machineCalls, machines, supabase, workCardHistory, systemUsers } = useMES()
   const [isProcessing, setIsProcessing] = useState(false)
@@ -605,8 +609,8 @@ export default function BrakModule() {
       const { data, error } = await supabase
         .from('work_card_history')
         .select('*')
-        .eq('is_archived_scrap', true)
         .gt('scrap_qty', 0)
+        .or('is_archived_scrap.eq.true,card_info.ilike.%[ЦЕХ №2]%')
         .or('qc_scrap_comment.is.null,qc_scrap_comment.not.ilike.%[scrap_cat:%')
         .order('created_at', { ascending: false })
       if (!error && data) {
@@ -754,7 +758,7 @@ export default function BrakModule() {
 
   // Filter for items ready for classification from work_card_history
   const readyItems = (localScrapHistory || [])
-    .filter(h => h.is_archived_scrap && Number(h.scrap_qty) > 0)
+    .filter(h => isScrapReadyForQc(h) && Number(h.scrap_qty) > 0)
     .map(h => {
       let sum = 0;
       if (h.qc_scrap_comment && h.qc_scrap_comment.includes('SCRAP_CAT:')) {
@@ -1749,7 +1753,7 @@ export default function BrakModule() {
                        <div>
                           <div style={{ fontSize: '1.4rem', fontWeight: 1000, lineHeight: 1.1 }}>{selectedItem.name}</div>
                           <div style={{ fontSize: '1rem', color: '#ef4444', fontWeight: 1000, marginTop: '8px' }}>
-                            {selectedItem.total_qty} шт до розподілу
+                            Брак: {selectedItem.total_qty} шт
                           </div>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 12px', marginTop: '10px', fontSize: '0.7rem', fontWeight: 900 }}>
                             <span style={{ color: '#f59e0b' }}>Наряд №{selectedItem.naryad_number}</span>
@@ -1761,6 +1765,9 @@ export default function BrakModule() {
                           </div>
                           <div style={{ marginTop: '8px', color: '#a78bfa', fontSize: '0.72rem', fontWeight: 900 }}>
                             Оператор: {selectedItem.operator || 'Не вказаний'}
+                          </div>
+                          <div style={{ marginTop: '5px', color: '#38bdf8', fontSize: '0.72rem', fontWeight: 900 }}>
+                            Етап: {selectedItem.stage || 'Не вказаний'}
                           </div>
                        </div>
                     </div>

@@ -989,6 +989,8 @@ export function createProductionActions({
     if (metadata.stage_name) updateData.operation = metadata.stage_name
     if (metadata.machine_id) updateData.machine_id = metadata.machine_id
     if (metadata.machine_name) updateData.machine = metadata.machine_name
+    if (metadata.manager_name) updateData.manager_name = metadata.manager_name
+    if (metadata.shift_name) updateData.shift_name = metadata.shift_name
     // Optimistic update — instant, no await
     setWorkCards(prev => prev.map(c => c.id === cardId ? { ...c, ...updateData } : c))
     // Fire DB write in background — does NOT block UI
@@ -1012,8 +1014,14 @@ export function createProductionActions({
 
   const confirmBuffer = async (cardId, scrapData = {}, cuttersUsed = 0, cuttersBreakdown = null) => {
     const card = workCards.find(c => c.id === cardId)
-    if (!card) return
+    if (!card) throw new Error('Робочу картку не знайдено. Оновіть термінал і повторіть спробу.')
     const totalScrap = typeof scrapData === 'number' ? scrapData : Object.values(scrapData).reduce((acc, c) => acc + Number(c), 0)
+    if (!Number.isFinite(totalScrap) || totalScrap < 0) {
+      throw new Error('Вказано некоректну кількість браку.')
+    }
+    if (totalScrap > Number(card.quantity || 0)) {
+      throw new Error(`Кількість браку (${totalScrap}) перевищує кількість у картці (${card.quantity || 0}).`)
+    }
     const qtyCompleted = Math.max(0, (card.quantity || 0) - totalScrap)
     const isRework = (card.card_info || '').includes('[REWORK]')
     const currentOp = (card.operation || '').trim()
@@ -1041,7 +1049,12 @@ export function createProductionActions({
         card_id: cardId, nomenclature_id: card.nomenclature_id, stage_name: card.operation || 'Розкрій',
         operator_name: card.operator_name || 'Не вказано', card_info: historyCardInfo,
         qty_at_start: card.quantity, qty_completed: qtyCompleted, scrap_qty: totalScrap,
-        cutters_used: Number(cuttersUsed) || 0, started_at: card.started_at, completed_at: new Date().toISOString()
+        cutters_used: Number(cuttersUsed) || 0, started_at: card.started_at, completed_at: new Date().toISOString(),
+        // Брак із Цеху №2 одразу має потрапляти в чергу класифікації ВКЯ.
+        is_archived_scrap: isShop2 && totalScrap > 0,
+        shift_name: card.shift_name || null,
+        manager_name: card.manager_name || null,
+        machine_name: card.machine || null
       }]),
       supabase.from('work_cards').update({ ...cardUpdate, cutters_used: Number(cuttersUsed) || 0, card_info: historyCardInfo }).eq('id', cardId)
     ]
@@ -1054,14 +1067,17 @@ export function createProductionActions({
           .eq('nomenclature_id', card.nomenclature_id)
           .eq('type', 'scrap_ready')
           .limit(1).maybeSingle()
-          .then(async ({ data: existing }) => {
+          .then(async ({ data: existing, error: inventoryLookupError }) => {
+            if (inventoryLookupError) throw inventoryLookupError
             if (existing) {
-              return supabase.from('inventory').update({
+              const result = await supabase.from('inventory').update({
                 total_qty: (Number(existing.total_qty) || 0) + totalScrap,
                 updated_at: new Date().toISOString()
               }).eq('id', existing.id)
+              if (result.error) throw result.error
+              return result
             } else {
-              return supabase.from('inventory').insert([{
+              const result = await supabase.from('inventory').insert([{
                 nomenclature_id: card.nomenclature_id,
                 name: nom?.name || 'Деталь',
                 unit: nom?.unit || 'шт',
@@ -1069,12 +1085,16 @@ export function createProductionActions({
                 type: 'scrap_ready',
                 updated_at: new Date().toISOString()
               }])
+              if (result.error) throw result.error
+              return result
             }
           })
       )
     }
 
-    await Promise.all(writePromises)
+    const writeResults = await Promise.all(writePromises)
+    const writeError = writeResults.find(result => result?.error)?.error
+    if (writeError) throw writeError
 
     // Increment completed cards count since maintenance for the machine
     if (maintenanceCheckEnabled && card.machine_id) {
