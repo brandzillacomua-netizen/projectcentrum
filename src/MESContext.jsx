@@ -141,6 +141,7 @@ export const MESProvider = ({ children }) => {
     machineOperations: data.machineOperations,
     machines: data.machines,
     systemUsers: data.systemUsers,
+    currentUser: data.currentUser,
     setTasks: data.setTasks, 
     setWorkCards: data.setWorkCards, 
     setWorkCardHistory: data.setWorkCardHistory, 

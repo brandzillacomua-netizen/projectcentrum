@@ -24,7 +24,7 @@ const normalizeName = (s) => {
 
 export function createProductionActions({
   orders, tasks, inventory, nomenclatures, bomItems, workCards,
-  machineOperations, machines, systemUsers,
+  machineOperations, machines, systemUsers, currentUser,
   setTasks, setWorkCards, setWorkCardHistory, setManagementTasks, setMachines,
   normalize, refreshTable, fetchData,
   deductIssuedMaterialsForTask,
@@ -1383,31 +1383,71 @@ export function createProductionActions({
   }
 
   const createNaryad = async (orderId, machineName, customQuantities = null, customDeadline = null, customRowMachines = null, customMaterialSplits = null, customCutters = null, customBOMParts = null, customCutterOverrides = null, customRowMachinesSplits = null) => {
+    const bzOperationId = crypto.randomUUID()
+    let bzReservationCreated = false
+    let bzReservationAttached = false
     try {
       const order = orders.find(o => o.id === orderId)
+      if (!order) throw new Error('Замовлення не знайдено')
       let totalMin = 0
       let totalPlanQty = 0
       const materialSummary = {}
       const bzStockDeductions = []
       const plan_snapshot = {}
 
+      const getDisplayParts = (item) => customBOMParts && customBOMParts[item.id]
+        ? customBOMParts[item.id].map(p => ({ nom: p.nom, qtyPer: p.quantity_per_parent }))
+        : (() => {
+            const parts = bomItems.filter(b => String(b.parent_id) === String(item.nomenclature_id))
+            return parts.length > 0
+              ? parts.map(b => ({ nom: nomenclatures.find(n => String(n.id) === String(b.child_id)), qtyPer: b.quantity_per_parent }))
+              : [{ nom: nomenclatures.find(n => String(n.id) === String(item.nomenclature_id)), qtyPer: 1 }]
+          })()
+
+      const bzRequestedByNom = {}
+      order.order_items?.forEach(item => {
+        const requestedQty = customQuantities && customQuantities[item.id] !== undefined
+          ? Number(customQuantities[item.id])
+          : Number(item.quantity)
+        if (requestedQty <= 0) return
+        getDisplayParts(item).forEach(part => {
+          if (!part.nom) return
+          const quantity = requestedQty * (Number(part.qtyPer) || 1)
+          bzRequestedByNom[part.nom.id] = (bzRequestedByNom[part.nom.id] || 0) + quantity
+        })
+      })
+
+      const actorName = [currentUser?.last_name, currentUser?.first_name].filter(Boolean).join(' ') || currentUser?.login || 'system'
+      const { data: bzReserveResult, error: bzReserveError } = await supabase.rpc('reserve_bz_for_naryad', {
+        p_operation_id: bzOperationId,
+        p_order_id: orderId,
+        p_items: Object.entries(bzRequestedByNom).map(([nomenclature_id, quantity]) => ({ nomenclature_id, quantity })),
+        p_actor_id: currentUser?.id || null,
+        p_actor_name: actorName
+      })
+      if (bzReserveError) throw bzReserveError
+      bzReservationCreated = true
+
+      const bzAllocationRemaining = Object.fromEntries(
+        (bzReserveResult?.allocations || []).map(row => [
+          String(row.nomenclature_id),
+          Number(row.allocated_qty) || 0
+        ])
+      )
+
       order.order_items?.forEach(item => {
         const requestedQty = customQuantities && customQuantities[item.id] !== undefined ? Number(customQuantities[item.id]) : Number(item.quantity)
         if (requestedQty <= 0) return
         
-        const displayParts = customBOMParts && customBOMParts[item.id]
-          ? customBOMParts[item.id].map(p => ({ nom: p.nom, qtyPer: p.quantity_per_parent }))
-          : (() => {
-               const parts = bomItems.filter(b => String(b.parent_id) === String(item.nomenclature_id))
-               return parts.length > 0 ? parts.map(b => ({ nom: nomenclatures.find(n => String(n.id) === String(b.child_id)), qtyPer: b.quantity_per_parent })) : [{ nom: nomenclatures.find(n => String(n.id) === String(item.nomenclature_id)), qtyPer: 1 }]
-             })()
+        const displayParts = getDisplayParts(item)
         displayParts.forEach(part => {
           if (!part.nom) return
           const totalNeeded = requestedQty * (Number(part.qtyPer) || 1)
-          const invItem = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
-          const inStockQty = invItem ? Math.max(0, (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0)) : 0
-          const usedFromStock = Math.min(totalNeeded, inStockQty)
-          const totalToProduce = Math.max(0, totalNeeded - inStockQty)
+          const allocationKey = String(part.nom.id)
+          const allocatedRemaining = bzAllocationRemaining[allocationKey] || 0
+          const usedFromStock = Math.min(totalNeeded, allocatedRemaining)
+          bzAllocationRemaining[allocationKey] = Math.max(0, allocatedRemaining - usedFromStock)
+          const totalToProduce = Math.max(0, totalNeeded - usedFromStock)
           const isManufactured = part.nom.type === 'part' || part.nom.type === 'raw' || !part.nom.type;
           if (isManufactured) {
             totalPlanQty += totalToProduce
@@ -1431,7 +1471,7 @@ export function createProductionActions({
             name: part.nom.name, 
             code: part.nom.nomenclature_code, 
             need: totalNeeded, 
-            stock: inStockQty, 
+            stock: usedFromStock,
             plan: totalToProduce, 
             units_per_sheet: unitsPerSheet, 
             sheets: sheets_t300 + sheets_t700, 
@@ -1445,7 +1485,11 @@ export function createProductionActions({
             splits: splits
           }
 
-          if (usedFromStock > 0 && invItem) bzStockDeductions.push({ id: invItem.id, next_qty: (Number(invItem.total_qty) || 0) - usedFromStock })
+          if (usedFromStock > 0) {
+            const existingAllocation = bzStockDeductions.find(row => String(row.nomenclature_id) === allocationKey)
+            if (existingAllocation) existingAllocation.quantity += usedFromStock
+            else bzStockDeductions.push({ nomenclature_id: part.nom.id, quantity: usedFromStock })
+          }
           if (totalToProduce <= 0) return
 
           const matKeyBase = (part.nom.material_type || part.nom.name || '').trim();
@@ -1526,7 +1570,13 @@ export function createProductionActions({
         })
       })
 
-      if (Object.keys(plan_snapshot).length === 0) return
+      if (Object.keys(plan_snapshot).length === 0) {
+        await supabase.rpc('release_bz_reservation', {
+          p_operation_id: bzOperationId,
+          p_reason: 'Наряд не створено: порожній план'
+        })
+        return
+      }
       const totalUnits = order.order_items?.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0) || 0;
       const thisNaryadTotalSets = customQuantities ? Math.max(...Object.values(customQuantities).map(v => Number(v) || 0)) : totalUnits;
       const alreadyPlannedSets = tasks.filter(t => t.order_id === orderId).reduce((acc, t) => acc + (Number(t.planned_sets) || 0), 0);
@@ -1653,67 +1703,23 @@ export function createProductionActions({
         }])
       }
 
+      const { error: attachError } = await supabase.rpc('attach_bz_reservation_to_task', {
+        p_operation_id: bzOperationId,
+        p_task_id: tData.id
+      })
+      if (attachError) throw attachError
+      bzReservationAttached = true
+
       if (bzStockDeductions.length > 0) {
-        const s2InventoryUpdates = []
-        const s2InventoryInserts = []
-
-        bzStockDeductions.forEach(upd => {
-          const invItem = inventory.find(i => i.id === upd.id)
-          if (invItem) {
-            const usedQty = (Number(invItem.total_qty) || 0) - upd.next_qty
-            if (usedQty > 0) {
-              const sgpFinished = inventory.find(i => String(i.nomenclature_id) === String(invItem.nomenclature_id) && i.type === 'finished')
-              if (sgpFinished) {
-                s2InventoryUpdates.push({
-                  ...sgpFinished,
-                  total_qty: (Number(sgpFinished.total_qty) || 0) + usedQty
-                })
-              } else {
-                const nom = nomenclatures.find(n => n.id === invItem.nomenclature_id)
-                s2InventoryInserts.push({
-                  nomenclature_id: invItem.nomenclature_id,
-                  name: nom?.name || invItem.name || 'Деталь',
-                  total_qty: usedQty,
-                  reserved_qty: 0,
-                  type: 'finished',
-                  unit: nom?.unit || invItem.unit || 'шт'
-                })
-              }
-            }
-          }
-        })
-
-        const bzWriteOps = [
-          ...bzStockDeductions.map(upd =>
-            supabase.from('inventory').update({ total_qty: upd.next_qty }).eq('id', upd.id)
-          )
-        ]
-        if (s2InventoryUpdates.length > 0) {
-          bzWriteOps.push(supabase.from('inventory').upsert(s2InventoryUpdates))
-        }
-        if (s2InventoryInserts.length > 0) {
-          bzWriteOps.push(supabase.from('inventory').insert(s2InventoryInserts))
-        }
-        await Promise.all(bzWriteOps)
-
-        const cardsToInsert = []
-        bzStockDeductions.forEach(upd => {
-          const invItem = inventory.find(i => i.id === upd.id)
-          if (invItem && tData) {
-            const usedQty = (Number(invItem.total_qty) || 0) - upd.next_qty
-            if (usedQty > 0) {
-              cardsToInsert.push({
-                task_id: tData.id,
-                order_id: orderId,
-                nomenclature_id: invItem.nomenclature_id,
-                quantity: usedQty,
-                status: 'completed',
-                operation: 'Склад БЗ',
-                card_info: '[ЗІ СКЛАДУ БЗ]'
-              })
-            }
-          }
-        })
+        const cardsToInsert = bzStockDeductions.map(allocation => ({
+          task_id: tData.id,
+          order_id: orderId,
+          nomenclature_id: allocation.nomenclature_id,
+          quantity: allocation.quantity,
+          status: 'completed',
+          operation: 'Склад БЗ',
+          card_info: `[ЗІ СКЛАДУ БЗ] [BZ_RESERVATION:${bzOperationId}]`
+        }))
 
         if (cardsToInsert.length > 0) {
           const { data: bzCardData, error: cardError } = await supabase
@@ -1823,7 +1829,17 @@ export function createProductionActions({
         setTasks(prev => prev.some(t => t.id === tData.id) ? prev : [tData, ...prev])
       }
       return tData
-    } catch (err) { console.error('Error creating naryad:', err.message) }
+    } catch (err) {
+      if (bzReservationCreated && !bzReservationAttached) {
+        const { error: releaseError } = await supabase.rpc('release_bz_reservation', {
+          p_operation_id: bzOperationId,
+          p_reason: `Помилка створення наряду: ${err.message}`
+        })
+        if (releaseError) console.error('Error releasing BZ reservation:', releaseError.message)
+      }
+      console.error('Error creating naryad:', err.message)
+      throw err
+    }
   }
 
   const handoverTaskToShop2 = async (taskId) => {

@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { ArrowLeft, AlertTriangle, CheckCircle2, Package, Layers, ChevronRight, Info, Camera, X, Scan, BarChart2, Filter, Search, Calendar, Wrench, Settings } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMES } from '../MESContext'
-import { supabase } from '../supabase'
 import { useScrapReasons } from '../hooks/useScrapReasons'
 import { useRestorationStages } from '../hooks/useRestorationStages'
+import { getIndexedCache, setIndexedCache } from '../services/indexedDbCache'
+
+const VKYA_QUEUE_CACHE_KEY = 'VKYA_CLASSIFICATION_QUEUE_V1'
 
 const normalizeScrapReasonName = (reason) => {
   const name = reason || 'Причина не вказана'
@@ -20,7 +22,7 @@ const isScrapReadyForQc = (historyRow) => Boolean(
 
 export default function BrakModule() {
   const navigate = useNavigate()
-  const { inventory, nomenclatures, fetchData, currentUser, disposeScrapItem, createReworkNaryad, productionStages, workCards, orders, machineCalls, machines, supabase, workCardHistory, systemUsers } = useMES()
+  const { inventory, nomenclatures, fetchData, currentUser, disposeScrapItem, createReworkNaryad, productionStages, workCards, orders, machineCalls, machines, supabase, systemUsers } = useMES()
   const [isProcessing, setIsProcessing] = useState(false)
   const [selectedItem, setSelectedItem] = useState(null)
   const [distribution, setDistribution] = useState({ 1: 0, 2: 0, 3: 0, 4: 0 })
@@ -599,15 +601,84 @@ export default function BrakModule() {
   const [localScrapHistory, setLocalScrapHistory] = useState([])
   const [queuePage, setQueuePage] = useState(1)
   const [scrapSourceMeta, setScrapSourceMeta] = useState({ cards: {}, tasks: {}, orders: {}, sequences: {} })
+  const queueCursorRef = useRef(null)
+  const queueProjectionRef = useRef(new Map())
+  const queueSyncPromiseRef = useRef(null)
+  const queueResyncRequestedRef = useRef(false)
+  const scrapSourceMetaRef = useRef({ cards: {}, tasks: {}, orders: {}, sequences: {}, taskSequences: {} })
 
-  const loadScrapHistory = async () => {
+  const loadScrapHistory = async ({ restoreCache = false } = {}) => {
+    if (queueSyncPromiseRef.current) {
+      queueResyncRequestedRef.current = true
+      return queueSyncPromiseRef.current
+    }
+    const syncPromise = (async () => {
     try {
-      const [historyResult, restorationReturnsResult] = await Promise.all([
-        supabase.from('work_card_history').select('*').gt('scrap_qty', 0)
-          .or('is_archived_scrap.eq.true,card_info.ilike.%[ЦЕХ №2]%')
-          .order('created_at', { ascending: false }),
-        supabase.from('vkya_reclassification_queue').select('*').eq('status', 'pending').order('created_at', { ascending: false })
-      ])
+      let cachedQueue = null
+      if (restoreCache) {
+        try {
+          cachedQueue = await getIndexedCache(VKYA_QUEUE_CACHE_KEY)
+          if (cachedQueue?.version === 1) {
+            queueCursorRef.current = Number(cachedQueue.cursor) || 0
+            queueProjectionRef.current = new Map(
+              (cachedQueue.projection || []).map(row => [`${row.source_type}:${row.source_id}`, row])
+            )
+            if (Array.isArray(cachedQueue.activeScrap)) setLocalScrapHistory(cachedQueue.activeScrap)
+            if (cachedQueue.sourceMeta) {
+              scrapSourceMetaRef.current = cachedQueue.sourceMeta
+              setScrapSourceMeta(cachedQueue.sourceMeta)
+            }
+          }
+        } catch (cacheError) {
+          console.warn('Failed to restore VKYA queue cache:', cacheError)
+        }
+      }
+
+      const { data: projectionResult, error: projectionError } = await supabase.rpc(
+        'vkya_classification_queue_changes',
+        { p_after_seq: queueCursorRef.current }
+      )
+
+      let historyResult
+      let restorationReturnsResult
+      let projectionChanged = false
+
+      if (!projectionError && projectionResult) {
+        const changes = Array.isArray(projectionResult.changes) ? projectionResult.changes : []
+        const projection = new Map(queueProjectionRef.current)
+        changes.forEach(change => {
+          const key = `${change.source_type}:${change.source_id}`
+          if (change.is_active) projection.set(key, change)
+          else projection.delete(key)
+        })
+        projectionChanged = changes.length > 0 || !cachedQueue
+        queueProjectionRef.current = projection
+        queueCursorRef.current = Number(projectionResult.cursor) || queueCursorRef.current || 0
+
+        if (!projectionChanged && cachedQueue) return
+
+        const projectionRows = [...projection.values()]
+        historyResult = {
+          data: projectionRows
+            .filter(row => row.source_type === 'history')
+            .map(row => row.payload),
+          error: null
+        }
+        restorationReturnsResult = {
+          data: projectionRows
+            .filter(row => row.source_type === 'restoration_return')
+            .map(row => row.payload),
+          error: null
+        }
+      } else {
+        // Safe rollout fallback while the migration is not installed yet.
+        ;[historyResult, restorationReturnsResult] = await Promise.all([
+          supabase.from('work_card_history').select('*').gt('scrap_qty', 0)
+            .or('is_archived_scrap.eq.true,card_info.ilike.%[ЦЕХ №2]%')
+            .order('created_at', { ascending: false }),
+          supabase.from('vkya_reclassification_queue').select('*').eq('status', 'pending').order('created_at', { ascending: false })
+        ])
+      }
       if (restorationReturnsResult.error && restorationReturnsResult.error.code !== '42P01') {
         console.warn('Failed to load VKYA restoration returns:', restorationReturnsResult.error.message)
       }
@@ -642,6 +713,8 @@ export default function BrakModule() {
               }
             } catch(e) {}
           }
+          const ledgerClassified = Number(h.classified_quantity)
+          if (Number.isFinite(ledgerClassified)) sum = Math.max(sum, ledgerClassified)
           return Math.max(0, Number(h.scrap_qty) - sum) > 0;
         })
 
@@ -649,33 +722,50 @@ export default function BrakModule() {
         // globally cached "latest N" cards/orders, otherwise old scrap loses
         // its work-order and card numbers.
         const cardIds = [...new Set(activeScrap.map(row => row.card_id).filter(Boolean))]
-        const { data: sourceCardsData } = cardIds.length
-          ? await supabase.from('work_cards').select('id,task_id,order_id,created_at').in('id', cardIds)
+        const existingMeta = scrapSourceMetaRef.current
+        const missingCardIds = cardIds.filter(id => !existingMeta.cards[String(id)])
+        const { data: sourceCardsData } = missingCardIds.length
+          ? await supabase.from('work_cards').select('id,task_id,order_id,created_at').in('id', missingCardIds)
           : { data: [] }
-        const sourceCards = sourceCardsData || []
+        const sourceCards = [
+          ...cardIds.map(id => existingMeta.cards[String(id)]).filter(Boolean),
+          ...(sourceCardsData || [])
+        ]
         const taskIds = [...new Set(sourceCards.map(card => card.task_id).filter(Boolean))]
-        const { data: sourceTasksData } = taskIds.length
-          ? await supabase.from('tasks').select('id,order_id,batch_index,step,plan_snapshot').in('id', taskIds)
+        const missingTaskIds = taskIds.filter(id => !existingMeta.tasks[String(id)])
+        const { data: sourceTasksData } = missingTaskIds.length
+          ? await supabase.from('tasks').select('id,order_id,batch_index,step,plan_snapshot').in('id', missingTaskIds)
           : { data: [] }
-        const sourceTasks = sourceTasksData || []
+        const sourceTasks = [
+          ...taskIds.map(id => existingMeta.tasks[String(id)]).filter(Boolean),
+          ...(sourceTasksData || [])
+        ]
         const orderIds = [...new Set([
           ...sourceCards.map(card => card.order_id),
           ...sourceTasks.map(task => task.order_id)
         ].filter(Boolean))]
-        const { data: sourceOrdersData } = orderIds.length
-          ? await supabase.from('orders').select('id,order_num').in('id', orderIds)
+        const missingOrderIds = orderIds.filter(id => !existingMeta.orders[String(id)])
+        const { data: sourceOrdersData } = missingOrderIds.length
+          ? await supabase.from('orders').select('id,order_num').in('id', missingOrderIds)
           : { data: [] }
-        const sourceOrders = sourceOrdersData || []
+        const sourceOrders = [
+          ...orderIds.map(id => existingMeta.orders[String(id)]).filter(Boolean),
+          ...(sourceOrdersData || [])
+        ]
 
         // A card's human number in production is its 1-based position inside
         // the same task and nomenclature. The old task-wide sequence could show
         // numbers like 437 for a detail that only has 178 cards.
         const taskCards = []
-        if (taskIds.length) {
+        const sequenceTaskIds = [...new Set(sourceCards
+          .filter(card => !existingMeta.sequences[String(card.id)])
+          .map(card => card.task_id)
+          .filter(Boolean))]
+        if (sequenceTaskIds.length) {
           const pageSize = 1000
           for (let from = 0; ; from += pageSize) {
             const { data: page, error: pageError } = await supabase.from('work_cards')
-              .select('id,task_id,nomenclature_id,created_at').in('task_id', taskIds)
+              .select('id,task_id,nomenclature_id,created_at').in('task_id', sequenceTaskIds)
               .order('created_at', { ascending: true }).order('id', { ascending: true })
               .range(from, from + pageSize - 1)
             if (pageError || !page?.length) break
@@ -689,8 +779,8 @@ export default function BrakModule() {
           result[key].push(card)
           return result
         }, {})
-        const sequences = {}
-        const taskSequences = {}
+        const sequences = { ...(existingMeta.sequences || {}) }
+        const taskSequences = { ...(existingMeta.taskSequences || {}) }
         Object.values(cardsByTask).forEach(cards => {
           cards.forEach((card, index) => { taskSequences[String(card.id)] = index + 1 })
           const cardsByNom = cards.reduce((result, card) => {
@@ -704,23 +794,76 @@ export default function BrakModule() {
           })
         })
 
-        setScrapSourceMeta({
-          cards: Object.fromEntries(sourceCards.map(card => [String(card.id), card])),
-          tasks: Object.fromEntries(sourceTasks.map(task => [String(task.id), task])),
-          orders: Object.fromEntries(sourceOrders.map(order => [String(order.id), order])),
+        const nextSourceMeta = {
+          cards: { ...existingMeta.cards, ...Object.fromEntries(sourceCards.map(card => [String(card.id), card])) },
+          tasks: { ...existingMeta.tasks, ...Object.fromEntries(sourceTasks.map(task => [String(task.id), task])) },
+          orders: { ...existingMeta.orders, ...Object.fromEntries(sourceOrders.map(order => [String(order.id), order])) },
           sequences,
           taskSequences
-        })
+        }
+        scrapSourceMetaRef.current = nextSourceMeta
+        setScrapSourceMeta(nextSourceMeta)
         setLocalScrapHistory(activeScrap)
+
+        if (!projectionError && projectionResult) {
+          setIndexedCache(VKYA_QUEUE_CACHE_KEY, {
+            version: 1,
+            cursor: queueCursorRef.current,
+            projection: [...queueProjectionRef.current.values()],
+            activeScrap,
+            sourceMeta: nextSourceMeta,
+            cachedAt: new Date().toISOString()
+          }).catch(cacheError => console.warn('Failed to persist VKYA queue cache:', cacheError))
+        }
       }
     } catch (e) {
       console.error('Failed to fetch local scrap history:', e)
+    } finally {
+      queueSyncPromiseRef.current = null
+      if (queueResyncRequestedRef.current) {
+        queueResyncRequestedRef.current = false
+        setTimeout(() => loadScrapHistory(), 0)
+      }
     }
+    })()
+    queueSyncPromiseRef.current = syncPromise
+    return syncPromise
   }
 
   useEffect(() => {
-    loadScrapHistory()
-  }, [workCardHistory])
+    loadScrapHistory({ restoreCache: true })
+
+    let reconcileTimer = null
+    const scheduleReconcile = () => {
+      if (reconcileTimer) clearTimeout(reconcileTimer)
+      reconcileTimer = setTimeout(() => loadScrapHistory(), 350)
+    }
+    const channel = supabase
+      .channel(`vkya-classification-queue-${currentUser?.id || 'session'}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'vkya_classification_queue_projection'
+      }, scheduleReconcile)
+      .subscribe(status => {
+        if (status === 'SUBSCRIBED') scheduleReconcile()
+      })
+
+    const reconcileInterval = setInterval(() => {
+      if (document.visibilityState === 'visible') loadScrapHistory()
+    }, 5 * 60 * 1000)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') scheduleReconcile()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      if (reconcileTimer) clearTimeout(reconcileTimer)
+      clearInterval(reconcileInterval)
+      document.removeEventListener('visibilitychange', handleVisibility)
+      supabase.removeChannel(channel)
+    }
+  }, [currentUser?.id])
 
   // Reset distribution when selected item changes
   useEffect(() => {
@@ -786,6 +929,8 @@ export default function BrakModule() {
           }
         } catch(e) {}
       }
+      const ledgerClassified = Number(h.classified_quantity)
+      if (Number.isFinite(ledgerClassified)) sum = Math.max(sum, ledgerClassified)
       const remaining = Math.max(0, Number(h.scrap_qty) - sum);
       if (remaining <= 0) return null;
       
