@@ -271,11 +271,30 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
       if (error) throw error
       if (typeof fetchData === 'function') fetchData(['nomenclatures'])
       setEditingQrNomId(null)
+      return true
     } catch (err) {
       alert('Помилка збереження: ' + err.message)
+      return false
     } finally {
       setSavingQr(false)
     }
+  }
+
+  const handleDeleteQrCode = async (nom) => {
+    const qrCode = getQR(nom)
+    if (!qrCode) return
+    const confirmed = window.confirm(
+      `Видалити QR-код "${qrCode}" для номенклатури "${getNomLabel(nom)}"?\n\nНоменклатура та складські залишки залишаться без змін.`
+    )
+    if (!confirmed) return
+
+    const deleted = await handleSaveQrCode(nom.id, '')
+    if (!deleted) return
+    setSelectedQrNomIds(previous => {
+      const next = new Set(previous)
+      next.delete(nom.id)
+      return next
+    })
   }
 
   const addToDraft = () => {
@@ -2298,6 +2317,17 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                                   >
                                     {qrVal ? 'РЕДАГУВАТИ' : '+ ДОДАТИ'}
                                   </button>
+                                  {qrVal && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteQrCode(nom)}
+                                      disabled={savingQr}
+                                      title="Видалити QR-код"
+                                      style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.35)', color: '#ef4444', padding: '6px 10px', borderRadius: '8px', fontSize: '0.75rem', cursor: savingQr ? 'wait' : 'pointer', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '5px', opacity: savingQr ? 0.6 : 1 }}
+                                    >
+                                      <Trash2 size={13} /> ВИДАЛИТИ
+                                    </button>
+                                  )}
                                   {qrVal && (
                                     <button
                                       onClick={() => {
