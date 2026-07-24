@@ -13,6 +13,9 @@ import ForemanPrintQueue from './Foreman/components/ForemanPrintQueue'
 import ForemanPrintNaryadQueue from './Foreman/components/ForemanPrintNaryadQueue'
 import { ForemanReportModal } from './Foreman/components/ForemanReportModal'
 import ForemanAdminCardDeletePanel from './Foreman/features/admin-card-delete/ForemanAdminCardDeletePanel.jsx'
+import MaterialCorrectionModal from './Foreman2/features/material-correction/MaterialCorrectionModal.jsx'
+import MaterialCorrectionAction from './Foreman2/features/material-correction/MaterialCorrectionAction.jsx'
+import { useMaterialCorrection } from './Foreman2/features/material-correction/useMaterialCorrection.js'
 import { getDisplayPartsForOrderItem as getDisplayPartsForOrderItemHelper, getStandardMachineType, findMachineByName, MACHINE_TYPES } from './Foreman/utils/foremanHelpers'
 
 const uniqueById = (rows = []) => {
@@ -141,6 +144,12 @@ const ForemanWorkplace = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const { tasks, orders, workCards, createWorkCard, createWorkCardsBatch, inventory, completeTaskByMaster, nomenclatures, bomItems, machines, machineOperations, workCardHistory, confirmBuffer, fetchData, reserveBZForTask, fetchTaskArchiveCards, fetchModuleData, fetchTaskPlanSnapshot, machineCalls, currentUser, createDovyпускMaterialRequests, requests: materialRequests, theme, toggleTheme } = useMES()
   const { workCardScrapTotals = [] } = useMES()
+  const materialCorrection = useMaterialCorrection({
+    currentUser,
+    nomenclatures,
+    inventory,
+    fetchData
+  })
 
   const countAsProduced = (card) => {
     if (card.status === 'completed') return true
@@ -1014,7 +1023,19 @@ const ForemanWorkplace = () => {
                                       <td style={{ padding: '10px 4px', textAlign: 'center', color: '#eab308', fontWeight: 900 }}>{plan}</td>
                                     </>
                                   )}
-                                  <td style={{ padding: '10px 6px', textAlign: 'center', color: '#aaa', fontSize: '0.75rem' }}>{getDisplayMaterial(part.nom, snapshot)}</td>
+                                  <td style={{ padding: '10px 6px', textAlign: 'center', color: '#aaa', fontSize: '0.75rem' }}>
+                                    <div>{getDisplayMaterial(part.nom, snapshot)}</div>
+                                    <MaterialCorrectionAction
+                                      correction={materialCorrection}
+                                      task={task}
+                                      part={part.nom}
+                                      snapshot={snapshot}
+                                      productionCards={activeProductionCards}
+                                      material={getDisplayMaterial(part.nom, snapshot)}
+                                      sheets={sheets}
+                                      plan={plan}
+                                    />
+                                  </td>
                                   <td style={{ padding: '10px 4px', textAlign: 'center' }}>{unitsPerSheet}</td>
                                   <td style={{ padding: '10px 4px', textAlign: 'center', color: '#10b981', fontWeight: 1000, fontSize: '1.1rem' }}>{sheets}</td>
                                   <td style={{ padding: '10px 4px' }}>
@@ -2287,6 +2308,14 @@ const ForemanWorkplace = () => {
         inventory={inventory}
         getBOMParts={getBOMPartsLocal}
         getRequestQty={getRequestQty}
+      />
+      <MaterialCorrectionModal
+        part={materialCorrection.part}
+        options={materialCorrection.materialOptions}
+        isSaving={materialCorrection.isSaving}
+        error={materialCorrection.error}
+        onClose={materialCorrection.close}
+        onSave={materialCorrection.save}
       />
       {/* тФАтФАтФАтФАтФА ╨Ь╨Ю╨Ф╨Р╨Ы ╨Ч╨Т╨Ж╨в╨г ╨Я╨Ю ╨Э╨Р╨а╨п╨Ф╨г тФАтФАтФАтФАтФА */}
       <ForemanReportModal

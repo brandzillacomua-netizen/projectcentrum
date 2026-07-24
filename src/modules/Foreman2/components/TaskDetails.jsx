@@ -305,7 +305,7 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
   )
 }
 
-export default function TaskDetails({ model, nomenclatures = [], allCards, onOpenReissue, onCompleteTask, onOpenReport, onMachineChange, onGenerateCards, onPrintCards, adminCardsPanel }) {
+export default function TaskDetails({ model, nomenclatures = [], allCards, onOpenReissue, onCompleteTask, onOpenReport, onMachineChange, onMaterialCorrection, onGenerateCards, onPrintCards, adminCardsPanel }) {
   const [expandedPartId, setExpandedPartId] = useState(null)
   const [expandedArchivePartId, setExpandedArchivePartId] = useState(null)
   const [isCompletingTask, setIsCompletingTask] = useState(false)
@@ -519,7 +519,22 @@ export default function TaskDetails({ model, nomenclatures = [], allCards, onOpe
                           <td style={{ padding: '10px 4px', textAlign: 'center', color: '#eab308', fontWeight: 950 }}>{formatQty(part.plan)}</td>
                         </>
                       )}
-                      <td style={{ padding: '10px 6px', textAlign: 'center', color: '#aaa', fontSize: '0.75rem', fontWeight: 800 }}>{part.material || '-'}</td>
+                      <td style={{ padding: '10px 6px', textAlign: 'center', color: '#aaa', fontSize: '0.75rem', fontWeight: 800 }}>
+                        <div>{part.material || '-'}</div>
+                        {onMaterialCorrection && part.plan > 0 && (
+                          <button
+                            type="button"
+                            onClick={event => {
+                              event.stopPropagation()
+                              onMaterialCorrection(part)
+                            }}
+                            style={{ marginTop: '5px', background: 'rgba(245,158,11,.1)', border: '1px solid rgba(245,158,11,.35)', color: '#f59e0b', padding: '4px 7px', borderRadius: '6px', fontSize: '.58rem', fontWeight: 950, cursor: 'pointer', textTransform: 'uppercase' }}
+                            title="Виправити помилково вибраний матеріал без видалення наряду"
+                          >
+                            ✎ Виправити
+                          </button>
+                        )}
+                      </td>
                       <td style={{ padding: '10px 4px', textAlign: 'center', color: '#ddd', fontWeight: 900 }}>{formatQty(part.unitsPerSheet)}</td>
                       <td style={{ padding: '10px 4px', textAlign: 'center', color: '#10b981', fontWeight: 1000, fontSize: '1.1rem' }}>{formatQty(part.plannedSheets)}</td>
                       <td style={{ padding: '10px 4px' }}>

@@ -16,6 +16,8 @@ import { useCardGeneration } from './features/card-generation/useCardGeneration.
 import GenerateCardsModal from './features/card-generation/GenerateCardsModal.jsx'
 import AdminCardDeletePanel from './features/admin-card-delete/AdminCardDeletePanel.jsx'
 import { useAdminCardDelete } from './features/admin-card-delete/useAdminCardDelete.js'
+import MaterialCorrectionModal from './features/material-correction/MaterialCorrectionModal.jsx'
+import { useMaterialCorrection } from './features/material-correction/useMaterialCorrection.js'
 import ForemanPrintQueue from '../Foreman/components/ForemanPrintQueue.jsx'
 import { getDisplayMaterial } from '../Foreman/utils/foremanHelpers.js'
 
@@ -58,6 +60,13 @@ export default function Foreman2Module() {
     currentUser: mes.currentUser,
     fetchData: mes.fetchData,
     onDeleted: refreshForeman2
+  })
+  const materialCorrection = useMaterialCorrection({
+    currentUser: mes.currentUser,
+    nomenclatures: mes.nomenclatures || [],
+    inventory: mes.inventory || [],
+    fetchData: mes.fetchData,
+    onCorrected: refreshForeman2
   })
 
   const activeCalls = (mes.machineCalls || []).filter(c =>
@@ -142,6 +151,7 @@ export default function Foreman2Module() {
             allCards={allCards}
             onOpenReissue={handleOpenReissue}
             onMachineChange={(part) => machineChange.openMachineChange(activeModel.task, part)}
+            onMaterialCorrection={materialCorrection.canCorrect ? (part) => materialCorrection.open(activeModel.task, part) : null}
             onGenerateCards={(part, count, capacityOverride, maxSheetsToGenerate) => cardGen.openGenModal({ task: activeModel.task, part, count, capacityOverride, maxSheetsToGenerate, isRepair: false })}
             onPrintCards={(part, metadata) => cardGen.setPrintQueue({ task: activeModel.task, part, metadata })}
             adminCardsPanel={
@@ -216,6 +226,15 @@ export default function Foreman2Module() {
         isGenerating={cardGen.isGenerating}
         onClose={cardGen.closeGenModal}
         onGenerate={cardGen.handleGenerateCards}
+      />
+
+      <MaterialCorrectionModal
+        part={materialCorrection.part}
+        options={materialCorrection.materialOptions}
+        isSaving={materialCorrection.isSaving}
+        error={materialCorrection.error}
+        onClose={materialCorrection.close}
+        onSave={materialCorrection.save}
       />
 
       <ForemanPrintQueue
