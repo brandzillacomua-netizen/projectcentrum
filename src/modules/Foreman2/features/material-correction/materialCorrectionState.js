@@ -6,8 +6,9 @@ export function getPendingMaterialCorrection({ requests = [], taskId, partId, sn
   return requests.find(request => {
     if (String(request.task_id) !== String(taskId) || request.status !== 'pending') return false
     const details = String(request.details || '')
-    const explicitPartMarker = details.includes(`[MATERIAL_CORRECTION:${partId}]`)
-    if (explicitPartMarker) return true
+    if (details.includes('[MATERIAL_CORRECTION:')) {
+      return details.includes(`[MATERIAL_CORRECTION:${partId}]`)
+    }
     if (!details.includes('ВИПРАВЛЕНО В НАРЯДІ')) return false
 
     const requestNom = nomenclatures.find(nom => String(nom.id) === String(request.nomenclature_id))

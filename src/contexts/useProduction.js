@@ -952,15 +952,18 @@ export function createProductionActions({
           }
 
           if (newRequests.length > 0) {
-            await supabase.from('material_requests').insert(newRequests)
+            const { error: insertError } = await supabase.from('material_requests').insert(newRequests)
+            if (insertError) throw insertError
           }
           if (updates.length > 0) {
             for (const upd of updates) {
-              await supabase.from('material_requests').update({ quantity: upd.quantity }).eq('id', upd.id)
+              const { error: updateError } = await supabase.from('material_requests').update({ quantity: upd.quantity }).eq('id', upd.id)
+              if (updateError) throw updateError
             }
           }
           if (deletes.length > 0) {
-            await supabase.from('material_requests').delete().in('id', deletes)
+            const { error: deleteError } = await supabase.from('material_requests').delete().in('id', deletes)
+            if (deleteError) throw deleteError
           }
         }
       } catch (err) {
@@ -1570,6 +1573,33 @@ export function createProductionActions({
       const maxBatchIndex = orderTasks.reduce((max, t) => Math.max(max, Number(t.batch_index) || 0), 0)
       const nextBatchIndex = maxBatchIndex + 1;
       plan_snapshot._metadata = { planned_deadline: customDeadline || order.deadline, batch_index: isPartial ? nextBatchIndex : null }
+
+      // A production task must never be created with fewer sheet requests than
+      // the plan requires. This catches material matching/regression errors
+      // before the task is inserted and the warehouse reservation is lost.
+      const plannedSheetsByGrade = Object.values(plan_snapshot).reduce((totals, part) => {
+        if (!part || typeof part !== 'object' || !part.id) return totals
+        totals.t300 += Number(part.sheets_t300) || 0
+        totals.t700 += Number(part.sheets_t700) || 0
+        return totals
+      }, { t300: 0, t700: 0 })
+      const requestedSheetsByGrade = Object.values(materialSummary).reduce((totals, material) => {
+        const name = String(material?.matName || '').toLowerCase()
+        const qty = Number(material?.sheets) || 0
+        if (/(?:т|t)\s*300/i.test(name)) totals.t300 += qty
+        if (/(?:т|t)\s*700/i.test(name)) totals.t700 += qty
+        return totals
+      }, { t300: 0, t700: 0 })
+      if (
+        plannedSheetsByGrade.t300 !== requestedSheetsByGrade.t300 ||
+        plannedSheetsByGrade.t700 !== requestedSheetsByGrade.t700
+      ) {
+        throw new Error(
+          `Наряд не створено: заявки на листи не відповідають плану ` +
+          `(Т300 ${requestedSheetsByGrade.t300}/${plannedSheetsByGrade.t300}, ` +
+          `Т700 ${requestedSheetsByGrade.t700}/${plannedSheetsByGrade.t700}).`
+        )
+      }
       plan_snapshot.materialSummary = materialSummary
 
       // ── Pre-compute consumables & selectedCutters BEFORE first insert ────
@@ -1805,7 +1835,9 @@ export function createProductionActions({
         supabase.from('orders').update({ status: 'in-progress' }).eq('id', orderId)
       ]
       if (requestsToInsert.length > 0) parallelWrites.push(supabase.from('material_requests').insert(requestsToInsert))
-      await Promise.all(parallelWrites)
+      const writeResults = await Promise.all(parallelWrites)
+      const writeError = writeResults.find(result => result?.error)?.error
+      if (writeError) throw writeError
 
       // ── Optimistic state update — no DB refetch needed ────────────────────
       // Real-time subscription already handles INSERT events for tasks & material_requests.

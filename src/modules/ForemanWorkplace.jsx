@@ -140,6 +140,21 @@ const getDisplayMaterial = (partNom, snapshot) => {
   return baseMat
 }
 
+const getEffectiveMaterial = (partNom, snapshot) => {
+  const baseMaterial = snapshot?.material || partNom?.material_type || ''
+  const t300Sheets = Number(snapshot?.sheets_t300) || 0
+  const t700Sheets = Number(snapshot?.sheets_t700) || 0
+  if (t700Sheets > 0 && t300Sheets === 0) {
+    if (/[тt]\s*300/i.test(baseMaterial)) return baseMaterial.replace(/[тt]\s*300/ig, 'Т700')
+    if (!/[тt]\s*700/i.test(baseMaterial)) return `Т700 ${baseMaterial}`
+  }
+  if (t300Sheets > 0 && t700Sheets === 0) {
+    if (/[тt]\s*700/i.test(baseMaterial)) return baseMaterial.replace(/[тt]\s*700/ig, 'Т300')
+    if (!/[тt]\s*300/i.test(baseMaterial)) return `Т300 ${baseMaterial}`
+  }
+  return baseMaterial
+}
+
 const ForemanWorkplace = () => {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -529,6 +544,23 @@ const ForemanWorkplace = () => {
       return
     }
 
+    fetchData(['tasks']).catch(() => {})
+  }
+
+  const persistSplitLoadCapacity = async (task, nomId, splitIndex, capacity) => {
+    const normalizedCapacity = Math.max(1, Number(capacity) || 1)
+    const snapshot = { ...(task.plan_snapshot || {}) }
+    const key = String(nomId)
+    const splits = [...(snapshot[key]?.splits || [])]
+    if (!splits[splitIndex]) return
+    splits[splitIndex] = { ...splits[splitIndex], load_capacity: normalizedCapacity }
+    snapshot[key] = { ...(snapshot[key] || {}), splits }
+
+    const { error } = await supabase.from('tasks').update({ plan_snapshot: snapshot }).eq('id', task.id)
+    if (error) {
+      setCustomAlert({ title: 'Помилка', message: `Не вдалося зберегти завантаження верстата: ${error.message}` })
+      return
+    }
     fetchData(['tasks']).catch(() => {})
   }
 
@@ -1005,7 +1037,7 @@ const ForemanWorkplace = () => {
                               let totalTargetLoads = loads
                               if (isSplitMode) {
                                 totalTargetLoads = splits.reduce((sum, s) => {
-                                  const cap = findMachine(s.machine)?.sheet_capacity || 1
+                                  const cap = Number(s.load_capacity) || findMachine(s.machine)?.sheet_capacity || 1
                                   const sSheets = Number(s.sheets) || (unitsPerSheet > 0 ? Math.ceil((Number(s.qty) || 0) / unitsPerSheet) : 0)
                                   return sum + Math.ceil(sSheets / cap)
                                 }, 0)
@@ -1901,7 +1933,7 @@ const ForemanWorkplace = () => {
                 <div style={{ fontSize: '0.7rem', color: '#444', fontWeight: 900, marginBottom: '5px' }}>ОБЕРІТЬ ПАРТІЮ ДЛЯ ДРУКУ:</div>
                 {(() => {
                   const globalTotalLoadings = genModal.splits.reduce((acc, s) => {
-                    const cap = findMachine(s.machine)?.sheet_capacity || 1
+                    const cap = Number(s.load_capacity) || findMachine(s.machine)?.sheet_capacity || 1
                     const unitsPerSheet = genModal.part.nom?.units_per_sheet || 1
                     const sSheets = Number(s.sheets) || Math.ceil(s.qty / unitsPerSheet)
                     return acc + Math.ceil(sSheets / cap)
@@ -1914,11 +1946,11 @@ const ForemanWorkplace = () => {
                   )
 
                   return genModal.splits.map((split, sIdx) => {
-                    const cap = findMachine(split.machine)?.sheet_capacity || 1
+                    const cap = Number(split.load_capacity) || findMachine(split.machine)?.sheet_capacity || 1
                     const unitsPerSheet = genModal.part.nom?.units_per_sheet || 1
                     const splitSheets = Number(split.sheets) || Math.ceil(split.qty / unitsPerSheet)
                     const capacityKey = `${genModal.part.nom?.id}_${sIdx}_cap`
-                    const currentCapacity = customLoadingCapacities[capacityKey] ?? cap
+                    const currentCapacity = customLoadingCapacities[capacityKey] ?? (Number(split.load_capacity) || cap)
                     const splitLoadings = Math.ceil(splitSheets / currentCapacity)
                     const splitQty = split.qty || (splitSheets * unitsPerSheet)
                     const qtyPerCard = Math.ceil(splitQty / splitLoadings)
@@ -1962,8 +1994,8 @@ const ForemanWorkplace = () => {
                     })
 
                     const getKittingSheets = (taskObj, partNom) => {
-                      const snapMat = (taskObj.plan_snapshot || {})[String(partNom?.id)]?.material;
-                      const baseMat = snapMat || partNom?.material_type || ''
+                      const partEntry = (taskObj.plan_snapshot || {})[String(partNom?.id)]
+                      const baseMat = getEffectiveMaterial(partNom, partEntry)
                       const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(taskObj.id))
                       const extractThickness = (str) => {
                         const match = str.match(/(\d+(?:\.\d+)?)\s*мм/)
@@ -2098,6 +2130,7 @@ const ForemanWorkplace = () => {
                                   const val = Math.max(1, parseInt(e.target.value) || 1)
                                   setCustomLoadingCapacities(prev => ({ ...prev, [capacityKey]: val }))
                                 }}
+                                onBlur={() => persistSplitLoadCapacity(genModal.task, genModal.part.nom?.id, sIdx, currentCapacity)}
                                 style={{ width: '45px', background: '#000', border: '1px solid rgba(255,144,0,0.4)', color: '#ff9000', textAlign: 'center', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 900, padding: '4px 0' }}
                                 title="Кількість листів на одну загрузку (картку)"
                               />
