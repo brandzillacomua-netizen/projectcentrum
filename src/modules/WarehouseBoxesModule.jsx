@@ -7,6 +7,8 @@ import { useWarehouseHandlers } from './Warehouse/hooks/useWarehouseHandlers'
 import { ScannerPanel } from './Warehouse/components/ScannerPanel'
 import { KittingModal } from './Warehouse/components/KittingModal'
 import { MaterialDetailModal } from './Warehouse/components/MaterialDetailModal'
+import { useManualInventoryIssue } from './Warehouse/ManualIssue/useManualInventoryIssue'
+import { ManualInventoryIssueUI, ManualIssueJournalButton } from './Warehouse/ManualIssue/ManualInventoryIssueUI'
 
 const WarehouseBoxesModule = () => {
   const {
@@ -14,7 +16,7 @@ const WarehouseBoxesModule = () => {
     nomenclatures, receptionDocs, confirmReception,
     orders, tasks, approveWarehouse, createPurchaseRequest,
     purchaseRequests, receiveInventory, currentUser, fetchData,
-    fetchModuleData, machineOperations, workCards
+    fetchModuleData, refreshTable, machineOperations, workCards
   } = useMES()
 
   const [checkedCutters, setCheckedCutters] = useState({})
@@ -77,6 +79,14 @@ const WarehouseBoxesModule = () => {
     editingInvTotal, editingInvReserved, savingInv,
     scannedCard, scannedRequests, shortages, isProcessing, newItem,
     setIsScanning, setScannedCard, setKittingBoxItem, setScannedRequests, setCameraError, setManualCardInput
+  })
+
+  const manualIssue = useManualInventoryIssue({
+    nomenclatures,
+    inventory,
+    currentUser,
+    sourceModule: 'warehouse_boxes',
+    refreshTable
   })
 
   // Process & group all cards with boxes
@@ -212,6 +222,11 @@ const WarehouseBoxesModule = () => {
   }
 
   const handleBoxCardScan = async (rawValue) => {
+    if (manualIssue.handleScannedCode(rawValue)) {
+      setIsScanning(false)
+      return
+    }
+
     const cardId = normalizeScannedCardId(rawValue)
     if (!cardId) {
       alert('Не вдалося зчитати код картки.')
@@ -267,6 +282,7 @@ const WarehouseBoxesModule = () => {
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <ManualIssueJournalButton onClick={manualIssue.openJournal} compact={isMobile} />
           <span style={{ fontSize: '0.68rem', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '3px 8px', borderRadius: '6px', fontWeight: 950 }}>
             {allBoxes.filter(b => b.isPrepared).length}/{allBoxes.length} ГОТОВО
           </span>
@@ -282,6 +298,8 @@ const WarehouseBoxesModule = () => {
         setManualCardInput={setManualCardInput}
         handleCardScan={handleBoxCardScan}
       />
+
+      <ManualInventoryIssueUI controller={manualIssue} />
 
       {/* Kitting Modal (opens upon successful scan) */}
       <KittingModal

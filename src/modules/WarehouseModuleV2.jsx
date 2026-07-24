@@ -33,6 +33,8 @@ import { KittingModal } from './Warehouse/components/KittingModal'
 import { ConsumablesQueue } from './Warehouse/components/ConsumablesQueue'
 import { BoxesView } from './Warehouse/components/BoxesView'
 import { RegistryView } from './Warehouse/components/RegistryView'
+import { useManualInventoryIssue } from './Warehouse/ManualIssue/useManualInventoryIssue'
+import { ManualInventoryIssueUI, ManualIssueJournalButton } from './Warehouse/ManualIssue/ManualInventoryIssueUI'
 
 const WarehouseModuleV2 = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -170,6 +172,22 @@ const WarehouseModuleV2 = () => {
     newItem
   })
 
+  const manualIssue = useManualInventoryIssue({
+    nomenclatures,
+    inventory,
+    currentUser,
+    sourceModule: 'warehouse',
+    refreshTable
+  })
+
+  const handleWarehouseScan = async rawValue => {
+    if (manualIssue.handleScannedCode(rawValue)) {
+      setIsScanning(false)
+      return
+    }
+    return handlers.handleCardScan(rawValue)
+  }
+
   const pendingDocs = useMemo(() => {
     return receptionDocs
       ? receptionDocs.filter(d => (d.status === 'shipped' || d.status === 'ordered') && d.target_warehouse === (activeTab === 'pocket' ? 'pocket' : 'operational'))
@@ -296,6 +314,7 @@ const WarehouseModuleV2 = () => {
           </button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <ManualIssueJournalButton onClick={manualIssue.openJournal} compact={window.innerWidth < 900} />
           <div className="hide-mobile" style={{ color: '#555', fontSize: '0.75rem', fontWeight: 600 }}>
             {currentUser?.first_name} {currentUser?.last_name}
           </div>
@@ -357,8 +376,10 @@ const WarehouseModuleV2 = () => {
           cameraError={cameraError}
           manualCardInput={manualCardInput}
           setManualCardInput={setManualCardInput}
-          handleCardScan={handlers.handleCardScan}
+          handleCardScan={handleWarehouseScan}
         />
+
+        <ManualInventoryIssueUI controller={manualIssue} />
 
         {showReception && (
           <div className="content-card glass-panel" style={{ background: '#111', border: '1px solid #333', borderRadius: '24px', padding: '25px', marginBottom: '30px' }}>
@@ -1026,7 +1047,7 @@ const WarehouseModuleV2 = () => {
           onSubmit={(e) => {
             e.preventDefault();
             if (manualSearchInput.trim()) {
-              handlers.handleCardScan(manualSearchInput.trim())
+              handleWarehouseScan(manualSearchInput.trim())
               setManualSearchInput('')
             }
           }}
