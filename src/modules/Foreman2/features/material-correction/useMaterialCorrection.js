@@ -129,6 +129,7 @@ export function useMaterialCorrection({ currentUser, nomenclatures = [], invento
 
     const requestBackups = []
     const insertedIds = []
+    const inventoryBackups = new Map()
     try {
       const { data: requests, error: requestReadError } = await supabase
         .from('material_requests')
@@ -143,6 +144,27 @@ export function useMaterialCorrection({ currentUser, nomenclatures = [], invento
         String(request.nomenclature_id) === String(oldEntry.nomenclature_id)
       )
 
+      if (oldRequest?.status === 'issued') {
+        const reservedToRelease = Math.min(sheetQty, Number(oldRequest.quantity) || 0)
+        if (oldRequest.inventory_id) {
+          const { data: oldInventory, error: inventoryError } = await supabase
+            .from('inventory')
+            .select('id,total_qty,reserved_qty')
+            .eq('id', oldRequest.inventory_id)
+            .maybeSingle()
+          if (inventoryError) throw inventoryError
+          if (oldInventory) {
+            inventoryBackups.set(String(oldInventory.id), oldInventory)
+          }
+          if (oldInventory) {
+          const { error: releaseError } = await supabase.from('inventory').update({
+              reserved_qty: Math.max(0, (Number(oldInventory.reserved_qty) || 0) - reservedToRelease)
+          }).eq('id', oldInventory.id)
+          if (releaseError) throw releaseError
+          }
+        }
+      }
+
       if (oldRequest) {
         requestBackups.push(oldRequest)
         const oldEntrySheets = Number(oldEntry?.sheets) || Number(oldRequest.quantity) || 0
@@ -151,7 +173,8 @@ export function useMaterialCorrection({ currentUser, nomenclatures = [], invento
             nomenclature_id: material.id,
             inventory_id: material.inventory_id,
             quantity: sheetQty,
-            details: `ВИПРАВЛЕНО В НАРЯДІ: ${oldMaterial} → ${material.name} — ${sheetQty} л.`
+            status: 'pending',
+            details: `ВИПРАВЛЕНО В НАРЯДІ: ${oldMaterial} → ${material.name} — ${sheetQty} л. [MATERIAL_CORRECTION:${part.nomId}]`
           }).eq('id', oldRequest.id)
           if (updateError) throw updateError
         } else {
@@ -166,7 +189,7 @@ export function useMaterialCorrection({ currentUser, nomenclatures = [], invento
             status: 'pending',
             inventory_id: material.inventory_id,
             nomenclature_id: material.id,
-            details: `ВИПРАВЛЕНО В НАРЯДІ: ${oldMaterial} → ${material.name} — ${sheetQty} л.`
+            details: `ВИПРАВЛЕНО В НАРЯДІ: ${oldMaterial} → ${material.name} — ${sheetQty} л. [MATERIAL_CORRECTION:${part.nomId}]`
           }).select('id').single()
           if (insertError) throw insertError
           insertedIds.push(inserted.id)
@@ -179,7 +202,7 @@ export function useMaterialCorrection({ currentUser, nomenclatures = [], invento
           status: 'pending',
           inventory_id: material.inventory_id,
           nomenclature_id: material.id,
-          details: `ВИПРАВЛЕНО В НАРЯДІ: ${oldMaterial} → ${material.name} — ${sheetQty} л.`
+          details: `ВИПРАВЛЕНО В НАРЯДІ: ${oldMaterial} → ${material.name} — ${sheetQty} л. [MATERIAL_CORRECTION:${part.nomId}]`
         }).select('id').single()
         if (insertError) throw insertError
         insertedIds.push(inserted.id)
@@ -201,6 +224,9 @@ export function useMaterialCorrection({ currentUser, nomenclatures = [], invento
         }).eq('id', backup.id)
       }
       if (insertedIds.length > 0) await supabase.from('material_requests').delete().in('id', insertedIds)
+      for (const backup of inventoryBackups.values()) {
+        await supabase.from('inventory').update({ reserved_qty: backup.reserved_qty }).eq('id', backup.id)
+      }
       setError(saveError.message || 'Не вдалося виправити матеріал.')
     } finally {
       setIsSaving(false)

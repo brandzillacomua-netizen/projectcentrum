@@ -16,6 +16,7 @@ import ForemanAdminCardDeletePanel from './Foreman/features/admin-card-delete/Fo
 import MaterialCorrectionModal from './Foreman2/features/material-correction/MaterialCorrectionModal.jsx'
 import MaterialCorrectionAction from './Foreman2/features/material-correction/MaterialCorrectionAction.jsx'
 import { useMaterialCorrection } from './Foreman2/features/material-correction/useMaterialCorrection.js'
+import { getPendingMaterialCorrection } from './Foreman2/features/material-correction/materialCorrectionState.js'
 import { getDisplayPartsForOrderItem as getDisplayPartsForOrderItemHelper, getStandardMachineType, findMachineByName, MACHINE_TYPES } from './Foreman/utils/foremanHelpers'
 
 const uniqueById = (rows = []) => {
@@ -949,6 +950,13 @@ const ForemanWorkplace = () => {
                               const allRedos = existing.filter(c => c.operation !== 'Склад БЗ' && (c.card_info || '').includes('[REDO]'))
                               const redoCount = allRedos.length
                               const activeProductionCards = productionCards.filter(c => !(c.card_info || '').includes('[REDO]'))
+                              const pendingMaterialCorrection = getPendingMaterialCorrection({
+                                requests: materialRequests,
+                                taskId: task.id,
+                                partId: nomId,
+                                snapshot,
+                                nomenclatures
+                              })
 
                               const rawRowMachineName = ((task.plan_snapshot || {})[String(nomId)]?.machine || (task.plan_snapshot || {})[String(nomId)]?.selected_machine || selectedMachines[rowId] || '')
                                 || (productionCards.length > 0 && productionCards[0].machine && productionCards[0].machine !== 'Не вказано' ? productionCards[0].machine : '')
@@ -1255,7 +1263,11 @@ const ForemanWorkplace = () => {
                                               ЗАБРОНЬОВАНО: {Math.min(need, stockBZ)} шт
                                             </div>
                                           )}
-                                          {(activeProductionCards.length === 0 || activeProductionCards.length < totalTargetLoads) && (
+                                          {pendingMaterialCorrection ? (
+                                            <div style={{ maxWidth: '145px', background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.45)', color: '#f59e0b', padding: '7px 9px', borderRadius: '8px', fontSize: '.58rem', fontWeight: 950, lineHeight: 1.25, textAlign: 'center', textTransform: 'uppercase' }}>
+                                              Заміна очікує погодження складу
+                                            </div>
+                                          ) : (activeProductionCards.length === 0 || activeProductionCards.length < totalTargetLoads) && (
                                             <button
                                               disabled={!(rowMachineName || isSplitMode) || (() => {
                                                 if (isCapacityMissing) return true
