@@ -32,7 +32,8 @@ import {
   Sun,
   Moon,
   MessageCircle,
-  MessagesSquare
+  MessagesSquare,
+  Wrench
 } from 'lucide-react'
 
 // ── Lazy-loaded modules (loaded on demand, not at startup) ─────────────────────
@@ -78,6 +79,7 @@ const PressingTerminal = lazy(() => import('./modules/PressingTerminal'))
 const WarehouseBoxesModule = lazy(() => import('./modules/WarehouseBoxesModule'))
 const PreparationDashboard = lazy(() => import('./modules/PreparationDashboard'))
 const ChatModule = lazy(() => import('./modules/ChatModule'))
+const CutterRestorationModule = lazy(() => import('./modules/CutterRestorationModule'))
 
 import { MESProvider, useMES } from './MESContext'
 import { subscribeToPush } from './services/pushService'
@@ -120,6 +122,7 @@ const getAllModules = (badgeCount = 0, chatBadgeCount = 0) => [
   // 3. Склад, Постачання та Логістика
   { id: 'warehouse', title: 'Склад Оперативний', icon: <Warehouse />, path: '/warehouse', desc: 'Матеріали та залишки', color: '#10b981' },
   { id: 'warehouse_boxes', title: 'Бокси фрез (СО)', icon: <Package />, path: '/warehouse-boxes', desc: 'Підготовка боксів для карток', color: '#f59e0b' },
+  { id: 'cutter_restoration', title: 'Відновлення фрез', icon: <Wrench />, path: '/cutter-restoration', desc: 'Заточування та повернення фасочних фрез', color: '#06b6d4' },
   { id: 'supply', title: 'Склад Виробництва', icon: <Warehouse />, path: '/supply', desc: 'Управління запасами та запити', color: '#06b6d4' },
   { id: 'procurement', title: 'Постачання', icon: <ShoppingBag />, path: '/procurement', desc: 'Закупівля ТМЦ у постачальників', color: '#ec4899' },
   { id: 'packaging', title: 'Пакування', icon: <Package />, path: '/packaging', desc: 'Комплектування', color: '#f43f5e' },
@@ -170,6 +173,7 @@ const CATEGORY_MAP = {
   sorting_terminal: 'shop1',
   operator: 'shop1',
   warehouse_boxes: 'shop1',
+  cutter_restoration: 'shop1',
 
   // Цех 2
   shop2: 'shop2',
@@ -3051,6 +3055,7 @@ const AppContent = () => {
           <Route path="/manager" element={<PermissionGuard id="manager"><ManagerModule /></PermissionGuard>} />
           <Route path="/warehouse" element={<PermissionGuard id="warehouse"><WarehouseModule /></PermissionGuard>} />
           <Route path="/warehouse-boxes" element={<PermissionGuard id="warehouse_boxes"><WarehouseBoxesModule /></PermissionGuard>} />
+          <Route path="/cutter-restoration" element={<PermissionGuard id="cutter_restoration"><CutterRestorationModule /></PermissionGuard>} />
           <Route path="/master" element={<PermissionGuard id="master"><MasterModule /></PermissionGuard>} />
           <Route path="/foreman" element={<PermissionGuard id="foreman"><ForemanWorkplace /></PermissionGuard>} />
           <Route path="/foreman2" element={<PermissionGuard id="foreman2"><Foreman2Module /></PermissionGuard>} />

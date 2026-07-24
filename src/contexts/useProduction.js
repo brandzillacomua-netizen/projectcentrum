@@ -1150,46 +1150,31 @@ export function createProductionActions({
     }
 
     if (currentOp === 'Розкрій' && cuttersBreakdown && Object.keys(cuttersBreakdown).length > 0) {
+      const cutterUsageItems = []
       for (const [cutterName, actualQtyVal] of Object.entries(cuttersBreakdown)) {
         const actualQty = Number(actualQtyVal) || 0
         if (actualQty <= 0) continue
 
         const nom = nomenclatures?.find(n => n.name?.trim().toLowerCase() === cutterName.trim().toLowerCase() && n.type === 'consumable')
         if (!nom) continue
+        cutterUsageItems.push({ nomenclature_id: nom.id, quantity: actualQty })
+      }
 
-        try {
-          const query = supabase.from('inventory')
-            .select('*')
-            .eq('nomenclature_id', nom.id)
-            .eq('warehouse', 'pocket')
-
-          if (card.manager_name && card.manager_name !== 'Не вказано') {
-            query.eq('pocket_owner', card.manager_name)
-          } else {
-            query.is('pocket_owner', null)
+      if (cutterUsageItems.length > 0) {
+        const actorName = [currentUser?.last_name, currentUser?.first_name].filter(Boolean).join(' ') || currentUser?.login || card.operator_name || 'system'
+        const { error: cutterUsageError } = await supabase.rpc('register_cutter_usage', {
+          p_source_card_id: cardId,
+          p_items: cutterUsageItems,
+          p_actor_id: currentUser?.id || null,
+          p_actor_name: actorName,
+          p_source_metadata: {
+            operator_name: card.operator_name || null,
+            manager_name: card.manager_name || null,
+            machine_name: card.machine || null
           }
-
-          const { data: pocketItem } = await query.limit(1).maybeSingle()
-
-          if (pocketItem) {
-            await supabase.from('inventory').update({
-              total_qty: (Number(pocketItem.total_qty) || 0) - actualQty,
-              updated_at: new Date().toISOString()
-            }).eq('id', pocketItem.id)
-          } else {
-            await supabase.from('inventory').insert([{
-              nomenclature_id: nom.id,
-              name: nom.name,
-              unit: nom.unit || 'шт',
-              total_qty: -actualQty,
-              warehouse: 'pocket',
-              type: 'consumable',
-              pocket_owner: card.manager_name && card.manager_name !== 'Не вказано' ? card.manager_name : null,
-              updated_at: new Date().toISOString()
-            }])
-          }
-        } catch (e) {
-          console.warn('Failed to update Pocket inventory for cutter in confirmBuffer:', e)
+        })
+        if (cutterUsageError) {
+          throw new Error(`Не вдалося зареєструвати використані фрези: ${cutterUsageError.message}`)
         }
       }
     }
