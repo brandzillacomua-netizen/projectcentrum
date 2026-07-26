@@ -1413,23 +1413,9 @@ export function createProductionActions({
         p_actor_id: currentUser?.id || null,
         p_actor_name: actorName
       })
-      const isLegacyInventoryTimestampError = bzReserveError &&
-        /column\s+"?created_at"?\s+does not exist/i.test(String(bzReserveError.message || ''))
-      if (bzReserveError && !isLegacyInventoryTimestampError) throw bzReserveError
-      if (isLegacyInventoryTimestampError) {
-        // Do not block production while an older inventory schema is awaiting
-        // its additive migration. No BZ balance is moved in this fallback, so
-        // every required unit remains in the normal production plan.
-        console.warn(
-          'BZ reservation skipped: inventory.created_at migration is not applied yet.',
-          bzReserveError
-        )
-      } else {
-        bzReservationCreated = true
-      }
-      const bzReserveResult = isLegacyInventoryTimestampError
-        ? { allocations: [] }
-        : bzReserveData
+      if (bzReserveError) throw bzReserveError
+      bzReservationCreated = true
+      const bzReserveResult = bzReserveData
 
       const bzAllocationRemaining = Object.fromEntries(
         (bzReserveResult?.allocations || []).map(row => [
