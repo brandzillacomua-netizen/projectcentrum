@@ -131,48 +131,30 @@ export function useShop1Actions({
   const handleCuttersInventoryDeduction = async (card, breakdown) => {
     if (card.operation !== 'Розкрій' || !breakdown || Object.keys(breakdown).length === 0) return
 
+    const items = []
     for (const [cutterName, actualQtyVal] of Object.entries(breakdown)) {
       const actualQty = Number(actualQtyVal) || 0
       if (actualQty <= 0) continue
 
       const nom = nomenclatures?.find(n => n.name?.trim().toLowerCase() === cutterName.trim().toLowerCase() && n.type === 'consumable')
-      if (!nom) continue
-
-      try {
-        const query = supabase.from('inventory')
-          .select('*')
-          .eq('nomenclature_id', nom.id)
-          .eq('warehouse', 'pocket')
-
-        if (card.manager_name && card.manager_name !== 'Не вказано') {
-          query.eq('pocket_owner', card.manager_name)
-        } else {
-          query.is('pocket_owner', null)
-        }
-
-        const { data: pocketItem } = await query.limit(1).maybeSingle()
-
-        if (pocketItem) {
-          await supabase.from('inventory').update({
-            total_qty: (Number(pocketItem.total_qty) || 0) - actualQty,
-            updated_at: new Date().toISOString()
-          }).eq('id', pocketItem.id)
-        } else {
-          await supabase.from('inventory').insert([{
-            nomenclature_id: nom.id,
-            name: nom.name,
-            unit: nom.unit || 'шт',
-            total_qty: -actualQty,
-            warehouse: 'pocket',
-            type: 'consumable',
-            pocket_owner: card.manager_name && card.manager_name !== 'Не вказано' ? card.manager_name : null,
-            updated_at: new Date().toISOString()
-          }])
-        }
-      } catch (e) {
-        console.warn('Failed to update Pocket inventory for cutter:', e)
-      }
+      if (!nom) throw new Error(`Не знайдено номенклатуру фрези «${cutterName}»`)
+      items.push({ nomenclature_id: nom.id, quantity: actualQty })
     }
+
+    if (items.length === 0) return
+    const actorName = formatUserName(currentUser) || currentUser?.login || selectedOperator || 'Оператор терміналу'
+    const { error } = await supabase.rpc('register_cutter_usage', {
+      p_source_card_id: card.id,
+      p_items: items,
+      p_actor_id: currentUser?.id || null,
+      p_actor_name: actorName,
+      p_source_metadata: {
+        operator_name: selectedOperator || card.operator_name || null,
+        manager_name: card.manager_name || null,
+        machine_name: card.machine || null
+      }
+    })
+    if (error) throw error
   }
 
   const handleStart = async () => {

@@ -1490,9 +1490,17 @@ export function createProductionActions({
             const addMaterialToSummary = (typePrefix, qty) => {
               const matKeyBase = (part.nom.material_type || part.nom.name || 'Інше').trim()
               const explicitRawCandidate = findExplicitRawMaterialNom(matKeyBase)
+              const explicitCandidateName = String(explicitRawCandidate?.name || '').toLowerCase()
+              const requestedT700 = /(?:т|t)\s*700/i.test(typePrefix)
+              const candidateIsT700 = /(?:т|t)\s*700/i.test(explicitCandidateName)
+              const candidateIsT300 = /(?:т|t)\s*300/i.test(explicitCandidateName)
+              const explicitCandidateMatchesGrade = requestedT700
+                ? candidateIsT700
+                : (candidateIsT300 || !candidateIsT700)
               const explicitRawNom = explicitRawCandidate &&
                 String(explicitRawCandidate.name || '').toLowerCase().includes('підготовлений') &&
-                !String(explicitRawCandidate.name || '').toLowerCase().includes('непідготовлений')
+                !String(explicitRawCandidate.name || '').toLowerCase().includes('непідготовлений') &&
+                explicitCandidateMatchesGrade
                   ? explicitRawCandidate
                   : null
               const thickMatch = matKeyBase.match(/\((\d+(?:\.\d+)?)мм\)/i)
