@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft, CheckCircle2, Clock3, History, PackageCheck,
   Play, RefreshCw, Search, Settings2, ShieldCheck, Sparkles, Wrench
@@ -20,6 +20,15 @@ const formatDate = value => value
 const userName = user =>
   [user?.last_name, user?.first_name].filter(Boolean).join(' ') || user?.login || 'Користувач'
 
+const cutterTypeKey = value => String(value || '')
+  .toLowerCase()
+  .replace(/фреза|фасочна|фасочная|cutter|ф/g, '')
+  .replace(/[х×*]/g, 'x')
+  .replace(/,/g, '.')
+  .replace(/градус(?:ів|а)?|degrees?|deg|°/g, '')
+  .replace(/\s+/g, '')
+  .replace(/[^a-zа-яіїєґ0-9.x()]/g, '')
+
 export default function CutterRestorationModule() {
   const navigate = useNavigate()
   const { supabase, currentUser } = useMES()
@@ -30,13 +39,10 @@ export default function CutterRestorationModule() {
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState(null)
   const [result, setResult] = useState({ restored: '', rejected: '', note: '' })
+  const historySyncStarted = useRef(false)
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
-    const { error: syncError } = await supabase.rpc('reconcile_cutter_restoration_from_history')
-    if (syncError && syncError.code !== 'PGRST202' && syncError.code !== '42883') {
-      console.warn('[Cutter restoration] History synchronization failed:', syncError.message)
-    }
     const { data, error } = await supabase
       .from('cutter_restoration_batches')
       .select('*')
@@ -48,6 +54,19 @@ export default function CutterRestorationModule() {
       setBatches(data || [])
     }
     if (!silent) setLoading(false)
+
+    // Reconciliation can scan a large history table. It must never block the
+    // queue read or run again for every realtime batch update.
+    if (!historySyncStarted.current) {
+      historySyncStarted.current = true
+      supabase.rpc('reconcile_cutter_restoration_from_history').then(({ data: created, error: syncError }) => {
+        if (syncError && syncError.code !== 'PGRST202' && syncError.code !== '42883') {
+          console.warn('[Cutter restoration] Background history synchronization failed:', syncError.message)
+          return
+        }
+        if (Number(created || 0) > 0) load(true)
+      })
+    }
   }, [supabase])
 
   useEffect(() => {
@@ -81,10 +100,12 @@ export default function CutterRestorationModule() {
     const groups = new Map()
     filtered.forEach(row => {
       const assignee = row.status === 'in_progress' ? String(row.assigned_user_id || '') : ''
-      const key = `${row.status}|${row.nomenclature_id}|${assignee}`
+      const typeKey = cutterTypeKey(row.cutter_name) || String(row.nomenclature_id || '')
+      const key = `${row.status}|${typeKey}|${assignee}`
       if (!groups.has(key)) {
         groups.set(key, {
           ...row,
+          cutter_type_key: typeKey,
           id: `stack-${key}`,
           batch_number: 'НАКОПИЧУВАЛЬНИЙ КОШИК',
           received_qty: 0,
@@ -107,8 +128,8 @@ export default function CutterRestorationModule() {
 
   const startBatch = async batch => {
     setWorking(true)
-    const { data, error } = await supabase.rpc('start_cutter_restoration_group', {
-      p_nomenclature_id: batch.nomenclature_id,
+    const { data, error } = await supabase.rpc('start_cutter_restoration_stack', {
+      p_type_key: batch.cutter_type_key,
       p_actor_id: currentUser?.id,
       p_actor_name: userName(currentUser)
     })
