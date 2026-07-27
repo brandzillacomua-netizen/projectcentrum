@@ -3177,6 +3177,8 @@ const displayParts = getDisplayPartsForOrderItem(it)
                       const nameLower = c.name.toLowerCase()
                       const fMatch = nameLower.match(/ф\s*([0-9][0-9,.]*)/)
                       const parsedDiam = fMatch ? parseFloat(fMatch[1].replace(',', '.')) : null
+                      const requiredAngleMatch = nameLower.match(/(?:\(|x|х|×|\s)(90|120)\s*(?:°|град|\))/)
+                      const requiredAngle = requiredAngleMatch ? Number(requiredAngleMatch[1]) : null
 
                       // Helper: extract cutting diameter from an inventory cutter nom name
                       // Handles: "Фреза ф2", "Фреза кукурудза 2×3,175×6×50", "Фреза двопера 3×4×6×50"
@@ -3205,14 +3207,23 @@ const displayParts = getDisplayPartsForOrderItem(it)
                         const availQty = Math.max(0, (Number(inv.total_qty) || 0) - (Number(inv.reserved_qty) || 0))
                         if (availQty <= 0) return false
                         
-                        if (genericCutter && nom.characteristic) {
-                          return String(nom.characteristic) === String(genericCutter.id)
+                        // An exact cutter-type assignment is a strong match, but
+                        // a different assignment must not hide cutters of the
+                        // same diameter from a generic request such as "Фреза ф6".
+                        // Faceting cutters have their own ф6(90)/ф6(120) types.
+                        if (genericCutter && nom.characteristic &&
+                            String(nom.characteristic) === String(genericCutter.id)) {
+                          return true
                         }
+                        if (requiredAngle !== null && genericCutter && nom.characteristic) return false
 
                         if (parsedDiam) {
                           const nomDiam = extractNomDiam(nom.name)
                           if (nomDiam === null) return false
-                          return Math.abs(nomDiam - parsedDiam) < 0.01
+                          if (Math.abs(nomDiam - parsedDiam) >= 0.01) return false
+                          if (requiredAngle === null) return true
+                          const nomAngleMatch = nom.name.match(/(?:\(|x|х|×|\s)(90|120)\s*(?:°|град|\))/i)
+                          return nomAngleMatch ? Number(nomAngleMatch[1]) === requiredAngle : false
                         }
                         return true
                       })
