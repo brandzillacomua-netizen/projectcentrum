@@ -1071,6 +1071,7 @@ export default function Shop1Terminal() {
   const updateInventoryStock = async (nomId, qty, type = 'semi') => {
     if (!nomId || qty <= 0) return
     try {
+      const nom = nomenclatures.find(n => n.id === nomId)
       const { data: existing, error: lookupError } = await supabase.from('inventory')
         .select('*')
         .eq('nomenclature_id', nomId)
@@ -1078,22 +1079,56 @@ export default function Shop1Terminal() {
         .limit(1).maybeSingle()
       if (lookupError) throw lookupError
 
-      if (existing) {
+      let target = existing
+      if (!target && nom?.name) {
+        const { data: sameUniqueItem, error: uniqueLookupError } = await supabase
+          .from('inventory')
+          .select('*')
+          .eq('name', nom.name)
+          .eq('type', type)
+          .or('warehouse.eq.operational,warehouse.is.null')
+          .limit(1)
+          .maybeSingle()
+        if (uniqueLookupError) throw uniqueLookupError
+        target = sameUniqueItem
+      }
+
+      if (target) {
         const { error } = await supabase.from('inventory').update({
-          total_qty: (Number(existing.total_qty) || 0) + Number(qty),
+          total_qty: (Number(target.total_qty) || 0) + Number(qty),
           updated_at: new Date().toISOString()
-        }).eq('id', existing.id)
+        }).eq('id', target.id)
         if (error) throw error
       } else {
-        const nom = nomenclatures.find(n => n.id === nomId)
         const { error } = await supabase.from('inventory').insert([{
           name: nom?.name || 'Деталь',
           unit: nom?.unit || 'шт',
           total_qty: Number(qty),
           type: type,
-          nomenclature_id: nomId
+          nomenclature_id: nomId,
+          warehouse: 'operational'
         }])
-        if (error) throw error
+        if (error?.code === '23505') {
+          // Another terminal inserted the same inventory row between our
+          // lookup and insert. Resolve the winner and increment that row.
+          const { data: concurrentItem, error: concurrentLookupError } = await supabase
+            .from('inventory')
+            .select('*')
+            .eq('name', nom?.name || 'Деталь')
+            .eq('type', type)
+            .eq('warehouse', 'operational')
+            .limit(1)
+            .maybeSingle()
+          if (concurrentLookupError) throw concurrentLookupError
+          if (!concurrentItem) throw error
+          const { error: retryError } = await supabase.from('inventory').update({
+            total_qty: (Number(concurrentItem.total_qty) || 0) + Number(qty),
+            updated_at: new Date().toISOString()
+          }).eq('id', concurrentItem.id)
+          if (retryError) throw retryError
+        } else if (error) {
+          throw error
+        }
       }
     } catch (e) {
       console.warn(`Stock update failed for type ${type}:`, e)
@@ -1718,6 +1753,34 @@ export default function Shop1Terminal() {
       }
       const baseCardInfo = isCuttingOperation ? (currentCard.card_info || '') : stripCuttersBreakdown(currentCard.card_info)
       const historyCardInfo = (baseCardInfo + breakdownStr).trim()
+      const completedAt = new Date().toISOString()
+
+      // Claim completion with a conditional update. Only one click/terminal
+      // can move an in-progress card to the buffer; retries become no-ops.
+      const { data: claimedCard, error: claimError } = await supabase
+        .from('work_cards')
+        .update({
+          status: 'at-buffer',
+          quantity: qtyDone,
+          operator_name: op,
+          shift_name: activeShift,
+          cutters_used: cuttersQty,
+          card_info: historyCardInfo,
+          completed_at: completedAt
+        })
+        .eq('id', currentCard.id)
+        .eq('status', 'in-progress')
+        .select('id')
+        .maybeSingle()
+      if (claimError) throw claimError
+      if (!claimedCard) {
+        setShowCompleteModal(false)
+        setScrapCount(0)
+        setSelectedCardId(null)
+        fetchData(['work_cards', 'work_card_history', 'inventory']).catch(() => {})
+        alert('Цю картку вже завершено. Повторне проведення не виконувалось.')
+        return
+      }
 
       const promises = []
 
@@ -1735,7 +1798,7 @@ export default function Shop1Terminal() {
               qty_completed: qtyDone,
               scrap_qty: 0,
               started_at: currentCard.started_at,
-              completed_at: new Date().toISOString(),
+              completed_at: completedAt,
               is_archived_scrap: false,
               shift_name: activeShift,
               manager_name: currentCard.manager_name,
@@ -1761,7 +1824,7 @@ export default function Shop1Terminal() {
             qty_completed: 0,
             scrap_qty: scrapCount,
             started_at: currentCard.started_at,
-            completed_at: new Date().toISOString(),
+            completed_at: completedAt,
             is_archived_scrap: true,
             shift_name: scrapShift,
             manager_name: currentCard.manager_name,
@@ -1781,7 +1844,7 @@ export default function Shop1Terminal() {
             qty_completed: qtyDone,
             scrap_qty: scrapCount,
             started_at: currentCard.started_at,
-            completed_at: new Date().toISOString(),
+            completed_at: completedAt,
             is_archived_scrap: scrapCount > 0,
             shift_name: activeShift,
             manager_name: currentCard.manager_name,
@@ -1792,20 +1855,7 @@ export default function Shop1Terminal() {
         )
       }
 
-      // 2. Оновлюємо картку (тільки перехід у буфер, фінальна прийомка далі)
-      promises.push(
-        supabase.from('work_cards').update({
-          status: 'at-buffer',
-          quantity: qtyDone,
-          operator_name: op,
-          shift_name: activeShift,
-          cutters_used: cuttersQty,
-          card_info: historyCardInfo,
-          completed_at: new Date().toISOString()
-        }).eq('id', currentCard.id)
-      )
-
-      // 3. Якщо є брак — записуємо його в інвентар окремим типом
+      // 2. Якщо є брак — записуємо його в інвентар окремим типом
       if (scrapCount > 0) {
         promises.push(updateInventoryStock(currentCard.nomenclature_id, scrapCount, 'scrap_ready'))
       }
