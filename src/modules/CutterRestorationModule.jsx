@@ -33,6 +33,10 @@ export default function CutterRestorationModule() {
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
+    const { error: syncError } = await supabase.rpc('reconcile_cutter_restoration_from_history')
+    if (syncError && syncError.code !== 'PGRST202' && syncError.code !== '42883') {
+      console.warn('[Cutter restoration] History synchronization failed:', syncError.message)
+    }
     const { data, error } = await supabase
       .from('cutter_restoration_batches')
       .select('*')

@@ -333,17 +333,31 @@ export default function TumblingTerminal() {
             is_archived_scrap: actualScrap > 0
           }]
 
-      const { error: historyError } = await supabase.from('work_card_history').insert(historyRows)
-      if (historyError) throw new Error(`Не вдалося передати брак у ВКЯ: ${historyError.message}`)
-
-      // 2. Update card to buffer of the current stage
-      const { error: cardUpdateError } = await supabase.from('work_cards').update({
+      // Claim completion before writing any side effects. Only one request can
+      // transition this exact in-progress stage to its buffer.
+      const { data: claimedCard, error: cardUpdateError } = await supabase.from('work_cards').update({
         status: 'at-buffer',
         operation: activeCompletingCard.operation === 'Галтовка (Сушка)' ? 'Галтовка' : activeCompletingCard.operation,
         quantity: actualFinished,
         completed_at: now
-      }).eq('id', activeCompletingCard.id)
+      })
+        .eq('id', activeCompletingCard.id)
+        .eq('status', 'in-progress')
+        .eq('operation', activeCompletingCard.operation)
+        .select('id')
+        .maybeSingle()
       if (cardUpdateError) throw new Error(`Не вдалося завершити етап: ${cardUpdateError.message}`)
+      if (!claimedCard) {
+        setShowCompleteModal(false)
+        setActiveCompletingCard(null)
+        setManualId('')
+        setScanError('Цей етап картки вже завершено. Повторне проведення не виконувалось.')
+        fetchData(['work_cards', 'work_card_history', 'inventory']).catch(() => { })
+        return
+      }
+
+      const { error: historyError } = await supabase.from('work_card_history').insert(historyRows)
+      if (historyError) throw new Error(`Не вдалося передати брак у ВКЯ: ${historyError.message}`)
 
       // 3. Register scrap in inventory if any
       if (actualScrap > 0) {
@@ -366,6 +380,7 @@ export default function TumblingTerminal() {
   const updateInventoryStock = async (nomId, qty, type = 'scrap_ready') => {
     if (!nomId || qty <= 0) return
     try {
+      const nom = nomenclatures.find(n => n.id === nomId)
       const { data: existing, error: lookupError } = await supabase.from('inventory')
         .select('*')
         .eq('nomenclature_id', nomId)
@@ -373,22 +388,54 @@ export default function TumblingTerminal() {
         .limit(1).maybeSingle()
       if (lookupError) throw lookupError
 
-      if (existing) {
+      let target = existing
+      if (!target && nom?.name) {
+        const { data: sameUniqueItem, error: uniqueLookupError } = await supabase
+          .from('inventory')
+          .select('*')
+          .eq('name', nom.name)
+          .eq('type', type)
+          .or('warehouse.eq.operational,warehouse.is.null')
+          .limit(1)
+          .maybeSingle()
+        if (uniqueLookupError) throw uniqueLookupError
+        target = sameUniqueItem
+      }
+
+      if (target) {
         const { error } = await supabase.from('inventory').update({
-          total_qty: (Number(existing.total_qty) || 0) + Number(qty),
+          total_qty: (Number(target.total_qty) || 0) + Number(qty),
           updated_at: new Date().toISOString()
-        }).eq('id', existing.id)
+        }).eq('id', target.id)
         if (error) throw error
       } else {
-        const nom = nomenclatures.find(n => n.id === nomId)
         const { error } = await supabase.from('inventory').insert([{
           name: nom?.name || 'Деталь',
           unit: nom?.unit || 'шт',
           total_qty: Number(qty),
           type: type,
-          nomenclature_id: nomId
+          nomenclature_id: nomId,
+          warehouse: 'operational'
         }])
-        if (error) throw error
+        if (error?.code === '23505') {
+          const { data: concurrentItem, error: concurrentLookupError } = await supabase
+            .from('inventory')
+            .select('*')
+            .eq('name', nom?.name || 'Деталь')
+            .eq('type', type)
+            .eq('warehouse', 'operational')
+            .limit(1)
+            .maybeSingle()
+          if (concurrentLookupError) throw concurrentLookupError
+          if (!concurrentItem) throw error
+          const { error: retryError } = await supabase.from('inventory').update({
+            total_qty: (Number(concurrentItem.total_qty) || 0) + Number(qty),
+            updated_at: new Date().toISOString()
+          }).eq('id', concurrentItem.id)
+          if (retryError) throw retryError
+        } else if (error) {
+          throw error
+        }
       }
     } catch (e) {
       console.warn('Scrap inventory update failed:', e)
