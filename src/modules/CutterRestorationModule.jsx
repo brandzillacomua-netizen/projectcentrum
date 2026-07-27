@@ -63,33 +63,67 @@ export default function CutterRestorationModule() {
   }, [load, supabase])
 
   const counts = useMemo(() => ({
-    pending: batches.filter(row => row.status === 'pending').length,
-    inProgress: batches.filter(row => row.status === 'in_progress').length,
-    reception: batches.filter(row => row.status === 'awaiting_reception').length,
+    pending: batches.filter(row => row.status === 'pending').reduce((sum, row) => sum + Number(row.received_qty || 0), 0),
+    inProgress: batches.filter(row => row.status === 'in_progress').reduce((sum, row) => sum + Number(row.received_qty || 0), 0),
+    reception: batches.filter(row => row.status === 'awaiting_reception').reduce((sum, row) => sum + Number(row.restored_qty || 0), 0),
     restored: batches.reduce((sum, row) => sum + Number(row.restored_qty || 0), 0)
   }), [batches])
 
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase()
-    return batches.filter(row => {
+    const filtered = batches.filter(row => {
       if (filter === 'active' && !['pending', 'in_progress'].includes(row.status)) return false
       if (filter !== 'active' && filter !== 'all' && row.status !== filter) return false
       if (!needle) return true
       return [row.batch_number, row.cutter_name, row.source_machine, row.source_manager, row.assigned_user_name]
         .some(value => String(value || '').toLowerCase().includes(needle))
     })
+    const groups = new Map()
+    filtered.forEach(row => {
+      const assignee = row.status === 'in_progress' ? String(row.assigned_user_id || '') : ''
+      const key = `${row.status}|${row.nomenclature_id}|${assignee}`
+      if (!groups.has(key)) {
+        groups.set(key, {
+          ...row,
+          id: `stack-${key}`,
+          batch_number: 'НАКОПИЧУВАЛЬНИЙ КОШИК',
+          received_qty: 0,
+          restored_qty: 0,
+          rejected_qty: 0,
+          group_count: 0,
+          batch_ids: []
+        })
+      }
+      const group = groups.get(key)
+      group.received_qty += Number(row.received_qty || 0)
+      group.restored_qty += Number(row.restored_qty || 0)
+      group.rejected_qty += Number(row.rejected_qty || 0)
+      group.group_count += 1
+      group.batch_ids.push(row.id)
+      if (new Date(row.created_at) > new Date(group.created_at)) group.created_at = row.created_at
+    })
+    return [...groups.values()].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
   }, [batches, filter, search])
 
   const startBatch = async batch => {
     setWorking(true)
-    const { data, error } = await supabase.rpc('start_cutter_restoration', {
-      p_batch_id: batch.id,
+    const { data, error } = await supabase.rpc('start_cutter_restoration_group', {
+      p_nomenclature_id: batch.nomenclature_id,
       p_actor_id: currentUser?.id,
       p_actor_name: userName(currentUser)
     })
     setWorking(false)
     if (error) return window.alert(`Не вдалося взяти партію в роботу: ${error.message}`)
-    const active = (Array.isArray(data) ? data[0] : data) || { ...batch, status: 'in_progress', assigned_user_id: currentUser?.id, assigned_user_name: userName(currentUser) }
+    const rows = Array.isArray(data) ? data : (data ? [data] : [])
+    const active = {
+      ...batch,
+      status: 'in_progress',
+      assigned_user_id: currentUser?.id,
+      assigned_user_name: userName(currentUser),
+      batch_ids: rows.map(row => row.id),
+      group_count: rows.length,
+      received_qty: rows.reduce((sum, row) => sum + Number(row.received_qty || 0), 0)
+    }
     setSelected(active)
     setResult({ restored: String(active.received_qty), rejected: '0', note: '' })
     load(true)
@@ -111,8 +145,8 @@ export default function CutterRestorationModule() {
       return window.alert(`Потрібно розподілити всі ${selected.received_qty} шт.: відновлені + списані.`)
     }
     setWorking(true)
-    const { error } = await supabase.rpc('finish_cutter_restoration', {
-      p_batch_id: selected.id,
+    const { error } = await supabase.rpc('finish_cutter_restoration_group', {
+      p_batch_ids: selected.batch_ids,
       p_restored_qty: restored,
       p_rejected_qty: rejected,
       p_actor_id: currentUser?.id,
@@ -175,7 +209,7 @@ export default function CutterRestorationModule() {
       {selected && (
         <div className="cr-modal-backdrop" onMouseDown={e => e.target === e.currentTarget && setSelected(null)}>
           <form className="cr-modal" onSubmit={finishBatch}>
-            <div className="cr-modal-title"><div><span>{selected.batch_number}</span><h3>Результат відновлення</h3></div><button type="button" onClick={() => setSelected(null)}>×</button></div>
+            <div className="cr-modal-title"><div><span>{selected.group_count} надходжень в одному кошику</span><h3>Результат відновлення</h3></div><button type="button" onClick={() => setSelected(null)}>×</button></div>
             <div className="cr-cutter-summary"><Wrench size={22} /><div><strong>{selected.cutter_name}</strong><span>У партії: {selected.received_qty} шт.</span></div></div>
             <div className="cr-result-grid">
               <label><span>Відновлено, шт.</span><input type="number" min="0" step="1" value={result.restored} onChange={e => setResult(v => ({ ...v, restored: e.target.value }))} /></label>
@@ -205,13 +239,13 @@ function BatchCard({ batch, currentUser, working, onStart, onFinish }) {
   const mine = String(batch.assigned_user_id || '') === String(currentUser?.id || '')
   return (
     <article className="cr-card" style={{ '--status': state.color }}>
-      <div className="cr-card-head"><span className="cr-batch">{batch.batch_number}</span><span className="cr-status">{state.label}</span></div>
+      <div className="cr-card-head"><span className="cr-batch">{batch.group_count} надходжень</span><span className="cr-status">{state.label}</span></div>
       <h3>{batch.cutter_name}</h3>
-      <div className="cr-qty"><strong>{batch.received_qty}</strong><span>шт. у партії</span></div>
+      <div className="cr-qty"><strong>{batch.received_qty}</strong><span>шт. у спільному кошику</span></div>
       <div className="cr-meta">
         <span><b>Створено</b>{formatDate(batch.created_at)}</span>
-        <span><b>Верстат</b>{batch.source_machine || 'Не вказано'}</span>
-        <span><b>Майстер</b>{batch.source_manager || 'Не вказано'}</span>
+        <span><b>Джерела</b>{batch.group_count} партій з розкрою</span>
+        <span><b>Тип фрези</b>{batch.cutter_name}</span>
         {batch.assigned_user_name && <span><b>Виконавець</b>{batch.assigned_user_name}</span>}
       </div>
       {batch.status === 'pending' && <button className="cr-primary" disabled={working} onClick={() => onStart(batch)}><Play size={16} /> Взяти в роботу</button>}
