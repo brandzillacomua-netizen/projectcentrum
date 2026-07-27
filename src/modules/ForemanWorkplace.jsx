@@ -80,6 +80,17 @@ const getRequestQty = (r) => {
   return match ? Number(match[1]) : 0;
 };
 
+const isSameMachineFamily = (left, right) => {
+  if (!left || !right) return false
+  const normalize = value => String(getStandardMachineType(value) || value)
+    .toLowerCase()
+    .replace(/[х×]/g, 'x')
+    .replace(/\s*№.*$/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return normalize(left) === normalize(right)
+}
+
 const getArchiveMachineGroup = (machineName) => {
   const rawName = String(machineName || '').trim()
   const standardType = getStandardMachineType(rawName)
@@ -1961,11 +1972,12 @@ const ForemanWorkplace = () => {
 
                     // 1. Get ALL cards for this nomenclature that match the machine name
                     const machineCards = existingNomenclatureCards
-                      .filter(wc => wc.machine === split.machine)
+                      .filter(wc => isSameMachineFamily(wc.machine, split.machine))
                       .sort((a, b) => a.id - b.id)
 
                     // 2. Determine which cards belong to THIS specific split index
-                    const prevSplitsSameMachine = genModal.splits.slice(0, sIdx).filter(s => s.machine === split.machine)
+                    const prevSplitsSameMachine = genModal.splits.slice(0, sIdx)
+                      .filter(s => isSameMachineFamily(s.machine, split.machine))
                     const sheetsSkipped = prevSplitsSameMachine.reduce((sum, s) => {
                       const sSheets = Number(s.sheets) || Math.ceil(s.qty / unitsPerSheet)
                       return sum + sSheets
