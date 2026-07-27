@@ -180,7 +180,11 @@ export function useShop1Data({
 
     if (task && task.plan_snapshot) {
       Object.entries(task.plan_snapshot).forEach(([key, val]) => {
-        if (!isNaN(key) && val && typeof val === 'object' && val.id) {
+        const isPartEntry = !key.startsWith('_') &&
+          !['materialSummary', 'selectedCutters', 'consumables'].includes(key) &&
+          val && typeof val === 'object' && val.id
+        const isCurrentCardPart = String(val?.id || key) === String(card.nomenclature_id)
+        if (isPartEntry && isCurrentCardPart) {
           const partNomId = val.id
           const partMachine = val.selected_machine || targetMachine
           

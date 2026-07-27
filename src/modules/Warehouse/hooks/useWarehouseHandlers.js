@@ -379,14 +379,20 @@ export const useWarehouseHandlers = ({
             const rateNom = nomenclatures.find(n => n.id === rateNomId)
             if (!rateNom) return false
             
-            const getDiameter = (name) => {
+            const getCutterSignature = (name) => {
               const clean = name.toLowerCase().replace(/,/g, '.')
               const match = clean.match(/(?:фреза|ф|d|d=|діаметр|діаметром)?\s*([0-9]+(?:[.,][0-9]+)?)/)
-              return match ? parseFloat(match[1]) : null
+              if (!match) return null
+              const angleMatch = clean.match(/(?:\(|x|х|×|\s)(90|120)\s*(?:°|град|\))/)
+              return {
+                diameter: parseFloat(match[1]),
+                angle: angleMatch ? Number(angleMatch[1]) : null
+              }
             }
-            const reqD = getDiameter(reqName)
-            const rateD = getDiameter(rateNom.name)
-            return reqD !== null && rateD !== null && reqD === rateD
+            const reqSignature = getCutterSignature(reqName)
+            const rateSignature = getCutterSignature(rateNom.name)
+            if (!reqSignature || !rateSignature || reqSignature.diameter !== rateSignature.diameter) return false
+            return rateSignature.angle === null || reqSignature.angle === rateSignature.angle
           })
 
           if (existingCutterReq) {
@@ -435,27 +441,47 @@ export const useWarehouseHandlers = ({
           let cutterName = cNom?.name || 'Фреза'
           let finalNomId = cNomId
 
-          const getDiameter = (name) => {
+          const getCutterSignature = (name) => {
             if (!name) return null
             const clean = name.toLowerCase().replace(/,/g, '.')
             const exactMatch = clean.match(/(?:фреза|ф|d|d=|діаметр|діаметром)?\s*([0-9]+(?:[.,][0-9]+)?)/)
-            return exactMatch ? parseFloat(exactMatch[1]) : null
+            if (!exactMatch) return null
+            const angleMatch = clean.match(/(?:\(|x|х|×|\s)(90|120)\s*(?:°|град|\))/)
+            return {
+              diameter: parseFloat(exactMatch[1]),
+              angle: angleMatch ? Number(angleMatch[1]) : null
+            }
           }
 
-          const targetD = getDiameter(cNom?.name)
-          if (targetD !== null) {
-            const exactReq = (reqs || []).find(r => {
-              const rNom = nomenclatures.find(n => n.id === r.nomenclature_id)
-              const rName = rNom ? rNom.name : (r.details || '')
-              const rD = getDiameter(rName)
-              return rD !== null && rD === targetD
-            })
+          const selectedInvId = task?.plan_snapshot?.selectedCutters?.[cNom?.name] ||
+            task?.plan_snapshot?.selectedCutters?.[cNom?.name?.toLowerCase()]
+          const selectedInv = selectedInvId
+            ? (inventory || []).find(i => String(i.id) === String(selectedInvId))
+            : null
+          const selectedNom = selectedInv
+            ? nomenclatures.find(n => String(n.id) === String(selectedInv.nomenclature_id))
+            : null
 
-            if (exactReq) {
-              const exactNom = nomenclatures.find(n => n.id === exactReq.nomenclature_id)
-              if (exactNom) {
-                cutterName = exactNom.name
-                finalNomId = exactNom.id
+          if (selectedNom) {
+            cutterName = selectedNom.name
+            finalNomId = selectedNom.id
+          } else {
+            const targetSignature = getCutterSignature(cNom?.name)
+            if (targetSignature !== null) {
+              const exactReq = (reqs || []).find(r => {
+                const rNom = nomenclatures.find(n => n.id === r.nomenclature_id)
+                const rName = rNom ? rNom.name : (r.details || '')
+                const requestSignature = getCutterSignature(rName)
+                if (!requestSignature || requestSignature.diameter !== targetSignature.diameter) return false
+                return targetSignature.angle === null || requestSignature.angle === targetSignature.angle
+              })
+
+              if (exactReq) {
+                const exactNom = nomenclatures.find(n => n.id === exactReq.nomenclature_id)
+                if (exactNom) {
+                  cutterName = exactNom.name
+                  finalNomId = exactNom.id
+                }
               }
             }
           }

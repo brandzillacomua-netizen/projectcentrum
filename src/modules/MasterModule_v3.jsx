@@ -1242,22 +1242,21 @@ const MasterModule = () => {
             if (cutterNomId && qtyPerSheet > 0) {
               hasMachineSpecificCutters = true
               let cutterNom = nomenclatures.find(n => String(n.id) === String(cutterNomId))
-              let shouldSkip = false
               if (cutterNom) {
                 const nl = cutterNom.name.toLowerCase()
                 const m1 = nl.match(/ф\s*([0-9,.]+)/)
                 const m2 = nl.match(/(?:кукурудза|двопера|однопера|спіральна|торцева|шарова|радіусна)?\s*([0-9][0-9,]*)(?:\s*[×xх×])/)
                 const d = m1 ? parseFloat(m1[1].replace(',', '.')) : (m2 ? parseFloat(m2[1].replace(',', '.')) : null)
                 
-                if (override !== '1.5' && d && Math.abs(d - 1.5) < 0.01) {
-                  shouldSkip = true
-                }
                 if (override === '1.5' && d && Math.abs(d - 2) < 0.01) {
                   cutterNom = { ...cutterNom, name: 'Фреза ф1.5', id: '__synthetic_f1.5__' }
                 }
               }
 
-              if (!shouldSkip && cutterNom && cutterNom.name.trim().toLowerCase() !== 'фреза') {
+              // An explicitly configured Ф1.5 is an independent cutter, not the
+              // alternative for Ф2. Keep it in the specification in both modes.
+              // When Ф2 is replaced above, both quantities merge under Ф1.5.
+              if (cutterNom && cutterNom.name.trim().toLowerCase() !== 'фреза') {
                 const totalQty = Math.ceil(sheets * qtyPerSheet)
                 const cleanName = cutterNom.name.trim()
                 const key = cleanName.toLowerCase()
