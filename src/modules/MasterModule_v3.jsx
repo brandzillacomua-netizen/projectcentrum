@@ -837,35 +837,71 @@ const MasterModule = () => {
     const taskMachineName = uniqueMachines.length === 1 ? uniqueMachines[0] : (uniqueMachines.length > 1 ? "Різні верстати" : "Не вказано")
 
     if (!isReprintMode) {
-      let missingPrepQuantities = {}
-      let hasDeficit = false
+      const sheetMaterials = materialSummary.filter(m => {
+        const name = m.name.toLowerCase()
+        return name.includes('лист') || name.includes('карбон') || name.includes('carbon')
+      })
+      const preparedByMaterial = sheetMaterials.map(material => {
+        const normName = getCleanNormalized(material.name)
+        const prepNom = nomenclatures.find(n =>
+          n.name.toLowerCase().includes('підготовлений') &&
+          !n.name.toLowerCase().includes('непідготовлений') &&
+          getCleanNormalized(n.name) === normName
+        )
+        const rawNom = nomenclatures.find(n =>
+          n.name.toLowerCase().includes('непідготовлений') &&
+          getCleanNormalized(n.name) === normName
+        )
+        return { material, normName, prepNom, rawNom }
+      }).filter(row => row.prepNom)
 
-      for (const m of materialSummary) {
-        if (m.name.toLowerCase().includes('лист') || m.name.toLowerCase().includes('карбон') || m.name.toLowerCase().includes('carbon')) {
-          const requiredSheets = m.sheets;
-          const normName = getCleanNormalized(m.name)
-          const prepNom = nomenclatures.find(n =>
-            n.name.toLowerCase().includes('підготовлений') &&
-            !n.name.toLowerCase().includes('непідготовлений') &&
-            getCleanNormalized(n.name) === normName
-          )
-
-          if (prepNom) {
-            const bzInv = inventory.find(i => String(i.nomenclature_id) === String(prepNom.id) && (i.type === 'raw' || (i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))));
-            const stock = bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0;
-
-            if (stock < requiredSheets) {
-              const rawNom = nomenclatures.find(n =>
-                n.name.toLowerCase().includes('непідготовлений') &&
-                getCleanNormalized(n.name) === normName
-              )
-              const targetId = rawNom ? rawNom.id : prepNom.id
-              missingPrepQuantities[targetId] = requiredSheets - stock
-              hasDeficit = true
-            }
-          }
-        }
+      const preparedNomIds = [...new Set(preparedByMaterial.map(row => row.prepNom.id))]
+      const loadFreshPreparedInventory = async () => {
+        if (preparedNomIds.length === 0) return []
+        const { data, error } = await supabase
+          .from('inventory')
+          .select('*')
+          .in('nomenclature_id', preparedNomIds)
+        if (error) throw new Error(`Не вдалося перевірити актуальні залишки СО: ${error.message}`)
+        return data || []
       }
+      const calculatePrepDeficits = inventoryRows => {
+        const missing = {}
+        preparedByMaterial.forEach(({ material, prepNom, rawNom }) => {
+          const requiredSheets = Number(material.sheets) || 0
+          const stock = inventoryRows
+            .filter(i =>
+              String(i.nomenclature_id) === String(prepNom.id)
+              && i.warehouse === 'operational'
+              && (
+                i.type === 'raw'
+                || (i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
+              )
+            )
+            .reduce(
+              (sum, row) => sum + Math.max(
+                0,
+                (Number(row.total_qty) || 0) - (Number(row.reserved_qty) || 0)
+              ),
+              0
+            )
+          if (stock < requiredSheets) {
+            const targetId = rawNom ? rawNom.id : prepNom.id
+            missing[targetId] = (missing[targetId] || 0) + requiredSheets - stock
+          }
+        })
+        return missing
+      }
+
+      let freshPreparedInventory
+      try {
+        freshPreparedInventory = await loadFreshPreparedInventory()
+      } catch (error) {
+        alert(error.message)
+        return
+      }
+      let missingPrepQuantities = calculatePrepDeficits(freshPreparedInventory)
+      const hasDeficit = Object.keys(missingPrepQuantities).length > 0
 
       if (hasDeficit) {
         let errorMsg = 'УВАГА: Недостатньо підготовленого матеріалу на складі СО!\n\n';
@@ -891,10 +927,15 @@ const MasterModule = () => {
 
         setIsSubmitting(true);
         try {
-          // 1. Auto-create prep order first
-          await autoCreatePrepOrder(missingPrepQuantities, naryadDeadline || activeNaryadOrder.deadline);
+          // The operator may keep the warning open while stock changes. Read
+          // the database again immediately before creating preparation work.
+          freshPreparedInventory = await loadFreshPreparedInventory()
+          missingPrepQuantities = calculatePrepDeficits(freshPreparedInventory)
+          if (Object.keys(missingPrepQuantities).length > 0) {
+            await autoCreatePrepOrder(missingPrepQuantities, naryadDeadline || activeNaryadOrder.deadline);
+          }
 
-          // 2. Create task
+          // Create the production task only after the final stock check.
           const createdTask = await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters, naryadParts, partCutterOverrides, rowMachinesSplits));
 
           if (createdTask) {
@@ -907,7 +948,6 @@ const MasterModule = () => {
             }
           }
 
-          // 3. Trigger print dialog
           window.print();
 
           setReprintTask(null);
