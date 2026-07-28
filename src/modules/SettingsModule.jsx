@@ -653,6 +653,16 @@ const SettingsModule = () => {
     const existingInventory = inventory || []
     const updates = []
     const inserts = []
+    const findOperationalInventory = (nomenclatureId, name, type) =>
+      existingInventory.find(i =>
+        i.warehouse === 'operational'
+        && i.type === type
+        && i.pocket_owner == null
+        && (
+          String(i.nomenclature_id) === String(nomenclatureId)
+          || i.name === name
+        )
+      )
 
     try {
       setBzUploadLog(prev => prev + `Обробка зібраних комплектів (всього позицій: ${bzAssembledKits.length})...\n`)
@@ -660,11 +670,7 @@ const SettingsModule = () => {
         const product = kit.product
         const qtyToSet = kit.qty
 
-        const existing = existingInventory.find(i => 
-          i.warehouse === 'operational' && 
-          i.nomenclature_id === product.id && 
-          i.type === 'finished'
-        )
+        const existing = findOperationalInventory(product.id, product.name, 'finished')
 
         if (existing) {
           const newTotal = bzRecordMode === 'add' ? (Number(existing.total_qty) || 0) + qtyToSet : qtyToSet
@@ -697,11 +703,7 @@ const SettingsModule = () => {
 
       setBzUploadLog(prev => prev + `Обробка залишків напівфабрикатів (всього позицій: ${bzLeftovers.length})...\n`)
       for (const left of bzLeftovers) {
-        const existing = existingInventory.find(i => 
-          i.warehouse === 'operational' && 
-          i.nomenclature_id === left.nomenclature_id && 
-          i.type === 'bz'
-        )
+        const existing = findOperationalInventory(left.nomenclature_id, left.name, 'bz')
 
         if (existing) {
           const newTotal = bzRecordMode === 'add' ? (Number(existing.total_qty) || 0) + left.qty : left.qty
@@ -753,11 +755,7 @@ const SettingsModule = () => {
           setBzUploadLog(prev => prev + `  ✅ [НОМ СТВОРЕНО] ${newNom.name} (ID: ${newNom.id})\n`)
 
           // 2. Add to BZ inventory
-          const existingInv = existingInventory.find(i =>
-            i.warehouse === 'operational' &&
-            i.nomenclature_id === newNom.id &&
-            i.type === 'bz'
-          )
+          const existingInv = findOperationalInventory(newNom.id, newNom.name, 'bz')
 
           if (existingInv) {
             const newTotal = bzRecordMode === 'add' ? (Number(existingInv.total_qty) || 0) + unr.qty : unr.qty
