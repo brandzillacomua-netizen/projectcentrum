@@ -616,7 +616,7 @@ const Shop2Terminal = () => {
   }
 
   const updateInventoryStock = async (nomId, qty, type = 'semi') => {
-    if (!nomId || qty <= 0) return
+    if (!nomId || qty <= 0) return { error: null }
     try {
       const { data: existing, error: lookupError } = await supabase.from('inventory')
         .select('*')
@@ -642,6 +642,7 @@ const Shop2Terminal = () => {
         }])
         if (error) throw error
       }
+      return { error: null }
     } catch (e) {
       console.warn(`Stock update failed for type ${type}:`, e)
       throw e
@@ -697,7 +698,7 @@ const Shop2Terminal = () => {
 
       const results = await Promise.all(promises)
       for (const res of results) {
-        if (res.error) throw res.error
+        if (res?.error) throw res.error
       }
 
       setShowQCModal(false)

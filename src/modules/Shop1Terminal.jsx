@@ -1069,7 +1069,7 @@ export default function Shop1Terminal() {
 
   // Уніфікована функція запису в інвентар (без bz_qty колонки)
   const updateInventoryStock = async (nomId, qty, type = 'semi') => {
-    if (!nomId || qty <= 0) return
+    if (!nomId || qty <= 0) return { error: null }
     try {
       const nom = nomenclatures.find(n => n.id === nomId)
       const { data: existing, error: lookupError } = await supabase.from('inventory')
@@ -1130,6 +1130,7 @@ export default function Shop1Terminal() {
           throw error
         }
       }
+      return { error: null }
     } catch (e) {
       console.warn(`Stock update failed for type ${type}:`, e)
       throw e
@@ -1959,7 +1960,7 @@ export default function Shop1Terminal() {
 
       const results = await Promise.all(writes)
       for (const res of results) {
-        if (res.error) throw res.error
+        if (res?.error) throw res.error
       }
 
       fetchData(['work_cards', 'work_card_history']).catch(() => {})
@@ -2518,7 +2519,7 @@ export default function Shop1Terminal() {
 
       const results = await Promise.all(promises)
       for (const res of results) {
-        if (res.error) throw res.error
+        if (res?.error) throw res.error
       }
 
       setShowQCModal(false)

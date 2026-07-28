@@ -102,7 +102,7 @@ export function useShop1Actions({
   } = useMES()
 
   const updateInventoryStock = async (nomId, qty, type = 'semi') => {
-    if (!nomId || qty <= 0) return
+    if (!nomId || qty <= 0) return { error: null }
     try {
       const { data: existing } = await supabase.from('inventory')
         .select('*')
@@ -125,6 +125,7 @@ export function useShop1Actions({
           nomenclature_id: nomId
         }])
       }
+      return { error: null }
     } catch (e) { console.warn(`Stock update failed for type ${type}:`, e) }
   }
 
@@ -589,7 +590,7 @@ export function useShop1Actions({
 
       const results = await Promise.all(writes)
       for (const res of results) {
-        if (res.error) throw res.error
+        if (res?.error) throw res.error
       }
 
       fetchData(['work_cards', 'work_card_history']).catch(() => {})
@@ -1113,7 +1114,7 @@ export function useShop1Actions({
 
       const results = await Promise.all(promises)
       for (const res of results) {
-        if (res.error) throw res.error
+        if (res?.error) throw res.error
       }
 
       setShowQCModal(false)

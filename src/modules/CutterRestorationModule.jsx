@@ -128,13 +128,43 @@ export default function CutterRestorationModule() {
 
   const startBatch = async batch => {
     setWorking(true)
-    const { data, error } = await supabase.rpc('start_cutter_restoration_stack', {
+    let { data, error } = await supabase.rpc('start_cutter_restoration_stack', {
       p_type_key: batch.cutter_type_key,
       p_actor_id: currentUser?.id,
       p_actor_name: userName(currentUser)
     })
+
+    // Compatibility path for environments where the canonical-stack
+    // migration has not reached PostgREST yet. The legacy RPC is already
+    // transactional per batch, so start every row from the displayed stack.
+    const stackRpcMissing = error && (
+      error.code === 'PGRST202'
+      || error.code === '42883'
+      || String(error.message || '').includes('schema cache')
+    )
+    if (stackRpcMissing) {
+      const startedRows = []
+      error = null
+      for (const batchId of batch.batch_ids || []) {
+        const result = await supabase.rpc('start_cutter_restoration', {
+          p_batch_id: batchId,
+          p_actor_id: currentUser?.id,
+          p_actor_name: userName(currentUser)
+        })
+        if (result.error) {
+          error = result.error
+          break
+        }
+        if (result.data) startedRows.push(result.data)
+      }
+      data = startedRows
+    }
+
     setWorking(false)
-    if (error) return window.alert(`Не вдалося взяти партію в роботу: ${error.message}`)
+    if (error) {
+      await load(true)
+      return window.alert(`Не вдалося взяти партію в роботу: ${error.message}`)
+    }
     const rows = Array.isArray(data) ? data : (data ? [data] : [])
     const active = {
       ...batch,
