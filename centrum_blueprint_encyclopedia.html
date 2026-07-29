@@ -1,0 +1,2398 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>CENTRUM MES — повна енциклопедія системи</title>
+  <style>
+    :root {
+      --bg: #07090d;
+      --panel: #0f131b;
+      --panel-2: #151b25;
+      --panel-3: #1b2330;
+      --line: #283345;
+      --text: #edf2f7;
+      --muted: #9aa8bb;
+      --soft: #c8d2df;
+      --orange: #ff9700;
+      --blue: #4f9cff;
+      --cyan: #24c8db;
+      --green: #31d07f;
+      --yellow: #f6c453;
+      --red: #ff626e;
+      --purple: #a586ff;
+      --sidebar: 322px;
+      --radius: 14px;
+      --shadow: 0 18px 55px rgba(0, 0, 0, .28);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 88% 4%, rgba(79, 156, 255, .09), transparent 28rem),
+        radial-gradient(circle at 12% 92%, rgba(255, 151, 0, .07), transparent 32rem),
+        var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.6;
+    }
+
+    button, input { font: inherit; }
+    button { color: inherit; }
+    a { color: var(--cyan); }
+    code, pre, .mono {
+      font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+    }
+    code {
+      color: #b9d8ff;
+      background: rgba(79, 156, 255, .1);
+      border: 1px solid rgba(79, 156, 255, .18);
+      border-radius: 5px;
+      padding: .08rem .34rem;
+      overflow-wrap: anywhere;
+    }
+    pre {
+      margin: 14px 0 0;
+      padding: 16px 18px;
+      overflow: auto;
+      color: #dbe8f8;
+      background: #080b10;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+    }
+    strong { color: #fff; }
+
+    .shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: var(--sidebar) minmax(0, 1fr);
+    }
+
+    aside {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: rgba(13, 17, 24, .96);
+      border-right: 1px solid var(--line);
+      z-index: 20;
+    }
+
+    .brand {
+      padding: 20px 20px 15px;
+      border-bottom: 1px solid var(--line);
+    }
+    .brand-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      color: #090b0f;
+      background: linear-gradient(135deg, var(--orange), #ffd466);
+      border-radius: 12px;
+      font-weight: 950;
+      box-shadow: 0 0 28px rgba(255, 151, 0, .22);
+    }
+    .brand h1 {
+      margin: 0;
+      font-size: 1.05rem;
+      line-height: 1.2;
+      letter-spacing: .02em;
+    }
+    .brand small {
+      display: block;
+      margin-top: 4px;
+      color: var(--orange);
+      font-size: .67rem;
+      font-weight: 800;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+
+    .search-wrap {
+      padding: 14px 16px 11px;
+      border-bottom: 1px solid var(--line);
+    }
+    .search {
+      width: 100%;
+      padding: 11px 12px;
+      color: var(--text);
+      background: #080b10;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      outline: none;
+    }
+    .search:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(79, 156, 255, .12);
+    }
+    #searchMeta {
+      min-height: 18px;
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: .7rem;
+    }
+
+    nav {
+      flex: 1;
+      overflow: auto;
+      padding: 9px 10px 18px;
+    }
+    .nav-group {
+      margin: 12px 9px 6px;
+      color: #64748b;
+      font-size: .63rem;
+      font-weight: 900;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    .nav-btn {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 27px 1fr;
+      gap: 7px;
+      align-items: start;
+      padding: 9px 10px;
+      margin: 2px 0;
+      text-align: left;
+      color: var(--muted);
+      background: transparent;
+      border: 0;
+      border-left: 3px solid transparent;
+      border-radius: 9px;
+      cursor: pointer;
+    }
+    .nav-btn:hover { color: #fff; background: var(--panel-2); }
+    .nav-btn.active {
+      color: #fff;
+      background: linear-gradient(90deg, rgba(255, 151, 0, .14), rgba(79, 156, 255, .05));
+      border-left-color: var(--orange);
+    }
+    .nav-btn.search-match { color: var(--yellow); }
+    .nav-num {
+      color: #5f6d7f;
+      font-size: .7rem;
+      font-weight: 900;
+      padding-top: 2px;
+    }
+    .nav-label { font-size: .79rem; font-weight: 720; line-height: 1.35; }
+
+    .sidebar-footer {
+      padding: 12px 16px;
+      color: #667589;
+      border-top: 1px solid var(--line);
+      font-size: .67rem;
+    }
+
+    main { min-width: 0; }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      min-height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 13px 28px;
+      background: rgba(7, 9, 13, .9);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(14px);
+    }
+    .topbar-title {
+      margin: 0;
+      font-size: 1.15rem;
+      line-height: 1.3;
+    }
+    .topbar-sub {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: .72rem;
+    }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .action {
+      padding: 8px 11px;
+      color: var(--soft);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      cursor: pointer;
+      font-size: .73rem;
+      font-weight: 800;
+    }
+    .action:hover { border-color: var(--blue); color: #fff; }
+    .mobile-menu { display: none; }
+
+    .content {
+      width: min(1380px, 100%);
+      margin: 0 auto;
+      padding: 30px 32px 90px;
+    }
+
+    .chapter { display: none; }
+    .chapter.active { display: block; animation: enter .22s ease-out; }
+    body.search-mode .chapter.search-hit { display: block; margin-bottom: 52px; }
+    body.search-mode .chapter.search-hit + .chapter.search-hit {
+      padding-top: 45px;
+      border-top: 1px solid var(--line);
+    }
+    @keyframes enter {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: none; }
+    }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 30px;
+      margin-bottom: 22px;
+      background:
+        linear-gradient(135deg, rgba(255, 151, 0, .12), rgba(79, 156, 255, .06)),
+        var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -80px;
+      top: -100px;
+      width: 260px;
+      height: 260px;
+      border: 1px solid rgba(255, 255, 255, .05);
+      border-radius: 50%;
+      box-shadow: 0 0 0 35px rgba(255,255,255,.018), 0 0 0 70px rgba(255,255,255,.012);
+      pointer-events: none;
+    }
+    .eyebrow {
+      margin-bottom: 8px;
+      color: var(--orange);
+      font-size: .68rem;
+      font-weight: 900;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+    .hero h2 {
+      max-width: 1000px;
+      margin: 0 0 9px;
+      font-size: clamp(1.55rem, 3vw, 2.35rem);
+      line-height: 1.12;
+      letter-spacing: -.025em;
+    }
+    .hero p { max-width: 1020px; margin: 0; color: var(--soft); font-size: .98rem; }
+
+    h3.section-title {
+      margin: 34px 0 14px;
+      padding-bottom: 9px;
+      border-bottom: 1px solid var(--line);
+      font-size: 1.16rem;
+    }
+    h4 { margin: 0 0 9px; font-size: .96rem; }
+    p { margin: 8px 0; }
+    ul, ol { margin: 9px 0 5px; padding-left: 1.4rem; }
+    li + li { margin-top: 6px; }
+
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .card, details {
+      background: linear-gradient(145deg, rgba(21, 27, 37, .98), rgba(13, 17, 24, .98));
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+    .card { padding: 18px 19px; }
+    .card p, .card li, details p, details li { color: var(--soft); font-size: .88rem; }
+    .card .lead { color: var(--text); font-size: .94rem; }
+    .card-number {
+      display: inline-grid;
+      min-width: 27px;
+      height: 27px;
+      place-items: center;
+      margin-right: 6px;
+      color: #111;
+      background: var(--orange);
+      border-radius: 8px;
+      font-size: .72rem;
+      font-weight: 950;
+    }
+    .full { grid-column: 1 / -1; }
+
+    details { margin: 12px 0; overflow: hidden; }
+    summary {
+      padding: 15px 18px;
+      color: #f6f8fb;
+      background: rgba(255,255,255,.012);
+      cursor: pointer;
+      font-size: .9rem;
+      font-weight: 850;
+      list-style-position: inside;
+    }
+    details[open] summary {
+      color: var(--yellow);
+      border-bottom: 1px solid var(--line);
+    }
+    .details-body { padding: 15px 18px 18px; }
+
+    .callout {
+      padding: 15px 17px;
+      margin: 14px 0;
+      color: var(--soft);
+      background: rgba(79, 156, 255, .07);
+      border: 1px solid rgba(79, 156, 255, .28);
+      border-left: 4px solid var(--blue);
+      border-radius: 10px;
+      font-size: .88rem;
+    }
+    .callout strong:first-child { color: #cce2ff; }
+    .callout.worker { background: rgba(49, 208, 127, .065); border-color: rgba(49, 208, 127, .28); border-left-color: var(--green); }
+    .callout.worker strong:first-child { color: #a6f2c9; }
+    .callout.warning { background: rgba(246, 196, 83, .07); border-color: rgba(246, 196, 83, .3); border-left-color: var(--yellow); }
+    .callout.warning strong:first-child { color: #ffe2a0; }
+    .callout.danger { background: rgba(255, 98, 110, .07); border-color: rgba(255, 98, 110, .31); border-left-color: var(--red); }
+    .callout.danger strong:first-child { color: #ffb3ba; }
+    .callout.truth { background: rgba(165, 134, 255, .075); border-color: rgba(165, 134, 255, .3); border-left-color: var(--purple); }
+    .callout.truth strong:first-child { color: #d8caff; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin: 2px 5px 2px 0;
+      padding: 4px 8px;
+      color: var(--soft);
+      background: #0b0f15;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      font-size: .68rem;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+    .badge.worker { color: #9aebbd; border-color: rgba(49, 208, 127, .4); }
+    .badge.dev { color: #b7d6ff; border-color: rgba(79, 156, 255, .45); }
+    .badge.fact { color: #d7c9ff; border-color: rgba(165, 134, 255, .42); }
+    .badge.risk { color: #ffd18a; border-color: rgba(246, 196, 83, .46); }
+
+    .table-wrap {
+      overflow-x: auto;
+      margin: 13px 0 19px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: rgba(11, 14, 20, .7);
+      font-size: .79rem;
+    }
+    th, td {
+      padding: 11px 12px;
+      text-align: left;
+      vertical-align: top;
+      border-right: 1px solid rgba(40, 51, 69, .72);
+      border-bottom: 1px solid rgba(40, 51, 69, .72);
+    }
+    tr:last-child td { border-bottom: 0; }
+    th:last-child, td:last-child { border-right: 0; }
+    th {
+      color: #fff;
+      background: #171e29;
+      font-size: .7rem;
+      letter-spacing: .045em;
+      text-transform: uppercase;
+    }
+    td { color: var(--soft); }
+
+    .flow {
+      display: flex;
+      align-items: stretch;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 10px 2px 14px;
+    }
+    .flow-step {
+      min-width: 135px;
+      flex: 1;
+      padding: 13px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 11px;
+    }
+    .flow-step b { display: block; color: #fff; font-size: .82rem; }
+    .flow-step span { display: block; margin-top: 4px; color: var(--muted); font-size: .69rem; }
+    .flow-arrow { align-self: center; color: var(--orange); font-weight: 950; }
+
+    .checklist { padding-left: 0; list-style: none; }
+    .checklist li { position: relative; padding-left: 25px; }
+    .checklist li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: var(--green);
+      font-weight: 950;
+    }
+    .stoplist { padding-left: 0; list-style: none; }
+    .stoplist li { position: relative; padding-left: 25px; }
+    .stoplist li::before {
+      content: "!";
+      position: absolute;
+      left: 1px;
+      width: 16px;
+      height: 16px;
+      display: grid;
+      place-items: center;
+      color: #120a0b;
+      background: var(--red);
+      border-radius: 50%;
+      font-size: .65rem;
+      font-weight: 950;
+    }
+
+    .kpi-row { display: flex; gap: 9px; flex-wrap: wrap; margin: 12px 0; }
+    .kpi {
+      min-width: 140px;
+      padding: 11px 13px;
+      background: #0b0f15;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+    .kpi b { display: block; color: var(--orange); font-size: 1.1rem; }
+    .kpi span { color: var(--muted); font-size: .68rem; }
+
+    .status-filter { display: flex; gap: 7px; flex-wrap: wrap; margin: 12px 0; }
+    .status-filter button {
+      padding: 7px 10px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: .72rem;
+      font-weight: 800;
+    }
+    .status-filter button.active { color: #111; background: var(--orange); border-color: var(--orange); }
+
+    .search-unit.search-hidden { display: none !important; }
+    .chapter.search-hit .hero { outline: 1px solid rgba(246, 196, 83, .3); }
+    .no-results {
+      display: none;
+      padding: 45px 20px;
+      text-align: center;
+      color: var(--muted);
+    }
+    body.no-search-results .no-results { display: block; }
+    body.no-search-results .chapter { display: none !important; }
+
+    .footnote {
+      margin-top: 35px;
+      color: #738196;
+      font-size: .73rem;
+    }
+
+    @media (max-width: 1050px) {
+      .grid.three, .grid.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 820px) {
+      .shell { display: block; }
+      aside {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: min(340px, 88vw);
+        transform: translateX(-105%);
+        transition: transform .2s ease;
+        box-shadow: 20px 0 60px rgba(0,0,0,.55);
+      }
+      body.menu-open aside { transform: none; }
+      body.menu-open::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        z-index: 15;
+        background: rgba(0,0,0,.62);
+      }
+      .mobile-menu { display: inline-block; }
+      .topbar { padding: 11px 15px; }
+      .topbar-title { font-size: .93rem; }
+      .topbar-sub { display: none; }
+      .content { padding: 19px 15px 70px; }
+      .hero { padding: 22px 18px; }
+      .grid, .grid.three, .grid.four { grid-template-columns: 1fr; }
+      .actions .action:not(.mobile-menu) { display: none; }
+    }
+    @media (max-width: 560px) {
+      .flow { display: grid; grid-template-columns: 1fr; }
+      .flow-arrow { transform: rotate(90deg); justify-self: center; }
+      .meta-hide-mobile { display: none; }
+    }
+
+    @media print {
+      :root { color-scheme: light; }
+      body { color: #111; background: #fff; font-size: 10pt; }
+      aside, .topbar, .no-results { display: none !important; }
+      .shell { display: block; }
+      .content { width: 100%; max-width: none; padding: 0; }
+      .chapter, body.search-mode .chapter { display: block !important; page-break-before: always; }
+      .chapter:first-child { page-break-before: auto; }
+      .hero, .card, details, .table-wrap, .flow-step, pre {
+        color: #111;
+        background: #fff;
+        border-color: #bbb;
+        box-shadow: none;
+        break-inside: avoid;
+      }
+      .hero p, .card p, .card li, details p, details li, td, .callout { color: #222; }
+      h2, h3, h4, strong, th { color: #000; }
+      code { color: #123b63; background: #eef4f9; border-color: #ccd8e3; }
+      th { background: #eee; }
+      .details-body { display: block !important; }
+      details:not([open]) > *:not(summary) { display: block !important; }
+      a { color: #111; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside id="sidebar" aria-label="Навігація енциклопедії">
+      <div class="brand">
+        <div class="brand-row">
+          <div class="brand-mark">C</div>
+          <div>
+            <h1>CENTRUM MES</h1>
+            <small>Operational blueprint · v5.0</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="search-wrap">
+        <input id="globalSearch" class="search" type="search" placeholder="Пошук: статус, РК, RPC, брак…" autocomplete="off">
+        <div id="searchMeta">24 розділи · наскрізний пошук</div>
+      </div>
+
+      <nav id="navigation">
+        <div class="nav-group">Основа</div>
+        <button class="nav-btn active" data-target="passport"><span class="nav-num">00</span><span class="nav-label">Паспорт і правила читання</span></button>
+        <button class="nav-btn" data-target="glossary"><span class="nav-num">01</span><span class="nav-label">Глосарій і модель обліку</span></button>
+        <button class="nav-btn" data-target="access"><span class="nav-num">02</span><span class="nav-label">Вхід, ролі та доступ</span></button>
+        <button class="nav-btn" data-target="journey"><span class="nav-num">03</span><span class="nav-label">Наскрізний шлях замовлення</span></button>
+
+        <div class="nav-group">Планування і Цех №1</div>
+        <button class="nav-btn" data-target="manager"><span class="nav-num">04</span><span class="nav-label">Менеджер і замовлення</span></button>
+        <button class="nav-btn" data-target="naryad"><span class="nav-num">05</span><span class="nav-label">Наряд, BOM, БЗ, погодження</span></button>
+        <button class="nav-btn" data-target="preparation"><span class="nav-num">06</span><span class="nav-label">Підготовка листа</span></button>
+        <button class="nav-btn" data-target="workcards"><span class="nav-num">07</span><span class="nav-label">Створення робочих карт</span></button>
+        <button class="nav-btn" data-target="shop1"><span class="nav-num">08</span><span class="nav-label">Цех №1 — головний термінал</span></button>
+        <button class="nav-btn" data-target="shop1-special"><span class="nav-num">09</span><span class="nav-label">Галтовка, прийомка, сортування</span></button>
+
+        <div class="nav-group">Цех №2 і потоки запасів</div>
+        <button class="nav-btn" data-target="shop2"><span class="nav-num">10</span><span class="nav-label">Цех №2 — РК і термінали</span></button>
+        <button class="nav-btn" data-target="warehouse"><span class="nav-num">11</span><span class="nav-label">Оперативний склад</span></button>
+        <button class="nav-btn" data-target="supply"><span class="nav-num">12</span><span class="nav-label">Склад виробництва і постачання</span></button>
+        <button class="nav-btn" data-target="quality"><span class="nav-num">13</span><span class="nav-label">ВКЯ, брак і відновлення</span></button>
+        <button class="nav-btn" data-target="cutters"><span class="nav-num">14</span><span class="nav-label">Відновлення фрез</span></button>
+        <button class="nav-btn" data-target="packaging"><span class="nav-num">15</span><span class="nav-label">Пакування і коробки</span></button>
+        <button class="nav-btn" data-target="shipping"><span class="nav-num">16</span><span class="nav-label">Відвантаження</span></button>
+
+        <div class="nav-group">Керування і технічний контур</div>
+        <button class="nav-btn" data-target="reference"><span class="nav-num">17</span><span class="nav-label">Інженер, довідники, обладнання</span></button>
+        <button class="nav-btn" data-target="management"><span class="nav-num">18</span><span class="nav-label">Дашборди, аналітика, звіти</span></button>
+        <button class="nav-btn" data-target="collaboration"><span class="nav-num">19</span><span class="nav-label">Задачі, чат, виклики, Fortnet</span></button>
+
+        <div class="nav-group">Контракт для розробки</div>
+        <button class="nav-btn" data-target="states"><span class="nav-num">20</span><span class="nav-label">Статуси і переходи</span></button>
+        <button class="nav-btn" data-target="data"><span class="nav-num">21</span><span class="nav-label">База даних, RPC, аудит</span></button>
+        <button class="nav-btn" data-target="architecture"><span class="nav-num">22</span><span class="nav-label">Архітектура, синхронізація, стійкість</span></button>
+        <button class="nav-btn" data-target="runbooks"><span class="nav-num">23</span><span class="nav-label">Винятки, runbook і QA</span></button>
+      </nav>
+      <div class="sidebar-footer">Аудит фактичного коду: 29.07.2026<br>Робоча копія: <span class="mono">A:\centrum</span></div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div>
+          <h2 id="activeTitle" class="topbar-title">00 · Паспорт і правила читання</h2>
+          <div class="topbar-sub">Фактична поведінка поточної реалізації · інструкція для працівника й контракт для розробника</div>
+        </div>
+        <div class="actions">
+          <button class="action mobile-menu" id="menuButton" type="button">☰ Зміст</button>
+          <button class="action" id="expandButton" type="button">Розгорнути пояснення</button>
+          <button class="action" id="printButton" type="button">Друк / PDF</button>
+        </div>
+      </header>
+
+      <div class="content">
+        <div class="no-results">
+          <h2>Нічого не знайдено</h2>
+          <p>Спробуйте назву модуля, статус, таблицю, RPC або дію працівника.</p>
+        </div>
+
+        <section id="passport" class="chapter active" data-title="00 · Паспорт і правила читання">
+          <div class="hero search-unit">
+            <div class="eyebrow">Єдине джерело опису · версія 5.0</div>
+            <h2>CENTRUM MES: від заявки клієнта до відвантаження</h2>
+            <p>Цей документ описує систему такою, якою вона реалізована у репозиторії: дії людей, автоматичні записи, переходи статусів, складські рухи, аудит, помилки й точки розширення. Це одночасно навчальна інструкція для працівника та технічний паспорт для команди розробки.</p>
+          </div>
+
+          <div class="grid three">
+            <div class="card search-unit">
+              <h4><span class="badge worker">Працівнику</span> Як працювати</h4>
+              <p>Читайте розділ своєї дільниці зверху вниз: «передумови» → «кроки» → «результат» → «що робити при помилці». Не змінюйте статуси напряму в базі.</p>
+            </div>
+            <div class="card search-unit">
+              <h4><span class="badge dev">Розробнику</span> Що зберігати</h4>
+              <p>Блоки «контракт реалізації» називають фактичні маршрути, модулі, таблиці, поля, RPC та інваріанти. Перед зміною перевіряйте всі downstream-споживачі.</p>
+            </div>
+            <div class="card search-unit">
+              <h4><span class="badge fact">Факт коду</span> Рівень довіри</h4>
+              <p>Опис звірено з React-модулями, контекстом даних, сервісами та SQL-міграціями. Майбутні наміри відділено від реально підключеної логіки.</p>
+            </div>
+          </div>
+
+          <div class="callout truth search-unit"><strong>Головний принцип документа.</strong> Напис «система робить» означає, що відповідний код зараз існує та викликається робочим маршрутом. Напис «не підключено» означає, що заготовка є, але поточний застосунок не гарантує її виконання.</div>
+
+          <h3 class="section-title">Межі системи</h3>
+          <div class="grid">
+            <div class="card search-unit">
+              <h4>У контурі</h4>
+              <ul class="checklist">
+                <li>замовлення, партії та виробничі наряди;</li>
+                <li>BOM, БЗ, підготовка матеріалу й робочі карти;</li>
+                <li>Цех №1, Цех №2, ВКЯ та складські рухи;</li>
+                <li>постачання, пакування, коробки й відвантаження;</li>
+                <li>користувачі, права, задачі, чат, виклики та звітність;</li>
+                <li>Realtime, кеш, push, RPC та журнали аудиту.</li>
+              </ul>
+            </div>
+            <div class="card search-unit">
+              <h4>Не слід приписувати системі</h4>
+              <ul class="stoplist">
+                <li>автоматичне створення ТТН Нової пошти — ТТН вводиться вручну;</li>
+                <li>гарантований offline-запис — кеш допомагає читанню, але не є чергою команд;</li>
+                <li>активне блокування зміни через Fortnet — інтеграція поки не з’єднана з MES-контекстом;</li>
+                <li>повний Rust-backend як основне джерело — основним є Supabase/PostgreSQL;</li>
+                <li>універсальні верхньорегістрові статуси — фактичні значення переважно нижнім регістром.</li>
+              </ul>
+            </div>
+          </div>
+
+          <h3 class="section-title">Легенда й порядок внесення змін</h3>
+          <div class="card search-unit">
+            <p><span class="badge worker">ДІЯ ЛЮДИНИ</span> операція в інтерфейсі; <span class="badge dev">КОНТРАКТ</span> програмний запис або правило; <span class="badge fact">ФАКТ</span> підтверджена поведінка; <span class="badge risk">РИЗИК / РОЗРИВ</span> місце, де інтерфейс, дані або очікування можуть розійтися.</p>
+            <ol>
+              <li>Зміна виробничого процесу спочатку формулюється як новий бізнес-інваріант.</li>
+              <li>Потім визначаються актор, передумова, транзакційна межа, записи аудиту й компенсація помилки.</li>
+              <li>Після реалізації оновлюються статуси, таблиці/RPC, споживачі Realtime, звіти та цей документ.</li>
+            </ol>
+          </div>
+        </section>
+
+        <section id="glossary" class="chapter" data-title="01 · Глосарій і модель обліку">
+          <div class="hero search-unit">
+            <div class="eyebrow">Одна мова для цеху й коду</div>
+            <h2>Глосарій та ієрархія виробничих сутностей</h2>
+            <p>Найчастіша причина помилок — змішування замовлення, наряду, робочої карти, історії операції та складського залишку. Вони пов’язані, але не взаємозамінні.</p>
+          </div>
+
+          <div class="flow search-unit">
+            <div class="flow-step"><b>Замовлення</b><span><code>orders</code> + <code>order_items</code><br>комерційна потреба</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>Наряд / партія</b><span><code>tasks</code><br>заморожений виробничий план</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>Робоча карта</b><span><code>work_cards</code><br>фізична партія на дільниці</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>Операція</b><span><code>work_card_history</code><br>хто, де, коли, скільки</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>Запас</b><span><code>inventory</code><br>фізично доступна кількість</span></div>
+          </div>
+
+          <div class="table-wrap search-unit">
+            <table>
+              <thead><tr><th>Термін</th><th>Просте пояснення</th><th>Технічне значення</th><th>Не плутати з</th></tr></thead>
+              <tbody>
+                <tr><td><strong>Замовлення</strong></td><td>Що і скільки замовив клієнт.</td><td>Рядок <code>orders</code>; склад виробу — <code>order_items</code>.</td><td>Нарядом: одне замовлення може мати кілька партій.</td></tr>
+                <tr><td><strong>Наряд / Task</strong></td><td>План випуску конкретної партії.</td><td><code>tasks</code>, <code>planned_sets</code>, <code>batch_index</code>, <code>plan_snapshot</code>.</td><td>Робочою картою: наряд агрегує багато карт.</td></tr>
+                <tr><td><strong>BOM</strong></td><td>Рецепт виробу.</td><td>Зв’язки номенклатур та кількостей у <code>bom_items</code>; під час планування перетворюється на snapshot.</td><td>Snapshot: BOM може змінитися пізніше, snapshot має лишитися історичним.</td></tr>
+                <tr><td><strong>plan_snapshot</strong></td><td>Знімок плану на момент створення партії.</td><td>JSON у <code>tasks</code>: деталі, потреба, БЗ, листи, марки, верстати, фрези, метадані.</td><td>Поточним каталогом номенклатури.</td></tr>
+                <tr><td><strong>РК / Work Card</strong></td><td>QR-карта конкретної фізичної партії.</td><td><code>work_cards</code>; має номенклатуру, кількість, операцію, статус, машину, оператора й службові маркери.</td><td>Історією РК: карта — поточний стан, history — незмінні факти.</td></tr>
+                <tr><td><strong>БЗ</strong></td><td>Придатний запас деталей, який дозволяє не виробляти зайве.</td><td>Кишені <code>inventory</code>; на етапі наряду резервуються транзакційним RPC.</td><td>Буфером карти <code>at-buffer</code>: це стан потоку, а не обов’язково глобальний запас.</td></tr>
+                <tr><td><strong>СО / оперативний склад</strong></td><td>Матеріал, виданий ближче до виробництва.</td><td><code>inventory.warehouse='operational'</code>, резерви через <code>material_requests</code>.</td><td>Складом виробництва / постачання.</td></tr>
+                <tr><td><strong>СВ</strong></td><td>Основний виробничий запас до передачі на СО.</td><td>Кишені <code>inventory</code> джерела production та дії Supply.</td><td>СГП.</td></tr>
+                <tr><td><strong>СГП</strong></td><td>Склад готової продукції або комплектуючих для пакування.</td><td>Запаси типу <code>finished</code> та джерела комплектування.</td><td>Позначкою «запаковано» в task metadata.</td></tr>
+                <tr><td><strong>Брак / scrap</strong></td><td>Непридатна кількість із конкретної операції.</td><td>History + проєкція totals + <code>inventory.type='scrap_ready'</code>; після ВКЯ — категорії 1–4.</td><td>Доробкою / rework: вона може повернути кількість у потік.</td></tr>
+                <tr><td><strong>Ідемпотентність</strong></td><td>Повторний клік або повтор Realtime не створює другий рух.</td><td>UUID операції, унікальний ключ, ledger або RPC, що розпізнає повтор.</td><td>Простим блокуванням кнопки в браузері.</td></tr>
+                <tr><td><strong>Проєкція</strong></td><td>Швидка підсумкова таблиця з первинного журналу.</td><td><code>work_card_scrap_totals</code>, <code>work_card_flow_totals</code>, VKYA queue projection.</td><td>Джерелом правди: проєкцію можна перебудувати.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <details class="search-unit" open>
+            <summary>Формули планування, які мають однаково розуміти працівник і код</summary>
+            <div class="details-body">
+              <pre>Потреба деталі = кількість комплектів у партії × BOM-кількість на комплект
+До виробництва = max(0, Потреба − зарезервований БЗ)
+Листів = ceil(До виробництва ÷ вихід деталей з листа)
+Доступно з карти Цеху №1 для Цеху №2 = quantity − used_in_shop2_qty
+Придатно після сортування = quantity − scrap − rework
+Залишок на класифікацію ВКЯ = зафіксований брак − уже класифіковано</pre>
+              <p>Округлення листів завжди вгору. Розподіл Т300/Т700 має в сумі дорівнювати розрахованій кількості листів. Негативні залишки мають блокуватися на транзакційному рівні.</p>
+            </div>
+          </details>
+        </section>
+
+        <section id="access" class="chapter" data-title="02 · Вхід, ролі та доступ">
+          <div class="hero search-unit">
+            <div class="eyebrow">Ідентичність і видимість модулів</div>
+            <h2>Вхід, сесія, ролі, права та присутність</h2>
+            <p>Доступ є модульним: користувач бачить лише ті робочі місця, для яких у його записі встановлено точне булеве право. Адміністратор обходить маршрутні обмеження.</p>
+          </div>
+
+          <div class="grid">
+            <div class="card search-unit">
+              <h4><span class="badge worker">Працівнику</span> Вхід у систему</h4>
+              <ol>
+                <li>Ввести логін і пароль на <code>/login</code>.</li>
+                <li>Після успішної перевірки система відкриє стартову сторінку посади або перший доступний модуль.</li>
+                <li>Перед виробничою дією переконатися, що у верхній панелі показане власне ім’я.</li>
+                <li>Після зміни виконати вихід; не передавати активну сесію іншому працівнику.</li>
+              </ol>
+            </div>
+            <div class="card search-unit">
+              <h4><span class="badge dev">Контракт</span> Поточна авторизація</h4>
+              <ul>
+                <li>Перевірка пароля: RPC <code>verify_user_password</code>, тайм-аут 8 секунд.</li>
+                <li>Це власна авторизація через <code>system_users</code>, а не Supabase Auth user session.</li>
+                <li>Сесія кешується ключами <code>MES_SESSION_LOGIN</code> і <code>MES_SESSION_USER</code>; опційно — <code>BACKEND_TOKEN</code>.</li>
+                <li>Вихід очищає користувача, завантажені дані та локальний кеш MES.</li>
+                <li><code>last_seen</code> оновлюється орієнтовно раз на 60–90 секунд, коли вкладка видима й є мережа.</li>
+              </ul>
+            </div>
+          </div>
+
+          <h3 class="section-title">Як вирішується доступ</h3>
+          <div class="table-wrap search-unit">
+            <table>
+              <thead><tr><th>Рівень</th><th>Правило</th><th>Результат</th></tr></thead>
+              <tbody>
+                <tr><td>Портал</td><td><code>currentUser.access_rights[module.id] === true</code></td><td>Картка модуля показана лише за точного boolean <code>true</code>.</td></tr>
+                <tr><td>Маршрут</td><td><code>PermissionGuard</code> повторно перевіряє модуль</td><td>Пряме введення URL не обходить право.</td></tr>
+                <tr><td>Адмін</td><td><code>position === 'Адмін'</code> або <code>role === 'admin'</code></td><td>Дозволені всі маршрути; Симулятор — тільки адмін.</td></tr>
+                <tr><td>Публічний виклик</td><td><code>/machines/:id/call</code></td><td>Спеціальний маршрут виклику біля обладнання може відкриватися без сесії.</td></tr>
+                <tr><td>Стартова сторінка</td><td><code>company_positions.start_page</code>, якщо вона серед доступних</td><td>Неадмін автоматично потрапляє на робоче місце своєї посади.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <details class="search-unit">
+            <summary>Матриця ідентифікаторів прав за групами</summary>
+            <div class="details-body">
+              <p><strong>Цех №1:</strong> <code>prep_terminal</code>, <code>preparation_dashboard</code>, <code>master</code>, <code>foreman</code>, <code>foreman2</code>, <code>shop1</code>, <code>shop1_foreman</code>, <code>tumbling_terminal</code>, <code>tumbling_dashboard</code>, <code>reception_terminal</code>, <code>sorting_terminal</code>, <code>operator</code>, <code>warehouse_boxes</code>, <code>cutter_restoration</code>.</p>
+              <p><strong>Цех №2:</strong> <code>shop2</code>, <code>shop2_terminal</code>, <code>pressing_terminal</code>, <code>painting_terminal</code>.</p>
+              <p><strong>Склад і логістика:</strong> <code>warehouse</code>, <code>supply</code>, <code>procurement</code>, <code>packaging</code>, <code>shipping</code>.</p>
+              <p><strong>Керування:</strong> <code>dashboard</code>, <code>foreman_dashboard</code>, <code>manager</code>, <code>kanban</code>, <code>chat</code>, <code>director</code>, <code>analytics</code>, <code>reports</code>.</p>
+              <p><strong>Технічний контур:</strong> <code>engineer</code>, <code>nomenclature</code>, <code>nomenclature_v2</code>, <code>machines</code>, <code>settings</code>, <code>access</code>, <code>brak</code>.</p>
+            </div>
+          </details>
+
+          <details class="search-unit">
+            <summary>Повна карта активних маршрутів і React-модулів</summary>
+            <div class="details-body">
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Маршрут</th><th>Активний компонент</th><th>Робоче призначення</th></tr></thead>
+                  <tbody>
+                    <tr><td><code>/login</code>, <code>/</code></td><td><code>LoginPage</code>, <code>Portal</code></td><td>Вхід і меню дозволених модулів.</td></tr>
+                    <tr><td><code>/manager</code></td><td><code>ManagerModule</code></td><td>Замовлення клієнтів.</td></tr>
+                    <tr><td><code>/master</code></td><td><code>MasterModule_v3</code></td><td>Наряди, BOM, БЗ, підготовка.</td></tr>
+                    <tr><td><code>/foreman</code></td><td><code>ForemanWorkplace</code></td><td>Робочі карти Цеху №1.</td></tr>
+                    <tr><td><code>/foreman2</code></td><td><code>Foreman2Module</code></td><td>Паралельна реалізація майстра 2.0; не автоматична заміна /foreman.</td></tr>
+                    <tr><td><code>/prep-terminal</code>, <code>/preparation-dashboard</code></td><td><code>PreparationTerminal</code>, <code>PreparationDashboard</code></td><td>Підготовка сировини та TV-огляд.</td></tr>
+                    <tr><td><code>/shop1</code>, <code>/shop1-foreman</code></td><td><code>Shop1Terminal</code>, <code>Shop1ForemanModule</code></td><td>Операції й кабінет Цеху №1.</td></tr>
+                    <tr><td><code>/tumbling-terminal</code>, <code>/tumbling-dashboard</code></td><td><code>TumblingTerminal</code>, <code>TumblingDashboard</code></td><td>Галтовка та TV-черга.</td></tr>
+                    <tr><td><code>/reception-terminal</code>, <code>/sorting-terminal</code></td><td><code>ReceptionTerminal</code>, <code>SortingTerminal</code></td><td>Прийомка й сортування.</td></tr>
+                    <tr><td><code>/operator</code></td><td><code>OperatorTerminalV2</code></td><td>Загальне/legacy робоче місце; не канон спеціалізованого Shop1.</td></tr>
+                    <tr><td><code>/shop2</code>, <code>/shop2-terminal</code></td><td><code>Shop2Module</code>, <code>Shop2Terminal</code></td><td>Створення та виконання РК Цеху №2.</td></tr>
+                    <tr><td><code>/pressing-terminal</code>, <code>/painting-terminal</code></td><td><code>PressingTerminal</code>, <code>PaintingTerminal</code></td><td>Спеціалізовані екрани пресування й фарбування.</td></tr>
+                    <tr><td><code>/warehouse</code>, <code>/warehouse-boxes</code></td><td><code>WarehouseModuleV2</code>, <code>WarehouseBoxesModule</code></td><td>СО, запити, прийомки та бокси.</td></tr>
+                    <tr><td><code>/cutter-restoration</code></td><td><code>CutterRestorationModule</code></td><td>Відновлення фрез.</td></tr>
+                    <tr><td><code>/supply</code>, <code>/procurement</code></td><td><code>SupplyModuleV2</code></td><td>Виробничий склад і procurement-only режим.</td></tr>
+                    <tr><td><code>/packaging</code>, <code>/shipping</code></td><td><code>PackagingModule</code>, <code>ShippingModule</code></td><td>Комплектація, коробки й логістика.</td></tr>
+                    <tr><td><code>/dashboard</code>, <code>/foreman-dashboard</code></td><td><code>DashboardModule</code>, <code>ForemanDashboardModule</code></td><td>WIP та огляд Цеху №1.</td></tr>
+                    <tr><td><code>/director</code>, <code>/analytics</code>, <code>/reports</code></td><td>Director / Analytics / Reports</td><td>Погодження, KPI й звіти.</td></tr>
+                    <tr><td><code>/tasks</code>, <code>/tasks/projects</code>, <code>/chat</code></td><td>Kanban / TaskProjects / Chat</td><td>Доручення, проєкти й комунікація.</td></tr>
+                    <tr><td><code>/engineer</code>, <code>/nomenclature</code>, <code>/nomenclature-v2</code></td><td>Engineer / Nomenclature / NomenclatureV2</td><td>Специфікації й каталоги.</td></tr>
+                    <tr><td><code>/machines</code>, <code>/machines/:id/call</code></td><td><code>MachinesModule</code>, <code>MachineCallModule</code></td><td>Обладнання та публічний виклик.</td></tr>
+                    <tr><td><code>/brak</code>, <code>/brak/restoration</code>, <code>/brak/settings</code></td><td>Brak / VKYA Restoration / VKYA Settings</td><td>Якість, відновлення та довідники.</td></tr>
+                    <tr><td><code>/settings</code>, <code>/access</code>, <code>/simulator</code></td><td>Settings / Access / Simulator</td><td>Адміністрування, Fortnet-заготовка й admin-тести.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </details>
+
+          <div class="callout danger search-unit"><strong>Межа безпеки поточної реалізації.</strong> У клієнті використовується anon-доступ Supabase та службовий заголовок, а ідентичність користувача є прикладною. Права в UI не можна вважати достатнім серверним захистом: критичні RPC мають самі перевіряти актора, кількість і допустимий перехід. Частина нових RLS-політик дозволяє широкий CRUD для <code>anon/authenticated</code>, тому їх треба окремо посилити. Секрети та ключі не слід копіювати в цей документ.</div>
+          <div class="callout danger search-unit"><strong>Підтверджений ризик облікових даних.</strong> Фонова перевірка користувача читає поле <code>system_users.password</code>, після чого об’єкт користувача кешується у <code>localStorage</code>. Пароль не повинен потрапляти у клієнтську сесію взагалі: RPC має повертати лише безпечний профіль, а локальний кеш — whitelist дозволених полів.</div>
+        </section>
+
+        <section id="journey" class="chapter" data-title="03 · Наскрізний шлях замовлення">
+          <div class="hero search-unit">
+            <div class="eyebrow">Процес від А до Я</div>
+            <h2>Наскрізний життєвий цикл одного замовлення</h2>
+            <p>Нижче — нормативна послідовність. Частина деталей може бути закрита БЗ і пропустити фізичне виробництво, але облік резерву та слід аудиту все одно повинні зберігатися.</p>
+          </div>
+
+          <div class="flow search-unit">
+            <div class="flow-step"><b>1. Заявка</b><span>Менеджер<br><code>pending</code></span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>2. Наряд</b><span>BOM + БЗ + snapshot<br><code>waiting/new</code></span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>3. Забезпечення</b><span>підготовка, СО, фрези<br>погодження</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>4. Цех №1</b><span>розкрій → галтовка → сортування</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>5. Цех №2</b><span>прес → фарба → доробка</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>6. Комплект</b><span>СГП/СО → коробки<br><code>packaged</code></span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>7. Відправка</b><span>контроль коробок + ТТН<br><code>shipped</code></span></div>
+          </div>
+
+          <div class="table-wrap search-unit">
+            <table>
+              <thead><tr><th>№</th><th>Власник кроку</th><th>Вхід</th><th>Дія / автоматизація</th><th>Контрольний вихід</th></tr></thead>
+              <tbody>
+                <tr><td>1</td><td>Менеджер</td><td>Підтверджена заявка клієнта</td><td>Створює замовлення та позицію виробу.</td><td><code>orders.pending</code>, валідні customer/product/quantity/deadline.</td></tr>
+                <tr><td>2</td><td>Начальник Цеху №1</td><td>Незапланований обсяг</td><td>Обирає партію, розраховує BOM, БЗ, листи, марки, верстати, фрези.</td><td>Task зі сталим <code>plan_snapshot</code>; БЗ зарезервовано атомарно.</td></tr>
+                <tr><td>3</td><td>Склад / Інженер / Директор</td><td>Наряд та матеріальні запити</td><td>Кожен підтверджує свою готовність окремим прапорцем.</td><td><code>warehouse_conf</code>, <code>engineer_conf</code>, <code>director_conf</code>; супутній task Цеху №2 після директора.</td></tr>
+                <tr><td>4</td><td>Підготовка / склад</td><td>Потреба в підготовленому листі й інструменті</td><td>Видає або готує матеріал; нестача створює нову потребу.</td><td>Запити видані/закриті, підготовлені листи передані на operational.</td></tr>
+                <tr><td>5</td><td>Майстер Цеху №1</td><td>Готовий наряд</td><td>Розподіляє обсяг і створює QR-робочі карти.</td><td>Карти <code>new</code> або <code>waiting-materials</code>.</td></tr>
+                <tr><td>6</td><td>Оператори Цеху №1</td><td>РК + оператор + зміна + обладнання</td><td>Фіксують старт, паузи, перезмінку, випуск і брак на кожному етапі.</td><td>Незмінний history; карта послідовно проходить буфери.</td></tr>
+                <tr><td>7</td><td>Сортування</td><td>Карта після прийомки</td><td>Розділяє придатне, брак і доробку; передає придатне в Цех №2.</td><td><code>at-shop2-buffer</code>, inventory <code>semi_shop2/bz_shop2</code>, ідемпотентна історія.</td></tr>
+                <tr><td>8</td><td>Цех №2</td><td>Доступна кількість у буфері</td><td>Генерує РК, виконує пресування, фарбування, доробку/передачу.</td><td>Спожитий обсяг не перевищує джерело; готове оприбутковано як finished/БЗ.</td></tr>
+                <tr><td>9</td><td>ВКЯ</td><td>Зафіксований брак</td><td>Класифікує категорії/причини; списує, відновлює або повертає в потік.</td><td>Ledger дорівнює розподіленій кількості; запас категорій узгоджений.</td></tr>
+                <tr><td>10</td><td>Пакування</td><td>Завершений task + повний комплект</td><td>Запитує комплектуючі, присвоює коробки, фіксує пакувальника.</td><td><code>_metadata.is_packaged=true</code>, записи <code>packaging_boxes</code>.</td></tr>
+                <tr><td>11</td><td>Логістика</td><td>Запакована партія</td><td>Перевіряє кожну коробку, вводить спосіб, дату, ТТН, колір і працівника.</td><td>Номер пакувального листа; task shipped; після всіх партій order shipped.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="callout warning search-unit"><strong>Критерій завершеності не можна визначати одним статусом.</strong> Для партії треба одночасно враховувати task, незавершені РК, невикористаний буфер, пакувальні метадані й відвантаження. Для замовлення — усі його партії та заплановану/запаковану кількість.</div>
+        </section>
+
+        <section id="manager" class="chapter" data-title="04 · Менеджер і замовлення">
+          <div class="hero search-unit">
+            <div class="eyebrow">Маршрут /manager · ManagerModule.jsx</div>
+            <h2>Менеджер: реєстрація, контроль і корекція замовлення</h2>
+            <p>Менеджер створює комерційний корінь усіх наступних документів. Помилка у виробі, кількості або дедлайні далі множиться у BOM, партіях, запасах і звітах.</p>
+          </div>
+
+          <div class="grid">
+            <div class="card search-unit">
+              <h4><span class="badge worker">Перед створенням</span></h4>
+              <ul class="checklist">
+                <li>відомі замовник та офіційна назва;</li>
+                <li>обраний саме готовий виріб каталогу;</li>
+                <li>кількість — додатне число;</li>
+                <li>дедлайн погоджено й він не в минулому;</li>
+                <li>перевірено, що такої заявки ще немає.</li>
+              </ul>
+            </div>
+            <div class="card search-unit">
+              <h4><span class="badge dev">Автономер</span></h4>
+              <p>Формат: <code>ДДММРРРР-XX</code>. Функція бере завантажені звичайні замовлення поточного дня, відкидає внутрішні номери ВБ/VB, знаходить найбільший суфікс і додає 1 з <code>padStart(2, '0')</code>.</p>
+              <p class="lead">Це клієнтський розрахунок; для жорсткої унікальності при одночасній роботі кількох менеджерів потрібен серверний constraint/RPC.</p>
+            </div>
+          </div>
+
+          <h3 class="section-title">Покрокове створення</h3>
+          <div class="grid three">
+            <div class="card search-unit"><h4><span class="card-number">1</span>Замовник</h4><p>Почати вводити назву. Пошук запускається після 250 мс паузи та за довжини понад один символ. Обрати існуючого контрагента або залишити нову назву для створення довідникового запису.</p></div>
+            <div class="card search-unit"><h4><span class="card-number">2</span>Виріб</h4><p>Обрати номенклатуру готового виробу. Саме її BOM стане основою наряду; помилковий вибір не виправляється зміною назви карти.</p></div>
+            <div class="card search-unit"><h4><span class="card-number">3</span>Кількість і строк</h4><p>Ввести кількість комплектів і дедлайн. Поля customer, order number, product та deadline є обов’язковими для збереження.</p></div>
+            <div class="card search-unit"><h4><span class="card-number">4</span>Збереження</h4><p>Система створює <code>orders</code> зі статусом <code>pending</code> і джерелом за замовчуванням «Виробництво», потім пов’язаний <code>order_items</code>.</p></div>
+            <div class="card search-unit"><h4><span class="card-number">5</span>Перевірка</h4><p>Переконатися, що картка з’явилася в реєстрі та містить правильний номер, клієнта, виріб, кількість і дедлайн.</p></div>
+            <div class="card search-unit"><h4><span class="card-number">6</span>Передача</h4><p>Замовлення стає видимим плануванню. Після створення наряду статус переходить у <code>in-progress</code>.</p></div>
+          </div>
+
+          <details class="search-unit">
+            <summary>Редагування, звичайне видалення та «супер-видалення»</summary>
+            <div class="details-body">
+              <p><strong>Редагування:</strong> повторно валідуюються замовник, виріб і дедлайн; оновлення торкається order та item. Якщо наряд уже створений, зміна order не повинна мовчки переписувати історичний <code>plan_snapshot</code>.</p>
+              <p><strong>Звичайне видалення:</strong> призначене для помилково створених заявок до необоротних виробничих рухів. Пов’язані записи можуть каскадувати, тому перед підтвердженням треба перевірити наявність task, РК, history, резервів та складських документів.</p>
+              <p><strong>Супер-видалення:</strong> адміністративний сценарій із подвійним підтвердженням і спробою повернути матеріальні рухи. Це не повсякденний спосіб виправлення. Після виконання слід звірити БЗ, СО, material requests та відсутність «сиріт».</p>
+            </div>
+          </details>
+
+          <details class="search-unit">
+            <summary>Реєстр, фільтри й виробничий прогрес</summary>
+            <div class="details-body">
+              <p>Замовлення читаються серверними сторінками по 20 із дозавантаженням. Доступні часові фільтри (сьогодні, тиждень, місяць, квартал, усі) та пошук за номером/замовником. Статуси order в основному потоці: <code>pending</code>, <code>in-progress</code>, <code>packaged</code>, <code>shipped</code>; проміжний стан конкретного цеху виводиться з task/card, а не обов’язково записується як order status.</p>
+              <p>Прогрес пакування порівнює фактично запаковану/планову кількість із order quantity. Для замовлення з кількома позиціями або повторними stage-tasks агрегат слід перевіряти на відсутність подвійного рахунку.</p>
+            </div>
+          </details>
+
+          <div class="callout dev search-unit"><strong>Записи.</strong> Основний контур — Supabase. Якщо <code>VITE_ENABLE_RUST_BACKEND === 'true'</code> і health-check успішний, створення order може додатково дзеркалитися в Rust API без блокування основної операції. Невдале дзеркало не означає відкат Supabase-запису.</div>
+          <div class="callout warning search-unit"><strong>Межа автономера.</strong> Генератор відокремлює внутрішні ВБ/VB, але працює по клієнтській вибірці й не дає транзакційно безконфліктної серверної нумерації. Дві одночасні форми можуть розрахувати однаковий наступний номер, якщо БД не має унікального constraint/RPC.</div>
+        </section>
+
+        <section id="naryad" class="chapter" data-title="05 · Наряд, BOM, БЗ і погодження">
+          <div class="hero search-unit">
+            <div class="eyebrow">Маршрут /master · MasterModule_v3.jsx · useProduction.js</div>
+            <h2>Створення наряду: партія, BOM, БЗ, листи, фрези й три погодження</h2>
+            <p>Наряд перетворює комерційну кількість на незмінний виробничий план. Найкритичніша частина — атомарно відняти БЗ, а до розкрою передати лише реальний дефіцит.</p>
+          </div>
+
+          <h3 class="section-title">Планування партії</h3>
+          <div class="grid">
+            <div class="card search-unit">
+              <h4><span class="badge worker">Дії начальника цеху</span></h4>
+              <ol>
+                <li>Відкрити замовлення та перевірити вже заплановану кількість.</li>
+                <li>Обрати всю доступну кількість або меншу партію; вказати дедлайн партії.</li>
+                <li>Для кожної деталі перевірити потребу, доступний БЗ і план виробництва.</li>
+                <li>Перевірити вихід із листа, загальну кількість листів і розподіл Т300/Т700.</li>
+                <li>Призначити верстат, допустиму фрезу та складську номенклатуру витратника.</li>
+                <li>Не формувати наряд, доки сума розподілу листів не дорівнює плану.</li>
+              </ol>
+            </div>
+            <div class="card search-unit">
+              <h4><span class="badge dev">Склад snapshot</span></h4>
+              <p>Для кожної номенклатури фіксуються: <code>id</code>, <code>name</code>, <code>code</code>, <code>need</code>, <code>stock</code>, <code>plan</code>, <code>units_per_sheet</code>, <code>sheets</code>, <code>sheets_t300</code>, <code>sheets_t700</code>, матеріал, order item, машина, override фрези та splits.</p>
+              <p>Окремо: <code>_metadata.deadline</code>, <code>_metadata.batch_index</code>, <code>materialSummary</code>, <code>selectedCutters</code>, <code>consumables</code>.</p>
+            </div>
+          </div>
+
+          <div class="table-wrap search-unit">
+            <table>
+              <thead><tr><th>Етап createNaryad</th><th>Що відбувається</th><th>Чому це критично</th></tr></thead>
+              <tbody>
+                <tr><td>1. Операційний UUID</td><td>Генерується єдиний ідентифікатор резервування.</td><td>Дозволяє розпізнати повтор і компенсувати незавершену операцію.</td></tr>
+                <tr><td>2. BOM</td><td>Потреба = партія × кількість компонента; враховуються custom BOM overrides.</td><td>Це основа всіх карт і матеріальних запитів.</td></tr>
+                <tr><td>3. Резерв БЗ</td><td>RPC <code>reserve_bz_for_naryad</code> блокує потрібні кишені, розподіляє доступне й повертає allocation.</td><td>Дві вкладки не повинні використати одну й ту саму деталь.</td></tr>
+                <tr><td>4. Валідація листів</td><td>Для кожної марки сума введених листів має точно збігтися з плановою.</td><td>Не допускає прихованої нестачі або надлишкового списання.</td></tr>
+                <tr><td>5. Task</td><td>Вставляється <code>tasks</code> із кроком <code>Розкрій</code>, партією, дедлайном і snapshot.</td><td>Створює історично стабільний план.</td></tr>
+                <tr><td>6. Прикріплення резерву</td><td>RPC <code>attach_bz_reservation_to_task</code>.</td><td>Зв’язує ledger резерву з фактичним task.</td></tr>
+                <tr><td>7. Слід БЗ</td><td>На allocation створюються завершені РК та history операції <code>Склад БЗ</code>.</td><td>БЗ не «зникає», а має простежуване походження.</td></tr>
+                <tr><td>8. Матеріальні потреби</td><td>Pending-запити для підготовлених листів і фрез.</td><td>Склад бачить, що саме видати або дозамовити.</td></tr>
+                <tr><td>9. Order</td><td>Статус замовлення стає <code>in-progress</code>.</td><td>Менеджер бачить початок виробництва.</td></tr>
+                <tr><td>Компенсація</td><td>Якщо помилка сталася до attach, викликається <code>release_bz_reservation</code>.</td><td>Не залишає завислого резерву після невдалого task.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 class="section-title">Погодження: прапорці, а не окремі статуси</h3>
+          <div class="grid three">
+            <div class="card search-unit"><h4>Склад</h4><p>Підтверджує матеріальну готовність полем <code>warehouse_conf</code>. У поточних даних значення може зберігатися як рядок <code>'true'</code>, тому споживачі мають нормалізувати тип.</p></div>
+            <div class="card search-unit"><h4>Інженер</h4><p>Підтверджує технічну готовність через <code>engineer_conf</code>: коректність специфікації, операцій і вибраного інструменту.</p></div>
+            <div class="card search-unit"><h4>Директор</h4><p>Ставить <code>director_conf</code>. Після цього система створює відсутній супутній task Цеху №2 з кроком <code>Пресування [ЦЕХ №2]</code> і статусом <code>waiting</code>.</p></div>
+          </div>
+
+          <div class="callout danger search-unit"><strong>Критичне виправлення.</strong> У фактичному коді немає обов’язкового переходу <code>WAITING_APPROVALS → APPROVED_FOR_PRODUCTION</code>. Наряд використовує нижньорегістрові <code>waiting/new/in-progress/completed</code>, а три підтвердження живуть в окремих полях. Не створюйте нові uppercase-статуси без міграції всіх фільтрів.</div>
+
+          <details class="search-unit">
+            <summary>Особливий випадок: усе закрито БЗ</summary>
+            <div class="details-body">
+              <p>Якщо allocation БЗ закриває всю потребу, фізичний розкрій не потрібен. Task може одразу створюватися як <code>completed</code> із підтвердженнями; завершені РК/history «Склад БЗ» пояснюють походження деталей. Також створюється завершений супутній task Цеху №2. Це оптимізація потоку, а не пропуск обліку.</p>
+            </div>
+          </details>
+          <details class="search-unit">
+            <summary>Часткові партії, підготовка, внутрішній ВБ і друк</summary>
+            <div class="details-body">
+              <ul>
+                <li><strong>Часткова партія:</strong> <code>planned_sets</code> і <code>batch_index</code> відокремлюють її від решти order quantity; наступна партія планує тільки незакритий обсяг.</li>
+                <li><strong>Ручна/автоматична підготовка:</strong> створює task <code>Підготовка</code> з номером НП та матеріальним запитом на непідготовлену пару.</li>
+                <li><strong>ВБ/VB:</strong> внутрішній/власний випуск має окрему нумерацію та не повинен потрапляти у звичайне клієнтське пакування. Це все одно повноцінні task/card/inventory рухи.</li>
+                <li><strong>Друк/повторний друк:</strong> відтворює вже збережений snapshot і QR. Повторний друк не перераховує BOM, БЗ або batch.</li>
+              </ul>
+            </div>
+          </details>
+        </section>
+
+        <section id="preparation" class="chapter" data-title="06 · Підготовка листа">
+          <div class="hero search-unit">
+            <div class="eyebrow">/prep-terminal · PreparationTerminal.jsx · /preparation-dashboard</div>
+            <h2>Підготовка листового матеріалу до розкрою</h2>
+            <p>Термінал перетворює позиції snapshot наряду «Підготовка» на окремі віртуальні підзадачі, фіксує придатне й брак та передає підготовлений матеріал на оперативний склад.</p>
+          </div>
+
+          <div class="grid">
+            <div class="card search-unit">
+              <h4><span class="badge worker">Умови появи в черзі</span></h4>
+              <p>Батьківський task має <code>step='Підготовка'</code>, ще не завершений, а позиція або підтверджена складом, або вже має прогрес. Кожен елемент <code>plan_snapshot</code> показується як окрема робота.</p>
+            </div>
+            <div class="card search-unit">
+              <h4><span class="badge worker">Перед стартом</span></h4>
+              <ul class="checklist">
+                <li>обрано працівника та зміну;</li>
+                <li>фізичний матеріал відповідає позиції;</li>
+                <li>кількість і марка звірені;</li>
+                <li>робота не виконується іншою зміною.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="table-wrap search-unit">
+            <table>
+              <thead><tr><th>Дія</th><th>Запис системи</th><th>Наступний стан</th></tr></thead>
+              <tbody>
+                <tr><td>Почати</td><td>Свіжий task перечитується з БД; entry snapshot отримує <code>status='in-progress'</code>, operator, shift, <code>started_at</code>; task стає <code>in-progress</code>.</td><td>Робота закріплена за зміною.</td></tr>
+                <tr><td>Завершити без браку</td><td>Вводиться придатна кількість; entry стає <code>completed</code>. Якщо всі entries готові, task стає <code>completed</code>.</td><td>Створюється shipment/reception документ для підготовленої номенклатури.</td></tr>
+                <tr><td>Завершити з браком</td><td>Причина обов’язкова. Накопичуються <code>total_good</code>/<code>total_scrap</code>; entry скидається в <code>new</code> з планом, рівним браку; оператор/start очищаються.</td><td><code>warehouse_conf=false</code>; створюється pending-запит дефіциту на повтор.</td></tr>
+                <tr><td>Передати результат</td><td><code>reception_docs</code> зі статусом <code>shipped</code>, <code>target_warehouse='operational'</code>, номенклатура з маркером <code>[Підготовлений]</code>.</td><td>Оперативний склад має прийняти документ.</td></tr>
+                <tr><td>Списати сировину</td><td>Виданий сирий матеріал фактично віднімається; material request переводиться в completed.</td><td>Баланс СО відповідає фізичній витраті.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <details class="search-unit">
+            <summary>Довипуск підготовки при дефіциті</summary>
+            <div class="details-body">
+              <p>Коли для довипуску потрібного розкрою бракує підготовленого листа, система може створити додатковий task <code>Підготовка</code> з машиною <code>PREP-TERM</code>, статусом <code>new</code> та службовим номером <code>НПxxxxxx</code>. До нього створюється складський запит на відповідну номенклатуру <code>[Непідготовлений]</code>. У Master існує також ручний сценарій створення prep-order.</p>
+            </div>
+          </details>
+
+          <div class="callout warning search-unit"><strong>Правило браку.</strong> Не зменшуйте початковий план «на око». Поточна логіка робить окремий повторний цикл на кількість браку; саме це зберігає суму «придатне + повторна потреба» й дозволяє складу видати дефіцит.</div>
+          <div class="callout warning search-unit"><strong>Відомі межі реалізації.</strong> Оновлення task, inventory, requests, reception doc і дозаявки виконуються через кілька запитів, частково паралельно, а не однією транзакцією. Якщо парної номенклатури <code>[Підготовлений]</code> не знайдено, документ прийомки може не створитися без явної аварії. Після будь-якого збою звіряти всі п’ять наслідків. TV-dashboard ротується приблизно кожні 12 секунд і формує локальні alerts, але не є доказом здорового DB-з’єднання.</div>
+        </section>
+
+        <section id="workcards" class="chapter" data-title="07 · Створення робочих карт">
+          <div class="hero search-unit">
+            <div class="eyebrow">/foreman · ForemanWorkplace · /foreman2</div>
+            <h2>Майстер Цеху №1: розподіл наряду і генерація РК</h2>
+            <p>Робоча карта — найменша керована фізична партія. Її кількість, машина, матеріал та QR мають однозначно відповідати тому, що працівник реально несе по дільницях.</p>
+          </div>
+
+          <h3 class="section-title">Нормальний сценарій</h3>
+          <div class="grid three">
+            <div class="card search-unit"><h4><span class="card-number">1</span>Відкрити наряд</h4><p>Звірити партію, позиції snapshot, approvals, матеріальну готовність, уже створені карти та невиданий залишок.</p></div>
+            <div class="card search-unit"><h4><span class="card-number">2</span>Розподілити обсяг</h4><p>Для кожної деталі розподілити листи/кількість між одним або кількома сумісними верстатами. Сума карт не може перевищити план.</p></div>
+            <div class="card search-unit"><h4><span class="card-number">3</span>Перевірити матеріал</h4><p>За потреби коригувати фактичний split Т300/Т700 через передбачений сценарій; не змінювати JSON вручну.</p></div>
+            <div class="card search-unit"><h4><span class="card-number">4</span>Створити карти</h4><p>Batch-операція генерує окремі UUID. Звичайна карта має <code>status='new'</code>; доробка — <code>waiting-materials</code> і маркер <code>[REDO]</code>.</p></div>
+            <div class="card search-unit"><h4><span class="card-number">5</span>Надрукувати</h4><p>QR має формат <code>CENTRUM_CARD_{work_card_id}</code>. На папері перевірити назву, кількість, матеріал, верстат і номер партії.</p></div>
+            <div class="card search-unit"><h4><span class="card-number">6</span>Передати</h4><p>Фізичні матеріали й карта мають рухатися разом. Оператор відкриває саме цю РК скануванням, а не вибирає «схожу».</p></div>
+          </div>
+
+          <div class="callout fact search-unit"><strong>Умова видимості для чинного Foreman.</strong> Незавершений task розкрою потрапляє до робочої черги, коли складський прапорець нормалізується як <code>true</code> або <code>partial</code>, а <code>engineer_conf</code> і <code>director_conf</code> підтверджені. Partial означає, що можна працювати лише з реально забезпеченою частиною, а не ігнорувати pending-дефіцит.</div>
+
+          <div class="callout dev search-unit"><strong>Консолідація запитів.</strong> Для стандартної batch-генерації матеріальна потреба лишається консолідованою на task. Окремий card-specific запит створюється тоді, коли сценарій явно вимагає додаткового матеріалу — передусім для <code>[REDO]</code> або довипуску.</div>
+
+          <details class="search-unit">
+            <summary>Заміна верстата, корекція матеріалу, перевипуск і дефіцит</summary>
+            <div class="details-body">
+              <ul>
+                <li><strong>Заміна машини:</strong> новий верстат має підтримувати потрібну операцію та інструмент; обсяг перераховується, але сумарний план не змінюється.</li>
+                <li><strong>Корекція матеріалу:</strong> допустима лише в межах технологічно сумісних марок і наявного залишку; snapshot має зберегти фактичний split.</li>
+                <li><strong>Перевипуск:</strong> не дублює всю початкову карту; створює карту рівно на підтверджений дефіцит/брак.</li>
+                <li><strong>Адмін-видалення карти:</strong> небезпечна операція. Перед нею перевіряються history, material requests, списання, cutter usage, потік у Цех №2 та агрегати.</li>
+              </ul>
+            </div>
+          </details>
+
+          <div class="table-wrap search-unit">
+            <table>
+              <thead><tr><th>Контрольна сума</th><th>Має виконуватись</th><th>Якщо не виконується</th></tr></thead>
+              <tbody>
+                <tr><td>План карт</td><td>Створені + доступні до створення = виробничий план позиції.</td><td>Не генерувати нову РК; перечитати task і flow totals.</td></tr>
+                <tr><td>Листи</td><td>Сума листів усіх карт не більша за виданий/підготовлений обсяг.</td><td>Перевірити split і material request.</td></tr>
+                <tr><td>Доробка</td><td>REDO-кількість не більша за зафіксований дефіцит або rework.</td><td>Вимагати джерельну history-подію.</td></tr>
+                <tr><td>QR</td><td>Один work_card ID — один код і один поточний стан.</td><td>Не клонувати картку копіюванням запису.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="shop1" class="chapter" data-title="08 · Цех №1 — головний термінал">
+          <div class="hero search-unit">
+            <div class="eyebrow">/shop1 · Shop1Terminal.jsx</div>
+            <h2>Цех №1: повна інструкція головного операційного термінала</h2>
+            <p>Термінал веде одну РК через розкрій, чотири етапи галтовки, прийомку й сортування. Поточний стан лежить у <code>work_cards</code>; кожен завершений інтервал і кількісний результат — у <code>work_card_history</code>.</p>
+          </div>
+
+          <div class="flow search-unit">
+            <div class="flow-step"><b>Розкрій</b><span>машина + оператор<br><code>new → in-progress</code></span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>Вібростіл</b><span>командна операція</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>Мийка</b><span>командна операція</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>Галтовка</b><span>командна операція</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>Сушка</b><span>командна операція</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>Прийомка</b><span>підтвердження кількості</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>Сортування</b><span>good / scrap / rework<br>Цех №2</span></div>
+          </div>
+
+          <h3 class="section-title">Як знайти карту</h3>
+          <div class="grid three">
+            <div class="card search-unit"><h4>Апаратний сканер</h4><p>Клавіатурний wedge-listener накопичує швидкий ввід до Enter. Перекладач розкладки виправляє випадок, коли сканер «надрукував» латинський QR українськими/російськими клавішами.</p></div>
+            <div class="card search-unit"><h4>Камера</h4><p>Кнопка сканування запускає <code>html5-qrcode</code>. Після успішного читання камера має зупинитися, а карта — перечитатися зі свіжого стану.</p></div>
+            <div class="card search-unit"><h4>Ручний пошук</h4><p>Допоміжний варіант за повним UUID або 8-символьним хвостом. Перед дією обов’язково звірити номенклатуру, партію та кількість: цей шлях не повторює всі queue-фільтри й може відкрити completed/Shop2 карту.</p></div>
+          </div>
+          <details class="search-unit">
+            <summary>Черга, фільтри та локально відскановані карти</summary>
+            <div class="details-body">
+              <p>Основна черга відкидає <code>completed</code>, <code>in-progress</code>, <code>paused</code>, <code>at-shop2-buffer</code>, карти <code>[ЦЕХ №2]</code>, не-деталі та карти завершених/Shop2 tasks. Вона додає нові карти Цеху №1, допустимі <code>at-buffer</code> chain-stage і ID, збережені в <code>localStorage.shop1_scanned</code>. Після проміжного етапу ID лишається, після прийомки/передачі — видаляється.</p>
+              <p>Wedge buffer очікує приблизно 100 мс між символами. Статус <code>waiting-materials</code> має дефіс; legacy-перевірка <code>waiting_material</code> у моноліті не спрацьовує й не може бути єдиним блокуванням матеріалу.</p>
+            </div>
+          </details>
+
+          <h3 class="section-title">Старт розкрою</h3>
+          <div class="grid">
+            <div class="card search-unit">
+              <h4><span class="badge worker">Послідовність оператора</span></h4>
+              <ol>
+                <li>Відсканувати РК й перевірити назву деталі, наряд і кількість.</li>
+                <li>Обрати себе та робочу зміну.</li>
+                <li>Вказати номер/код верстата у допустимому форматі його типу.</li>
+                <li>Переконатися, що фізично завантажений матеріал відповідає карті.</li>
+                <li>Натиснути старт лише після фактичного початку роботи.</li>
+              </ol>
+            </div>
+            <div class="card search-unit">
+              <h4><span class="badge dev">Перевірки системи</span></h4>
+              <ul>
+                <li>operator і shift обов’язкові;</li>
+                <li>машина має існувати в <code>machines</code> і відповідати формату/типу;</li>
+                <li>якщо <code>maintenanceCheckEnabled</code>, статуси <code>maintenance_required</code> та <code>under_maintenance</code> блокують запуск;</li>
+                <li>інша карта не повинна вже різатися на тій самій машині;</li>
+                <li>запис отримує <code>in-progress</code>, operation, started_at, operator, manager, shift, machine і маркер <code>[SHOP:1]</code>.</li>
+              </ul>
+            </div>
+          </div>
+          <details class="search-unit">
+            <summary>Допустимі формати номера верстата на розкрої</summary>
+            <div class="details-body">
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Тип / псевдонім</th><th>Формат</th><th>Приклад</th></tr></thead>
+                  <tbody>
+                    <tr><td>KE XIN / ФЕЯ</td><td><code>Ф1…Ф20</code></td><td>Ф3</td></tr>
+                    <tr><td>1200×800 / Малий</td><td><code>1.1…1.27</code></td><td>1.24</td></tr>
+                    <tr><td>3050 / Швидкісний</td><td><code>2.1…2.2</code></td><td>2.1</td></tr>
+                    <tr><td>3060 / Триголовий</td><td><code>3.1…3.4</code></td><td>3.2</td></tr>
+                    <tr><td>6000 / Дракон</td><td><code>D1+</code></td><td>D1</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <p>Формат не замінює реєстр: введена машина має знайтися в <code>machines</code> за типом/name та inventory/sequence. Поле manager зберігається, але в live handler може бути «Не вказано» — оператор і зміна при цьому обов’язкові.</p>
+            </div>
+          </details>
+          <div class="callout warning search-unit"><strong>Реальний розрив maintenance.</strong> Головний <code>/shop1</code> зберігає текстове поле машини, але не <code>machine_id</code>, і завершує розкрій в обхід загального <code>confirmBuffer</code>. Тому лічильник «після 5 завершених карт → maintenance_required» у цьому потоці не інкрементується. Термінал уміє заблокувати вже позначену машину, але сам не гарантує постановку на ТО.</div>
+
+          <h3 class="section-title">Пауза, відновлення та перезмінка</h3>
+          <div class="table-wrap search-unit">
+            <table>
+              <thead><tr><th>Сценарій</th><th>Коли дозволений</th><th>Що пишеться в history</th><th>Стан карти</th></tr></thead>
+              <tbody>
+                <tr><td>Пауза</td><td>Розкрій у роботі; потрібна причина.</td><td>Завершений робочий інтервал <code>Розкрій</code> з маркерами <code>[PAUSED_WORK_LOG]</code> та <code>[REASON:…]</code>.</td><td><code>paused</code>; у metadata зберігаються pause time та original start.</td></tr>
+                <tr><td>Відновлення</td><td>Карта <code>paused</code>.</td><td>Інтервал простою <code>Розкрій (зупинка)</code>.</td><td><code>in-progress</code>, новий робочий старт.</td></tr>
+                <tr><td>Перезмінка</td><td>Лише розкрій; робота переходить іншому оператору/зміні.</td><td><code>Розкрій (перезмінка)</code>, <code>qty_completed=0</code>, збережений <code>[ORIGINAL_START]</code>.</td><td>Лишається <code>in-progress</code> з новим operator/shift/started_at.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 class="section-title">Завершення етапу</h3>
+          <div class="card search-unit">
+            <ol>
+              <li>Відсканувати або відкрити саме активну карту.</li>
+              <li>Ввести результат: оброблену кількість, брак і, де передбачено, відповідального за брак.</li>
+              <li>Для розкрою перевірити використання фрези. Фактична витрата реєструється через <code>register_cutter_usage</code>.</li>
+              <li>Підтвердити. Система створює history з операцією, часом, оператором, машиною, зміною, придатним і браком.</li>
+              <li>Брак додається до <code>inventory.type='scrap_ready'</code>; карта переходить у <code>at-buffer</code>.</li>
+              <li>Наступна дільниця приймає карту з буфера — не стартує її «з нуля».</li>
+            </ol>
+          </div>
+
+          <details class="search-unit" open>
+            <summary>Контракт переходу між етапами</summary>
+            <div class="details-body">
+              <p>Для chain-операцій прийняття наступним етапом додає history <code>Буфер {operation}</code>, а потім переводить карту в <code>in-progress</code> на наступній operation. Для галтовки оператор може фіксуватися як «Команда». Прийомка має спрощений one-click сценарій і повертає карту в <code>at-buffer</code> з operation <code>Прийомка</code>. Сортування є останньою межею Цеху №1.</p>
+              <p>Зворотний перехід не робиться редагуванням <code>operation</code>. Потрібен окремий дозволений сценарій із history та компенсацією запасу.</p>
+            </div>
+          </details>
+
+          <details class="search-unit">
+            <summary>Точний порядок завершення і відомий ризик часткового результату</summary>
+            <div class="details-body">
+              <ol>
+                <li><code>verifyCardBeforeMasterScrap</code> перечитує quantity/status і нові history <code>Контроль ВКЯ</code>; при розбіжності дія припиняється fail-closed.</li>
+                <li>Карта умовним update із перевіркою <code>status='in-progress'</code> переводиться в <code>at-buffer</code> і отримує нову good quantity.</li>
+                <li>Лише після цього окремими запитами створюються history, <code>scrap_ready</code> та cutter usage. Якщо відповідальний за брак інший — good і scrap записуються двома history rows.</li>
+                <li>Для розкрою фактичні cutters обмежені приблизно <code>max(plan×2, plan+10)</code>; breakdown записується службовим маркером і RPC.</li>
+              </ol>
+              <p><strong>Ризик:</strong> claim карти захищає від подвійного кліку, але всі side effects після нього не входять до однієї транзакції. Якщо history/inventory/RPC впаде, повторне завершення вже може бути no-op. Потрібен єдиний серверний complete-stage RPC або reconcile.</p>
+            </div>
+          </details>
+
+          <div class="callout warning search-unit"><strong>Захист від подвійної дії.</strong> Перед кількісним завершенням карта має перечитуватися з БД. Локальний екран може бути застарілим через іншу вкладку або Realtime-затримку. Окремий сценарій «100% браку / замовити довипуск» нині не має такого самого conditional claim і freshness-check, тому особливо потребує серверної ідемпотентності.</div>
+          <details class="search-unit">
+            <summary>100% браку та замовлення довипуску</summary>
+            <div class="details-body">
+              <p>Стара карта завершується з quantity 0, history містить повний scrap, брак додається у <code>scrap_ready</code>, а cutter usage фіксує фактичну витрату. Нова карта створюється на ту саму підтверджену кількість як <code>Розкрій</code>, зазвичай <code>waiting-materials</code>, з маркером <code>[REDO]</code> і додатковим material request. Склад переводить її в <code>new</code>, коли незакритих потреб більше немає.</p>
+            </div>
+          </details>
+
+          <details class="search-unit">
+            <summary>Виклик майстра, інженера або ВКЯ</summary>
+            <div class="details-body">
+              <p>Оператор обирає тип допомоги, за потреби конкретну особу та додає контекст машини/карти. Створюється <code>machine_calls</code> зі статусом <code>pending</code>. Відповідні ролі отримують Realtime/push-сповіщення. Закриття виклику має зафіксувати виконавця й час, але не змінює виробничу кількість автоматично.</p>
+            </div>
+          </details>
+          <div class="callout fact search-unit"><strong>Канонічний файл.</strong> Маршрут <code>/shop1</code> імпортує великий <code>src/modules/Shop1Terminal.jsx</code>. Файли <code>src/modules/Shop1/hooks/*</code> і <code>components/*</code> зараз не підключені; кореневий <code>A:\centrum\Shop1Terminal.jsx</code> — старий дубль. Не реалізуйте бізнес-зміну в «чистому» рефакторингу, доки route не перемкнено й поведінку не вирівняно.</div>
+        </section>
+
+        <section id="shop1-special" class="chapter" data-title="09 · Галтовка, прийомка та сортування">
+          <div class="hero search-unit">
+            <div class="eyebrow">/tumbling-terminal · /reception-terminal · /sorting-terminal</div>
+            <h2>Спеціалізовані екрани Цеху №1 і передача в Цех №2</h2>
+            <p>Окремі термінали спрощують інтерфейс конкретної дільниці, але працюють з тією самою РК та історією. Головне правило: кожна фізична передача повинна мати відповідний цифровий перехід.</p>
+          </div>
+
+          <div class="grid four">
+            <div class="card search-unit"><h4>Вібростіл</h4><p>Приймає карту після розкрою, фіксує старт команди та кількісне завершення, передає у власний буфер.</p></div>
+            <div class="card search-unit"><h4>Мийка</h4><p>Починається лише з карти, готової після вібростолу. History не перезаписує попередній етап.</p></div>
+            <div class="card search-unit"><h4>Галтовка</h4><p>Фіксує окремий виробничий інтервал і брак; завершення відкриває сушку.</p></div>
+            <div class="card search-unit"><h4>Сушка</h4><p>Остання галтувальна операція. Після неї карта готова до фізичної прийомки.</p></div>
+          </div>
+          <details class="search-unit">
+            <summary>Як окремий TumblingTerminal визначає пріоритет черги</summary>
+            <div class="details-body">
+              <p>Активні карти показуються вище waiting. Для waiting система оцінює комплектність позицій BOM/плану активного замовлення: менший ratio означає вузьке місце й вищий пріоритет; далі враховуються deadline та час очікування. Покупні кріплення й матеріали виключаються з виробничої комплектності. Оператор у БД для підоперацій — «Команда», зміна підставляється з поточного користувача.</p>
+              <p>Після Сушки dedicated terminal ставить legacy operation <code>Галтовка</code>. Dashboard має трохи інший waiting-filter, тому його кількість може не збігтися з терміналом; це відомий дефект селекторів.</p>
+            </div>
+          </details>
+
+          <h3 class="section-title">Прийомка</h3>
+          <div class="card search-unit">
+            <p>Працівник сканує карту, звіряє фізичну партію та приймає її. Система додає history операції прийомки, встановлює <code>operation='Прийомка'</code> і <code>status='at-buffer'</code>. Прийомка не повинна вдруге додавати раніше зафіксований брак або змінювати початкову кількість без окремого QC-сценарію.</p>
+          </div>
+          <div class="callout warning search-unit"><strong>Два чинні варіанти прийомки.</strong> У моноліті <code>/shop1</code> після Сушки прийомка — миттєва дія без стану <code>in-progress</code>, після чого окремо стартує Сортування. У <code>/reception-terminal</code> карта спершу стає <code>in-progress/Прийомка</code>, а завершення одразу ставить <code>at-buffer/Сортування</code>. Додатково TumblingTerminal після Сушки нормалізує operation до legacy <code>Галтовка</code>, тоді як моноліт лишає <code>Галтовка (Сушка)</code>. До рефакторингу обидва формати треба читати, але для нової реалізації слід обрати один канон.</div>
+
+          <h3 class="section-title">Сортування: найважливіша кількісна розвилка</h3>
+          <div class="grid">
+            <div class="card search-unit">
+              <h4><span class="badge worker">Дії сортувальника</span></h4>
+              <ol>
+                <li>Сканувати карту після прийомки.</li>
+                <li>Перерахувати фізичну кількість.</li>
+                <li>Розподілити її на придатне, брак і доробку.</li>
+                <li>Перевірити контрольну суму та підтвердити передачу.</li>
+                <li>Фізично перемістити придатне у відповідний буфер Цеху №2.</li>
+              </ol>
+            </div>
+            <div class="card search-unit">
+              <h4><span class="badge dev">Атомарні наслідки</span></h4>
+              <ul>
+                <li>good = <code>quantity − scrap − rework</code>;</li>
+                <li>запас Цеху №1 <code>semi</code>/<code>wip_bz</code>/<code>bz</code> переноситься у <code>semi_shop2</code>/<code>bz_shop2</code>;</li>
+                <li>джерельна карта стає <code>at-shop2-buffer</code>;</li>
+                <li>history записується ідемпотентно через sorting service/RPC;</li>
+                <li>за потреби створюється/активується task Цеху №2;</li>
+                <li>scrap надходить у <code>scrap_ready</code>, rework може породити <code>[REDO]</code>.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="callout danger search-unit"><strong>Інваріант сортування.</strong> <code>good + scrap + rework</code> не може перевищувати свіжу доступну кількість карти. Повторне підтвердження тієї самої передачі не повинно вдруге створювати history або запас.</div>
+          <details class="search-unit">
+            <summary>Що зараз захищено під час сортування, а що — ні</summary>
+            <div class="details-body">
+              <p>RPC <code>record_sorting_history_once</code> і receipt-table ідемпотентно створюють history Сортування та його буфера. Якщо RPC ще не застосований, fallback робить два звичайні insert без такого захисту.</p>
+              <p>Зміна card, inventory Цеху №1/№2, arrivals у task та створення rework-карти виконуються окремими frontend writes. Часткова помилка або retry може вдруге додати stock/arrival. Поточний handler також не гарантує server-side межі для всіх полів, а timestamp history може взяти старий <code>completed_at</code> попереднього буфера. Нормативне виправлення — один атомарний handoff RPC із fresh quantity, inventory sufficiency та operation key.</p>
+            </div>
+          </details>
+
+          <details class="search-unit">
+            <summary>QC override прямо в Цеху №1</summary>
+            <div class="details-body">
+              <p>ВКЯ може відсканувати карту, вибрати виробничого оператора, відповідального за дефект, і вилучити підтверджену кількість. Перед записом перевіряється свіжа кількість. Далі створюється history <code>Контроль ВКЯ</code>, карта зменшується або стає <code>completed</code> при нулі, а брак додається в <code>scrap_ready</code>. Це корекція з аудиторським слідом, не приховане редагування.</p>
+            </div>
+          </details>
+
+          <div class="callout fact search-unit"><strong>Дашборди.</strong> <code>/tumbling-dashboard</code> і <code>/preparation-dashboard</code> — телевізійні/оглядові екрани. Вони показують чергу та комплектність, але не повинні бути джерелом кількісних записів.</div>
+          <div class="callout warning search-unit"><strong>Відомі дефекти спеціалізованих екранів.</strong> Reception/Sorting мають неправильні назви окремих buffer-history подій, слабші freshness/idempotency checks і auto-operator без повноцінного selector. Камерний scan може шукати нову карту у старому closure після <code>fetchData</code>. Пріоритет <code>galt_priority</code> читається головним терміналом, але живий моноліт його не записує. Це треба сприймати як backlog, а не як нормативну поведінку працівника.</div>
+        </section>
+
+        <section id="shop2" class="chapter" data-title="10 · Цех №2 — РК і термінали">
+          <div class="hero search-unit">
+            <div class="eyebrow">/shop2 · /shop2-terminal · /pressing-terminal · /painting-terminal</div>
+            <h2>Цех №2: споживання буфера, пресування, фарбування та передача готового</h2>
+            <p>Цех №2 не створює кількість із повітря: кожна нова РК споживає доступний залишок конкретних карт Цеху №1. Поле <code>used_in_shop2_qty</code> захищає джерельний пул від повторного використання.</p>
+          </div>
+
+          <h3 class="section-title">Створення РК Цеху №2</h3>
+          <div class="callout fact search-unit"><strong>Два способи появи обсягу.</strong> Пряме сортування окремої карти переносить good у <code>semi_shop2/bz_shop2</code> і додає arrival. Окремий task-level сценарій <code>handoverTaskToShop2</code> завершує task Цеху №1, списує видані матеріали, переносить snapshot-потребу та надлишок, створює completed internal <code>reception_docs</code>, додає arrival і ставить companion task <code>in-progress</code>. Обидва шляхи повинні давати один і той самий баланс, але зараз реалізовані різними multi-write ланцюгами.</div>
+          <div class="table-wrap search-unit">
+            <table>
+              <thead><tr><th>Крок</th><th>Дія</th><th>Контроль</th><th>Запис</th></tr></thead>
+              <tbody>
+                <tr><td>1</td><td>Відкрити companion task із кроком Пресування/Цех №2.</td><td>Партія та номенклатура мають відповідати джерельним картам.</td><td>Task зазвичай створений після director approval.</td></tr>
+                <tr><td>2</td><td>Обрати технологічний етап для позиції.</td><td>Значення зберігається у <code>plan_snapshot[nomId].shop2_stage</code>.</td><td>Snapshot оновлюється контрольованим сценарієм.</td></tr>
+                <tr><td>3</td><td>Перевірити доступний буфер.</td><td><code>available = quantity − used_in_shop2_qty</code> на картах <code>at-shop2-buffer</code>.</td><td>Джерела відбираються у межах тієї самої партії.</td></tr>
+                <tr><td>4</td><td>Ввести кількість нової карти.</td><td>0 &lt; qty ≤ сума available.</td><td>Створюється РК з <code>[ЦЕХ №2]</code>, status <code>new</code>, обраною operation.</td></tr>
+                <tr><td>5</td><td>Підтвердити.</td><td>Одночасний повтор не має перевищити available.</td><td><code>used_in_shop2_qty</code> збільшується FIFO по джерельних картах.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="flow search-unit">
+            <div class="flow-step"><b>Буфер Цеху №2</b><span><code>at-shop2-buffer</code><br><code>semi_shop2/bz_shop2</code></span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>Пресування</b><span><code>in-progress → at-buffer</code></span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>Фарбування</b><span><code>in-progress → at-buffer</code></span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>Доопрацювання</b><span>за технологічним маршрутом</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>СГП / БЗ</b><span><code>finished</code> або <code>bz</code><br>карта completed</span></div>
+          </div>
+
+          <div class="grid three">
+            <div class="card search-unit"><h4>Загальний термінал</h4><p><code>Shop2Terminal.jsx</code> бере карти з маркером <code>[ЦЕХ №2]</code>, підтримує <code>Пресування</code>, <code>Фарбування</code>, <code>Доопрацювання</code>, QR, виклики та QC. Старт вимагає оператора, але частина update виконується оптимістично/fire-and-forget. Звичайне завершення дає <code>at-buffer</code>; спеціальний rework/admin — completed і good у БЗ.</p></div>
+            <div class="card search-unit"><h4>Екран пресування</h4><p>Приймає <code>at-shop2-buffer/Сортування</code> або <code>new/Пресування</code>. Старт → <code>in-progress/Пресування</code>; завершення → <code>at-buffer/Пресування</code>, scrap → <code>scrap_ready</code>.</p></div>
+            <div class="card search-unit"><h4>Екран фарбування</h4><p>Приймає <code>at-buffer/Пресування</code> або <code>new/Фарбування|Малярка</code>. Старт → <code>in-progress/Фарбування</code>; завершення → <code>at-buffer/Фарбування</code>, scrap → <code>scrap_ready</code>.</p></div>
+          </div>
+
+          <details class="search-unit">
+            <summary>Завершення task Цеху №2 і передача на СГП</summary>
+            <div class="details-body">
+              <p>Перед завершенням перевіряються: відповідний task Цеху №1 завершений, немає незавершених РК Цеху №2 і немає невикористаного джерельного буфера. <code>completeTaskShop2</code> списує видані матеріали, завершує task, переносить залишки <code>wip_bz/bz_shop2 → bz</code> і обнуляє <code>semi_shop2</code>.</p>
+              <p><code>handoverToSGP</code> перечитує карту, завершує її з operation <code>Пакування/СГП</code>, ділить good на планове <code>finished</code> та надлишок <code>bz</code>, а для звичайної карти списує <code>semi_shop2/bz_shop2</code>. Якщо stage одразу <code>Пакування/СГП</code>, менеджер може створити completed-карту й виконати цей рух без Press/Paint.</p>
+            </div>
+          </details>
+
+          <details class="search-unit">
+            <summary>Спеціальний потік відновлення ВКЯ</summary>
+            <div class="details-body">
+              <p>Карта з маркерами <code>[RESTORATION]</code>, <code>[VKYA_RESTORATION]</code> і <code>[ЦЕХ №2]</code> створюється RPC передачі відновлення. На пресуванні/фарбуванні її завершення проходить через <code>complete_vkya_shop2_card_to_bz</code>: придатне атомарно надходить у глобальний БЗ, новий брак — у <code>scrap_ready</code>, карта завершується. Звичайний handler не повинен дублювати цей рух.</p>
+            </div>
+          </details>
+
+          <div class="callout warning search-unit"><strong>Паралельність і маршрутизація.</strong> Клієнтський available потрібен для UX, але генерація, FIFO-споживання та stock movement не об’єднані в одну транзакцію. Task-level transfer може частково впасти вже після завершення Цеху №1; агреговане завершення рухає stock за номенклатурою, не owner-task. Також dedicated Pressing → Painting може не збігтися з обраним <code>shop2_stage</code>, а в legacy chain є typo <code>Паквання</code>. Новий серверний workflow має явно валідовувати stage graph і source ownership.</div>
+        </section>
+
+        <section id="warehouse" class="chapter" data-title="11 · Оперативний склад">
+          <div class="hero search-unit">
+            <div class="eyebrow">/warehouse · WarehouseModuleV2 · /warehouse-boxes</div>
+            <h2>Оперативний склад: запити, резерви, видача, прийомка, бокси й ручні рухи</h2>
+            <p>Склад розділяє «зарезервовано/видано документально» та «фактично списано виробництвом». Це принципово: раннє фізичне списання робить неможливим коректне повернення невикористаного матеріалу.</p>
+          </div>
+
+          <div class="grid three">
+            <div class="card search-unit"><h4>Черга запитів</h4><p><code>material_requests</code> показує потребу task/карти/пакування. Склад комплектує повністю або частково, фіксує дефіцит і передає його постачанню.</p></div>
+            <div class="card search-unit"><h4>Приймання</h4><p><code>reception_docs</code> проходить від очікуваного документа до фактичного прийняття. Прийнята кількість може відрізнятися від очікуваної, але розбіжність має бути явною.</p></div>
+            <div class="card search-unit"><h4>Реєстр запасу</h4><p><code>inventory</code> з <code>warehouse='operational'</code> є фактичним балансом СО. Legacy <code>type</code> ще використовується багатьма процесами, тому міграція назв має бути сумісною.</p></div>
+          </div>
+
+          <h3 class="section-title">Комплектація матеріального запиту</h3>
+          <div class="callout fact search-unit"><strong>Звідки видається.</strong> Для пакування джерело визначають маркери <code>[PACKAGING_SOURCE:SGP|BZ|SO]</code>; для підготовки — <code>production</code>; стандартне забезпечення розкрою — <code>operational</code>. Card-scoped запити в основній черзі показуються переважно для REDO/rework або збалансованої заміни машини, щоб не дублювати консолідований task request.</div>
+          <div class="table-wrap search-unit">
+            <table>
+              <thead><tr><th>Стан</th><th>Що робить комірник</th><th>Що робить система</th></tr></thead>
+              <tbody>
+                <tr><td><code>pending</code></td><td>Звіряє номенклатуру, кількість, джерельний наряд і фізичний залишок.</td><td>Показує доступно/потрібно; дозволяє повну або часткову комплектацію.</td></tr>
+                <tr><td>Часткова видача</td><td>Видає реально наявну кількість і фіксує нестачу.</td><td>Початковий рядок стає issued на наявне, а новий pending — на remainder; task отримує <code>warehouse_conf='partial'</code>.</td></tr>
+                <tr><td><code>issued</code></td><td>Передає матеріал дільниці разом із task/РК.</td><td>Збільшує reserved/зв’язок із запитом, але не обов’язково одразу зменшує total.</td></tr>
+                <tr><td>Усе видано</td><td>Окремо підтверджує готовність наряду.</td><td><code>warehouse_conf='true'</code>; коли pending більше немає, пов’язані <code>waiting-materials</code> карти можуть стати <code>new</code>.</td></tr>
+                <tr><td><code>completed</code></td><td>Додаткової дії немає.</td><td><code>deductIssuedMaterialsForTask</code> під час фактичного споживання зменшує total і reserved та закриває запит.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="callout truth search-unit"><strong>Двофазний облік видачі.</strong> <code>issued</code> означає «матеріал зарезервований/відданий під роботу», а <code>completed</code> — «споживання підтверджене й баланс віднято». Не замінюйте обидва кроки одним статусом без переробки повернень і звітів.</div>
+
+          <h3 class="section-title">Приймання надходження</h3>
+          <div class="grid">
+            <div class="card search-unit">
+              <h4><span class="badge worker">Комірнику</span></h4>
+              <ol>
+                <li>Відкрити документ прийомки й звірити постачальника/джерело, номенклатуру та цільовий склад.</li>
+                <li>Перерахувати фактичну кількість, не копіювати очікувану автоматично.</li>
+                <li>Ввести фактичну кількість і зафіксувати розбіжність/коментар.</li>
+                <li>Підтвердити лише після фізичного розміщення в правильній кишені.</li>
+              </ol>
+            </div>
+            <div class="card search-unit">
+              <h4><span class="badge dev">Наслідки</span></h4>
+              <p>Прийняття збільшує або створює відповідний <code>inventory</code>, переводить <code>reception_docs</code> у <code>completed</code> та, якщо документ походить із закупівлі, закриває пов’язаний <code>purchase_requests</code>. Повторне підтвердження має бути ідемпотентним.</p>
+            </div>
+          </div>
+
+          <details class="search-unit">
+            <summary>Бокси фрез і підготовлені комплекти</summary>
+            <div class="details-body">
+              <p><code>/warehouse-boxes</code> працює зі скануванням РК і підготовкою фізичного боксу інструменту. Службовий маркер на карті на кшталт <code>[BOX_PREPARED:true]</code> сигналізує, що комплект зібраний. Перед підтвердженням звіряються всі cutters/consumables і складські артикули; маркер без фактичного боксу неприпустимий.</p>
+              <p><strong>Поточні обмеження:</strong> номер нового боксу генерується через localStorage, а duplicate-check бачить переважно активні карти; дефіцит фрез у live handler може clamp-нути stock до нуля й не заблокувати завершення; прапорець перевірки листа існує в state, але не повністю контролюється UI. До виправлення комірник мусить вручну звіряти фактичний комплект, а програміст — перенести нумерацію/списання в RPC.</p>
+            </div>
+          </details>
+
+          <details class="search-unit">
+            <summary>Ручна видача поза стандартним task</summary>
+            <div class="details-body">
+              <p>Сценарій Manual Issue використовує RPC <code>issue_operational_inventory_manually</code> та журнал <code>manual_inventory_issue_journal</code>. Обов’язкові актор, номенклатура, додатна кількість і причина/одержувач. Рух має бути атомарним: не можна спочатку зменшити inventory, а журнал записати «потім».</p>
+            </div>
+          </details>
+
+          <div class="callout danger search-unit"><strong>Заборонено.</strong> Не виправляти залишок прямим update без документа або ledger-події; не приймати товар в іншу кишеню «тимчасово»; не закривати pending-запит, якщо матеріал фізично не переданий.</div>
+          <div class="callout warning search-unit"><strong>Приймання ще не повністю атомарне.</strong> Модуль спершу намагається захопити документ статусом <code>in-progress</code>, потім окремо змінює target/source inventory, reserves і сам document. При помилці status повертається в <code>shipped</code>, але вже виконаний stock write може лишитися. Потрібен єдиний receive-document RPC.</div>
+        </section>
+
+        <section id="supply" class="chapter" data-title="12 · Склад виробництва і постачання">
+          <div class="hero search-unit">
+            <div class="eyebrow">/supply · /procurement · SupplyModuleV2.jsx</div>
+            <h2>Склад виробництва, дефіцити, закупівля і доставка на СО</h2>
+            <p>Один компонент обслуговує два робочі режими: управління виробничим запасом та procurement-only чергу. Потік починається з підтвердженої нестачі й закінчується прийнятим документом на потрібному складі.</p>
+          </div>
+
+          <div class="flow search-unit">
+            <div class="flow-step"><b>Дефіцит</b><span>material request / ручна потреба</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>Запит закупівлі</b><span><code>purchase_requests.pending</code></span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>Замовлено</b><span><code>ordered</code><br>дані постачальника</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>Надійшло</b><span><code>accepted</code><br>документ прийомки</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>Прийнято складом</b><span><code>completed</code><br>inventory збільшено</span></div>
+          </div>
+
+          <div class="grid">
+            <div class="card search-unit">
+              <h4><span class="badge worker">Склад виробництва</span></h4>
+              <ul>
+                <li>переглядає виробничий і operational залишки;</li>
+                <li>присвоює/видаляє QR за контрольованим сценарієм;</li>
+                <li>передає на оперативний склад доступну кількість;</li>
+                <li>переадресовує підтверджений дефіцит у procurement;</li>
+                <li>готує матеріали для потреб виробництва;</li>
+                <li>приймає documents, адресовані цьому складу.</li>
+              </ul>
+            </div>
+            <div class="card search-unit">
+              <h4><span class="badge worker">Відділ постачання</span></h4>
+              <ul>
+                <li>відкриває pending purchase request і перевіряє дублікати;</li>
+                <li>фіксує замовлення постачальнику — статус <code>ordered</code>;</li>
+                <li>після прибуття створює/оновлює reception document;</li>
+                <li>не ставить <code>completed</code> до складського приймання;</li>
+                <li>для термінової потреби може створити ручний shortage PR із поясненням.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="table-wrap search-unit">
+            <table>
+              <thead><tr><th>Об’єкт</th><th>Типові стани</th><th>Власник переходу</th><th>Сенс</th></tr></thead>
+              <tbody>
+                <tr><td><code>material_requests</code></td><td><code>pending → issued → completed</code></td><td>Склад → виробниче споживання</td><td>Від потреби до фактичного списання.</td></tr>
+                <tr><td><code>purchase_requests</code></td><td><code>pending → ordered → accepted → completed</code></td><td>Постачання → склад</td><td>Від дефіциту до оприбуткування.</td></tr>
+                <tr><td><code>reception_docs</code></td><td><code>pending/ordered → shipped/in-progress → completed</code></td><td>Джерело → цільовий склад</td><td>Фізична передача між сторонами.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <details class="search-unit">
+            <summary>Точна маршрутизація запасу й дефіциту</summary>
+            <div class="details-body">
+              <ul>
+                <li>У режимі production доступну частину можна зарезервувати на <code>production</code> і створити reception doc <code>production → operational</code>; дефіцит передається дочірнім PR у procurement.</li>
+                <li>У режимі procurement прийнятий запит перетворюється на ordered PR та shipped reception doc із <code>source=null</code>, <code>target=production</code>.</li>
+                <li>Ручне надходження може йти в <code>operational</code>, <code>production</code> або <code>pocket</code>; для pocket обов’язковий owner.</li>
+                <li>Після фактичного приймання зберігаються actual quantity, discrepancy/act metadata; тільки тоді downstream request вважається закритим.</li>
+              </ul>
+            </div>
+          </details>
+
+          <div class="callout warning search-unit"><strong>Не ототожнювати статуси різних таблиць.</strong> <code>ordered</code> у purchase request і <code>ordered</code> у reception doc мають різний бізнес-контекст. Поле <code>destination_warehouse</code> нині використовується і як організаційна черга, і як фізичний маршрут; кілька availability-розрахунків змішують DB reserve, virtual documents та <code>reserved_from_stock</code>. Перед рефакторингом ці два поняття треба розділити.</div>
+        </section>
+
+        <section id="quality" class="chapter" data-title="13 · ВКЯ, брак і відновлення">
+          <div class="hero search-unit">
+            <div class="eyebrow">/brak · /brak/restoration · /brak/settings</div>
+            <h2>ВКЯ: від фіксації дефекту до класифікації, списання або повернення в БЗ</h2>
+            <p>Якість має два різні кроки: виробнича дільниця фіксує кількість браку й відповідального, а ВКЯ класифікує фізичний брак за категоріями та причинами. Повторне зарахування між цими кроками заборонене.</p>
+          </div>
+
+          <h3 class="section-title">Первинна фіксація браку</h3>
+          <div class="grid">
+            <div class="card search-unit">
+              <h4>На виробничій операції</h4>
+              <p>Брак вводиться під час завершення stage. History зберігає операцію, кількість, причину/коментар, оператора, машину та час. Агрегат <code>work_card_scrap_totals</code> пришвидшує читання, але першоджерелом лишається журнал.</p>
+            </div>
+            <div class="card search-unit">
+              <h4>QC override</h4>
+              <p>ВКЯ сканує карту, перечитує свіжу кількість, обирає відповідального виробничого оператора й вилучає підтверджену кількість. Створюється history <code>Контроль ВКЯ</code> та inventory <code>scrap_ready</code>.</p>
+            </div>
+          </div>
+
+          <h3 class="section-title">Класифікація ВКЯ</h3>
+          <div class="card search-unit">
+            <ol>
+              <li>Відкрити чергу необробленого браку. Черга розраховується як history scrap мінус уже класифікована кількість.</li>
+              <li>Знайти фізичну партію та звірити карту, номенклатуру, stage, оператора й машину.</li>
+              <li>Розподілити кількість між категоріями 1–4.</li>
+              <li>Розподілити ту саму загальну кількість за причинами з довідника.</li>
+              <li>Система блокує перевищення залишку та невідповідність двох сум.</li>
+              <li>Після підтвердження клієнт додає запаси <code>scrap_cat_1…4</code>, а RPC <code>record_scrap_classification</code> атомарно пише classification та дочірні category/reason rows.</li>
+            </ol>
+          </div>
+
+          <div class="callout dev search-unit"><strong>Черга як проєкція.</strong> Основний швидкий шлях — <code>vkya_classification_queue_projection</code> та RPC <code>vkya_classification_queue_changes(p_after_seq)</code> з локальним IndexedDB cursor/cache. Якщо міграція недоступна, модуль повертається до повного читання history і reclassification queue. Realtime доповнюється періодичною звіркою.</div>
+          <div class="callout danger search-unit"><strong>Критична межа класифікації as-is.</strong> Category inventory update відбувається до RPC ledger і не входить із ним в одну транзакцію; при частковій помилці можливе дублювання. Крім того, поточний класифікатор не зменшує джерельний <code>scrap_ready</code>, тому одночасно можуть існувати «готовий до класифікації» та вже категорійний запас. Нормативне виправлення — єдиний RPC: lock source → validate remaining → decrement scrap_ready → increment categories → write ledger/projection.</div>
+
+          <h3 class="section-title">Що робити з класифікованим браком</h3>
+          <div class="grid three">
+            <div class="card search-unit"><h4>Списання</h4><p>Фізично непридатний матеріал оформлюється документом/операцією утилізації, зокрема reception doc типу <code>scrap_disposal</code>. Кількість віднімається з конкретної категорії.</p></div>
+            <div class="card search-unit"><h4>Доробка / новий випуск</h4><p>Якщо потрібне повне повторне виготовлення, створюється rework-наряд або <code>[REDO]</code>-карта з матеріальною потребою. Джерельний брак не можна рахувати як придатний.</p></div>
+            <div class="card search-unit"><h4>Відновлення</h4><p>Ремонтопридатна кількість забирається з категорії атомарним RPC і перетворюється на restoration card з конкретною стадією.</p></div>
+          </div>
+
+          <h3 class="section-title">Термінал відновлення ВКЯ</h3>
+          <div class="table-wrap search-unit">
+            <table>
+              <thead><tr><th>Крок</th><th>Стан / RPC</th><th>Результат</th></tr></thead>
+              <tbody>
+                <tr><td>Створити карту</td><td><code>create_vkya_restoration_card</code>; status <code>new</code></td><td>RPC блокує scrap pocket, перевіряє кількість/активний stage та віднімає inventory.</td></tr>
+                <tr><td>Почати</td><td><code>new → in_progress</code></td><td>Фіксуються оператор і started_at.</td></tr>
+                <tr><td>Завершити</td><td><code>complete_vkya_restoration_card</code>; <code>completed</code></td><td>Валідовується відновлена кількість. Невідновлений залишок створює pending <code>vkya_reclassification_queue</code>.</td></tr>
+                <tr><td>Повернути на класифікацію</td><td>Queue projection</td><td>Залишок знову має бути розподілений за категоріями/причинами.</td></tr>
+                <tr><td>Передати в Цех №2</td><td><code>dispatch_vkya_restoration_to_shop2</code></td><td>Створюється спеціальна РК пресування або фарбування з restoration-маркерами.</td></tr>
+                <tr><td>Повернути в БЗ</td><td><code>complete_vkya_shop2_card_to_bz</code></td><td>Придатне → глобальний БЗ; новий брак → <code>scrap_ready</code>; РК completed.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <details class="search-unit">
+            <summary>Каталог стадій і причин</summary>
+            <div class="details-body">
+              <p><code>VKYASettings</code> керує активними стадіями відновлення та довідником причин. Типові стадії включають шліфування, ручну обробку, склеювання тріщин/прес-гайок, кондуктор і ручне доопрацювання. Запис, уже використаний у ledger або restoration card, краще деактивувати, а не фізично видаляти — інакше історичний звіт втратить значення.</p>
+            </div>
+          </details>
+          <div class="callout warning search-unit"><strong>Legacy-сумісність.</strong> Залишок черги обчислюється з максимуму між JSON-маркерами старої класифікації та новим ledger, щоб не показати вже оброблену кількість повторно. Утилізація категорії 4 та legacy rework мають відмінні формати документів/нетранзакційні multi-writes; їх слід переводити на спільний quantity ledger, не видаляючи reader старих записів до backfill.</div>
+        </section>
+
+        <section id="cutters" class="chapter" data-title="14 · Відновлення фрез">
+          <div class="hero search-unit">
+            <div class="eyebrow">/cutter-restoration · CutterRestorationModule.jsx</div>
+            <h2>Облік зношених фасочних фрез, заточування й повернення на СО</h2>
+            <p>Ланцюг починається не з ручного введення, а з фактичного використання фрези на завершенні розкрою. Кожна кількість має пройти від usage event до batch, роботи відновлювача та одного складського документа.</p>
+          </div>
+
+          <div class="flow search-unit">
+            <div class="flow-step"><b>Використання</b><span><code>register_cutter_usage</code></span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>Pending batch</b><span>за фізичним типом фрези</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>In progress</b><span>stack закріплений за працівником</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>Результат</b><span>відновлено + відбраковано</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><b>Прийомка СО</b><span>один reception doc<br>batch completed</span></div>
+          </div>
+
+          <div class="grid">
+            <div class="card search-unit">
+              <h4><span class="badge worker">Працівнику відновлення</span></h4>
+              <ol>
+                <li>Вибрати накопичений stack конкретного фізичного типу.</li>
+                <li>Натиснути старт: система атомарно закріпить доступні pending batches за вами.</li>
+                <li>Після фізичної роботи ввести кількість відновлених і відбракованих.</li>
+                <li>Переконатися: <code>restored + rejected = received</code>.</li>
+                <li>Завершити; відновлені фрези передати на СО за створеним документом.</li>
+              </ol>
+            </div>
+            <div class="card search-unit">
+              <h4><span class="badge dev">Транзакційний контракт</span></h4>
+              <ul>
+                <li><code>start_cutter_restoration_stack</code> блокує pending rows (<code>SKIP LOCKED</code>) та призначає актора;</li>
+                <li>групування відбувається за канонічним фізичним типом, не випадковим UUID номенклатури;</li>
+                <li>завершити може лише призначений працівник із відповідним правом/admin;</li>
+                <li><code>finish_cutter_restoration_group</code> створює один reception doc на всю відновлену кількість;</li>
+                <li>rejected фіксується без прийомки; restored batches очікують склад, потім trigger ставить completed.</li>
+              </ul>
+            </div>
+          </div>
+
+          <details class="search-unit">
+            <summary>Відновлення пропущеної історії</summary>
+            <div class="details-body">
+              <p>RPC <code>reconcile_cutter_restoration_from_history</code> може відновити batches із наявної історії використання, якщо подія була записана до повного запуску контуру. Операція має бути повторюваною без дублювання. Вона не замінює регулярний <code>register_cutter_usage</code>.</p>
+            </div>
+          </details>
+
+          <div class="callout danger search-unit"><strong>Не змішувати типи.</strong> Два каталожні UUID можуть означати ту саму фізичну фрезу, а схожі назви — різні типи. Для stack використовується canonical physical key; ручне групування за текстом назви створює помилкове оприбуткування.</div>
+          <div class="callout warning search-unit"><strong>Ризики джерельного usage.</strong> <code>register_cutter_usage</code> ідемпотентний за card+nomenclature, але може списати manager pocket нижче нуля. У головному Shop1 карта claim-иться до history/usage RPC; якщо другий крок упаде, restoration batch не з’явиться. Reconcile допомагає лише тоді, коли history breakdown уже встиг записатися.</div>
+        </section>
+
+        <section id="packaging" class="chapter" data-title="15 · Пакування і коробки">
+          <div class="hero search-unit">
+            <div class="eyebrow">/packaging · PackagingModule.jsx</div>
+            <h2>Пакування: комплектність BOM, видача зі складів і паспорт кожної коробки</h2>
+            <p>Пакування працює по партіях завершених нарядів. Воно не «завершує виробництво», а доводить, що всі активні комплектуючі видані, розкладені по коробках і підтверджені конкретним пакувальником.</p>
+          </div>
+
+          <h3 class="section-title">Формування комплекту</h3>
+          <div class="grid three">
+            <div class="card search-unit"><h4>СГП / finished</h4><p>Вироблені деталі та готові компоненти, які надійшли з Цеху №2 або БЗ.</p></div>
+            <div class="card search-unit"><h4>Додаткові категорії</h4><p>Кріплення, 3D-друк/монтажні елементи, проставки, інші компоненти з BOM.</p></div>
+            <div class="card search-unit"><h4>Виключення</h4><p>Виробничі листи й фрези, що були потрібні для виготовлення, не повинні вдруге потрапляти в клієнтський комплект.</p></div>
+          </div>
+
+          <div class="table-wrap search-unit">
+            <table>
+              <thead><tr><th>Крок пакувальника</th><th>Перевірка системи</th><th>Запис</th></tr></thead>
+              <tbody>
+                <tr><td>Вибрати завершену партію</td><td>Task <code>completed</code> або вже packaged; внутрішні службові замовлення виключаються.</td><td>Завантажується pack list із snapshot/BOM.</td></tr>
+                <tr><td>Подати запит на комплектування</td><td>Позиції групуються за джерелом SGP/BZ/SO.</td><td><code>material_requests</code> із маркером <code>ЗАПИТ НА КОМПЛЕКТУВАННЯ</code>.</td></tr>
+                <tr><td>Дочекатися видачі</td><td>Кожна активна BOM-позиція має request <code>issued</code> або <code>completed</code>.</td><td>Прапорець складської готовності обчислюється, а не вводиться довільно.</td></tr>
+                <tr><td>Присвоїти коробки</td><td>Кожна підтверджена позиція має непорожній номер коробки.</td><td>Upsert у <code>packaging_boxes</code> за <code>order_id,batch_index,nomenclature_id</code>; номер у верхньому регістрі.</td></tr>
+                <tr><td>Обрати пакувальника</td><td>Без актора завершення заборонене.</td><td>Ім’я/id у metadata.</td></tr>
+                <tr><td>Завершити</td><td>Комплектність і коробки повні.</td><td>Для всіх task партії: <code>is_packaged</code>, час і пакувальник. Коли закрито весь план order → <code>packaged</code>.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <details class="search-unit">
+            <summary>Нестандартний пакувальний компонент</summary>
+            <div class="details-body">
+              <p>Custom item записується до snapshot першого task із маркером <code>is_custom_packaging</code> і одразу формує material request. Це робить додаткову позицію видимою складу й логістиці. Не додавати фізичний предмет лише текстовим коментарем: він не потрапить у контроль комплектності.</p>
+            </div>
+          </details>
+
+          <div class="callout warning search-unit"><strong>Поточні межі моделі коробок.</strong> Унікальний upsert <code>(order_id,batch_index,nomenclature_id)</code> дозволяє одній номенклатурі мати лише один запис коробки — розкласти ту саму позицію по кількох коробках без зміни схеми не можна. Локальне «виключити позицію» не зберігається й не аудитується. Захист від дубльованого picking request покладається на свіжість React state.</div>
+          <div class="callout warning search-unit"><strong>Статус order.</strong> Одна запакована партія не означає, що запаковане все замовлення. <code>orders.status='packaged'</code> ставиться лише коли всі потрібні task запаковані й сумарна <code>planned_sets</code> покриває суму order item quantity. Для multi-product або кількох stage-tasks ця формула може подвійно рахувати обсяг, тому потребує перевірки на рівні fulfillment ledger.</div>
+        </section>
+
+        <section id="shipping" class="chapter" data-title="16 · Відвантаження">
+          <div class="hero search-unit">
+            <div class="eyebrow">/shipping · ShippingModule.jsx</div>
+            <h2>Логістика: контроль коробок, пакувальний лист і закриття замовлення</h2>
+            <p>До логістики потрапляє лише завершена й запакована партія, яка ще не має shipment-маркера. Відвантаження — контрольована фіксація факту, а не проста зміна order status.</p>
+          </div>
+
+          <div class="grid">
+            <div class="card search-unit">
+              <h4><span class="badge worker">Обов’язково заповнити</span></h4>
+              <ul class="checklist">
+                <li>тип/спосіб доставки;</li>
+                <li>дату відвантаження;</li>
+                <li>номер ТТН або іншого транспортного документа;</li>
+                <li>працівника з правом логістики;</li>
+                <li>колір партії/палети;</li>
+                <li>підтвердження кожної коробки зі списку.</li>
+              </ul>
+            </div>
+            <div class="card search-unit">
+              <h4><span class="badge dev">Завершальна транзакція</span></h4>
+              <ul>
+                <li>завантажуються <code>packaging_boxes</code> і агрегуються категорії;</li>
+                <li>пакувальні issued-матеріали фактично списуються;</li>
+                <li>RPC <code>mes_next_packing_slip_number</code> видає наступний унікальний номер;</li>
+                <li>task metadata отримує shipment-поля;</li>
+                <li>коли всі sibling tasks shipped, <code>orders.status='shipped'</code>.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="table-wrap search-unit">
+            <table>
+              <thead><tr><th>Поле metadata</th><th>Призначення</th></tr></thead>
+              <tbody>
+                <tr><td><code>is_shipped</code></td><td>Забороняє повторне відвантаження тієї самої партії.</td></tr>
+                <tr><td><code>shipped_at</code>, <code>shipped_by</code>, <code>shipped_by_id</code></td><td>Час та відповідальний.</td></tr>
+                <tr><td><code>shipping_type</code>, <code>shipping_date</code></td><td>Спосіб і фактична/облікова дата.</td></tr>
+                <tr><td><code>ttn_number</code></td><td>Введений користувачем номер транспортного документа.</td></tr>
+                <tr><td><code>batch_color</code></td><td>Label/hex для фізичної ідентифікації палети або партії.</td></tr>
+                <tr><td><code>packing_slip_number</code></td><td>Серверно виданий номер друкованого пакувального листа.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="callout danger search-unit"><strong>Критичне виправлення.</strong> Поточний модуль не створює ТТН Нової пошти через API. Працівник вводить <code>ttn_number</code> вручну. Не показуйте користувачу напис «ТТН створено», доки немає підтвердженої зовнішньої відповіді та збереженого integration ID.</div>
+          <div class="callout warning search-unit"><strong>Аудит і rollback.</strong> Окремої таблиці shipment зараз немає: факт зберігається у змінному JSON <code>task.plan_snapshot._metadata</code>. Списання пакувальних матеріалів може проковтнути помилку, а counter/deduction/metadata не об’єднані транзакцією. Після часткового збою не повторювати shipment навмання — звірити requests, inventory, counter і metadata.</div>
+
+          <details class="search-unit">
+            <summary>Друк пакувального листа</summary>
+            <div class="details-body">
+              <p>Друкований документ будується з коробок партії та агрегованих категорій. До друку звіряються order number, клієнт, партія, номери коробок, кількість по категоріях, колір, TTN і packing slip number. Повторний друк не повинен створювати новий номер або повторно списувати матеріал.</p>
+            </div>
+          </details>
+        </section>
+
+        <section id="reference" class="chapter" data-title="17 · Інженер, довідники й обладнання">
+          <div class="hero search-unit">
+            <div class="eyebrow">Технічні майстер-дані</div>
+            <h2>Інженер, номенклатура, BOM, верстати та системні налаштування</h2>
+            <p>Виробничі транзакції правильні лише настільки, наскільки правильні довідники. Зміна BOM, типу фрези або операції машини впливає на всі нові наряди; старі snapshot мають залишатися відтворюваними.</p>
+          </div>
+
+          <div class="table-wrap search-unit">
+            <table>
+              <thead><tr><th>Модуль / маршрут</th><th>Призначення</th><th>Критичний контроль</th></tr></thead>
+              <tbody>
+                <tr><td><code>/engineer</code><br><code>EngineerModule.jsx</code></td><td>Створення/редагування специфікацій, імпорт CSV, machine operations, прив’язка фізичних типів фрез, інженерне погодження, закриття викликів.</td><td>Імпорт має показати preview і помилки; операції/фрези мають бути сумісні з машиною.</td></tr>
+                <tr><td><code>/nomenclature</code></td><td>Основна робоча номенклатура, яку споживають BOM, inventory та модулі.</td><td>Не видаляти використаний ID; деактивувати або мігрувати посилання.</td></tr>
+                <tr><td><code>/nomenclature-v2</code></td><td>LAB-каталог із групами, типами, пошуком та імпортом; у порталі позначений як експериментальний/переглядовий.</td><td>Не вважати його автоматично єдиним production source до повного перемикання споживачів.</td></tr>
+                <tr><td><code>/machines</code></td><td>Реєстр машин, QR, статуси <code>idle/repair/maintenance_required/under_maintenance</code>, операції, maintenance logs та виклики; busy виводиться з активної карти.</td><td>Видалення машини з історією руйнує трасування; краще status/деактивація. QR-зображення зараз генерує зовнішній <code>api.qrserver.com</code>.</td></tr>
+                <tr><td><code>/settings</code></td><td>Користувачі, структура/посади, права, стартові сторінки, maintenance toggle, імпорти БЗ/листів/фрез/кріплень, корекція snapshot.</td><td>Компонент додатково вимагає точну посаду <code>Адмін</code>, навіть якщо route right видано. Масовий імпорт і correction — адміністративні операції з preview, backup та післяконтролем.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 class="section-title">Правило master data</h3>
+          <div class="grid three">
+            <div class="card search-unit"><h4>Версійність BOM</h4><p>Новий наряд бере актуальний BOM, але далі працює за snapshot. Редагування каталогу не має заднім числом змінювати існуючу партію.</p></div>
+            <div class="card search-unit"><h4>Одиниці виміру</h4><p>Перед імпортом нормалізувати «шт», «лист», «кг» та числові роздільники. Невідома одиниця має бути помилкою, а не нулем.</p></div>
+            <div class="card search-unit"><h4>Фізична ідентичність</h4><p>QR і canonical key мають вказувати на стабільну сутність. Назва — для людини, ID/ключ — для зв’язків.</p></div>
+          </div>
+
+          <details class="search-unit">
+            <summary>Безпечний масовий імпорт</summary>
+            <div class="details-body">
+              <ol>
+                <li>Зберегти вихідний файл і зафіксувати відповідального.</li>
+                <li>Визначити кодування, delimiter, заголовки та одиниці.</li>
+                <li>Побудувати preview: нові, оновлювані, пропущені, неоднозначні рядки.</li>
+                <li>Зупинити імпорт при дубльованому коді або невідомому parent/type.</li>
+                <li>Записувати батчами з ідентифікатором операції.</li>
+                <li>Після завершення звірити totals та вибірково відкрити BOM/наряд.</li>
+              </ol>
+            </div>
+          </details>
+
+          <div class="callout danger search-unit"><strong>Snapshot correction.</strong> Це контрольована аварійна операція, а не звичайне редагування плану. Перед зміною треба визначити, чи вже існують РК, material requests, БЗ-reservation і history; після зміни — синхронізувати всі залежні кількості або відмовитися від корекції.</div>
+        </section>
+
+        <section id="management" class="chapter" data-title="18 · Дашборди, аналітика й звіти">
+          <div class="hero search-unit">
+            <div class="eyebrow">Керування за даними</div>
+            <h2>WIP, кабінети керівників, KPI, звіти й архів нарядів</h2>
+            <p>Оглядові модулі читають ті самі транзакційні дані, але не повинні замінювати операційні журнали. Агрегати оптимізують швидкість; для розслідування завжди потрібен первинний history/ledger.</p>
+          </div>
+
+          <div class="table-wrap search-unit">
+            <table>
+              <thead><tr><th>Маршрут</th><th>Для кого</th><th>Що показує / робить</th></tr></thead>
+              <tbody>
+                <tr><td><code>/dashboard</code></td><td>Керівництво, диспетчер</td><td>WIP по нарядах/деталях/етапах, поточний випуск і брак; ручне оновлення для контрольної звірки.</td></tr>
+                <tr><td><code>/foreman-dashboard</code></td><td>Цех №1</td><td>Огляд черги й прогресу нарядів, зосереджений на першому цеху.</td></tr>
+                <tr><td><code>/shop1-foreman</code></td><td>Начальник Цеху №1</td><td>Персонал, календар/зміни, машини та активні виклики у межах цеху.</td></tr>
+                <tr><td><code>/director</code></td><td>Директор виробництва</td><td>Огляд orders/tasks, деталей партії й фінальне <code>director_conf</code>.</td></tr>
+                <tr><td><code>/analytics</code></td><td>Керівництво</td><td>Огляд приблизно 30 днів: випуск за визначеним набором фінальних stage, брак, простий task lead time та продуктивність. Це не повний OEE.</td></tr>
+                <tr><td><code>/reports</code></td><td>Облік, аналітик</td><td>Вкладки warehouse, employees, scrap, supplies, sheets, cutters, analytics та archive; вибір періоду й синхронізація history. Попри назву «Звіти (1С)», фактичного CSV/XLSX/1С-export у модулі немає.</td></tr>
+                <tr><td><code>/simulator</code></td><td>Лише адмін</td><td>Тестування сценаріїв на живій моделі; не використовувати як навчальну «пісочницю» без ізоляції даних.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="grid">
+            <div class="card search-unit">
+              <h4>Швидкі джерела</h4>
+              <p>RPC/проєкції <code>mes_production_summary</code>, <code>mes_fulfillment_queue</code>, <code>work_card_scrap_totals</code> та <code>work_card_flow_totals</code> зменшують обсяг читання й усувають залежність від урізаного глобального масиву history.</p>
+            </div>
+            <div class="card search-unit">
+              <h4>Точне розслідування</h4>
+              <p>Для конкретного task/card history читається окремо й сторінково. Глобальний shared slice обмежений останніми 500 подіями й не підходить для повного історичного балансу.</p>
+            </div>
+          </div>
+
+          <details class="search-unit">
+            <summary>Як читати KPI без помилкових висновків</summary>
+            <div class="details-body">
+              <ul>
+                <li>Час циклу відокремлювати від часу паузи та перезмінки за типом history-події.</li>
+                <li>Брак атрибутувати до stage і відповідального, а не автоматично до того, хто зараз відкрив карту.</li>
+                <li>Не додавати snapshot plan і фактичні history quantities як два випуски.</li>
+                <li>Для завершених за періодом робіт фільтрувати за часом події, а не лише created_at карти.</li>
+                <li>Показувати часову зону та межі періоду; система коригує клієнтський час, але звіти зберігають UTC timestamps.</li>
+                <li>Поточний on-time розрахунок може вважати запис своєчасним без deadline або completed_at; перед управлінським рішенням перевіряти вихідні дати.</li>
+              </ul>
+            </div>
+          </details>
+        </section>
+
+        <section id="collaboration" class="chapter" data-title="19 · Задачі, чат, виклики й Fortnet">
+          <div class="hero search-unit">
+            <div class="eyebrow">Внутрішня координація</div>
+            <h2>Kanban, проєкти, чат, push, виклики обладнання та система доступу</h2>
+            <p>Ці модулі не змінюють виробничий баланс автоматично, але забезпечують відповідальність і реакцію. Повідомлення не є заміною task/history — критичний факт має потрапити у профільну таблицю.</p>
+          </div>
+
+          <div class="grid three">
+            <div class="card search-unit">
+              <h4><code>/tasks</code> · Kanban</h4>
+              <p>Внутрішні доручення <code>management_tasks</code> з виконавцем, автором, пріоритетом, строком, checklist і потоком <code>todo → in_progress → review → done</code>. Badge показує незавершені задачі, де користувач — виконавець або автор. Коментарі зараз кодуються в description, окремої comment-table немає.</p>
+            </div>
+            <div class="card search-unit">
+              <h4><code>/tasks/projects</code></h4>
+              <p><code>task_projects</code> групує доручення. UI обмежує видимість учасниками/відділами, керівні ролі бачать ширше. Проєкт має учасників/відповідальних; видалення вимагає перевірки пов’язаних задач.</p>
+            </div>
+            <div class="card search-unit">
+              <h4><code>/chat</code></h4>
+              <p>Прямі й групові threads/channels, participants, messages, read receipts, приватні attachments, reactions, polls, avatars, archive/soft-clear та unread counts; із приватного чату можна створити Kanban task.</p>
+            </div>
+          </div>
+
+          <details class="search-unit">
+            <summary>Чат: приватність, вкладення та непрочитане</summary>
+            <div class="details-body">
+              <p>Участь задається <code>chat_participants</code>; unread рахується RPC <code>chat_unread_counts</code> відносно <code>last_read_at</code>, із fallback-читанням при відсутньому RPC. Вкладення завантажуються у приватне сховище й читаються через підписані URL. Realtime оновлює thread/message, але періодичне перечитування виправляє пропуски.</p>
+              <p>Видалення історії або архівація — зміна стану для всіх учасників і потребує окремого підтвердження. Не надсилати паролі, anon keys або службові заголовки.</p>
+              <p><strong>Технічний борг:</strong> частина chat RLS читається ширше, ніж повна privacy-модель, хоча integrity triggers перевіряють participant для окремих writes. У канальному модулі є hard-coded персональний виняток <code>isRomanPiletsky()</code>, що дає право писати; його треба замінити роллю/налаштуванням.</p>
+            </div>
+          </details>
+
+          <details class="search-unit">
+            <summary>Machine calls і push-сповіщення</summary>
+            <div class="details-body">
+              <p><code>machine_calls</code> створюється з публічного QR-маршруту або термінала: машина, тип адресата (майстер/інженер/ВКЯ), особа й коментар. Статус <code>pending</code> змінюється при прийнятті/закритті відповідальним модулем. Push service групує також нові замовлення, матеріальні та purchase requests і готові до відвантаження партії. Push — сигнал; остаточний стан завжди перечитується з БД.</p>
+              <p>У коді співіснують ролі <code>quality</code> і <code>qc</code>; in-app може побачити обидві, але push-маршрутизація не всюди симетрична. Клієнтська перевірка не забороняє два однакові pending calls на рівні DB. Edge-функція push також потребує серверної авторизації відправника, а не довіри до довільного <code>user_id</code> з anon bearer.</p>
+            </div>
+          </details>
+
+          <h3 class="section-title">Fortnet: що є і чого зараз немає</h3>
+          <div class="grid">
+            <div class="card search-unit">
+              <h4><span class="badge fact">Реалізована заготовка</span></h4>
+              <p><code>useFortnet.js</code> отримує <code>/fortnet-api/online/</code>, парсить події, усуває дублікати за часом+особою, пише <code>access_logs</code> та збільшує паузу до 5 хвилин при offline.</p>
+            </div>
+            <div class="card search-unit">
+              <h4><span class="badge risk">Поточний розрив</span></h4>
+              <p><code>MESContext</code> не під’єднує Fortnet actions. <code>AccessModule</code> очікує <code>syncFortnetEvents</code>, Settings — <code>updateFortnetUrl</code>, але вони не експонуються. Індикатор ONLINE на екрані не доводить реальний зв’язок.</p>
+            </div>
+          </div>
+
+          <div class="callout danger search-unit"><strong>Немає виробничого gate.</strong> Поточний Fortnet-код не блокує старт зміни або РК за відсутності проходу. Таку вимогу можна впроваджувати лише після надійного зіставлення person ↔ system_user, політики запізнілих подій, режиму аварійного bypass та серверної перевірки.</div>
+        </section>
+
+        <section id="states" class="chapter" data-title="20 · Статуси і переходи">
+          <div class="hero search-unit">
+            <div class="eyebrow">State machines</div>
+            <h2>Фактичні статуси сутностей і дозволені переходи</h2>
+            <p>Статус має сенс лише разом із типом сутності, operation, metadata та history. Значення нижче відповідають поточному коду; legacy-дані можуть містити додаткові варіанти, які треба нормалізувати при читанні.</p>
+          </div>
+
+          <div class="status-filter search-unit" id="stateFilters">
+            <button type="button" class="active" data-filter="all">Усі</button>
+            <button type="button" data-filter="order">Orders</button>
+            <button type="button" data-filter="task">Tasks</button>
+            <button type="button" data-filter="card">Work cards</button>
+            <button type="button" data-filter="request">Requests</button>
+            <button type="button" data-filter="other">Інші</button>
+          </div>
+
+          <div class="table-wrap search-unit">
+            <table id="stateTable">
+              <thead><tr><th>Сутність</th><th>Стан</th><th>Типовий вхід</th><th>Типовий вихід / умова</th></tr></thead>
+              <tbody>
+                <tr data-state-type="order"><td>Order</td><td><code>pending</code></td><td>Менеджер створив заявку.</td><td><code>in-progress</code> після формування виробничого наряду.</td></tr>
+                <tr data-state-type="order"><td>Order</td><td><code>in-progress</code></td><td>Є хоча б одна виробнича партія.</td><td><code>packaged</code>, коли всі потрібні партії запаковані й кількість покрита.</td></tr>
+                <tr data-state-type="order"><td>Order</td><td><code>packaged</code></td><td>Усі партії готові до логістики.</td><td><code>shipped</code>, коли всі sibling tasks мають shipment metadata.</td></tr>
+                <tr data-state-type="order"><td>Order</td><td><code>shipped</code></td><td>Повне відвантаження.</td><td>Термінальний стан; повторний друк не змінює його.</td></tr>
+
+                <tr data-state-type="task"><td>Task</td><td><code>waiting</code></td><td>Новий наряд очікує готовності/погоджень; companion task Цеху №2 очікує буфера.</td><td><code>new</code> або <code>in-progress</code> за готовністю та реалізованим handler.</td></tr>
+                <tr data-state-type="task"><td>Task</td><td><code>new</code></td><td>Підготовка/додаткове завдання створене й готове до старту.</td><td><code>in-progress</code> на першій фактичній дії.</td></tr>
+                <tr data-state-type="task"><td>Task</td><td><code>in-progress</code></td><td>Є активні entries/карти.</td><td><code>completed</code> після виконання всіх позицій та умов буфера.</td></tr>
+                <tr data-state-type="task"><td>Task</td><td><code>completed</code></td><td>Виробничий план партії закритий.</td><td>Пакування/відвантаження живуть у metadata; status task може лишатися completed.</td></tr>
+
+                <tr data-state-type="card"><td>Work card</td><td><code>new</code></td><td>Стандартна РК створена.</td><td><code>in-progress</code> після старту.</td></tr>
+                <tr data-state-type="card"><td>Work card</td><td><code>waiting-materials</code></td><td>REDO/додаткова карта потребує матеріал.</td><td><code>new</code>/<code>in-progress</code> після забезпечення.</td></tr>
+                <tr data-state-type="card"><td>Work card</td><td><code>in-progress</code></td><td>Оператор почав operation.</td><td><code>paused</code>, <code>at-buffer</code> або <code>completed</code> за сценарієм.</td></tr>
+                <tr data-state-type="card"><td>Work card</td><td><code>paused</code></td><td>Розкрій поставлено на паузу з причиною.</td><td><code>in-progress</code> після resume.</td></tr>
+                <tr data-state-type="card"><td>Work card</td><td><code>waiting-buffer</code></td><td>Legacy/загальний terminal стан очікування передачі.</td><td>Нормалізований буферний перехід.</td></tr>
+                <tr data-state-type="card"><td>Work card</td><td><code>at-buffer</code></td><td>Stage завершено.</td><td>Наступний stage або завершення/передача.</td></tr>
+                <tr data-state-type="card"><td>Work card</td><td><code>at-shop2-buffer</code></td><td>Сортування передало придатне.</td><td>Цех №2 споживає через <code>used_in_shop2_qty</code>.</td></tr>
+                <tr data-state-type="card"><td>Work card</td><td><code>completed</code></td><td>Кінцевий рух карти або повне QC-вилучення.</td><td>Термінальний стан; history лишається.</td></tr>
+
+                <tr data-state-type="request"><td>Material request</td><td><code>pending</code></td><td>Створена потреба.</td><td><code>issued</code> при комплектації; нестача може лишитися pending.</td></tr>
+                <tr data-state-type="request"><td>Material request</td><td><code>issued</code></td><td>Зарезервовано/передано.</td><td><code>completed</code> після фактичного списання.</td></tr>
+                <tr data-state-type="request"><td>Purchase request</td><td><code>pending → ordered → accepted → completed</code></td><td>Дефіцит → замовлення → надходження.</td><td>Completed тільки після складського оприбуткування.</td></tr>
+                <tr data-state-type="request"><td>Reception doc</td><td><code>pending/ordered → shipped/in-progress → completed</code></td><td>Документ очікує/рухається.</td><td>Completed після прийняття фактичної кількості.</td></tr>
+
+                <tr data-state-type="other"><td>VKYA restoration</td><td><code>new → in_progress → completed</code></td><td>Брак вилучено з категорії.</td><td>Good передається в Shop2/БЗ; remainder на reclassification.</td></tr>
+                <tr data-state-type="other"><td>Cutter restoration</td><td><code>pending → in_progress → awaiting_reception → completed</code></td><td>Фрезу використано.</td><td>Відновлену кількість прийнято СО; zero-restored може одразу completed.</td></tr>
+                <tr data-state-type="other"><td>Machine call</td><td><code>pending</code> → закритий стан</td><td>Оператор попросив допомогу.</td><td>Відповідальна роль вирішила/закрила виклик.</td></tr>
+                <tr data-state-type="other"><td>Machine</td><td><code>idle / repair / maintenance_required / under_maintenance</code></td><td>Реєстр або maintenance workflow.</td><td><code>busy</code> переважно обчислюється з активної РК, а не є постійним станом.</td></tr>
+                <tr data-state-type="other"><td>Management task</td><td><code>todo → in_progress → review → done</code></td><td>Автор створив доручення.</td><td>Виконавець працює, передає на перевірку, відповідальний закриває.</td></tr>
+                <tr data-state-type="other"><td>Пакування/відвантаження</td><td><code>is_packaged</code>, <code>is_shipped</code></td><td>Task уже <code>completed</code>.</td><td>Це metadata-прапорці, а не нові task statuses.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="callout danger search-unit"><strong>Не вводити новий status як «швидке рішення».</strong> Спочатку знайти всі filters, badges, completion checks, RPC, Realtime handlers, reports та cache selectors. Часто нова бізнес-ознака має бути окремим полем metadata, а не станом у спільній машині.</div>
+        </section>
+
+        <section id="data" class="chapter" data-title="21 · База даних, RPC і аудит">
+          <div class="hero search-unit">
+            <div class="eyebrow">PostgreSQL / Supabase</div>
+            <h2>Модель даних, транзакційні RPC, проєкції та слід аудиту</h2>
+            <p>Клієнтський код керує інтерфейсом, але цілісність кількісних рухів має забезпечувати PostgreSQL. RPC потрібен там, де одна бізнес-дія змінює кілька рядків або таблиць і не може бути частково виконана.</p>
+          </div>
+
+          <h3 class="section-title">Ключові таблиці за доменами</h3>
+          <div class="table-wrap search-unit">
+            <table>
+              <thead><tr><th>Домен</th><th>Таблиці</th><th>Відповідальність</th></tr></thead>
+              <tbody>
+                <tr><td>Продаж</td><td><code>orders</code>, <code>order_items</code>, <code>customers</code></td><td>Комерційна заявка та склад замовленого виробу.</td></tr>
+                <tr><td>План</td><td><code>tasks</code>, <code>nomenclatures</code>, <code>bom_items</code>, catalog v2 tables</td><td>Партії, snapshot, BOM і довідники.</td></tr>
+                <tr><td>Виконання</td><td><code>work_cards</code>, <code>work_card_history</code>, <code>work_card_scrap_totals</code>, <code>work_card_flow_totals</code></td><td>Поточний стан РК, незмінні події та швидкі агрегати.</td></tr>
+                <tr><td>Запаси</td><td><code>inventory</code>, <code>material_requests</code>, <code>purchase_requests</code>, <code>reception_docs</code></td><td>Кишені запасу, потреби, закупівля й фізична передача.</td></tr>
+                <tr><td>Обладнання</td><td><code>machines</code>, <code>machine_operations</code>, <code>machine_calls</code>, <code>machine_maintenance_logs</code></td><td>Реєстр, сумісність операцій, допомога й ТО.</td></tr>
+                <tr><td>Якість</td><td>scrap reasons/classifications, VKYA projection/restoration/reclassification tables</td><td>Класифікація, відновлення та повторний контроль.</td></tr>
+                <tr><td>Фрези</td><td><code>cutter_usage_events</code>, <code>cutter_restoration_batches</code>, <code>cutter_restoration_events</code></td><td>Використання, stack і результат відновлення.</td></tr>
+                <tr><td>Пакування</td><td><code>packaging_boxes</code></td><td>Прив’язка номенклатури партії до коробки.</td></tr>
+                <tr><td>Люди</td><td><code>system_users</code>, company structure/positions, <code>access_logs</code></td><td>Прикладна ідентичність, права, структура та проходи.</td></tr>
+                <tr><td>Координація</td><td><code>management_tasks</code>, <code>task_projects</code>, chat tables, <code>push_subscriptions</code></td><td>Доручення, комунікація і сповіщення.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 class="section-title">RPC-каталог: де лежить бізнес-критична атомарність</h3>
+          <div class="table-wrap search-unit">
+            <table>
+              <thead><tr><th>RPC</th><th>Контракт</th></tr></thead>
+              <tbody>
+                <tr><td><code>verify_user_password</code></td><td>Перевіряє прикладні облікові дані користувача.</td></tr>
+                <tr><td><code>reserve_bz_for_naryad</code></td><td>Блокує кишені БЗ, валідовує й резервує allocation для операції.</td></tr>
+                <tr><td><code>attach_bz_reservation_to_task</code></td><td>Прикріплює успішний резерв до створеного task.</td></tr>
+                <tr><td><code>release_bz_reservation</code></td><td>Компенсує неприкріплений/скасований резерв.</td></tr>
+                <tr><td><code>record_sorting_history_once</code></td><td>Ідемпотентно фіксує передачу сортування.</td></tr>
+                <tr><td><code>register_cutter_usage</code></td><td>Реєструє фактичну витрату фрези й запускає restoration flow.</td></tr>
+                <tr><td><code>start_cutter_restoration_stack</code></td><td>Атомарно захоплює pending batches одного canonical type.</td></tr>
+                <tr><td><code>finish_cutter_restoration_group</code></td><td>Валідовує allocation і створює єдине надходження відновлених фрез.</td></tr>
+                <tr><td><code>reconcile_cutter_restoration_from_history</code></td><td>Ідемпотентно відновлює пропущені batches з history.</td></tr>
+                <tr><td><code>record_scrap_classification</code></td><td>Записує причини/категорії та inventory без часткового результату.</td></tr>
+                <tr><td><code>vkya_classification_queue_changes</code></td><td>Віддає інкрементальні зміни проєкції після sequence cursor.</td></tr>
+                <tr><td><code>create_vkya_restoration_card</code></td><td>Вилучає scrap category stock і створює restoration card.</td></tr>
+                <tr><td><code>complete_vkya_restoration_card</code></td><td>Завершує ремонт та створює reclassification remainder.</td></tr>
+                <tr><td><code>dispatch_vkya_restoration_to_shop2</code></td><td>Передає відновлену кількість у пресування/фарбування.</td></tr>
+                <tr><td><code>complete_vkya_shop2_card_to_bz</code></td><td>Атомарно повертає good у БЗ, scrap — у чергу якості.</td></tr>
+                <tr><td><code>issue_operational_inventory_manually</code></td><td>Ручна видача СО з перевіркою кількості.</td></tr>
+                <tr><td><code>manual_inventory_issue_journal</code></td><td>Читання/формування журналу ручних рухів.</td></tr>
+                <tr><td><code>mes_fulfillment_queue</code></td><td>Обмежений серверний зріз готовності/комплектності.</td></tr>
+                <tr><td><code>mes_next_packing_slip_number</code></td><td>Безконфліктна нумерація пакувального листа.</td></tr>
+                <tr><td><code>mes_production_summary</code></td><td>Агрегований стан виробництва для дашбордів.</td></tr>
+                <tr><td><code>shop1_naryad_catalog</code>, <code>shop1_naryad_report</code></td><td>Серверні представлення каталогу/звіту нарядів Цеху №1.</td></tr>
+                <tr><td><code>chat_unread_counts</code></td><td>Непрочитані повідомлення користувача по thread.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <details class="search-unit" open>
+            <summary>Словник inventory: фізичне місце, функціональний type і owner</summary>
+            <div class="details-body">
+              <p><strong><code>warehouse</code></strong> описує місце/контур: у живих процесах основні <code>operational</code>, <code>production</code>, <code>pocket</code>; у legacy/readers також трапляються <code>sgp</code>, <code>sz</code>, <code>scrap</code> або null. Для <code>pocket</code> обов’язковий owner, а нова unique-міграція захищає один запис кишені на власника/номенклатуру.</p>
+              <p><strong><code>type</code></strong> описує функцію запасу: сировина/витратники/кріплення (<code>raw</code>, <code>consumable</code>, <code>hardware</code>), потік Цеху №1 (<code>semi</code>, <code>wip_bz</code>, <code>bz</code>), Цеху №2 (<code>semi_shop2</code>, <code>bz_shop2</code>), готове (<code>finished</code>), брак (<code>scrap_ready</code>, <code>scrap_cat_1…4</code> та legacy типи).</p>
+              <p>Не повертати вигадані константи <code>MAIN_RAW</code>, <code>BUFFER_ZONE_CUT</code> або <code>DEFECT_SCRAP</code> у новий код. Спочатку нормалізувати наявні значення міграцією та сумісним reader.</p>
+            </div>
+          </details>
+
+          <details class="search-unit">
+            <summary>Правила ledger та history</summary>
+            <div class="details-body">
+              <ul>
+                <li>Подія має actor id/name, timestamp, source entity, operation id та кількість.</li>
+                <li>History не переписується для «кращого вигляду» звіту; помилка виправляється компенсуючою подією.</li>
+                <li>Проєкція може бути видалена й перебудована з первинного журналу.</li>
+                <li>Унікальний operation/idempotency key зберігається в БД, а не лише в пам’яті браузера.</li>
+                <li>Каскадне видалення допустиме для тестових/порожніх батьків, але не замінює реверс матеріального руху.</li>
+              </ul>
+            </div>
+          </details>
+
+          <div class="callout warning search-unit"><strong>Змішана схема legacy + нові міграції.</strong> Частина бізнес-даних міститься в JSON/службових маркерах <code>info</code>, а нові контури вже мають ledger/projection. Під час рефакторингу потрібен перехідний reader обох форматів, backfill і лише потім видалення legacy.</div>
+          <div class="callout fact search-unit"><strong>Межа репозиторію.</strong> У папці <code>supabase/migrations</code> є переважно додаткові контури липня 2026 року, але немає повного baseline DDL для всіх базових <code>orders/tasks/work_cards/inventory/system_users</code>. Тому цей розділ є перевіреним логічним словником, а не вигаданою командою «розгорнути БД з нуля». Для reproducible setup треба окремо зафіксувати baseline schema dump без production-секретів і даних.</div>
+        </section>
+
+        <section id="architecture" class="chapter" data-title="22 · Архітектура, синхронізація і стійкість">
+          <div class="hero search-unit">
+            <div class="eyebrow">React 19 · Vite 6 · Supabase · IndexedDB</div>
+            <h2>Як застосунок завантажує, кешує, синхронізує та відновлює дані</h2>
+            <p>Інтерфейс — SPA з lazy-loaded маршрутами. <code>MESContext</code> поєднує читання даних, авторизацію, виробничі та складські actions; Supabase/PostgreSQL залишається основним джерелом правди.</p>
+          </div>
+
+          <div class="flow search-unit">
+            <div class="flow-step"><b>React route</b><span>lazy module<br>permission guard</span></div>
+            <div class="flow-arrow">↔</div>
+            <div class="flow-step"><b>MESContext</b><span>route profile<br>actions/selectors</span></div>
+            <div class="flow-arrow">↔</div>
+            <div class="flow-step"><b>Supabase client</b><span>REST/RPC/Realtime<br>read queue</span></div>
+            <div class="flow-arrow">↔</div>
+            <div class="flow-step"><b>PostgreSQL</b><span>constraints, locks<br>triggers, ledger</span></div>
+          </div>
+
+          <h3 class="section-title">Завантаження й кеш</h3>
+          <div class="grid">
+            <div class="card search-unit">
+              <h4>Route-scoped profiles</h4>
+              <p><code>useData.js</code> не завантажує всі таблиці при кожному вході. Профіль маршруту визначає потрібні сутності; це зменшує трафік і час старту. Окремий task/card reader пагінує історію за потреби.</p>
+            </div>
+            <div class="card search-unit">
+              <h4>IndexedDB cache</h4>
+              <p>Ключ <code>MES_APP_CACHE_V2</code>; legacy localStorage мігрується. Запис кешу debounce ≈2 с. Кеш дає швидкий старт/останній відомий стан, але не підтверджує успішний серверний запис.</p>
+            </div>
+            <div class="card search-unit">
+              <h4>Обмеження вибірок</h4>
+              <p>Активні карти виключають completed. Операційні tasks містять незавершені й приблизно 30 днів завершених. Shared history — останні 500, тому повний звіт читає окремий range.</p>
+            </div>
+            <div class="card search-unit">
+              <h4>Read queue</h4>
+              <p>Читання в одній вкладці серіалізовані з concurrency 1 і тайм-аутом 20 с. Це знижує burst-навантаження, але довгий запит може затримати наступні.</p>
+            </div>
+          </div>
+
+          <h3 class="section-title">Realtime і catch-up</h3>
+          <div class="table-wrap search-unit">
+            <table>
+              <thead><tr><th>Канал</th><th>Основні сутності</th><th>Поведінка</th></tr></thead>
+              <tbody>
+                <tr><td><code>mes-global-updates</code></td><td>Route-needed work_cards, tasks, inventory, history, aggregate totals.</td><td>Застосовує inserts/updates/deletes; після reconnect запускає catch-up.</td></tr>
+                <tr><td><code>mes-secondary-updates</code></td><td>Orders, management tasks/projects, customers, requests, receptions, machines/calls, settings.</td><td>Оновлює другорядні slices; reconnect також звіряє пропущене.</td></tr>
+                <tr><td>Local write suppression</td><td><code>window.myConfirmedWrites</code>, TTL близько 5 хв.</td><td>Не показує дубльоване повідомлення на власний уже підтверджений запис.</td></tr>
+                <tr><td>Realtime worker</td><td>Heartbeat/health events.</td><td>Підтримує індикатор з’єднання та відновлення підписки.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <details class="search-unit">
+            <summary>Supabase transport wrapper і генерація ID</summary>
+            <div class="details-body">
+              <p><code>src/supabase.js</code> додає службовий заголовок, серіалізує reads, обмежує read-only RPC allow-list, відстежує health/heartbeat і локально підтверджені writes. Proxy може призначати UUID клієнтськи до insert для таблиць, де ID не числовий; перелік numeric-ID винятків має лишатися синхронним зі схемою.</p>
+              <p>Клієнтський UUID корисний для idempotency та оптимістичного зв’язування, але не замінює унікальних constraints. Вбудований <code>x-mes-secret</code> видно в browser bundle й не можна використовувати як єдину автентифікацію сервера.</p>
+            </div>
+          </details>
+
+          <details class="search-unit">
+            <summary>Синхронізація часу</summary>
+            <div class="details-body">
+              <p>Глобальний wrapper коригує клієнтський <code>Date</code>: спочатку пробує same-origin HTTP Date header, потім зовнішні time APIs, потім Supabase; оновлює поправку орієнтовно раз на 5 хвилин. Це зменшує похибку терміналів, але серверний <code>now()</code> лишається кращим джерелом для критичного timestamp.</p>
+            </div>
+          </details>
+
+          <h3 class="section-title">Відмовостійкість</h3>
+          <div class="grid three">
+            <div class="card search-unit"><h4>Error boundary</h4><p><code>SystemResilience.jsx</code> перехоплює помилки рендера й дає контрольований екран відновлення замість білого вікна.</p></div>
+            <div class="card search-unit"><h4>Connection status</h4><p>Стан offline/reconnecting враховує navigator, Realtime та API health. Зелений індикатор не замінює підтвердження конкретного запису.</p></div>
+            <div class="card search-unit"><h4>Service worker</h4><p>Коли доступна нова версія, користувач отримує prompt і може активувати <code>skipWaiting</code>. Оновлювати під час критичного save небажано.</p></div>
+          </div>
+
+          <div class="callout warning search-unit"><strong>Offline semantics.</strong> Система не має гарантованої загальної outbox-черги команд. Якщо мережі немає, працівник не повинен вважати дію завершеною тільки тому, що форма закрилася або старі дані доступні з кешу.</div>
+
+          <details class="search-unit">
+            <summary>Опційний Rust backend</summary>
+            <div class="details-body">
+              <p>Rust/API-контур активується лише за <code>VITE_ENABLE_RUST_BACKEND === 'true'</code> та успішного <code>/api/health</code>. У поточній архітектурі він є додатковим дзеркалом для окремих дій (наприклад, order/login), а не основним джерелом. Документи специфікації backend слід трактувати як контракт/напрям, якщо конкретний endpoint не підключений у route action.</p>
+            </div>
+          </details>
+        </section>
+
+        <section id="runbooks" class="chapter" data-title="23 · Винятки, runbook і QA">
+          <div class="hero search-unit">
+            <div class="eyebrow">Практична експлуатація й контроль змін</div>
+            <h2>Що робити при помилці та як перевіряти систему після доопрацювань</h2>
+            <p>Мета runbook — не «полагодити цифру» напряму, а знайти останній підтверджений факт, визначити незавершену транзакцію та виконати ідемпотентне повторення або компенсацію.</p>
+          </div>
+
+          <h3 class="section-title">Операційні аварійні сценарії</h3>
+          <div class="table-wrap search-unit">
+            <table>
+              <thead><tr><th>Симптом</th><th>Працівнику</th><th>Розробнику / адміну</th><th>Не робити</th></tr></thead>
+              <tbody>
+                <tr><td>Натиснув «Завершити», але немає підтвердження</td><td>Не тиснути багато разів; записати card/order і час; оновити екран та перевірити стан.</td><td>Звірити work_card, history та operation key; повторювати лише ідемпотентний handler.</td><td>Не створювати history вручну без перевірки першого запису.</td></tr>
+                <tr><td>Кількість на екрані не збігається з фізичною</td><td>Зупинити передачу, запросити майстра/ВКЯ.</td><td>Побудувати баланс із source history, scrap/flow totals, inventory ledger і downstream consumption.</td><td>Не «підганяти» inventory update.</td></tr>
+                <tr><td>Карта зайнята іншою зміною</td><td>Не стартувати другу карту на ту саму машину; виконати коректну перезмінку або дочекатися завершення.</td><td>Перевірити active in-progress cards та stale session; не знімати lock без history.</td><td>Не змінювати operator напряму.</td></tr>
+                <tr><td>Після сортування немає буфера Цеху №2</td><td>Не підтверджувати сортування вдруге; повідомити номер РК.</td><td>Перевірити idempotency receipt, history, source/destination inventory і card status; виконати reconcile/компенсацію.</td><td>Не додавати stock окремим insert.</td></tr>
+                <tr><td>Матеріал issued, але balance не зменшився</td><td>Перевірити, чи production/packaging уже завершило фактичне споживання.</td><td>Відрізнити reserved від total; перевірити <code>deductIssuedMaterialsForTask</code>.</td><td>Не списувати вдруге тільки через status issued.</td></tr>
+                <tr><td>Брак не з’явився в черзі ВКЯ</td><td>Зафіксувати карту, stage і кількість.</td><td>Перевірити history scrap, projection sequence/cursor, Realtime і reconcile fallback.</td><td>Не створювати категорійний stock до ledger classification.</td></tr>
+                <tr><td>Відновлені фрези не на складі</td><td>Перевірити reception document і чи склад його прийняв.</td><td>Перевірити batch <code>awaiting_reception</code>, єдиний doc групи та completion trigger.</td><td>Не завершувати batch update вручну.</td></tr>
+                <tr><td>Партія запакована, але не в логістиці</td><td>Перевірити всі коробки та пакувальника.</td><td>Task має бути completed, <code>is_packaged=true</code>, <code>is_shipped!=true</code>; перевірити fulfillment query.</td><td>Не ставити order packaged вручну.</td></tr>
+                <tr><td>Екран показує offline/reconnecting</td><td>Не виконувати кількісні завершення; зберегти фізичну карту й чекати зв’язку.</td><td>Перевірити REST health, Realtime channel, catch-up та чергу read timeout.</td><td>Не вважати IndexedDB підтвердженням save.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 class="section-title">Діагностичний порядок для будь-якого розбалансу</h3>
+          <div class="card search-unit">
+            <ol>
+              <li><strong>Ідентифікувати корінь:</strong> order id/number → task id/batch → work card id → nomenclature id.</li>
+              <li><strong>Зафіксувати свіжий стан:</strong> статус, operation, quantity, used/reserved та metadata з БД, не зі скриншота.</li>
+              <li><strong>Побудувати часову лінію:</strong> work_card_history та спеціалізовані ledgers.</li>
+              <li><strong>Звірити проєкції:</strong> scrap totals, flow totals, fulfillment/VKYA queue; розбіжність означає потребу reconcile, не переписування history.</li>
+              <li><strong>Звірити запаси:</strong> усі pockets за nomenclature, warehouse, type та owner/task.</li>
+              <li><strong>Знайти межу часткового виконання:</strong> що записано до помилки й чого немає.</li>
+              <li><strong>Вибрати відновлення:</strong> безпечний повтор з тим самим operation id або компенсуюча транзакція.</li>
+              <li><strong>Перевірити downstream:</strong> звіти, РК наступного цеху, пакування, push/Realtime.</li>
+            </ol>
+          </div>
+
+          <h3 class="section-title">Обов’язкова матриця тестування змін</h3>
+          <div class="table-wrap search-unit">
+            <table>
+              <thead><tr><th>Клас тесту</th><th>Мінімальні сценарії</th><th>Критерій проходження</th></tr></thead>
+              <tbody>
+                <tr><td>Happy path</td><td>Одне замовлення, одна партія, частина з БЗ, одна РК, всі stages, пакування, shipping.</td><td>Кожна контрольна сума нульова; один рух на одну дію.</td></tr>
+                <tr><td>Партії</td><td>Order розбитий на 2+ batches; пакування/відвантаження по черзі.</td><td>Order не закривається після першої партії.</td></tr>
+                <tr><td>Паралельність</td><td>Дві вкладки резервують БЗ, генерують Shop2 РК або завершують одну карту.</td><td>Один переможець; немає від’ємного stock чи дубльованого history.</td></tr>
+                <tr><td>Retry</td><td>Подвійний клік, network timeout після server commit, повтор Realtime.</td><td>Idempotency key повертає той самий результат без другого руху.</td></tr>
+                <tr><td>Дефіцит</td><td>Часткова видача, prep scrap, REDO, purchase request.</td><td>Видана й невидана частини в сумі дорівнюють потребі.</td></tr>
+                <tr><td>Якість</td><td>Брак stage + QC override + категорії + restoration + reclassification.</td><td>Кількість не дублюється; ledger і inventory узгоджені.</td></tr>
+                <tr><td>Відновлення фрез</td><td>Два UUID одного physical type, два працівники стартують stack.</td><td>Canonical grouping; batch належить лише одному працівнику.</td></tr>
+                <tr><td>Offline/reconnect</td><td>Розрив до save, під час save, після commit до response.</td><td>UX не показує хибний успіх; catch-up відновлює стан.</td></tr>
+                <tr><td>Права</td><td>Немає access_right, прямий URL, public machine call, admin.</td><td>Маршрут і серверна критична дія дотримують політику.</td></tr>
+                <tr><td>Міграція</td><td>Legacy marker + новий ledger, відсутній новий RPC, backfill.</td><td>Fallback працює; повторний backfill не дублює дані.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 class="section-title">Пріоритетний технічний backlog з аудиту</h3>
+          <div class="table-wrap search-unit">
+            <table>
+              <thead><tr><th>Пріоритет</th><th>Що змінити</th><th>Критерій готовності</th></tr></thead>
+              <tbody>
+                <tr><td><strong>P0</strong></td><td>Об’єднати complete-stage, 100% scrap, Reception, Sorting→Shop2, task handover та Shop2 completion у транзакційні idempotent RPC.</td><td>Один operation key; усі card/history/inventory/task writes або committed, або rolled back.</td></tr>
+                <tr><td><strong>P0</strong></td><td>Перенести класифікацію ВКЯ в один RPC зі списанням <code>scrap_ready</code>.</td><td>Source + category totals не дублюють одну фізичну кількість; retry безпечний.</td></tr>
+                <tr><td><strong>P0</strong></td><td>Прибрати password із client reads/cache, посилити RLS/RPC authorization і push sender check.</td><td>Browser ніколи не отримує password; критичну дію не можна виконати anon-запитом без валідного актора.</td></tr>
+                <tr><td><strong>P0</strong></td><td>Захистити Shop2 FIFO/allocation та inventory owner/task.</td><td>Дві вкладки не перевищують source buffer; агрегований stock іншого task не списується.</td></tr>
+                <tr><td><strong>P1</strong></td><td>Обрати канон Reception і назви <code>Галтовка (Сушка)</code>/<code>Галтовка</code>; виправити buffer history та Sorting timestamps.</td><td>Один stage graph, сумісний legacy reader, backfill і тести обох старих форматів.</td></tr>
+                <tr><td><strong>P1</strong></td><td>Уніфікувати <code>waiting-materials</code>, <code>warehouse_conf</code> type, <code>quality/qc</code>, <code>Пакування/Паквання</code> та scrap marker semantics.</td><td>Центральні enum/normalizers; немає рядкових варіантів у handlers.</td></tr>
+                <tr><td><strong>P1</strong></td><td>Запровадити повний inventory ledger і атомарне receive-document.</td><td>Кожен balance відтворюється з ledger; reserved ≤ total; reconcile звітує нульову різницю.</td></tr>
+                <tr><td><strong>P1</strong></td><td>Створити окрему shipment entity та транзакцію deduction+counter+shipment.</td><td>Незмінний audit, повторний друк без нового руху, контрольована компенсація.</td></tr>
+                <tr><td><strong>P2</strong></td><td>Завершити або видалити мертвий Shop1 refactor, Old/V2 дублікати й hard-coded персональні правила.</td><td>Один канонічний компонент на route; рольова конфігурація замість ПІБ у коді.</td></tr>
+                <tr><td><strong>P2</strong></td><td>Або повністю підключити Fortnet, export 1С і зовнішні інтеграції, або явно лишити їх вимкненими.</td><td>Health, credentials, audit, retry, bypass і документація відповідають фактичному стану.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <details class="search-unit" open>
+            <summary>Checklist перед релізом програміста</summary>
+            <div class="details-body">
+              <ul class="checklist">
+                <li>знайдені всі readers/writers зміненого поля або статусу;</li>
+                <li>SQL-міграція повторювана й має indexes/constraints;</li>
+                <li>критична multi-table дія атомарна та ідемпотентна;</li>
+                <li>actor і server timestamp записуються;</li>
+                <li>Realtime подія та reconnect catch-up дають однаковий фінальний стан;</li>
+                <li>старий кеш і legacy rows читаються без падіння;</li>
+                <li>права перевірені не лише приховуванням кнопки;</li>
+                <li>перевірені mobile terminal, scanner, keyboard layout і друк;</li>
+                <li>перевірені звіти та агрегати після тестової транзакції;</li>
+                <li>оновлено цю енциклопедію і дату аудиту.</li>
+              </ul>
+            </div>
+          </details>
+
+          <h3 class="section-title">Карта коду для наступного розробника</h3>
+          <div class="table-wrap search-unit">
+            <table>
+              <thead><tr><th>Що змінюється</th><th>Де почати</th><th>Що обов’язково перевірити поруч</th></tr></thead>
+              <tbody>
+                <tr><td>Маршрут/право</td><td><code>src/App.jsx</code></td><td>getAllModules, CATEGORY_MAP, PermissionGuard, Settings rights.</td></tr>
+                <tr><td>Завантаження/Realtime</td><td><code>src/contexts/useData.js</code>, <code>src/MESContext.jsx</code></td><td>route profile, cache serialization, channel catch-up, push.</td></tr>
+                <tr><td>Виробнича дія</td><td><code>src/contexts/useProduction.js</code></td><td>UI handler, task/card history, inventory, projection/RPC.</td></tr>
+                <tr><td>Складська дія</td><td><code>src/contexts/useWarehouse.js</code>, <code>src/modules/Warehouse/</code></td><td>reserved vs total, requests, reception, manual issue.</td></tr>
+                <tr><td>Цех №1</td><td><code>src/modules/Shop1Terminal.jsx</code></td><td>Спеціалізовані terminals і <code>src/modules/Shop1/</code>; route поки імпортує моноліт.</td></tr>
+                <tr><td>Цех №2</td><td><code>Shop2Module.jsx</code>, <code>Shop2Terminal.jsx</code>, Pressing/Painting</td><td>source buffer, used_in_shop2_qty, restoration RPC.</td></tr>
+                <tr><td>Якість</td><td><code>BrakModule.jsx</code>, <code>VKYARestorationTerminal.jsx</code></td><td>projection cursor/cache, ledger, inventory categories.</td></tr>
+                <tr><td>SQL/RPC</td><td><code>supabase/migrations/</code></td><td>grants, function security, indexes, triggers, idempotency, backfill.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p class="footnote search-unit">Кінець нормативного опису. Якщо екран поводиться інакше, спочатку перевірити версію розгорнутого frontend і застосовані міграції, а потім або виправити реалізацію, або свідомо оновити цей контракт.</p>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    (() => {
+      const body = document.body;
+      const chapters = Array.from(document.querySelectorAll('.chapter'));
+      const navButtons = Array.from(document.querySelectorAll('.nav-btn'));
+      const search = document.getElementById('globalSearch');
+      const searchMeta = document.getElementById('searchMeta');
+      const activeTitle = document.getElementById('activeTitle');
+      const sidebar = document.getElementById('sidebar');
+      const menuButton = document.getElementById('menuButton');
+      const expandButton = document.getElementById('expandButton');
+      const printButton = document.getElementById('printButton');
+      let expanded = false;
+      let currentId = 'passport';
+      let printOpenState = [];
+      if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+
+      const normalize = value => String(value || '')
+        .toLocaleLowerCase('uk-UA')
+        .replace(/ґ/g, 'г')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const plural = (count, one, few, many) => {
+        const mod10 = count % 10;
+        const mod100 = count % 100;
+        if (mod10 === 1 && mod100 !== 11) return one;
+        if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+        return many;
+      };
+
+      function validTarget(id) {
+        return chapters.some(chapter => chapter.id === id);
+      }
+
+      function showChapter(id, updateHash = true) {
+        if (!validTarget(id)) id = 'passport';
+        currentId = id;
+        body.classList.remove('search-mode', 'no-search-results', 'menu-open');
+        chapters.forEach(chapter => chapter.classList.toggle('active', chapter.id === id));
+        navButtons.forEach(button => button.classList.toggle('active', button.dataset.target === id));
+        const activeButton = navButtons.find(button => button.dataset.target === id);
+        if (activeButton) {
+          requestAnimationFrame(() => {
+            const nav = document.getElementById('navigation');
+            const navRect = nav.getBoundingClientRect();
+            const buttonRect = activeButton.getBoundingClientRect();
+            if (buttonRect.top < navRect.top + 6) nav.scrollTop -= (navRect.top + 6 - buttonRect.top);
+            if (buttonRect.bottom > navRect.bottom - 6) nav.scrollTop += (buttonRect.bottom - navRect.bottom + 6);
+          });
+        }
+        const chapter = document.getElementById(id);
+        activeTitle.textContent = chapter.dataset.title;
+        document.title = `${chapter.dataset.title} — CENTRUM MES`;
+        if (updateHash) history.replaceState(null, '', `#${id}`);
+        try { localStorage.setItem('centrum_encyclopedia_chapter', id); } catch (_) {}
+        window.scrollTo({ top: 0, behavior: 'auto' });
+      }
+
+      navButtons.forEach(button => {
+        button.addEventListener('click', () => {
+          search.value = '';
+          clearSearch();
+          showChapter(button.dataset.target);
+        });
+      });
+
+      function clearSearch() {
+        body.classList.remove('search-mode', 'no-search-results');
+        chapters.forEach(chapter => chapter.classList.remove('search-hit'));
+        document.querySelectorAll('.search-unit').forEach(unit => unit.classList.remove('search-hidden'));
+        navButtons.forEach(button => button.classList.remove('search-match'));
+        searchMeta.textContent = `${chapters.length} ${plural(chapters.length, 'розділ', 'розділи', 'розділів')} · наскрізний пошук`;
+      }
+
+      function runSearch(rawQuery) {
+        const query = normalize(rawQuery);
+        if (!query) {
+          clearSearch();
+          showChapter(currentId, false);
+          return;
+        }
+
+        body.classList.add('search-mode');
+        chapters.forEach(chapter => chapter.classList.remove('active', 'search-hit'));
+        let matchingChapters = 0;
+        let matchingUnits = 0;
+
+        chapters.forEach(chapter => {
+          const units = Array.from(chapter.querySelectorAll('.search-unit'));
+          const titleHit = normalize(chapter.dataset.title).includes(query);
+          let chapterHit = titleHit;
+          units.forEach(unit => {
+            const hit = titleHit || normalize(unit.textContent).includes(query);
+            unit.classList.toggle('search-hidden', !hit);
+            if (hit) matchingUnits += 1;
+            chapterHit = chapterHit || hit;
+          });
+          chapter.classList.toggle('search-hit', chapterHit);
+          if (chapterHit) matchingChapters += 1;
+        });
+
+        navButtons.forEach(button => {
+          const chapter = document.getElementById(button.dataset.target);
+          button.classList.toggle('search-match', chapter.classList.contains('search-hit'));
+          button.classList.remove('active');
+        });
+        body.classList.toggle('no-search-results', matchingChapters === 0);
+        searchMeta.textContent = matchingChapters
+          ? `Знайдено: ${matchingUnits} ${plural(matchingUnits, 'блок', 'блоки', 'блоків')} у ${matchingChapters} ${plural(matchingChapters, 'розділі', 'розділах', 'розділах')}`
+          : 'Збігів немає';
+        activeTitle.textContent = `Пошук: “${rawQuery.trim()}”`;
+        document.title = `Пошук “${rawQuery.trim()}” — CENTRUM MES`;
+      }
+
+      let searchTimer;
+      search.addEventListener('input', event => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => runSearch(event.target.value), 100);
+      });
+      search.addEventListener('keydown', event => {
+        if (event.key === 'Escape') {
+          search.value = '';
+          clearSearch();
+          showChapter(currentId, false);
+          search.blur();
+        }
+      });
+
+      document.getElementById('stateFilters').addEventListener('click', event => {
+        const button = event.target.closest('button[data-filter]');
+        if (!button) return;
+        document.querySelectorAll('#stateFilters button').forEach(item => item.classList.toggle('active', item === button));
+        const filter = button.dataset.filter;
+        document.querySelectorAll('#stateTable tbody tr').forEach(row => {
+          row.style.display = filter === 'all' || row.dataset.stateType === filter ? '' : 'none';
+        });
+      });
+
+      expandButton.addEventListener('click', () => {
+        expanded = !expanded;
+        document.querySelectorAll('details').forEach(item => { item.open = expanded; });
+        expandButton.textContent = expanded ? 'Згорнути пояснення' : 'Розгорнути пояснення';
+      });
+
+      menuButton.addEventListener('click', event => {
+        event.stopPropagation();
+        body.classList.toggle('menu-open');
+      });
+      document.addEventListener('click', event => {
+        if (body.classList.contains('menu-open') && !sidebar.contains(event.target) && event.target !== menuButton) {
+          body.classList.remove('menu-open');
+        }
+      });
+
+      printButton.addEventListener('click', () => {
+        printOpenState = Array.from(document.querySelectorAll('details')).map(item => item.open);
+        document.querySelectorAll('details').forEach(item => { item.open = true; });
+        setTimeout(() => window.print(), 80);
+      });
+      window.addEventListener('afterprint', () => {
+        document.querySelectorAll('details').forEach((item, index) => { item.open = Boolean(printOpenState[index]); });
+      });
+
+      window.addEventListener('hashchange', () => {
+        const id = location.hash.slice(1);
+        if (validTarget(id)) showChapter(id, false);
+      });
+
+      let initial = location.hash.slice(1);
+      if (!validTarget(initial)) {
+        try { initial = localStorage.getItem('centrum_encyclopedia_chapter') || 'passport'; } catch (_) { initial = 'passport'; }
+      }
+      showChapter(validTarget(initial) ? initial : 'passport', false);
+      requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'auto' })));
+    })();
+  </script>
+</body>
+</html>

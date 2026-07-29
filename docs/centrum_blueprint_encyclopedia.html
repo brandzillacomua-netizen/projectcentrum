@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="uk">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CRM КУЛИЦЯ — Technical Passport & Interactive Encyclopedia v4.1</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@400;500;600;700&family=Outfit:wght@500;700;800;900&display=swap"
+    rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg-dark: #07080a;
+      --panel-bg: #0f1117;
+      --panel-hover: #161922;
+      --card-bg: rgba(22, 25, 34, 0.75);
+      --accent-purple: #8b5cf6;
+      --accent-purple-glow: rgba(139, 92, 246, 0.25);
+      --accent-cyan: #06b6d4;
+      --accent-cyan-glow: rgba(6, 182, 212, 0.25);
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #ef4444;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --border-color: rgba(255, 255, 255, 0.08);
+      --sidebar-width: 290px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    aside {
+      width: var(--sidebar-width);
+      background-color: var(--panel-bg);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      z-index: 20;
+    }
+
+    .brand-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-badge {
+      background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan));
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 900;
+      color: #fff;
+      font-size: 1.1rem;
+      box-shadow: 0 0 15px var(--accent-purple-glow);
+    }
+
+    .brand-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      line-height: 1.2;
+    }
+
+    .brand-subtitle {
+      font-size: 0.65rem;
+      color: var(--accent-cyan);
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+
+    .search-box {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .search-input {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: #fff;
+      font-size: 0.85rem;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .search-input:focus {
+      border-color: var(--accent-purple);
+      box-shadow: 0 0 10px var(--accent-purple-glow);
+    }
+
+    .nav-list {
+      list-style: none;
+      padding: 12px 14px;
+      margin: 0;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .nav-item {
+      padding: 11px 14px;
+      border-radius: 10px;
+      margin-bottom: 4px;
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: all 0.2s;
+    }
+
+    .nav-item:hover {
+      background: var(--panel-hover);
+      color: #fff;
+    }
+
+    .nav-item.active {
+      background: linear-gradient(90deg, rgba(139, 92, 246, 0.15), rgba(6, 182, 212, 0.05));
+      color: #fff;
+      border-left: 3px solid var(--accent-purple);
+    }
+
+    .nav-icon {
+      font-size: 1.1rem;
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background-color: var(--bg-dark);
+    }
+
+    header {
+      padding: 16px 32px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(15, 17, 23, 0.8);
+      backdrop-filter: blur(10px);
+    }
+
+    .page-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.3rem;
+      font-weight: 800;
+      margin: 0;
+    }
+
+    .meta-badges {
+      display: flex;
+      gap: 10px;
+    }
+
+    .tag {
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .tag-purple {
+      background: rgba(139, 92, 246, 0.15);
+      color: var(--accent-purple);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+    }
+
+    .tag-cyan {
+      background: rgba(6, 182, 212, 0.15);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+    }
+
+    .content-area {
+      flex: 1;
+      padding: 32px;
+      overflow-y: auto;
+    }
+
+    .tab-content {
+      display: none;
+      max-width: 1150px;
+      margin: 0 auto;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+      font-family: 'Outfit', sans-serif;
+      color: #fff;
+    }
+
+    h2 {
+      font-size: 1.4rem;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 10px;
+      margin-top: 30px;
+    }
+
+    h3 {
+      font-size: 1.1rem;
+      color: var(--accent-cyan);
+    }
+
+    p {
+      line-height: 1.6;
+      color: #d1d5db;
+      font-size: 0.95rem;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    .step-number {
+      display: inline-flex;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent-purple);
+      color: #fff;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 0.85rem;
+      margin-right: 10px;
+    }
+
+    pre,
+    code {
+      font-family: 'Fira Code', monospace;
+      background: #0d0e12;
+      border-radius: 8px;
+    }
+
+    pre {
+      padding: 16px;
+      overflow-x: auto;
+      border: 1px solid var(--border-color);
+      font-size: 0.85rem;
+      color: #e5e7eb;
+    }
+
+    code {
+      padding: 2px 6px;
+      font-size: 0.88rem;
+      color: var(--accent-cyan);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 0.88rem;
+    }
+
+    th,
+    td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    th {
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--accent-purple);
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.5px;
+    }
+
+    tr:hover {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .mermaid {
+      background: #0b0c10;
+      padding: 20px;
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      text-align: center;
+    }
+
+    .interactive-filter {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .filter-btn {
+      background: var(--panel-hover);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 8px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.8rem;
+      transition: all 0.2s;
+    }
+
+    .filter-btn.active,
+    .filter-btn:hover {
+      background: var(--accent-purple);
+      color: #fff;
+      border-color: var(--accent-purple);
+    }
+  </style>
+</head>
+
+<body>
+
+  <aside>
+    <div class="brand-header">
+      <div class="brand-badge">К</div>
+      <div>
+        <div class="brand-title">CRM КУЛИЦЯ</div>
+        <div class="brand-subtitle">MES Industrial Blueprint</div>
+      </div>
+    </div>
+
+    <div class="search-box">
+      <input type="text" id="globalSearch" class="search-input" placeholder="🔍 Пошук по енциклопедії...">
+    </div>
+
+    <ul class="nav-list">
+      <li class="nav-item active" onclick="switchTab('tab-glossary')">
+        <span class="nav-icon">📖</span> 1. Глосарій & Концепція
+      </li>
+      <li class="nav-item" onclick="switchTab('tab-manager')">
+        <span class="nav-icon">👔</span> 2. Менеджер (`ManagerModule`)
+      </li>
+      <li class="nav-item" onclick="switchTab('tab-foreman')">
+        <span class="nav-icon">👷</span> 3. Наряди (`MasterModule_v3`)
+      </li>
+      <li class="nav-item" onclick="switchTab('tab-shop1')">
+        <span class="nav-icon">⚙️</span> 4. Цех №1 (Створення РК)
+      </li>
+      <li class="nav-item" onclick="switchTab('tab-shop1-terminal')">
+        <span class="nav-icon">💻</span> 5. Цех №1 (Термінал)
+      </li>
+      <li class="nav-item" onclick="switchTab('tab-shop2')">
+        <span class="nav-icon">🔨</span> 6. Цех №2 (Прес/Фарба/Склад)
+      </li>
+      <li class="nav-item" onclick="switchTab('tab-warehouse')">
+        <span class="nav-icon">📦</span> 7. Склад V2 & Матеріали
+      </li>
+      <li class="nav-item" onclick="switchTab('tab-vkya')">
+        <span class="nav-icon">🛡️</span> 8. ВКЯ, Брак & Відновлення
+      </li>
+      <li class="nav-item" onclick="switchTab('tab-shipping')">
+        <span class="nav-icon">🚚</span> 9. Пакування & ТТН
+      </li>
+      <li class="nav-item" onclick="switchTab('tab-statemachine')">
+        <span class="nav-icon">📊</span> 10. State Machine (Статуси)
+      </li>
+      <li class="nav-item" onclick="switchTab('tab-db')">
+        <span class="nav-icon">🗄️</span> 11. База Даних (PostgreSQL)
+      </li>
+      <li class="nav-item" onclick="switchTab('tab-integrations')">
+        <span class="nav-icon">🔌</span> 12. Інтеграції (СКУД Fortnet)
+      </li>
+      <li class="nav-item" onclick="switchTab('tab-faults')">
+        <span class="nav-icon">🚨</span> 13. Обробка Винятків
+      </li>
+      <li class="nav-item" onclick="switchTab('tab-diagrams')">
+        <span class="nav-icon">🗺️</span> 14. Візуальні Схеми
+      </li>
+    </ul>
+  </aside>
+
+  <main>
+    <header>
+      <h1 class="page-title" id="activeTabTitle">📖 1. Глосарій & Концепція Системи</h1>
+      <div class="meta-badges">
+        <span class="tag tag-purple">v4.1 Production Blueprint</span>
+        <span class="tag tag-cyan">Onboarding Senior/Middle</span>
+      </div>
+    </header>
+
+    <div class="content-area">
+
+      <!-- TAB 1: GLOSSARY -->
+      <div id="tab-glossary" class="tab-content active">
+        <h2>📖 Термінологія та Базові Концепції</h2>
+        <p>Розуміння цих 6 ключових понять є критичним для розробника перед початком роботи з вихідним кодом проєкту <code>a:\centrum</code>.</p>
+
+        <div class="card-grid">
+          <div class="card">
+            <h3>1. Замовлення (Order)</h3>
+            <p>Вхідна заявка від Менеджера на готовий виріб (кабіни, рами серій F-line, F5, F610, F613). Таблиця <code>orders</code>.</p>
+          </div>
+          <div class="card">
+            <h3>2. Наряд (Task)</h3>
+            <p>Головний документ виробничого планування. Розбиває виріб на комплектуючі та враховує <strong>БЗ (Базовий Залишок)</strong>. Таблиця <code>tasks</code>.</p>
+          </div>
+          <div class="card">
+            <h3>3. Робоча Карта (Work Card)</h3>
+            <p>Фізичне операційне завдання з QR-кодом для виконання на конкретному верстаті цеху. Таблиця <code>work_cards</code>.</p>
+          </div>
+          <div class="card">
+            <h3>4. БЗ (БАЗОВИЙ ЗАЛИШОК)</h3>
+            <p>Складський залишок напівфабрикатів/деталей на різних етапах виробництва. Автоматично відраховується з нового Наряду!</p>
+          </div>
+          <div class="card">
+            <h3>5. Марки Металу (Т300 / Т700)</h3>
+            <p>Марки сировинного металу (Grade). Норма деталей вираховується через фіксований параметр <code>parts_per_sheet</code>.</p>
+          </div>
+          <div class="card">
+            <h3>6. Snapshot (Зріз Плану)</h3>
+            <p>Фіксація специфікації (BOM) та залишків <strong>БЗ (Базового Залишку)</strong> у полі <code>plan_snapshot</code> під час підтвердження Наряду.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: MANAGER MODULE FULL ULTRA-DETAILED -->
+      <div id="tab-manager" class="tab-content">
+        <h2>👔 Повна Специфікація Модуля Менеджера (`ManagerModule.jsx`)</h2>
+        <p>Модуль Менеджера є первинним драйвером виробничого циклу CRM КУЛИЦЯ. Він відповідає за прийом заяв, автономерацію, роботу з довідником клієнтів, реальний моніторинг виробництва та безвідходне видалення.</p>
+
+        <div class="card">
+          <h3>1. Автоматична Генерація Номера Замовлення (`generateNextOrderNum`)</h3>
+          <p>При відкритті або рендерингу форма створення автоматично генерує новий унікальний номер замовлення у форматі <code>ДДММРРРР-послідовний_номер</code> (наприклад, <code>29072026-01</code>, <code>29072026-02</code>).</p>
+          <ul>
+            <li>Зчитується поточна дата системи.</li>
+            <li>Фільтруються існуючі замовлення клієнтів за поточний день. Внутрішні наряди власного випуску (`ВБ` або `VB`) ігноруються.</li>
+            <li>Знаходиться максимальний існуючий порядковий номер і додається інкремент <code>+1</code> із доповненням нулями (`padStart(2, '0')`).</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>2. Пошук та Інтеграція з Базою Замовників (`searchCustomers`)</h3>
+          <p>У полі «ЗАМОВНИК (ПОШУК)» діє асинхронний пошуковий автокомплит із розпізнаванням контрагентів:</p>
+          <ul>
+            <li><strong>Таймер Debounce (250ms):</strong> Під час введення назви клієнта запит надсилається на сервер лише після зупинки введення на 250 мс для оптимізації навантаження.</li>
+            <li><strong>Випадаючий список підказок (Hints Dropdown):</strong> При натисканні на підказку заповнюється назва клієнта та його підтверджена офіційна назва (`official_customer`).</li>
+            <li><strong>Авто-оновлення довідника:</strong> При збереженні нового клієнта викликається `refreshTable('customers')`, що миттєво робить контрагента доступним для всіх менеджерів.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>3. Вибір Готового Виробу з Каталогу Номенклатур (`type === 'product'`)</h3>
+          <p>Поле вибору «ГОТОВИЙ ВИРІБ» відображає лише ті номенклатурні позиції, які мають маркер <code>type === 'product'</code> (готові металоконструкції, рами серій F-line, F5, F610, кабіни):</p>
+          <ul>
+            <li>Створюється головний запис у таблиці <code>orders</code>.</li>
+            <li>Створюється пов'язана специфікація у таблиці <code>order_items</code> із зазначенням <code>nomenclature_id</code> та введеної кількості <code>quantity</code>.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>4. Календарний Дедлайн та Джерело</h3>
+          <p>Встановлення терміну виконання <code>deadline</code> виконується через системний календар <code>showPicker()</code> із суворим обмеженням <code>min</code> не раніше поточної дати. Поле <code>source</code> визначає джерело надходження (наприклад: *Виробництво*, *CRM*, *B2B Portal*).</p>
+        </div>
+
+        <div class="card">
+          <h3>5. Фільтрація Реєстру Замовлень & Серверна Пагінація</h3>
+          <p>Реєстр замовлень підтримує швидку фільтрацію за часовими періодами:</p>
+          <ul>
+            <li><code>СЬОГОДНІ</code> (`today`), <code>ТИЖДЕНЬ</code> (`week`), <code>МІСЯЦЬ</code> (`month`), <code>КВАРТАЛ</code> (`quarter`), <code>УСІ</code> (`all`).</li>
+            <li><strong>Повнотекстовий пошук (`searchQuery`):</strong> Пошук по номеру замовлення або по назві замовника.</li>
+            <li><strong>Lazy Loading (`loadMore`):</strong> Серверне завантаження сторінками `fetchOrders(page, append, filters)` для стабільної швидкодії навіть при 10 000+ замовленнях.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>6. Моніторинг Виробничого Прогресу (`getOrderProductionProgress`)</h3>
+          <p>Менеджеру не потрібно телефонувати в цех. У реєстрі виводиться точний статус та співвідношення упакованої продукції до замовленої:</p>
+          <pre>Прогрес = prog.packaged / order.quantity (наприклад, 8 / 10 шт)</pre>
+          <p><strong>Ланцюжок статусів у колірних пігулках (`status-pill`):</strong></p>
+          <ul>
+            <li><code>pending</code> $\rightarrow$ <strong>ОЧІКУЄ</strong> (Замовлення створено)</li>
+            <li><code>in-progress</code> $\rightarrow$ <strong>В РОБОТІ</strong> (Створено наряди)</li>
+            <li><code>shop1</code> $\rightarrow$ <strong>ЦЕХ №1</strong> (Розкрій на ЧПК & 4-етапна галтовка)</li>
+            <li><code>shop2</code> $\rightarrow$ <strong>ЦЕХ №2</strong> (Пресування, фарбування, складання)</li>
+            <li><code>packaging</code> $\rightarrow$ <strong>НА ПАКУВАННІ</strong> (Дільниця пакування)</li>
+            <li><code>packaged</code> $\rightarrow$ <strong>ОЧІКУЄ ВІДВАНТАЖЕННЯ</strong> (Запаковано на СГП)</li>
+            <li><code>shipped</code> / <code>completed</code> $\rightarrow$ <strong>ВІДВАНТАЖЕНО</strong> (Видано клієнту за ТТН)</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>7. Редагування, Видалення та СУПЕР-ВИДАЛЕННЯ (Супер-Списання ТМЦ)</h3>
+          <ul>
+            <li><strong>Швидке та Детальне Редагування (`handleUpdateSubmit`):</strong> Модальне вікно для атомарного оновлення замовника, офіційної назви, виробу, кількості та дедлайну в `orders` та `order_items`.</li>
+            <li><strong>Стандартне Видалення (`handleDeleteClick`):</strong> Каскадно видаляє замовлення, пов'язані наряди (`tasks`), матеріальні запити та робочі карти (`work_cards`).</li>
+            <li><strong style="color: var(--accent-rose);">СУПЕР-ВИДАЛЕННЯ (`handleSuperDeleteClick`):</strong>
+              Доступне лише системному Адміністратору (<code>admin@workshop.local</code>). Функція `superDeleteOrder(orderId)` виконує зворотний розрахунок матеріальних балансів — <strong>автоматично скасовує резерви та повертає використаний метал і напівфабрикати на склади</strong> перед очищенням бази!
+            </li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>8. Адаптивний Подвійний Інтерфейс (Desktop & Mobile Views)</h3>
+          <p>Модуль адаптований для роботи як з десктопних моніторів (скляна таблиця з ховерами `modern-table`), так і з мобільних планшетів/смартфонів менеджерів у цеху (карткового вигляду `mobile-order-card` із великими кнопками швидкого редагування).</p>
+        </div>
+      </div>
+
+      <!-- TAB 3: FOREMAN & NARYAD CREATION FULL EXHAUSTIVE -->
+      <div id="tab-foreman" class="tab-content">
+        <h2>👷 Створення Нарядів & Управління Зміною (`MasterModule_v3.jsx`)</h2>
+        <p>Перша складова цехового планування — модуль <strong>«ЦЕХ №1 – Створення нарядів (Управління зміною)»</strong>. Модуль призначений для Начальника цеху/Головного майстра для розрахунку специфікацій BOM, вибору партій, обліку залишків БЗ, первинного розподілу ЧПК-верстатів, розрахунку й вибору фрез, створення нарядів підготовки листвого металу та запуску Трьохстороннього Погодження.</p>
+
+        <div class="card">
+          <h3>1. Режими Планування: Наряд на Всю Кількість vs Планування Партії («ШВИДКЕ ПЛАНУВАННЯ»)</h3>
+          <p>При виборі замовлення у системі відкривається модальне вікно **«ШВИДКЕ ПЛАНУВАННЯ»**:</p>
+          <ul>
+            <li><strong>Наряд на Всю Кількість:</strong> Створюється єдиний наряд на повний обсяг замовлення (наприклад, 10 000 комплектів рам KHARAK 10`).</li>
+            <li><strong>Планування Партії (Частковий Наряд):</strong> Вказується конкретна <strong>КІЛЬКІСТЬ КОМПЛЕКТІВ</strong> (наприклад, 1 000 комплектів із 10 000) та окремий <strong>ДЕДЛАЙН ПАРТІЇ</strong> (наприклад, <code>31.07.2026</code>). Після випуску цієї партії на залишок 9 000 комплектів формуватимуться наступні наряди.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>2. Повний Табличний Розрахунок BOM Специфікації та Відрахування БЗ</h3>
+          <p>Таблиця деталей наряду відображає точні виробничі розрахунки для кожної позиції розкрою:</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Колонка Таблиці</th>
+                <th>Формула / Джерело</th>
+                <th>Опис & Технічна Суть</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>ДЕТАЛЬ В РОЗКРІЙ & ФРЕЗА</strong></td>
+                <td>Номенклатура + Маркер</td>
+                <td>Назва деталі та необхідний діаметр інструменту (наприклад: <code>ФРЕЗА: Ф2 мм</code> або <code>ФРЕЗА: Ф3 мм</code>).</td>
+              </tr>
+              <tr>
+                <td><strong>ВЕРСТАТ</strong></td>
+                <td>Випадаючий список</td>
+                <td>Первинний вибір верстата під деталь: <code>CNC KE XIN</code>, <code>CNC 1200x800</code>, <code>CNC 3050x16</code>, <code>CNC 6000x2000</code>.</td>
+              </tr>
+              <tr>
+                <td><strong>ПОТРЕБА</strong></td>
+                <td>$\text{bom\_qty} \times \text{Партія}$</td>
+                <td>Повна потреба деталей під дане замовлення/партію (наприклад, 10000, 20000, 40000 шт).</td>
+              </tr>
+              <tr>
+                <td><strong>СКЛАД БЗ</strong></td>
+                <td>`inventory` (Buffer Zone)</td>
+                <td>Поточний наявний **БАЗОВИЙ ЗАЛИШОК (БЗ)** придатних напівфабрикатів (наприклад: 282, 39, 276, 624 шт).</td>
+              </tr>
+              <tr>
+                <td><strong>ПЛАН</strong></td>
+                <td>$\max(0, \text{ПОТРЕБА} - \text{БЗ})$</td>
+                <td>Фактична кількість деталей, яку необхідно вирізати на ЧПК (наприклад: 9718, 9961, 19724, 39376 шт).</td>
+              </tr>
+              <tr>
+                <td><strong>МАТЕРІАЛ & ШТ/Л</strong></td>
+                <td>Товщина + `parts_per_sheet`</td>
+                <td>Тип сировини (Лист 3мм, 4мм, 7мм) та фіксований вихід деталей з 1 листа (наприклад: 28, 18, 109, 62 шт/лист).</td>
+              </tr>
+              <tr>
+                <td><strong>ЗАГАЛОМ ЛИСТІВ</strong></td>
+                <td>$\lceil \text{ПЛАН} / \text{parts\_per\_sheet} \rceil$</td>
+                <td>Необхідна кількість листів металу під деталь (наприклад: 348, 554, 181, 636 листів).</td>
+              </tr>
+              <tr>
+                <td><strong>ЛИСТІВ Т300 / Т700</strong></td>
+                <td>`materialSplits`</td>
+                <td>Розподіл листів між марками металу Т300 та Т700 (наприклад: 1616 листів Т300 / 103 листи Т700).</td>
+              </tr>
+              <tr>
+                <td><strong>БЗ (Технологічний залишок)</strong></td>
+                <td>$\text{Листів} \times \text{ШТ/Л} - \text{ПЛАН}$</td>
+                <td>Додатковий технологічний оранок комплектності (наприклад: +26, +11, +5, +56 шт).</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <h3>3. Первинний Розподіл Верстатів & Розрахунок/Вибір Фрез зі Складу (`selectedCutters`)</h3>
+          <p>Саме в цьому модулі Начальник цеху проводити первинний розподіл деталей по конкретних верстатах (`MACHINE_TYPES`):</p>
+          <ul>
+            <li><strong>Чому верстат принциповий:</strong> Від обраного верстата, його шпинделя та товщини листвого металу залежить:
+              1. <strong>Тип фрези:</strong> Система призначає діаметр інструменту (наприклад: `ФРЕЗА: Ф2 мм` чи `ФРЕЗА: Ф3 мм`).
+              2. <strong>Норма витрати фрез:</strong> Авто-обчислення обсягу зносу інструменту у штуках під деталь/партію (наприклад: <code>Фреза кукурудза 2x3,175x10,5x38: 360/3533 од.</code>).
+              3. <strong>Оверрайди інструменту (`partCutterOverrides`):** Можливість примусової зміни стандарту фрези (з Ф2 мм на Ф1.5 мм чи Ф3 мм).
+            </li>
+            <li><strong>ВИБІР ФРЕЗ ЗІ СКЛАДУ (`selectedCutters`):</strong>
+              Начальник цеху обирає конкретний складський артикул фрези з `MAIN_RAW` через випадаючий список. Система перевіряє наявність на складі та виводить зелене підтвердження <strong style="color: var(--accent-emerald);">✓ Достатньо</strong> або повідомляє про дефіцит.
+            </li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>4. Запікання `plan_snapshot` & Автоматичне Трьохстороннє Погодження (`WAITING_APPROVALS`)</h3>
+          <p>При натисканні кнопки <strong>«СФОРМУВАТИ НАРЯД»</strong> всі розраховані деталі, обрані верстати, розподіл Т300/Т700, норми витрат та складські артикули фрез запікаються в JSON `plan_snapshot` у таблиці `tasks` зі статусом <code>WAITING_APPROVALS</code>.</p>
+          <p>Система надсилає запит на <strong>Трьохстороннє Погодження</strong>:</p>
+          <ul>
+            <li><strong style="color: #3b82f6;">1. Інженер (`engineer_approved`):</strong> Перевіряє наявність та коректність ЧПК-файлів розкрою (`.tap` / `.nc`) під обрані верстати та фрези.</li>
+            <li><strong style="color: var(--accent-amber);">2. Склад V2 (`warehouse_kitted`):</strong> Підтверджує фізичну наявність листвого металу Т300/Т700 та обраних фрез на `MAIN_RAW` і ставить їх у матеріальне резервування під даний наряд.</li>
+            <li><strong style="color: var(--accent-purple);">3. Директор (`director_approved`):</strong> Фінальне затвердження пріоритету та запуск у випуск.</li>
+          </ul>
+          <p>Лише після отримання <strong>усіх 3 погоджень (3/3)</strong> наряд змінює статус на <strong style="color: var(--accent-emerald);">APPROVED_FOR_PRODUCTION</strong> і надходить у модуль <em>Цех №1 — Створення РК (Розподіл нарядів)</em> для друку карток.</p>
+        </div>
+
+        <div class="card">
+          <h3>5. Наряди Підготовки (`handleCreatePrepOrder`) & Картки на 1 деталь (`handleCreateCustomCard`)</h3>
+          <ul>
+            <li><strong>Наряди Підготовки (`НПXXXXXX`):** Створення нарядів підготовки листвого металу на терміналі `PREP-TERM` із запитами у `material_requests`.</li>
+            <li><strong>Окремі Картки (`ВБXXXX`):** Термінова картка розкрою на 1 деталь під внутрішній номер `ВБXXXX`.</li>
+            <li><strong>Бокова Панель Архіву & Повторний Друк (`reprintTask`):** Перегляд архіву нарядів та повторний друк з `plan_snapshot`.</li>
+            <li><strong>Дашборд Викликів Верстатів (`machine_calls`):** Моніторинг викликів Майстра з екранів ЧПК.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- TAB 4: SHOP 1 WORK CARDS DISTRIBUTION FULL EXHAUSTIVE -->
+      <div id="tab-shop1" class="tab-content">
+        <h2>⚙️ Повна Специфікація «ЦЕХ №1 – Створення РК (Розподіл нарядів)» (`Shop1ForemanModule.jsx`)</h2>
+        <p>Модуль Майстра Цеху №1 відповідає за прийом підтверджених нарядів, чергу виконання, генерацію паперових карток із QR-кодами, розподіл деталей на ДЕКІЛЬКА верстатів, Заміну Матеріалу на СО та звітність по наряд у Цеху №1.</p>
+
+        <div class="card">
+          <h3>1. Індикація та Статуси в Черзі Нарядів (Модуль Майстра)</h3>
+          <p>У черзі робочих нарядів діє 4-колірна система статусного моніторингу:</p>
+          <ul>
+            <li><strong style="color: #3b82f6;">🔵 `НОВИЙ` / `ОЧІКУЄ`:</strong> Синій початковий статус підтвердженого наряду, який щойно надійшов з модуля планування `MasterModule_v3`, але за яким ще не сформовано й не надруковано Робочі Карти.</li>
+            <li><strong style="color: var(--accent-amber);">🟡 `В РОБОТІ` / `У ПРОЦЕСІ ВИРОБНИЦТВА`:</strong> Жовтий активний статус. Означає, що картки з даного наряду вже згенеровано, надруковано та вони виконуються на ЧПК-верстатах.</li>
+            <li><strong style="color: var(--accent-rose);">🔴 `НЕСТАЧА` / `ПОТРІБЕН ДОВИПУСК`:</strong> Червоний тривожний статус. Спрацьовує за суворим математичним правилом співвідношення браку до <strong>Очікуваного Технологічного БЗ від розкрою листів</strong>:
+              <pre>Статус НЕСТАЧА активується, якщо: БРАК (scrapCount) > Очікуваний БЗ у процесі розкрою</pre>
+              <em>Точний алгоритм розрахунку:</em>
+              <ol>
+                <li>Внаслідок розкрою цілих листів закладено <strong>Очікуваний Технологічний БЗ</strong> ($\text{Листів} \times \text{parts\_per\_sheet} - \text{ПЛАН}$). Наприклад, при розкрої утворюється $+20$ шт очікуваного БЗ.</li>
+                <li>Якщо виявлено брак до 20 деталей ($\text{БРАК} \le \text{Очікуваний БЗ}$), підсумкова комплектність замовлення все одно покривається очікуваним залишком і тривога <strong>НЕ</strong> вмикається.</li>
+                <li>Якщо ж брак на листі/партії досяг **21 шт** ($\text{БРАК (21)} > \text{Очікуваний БЗ (20)}$), технологічного залишку вже недостатньо і система спалахує червоним бейджем 🔴 <strong>`НЕСТАЧА` / `ПОТРІБЕН ДОВИПУСК`</strong>, вимагаючи довіпуску деталей!</li>
+              </ol>
+            </li>
+            <li><strong style="color: var(--accent-emerald);">🟢 `ГОТОВО` / `ЗАВЕРШЕНО`:</strong> Зелений статус. Означає, що всі позиції розкрою повністю вирізані, пройшли 4-етапну галтовку та відсортовані у БЗ Цеху №2.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>2. Принцип Генерації Робочих Карт (РК) & Розподіл на Декілька Верстатів (`+ ДОДАТИ ВЕРСТАТ`)</h3>
+          <p>При кліку на наряд відкривається розкрійна відомість деталей. Майстер здійснює розподіл обсягів:</p>
+          <ul>
+            <li><strong>Розподіл номенклатури на ДЕКІЛЬКА ВЕРСТАТІВ:</strong> Якщо деталь має велику кількість листів (наприклад, 343 листи), Майстер натискає кнопкою <strong>`+ ДОДАТИ ВЕРСТАТ`</strong> і розбиває партію на кілька ЧПК-верстатів паралельно (наприклад: *199 листів на `CNC 1200x800`* та *144 листи на `CNC 6000x2000 (Дракон)`*).</li>
+            <li>Система автоматично веде баланс завантаження: <code>ПЛАН: 343 / 343 листів</code>.</li>
+            <li><strong>Формування QR-коду РК:</strong> Кожна згенерована робоча карта отримує унікальний системний QR-код у форматі <code>CENTRUM_CARD_{WORK_CARD_ID}</code> для сканування на верстатах ЧПК.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>3. Генерація Карт при Заміненому Верстату (`ЗМІНИТИ ВЕРСТАТ`)</h3>
+          <p>Якщо плановий верстат із `plan_snapshot` зайнятий або зламався, Майстер натискає **`ЗМІНИТИ ВЕРСТАТ`** і обирає вільне обладнання (наприклад, з `CNC 1200x800` на `CNC KE XIN (ФЕЯ)`):</p>
+          <ul>
+            <li>Система перераховує обсяг завантаження листів у картці.</li>
+            <li>Прив'язується новий `machine_id`.</li>
+            <li>Логується запис дій в аудиторському журналі <code>work_card_history</code> з кодом <code>MACHINE_CHANGED</code>.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>4. Механіка Заміни Матеріалу на СО (Кнопка `✏️ ВИПРАВИТИ`)</h3>
+          <p>Поруч із матеріалом кожної деталі розташовано кнопка **`✏️ ВИПРАВИТИ`**:</p>
+          <ul>
+            <li>Якщо на оперативному складі (СО) виявлено дефіцит закладеної марки (наприклад, бракує `Лист Т700 (3мм)`), Майстер викликає вікно `handleSplitChange` і замінює частину листів на `Лист Т300 (3мм)`.</li>
+            <li>Оскільки параметр виходу деталей з 1 листа (`parts_per_sheet`) одинаковий для обох марок, загальний випуск позицій залишається незмінним, а у паперову карту друкується фактично наявна марка металу з СО!</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>5. Функція «🖨️ ЗВІТ ПО НАРЯДУ» & Архів Робочих Карт</h3>
+          <p>Згортання виконаних карт у зведений звіт витрат металу Т300/Т700, фрез (Ф1.5/Ф2/Ф3 мм) та придатних деталей, а також пошук та повторний друк з архіву.</p>
+        </div>
+      </div>
+
+      <!-- TAB 5: STANDALONE TAB FOR SHOP 1 OPERATIONAL TERMINAL -->
+      <div id="tab-shop1-terminal" class="tab-content">
+        <h2>💻 Повна Специфікація Модуля «ЦЕХ №1: ТЕРМІНАЛ» (`Shop1Terminal.jsx`)</h2>
+        <p>Окремий операційний модуль <strong>`Shop1Terminal.jsx`</strong> призначений для операторів ЧПК, робітників галтовки та працівників прийомки у Цеху №1. Він автоматизує всі виробничі операції безпосередньо біля верстатів ЧПК:</p>
+
+        <div class="card">
+          <h3>1. Процесний Пайплайн та Лічильники Верхнього Рівня</h3>
+          <p>У шапці термінала відображається наскрізний ланцюжок дільниць із живими лічильниками штук у реальному часі:</p>
+          <pre>РОЗКРІЙ (Робота: 5100 шт | Буфер: 368 шт) ➔ ГАЛТОВКА (Робота: 0 шт | Буфер: 2878 шт) ➔ ХАБ-СКЛАД (Прийомка: 0 | Сортування: 6039 шт)</pre>
+        </div>
+
+        <div class="card">
+          <h3>2. Сканування QR-кодів (Wedge Listener, Камера & Ручний Пошук)</h3>
+          <ul>
+            <li><strong>Апаратний Штрихкод-сканер (Wedge Listener):</strong> Глобальне перехоплення клавіатурного вводу з конвертацією раскладки <code>translateCyrillic</code> (розпізнає укр/рус раскладку сканера). Сканування коду <code>CENTRUM_CARD_{ID}</code> миттєво відкриває карту.</li>
+            <li><strong>Камера пристрою (`📷 СКАНУВАТИ`):</strong> Модуль розпізнавання QR-коду через веб-камеру.</li>
+            <li><strong>Ручний Ввід (`ЗНАЙТИ`):** Швидкий пошук за короткому порядковим номером (наприклад <code>3/159</code>) або за ID <code>#4C4082A8</code>.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>3. Черга Карт (Ліва Панель `ЧЕРГА КАРТ`)</h3>
+          <p>Фільтри дільниць <code>УСІ ДІЛЬНИЦІ</code>, <code>УСІ НАРЯДИ</code>, <code>УСІ ДЕТАЛІ</code> та пігулки <code>ВСІ</code> | <code>НОВІ</code> | <code>БУФЕР</code>. Відображення пріоритетів <code>⚠️ ПРІОР: 2</code> та індикація етапів розкрою.</p>
+        </div>
+
+        <div class="card">
+          <h3>4. Таблична Консоль «В РОБОТІ ТА БУФЕРІ»</h3>
+          <p>Центральний монітор показує всі активні операції цеху: дата, назва деталі, етап, синя пігулка статусу `▶ РОБОТА`, кількість, зміна, ПІБ оператора, верстат (`№1.24`, `№Ф3`, `№Ф6`, `№Ф5`, `№1.23`) та чистий таймер `HH:MM:SS`.</p>
+        </div>
+
+        <div class="card">
+          <h3>5. Перевірка Верстатів & Авто-блокування ТО (`maintenanceCheckEnabled`)</h3>
+          <p>При спробі взяти картку в роботу на ЧПК-верстаті система виконує суворі перевірки:</p>
+          <ul>
+            <li>Перевіряє наявність верстата у реєстрі <code>machines</code>.</li>
+            <li><strong>Технологічний Ремонт (ТО):</strong> Якщо верстат має статус <code>maintenance_required</code> або <code>under_maintenance</code> (потрібна очистка стола), запуск <strong>блокується</strong> зі сповіщенням <code>⚠️ Помилка: Верстат заблоковано!</code>.</li>
+            <li><strong>Перевірка Зайнятості:</strong> Попередження оператора, якщо інший робітник вже виконує порізку на цьому ж верстаті.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>6. Аварійний Виклик Допомоги (`Shop1MachineCallModal.jsx`)</h3>
+          <p>Оператор ЧПК має можливість викликати фахівців безпосередньо з екрана верстата:</p>
+          <ul>
+            <li><strong style="color: #3b82f6;">Виклик Майстра:</strong> Потрібна допомога у перевірці бланка чи завантаженні листів.</li>
+            <li><strong style="color: var(--accent-purple);">Виклик Інженера:</strong> Збій у ЧПК-програмі розкрою (`.tap` / `.nc`).</li>
+            <li><strong style="color: var(--accent-rose);">Виклик ВКЯ:</strong> Сумнів щодо якості металу чи виявлений дефект.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>7. 4-Етапна Галтовка (`TumblingTerminal.jsx`) & Сортування у БЗ Цеху №2</h3>
+          <ul>
+            <li><strong>4-Етапне Шліфування:</strong> <code>1. Вібростіл</code> $\rightarrow$ <code>2. Мийка</code> $\rightarrow$ <code>3. Галтовка</code> $\rightarrow$ <code>4. Сушка</code>.</li>
+            <li><strong>Сортування у БЗ Цеху №2 (`Shop1SortingModal.jsx`):** Натискання «ПРИЙНЯТИ НА СОРТУВАННЯ» розбиває вихід на брак/придатні деталі та переводить придатні у статус <strong style="color: var(--accent-emerald);">at-shop2-buffer</strong> (або <strong>at-buffer</strong>), роблячи напівфабрикати наявними для Цеху №2!</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- TAB 6: SHOP 2 -->
+      <div id="tab-shop2" class="tab-content">
+        <h2>🔨 Цех №2 (`Shop2Terminal.jsx` / `PressingTerminal` / `PaintingTerminal`)</h2>
+        <p>Обробка напівфабрикатів з БЗ Цеху №1:</p>
+        <div class="card">
+          <ul>
+            <li><strong>Пресування та Згинання:</strong> Гнуття металу на пресах за кресленнями.</li>
+            <li><strong>Порошкове Фарбування:</strong> Комплектація підвісів та фарбування за RAL.</li>
+            <li><strong>Складання:</strong> Комплектування готового виробу (рами/кабіни).</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- TAB 7: WAREHOUSE -->
+      <div id="tab-warehouse" class="tab-content">
+        <h2>📦 Склад V2 & Комплектація (`WarehouseModuleV2.jsx`)</h2>
+        <div class="card">
+          <p>Управління складами <code>MAIN_RAW</code>, <code>BUFFER_ZONE_CUT</code>, <code>DEFECT_SCRAP</code>, <code>SGP</code>. Документи прийомки <code>reception_docs</code> та авторезервування матеріалу під Наряди.</p>
+        </div>
+      </div>
+
+      <!-- TAB 8: VKYA -->
+      <div id="tab-vkya" class="tab-content">
+        <h2>🛡️ ВКЯ, Брак & Відновлення (`BrakModule.jsx` & `VKYARestorationTerminal.jsx`)</h2>
+        <div class="card">
+          <p>Журнал браку <code>scrap_classification_ledger</code>, випуск карток відновлення <code>[REDO]</code> (Rework Cards) та реставрація фрез у <code>CutterRestorationModule.jsx</code>.</p>
+        </div>
+      </div>
+
+      <!-- TAB 9: SHIPPING -->
+      <div id="tab-shipping" class="tab-content">
+        <h2>🚚 Пакування & Відвантаження (`ShippingModule.jsx`)</h2>
+        <div class="card">
+          <p>Формування транспортних коробок/палет та авто-створення ТТН Нової Пошти через API.</p>
+        </div>
+      </div>
+
+      <!-- TAB 10: STATE MACHINE -->
+      <div id="tab-statemachine" class="tab-content">
+        <h2>📊 Кінцевий Автомат Замовлень та Карт (State Machine)</h2>
+        <div class="interactive-filter">
+          <button class="filter-btn active" onclick="filterStates('all')">Усі Статуси</button>
+          <button class="filter-btn" onclick="filterStates('tasks')">Статуси Наряду (Tasks)</button>
+          <button class="filter-btn" onclick="filterStates('cards')">Робочі Карти (Work Cards)</button>
+        </div>
+
+        <table id="stateTable">
+          <thead>
+            <tr>
+              <th>Тип</th>
+              <th>Статус (State)</th>
+              <th>Дозволені Переходи</th>
+              <th>Тригер та Актор</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr data-type="tasks">
+              <td><span class="tag tag-purple">Task</span></td>
+              <td><code>NEW</code></td>
+              <td><code>PLANNING</code></td>
+              <td>Формування наряду Начальником цеху</td>
+            </tr>
+            <tr data-type="tasks">
+              <td><span class="tag tag-purple">Task</span></td>
+              <td><code>WAITING_APPROVALS</code></td>
+              <td><code>APPROVED_FOR_PRODUCTION</code></td>
+              <td>Отримання 3 погоджень (Інженер, Склад, Директор)</td>
+            </tr>
+            <tr data-type="cards">
+              <td><span class="tag tag-cyan">Card</span></td>
+              <td><code>IN_PROGRESS</code></td>
+              <td><code>PAUSED</code>, <code>at-buffer</code></td>
+              <td>Завершення операції розкрою або галтовки</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- TAB 11: DB -->
+      <div id="tab-db" class="tab-content">
+        <h2>🗄️ Архітектура Бази Даних (PostgreSQL / Supabase)</h2>
+        <div class="card">
+          <pre>CREATE TABLE tasks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID REFERENCES orders(id) ON DELETE CASCADE,
+    task_number VARCHAR(50) UNIQUE NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'NEW',
+    snapshot_data JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);</pre>
+        </div>
+      </div>
+
+      <!-- TAB 12: INTEGRATIONS -->
+      <div id="tab-integrations" class="tab-content">
+        <h2>🔌 Інтеграції (СКУД Fortnet & Supabase Realtime)</h2>
+        <div class="card">
+          <p>Контроль проходу операторів через турнікети СКУД Fortnet перед стартом зміни.</p>
+        </div>
+      </div>
+
+      <!-- TAB 13: FAULTS -->
+      <div id="tab-faults" class="tab-content">
+        <h2>🚨 Обробка Винятків & Fault Tolerance</h2>
+        <div class="card">
+          <p>Pessimistic Locking <code>FOR UPDATE</code> та LocalStorage Offline Fallback у <code>MESContext.jsx</code>.</p>
+        </div>
+      </div>
+
+      <!-- TAB 14: DIAGRAMS -->
+      <div id="tab-diagrams" class="tab-content">
+        <h2>🗺️ Візуальні Схеми Процесів (Mermaid.js)</h2>
+        <div class="card">
+          <div class="mermaid">
+            flowchart TD
+            A[Менеджер: Створення замовлення ДДММРРРР-XX] --> B[Наряд: Враховано БЗ Базовий Залишок]
+            B --> C{Погодження 3/3}
+            C --> D[Цех №1: Виклики Майстра/Інженера/ВКЯ & Заміна Матеріалу]
+            D --> E[Розкрій & 4-етапна Галтовка]
+            E --> F[Прийомка & Сортування: at-buffer]
+            F --> G[Цех №2: Пресування, Фарбування, Складання]
+            G --> H[Пакування & Відвантаження]
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+
+      const selectedTab = document.getElementById(tabId);
+      if (selectedTab) {
+        selectedTab.classList.add('active');
+      }
+
+      const activeNav = Array.from(document.querySelectorAll('.nav-item')).find(el => el.getAttribute('onclick').includes(tabId));
+      if (activeNav) {
+        activeNav.classList.add('active');
+        document.getElementById('activeTabTitle').innerText = activeNav.innerText;
+      }
+    }
+
+    function filterStates(type) {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+
+      const rows = document.querySelectorAll('#stateTable tbody tr');
+      rows.forEach(r => {
+        if (type === 'all' || r.getAttribute('data-type') === type) {
+          r.style.display = '';
+        } else {
+          r.style.display = 'none';
+        }
+      });
+    }
+
+    document.getElementById('globalSearch').addEventListener('input', function (e) {
+      const query = e.target.value.toLowerCase().trim();
+      if (!query) return;
+
+      const cards = document.querySelectorAll('.card');
+      cards.forEach(card => {
+        const text = card.innerText.toLowerCase();
+        if (text.includes(query)) {
+          card.style.border = '1px solid var(--accent-purple)';
+        } else {
+          card.style.border = '1px solid var(--border-color)';
+        }
+      });
+    });
+  </script>
+</body>
+
+</html>

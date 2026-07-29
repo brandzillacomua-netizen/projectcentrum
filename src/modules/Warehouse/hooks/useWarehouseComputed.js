@@ -251,7 +251,10 @@ export const useWarehouseComputed = ({
       const isOperational = i.warehouse === 'operational' || !i.warehouse
       if (!isOperational) return false
 
-      if ((Number(i.total_qty) || 0) <= 0) return false
+      const nomenclature = (nomenclatures || []).find(n => String(n.id) === String(i.nomenclature_id))
+      const itemName = i.name || nomenclature?.name || ''
+      const isSheet = /(?:^|\s)лист(?:\s|$)/i.test(itemName)
+      if ((Number(i.total_qty) || 0) <= 0 && !isSheet) return false
 
       const itemType = i.type || 'raw'
 
