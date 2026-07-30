@@ -254,9 +254,9 @@ export const useWarehouseComputed = ({
       const nomenclature = (nomenclatures || []).find(n => String(n.id) === String(i.nomenclature_id))
       const itemName = i.name || nomenclature?.name || ''
       const isSheet = /(?:^|\s)лист(?:\s|$)/i.test(itemName)
-      if ((Number(i.total_qty) || 0) <= 0 && !isSheet) return false
-
       const itemType = i.type || 'raw'
+      const isPart = itemType === 'part' || nomenclature?.type === 'part'
+      if ((Number(i.total_qty) || 0) <= 0 && !isSheet && !isPart) return false
 
       if (activeTab === 'bz') return itemType === 'bz' && matchesSearch
       if (activeTab === 'scrap') return itemType.startsWith('scrap') && matchesSearch
@@ -273,7 +273,7 @@ export const useWarehouseComputed = ({
 
       return itemType === activeTab && matchesSearch
     })
-  }, [inventory, activeTab, searchQuery, selectedPocketOwner])
+  }, [inventory, nomenclatures, activeTab, searchQuery, selectedPocketOwner])
 
   const groupedPocketInventory = useMemo(() => {
     if (activeTab !== 'pocket') return {}
