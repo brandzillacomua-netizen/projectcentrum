@@ -114,7 +114,11 @@ as $monthly_report$
       'scrap_rate', case when t.produced_qty + t.scrap_qty > 0
         then round(t.scrap_qty * 100 / (t.produced_qty + t.scrap_qty), 2) else 0 end
     ),
-    'naryads', coalesce((select jsonb_agg(to_jsonb(n) order by n.last_activity desc nulls last, n.order_num) from naryad_rows n), '[]'::jsonb),
+    'naryads', coalesce((select jsonb_agg(to_jsonb(n) order by
+      (select min(t.created_at) from public.tasks t where t.order_id = n.order_id
+        and t.batch_index is not distinct from n.batch_index) asc,
+      n.order_num, n.batch_index
+    ) from naryad_rows n), '[]'::jsonb),
     'materials', coalesce((select jsonb_agg(jsonb_build_object(
       'category', m.category, 'name', m.name, 'quantity', m.quantity,
       'naryad_count', m.naryad_count, 'unit', 'шт'
