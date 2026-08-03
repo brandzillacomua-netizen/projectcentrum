@@ -31,6 +31,8 @@ export default function BrakModule() {
   const [restorationDraft, setRestorationDraft] = useState(null)
   const [restorationQuantity, setRestorationQuantity] = useState('')
   const [restorationStageId, setRestorationStageId] = useState('')
+  const [reworkDraft, setReworkDraft] = useState(null)
+  const [reworkQuantity, setReworkQuantity] = useState('')
   const showReasonCatalog = false
   const { rows: scrapReasonRows, names: scrapReasons } = useScrapReasons()
   const { rows: restorationStages } = useRestorationStages()
@@ -1263,6 +1265,30 @@ export default function BrakModule() {
     alert(`Створено незалежний наряд на ${stage} для ${item.total_qty} шт.`)
   }
 
+  const openReworkModal = (item) => {
+    setReworkDraft(item)
+    setReworkQuantity('')
+  }
+
+  const handleSendToRework = async () => {
+    const item = reworkDraft
+    const quantity = Number(reworkQuantity)
+    if (!item || !Number.isInteger(quantity) || quantity <= 0 || quantity > Number(item.total_qty)) return
+
+    setIsProcessing(true)
+    try {
+      await createReworkNaryad(item.id, quantity, 'Доопрацювання')
+      await fetchData(['inventory', 'orders', 'tasks', 'work_cards'])
+      setReworkDraft(null)
+      setReworkQuantity('')
+      alert(`Створено незалежний наряд на доопрацювання для ${quantity} шт. У категорії залишилося ${Number(item.total_qty) - quantity} шт.`)
+    } catch (error) {
+      alert('Помилка відправки на доопрацювання: ' + error.message)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
   const openRestorationModal = (item) => {
     setRestorationDraft(item)
     setRestorationQuantity('')
@@ -1856,7 +1882,7 @@ export default function BrakModule() {
                         ) : (
                           <>
                            <button 
-                             onClick={() => handleRework(item, 'Доопрацювання')}
+                             onClick={() => openReworkModal(item)}
                              style={{ background: '#10b981', border: 'none', color: '#fff', padding: '10px 15px', borderRadius: '12px', fontWeight: 900, fontSize: '0.75rem', cursor: 'pointer' }}
                            >НА ДООПРАЦЮВАННЯ</button>
                            <button 
@@ -2342,6 +2368,41 @@ export default function BrakModule() {
             <select value={restorationStageId} onChange={event => setRestorationStageId(event.target.value)} style={{ boxSizing: 'border-box', width: '100%', background: '#050505', border: '1px solid #333', borderRadius: '12px', color: '#fff', padding: '14px', fontWeight: 850 }}><option value="">Оберіть етап відновлення</option>{restorationStages.map(stage => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select>
             <div style={{ color: '#555', fontSize: '.68rem', marginTop: '8px' }}>Список етапів редагується у підмодулі «Налаштування ВКЯ». У категорії залишиться невибрана кількість.</div>
             <button onClick={handleSendToRestoration} disabled={isProcessing || !restorationStageId || !Number.isInteger(Number(restorationQuantity)) || Number(restorationQuantity) <= 0 || Number(restorationQuantity) > Number(restorationDraft.total_qty)} style={{ width: '100%', marginTop: '24px', background: '#06b6d4', border: 0, color: '#001014', borderRadius: '13px', padding: '15px', fontWeight: 1000, cursor: 'pointer' }}>{isProcessing ? 'СТВОРЕННЯ...' : 'СТВОРИТИ КАРТУ ВІДНОВЛЕННЯ'}</button>
+          </div>
+        </div>
+      )}
+
+      {reworkDraft && (
+        <div onClick={() => !isProcessing && setReworkDraft(null)} style={{ position: 'fixed', inset: 0, zIndex: 10060, background: 'rgba(0,0,0,0.88)', display: 'grid', placeItems: 'center', padding: '20px' }}>
+          <div onClick={event => event.stopPropagation()} style={{ width: '100%', maxWidth: '520px', background: '#0d0d0d', border: '1px solid #10b98155', borderRadius: '24px', padding: '28px', boxShadow: '0 30px 90px rgba(0,0,0,.7)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '15px' }}>
+              <div>
+                <div style={{ color: '#10b981', fontSize: '.7rem', fontWeight: 1000 }}>НОВИЙ НАРЯД НА ДООПРАЦЮВАННЯ</div>
+                <h2 style={{ margin: '8px 0 5px', overflowWrap: 'anywhere' }}>{reworkDraft.name}</h2>
+                <div style={{ color: '#777', fontSize: '.8rem' }}>Доступно: {reworkDraft.total_qty} {reworkDraft.unit || 'шт'}</div>
+              </div>
+              <button onClick={() => setReworkDraft(null)} disabled={isProcessing} style={{ alignSelf: 'flex-start', background: 'transparent', border: 0, color: '#777', cursor: 'pointer' }}><X size={22}/></button>
+            </div>
+            <label style={{ display: 'block', margin: '24px 0 8px', color: '#888', fontSize: '.7rem', fontWeight: 950 }}>КІЛЬКІСТЬ НА ДООПРАЦЮВАННЯ</label>
+            <input
+              autoFocus
+              type="number"
+              min="1"
+              max={reworkDraft.total_qty}
+              value={reworkQuantity}
+              onChange={event => setReworkQuantity(event.target.value)}
+              onKeyDown={event => {
+                if (event.key === 'Enter') handleSendToRework()
+              }}
+              placeholder={`Від 1 до ${reworkDraft.total_qty}`}
+              style={{ boxSizing: 'border-box', width: '100%', background: '#050505', border: '1px solid #333', borderRadius: '12px', color: '#fff', padding: '14px', fontSize: '1.1rem', fontWeight: 900 }}
+            />
+            <div style={{ color: '#555', fontSize: '.68rem', marginTop: '8px' }}>У категорії залишиться невибрана кількість. Наряд буде створено лише на вказану кількість деталей.</div>
+            <button
+              onClick={handleSendToRework}
+              disabled={isProcessing || !Number.isInteger(Number(reworkQuantity)) || Number(reworkQuantity) <= 0 || Number(reworkQuantity) > Number(reworkDraft.total_qty)}
+              style={{ width: '100%', marginTop: '24px', background: '#10b981', border: 0, color: '#00150e', borderRadius: '13px', padding: '15px', fontWeight: 1000, cursor: 'pointer' }}
+            >{isProcessing ? 'СТВОРЕННЯ...' : 'СТВОРИТИ НАРЯД НА ДООПРАЦЮВАННЯ'}</button>
           </div>
         </div>
       )}
