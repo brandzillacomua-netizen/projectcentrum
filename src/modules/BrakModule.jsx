@@ -37,6 +37,7 @@ export default function BrakModule() {
 
   const [isScanning, setIsScanning] = useState(false)
   const [scanError, setScanError] = useState(null)
+  const [manualCardNumber, setManualCardNumber] = useState('')
   const [scannedCard, setScannedCard] = useState(null)
   const [qcInspector, setQcInspector] = useState('')
   const [qcScrapCount, setQcScrapCount] = useState(0)
@@ -396,6 +397,67 @@ export default function BrakModule() {
       .eq('id', callId)
     if (error) {
       alert('Помилка при вирішенні виклику: ' + error.message)
+    }
+  }
+
+  const openQcCardByNumber = async () => {
+    const cardNumber = String(manualCardNumber || '')
+      .replace(/^CENTRUM_CARD_/i, '')
+      .replace(/^#/, '')
+      .trim()
+
+    if (!cardNumber) {
+      setScanError('Введіть системний номер картки.')
+      return
+    }
+
+    try {
+      const normalizedNumber = cardNumber.toLowerCase()
+      let foundCard = (workCards || []).find(card => {
+        const id = String(card.id || '').trim().toLowerCase()
+        return id === normalizedNumber || id.startsWith(normalizedNumber) || id.endsWith(normalizedNumber)
+      })
+
+      if (!foundCard && /^[0-9a-f-]{36}$/i.test(cardNumber)) {
+        const { data, error } = await supabase
+          .from('work_cards')
+          .select('*')
+          .eq('id', cardNumber)
+          .maybeSingle()
+        if (error) throw error
+        foundCard = data
+      }
+
+      if (!foundCard) {
+        setScanError(`Картку №${cardNumber} не знайдено. Можна вводити повний UUID або короткий системний номер.`)
+        return
+      }
+
+      const { data: operatorHistory, error: operatorHistoryError } = await supabase
+        .from('work_card_history')
+        .select('operator_name,stage_name')
+        .eq('card_id', foundCard.id)
+        .order('created_at', { ascending: true })
+      if (operatorHistoryError) throw operatorHistoryError
+
+      const operators = [...new Set([
+        foundCard.operator_name,
+        ...(operatorHistory || [])
+          .filter(row => row.stage_name !== 'Контроль ВКЯ')
+          .map(row => row.operator_name)
+      ]
+        .map(name => String(name || '').trim())
+        .filter(name => name && !name.toLowerCase().startsWith('вкя') && name !== 'Не вказано'))]
+
+      setScannedCard(foundCard)
+      setQcCardOperators(operators)
+      setQcResponsibleOperator(operators.length === 1 ? operators[0] : '')
+      setQcScrapCount(0)
+      setManualCardNumber('')
+      setScanError(null)
+    } catch (error) {
+      console.error('QC manual card lookup error:', error)
+      setScanError(`Не вдалося відкрити картку: ${error?.message || 'помилка пошуку'}`)
     }
   }
 
@@ -1561,6 +1623,27 @@ export default function BrakModule() {
           >
             <Camera size={18} /> СКАНУВАТИ КАРТКУ
           </button>}
+          {!showReasonCatalog && <div style={{ display: 'flex', alignItems: 'stretch', background: '#0a0a0a', border: '1px solid #333', borderRadius: '14px', overflow: 'hidden' }}>
+            <input
+              value={manualCardNumber}
+              onChange={event => {
+                setManualCardNumber(event.target.value)
+                if (scanError) setScanError(null)
+              }}
+              onKeyDown={event => {
+                if (event.key === 'Enter') openQcCardByNumber()
+              }}
+              placeholder="Системний № картки"
+              aria-label="Системний номер картки"
+              style={{ width: '220px', minWidth: 0, padding: '0 14px', background: 'transparent', border: 'none', color: '#fff', outline: 'none', fontSize: '0.82rem', fontWeight: 750 }}
+            />
+            <button
+              onClick={openQcCardByNumber}
+              style={{ padding: '0 16px', background: '#ef444418', border: 'none', borderLeft: '1px solid #333', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '7px', fontWeight: 900 }}
+            >
+              <Search size={17} /> ЗНАЙТИ
+            </button>
+          </div>}
           {!showReasonCatalog && (
             <button
               onClick={() => setShowReportPage(true)}
@@ -2100,6 +2183,7 @@ export default function BrakModule() {
           </div>
           )}
         </div>
+        {scanError && !isScanning && <div style={{ margin: '-12px 0 22px', color: '#ef4444', fontSize: '0.76rem', fontWeight: 750 }}>{scanError}</div>}
         </>}
       </div>
 
