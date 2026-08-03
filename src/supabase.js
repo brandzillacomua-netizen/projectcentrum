@@ -9,6 +9,8 @@ const SUPABASE_READ_ONLY_RPCS = new Set([
   'chat_unread_counts',
   'mes_fulfillment_queue',
   'mes_production_summary',
+  'mes_monthly_report',
+  'mes_monthly_naryad_detail',
   'shop1_naryad_catalog',
   'shop1_naryad_report',
   'verify_user_password'

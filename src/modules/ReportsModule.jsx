@@ -23,6 +23,8 @@ import {
   RefreshCw
 } from 'lucide-react'
 import { useMES } from '../MESContext'
+import MonthlyReport from './reports/MonthlyReport'
+import './reports/monthly-report.css'
 
 const matchesOperator = (opName, filterVal) => {
   if (!filterVal || filterVal === 'all') return true;
@@ -942,6 +944,8 @@ const ReportsModule = () => {
 
   const renderTabContent = () => {
     switch (activeTab) {
+      case 'monthly':
+        return <MonthlyReport />
       case 'warehouse':
         const whNameMap = { 
           operational: 'Оперативний (СО)', 
@@ -1626,6 +1630,9 @@ const ReportsModule = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
           
           <div className="tabs-container" style={{ display: 'flex', background: '#111', padding: '5px', borderRadius: '12px', border: '1px solid #222' }}>
+            <button onClick={() => setActiveTab('monthly')} className={`report-tab ${activeTab === 'monthly' ? 'active' : ''}`} style={tabStyle(activeTab === 'monthly')}>
+              <Calendar size={16} /> МІСЯЧНИЙ ЗВІТ
+            </button>
             <button onClick={() => setActiveTab('warehouse')} className={`report-tab ${activeTab === 'warehouse' ? 'active' : ''}`} style={tabStyle(activeTab === 'warehouse')}>
               <Warehouse size={16} /> СКЛАД
             </button>
@@ -1654,7 +1661,7 @@ const ReportsModule = () => {
 
           <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
             {/* Search */}
-            <div style={{ position: 'relative' }}>
+            {activeTab !== 'monthly' && <div style={{ position: 'relative' }}>
               <Filter size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#555' }} />
               <input 
                 value={searchQuery}
@@ -1662,9 +1669,9 @@ const ReportsModule = () => {
                 placeholder="Фільтр по назві..."
                 style={{ background: '#0a0a0a', border: '1px solid #222', color: '#fff', padding: '10px 15px 10px 35px', borderRadius: '10px', fontSize: '0.85rem', width: '200px' }}
               />
-            </div>
+            </div>}
             {/* Date Range */}
-            {activeTab !== 'warehouse' && (
+            {activeTab !== 'warehouse' && activeTab !== 'monthly' && (
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                 {/* Shift Selector */}
                 <select 
