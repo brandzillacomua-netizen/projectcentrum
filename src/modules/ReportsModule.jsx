@@ -1123,10 +1123,9 @@ const ReportsModule = () => {
                   <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #222' }}>Операцій</th>
                   <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #222' }}>Вироблено (шт)</th>
                   <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #222' }}>Брак (шт)</th>
-                  <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #222', color: '#10b981' }}>Кат. 1</th>
-                  <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #222', color: '#eab308' }}>Кат. 2</th>
-                  <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #222', color: '#f97316' }}>Кат. 3</th>
-                  <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #222', color: '#ef4444' }}>Кат. 4</th>
+                  <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #222', color: '#eab308' }}>Брак</th>
+                  <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #222', color: '#f97316' }}>Карантин</th>
+                  <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #222', color: '#ef4444' }}>Утиль</th>
                   <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #222' }}>Ефективність</th>
                 </tr>
               </thead>
@@ -1141,8 +1140,7 @@ const ReportsModule = () => {
                       <td style={{ padding: '15px', textAlign: 'center', color: '#bbb' }}>{emp.operations}</td>
                       <td style={{ padding: '15px', textAlign: 'center', fontWeight: 900, color: '#22c55e' }}>{emp.produced}</td>
                       <td style={{ padding: '15px', textAlign: 'center', fontWeight: 900, color: emp.scrap > 0 ? '#ef4444' : '#555' }}>{emp.scrap}</td>
-                      <td style={{ padding: '15px', textAlign: 'center', color: emp.cat1 > 0 ? '#10b981' : '#444', fontWeight: emp.cat1 > 0 ? '900' : '400' }}>{emp.cat1}</td>
-                      <td style={{ padding: '15px', textAlign: 'center', color: emp.cat2 > 0 ? '#eab308' : '#444', fontWeight: emp.cat2 > 0 ? '900' : '400' }}>{emp.cat2}</td>
+                      <td style={{ padding: '15px', textAlign: 'center', color: emp.cat1 + emp.cat2 > 0 ? '#eab308' : '#444', fontWeight: emp.cat1 + emp.cat2 > 0 ? '900' : '400' }}>{emp.cat1 + emp.cat2}</td>
                       <td style={{ padding: '15px', textAlign: 'center', color: emp.cat3 > 0 ? '#f97316' : '#444', fontWeight: emp.cat3 > 0 ? '900' : '400' }}>{emp.cat3}</td>
                       <td style={{ padding: '15px', textAlign: 'center', color: emp.cat4 > 0 ? '#ef4444' : '#444', fontWeight: emp.cat4 > 0 ? '900' : '400' }}>{emp.cat4}</td>
                       <td style={{ padding: '15px', textAlign: 'center' }}>
@@ -1220,10 +1218,9 @@ const ReportsModule = () => {
                       <th style={{ padding: '10px' }}>Деталь</th>
                       <th style={{ padding: '10px' }}>Оператор</th>
                       <th style={{ padding: '10px' }}>Етап</th>
-                      <th style={{ padding: '10px', textAlign: 'center', color: '#10b981' }}>Кат. 1</th>
-                      <th style={{ padding: '10px', textAlign: 'center', color: '#eab308' }}>Кат. 2</th>
-                      <th style={{ padding: '10px', textAlign: 'center', color: '#f97316' }}>Кат. 3</th>
-                      <th style={{ padding: '10px', textAlign: 'center', color: '#ef4444' }}>Кат. 4</th>
+                      <th style={{ padding: '10px', textAlign: 'center', color: '#eab308' }}>Брак</th>
+                      <th style={{ padding: '10px', textAlign: 'center', color: '#f97316' }}>Карантин</th>
+                      <th style={{ padding: '10px', textAlign: 'center', color: '#ef4444' }}>Утиль</th>
                       <th style={{ padding: '10px', textAlign: 'center', color: '#666' }}>Не класиф.</th>
                       <th style={{ padding: '10px', textAlign: 'right' }}>Всього</th>
                     </tr>
@@ -1235,8 +1232,7 @@ const ReportsModule = () => {
                         <td style={{ padding: '10px', color: '#fff', fontWeight: 700 }}>{h.nom_name}</td>
                         <td style={{ padding: '10px', color: '#aaa' }}>{h.operator_name}</td>
                         <td style={{ padding: '10px', color: '#aaa' }}>{h.stage_name}</td>
-                        <td style={{ padding: '10px', textAlign: 'center', color: h.cat1 > 0 ? '#10b981' : '#444', fontWeight: h.cat1 > 0 ? '900' : '400' }}>{h.cat1 || '—'}</td>
-                        <td style={{ padding: '10px', textAlign: 'center', color: h.cat2 > 0 ? '#eab308' : '#444', fontWeight: h.cat2 > 0 ? '900' : '400' }}>{h.cat2 || '—'}</td>
+                        <td style={{ padding: '10px', textAlign: 'center', color: h.cat1 + h.cat2 > 0 ? '#eab308' : '#444', fontWeight: h.cat1 + h.cat2 > 0 ? '900' : '400' }}>{h.cat1 + h.cat2 || '—'}</td>
                         <td style={{ padding: '10px', textAlign: 'center', color: h.cat3 > 0 ? '#f97316' : '#444', fontWeight: h.cat3 > 0 ? '900' : '400' }}>{h.cat3 || '—'}</td>
                         <td style={{ padding: '10px', textAlign: 'center', color: h.cat4 > 0 ? '#ef4444' : '#444', fontWeight: h.cat4 > 0 ? '900' : '400' }}>{h.cat4 || '—'}</td>
                         <td style={{ padding: '10px', textAlign: 'center', color: h.unclassified > 0 ? '#888' : '#333', fontWeight: h.unclassified > 0 ? '700' : '400' }}>{h.unclassified || '—'}</td>
@@ -1244,7 +1240,7 @@ const ReportsModule = () => {
                       </tr>
                     ))}
                     {scrapStats.list.length === 0 && (
-                      <tr><td colSpan="10" style={{ padding: '20px', textAlign: 'center', color: '#555' }}>Брак відсутній за обраний період</td></tr>
+                      <tr><td colSpan="9" style={{ padding: '20px', textAlign: 'center', color: '#555' }}>Брак відсутній за обраний період</td></tr>
                     )}
                   </tbody>
                 </table>

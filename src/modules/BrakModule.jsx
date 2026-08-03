@@ -25,7 +25,7 @@ export default function BrakModule() {
   const { inventory, nomenclatures, fetchData, currentUser, disposeScrapItem, createReworkNaryad, productionStages, workCards, orders, machineCalls, machines, supabase, systemUsers } = useMES()
   const [isProcessing, setIsProcessing] = useState(false)
   const [selectedItem, setSelectedItem] = useState(null)
-  const [distribution, setDistribution] = useState({ 1: 0, 2: 0, 3: 0, 4: 0 })
+  const [distribution, setDistribution] = useState({ 1: 0, 3: 0, 4: 0 })
   const [reasonAllocations, setReasonAllocations] = useState([{ reason: '', qty: 0 }])
   const [viewingCategory, setViewingCategory] = useState(null)
   const [restorationDraft, setRestorationDraft] = useState(null)
@@ -867,7 +867,7 @@ export default function BrakModule() {
 
   // Reset distribution when selected item changes
   useEffect(() => {
-    setDistribution({ 1: 0, 2: 0, 3: 0, 4: 0 })
+    setDistribution({ 1: 0, 3: 0, 4: 0 })
     setReasonAllocations([{ reason: '', qty: 0 }])
   }, [selectedItem])
 
@@ -993,8 +993,20 @@ export default function BrakModule() {
   const itemsInCat = viewingCategory 
     ? (viewingCategory === 'restoration'
         ? (inventory || []).filter(i => i.type === 'scrap_restoration' && (Number(i.total_qty) > 0))
-        : (inventory || []).filter(i => i.type === `scrap_cat_${viewingCategory}` && (Number(i.total_qty) > 0)))
+        : viewingCategory === 'brak'
+          ? (inventory || []).filter(i => ['scrap_cat_1', 'scrap_cat_2'].includes(i.type) && (Number(i.total_qty) > 0))
+          : (inventory || []).filter(i => i.type === `scrap_cat_${viewingCategory}` && (Number(i.total_qty) > 0)))
     : []
+
+  const viewingCategoryLabel = viewingCategory === 'brak'
+    ? 'Брак'
+    : viewingCategory === 3
+      ? 'Карантин'
+      : viewingCategory === 4
+        ? 'Утиль'
+        : viewingCategory === 'restoration'
+          ? 'Відновлення'
+          : ''
 
   const handleBulkClassify = async () => {
     if (!selectedItem || totalDistributed <= 0) return
@@ -1385,10 +1397,9 @@ export default function BrakModule() {
                           <th style={{ padding: '10px 8px' }}>Деталь</th>
                           <th style={{ padding: '10px 8px' }}>Оператор</th>
                           <th style={{ padding: '10px 8px' }}>Етап</th>
-                          <th style={{ padding: '10px 8px', textAlign: 'center', color: '#10b981' }}>Кат. 1</th>
-                          <th style={{ padding: '10px 8px', textAlign: 'center', color: '#eab308' }}>Кат. 2</th>
-                          <th style={{ padding: '10px 8px', textAlign: 'center', color: '#f97316' }}>Кат. 3</th>
-                          <th style={{ padding: '10px 8px', textAlign: 'center', color: '#ef4444' }}>Кат. 4</th>
+                          <th style={{ padding: '10px 8px', textAlign: 'center', color: '#eab308' }}>Брак</th>
+                          <th style={{ padding: '10px 8px', textAlign: 'center', color: '#f97316' }}>Карантин</th>
+                          <th style={{ padding: '10px 8px', textAlign: 'center', color: '#ef4444' }}>Утиль</th>
                           <th style={{ padding: '10px 8px', textAlign: 'center', color: '#a1a1aa' }}>Не класиф.</th>
                           <th style={{ padding: '10px 8px', textAlign: 'right' }}>Всього</th>
                         </tr>
@@ -1400,8 +1411,7 @@ export default function BrakModule() {
                             <td style={{ padding: '10px 8px', color: '#fff', fontWeight: 700 }}>{h.nom_name}</td>
                             <td style={{ padding: '10px 8px', color: '#d4d4d8' }}>{h.operator_name}</td>
                             <td style={{ padding: '10px 8px', color: '#a1a1aa' }}>{h.stage_name}</td>
-                            <td style={{ padding: '10px 8px', textAlign: 'center', color: h.cat1 > 0 ? '#10b981' : '#3f3f46', fontWeight: h.cat1 > 0 ? '900' : '400' }}>{h.cat1 || '—'}</td>
-                            <td style={{ padding: '10px 8px', textAlign: 'center', color: h.cat2 > 0 ? '#eab308' : '#3f3f46', fontWeight: h.cat2 > 0 ? '900' : '400' }}>{h.cat2 || '—'}</td>
+                            <td style={{ padding: '10px 8px', textAlign: 'center', color: h.cat1 + h.cat2 > 0 ? '#eab308' : '#3f3f46', fontWeight: h.cat1 + h.cat2 > 0 ? '900' : '400' }}>{h.cat1 + h.cat2 || '—'}</td>
                             <td style={{ padding: '10px 8px', textAlign: 'center', color: h.cat3 > 0 ? '#f97316' : '#3f3f46', fontWeight: h.cat3 > 0 ? '900' : '400' }}>{h.cat3 || '—'}</td>
                             <td style={{ padding: '10px 8px', textAlign: 'center', color: h.cat4 > 0 ? '#ef4444' : '#3f3f46', fontWeight: h.cat4 > 0 ? '900' : '400' }}>{h.cat4 || '—'}</td>
                             <td style={{ padding: '10px 8px', textAlign: 'center', color: h.unclassified > 0 ? '#a1a1aa' : '#27272a', fontWeight: h.unclassified > 0 ? '700' : '400' }}>{h.unclassified || '—'}</td>
@@ -1409,7 +1419,7 @@ export default function BrakModule() {
                           </tr>
                         ))}
                         {reportScrapStats.list.length === 0 && (
-                          <tr><td colSpan="10" style={{ padding: '20px', textAlign: 'center', color: '#71717a' }}>Брак відсутній за обраний період</td></tr>
+                          <tr><td colSpan="9" style={{ padding: '20px', textAlign: 'center', color: '#71717a' }}>Брак відсутній за обраний період</td></tr>
                         )}
                       </tbody>
                     </table>
@@ -1664,10 +1674,9 @@ export default function BrakModule() {
         {/* Stats Dashboard */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '20px', marginBottom: '40px' }}>
           {[
-            { cat: 1, label: 'Категорія 1', val: categorizedStats.cat1, color: '#10b981', desc: 'Мінімальний брак' },
-            { cat: 2, label: 'Категорія 2', val: categorizedStats.cat2, color: '#eab308', desc: 'Середній брак' },
-            { cat: 3, label: 'Категорія 3', val: categorizedStats.cat3, color: '#f97316', desc: 'Серйозний брак' },
-            { cat: 4, label: 'Категорія 4', val: categorizedStats.cat4, color: '#ef4444', desc: 'Критичний брак' },
+            { cat: 'brak', label: 'Брак', val: categorizedStats.cat1 + categorizedStats.cat2, color: '#eab308', desc: 'Брак і деталі на доопрацювання' },
+            { cat: 3, label: 'Карантин', val: categorizedStats.cat3, color: '#f97316', desc: 'Деталі, що потребують окремого рішення' },
+            { cat: 4, label: 'Утиль', val: categorizedStats.cat4, color: '#ef4444', desc: 'Безнадійний брак для списання' },
             { cat: 'restoration', label: 'Відновлення', val: categorizedStats.restoration, color: '#06b6d4', desc: 'Внутрішнє відновлення' },
           ].map(s => (
             <div key={s.label} 
@@ -1703,7 +1712,7 @@ export default function BrakModule() {
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 950 }}>
-                {viewingCategory ? `Деталі Категорії ${viewingCategory}` : 'Черга на класифікацію'}
+                {viewingCategory ? `Деталі: ${viewingCategoryLabel}` : 'Черга на класифікацію'}
               </h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                 <div style={{ background: viewingCategory ? '#444' : '#ef444415', padding: '8px 14px', borderRadius: '10px', color: viewingCategory ? '#fff' : '#ef4444', fontSize: '0.75rem', fontWeight: 1000 }}>
@@ -1902,14 +1911,16 @@ export default function BrakModule() {
                         <Layers size={40} />
                       </div>
                       <div style={{ color: '#fff', fontWeight: 900, fontSize: '1.2rem', marginBottom: '10px' }}>
-                        {viewingCategory === 'restoration' ? 'Внутрішнє Відновлення ВКЯ' : `Аналіз Категорії ${viewingCategory}`}
+                        {viewingCategory === 'restoration' ? 'Внутрішнє Відновлення ВКЯ' : viewingCategoryLabel}
                       </div>
                       <p style={{ color: '#555', fontSize: '0.8rem', lineHeight: 1.5 }}>
                         {viewingCategory === 'restoration'
                           ? 'У цій вкладці знаходяться деталі, які потребують складного відновлення фахівцями ВКЯ. Звідси ви можете запустити їх у Цех №2 на операції Пресування чи Фарбування.'
                           : viewingCategory === 4 
                             ? 'У цій категорії знаходиться безнадійний брак. Ви можете списати ці деталі, і вони будуть назавжди враховані як збитки у відповідному документі.' 
-                            : 'Деталі у цій категорії підлягають легкому доопрацюванню. Ви можете створити наряд, який запустить ці деталі знову в роботу у цех 2.'}
+                            : viewingCategory === 3
+                              ? 'Деталі перебувають у карантині до окремого рішення відповідального працівника: доопрацювання, відновлення або подальше списання.'
+                              : 'У цьому блоці об’єднані старі категорії 1 і 2. Деталі можна передати на доопрацювання або відновлення.'}
                       </p>
                       <button 
                         onClick={() => setViewingCategory(null)}
@@ -1961,10 +1972,9 @@ export default function BrakModule() {
                         
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                           {[
-                            { cat: 1, label: 'Категорія 1', color: '#10b981', desc: 'Мінімальний брак (можна виправити)' },
-                            { cat: 2, label: 'Категорія 2', color: '#eab308', desc: 'Середній брак (переробка)' },
-                            { cat: 3, label: 'Категорія 3', color: '#f97316', desc: 'Серйозний брак (геометрія)' },
-                            { cat: 4, label: 'Категорія 4', color: '#ef4444', desc: 'Критичний брак (брухт)' },
+                            { cat: 1, label: 'Брак', color: '#eab308', desc: 'Брак або деталі, які можна передати на доопрацювання' },
+                            { cat: 3, label: 'Карантин', color: '#f97316', desc: 'Потребує окремого рішення відповідального працівника' },
+                            { cat: 4, label: 'Утиль', color: '#ef4444', desc: 'Безнадійний брак для остаточного списання' },
                           ].map(c => (
                             <div key={c.cat} style={{ 
                               background: '#0a0a0a', 
