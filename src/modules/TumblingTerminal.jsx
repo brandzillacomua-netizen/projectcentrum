@@ -278,16 +278,16 @@ export default function TumblingTerminal() {
           .select('operator_name, shift_name')
           .eq('card_id', activeCompletingCard.id)
           .eq('stage_name', 'Розкрій')
+          .order('completed_at', { ascending: false })
+          .limit(1)
 
         if (cuttingHistoryError) {
           console.warn('Не вдалося визначити оператора розкрою:', cuttingHistoryError.message)
         } else {
-          const cuttingOperators = [...new Set(
-            (cuttingHistory || []).map(row => String(row.operator_name || '').trim()).filter(Boolean)
-          )]
-          if (cuttingOperators.length === 1) {
-            scrapOperator = cuttingOperators[0]
-            scrapShift = (cuttingHistory || []).find(row => String(row.operator_name || '').trim() === scrapOperator)?.shift_name || scrapShift
+          const cuttingRow = cuttingHistory?.[0]
+          if (String(cuttingRow?.operator_name || '').trim()) {
+            scrapOperator = String(cuttingRow.operator_name).trim()
+            scrapShift = cuttingRow.shift_name || scrapShift
           }
         }
       }

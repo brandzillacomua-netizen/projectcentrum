@@ -230,12 +230,16 @@ export default function PaintingTerminal() {
 
   const submitPaintingComplete = async () => {
     if (!activeCompletingCard) return
+    if (!selectedOperator) {
+      setScanError('Не вдалося визначити авторизованого фарбувальника. Оновіть сторінку та увійдіть у систему повторно.')
+      return
+    }
     setIsProcessing(true)
     try {
       const now = new Date().toISOString()
       const actualFinished = Math.max(0, finishedCount)
       const actualScrap = Math.max(0, scrapCount)
-      const op = selectedOperator || activeCompletingCard.operator_name || 'Команда'
+      const op = selectedOperator
       const activeShift = selectedShift || activeCompletingCard.shift_name || 'Без зміни'
       const isVkyaRestoration = String(activeCompletingCard.card_info || '').includes('[VKYA_RESTORATION]')
 

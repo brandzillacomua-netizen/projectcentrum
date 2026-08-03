@@ -222,22 +222,72 @@ export default function ReceptionTerminal() {
       const actualFinished = Math.max(0, finishedCount)
       const actualScrap = Math.max(0, scrapCount)
 
+      const receptionOperator = selectedOperator || activeCompletingCard.operator_name || 'Команда'
+      let scrapOperator = receptionOperator
+      let scrapShift = activeCompletingCard.shift_name || selectedShift || 'Не вказано'
+
+      if (actualScrap > 0) {
+        const { data: cuttingHistory, error: cuttingHistoryError } = await supabase
+          .from('work_card_history')
+          .select('operator_name,shift_name')
+          .eq('card_id', activeCompletingCard.id)
+          .eq('stage_name', 'Розкрій')
+          .order('completed_at', { ascending: false })
+          .limit(1)
+
+        if (cuttingHistoryError) {
+          throw new Error(`Не вдалося визначити оператора розкрою для браку: ${cuttingHistoryError.message}`)
+        }
+
+        const cuttingRow = cuttingHistory?.[0]
+        if (String(cuttingRow?.operator_name || '').trim()) {
+          scrapOperator = String(cuttingRow.operator_name).trim()
+          scrapShift = cuttingRow.shift_name || scrapShift
+        }
+      }
+
       // Записуємо Прийомку в history
-      const { error: historyError } = await supabase.from('work_card_history').insert([{
+      const historyBase = {
         card_id: activeCompletingCard.id,
         nomenclature_id: activeCompletingCard.nomenclature_id,
         stage_name: 'Прийомка',
-        operator_name: activeCompletingCard.operator_name || selectedOperator || 'Команда',
-        qty_at_start: activeCompletingCard.quantity || 0,
-        qty_completed: actualFinished,
-        scrap_qty: actualScrap,
         started_at: activeCompletingCard.started_at || now,
         completed_at: now,
-        is_archived_scrap: actualScrap > 0,
         shift_name: activeCompletingCard.shift_name || selectedShift || 'Не вказано',
         manager_name: activeCompletingCard.manager_name || 'Не вказано',
         machine_name: activeCompletingCard.machine || 'Не вказано'
-      }])
+      }
+      const historyRows = actualScrap > 0 && scrapOperator !== receptionOperator
+        ? [
+            ...(actualFinished > 0 ? [{
+              ...historyBase,
+              operator_name: receptionOperator,
+              qty_at_start: actualFinished,
+              qty_completed: actualFinished,
+              scrap_qty: 0,
+              is_archived_scrap: false
+            }] : []),
+            {
+              ...historyBase,
+              operator_name: scrapOperator,
+              shift_name: scrapShift,
+              qty_at_start: actualScrap,
+              qty_completed: 0,
+              scrap_qty: actualScrap,
+              is_archived_scrap: true,
+              card_info: `${activeCompletingCard.card_info || ''} [SCRAP_ASSIGNED_FROM_RECEPTION]`.trim()
+            }
+          ]
+        : [{
+            ...historyBase,
+            operator_name: receptionOperator,
+            qty_at_start: activeCompletingCard.quantity || 0,
+            qty_completed: actualFinished,
+            scrap_qty: actualScrap,
+            is_archived_scrap: actualScrap > 0
+          }]
+
+      const { error: historyError } = await supabase.from('work_card_history').insert(historyRows)
       if (historyError) throw new Error(`Не вдалося передати брак у ВКЯ: ${historyError.message}`)
 
       // Переводимо в буфер Сортування

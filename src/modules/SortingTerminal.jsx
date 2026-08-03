@@ -293,13 +293,12 @@ export default function SortingTerminal() {
             .from('work_card_history')
             .select('operator_name')
             .eq('card_id', activeCompletingCard.id)
-            .eq('stage_name', 'Розкрій');
+            .eq('stage_name', 'Розкрій')
+            .order('completed_at', { ascending: false })
+            .limit(1);
 
-          if (cuttingHistory && cuttingHistory.length > 0) {
-            const cuttingOperators = [...new Set(cuttingHistory.map(h => h.operator_name).filter(Boolean))];
-            if (cuttingOperators.length === 1) {
-              scrapOperator = cuttingOperators[0];
-            }
+          if (String(cuttingHistory?.[0]?.operator_name || '').trim()) {
+            scrapOperator = String(cuttingHistory[0].operator_name).trim();
           }
         } catch (err) {
           console.error('Failed to resolve cutting operator:', err);
