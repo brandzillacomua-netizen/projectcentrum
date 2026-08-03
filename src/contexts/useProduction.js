@@ -1206,7 +1206,9 @@ export function createProductionActions({
             })
           }
         }
-        let effectiveReq = totalNeed || plannedReq
+        // REQ is the requirement of this exact loading/card. NEED is the
+        // whole-detail requirement and must only be a legacy fallback.
+        let effectiveReq = plannedReq || totalNeed
         if (!effectiveReq) effectiveReq = Math.max(0, Number(card.quantity) - (Number(card.buffer_qty) || 0))
         const netQtyForOrder = Math.min(qtyCompleted, effectiveReq)
         const actualBuffer = Math.max(0, qtyCompleted - netQtyForOrder)

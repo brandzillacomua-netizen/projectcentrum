@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { AlertCircle, CalendarDays, ChevronDown, ChevronRight, Download, FileBarChart, Loader2, Package, RefreshCw, Scissors, TriangleAlert } from 'lucide-react'
 import { supabase } from '../../supabase'
+import './monthly-report.css'
 import './monthly-drilldown.css'
 
 const currentMonth = () => new Date().toISOString().slice(0, 7)
@@ -9,11 +10,11 @@ const formatQty = value => new Intl.NumberFormat('uk-UA', { maximumFractionDigit
 const formatDate = value => value ? new Intl.DateTimeFormat('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(value)) : '—'
 
 const downloadCsv = (report, month) => {
-  const rows = [['Місяць', month], [], ['Наряд', 'Замовник', 'Виготовлено', 'Брак', 'Фрези', 'Матеріал', 'Кількість']]
+  const rows = [['Місяць', month], [], ['Наряд', 'Замовник', 'Виріб', 'Виготовлено', 'Брак', 'Фрези', 'Матеріал', 'Кількість']]
   ;(report?.naryads || []).forEach(naryad => {
     const materials = naryad.materials?.length ? naryad.materials : [{ name: '—', quantity: 0 }]
     materials.forEach((material, index) => rows.push([
-      index === 0 ? naryad.naryad_number : '', index === 0 ? naryad.customer : '',
+      index === 0 ? naryad.naryad_number : '', index === 0 ? naryad.customer : '', index === 0 ? naryad.product_name : '',
       index === 0 ? naryad.produced_qty : '', index === 0 ? naryad.scrap_qty : '',
       index === 0 ? naryad.cutters_used : '', material.name, material.quantity
     ]))
@@ -129,18 +130,18 @@ export default function MonthlyReport() {
         <div className="monthly-layout">
           <div className="monthly-panel orders-panel">
             <div className="monthly-panel-head"><div><h3>Наряди за місяць</h3><span>Розгорніть рядок для перегляду всіх матеріалів</span></div><strong>{report?.naryads?.length || 0}</strong></div>
-            <div className="monthly-table-wrap"><table className="monthly-table"><thead><tr><th>Наряд</th><th>Замовник</th><th>Період робіт</th><th className="num">Виготовлено</th><th className="num">Брак</th><th className="num">Фрези</th></tr></thead><tbody>
+            <div className="monthly-table-wrap"><table className="monthly-table"><thead><tr><th>Наряд</th><th>Замовник</th><th>Виріб</th><th>Період робіт</th><th className="num">Виготовлено</th><th className="num">Брак</th><th className="num">Фрези</th></tr></thead><tbody>
               {(report?.naryads || []).map(naryad => {
                 const key = `${naryad.order_id}-${naryad.batch_index ?? ''}`
                 const isOpen = expanded.has(key)
                 const drilldown = drilldowns[key]
-                return <React.Fragment key={key}><tr className="monthly-order-row" onClick={() => toggle(key, naryad)}><td><button className="chevron">{isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</button><b>№ {naryad.naryad_number}</b></td><td>{naryad.customer || '—'}</td><td>{formatDate(naryad.first_activity)} — {formatDate(naryad.last_activity)}</td><td className="num good">{formatQty(naryad.produced_qty)}</td><td className={`num ${number(naryad.scrap_qty) ? 'bad' : ''}`}>{formatQty(naryad.scrap_qty)}</td><td className="num">{formatQty(naryad.cutters_used)}</td></tr>
-                {isOpen && <tr className="monthly-detail-row"><td colSpan="6"><div className="monthly-drilldown">
+                return <React.Fragment key={key}><tr className="monthly-order-row" onClick={() => toggle(key, naryad)}><td><button className="chevron">{isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</button><b>№ {naryad.naryad_number}</b></td><td>{naryad.customer || '—'}</td><td className="product-cell" title={naryad.product_name || ''}>{naryad.product_name || '—'}</td><td>{formatDate(naryad.first_activity)} — {formatDate(naryad.last_activity)}</td><td className="num good">{formatQty(naryad.produced_qty)}</td><td className={`num ${number(naryad.scrap_qty) ? 'bad' : ''}`}>{formatQty(naryad.scrap_qty)}</td><td className="num">{formatQty(naryad.cutters_used)}</td></tr>
+                {isOpen && <tr className="monthly-detail-row"><td colSpan="7"><div className="monthly-drilldown">
                   {drilldownLoading.has(key) && <div className="drilldown-loading"><Loader2 size={18} className="spin" /> Завантажуємо склад наряду…</div>}
                   {drilldown?.error && <div className="drilldown-error"><AlertCircle size={15} />{drilldown.error}<button onClick={() => loadDrilldown(naryad, key)}>Повторити</button></div>}
                   {drilldown && !drilldown.error && <>
                     <div className="monthly-detail-section"><div className="detail-title">Деталі наряду <span>{drilldown.details?.length || 0} позицій</span></div>
-                      {drilldown.details?.length ? <div className="part-table-wrap"><table className="part-table"><thead><tr><th>Деталь</th><th>План</th><th>БЗ за планом</th><th>Факт БЗ</th><th>Брак</th></tr></thead><tbody>{drilldown.details.map(part => <tr key={part.nomenclature_id}><td>{part.name}</td><td>{formatQty(part.planned_qty)}</td><td className="bz">{formatQty(part.bz_qty)}</td><td className="bz">{formatQty(part.actual_bz_qty)}</td><td className={number(part.scrap_qty) ? 'scrap' : ''}>{formatQty(part.scrap_qty)}</td></tr>)}</tbody></table></div> : <div className="empty-inline">Склад деталей у плані наряду не знайдений.</div>}
+                      {drilldown.details?.length ? <div className="part-table-wrap"><table className="part-table"><thead><tr><th>Деталь</th><th>План</th><th>Факт</th><th>БЗ за фактом розкрою</th><th>Брак</th></tr></thead><tbody>{drilldown.details.map(part => <tr key={part.nomenclature_id}><td>{part.name}</td><td>{formatQty(part.planned_qty)}</td><td className="actual">{formatQty(part.actual_cut_qty)}</td><td className="bz">+{formatQty(Math.max(0, number(part.actual_cut_qty) - number(part.planned_qty)))}</td><td className={number(part.scrap_qty) ? 'scrap' : ''}>{formatQty(part.scrap_qty)}</td></tr>)}</tbody></table></div> : <div className="empty-inline">Склад деталей у плані наряду не знайдений.</div>}
                     </div>
                     <div className="monthly-detail-section"><div className="detail-title">Фактично використані фрези <span>{drilldown.cutters?.length || 0} типів</span></div>
                       {drilldown.cutters?.length ? <div className="cutter-grid">{drilldown.cutters.map(cutter => <div key={cutter.name}><Scissors size={14} /><span>{cutter.name}</span><b>{formatQty(cutter.quantity)} шт</b></div>)}</div> : <div className="empty-inline">Використання фрез за типами не зафіксовано.</div>}
@@ -149,7 +150,7 @@ export default function MonthlyReport() {
                   <div className="monthly-detail-section"><div className="detail-title">Використані матеріали <span>{naryad.materials?.length || 0} позицій</span></div>{naryad.materials?.length ? <div className="detail-grid">{naryad.materials.map(item => <div key={`${item.category}-${item.name}`}><span className={`material-dot ${item.category}`} /> <span>{item.name}</span><b>{formatQty(item.quantity)} {item.unit || 'шт'}</b></div>)}</div> : <div className="empty-inline">Видані матеріали для цього наряду не зафіксовані.</div>}</div>
                 </div></td></tr>}</React.Fragment>
               })}
-              {!report?.naryads?.length && <tr><td colSpan="6"><div className="monthly-empty"><FileBarChart size={34} />За обраний місяць завершених операцій не знайдено.</div></td></tr>}
+              {!report?.naryads?.length && <tr><td colSpan="7"><div className="monthly-empty"><FileBarChart size={34} />За обраний місяць завершених операцій не знайдено.</div></td></tr>}
             </tbody></table></div>
           </div>
 

@@ -7,6 +7,7 @@
 .part-table td { padding: 9px 10px !important; border-top: 1px solid #202020 !important; text-align: right; color: #ddd !important; }
 .part-table td:first-child { text-align: left; font-weight: 700; }
 .part-table .bz { color: #3b82f6 !important; font-weight: 800; }
+.part-table .actual { color: #22c55e !important; font-weight: 900; }
 .part-table .scrap { color: #ef4444 !important; font-weight: 900; }
 .cutter-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .cutter-grid > div { display: grid; grid-template-columns: 18px 1fr auto; align-items: center; gap: 7px; padding: 9px 10px; border-radius: 7px; background: #151515; color: #3b82f6; }
@@ -21,3 +22,4 @@
 .monthly-start b { color: #bbb; font-size: .92rem; }
 .monthly-start span { color: #666; font-size: .74rem; }
 .monthly-start button { display: flex; align-items: center; gap: 7px; margin-top: 8px; padding: 10px 14px; border: 1px solid #ff9000; border-radius: 9px; background: #ff9000; color: #090909; font-weight: 900; cursor: pointer; }
+.monthly-table .product-cell { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #d4d4d8; font-weight: 700; }

@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { useMES } from '../MESContext'
 import { getIndexedCache, setIndexedCache } from '../services/indexedDbCache'
+import MonthlyReport from './reports/MonthlyReport'
 
 const getCutterDiameterForReport = (name = '') => {
   const lower = String(name || '').toLowerCase().replace(/,/g, '.')
@@ -109,7 +110,7 @@ export default function Shop1ForemanModule() {
     machineOperations
   } = useMES()
 
-  const [activeTab, setActiveTab] = useState('calendar') // 'dashboard' | 'calendar' | 'staff'
+  const [activeTab, setActiveTab] = useState('calendar') // 'dashboard' | 'calendar' | 'monthly_report' | 'staff'
   const [userSearch, setUserSearch] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
 
@@ -1059,6 +1060,9 @@ export default function Shop1ForemanModule() {
             <button onClick={() => setActiveTab('nariad_reports')} style={tabBtnStyle('nariad_reports')}>
               <Briefcase size={16} /> Звіти по нарядах
             </button>
+            <button onClick={() => setActiveTab('monthly_report')} style={tabBtnStyle('monthly_report')}>
+              <Calendar size={16} /> Місячний звіт
+            </button>
             <button onClick={() => setActiveTab('staff')} style={tabBtnStyle('staff')}>
               <Users size={16} /> Персонал
             </button>
@@ -1066,6 +1070,8 @@ export default function Shop1ForemanModule() {
         </div>
 
         <hr style={{ border: 'none', height: '1px', background: 'rgba(255,255,255,0.03)', margin: '0' }} />
+
+        {activeTab === 'monthly_report' && <MonthlyReport />}
 
         {/* 1. MONITORING TAB */}
         {activeTab === 'dashboard' && (

@@ -81,6 +81,10 @@ as $monthly_report$
      group by order_id, batch_index, category, name
   ), naryad_rows as materialized (
     select q.order_id, q.batch_index, o.order_num::text, o.customer::text,
+           coalesce((select string_agg(distinct n.name, ', ' order by n.name)
+             from public.order_items oi
+             join public.nomenclatures n on n.id = oi.nomenclature_id
+            where oi.order_id = q.order_id), '—') as product_name,
            concat(o.order_num, case when q.batch_index is not null then '/' || q.batch_index::text else '' end) as naryad_number,
            a.first_activity, a.last_activity, a.card_count,
            a.produced_qty, a.scrap_qty, a.cutters_used,
@@ -166,17 +170,23 @@ as $monthly_naryad_detail$
     select h.nomenclature_id, lower(btrim(coalesce(h.stage_name, ''))) as stage_name,
            coalesce(h.qty_completed, 0)::numeric as qty_completed,
            coalesce(h.scrap_qty, 0)::numeric as scrap_qty,
-           coalesce(h.cutters_used, 0)::numeric as cutters_used
+           coalesce(h.cutters_used, 0)::numeric as cutters_used,
+           h.card_info
       from public.work_cards wc
       join public.work_card_history h on h.card_id = wc.id
      where wc.task_id in (select id from target_tasks)
   ), actual_details as materialized (
     select nomenclature_id, sum(scrap_qty)::numeric as scrap_qty,
-           sum(qty_completed) filter (where stage_name in ('склад бз', 'склад bz'))::numeric as actual_bz_qty
+           sum(qty_completed) filter (where stage_name = 'розкрій')::numeric as actual_cut_qty,
+           sum(greatest(
+             qty_completed - coalesce(nullif(substring(card_info from '\[REQ:(\d+)\]'), '')::numeric, qty_completed),
+             0
+           )) filter (where stage_name = 'розкрій')::numeric as actual_bz_qty
       from all_history where nomenclature_id is not null group by nomenclature_id
   ), detail_rows as materialized (
     select p.nomenclature_id, p.name, p.planned_qty, p.bz_qty,
-           coalesce(a.actual_bz_qty, 0)::numeric as actual_bz_qty,
+           coalesce(a.actual_cut_qty, 0)::numeric as actual_cut_qty,
+           greatest(coalesce(a.actual_cut_qty, 0) - p.planned_qty, 0)::numeric as actual_bz_qty,
            coalesce(a.scrap_qty, 0)::numeric as scrap_qty
       from planned_details p left join actual_details a on a.nomenclature_id = p.nomenclature_id
   ), cutter_rows as materialized (
@@ -197,6 +207,7 @@ as $monthly_naryad_detail$
   select jsonb_build_object(
     'details', coalesce((select jsonb_agg(jsonb_build_object(
       'nomenclature_id', d.nomenclature_id, 'name', d.name, 'planned_qty', d.planned_qty,
+      'actual_cut_qty', d.actual_cut_qty,
       'bz_qty', d.bz_qty, 'actual_bz_qty', d.actual_bz_qty, 'scrap_qty', d.scrap_qty
     ) order by d.name) from detail_rows d), '[]'::jsonb),
     'cutters', coalesce((select jsonb_agg(jsonb_build_object('name', c.name, 'quantity', c.quantity)

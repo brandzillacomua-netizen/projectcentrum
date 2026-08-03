@@ -24,7 +24,6 @@ import {
 } from 'lucide-react'
 import { useMES } from '../MESContext'
 import MonthlyReport from './reports/MonthlyReport'
-import './reports/monthly-report.css'
 
 const matchesOperator = (opName, filterVal) => {
   if (!filterVal || filterVal === 'all') return true;
