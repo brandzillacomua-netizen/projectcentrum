@@ -1674,7 +1674,24 @@ const SpecBuilderTab = () => {
         quantity_per_parent: r.qty
       }))
 
-      await supabase.from('bom_items').delete().eq('parent_id', activeParentId)
+      // Verify that components still exist before replacing the old BOM.
+      // A nomenclature can be deleted in another session while the editor is open.
+      const childIds = Object.keys(agg)
+      const { data: existingChildren, error: childrenErr } = await supabase
+        .from('nomenclatures')
+        .select('id')
+        .in('id', childIds)
+      if (childrenErr) throw childrenErr
+
+      const existingChildIds = new Set((existingChildren || []).map(n => String(n.id)))
+      const missingRows = Object.values(agg).filter(r => !existingChildIds.has(String(r.nomId)))
+      if (missingRows.length > 0) {
+        const missingNames = missingRows.map(r => r.nomName || r.nomId).join(', ')
+        throw new Error(`Не знайдено номенклатуру: ${missingNames}. Оновіть сторінку та виберіть ці позиції повторно.`)
+      }
+
+      const { error: deleteBomErr } = await supabase.from('bom_items').delete().eq('parent_id', activeParentId)
+      if (deleteBomErr) throw deleteBomErr
       if (payloadWithGroup.length > 0) {
         // Try with group_label first; fall back without it if column doesn't exist
         const { error: err1 } = await supabase.from('bom_items').insert(payloadWithGroup)

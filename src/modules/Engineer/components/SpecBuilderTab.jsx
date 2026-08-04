@@ -76,7 +76,7 @@ function BomRow({ row, idx, nomenclatures, bomItems, onUpdate, onRemove, supabas
       <div style={{ position: 'relative' }}>
         <input 
           value={query} 
-          onChange={e => { setQuery(e.target.value); setShowDrop(true); onUpdate(idx, { nomName: e.target.value }) }} 
+          onChange={e => { setQuery(e.target.value); setShowDrop(true); onUpdate(idx, { nomId: null, nomName: e.target.value }) }}
           style={{ width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '8px', borderRadius: '6px' }}
         />
         {showDrop && query.length >= 2 && (
