@@ -1061,17 +1061,30 @@ const MachineOperationsTab = () => {
 }
 
 // ─── NOM QUICK-CREATE MODAL ───────────────────────────────────────────────────
+const SHEET_THICKNESS_OPTIONS = ['0.5', '0.8', '1', '1.2', '1.5', '2', '2.5', '3', '4', '5', '6', '8', '10', '12']
+
 const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, prefilledName = '' }) => {
   const [name, setName] = useState(prefilledName)
   const [type, setType] = useState('part')
   const [materialType, setMaterialType] = useState('')
+  const [sheetThickness, setSheetThickness] = useState('')
+  const [unitsPerSheet, setUnitsPerSheet] = useState('')
   const [saving, setSaving] = useState(false)
 
   const handleSave = async () => {
     if (!name.trim()) return alert('Введіть назву')
+    if (type === 'part' && !sheetThickness) return alert('Оберіть товщину листа')
+    if (type === 'part' && (!Number.isInteger(Number(unitsPerSheet)) || Number(unitsPerSheet) <= 0)) {
+      return alert('Вкажіть кількість деталей на лист цілим числом більше нуля')
+    }
     setSaving(true)
     try {
-      const payload = { name: name.trim(), type, material_type: materialType.trim() || null }
+      const payload = {
+        name: name.trim(),
+        type,
+        material_type: type === 'part' ? `Лист ${sheetThickness}мм` : (materialType.trim() || null),
+        ...(type === 'part' ? { units_per_sheet: Number(unitsPerSheet) } : {})
+      }
       const { data, error } = await supabase.from('nomenclatures').insert(payload).select().single()
       if (error) throw error
       await refreshTable('nomenclatures')
@@ -1106,10 +1119,27 @@ const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, prefilledN
               <option value="assembly">Вузол збірки (assembly)</option>
             </select>
           </div>
-          <div>
-            <label style={labelStyle}>Матеріал / характеристика</label>
-            <input value={materialType} onChange={e => setMaterialType(e.target.value)} style={inputStyle} placeholder="напр. сталь, ПВХ 3мм" />
-          </div>
+          {type === 'part' ? (
+            <>
+              <div>
+                <label style={labelStyle}>Товщина листа</label>
+                <select value={sheetThickness} onChange={e => setSheetThickness(e.target.value)} style={inputStyle}>
+                  <option value="">Оберіть товщину</option>
+                  {SHEET_THICKNESS_OPTIONS.map(value => <option key={value} value={value}>Лист {value}мм</option>)}
+                </select>
+                <div style={{ marginTop: '6px', color: '#555', fontSize: '0.7rem' }}>Марка металу обирається пізніше під час створення наряду.</div>
+              </div>
+              <div>
+                <label style={labelStyle}>Кількість деталей на лист</label>
+                <input type="number" min="1" step="1" value={unitsPerSheet} onChange={e => setUnitsPerSheet(e.target.value)} style={inputStyle} placeholder="напр. 24" />
+              </div>
+            </>
+          ) : (
+            <div>
+              <label style={labelStyle}>Матеріал / характеристика</label>
+              <input value={materialType} onChange={e => setMaterialType(e.target.value)} style={inputStyle} placeholder="напр. сталь, ПВХ 3мм" />
+            </div>
+          )}
           <button onClick={handleSave} disabled={saving} style={{ width: '100%', padding: '13px', background: 'linear-gradient(135deg, #7c3aed, #a78bfa)', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', fontSize: '0.9rem', marginTop: '6px' }}>
             {saving ? 'Збереження...' : '+ Створити та додати'}
           </button>
