@@ -25,6 +25,7 @@ export default function VKYARestorationTerminal() {
   const [selectedCard, setSelectedCard] = useState(null)
   const [operator, setOperator] = useState(userName(currentUser))
   const [completedQty, setCompletedQty] = useState('')
+  const [finalScrapQty, setFinalScrapQty] = useState('')
   const [saving, setSaving] = useState(false)
   const [shop2Stage, setShop2Stage] = useState('Пресування')
   const [legacyDraft, setLegacyDraft] = useState(null)
@@ -72,25 +73,29 @@ export default function VKYARestorationTerminal() {
   }
 
   const completeCard = async () => {
-    const qty = Number(completedQty)
-    if (!selectedCard || !Number.isInteger(qty) || qty < 0 || qty > Number(selectedCard.quantity)) return
+    const scrapQty = Number(finalScrapQty)
+    const qty = Number(selectedCard?.quantity || 0) - scrapQty
+    if (!selectedCard || !Number.isInteger(scrapQty) || scrapQty < 0 || scrapQty > Number(selectedCard.quantity)) return
     setSaving(true)
-    const { data: returnedQuantity, error: updateError } = await supabase.rpc('complete_vkya_restoration_card', {
+    const { error: updateError } = await supabase.rpc('complete_vkya_restoration_card', {
       p_card_id: selectedCard.id,
-      p_completed_quantity: qty
+      p_completed_quantity: qty,
+      p_final_scrap_quantity: scrapQty
     })
     setSaving(false)
     if (updateError) return setError(updateError.message)
     setSelectedCard(null)
     setCompletedQty('')
+    setFinalScrapQty('')
     await loadCards()
-    if (Number(returnedQuantity) > 0) alert(`${returnedQuantity} шт. повернено в Карантин ВКЯ з позначкою «${selectedCard.restoration_stage} (ВКЯ)».`)
+    alert(`Карту завершено: ${qty} шт. відновлено, ${scrapQty} шт. переведено в Утиль.`)
   }
 
   const openCard = card => {
     setSelectedCard(card)
     setOperator(card.operator_name || userName(currentUser))
     setCompletedQty(String(card.quantity))
+    setFinalScrapQty('0')
     setShop2Stage(card.shop2_stage || 'Пресування')
   }
 
@@ -191,9 +196,15 @@ export default function VKYARestorationTerminal() {
         <button onClick={startCard} disabled={saving || !operator.trim()} style={{ width: '100%', marginTop: 20, background: '#06b6d4', border: 0, borderRadius: 13, padding: 14, color: '#001014', fontWeight: 1000, cursor: 'pointer' }}><Play size={17} style={{ verticalAlign: 'middle', marginRight: 7 }}/>ВЗЯТИ В РОБОТУ</button>
       </>}
       {selectedCard.status === 'in_progress' && <>
-        <label style={{ display: 'block', color: '#888', fontSize: '.72rem', fontWeight: 900, margin: '25px 0 8px' }}>ФАКТИЧНО ВІДНОВЛЕНО, {selectedCard.unit}</label>
-        <input type="number" min="0" max={selectedCard.quantity} value={completedQty} onChange={event => setCompletedQty(event.target.value)} style={{ boxSizing: 'border-box', width: '100%', background: '#050505', border: '1px solid #333', borderRadius: 12, color: '#fff', padding: 14, fontSize: '1.15rem', fontWeight: 900 }}/>
-        <button onClick={completeCard} disabled={saving || completedQty === '' || Number(completedQty) < 0 || Number(completedQty) > Number(selectedCard.quantity)} style={{ width: '100%', marginTop: 20, background: '#10b981', border: 0, borderRadius: 13, padding: 14, color: '#00150e', fontWeight: 1000, cursor: 'pointer' }}><ShieldCheck size={17} style={{ verticalAlign: 'middle', marginRight: 7 }}/>ЗАВЕРШИТИ КАРТУ</button>
+        <label style={{ display: 'block', color: '#ef4444', fontSize: '.72rem', fontWeight: 1000, margin: '25px 0 8px' }}>СКІЛЬКИ ДЕТАЛЕЙ ПЕРЕВЕСТИ В УТИЛЬ, {selectedCard.unit}</label>
+        <input autoFocus type="number" min="0" max={selectedCard.quantity} value={finalScrapQty} onChange={event => {
+          setFinalScrapQty(event.target.value)
+          const scrap = Number(event.target.value)
+          setCompletedQty(Number.isFinite(scrap) ? String(Math.max(0, Number(selectedCard.quantity) - scrap)) : '')
+        }} style={{ boxSizing: 'border-box', width: '100%', background: '#160707', border: '1px solid #ef444466', borderRadius: 12, color: '#fff', padding: 14, fontSize: '1.15rem', fontWeight: 900 }}/>
+        <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', gap: 12, background: '#07140f', border: '1px solid #10b98144', borderRadius: 12, padding: 13 }}><span style={{ color: '#8a9a93', fontSize: '.75rem', fontWeight: 850 }}>БУДЕ ВІДНОВЛЕНО</span><strong style={{ color: '#10b981' }}>{completedQty || 0} {selectedCard.unit}</strong></div>
+        <div style={{ color: '#777', fontSize: '.7rem', marginTop: 10 }}>Уся кількість карти має бути розподілена між відновленими деталями та остаточним утилем.</div>
+        <button onClick={completeCard} disabled={saving || finalScrapQty === '' || !Number.isInteger(Number(finalScrapQty)) || Number(finalScrapQty) < 0 || Number(finalScrapQty) > Number(selectedCard.quantity)} style={{ width: '100%', marginTop: 20, background: '#10b981', border: 0, borderRadius: 13, padding: 14, color: '#00150e', fontWeight: 1000, cursor: 'pointer' }}><ShieldCheck size={17} style={{ verticalAlign: 'middle', marginRight: 7 }}/>ЗАВЕРШИТИ КАРТУ</button>
       </>}
       {selectedCard.status === 'completed' && <>
         {selectedCard.source_history_id && selectedCard.source_task_id && <div style={{ marginTop: 24, background: '#10b98112', border: '1px solid #10b98144', borderRadius: 14, padding: 15 }}>
