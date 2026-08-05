@@ -1096,7 +1096,8 @@ export function useShop1Actions({
           manager_name: currentCard.manager_name,
           machine_name: currentCard.machine,
           qc_scrap_reason: qcReason,
-          qc_scrap_comment: qcReason === 'Інше (коментар)' ? qcCustomReason : null
+          qc_scrap_comment: qcReason === 'Інше (коментар)' ? qcCustomReason : null,
+          card_info: `${currentCard.card_info || ''} [VKYA_SOURCE_STATUS:${currentCard.status || ''}] [VKYA_SOURCE_OPERATION:${currentCard.operation || ''}]`.trim()
         }])
       )
 
@@ -1128,7 +1129,7 @@ export function useShop1Actions({
         setScannedIds(prev => prev.filter(id => id !== currentCard.id))
       }
       setIsProcessing(false)
-      alert(`✅ Успішно списано ${qcScrapCount} шт у брак за рішенням ВКЯ!`)
+      alert(`✅ ${qcScrapCount} шт передано в очікування класифікації ВКЯ.`)
     } catch (e) {
       console.error('QC error:', e)
       setIsProcessing(false)

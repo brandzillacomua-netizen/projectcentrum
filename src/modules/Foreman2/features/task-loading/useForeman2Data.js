@@ -4,6 +4,7 @@ import { asId, uniqueById } from '../../utils/normalize.js'
 import { buildScrapModel, summarizeScrap } from '../scrap/scrapCalculations.js'
 import { calculateTaskParts, summarizeTaskState } from '../shortage/shortageCalculations.js'
 import { getOrderForTask, getTaskDisplayName, isRelevantForemanTask } from './taskSelectors.js'
+import { useQualityLossTotals } from '../../../VKYA/quality-hold/useQualityLossTotals.js'
 
 const fetchHistoryForCards = async (cardIds) => {
   const rows = []
@@ -45,6 +46,8 @@ export function useForeman2Data({ mes }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [reloadVersion, setReloadVersion] = useState(0)
+  const qualityLossTaskIds = useMemo(() => tasks.map(task => task.id).filter(Boolean), [tasks])
+  const qualityLoss = useQualityLossTotals(supabase, qualityLossTaskIds)
 
   const relevantTasks = useMemo(() => {
     return tasks
@@ -195,7 +198,15 @@ export function useForeman2Data({ mes }) {
   const taskModels = useMemo(() => {
     return relevantTasks.map(task => {
       const order = getOrderForTask(task, orders, orderCache)
-      const parts = calculateTaskParts({ task, cards: allCards, scrapModel, nomenclatures, flowTotalsByTaskNom })
+      const parts = calculateTaskParts({
+        task,
+        cards: allCards,
+        scrapModel,
+        nomenclatures,
+        flowTotalsByTaskNom,
+        finalScrapByTask: qualityLoss.index.byTask,
+        hasFinalScrapProjection: qualityLoss.isAvailable
+      })
       const summary = summarizeTaskState({ task, cards: allCards, parts })
       const taskScrapRows = scrapModel.scrapRows.filter(row => asId(row.taskId) === asId(task.id))
       const scrapSummary = summarizeScrap(taskScrapRows, nomenclatures)
@@ -211,7 +222,7 @@ export function useForeman2Data({ mes }) {
         scrapRows: taskScrapRows
       }
     })
-  }, [relevantTasks, orders, orderCache, allCards, scrapModel, nomenclatures])
+  }, [relevantTasks, orders, orderCache, allCards, scrapModel, nomenclatures, flowTotalsByTaskNom, qualityLoss.index, qualityLoss.isAvailable])
 
   const refreshForeman2 = async () => {
     setError(null)

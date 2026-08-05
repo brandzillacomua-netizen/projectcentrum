@@ -4,6 +4,8 @@ import { countAsProduced, getDisplayPartsForOrderItem, SHORTAGE_CACHE_KEY } from
 export function useForemanComputed({
   tasks, orders, allOrdersMap, workCards, workCardHistory,
   workCardScrapTotals = [],
+  workCardFinalScrapTotals = [],
+  hasFinalScrapProjection = false,
   staticCompletedCards, staticHistory, archiveCards, taskHistory,
   nomenclatures, bomItems, taskDataCacheRef,
   cachedShortageMap,
@@ -99,8 +101,20 @@ export function useForemanComputed({
       })
     }
 
+    if (hasFinalScrapProjection) {
+      Object.keys(sCache).forEach(taskId => { sCache[taskId] = {} })
+      ;(workCardFinalScrapTotals || []).forEach(row => {
+        const scrap = Number(row.total_scrap) || 0
+        const tid = row.task_id
+        const nid = String(row.nomenclature_id || '')
+        if (!tid || !nid || scrap <= 0) return
+        if (!sCache[tid]) sCache[tid] = {}
+        sCache[tid][nid] = (sCache[tid][nid] || 0) + scrap
+      })
+    }
+
     return { productionCache: prodCache, scrapCache: sCache, redoCache: rCache, allCardsCache: allCards, cardScrapCache: csCache }
-  }, [tasks, workCards, workCardHistory, workCardScrapTotals, staticCompletedCards, staticHistory, archiveCards, taskHistory])
+  }, [tasks, workCards, workCardHistory, workCardScrapTotals, workCardFinalScrapTotals, hasFinalScrapProjection, staticCompletedCards, staticHistory, archiveCards, taskHistory])
 
   // ── taskCardsCountMap ──────────────────────────────────────────────
   const taskCardsCountMap = useMemo(() => {

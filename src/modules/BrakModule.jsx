@@ -5,6 +5,8 @@ import { useMES } from '../MESContext'
 import { useScrapReasons } from '../hooks/useScrapReasons'
 import { useRestorationStages } from '../hooks/useRestorationStages'
 import { getIndexedCache, setIndexedCache } from '../services/indexedDbCache'
+import ReturnToRouteModal from './VKYA/quality-hold/ReturnToRouteModal'
+import { createRestorationFromQualityHold, returnQualityHoldToRoute } from './VKYA/quality-hold/qualityHoldService'
 
 const VKYA_QUEUE_CACHE_KEY = 'VKYA_CLASSIFICATION_QUEUE_V1'
 
@@ -31,6 +33,7 @@ export default function BrakModule() {
   const [restorationDraft, setRestorationDraft] = useState(null)
   const [restorationQuantity, setRestorationQuantity] = useState('')
   const [restorationStageId, setRestorationStageId] = useState('')
+  const [routeReturnDraft, setRouteReturnDraft] = useState(null)
   const [reworkDraft, setReworkDraft] = useState(null)
   const [reworkQuantity, setReworkQuantity] = useState('')
   const showReasonCatalog = false
@@ -631,7 +634,7 @@ export default function BrakModule() {
         machine_name: scannedCard.machine,
         qc_scrap_reason: qcReason,
         qc_scrap_comment: qcReason === 'Інше (коментар)' ? qcCustomReason : null,
-        card_info: `${scannedCard.card_info || ''} [QC_INSPECTOR:${inspectorName}]`.trim()
+        card_info: `${scannedCard.card_info || ''} [QC_INSPECTOR:${inspectorName}] [VKYA_SOURCE_STATUS:${freshCard.status || ''}] [VKYA_SOURCE_OPERATION:${freshCard.operation || ''}]`.trim()
       }])
       if (historyError) throw historyError
 
@@ -655,7 +658,7 @@ export default function BrakModule() {
       setQcCardOperators([])
       setQcResponsibleOperator('')
       await fetchData(['work_cards', 'work_card_history', 'inventory', 'tasks'])
-      alert(`✅ Успішно списано ${recordedScrap} шт у брак за рішенням відділу ВКЯ!`)
+      alert(`✅ ${recordedScrap} шт передано в очікування класифікації ВКЯ.`)
     } catch (e) {
       console.error('QC error:', e)
       alert('Помилка фіксації браку ВКЯ: ' + e.message)
@@ -748,7 +751,9 @@ export default function BrakModule() {
       }
       const restorationReturns = (restorationReturnsResult.data || []).map(row => ({
         id: row.id,
-        card_id: null,
+        card_id: row.source_card_id || null,
+        task_id: row.source_task_id || null,
+        order_id: row.source_order_id || null,
         nomenclature_id: row.nomenclature_id,
         operator_name: 'Термінал відновлення ВКЯ',
         stage_name: row.source_stage,
@@ -1029,6 +1034,8 @@ export default function BrakModule() {
         card_sequence: h.card_id ? scrapSourceMeta.sequences[String(h.card_id)] || null : null,
         task_card_sequence: h.card_id ? scrapSourceMeta.taskSequences?.[String(h.card_id)] || null : null,
         card_id: h.card_id,
+        task_id: h.task_id || h.restoration_return_row?.source_task_id || sourceCard?.task_id || null,
+        order_id: h.order_id || h.restoration_return_row?.source_order_id || sourceOrderId || null,
         naryad_number: taskNumber
       };
     })
@@ -1123,7 +1130,7 @@ export default function BrakModule() {
         const sourceTask = sourceCard?.task_id
           ? scrapSourceMeta.tasks[String(sourceCard.task_id)]
           : null
-        const sourceOrderId = sourceTask?.order_id || sourceCard?.order_id
+        const sourceOrderId = sourceTask?.order_id || sourceCard?.order_id || selectedItem.order_id || null
 
         const categoriesParam = categoriesToProcess.map(([cat, qty]) => ({
           category: parseInt(cat),
@@ -1165,7 +1172,7 @@ export default function BrakModule() {
         const { error: rpcErr } = await supabase.rpc('record_scrap_classification', {
           p_source_history_id: selectedItem.is_vkya_return ? null : selectedItem.id,
           p_card_id: selectedItem.card_id || null,
-          p_task_id: sourceCard?.task_id || null,
+          p_task_id: sourceCard?.task_id || selectedItem.task_id || null,
           p_order_id: sourceOrderId || null,
           p_nomenclature_id: selectedItem.nomenclature_id,
           p_order_number: selectedItem.naryad_number || null,
@@ -1302,20 +1309,60 @@ export default function BrakModule() {
     setIsProcessing(true)
     try {
       const creatorName = currentUser ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.name || currentUser.login : null
-      const { error } = await supabase.rpc('create_vkya_restoration_card', {
-        p_inventory_id: item.id,
-        p_quantity: quantity,
-        p_restoration_stage_id: restorationStageId,
-        p_created_by_user_id: currentUser?.id || null,
-        p_created_by_name: creatorName
-      })
-      if (error) throw error
+      if (item.is_history_row && !item.is_vkya_return) {
+        await createRestorationFromQualityHold(supabase, {
+          sourceHistoryId: item.id,
+          quantity,
+          restorationStageId,
+          userId: currentUser?.id || null,
+          userName: creatorName
+        })
+        await loadScrapHistory()
+      } else {
+        const { error } = await supabase.rpc('create_vkya_restoration_card', {
+          p_inventory_id: item.id,
+          p_quantity: quantity,
+          p_restoration_stage_id: restorationStageId,
+          p_created_by_user_id: currentUser?.id || null,
+          p_created_by_name: creatorName
+        })
+        if (error) throw error
+      }
       await fetchData('inventory')
       setRestorationDraft(null)
       const stageName = restorationStages.find(stage => stage.id === restorationStageId)?.name || 'не вказано'
       alert(`Створено карту відновлення на ${quantity} шт. Етап: ${stageName}.`)
     } catch (e) {
       alert('Помилка відправки на відновлення: ' + e.message)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleReturnToRoute = async (quantity) => {
+    const item = routeReturnDraft
+    if (!item?.is_history_row || item.is_vkya_return) return
+    setIsProcessing(true)
+    try {
+      const resolverName = currentUser
+        ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.name || currentUser.login
+        : 'Інспектор ВКЯ'
+      await returnQualityHoldToRoute(supabase, {
+        sourceHistoryId: item.id,
+        quantity,
+        userId: currentUser?.id || null,
+        userName: resolverName,
+        notes: 'Підтверджено придатність ВКЯ'
+      })
+      setRouteReturnDraft(null)
+      setSelectedItem(null)
+      await Promise.all([
+        fetchData(['work_cards', 'work_card_history', 'inventory', 'tasks']),
+        loadScrapHistory()
+      ])
+      alert(`✅ ${quantity} шт. повернено у виробничий маршрут початкового наряду.`)
+    } catch (error) {
+      alert('Помилка повернення в наряд: ' + error.message)
     } finally {
       setIsProcessing(false)
     }
@@ -2076,6 +2123,27 @@ export default function BrakModule() {
                        </div>
                     </div>
 
+                    {selectedItem.is_history_row && !selectedItem.is_vkya_return && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '12px', marginBottom: '20px' }}>
+                        <button
+                          onClick={() => setRouteReturnDraft(selectedItem)}
+                          disabled={isProcessing}
+                          style={{ background: '#10b98118', border: '1px solid #10b98155', color: '#10b981', borderRadius: '16px', padding: '16px', fontWeight: 1000, cursor: 'pointer' }}
+                        >
+                          ПРИДАТНІ · ПОВЕРНУТИ В НАРЯД
+                          <div style={{ color: '#64748b', fontSize: '.62rem', fontWeight: 700, marginTop: 5 }}>Повернення на правильний етап без довипуску</div>
+                        </button>
+                        <button
+                          onClick={() => openRestorationModal(selectedItem)}
+                          disabled={isProcessing}
+                          style={{ background: '#06b6d418', border: '1px solid #06b6d455', color: '#06b6d4', borderRadius: '16px', padding: '16px', fontWeight: 1000, cursor: 'pointer' }}
+                        >
+                          НА ВІДНОВЛЕННЯ
+                          <div style={{ color: '#64748b', fontSize: '.62rem', fontWeight: 700, marginTop: 5 }}>Походження наряду та картки буде збережено</div>
+                        </button>
+                      </div>
+                    )}
+
                     <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '25px', marginBottom: '30px', border: '1px solid #1a1a1a' }}>
                         <div style={{ fontSize: '0.65rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', marginBottom: '20px' }}>РОЗПОДІЛ ЗА КАТЕГОРІЯМИ:</div>
                         
@@ -2371,6 +2439,14 @@ export default function BrakModule() {
           </div>
         </div>
       )}
+
+      <ReturnToRouteModal
+        key={routeReturnDraft?.id || 'closed'}
+        item={routeReturnDraft}
+        saving={isProcessing}
+        onClose={() => setRouteReturnDraft(null)}
+        onConfirm={handleReturnToRoute}
+      />
 
       {reworkDraft && (
         <div onClick={() => !isProcessing && setReworkDraft(null)} style={{ position: 'fixed', inset: 0, zIndex: 10060, background: 'rgba(0,0,0,0.88)', display: 'grid', placeItems: 'center', padding: '20px' }}>

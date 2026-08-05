@@ -10,7 +10,16 @@ export const getCardSheets = (card, unitsPerSheet, cardScrap = 0) => {
   return Math.ceil(originalQty / Math.max(1, asNumber(unitsPerSheet, 1)))
 }
 
-export const calculatePartShortage = ({ task, entry, cards, cardScrapMap, scrapByNom, flowTotalsByTaskNom = {} }) => {
+export const calculatePartShortage = ({
+  task,
+  entry,
+  cards,
+  cardScrapMap,
+  scrapByNom,
+  flowTotalsByTaskNom = {},
+  finalScrapByTask = {},
+  hasFinalScrapProjection = false
+}) => {
   const nomId = asId(entry.nomId)
   const snapshot = entry.snapshot || {}
   const unitsPerSheet = Math.max(1, asNumber(snapshot.units_per_sheet || entry.nom?.units_per_sheet, 1))
@@ -39,7 +48,10 @@ export const calculatePartShortage = ({ task, entry, cards, cardScrapMap, scrapB
 
   const totalSheets = productionCards.length > 0 ? Math.max(plannedSheets, actualSheets) : plannedSheets
   const spareFromSheets = (totalSheets * unitsPerSheet) + stockBZ - need
-  const scrap = asNumber(scrapByNom?.[nomId])
+  const observedScrap = asNumber(scrapByNom?.[nomId])
+  const scrap = hasFinalScrapProjection
+    ? asNumber(finalScrapByTask?.[asId(task.id)]?.[nomId])
+    : observedScrap
   const shortage = Math.max(0, scrap - spareFromSheets)
 
   const splits = Array.isArray(snapshot.splits) ? snapshot.splits : []
@@ -61,6 +73,8 @@ export const calculatePartShortage = ({ task, entry, cards, cardScrapMap, scrapB
     totalSheets,
     produced,
     scrap,
+    observedScrap,
+    qualityHold: Math.max(0, observedScrap - scrap),
     spareFromSheets,
     shortage,
     activeRedo,
@@ -72,7 +86,15 @@ export const calculatePartShortage = ({ task, entry, cards, cardScrapMap, scrapB
   }
 }
 
-export const calculateTaskParts = ({ task, cards, scrapModel, nomenclatures, flowTotalsByTaskNom = {} }) => {
+export const calculateTaskParts = ({
+  task,
+  cards,
+  scrapModel,
+  nomenclatures,
+  flowTotalsByTaskNom = {},
+  finalScrapByTask = {},
+  hasFinalScrapProjection = false
+}) => {
   const entries = getSnapshotPartEntries(task, nomenclatures)
   const taskScrap = scrapModel.scrapByTask?.[asId(task.id)] || {}
 
@@ -82,7 +104,9 @@ export const calculateTaskParts = ({ task, cards, scrapModel, nomenclatures, flo
     cards,
     cardScrapMap: scrapModel.cardScrap || {},
     scrapByNom: taskScrap,
-    flowTotalsByTaskNom
+    flowTotalsByTaskNom,
+    finalScrapByTask,
+    hasFinalScrapProjection
   }))
 }
 

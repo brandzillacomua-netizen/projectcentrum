@@ -18,6 +18,8 @@ import MaterialCorrectionAction from './Foreman2/features/material-correction/Ma
 import { useMaterialCorrection } from './Foreman2/features/material-correction/useMaterialCorrection.js'
 import { getPendingMaterialCorrection } from './Foreman2/features/material-correction/materialCorrectionState.js'
 import { getDisplayPartsForOrderItem as getDisplayPartsForOrderItemHelper, getStandardMachineType, findMachineByName, MACHINE_TYPES } from './Foreman/utils/foremanHelpers'
+import { getFinalScrapForTaskPart } from './VKYA/quality-hold/qualityHoldModel.js'
+import { useQualityLossTotals } from './VKYA/quality-hold/useQualityLossTotals.js'
 
 const uniqueById = (rows = []) => {
   return Array.from(new Map(rows.filter(Boolean).map(row => [String(row.id), row])).values())
@@ -171,6 +173,8 @@ const ForemanWorkplace = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const { tasks, orders, workCards, createWorkCard, createWorkCardsBatch, inventory, completeTaskByMaster, nomenclatures, bomItems, machines, machineOperations, workCardHistory, confirmBuffer, fetchData, reserveBZForTask, fetchTaskArchiveCards, fetchModuleData, fetchTaskPlanSnapshot, machineCalls, currentUser, createDovyпускMaterialRequests, requests: materialRequests, theme, toggleTheme } = useMES()
   const { workCardScrapTotals = [] } = useMES()
+  const qualityLossTaskIds = useMemo(() => tasks.map(task => task.id).filter(Boolean), [tasks])
+  const qualityLoss = useQualityLossTotals(supabase, qualityLossTaskIds)
   const materialCorrection = useMaterialCorrection({
     currentUser,
     nomenclatures,
@@ -474,6 +478,8 @@ const ForemanWorkplace = () => {
     relevantTasks, activeQueueCount
   } = useForemanComputed({
     tasks, orders, allOrdersMap, workCards, workCardHistory, workCardScrapTotals,
+    workCardFinalScrapTotals: qualityLoss.rows,
+    hasFinalScrapProjection: qualityLoss.isAvailable,
     staticCompletedCards, staticHistory, archiveCards, taskHistory,
     nomenclatures, bomItems, taskDataCacheRef,
     cachedShortageMap,
@@ -695,7 +701,6 @@ const ForemanWorkplace = () => {
           taskReadinessMap={taskReadinessMap}
           taskShortageMap={taskShortageMap}
           cachedShortageMap={cachedShortageMap}
-          staticHistory={staticHistory}
           taskCardsCountMap={taskCardsCountMap}
           currentPage={currentPage}
           setCurrentPage={setCurrentPage}
@@ -1607,7 +1612,10 @@ const ForemanWorkplace = () => {
 
                       // Вироблено = всі картки що вже виготовлені (completed, at-buffer, на прийомці)
                       const groupProduced = activeCards.reduce((sum, c) => sum + (countAsProduced(c) ? (Number(c.quantity) || 0) : 0), 0)
-                      const groupScrap = groupHistory.reduce((sum, h) => sum + (Number(h.scrap_qty) || 0), 0)
+                      const detectedScrap = groupHistory.reduce((sum, h) => sum + (Number(h.scrap_qty) || 0), 0)
+                      const groupScrap = qualityLoss.isAvailable
+                        ? getFinalScrapForTaskPart(qualityLoss.index, task.id, nomId)
+                        : detectedScrap
 
                       const snapshot = task.plan_snapshot?.[nomId] || task.plan_snapshot?.[nom?.id]
                       const orderRef = task.orders || orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
@@ -1714,7 +1722,7 @@ const ForemanWorkplace = () => {
                                 ПРИЙНЯТО: <span style={{ color: '#3b82f6' }}>{groupProduced}</span>
                               </div>
                               <div style={{ fontSize: '0.7rem', color: groupScrap > 0 ? '#ef4444' : '#333', fontWeight: 950 }}>
-                                БРАК: {groupScrap}
+                                ВКЯ: {detectedScrap}{qualityLoss.isAvailable ? ` · УТИЛЬ: ${groupScrap}` : ''}
                               </div>
                               {activeCards.some(c => c.status === 'waiting-materials') && (
                                 <div style={{

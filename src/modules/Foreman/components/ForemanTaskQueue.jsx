@@ -11,7 +11,6 @@ export default function ForemanTaskQueue({
   taskReadinessMap,
   taskShortageMap,
   cachedShortageMap,
-  staticHistory,
   taskCardsCountMap,
   currentPage,
   setCurrentPage,
@@ -39,7 +38,10 @@ export default function ForemanTaskQueue({
           const order = task.orders || orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
           const isActive = activeTaskId === task.id
           const isReady = taskReadinessMap[task.id]
-          const shortageFromMap = staticHistory.length > 0 ? taskShortageMap[task.id] : (taskShortageMap[task.id] || cachedShortageMap[task.id])
+          const hasComputedShortage = Object.prototype.hasOwnProperty.call(taskShortageMap, task.id)
+          const shortageFromMap = hasComputedShortage
+            ? taskShortageMap[task.id]
+            : cachedShortageMap[task.id]
           const isShortage = shortageFromMap
           const isCompleted = task.status === 'completed'
           const taskCardsCount = taskCardsCountMap[task.id] || 0

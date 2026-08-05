@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { useMES } from '../MESContext'
 import { supabase } from '../supabase'
+import { useQualityLossTotals } from './VKYA/quality-hold/useQualityLossTotals.js'
 
 // ─────────────────────────────────────────────────────────────
 // Helpers
@@ -364,6 +365,8 @@ const ForemanDashboardModule = () => {
   // Extra state for per-order drill-down
   const [orderAllCards, setOrderAllCards] = useState({}) // taskId -> cards[]
   const [loadingCards, setLoadingCards] = useState({})
+  const qualityLossTaskIds = useMemo(() => tasks.map(task => task.id).filter(Boolean), [tasks])
+  const qualityLoss = useQualityLossTotals(supabase, qualityLossTaskIds)
 
   // ── Load data on mount ──
   useEffect(() => {
@@ -636,6 +639,16 @@ const ForemanDashboardModule = () => {
   // ── Scrap cache ──
   const scrapCache = useMemo(() => {
     const cache = {}
+    if (qualityLoss.isAvailable) {
+      qualityLoss.rows.forEach(row => {
+        const tid = row.task_id
+        const nid = row.nomenclature_id ? String(row.nomenclature_id) : null
+        if (!tid || !nid) return
+        if (!cache[tid]) cache[tid] = {}
+        cache[tid][nid] = (cache[tid][nid] || 0) + (Number(row.total_scrap) || 0)
+      })
+      return cache
+    }
     const cardMap = {}
     dashboardCards.forEach(c => { cardMap[c.id] = c })
     
@@ -649,29 +662,31 @@ const ForemanDashboardModule = () => {
       cache[tid][nid] = (cache[tid][nid] || 0) + (Number(h.scrap_qty) || 0)
     })
     return cache
-  }, [dashboardHistory, dashboardCards])
+  }, [dashboardHistory, dashboardCards, qualityLoss.rows, qualityLoss.isAvailable])
 
   const scopedScrapCache = useMemo(() => {
     const cache = {}
     const cardMap = {}
     dashboardCards.forEach(c => { cardMap[c.id] = c })
+    const lossRows = qualityLoss.isAvailable ? qualityLoss.rows : dashboardHistory
 
     relevantTasks.forEach(task => {
       const scopeSet = new Set(taskScopeIdsMap[task.id] || [task.id])
       cache[task.id] = {}
 
-      dashboardHistory.forEach(h => {
+      lossRows.forEach(h => {
         if (!h.card_id && (!h.task_id || !h.nomenclature_id)) return
         const card = cardMap[h.card_id]
         const tid = h.task_id || card?.task_id
         const nid = h.nomenclature_id ? String(h.nomenclature_id) : (card?.nomenclature_id ? String(card.nomenclature_id) : null)
         if (!tid || !nid || !scopeSet.has(tid)) return
-        cache[task.id][nid] = (cache[task.id][nid] || 0) + (Number(h.scrap_qty) || 0)
+        const loss = qualityLoss.isAvailable ? Number(h.total_scrap) || 0 : Number(h.scrap_qty) || 0
+        cache[task.id][nid] = (cache[task.id][nid] || 0) + loss
       })
     })
 
     return cache
-  }, [dashboardHistory, dashboardCards, relevantTasks, taskScopeIdsMap])
+  }, [dashboardHistory, dashboardCards, relevantTasks, taskScopeIdsMap, qualityLoss.rows, qualityLoss.isAvailable])
 
   // ── Task status map ──
   const taskStatusMap = useMemo(() => {

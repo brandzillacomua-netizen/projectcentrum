@@ -244,6 +244,7 @@ export default function PaintingTerminal() {
       const isVkyaRestoration = String(activeCompletingCard.card_info || '').includes('[VKYA_RESTORATION]')
 
       if (isVkyaRestoration) {
+        const returnsToSourceRoute = String(activeCompletingCard.card_info || '').includes('[VKYA_SOURCE_ROUTE]')
         const { error: completionError } = await supabase.rpc('complete_vkya_shop2_card_to_bz', {
           p_card_id: activeCompletingCard.id,
           p_stage: 'Фарбування',
@@ -258,7 +259,7 @@ export default function PaintingTerminal() {
         setManualId('')
         setScanError(null)
         await fetchData(['work_cards', 'work_card_history', 'inventory'])
-        alert(`✅ ${actualFinished} шт передано в базовий залишок.${actualScrap > 0 ? ` ${actualScrap} шт передано у ВКЯ.` : ''}`)
+        alert(`✅ ${actualFinished} шт ${returnsToSourceRoute ? 'повернено у маршрут початкового наряду' : 'передано в базовий залишок'}.${actualScrap > 0 ? ` ${actualScrap} шт передано у ВКЯ.` : ''}`)
         return
       }
 
