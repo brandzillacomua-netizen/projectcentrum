@@ -2202,22 +2202,14 @@ export default function BrakModule() {
                     </div>
 
                     {selectedItem.is_history_row && !selectedItem.is_vkya_return && (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '12px', marginBottom: '20px' }}>
+                      <div style={{ marginBottom: '20px' }}>
                         <button
                           onClick={() => setRouteReturnDraft(selectedItem)}
                           disabled={isProcessing}
-                          style={{ background: '#10b98118', border: '1px solid #10b98155', color: '#10b981', borderRadius: '16px', padding: '16px', fontWeight: 1000, cursor: 'pointer' }}
+                          style={{ width: '100%', background: '#10b98118', border: '1px solid #10b98155', color: '#10b981', borderRadius: '16px', padding: '16px', fontWeight: 1000, cursor: 'pointer' }}
                         >
                           ПРИДАТНІ · ПОВЕРНУТИ В НАРЯД
-                          <div style={{ color: '#64748b', fontSize: '.62rem', fontWeight: 700, marginTop: 5 }}>Повернення на правильний етап без довипуску</div>
-                        </button>
-                        <button
-                          onClick={() => openRestorationModal(selectedItem)}
-                          disabled={isProcessing}
-                          style={{ background: '#06b6d418', border: '1px solid #06b6d455', color: '#06b6d4', borderRadius: '16px', padding: '16px', fontWeight: 1000, cursor: 'pointer' }}
-                        >
-                          НА ВІДНОВЛЕННЯ
-                          <div style={{ color: '#64748b', fontSize: '.62rem', fontWeight: 700, marginTop: 5 }}>Походження наряду та картки буде збережено</div>
+                          <div style={{ color: '#64748b', fontSize: '.62rem', fontWeight: 700, marginTop: 5 }}>Після натискання вкажіть кількість придатних деталей для повернення</div>
                         </button>
                       </div>
                     )}
