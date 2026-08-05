@@ -110,7 +110,7 @@ export function Shop1QCModal({
               boxShadow: '0 10px 30px rgba(239,68,68,0.3)',
               opacity: (isProcessing || qcScrapCount <= 0) ? 0.5 : 1
             }}>
-            {isProcessing ? 'ЗБЕРЕЖЕННЯ...' : '⚠️ СПИСАТИ У БРАК ВКЯ'}
+            {isProcessing ? 'ЗБЕРЕЖЕННЯ...' : '⚠️ ПЕРЕДАТИ В КАРАНТИН ВКЯ'}
           </button>
         </div>
       </div>

@@ -56,3 +56,58 @@ export async function createRestorationFromQualityHold(supabase, {
   return data
 }
 
+export async function returnRestorationToRoute(supabase, {
+  restorationCardId,
+  userName = null
+}) {
+  const { data, error } = await supabase.rpc('return_vkya_restoration_to_route', {
+    p_restoration_card_id: restorationCardId,
+    p_returned_by: userName
+  })
+  if (error) throw error
+  return data
+}
+
+export async function fetchRecoverableScrapLots(supabase) {
+  const { data, error } = await supabase
+    .from('vkya_recoverable_scrap_lots')
+    .select('*')
+    .gt('available_quantity', 0)
+    .order('classified_at', { ascending: false })
+  if (error) throw error
+  return data || []
+}
+
+export async function createReworkFromScrapLot(supabase, {
+  classificationCategoryId,
+  quantity,
+  userId = null,
+  userName = null
+}) {
+  const { data, error } = await supabase.rpc('create_vkya_rework_from_lot', {
+    p_classification_category_id: classificationCategoryId,
+    p_quantity: Number(quantity),
+    p_created_by_user_id: userId,
+    p_created_by_name: userName
+  })
+  if (error) throw error
+  return data
+}
+
+export async function createRestorationFromScrapLot(supabase, {
+  classificationCategoryId,
+  quantity,
+  restorationStageId,
+  userId = null,
+  userName = null
+}) {
+  const { data, error } = await supabase.rpc('create_vkya_restoration_from_lot', {
+    p_classification_category_id: classificationCategoryId,
+    p_quantity: Number(quantity),
+    p_restoration_stage_id: restorationStageId,
+    p_created_by_user_id: userId,
+    p_created_by_name: userName
+  })
+  if (error) throw error
+  return data
+}

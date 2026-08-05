@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { ArrowLeft, AlertTriangle, CheckCircle2, Package, Layers, ChevronRight, Info, Camera, X, Scan, BarChart2, Filter, Search, Calendar, Wrench, Settings } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMES } from '../MESContext'
@@ -6,7 +6,8 @@ import { useScrapReasons } from '../hooks/useScrapReasons'
 import { useRestorationStages } from '../hooks/useRestorationStages'
 import { getIndexedCache, setIndexedCache } from '../services/indexedDbCache'
 import ReturnToRouteModal from './VKYA/quality-hold/ReturnToRouteModal'
-import { createRestorationFromQualityHold, returnQualityHoldToRoute } from './VKYA/quality-hold/qualityHoldService'
+import { createRestorationFromQualityHold, createRestorationFromScrapLot, createReworkFromScrapLot, fetchRecoverableScrapLots, returnQualityHoldToRoute } from './VKYA/quality-hold/qualityHoldService'
+import { buildLegacyRecoverableInventoryItems, buildQualityStatusTotals, buildRecoverableScrapLotItems, QUALITY_CLASSIFICATION_OPTIONS } from './VKYA/quality-hold/qualityHoldModel'
 
 const VKYA_QUEUE_CACHE_KEY = 'VKYA_CLASSIFICATION_QUEUE_V1'
 
@@ -27,7 +28,7 @@ export default function BrakModule() {
   const { inventory, nomenclatures, fetchData, currentUser, disposeScrapItem, createReworkNaryad, productionStages, workCards, orders, machineCalls, machines, supabase, systemUsers } = useMES()
   const [isProcessing, setIsProcessing] = useState(false)
   const [selectedItem, setSelectedItem] = useState(null)
-  const [distribution, setDistribution] = useState({ 1: 0, 3: 0, 4: 0 })
+  const [distribution, setDistribution] = useState({ 1: 0, 4: 0 })
   const [reasonAllocations, setReasonAllocations] = useState([{ reason: '', qty: 0 }])
   const [viewingCategory, setViewingCategory] = useState(null)
   const [restorationDraft, setRestorationDraft] = useState(null)
@@ -36,9 +37,35 @@ export default function BrakModule() {
   const [routeReturnDraft, setRouteReturnDraft] = useState(null)
   const [reworkDraft, setReworkDraft] = useState(null)
   const [reworkQuantity, setReworkQuantity] = useState('')
+  const [recoverableScrapLots, setRecoverableScrapLots] = useState([])
+  const [recoverableLotsAvailable, setRecoverableLotsAvailable] = useState(true)
   const showReasonCatalog = false
   const { rows: scrapReasonRows, names: scrapReasons } = useScrapReasons()
   const { rows: restorationStages } = useRestorationStages()
+
+  const loadRecoverableScrapLots = useCallback(async () => {
+    try {
+      setRecoverableScrapLots(await fetchRecoverableScrapLots(supabase))
+      setRecoverableLotsAvailable(true)
+    } catch (error) {
+      const missingProjection = error?.code === '42P01' || error?.code === 'PGRST205'
+      if (!missingProjection) console.error('Failed to load recoverable scrap lots:', error)
+      setRecoverableScrapLots([])
+      setRecoverableLotsAvailable(false)
+    }
+  }, [supabase])
+
+  useEffect(() => {
+    const initialLoadTimer = setTimeout(loadRecoverableScrapLots, 0)
+    const channel = supabase.channel('vkya-recoverable-scrap-lots-ui')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vkya_scrap_lot_allocations' }, loadRecoverableScrapLots)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'scrap_classification_categories' }, loadRecoverableScrapLots)
+      .subscribe()
+    return () => {
+      clearTimeout(initialLoadTimer)
+      supabase.removeChannel(channel)
+    }
+  }, [supabase, loadRecoverableScrapLots])
 
   const [isScanning, setIsScanning] = useState(false)
   const [scanError, setScanError] = useState(null)
@@ -936,7 +963,7 @@ export default function BrakModule() {
 
   // Reset distribution when selected item changes
   useEffect(() => {
-    setDistribution({ 1: 0, 3: 0, 4: 0 })
+    setDistribution({ 1: 0, 4: 0 })
     setReasonAllocations([{ reason: '', qty: 0 }])
   }, [selectedItem])
 
@@ -1052,28 +1079,30 @@ export default function BrakModule() {
 
   const paginatedReadyItems = readyItems.slice((queuePage - 1) * queuePageSize, queuePage * queuePageSize);
 
-  // Stats for categorized scrap
-  const categorizedStats = {
-    cat1: (inventory || []).filter(i => i.type === 'scrap_cat_1').reduce((a, b) => a + (Number(b.total_qty) || 0), 0),
-    cat2: (inventory || []).filter(i => i.type === 'scrap_cat_2').reduce((a, b) => a + (Number(b.total_qty) || 0), 0),
-    cat3: (inventory || []).filter(i => i.type === 'scrap_cat_3').reduce((a, b) => a + (Number(b.total_qty) || 0), 0),
-    cat4: (inventory || []).filter(i => i.type === 'scrap_cat_4').reduce((a, b) => a + (Number(b.total_qty) || 0), 0),
-    restoration: (inventory || []).filter(i => i.type === 'scrap_restoration').reduce((a, b) => a + (Number(b.total_qty) || 0), 0),
-  }
+  // New defects remain in quarantine until VKYA chooses recoverable scrap or final scrap.
+  // Category 3 is included only as a rolling-deployment fallback; the migration moves it to category 1.
+  const qualityStatusTotals = buildQualityStatusTotals(inventory || [], readyItems)
+
+  const recoverableLotItems = buildRecoverableScrapLotItems(recoverableScrapLots)
+  const legacyRecoverableItems = buildLegacyRecoverableInventoryItems(
+    inventory || [],
+    recoverableLotsAvailable ? recoverableScrapLots : []
+  )
+  const recoverableScrapItems = recoverableLotsAvailable
+    ? [...recoverableLotItems, ...legacyRecoverableItems]
+    : legacyRecoverableItems
 
   const itemsInCat = viewingCategory 
     ? (viewingCategory === 'restoration'
         ? (inventory || []).filter(i => i.type === 'scrap_restoration' && (Number(i.total_qty) > 0))
         : viewingCategory === 'brak'
-          ? (inventory || []).filter(i => ['scrap_cat_1', 'scrap_cat_2'].includes(i.type) && (Number(i.total_qty) > 0))
+          ? recoverableScrapItems
           : (inventory || []).filter(i => i.type === `scrap_cat_${viewingCategory}` && (Number(i.total_qty) > 0)))
     : []
 
   const viewingCategoryLabel = viewingCategory === 'brak'
     ? 'Брак'
-    : viewingCategory === 3
-      ? 'Карантин'
-      : viewingCategory === 4
+    : viewingCategory === 4
         ? 'Утиль'
         : viewingCategory === 'restoration'
           ? 'Відновлення'
@@ -1169,6 +1198,12 @@ export default function BrakModule() {
           }
         }
 
+        const restorationOriginHistoryId = selectedItem.history_row.restoration_return_row?.source_history_id
+        const classificationNotes = [
+          selectedItem.history_row.qc_scrap_comment || null,
+          restorationOriginHistoryId ? `[VKYA_ORIGIN_HISTORY:${restorationOriginHistoryId}]` : null
+        ].filter(Boolean).join(' ')
+
         const { error: rpcErr } = await supabase.rpc('record_scrap_classification', {
           p_source_history_id: selectedItem.is_vkya_return ? null : selectedItem.id,
           p_card_id: selectedItem.card_id || null,
@@ -1185,7 +1220,7 @@ export default function BrakModule() {
           p_classified_by_name: userName,
           p_categories: categoriesParam,
           p_reasons: reasonsParam,
-          p_notes: selectedItem.history_row.qc_scrap_comment || null
+          p_notes: classificationNotes || null
         })
 
         if (rpcErr) {
@@ -1250,7 +1285,10 @@ export default function BrakModule() {
         setSelectedItem(null)
       }
       
-      await fetchData(['inventory', 'work_card_history'])
+      await Promise.all([
+        fetchData(['inventory', 'work_card_history']),
+        loadRecoverableScrapLots()
+      ])
     } catch (e) {
       alert('Помилка при класифікації: ' + e.message)
     } finally {
@@ -1284,8 +1322,21 @@ export default function BrakModule() {
 
     setIsProcessing(true)
     try {
-      await createReworkNaryad(item.id, quantity, 'Доопрацювання')
-      await fetchData(['inventory', 'orders', 'tasks', 'work_cards'])
+      const creatorName = currentUser ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.name || currentUser.login : null
+      if (item.is_classified_lot) {
+        await createReworkFromScrapLot(supabase, {
+          classificationCategoryId: item.classification_category_id,
+          quantity,
+          userId: currentUser?.id || null,
+          userName: creatorName
+        })
+      } else {
+        await createReworkNaryad(item.inventory_id || item.id, quantity, 'Доопрацювання')
+      }
+      await Promise.all([
+        fetchData(['inventory', 'orders', 'tasks', 'work_cards']),
+        loadRecoverableScrapLots()
+      ])
       setReworkDraft(null)
       setReworkQuantity('')
       alert(`Створено незалежний наряд на доопрацювання для ${quantity} шт. У категорії залишилося ${Number(item.total_qty) - quantity} шт.`)
@@ -1309,7 +1360,15 @@ export default function BrakModule() {
     setIsProcessing(true)
     try {
       const creatorName = currentUser ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.name || currentUser.login : null
-      if (item.is_history_row && !item.is_vkya_return) {
+      if (item.is_classified_lot) {
+        await createRestorationFromScrapLot(supabase, {
+          classificationCategoryId: item.classification_category_id,
+          quantity,
+          restorationStageId,
+          userId: currentUser?.id || null,
+          userName: creatorName
+        })
+      } else if (item.is_history_row && !item.is_vkya_return) {
         await createRestorationFromQualityHold(supabase, {
           sourceHistoryId: item.id,
           quantity,
@@ -1320,7 +1379,7 @@ export default function BrakModule() {
         await loadScrapHistory()
       } else {
         const { error } = await supabase.rpc('create_vkya_restoration_card', {
-          p_inventory_id: item.id,
+          p_inventory_id: item.inventory_id || item.id,
           p_quantity: quantity,
           p_restoration_stage_id: restorationStageId,
           p_created_by_user_id: currentUser?.id || null,
@@ -1328,7 +1387,10 @@ export default function BrakModule() {
         })
         if (error) throw error
       }
-      await fetchData('inventory')
+      await Promise.all([
+        fetchData('inventory'),
+        loadRecoverableScrapLots()
+      ])
       setRestorationDraft(null)
       const stageName = restorationStages.find(stage => stage.id === restorationStageId)?.name || 'не вказано'
       alert(`Створено карту відновлення на ${quantity} шт. Етап: ${stageName}.`)
@@ -1532,10 +1594,9 @@ export default function BrakModule() {
                           <th style={{ padding: '10px 8px' }}>Деталь</th>
                           <th style={{ padding: '10px 8px' }}>Оператор</th>
                           <th style={{ padding: '10px 8px' }}>Етап</th>
-                          <th style={{ padding: '10px 8px', textAlign: 'center', color: '#eab308' }}>Брак</th>
                           <th style={{ padding: '10px 8px', textAlign: 'center', color: '#f97316' }}>Карантин</th>
+                          <th style={{ padding: '10px 8px', textAlign: 'center', color: '#eab308' }}>Брак</th>
                           <th style={{ padding: '10px 8px', textAlign: 'center', color: '#ef4444' }}>Утиль</th>
-                          <th style={{ padding: '10px 8px', textAlign: 'center', color: '#a1a1aa' }}>Не класиф.</th>
                           <th style={{ padding: '10px 8px', textAlign: 'right' }}>Всього</th>
                         </tr>
                       </thead>
@@ -1546,15 +1607,14 @@ export default function BrakModule() {
                             <td style={{ padding: '10px 8px', color: '#fff', fontWeight: 700 }}>{h.nom_name}</td>
                             <td style={{ padding: '10px 8px', color: '#d4d4d8' }}>{h.operator_name}</td>
                             <td style={{ padding: '10px 8px', color: '#a1a1aa' }}>{h.stage_name}</td>
-                            <td style={{ padding: '10px 8px', textAlign: 'center', color: h.cat1 + h.cat2 > 0 ? '#eab308' : '#3f3f46', fontWeight: h.cat1 + h.cat2 > 0 ? '900' : '400' }}>{h.cat1 + h.cat2 || '—'}</td>
-                            <td style={{ padding: '10px 8px', textAlign: 'center', color: h.cat3 > 0 ? '#f97316' : '#3f3f46', fontWeight: h.cat3 > 0 ? '900' : '400' }}>{h.cat3 || '—'}</td>
+                            <td style={{ padding: '10px 8px', textAlign: 'center', color: h.unclassified > 0 ? '#f97316' : '#3f3f46', fontWeight: h.unclassified > 0 ? '900' : '400' }}>{h.unclassified || '—'}</td>
+                            <td style={{ padding: '10px 8px', textAlign: 'center', color: h.cat1 + h.cat2 + h.cat3 > 0 ? '#eab308' : '#3f3f46', fontWeight: h.cat1 + h.cat2 + h.cat3 > 0 ? '900' : '400' }}>{h.cat1 + h.cat2 + h.cat3 || '—'}</td>
                             <td style={{ padding: '10px 8px', textAlign: 'center', color: h.cat4 > 0 ? '#ef4444' : '#3f3f46', fontWeight: h.cat4 > 0 ? '900' : '400' }}>{h.cat4 || '—'}</td>
-                            <td style={{ padding: '10px 8px', textAlign: 'center', color: h.unclassified > 0 ? '#a1a1aa' : '#27272a', fontWeight: h.unclassified > 0 ? '700' : '400' }}>{h.unclassified || '—'}</td>
                             <td style={{ padding: '10px 8px', textAlign: 'right', color: '#ef4444', fontWeight: 900 }}>{h.scrap_qty}</td>
                           </tr>
                         ))}
                         {reportScrapStats.list.length === 0 && (
-                          <tr><td colSpan="9" style={{ padding: '20px', textAlign: 'center', color: '#71717a' }}>Брак відсутній за обраний період</td></tr>
+                          <tr><td colSpan="8" style={{ padding: '20px', textAlign: 'center', color: '#71717a' }}>Брак відсутній за обраний період</td></tr>
                         )}
                       </tbody>
                     </table>
@@ -1830,15 +1890,20 @@ export default function BrakModule() {
         {/* Stats Dashboard */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '20px', marginBottom: '40px' }}>
           {[
-            { cat: 'brak', label: 'Брак', val: categorizedStats.cat1 + categorizedStats.cat2, color: '#eab308', desc: 'Брак і деталі на доопрацювання' },
-            { cat: 3, label: 'Карантин', val: categorizedStats.cat3, color: '#f97316', desc: 'Деталі, що потребують окремого рішення' },
-            { cat: 4, label: 'Утиль', val: categorizedStats.cat4, color: '#ef4444', desc: 'Безнадійний брак для списання' },
-            { cat: 'restoration', label: 'Відновлення', val: categorizedStats.restoration, color: '#06b6d4', desc: 'Внутрішнє відновлення' },
+            { cat: 'quarantine', label: 'Карантин', val: qualityStatusTotals.quarantine, color: '#f97316', desc: 'Нові деталі, що очікують рішення ВКЯ' },
+            { cat: 'brak', label: 'Брак', val: qualityStatusTotals.recoverableScrap, color: '#eab308', desc: 'Класифікований брак і деталі на доопрацювання' },
+            { cat: 4, label: 'Утиль', val: qualityStatusTotals.finalScrap, color: '#ef4444', desc: 'Безнадійний брак для списання' },
+            { cat: 'restoration', label: 'Відновлення', val: qualityStatusTotals.restoration, color: '#06b6d4', desc: 'Внутрішнє відновлення' },
           ].map(s => (
             <div key={s.label} 
               onClick={() => {
                 if (s.cat === 'restoration') {
                   navigate('/brak/restoration')
+                  return
+                }
+                if (s.cat === 'quarantine') {
+                  setViewingCategory(null)
+                  setSelectedItem(null)
                   return
                 }
                 setViewingCategory(s.cat === viewingCategory ? null : s.cat)
@@ -1868,7 +1933,7 @@ export default function BrakModule() {
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 950 }}>
-                {viewingCategory ? `Деталі: ${viewingCategoryLabel}` : 'Черга на класифікацію'}
+                {viewingCategory ? `Деталі: ${viewingCategoryLabel}` : 'КАРАНТИН · ОЧІКУЮТЬ КЛАСИФІКАЦІЇ ВКЯ'}
               </h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                 <div style={{ background: viewingCategory ? '#444' : '#ef444415', padding: '8px 14px', borderRadius: '10px', color: viewingCategory ? '#fff' : '#ef4444', fontSize: '0.75rem', fontWeight: 1000 }}>
@@ -1904,6 +1969,19 @@ export default function BrakModule() {
                   }}>
                     <div>
                       <div style={{ fontWeight: 900, fontSize: '1.05rem', marginBottom: '2px' }}>{item.name}</div>
+                      {item.is_classified_lot && (
+                        <div style={{ fontSize: '0.68rem', lineHeight: 1.55, color: '#777', fontWeight: 800 }}>
+                          <span style={{ color: '#eab308' }}>Наряд №{item.naryad_number}</span>
+                          {item.card_sequence ? <> · <span style={{ color: '#06b6d4' }}>Картка №{item.card_sequence}</span></> : null}
+                          {item.operator ? <> · Оператор: <span style={{ color: '#a78bfa' }}>{item.operator}</span></> : null}
+                          {item.stage ? <> · Етап: {item.stage}</> : null}
+                        </div>
+                      )}
+                      {item.is_legacy_aggregate && (
+                        <div style={{ color: '#f97316', fontSize: '0.66rem', fontWeight: 950, marginTop: '3px' }}>
+                          СТАРИЙ АГРЕГОВАНИЙ ЗАЛИШОК · ДЖЕРЕЛО НАРЯДУ НЕ ЗБЕРЕЖЕНЕ
+                        </div>
+                      )}
                       <div style={{ fontSize: '0.65rem', color: '#555', fontWeight: 800 }}>Обліковується як: {item.type === 'scrap_restoration' ? 'Відновлення (ВКЯ)' : item.type}</div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
@@ -2104,7 +2182,7 @@ export default function BrakModule() {
                        <div>
                           <div style={{ fontSize: '1.4rem', fontWeight: 1000, lineHeight: 1.1 }}>{selectedItem.name}</div>
                           <div style={{ fontSize: '1rem', color: '#ef4444', fontWeight: 1000, marginTop: '8px' }}>
-                            Брак: {selectedItem.total_qty} шт
+                            На карантині: {selectedItem.total_qty} шт
                           </div>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 12px', marginTop: '10px', fontSize: '0.7rem', fontWeight: 900 }}>
                             <span style={{ color: '#f59e0b' }}>Наряд №{selectedItem.naryad_number}</span>
@@ -2145,14 +2223,15 @@ export default function BrakModule() {
                     )}
 
                     <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '25px', marginBottom: '30px', border: '1px solid #1a1a1a' }}>
-                        <div style={{ fontSize: '0.65rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', marginBottom: '20px' }}>РОЗПОДІЛ ЗА КАТЕГОРІЯМИ:</div>
+                        <div style={{ fontSize: '0.65rem', color: '#444', fontWeight: 900, textTransform: 'uppercase', marginBottom: '20px' }}>РІШЕННЯ ВКЯ:</div>
                         
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                          {[
-                            { cat: 1, label: 'Брак', color: '#eab308', desc: 'Брак або деталі, які можна передати на доопрацювання' },
-                            { cat: 3, label: 'Карантин', color: '#f97316', desc: 'Потребує окремого рішення відповідального працівника' },
-                            { cat: 4, label: 'Утиль', color: '#ef4444', desc: 'Безнадійний брак для остаточного списання' },
-                          ].map(c => (
+                          {QUALITY_CLASSIFICATION_OPTIONS.map(option => ({
+                            cat: option.category,
+                            label: option.label,
+                            color: option.color,
+                            desc: option.description
+                          })).map(c => (
                             <div key={c.cat} style={{ 
                               background: '#0a0a0a', 
                               borderLeft: '1px solid #1a1a1a', 
@@ -2415,7 +2494,7 @@ export default function BrakModule() {
                   boxShadow: '0 10px 30px rgba(239,68,68,0.3)',
                   opacity: (isProcessing || qcScrapCount <= 0 || !qcResponsibleOperator) ? 0.5 : 1
                 }}>
-                {isProcessing ? 'ЗБЕРЕЖЕННЯ...' : '⚠️ СПИСАТИ У БРАК ВКЯ'}
+                {isProcessing ? 'ЗБЕРЕЖЕННЯ...' : '⚠️ ПЕРЕДАТИ В КАРАНТИН ВКЯ'}
               </button>
             </div>
           </div>

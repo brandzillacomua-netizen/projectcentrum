@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, CheckCircle2, Clock3, Play, RefreshCw, Search, ShieldCheck, Wrench, X } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Clock3, CornerUpLeft, Play, RefreshCw, Search, ShieldCheck, Wrench, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { supabase } from '../supabase'
 import { useRestorationStages } from '../hooks/useRestorationStages'
+import { returnRestorationToRoute } from './VKYA/quality-hold/qualityHoldService'
 
 const STATUS = {
   new: { label: 'ОЧІКУЄ', color: '#f59e0b' },
@@ -49,10 +50,10 @@ export default function VKYARestorationTerminal() {
   }, [loadCards])
 
   const visibleCards = useMemo(() => cards.filter(card => {
-    const matchesTab = tab === 'awaiting_shop2'
-      ? card.status === 'completed' && !card.shop2_card_id && Number(card.completed_quantity) > 0
+    const matchesTab = tab === 'awaiting_action'
+      ? card.status === 'completed' && !card.shop2_card_id && !card.route_card_id && Number(card.completed_quantity) > 0
       : tab === 'completed'
-        ? card.status === 'completed' && (Boolean(card.shop2_card_id) || Number(card.completed_quantity) === 0)
+        ? card.status === 'completed' && (Boolean(card.shop2_card_id) || Boolean(card.route_card_id) || Number(card.completed_quantity) === 0)
         : card.status !== 'completed'
     const haystack = `${card.card_number} ${card.nomenclature_name} ${card.restoration_stage} ${card.operator_name || ''}`.toLowerCase()
     return matchesTab && haystack.includes(query.trim().toLowerCase())
@@ -83,7 +84,7 @@ export default function VKYARestorationTerminal() {
     setSelectedCard(null)
     setCompletedQty('')
     await loadCards()
-    if (Number(returnedQuantity) > 0) alert(`${returnedQuantity} шт. повернено в чергу класифікації ВКЯ з позначкою «${selectedCard.restoration_stage} (ВКЯ)».`)
+    if (Number(returnedQuantity) > 0) alert(`${returnedQuantity} шт. повернено в Карантин ВКЯ з позначкою «${selectedCard.restoration_stage} (ВКЯ)».`)
   }
 
   const openCard = card => {
@@ -104,6 +105,25 @@ export default function VKYARestorationTerminal() {
     if (dispatchError) return setError(dispatchError.message)
     setSelectedCard(null)
     await loadCards()
+  }
+
+  const returnToSourceRoute = async () => {
+    if (!selectedCard || selectedCard.status !== 'completed' || selectedCard.shop2_card_id || selectedCard.route_card_id) return
+    if (!window.confirm(`Повернути ${selectedCard.completed_quantity} ${selectedCard.unit || 'шт'} у початковий наряд?`)) return
+    setSaving(true)
+    try {
+      await returnRestorationToRoute(supabase, {
+        restorationCardId: selectedCard.id,
+        userName: userName(currentUser) || selectedCard.operator_name || null
+      })
+      setSelectedCard(null)
+      await loadCards()
+      alert(`✅ ${selectedCard.completed_quantity} шт. повернено у виробничий маршрут початкового наряду.`)
+    } catch (returnError) {
+      setError(returnError.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const assignLegacyItem = async () => {
@@ -149,23 +169,45 @@ export default function VKYARestorationTerminal() {
     </section>}
 
     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
-      {[['active', 'АКТИВНІ КАРТИ'], ['awaiting_shop2', 'ОЧІКУЮТЬ ЦЕХ №2'], ['completed', 'ПЕРЕДАНІ В ЦЕХ №2']].map(([value, label]) => <button key={value} onClick={() => setTab(value)} style={{ background: tab === value ? '#06b6d4' : '#111', color: tab === value ? '#001014' : '#aaa', border: '1px solid #222', padding: '10px 18px', borderRadius: 11, fontWeight: 950, cursor: 'pointer' }}>{label}</button>)}
+      {[['active', 'АКТИВНІ КАРТИ'], ['awaiting_action', 'ОЧІКУЮТЬ РІШЕННЯ'], ['completed', 'ЗАВЕРШЕНІ']].map(([value, label]) => <button key={value} onClick={() => setTab(value)} style={{ background: tab === value ? '#06b6d4' : '#111', color: tab === value ? '#001014' : '#aaa', border: '1px solid #222', padding: '10px 18px', borderRadius: 11, fontWeight: 950, cursor: 'pointer' }}>{label}</button>)}
       <label style={{ flex: 1, minWidth: 230, display: 'flex', alignItems: 'center', gap: 9, background: '#0d0d0d', border: '1px solid #222', borderRadius: 11, padding: '0 13px' }}><Search size={16} color="#666"/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Пошук за деталлю, етапом або картою" style={{ width: '100%', border: 0, outline: 0, background: 'transparent', color: '#fff', padding: '11px 0' }}/></label>
     </div>
 
     {error && <div style={{ background: '#ef444418', border: '1px solid #ef444455', color: '#fca5a5', borderRadius: 12, padding: 14, marginBottom: 16 }}>Помилка: {error}</div>}
     {!loading && visibleCards.length === 0 && <div style={{ border: '2px dashed #222', borderRadius: 22, padding: 55, textAlign: 'center', color: '#555' }}>У цій черзі карт немає</div>}
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {visibleCards.map(card => { const meta = STATUS[card.status]; const canOpen = card.status !== 'completed' || !card.shop2_card_id; return <button key={card.id} onClick={() => canOpen && openCard(card)} style={{ textAlign: 'left', background: '#101010', color: '#fff', border: '1px solid #202020', borderRadius: 18, padding: 20, cursor: canOpen ? 'pointer' : 'default', display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(140px, .5fr) auto', gap: 20, alignItems: 'center' }}>
+      {visibleCards.map(card => { const meta = STATUS[card.status]; const canOpen = card.status !== 'completed' || (!card.shop2_card_id && !card.route_card_id); return <button key={card.id} onClick={() => canOpen && openCard(card)} style={{ textAlign: 'left', background: '#101010', color: '#fff', border: '1px solid #202020', borderRadius: 18, padding: 20, cursor: canOpen ? 'pointer' : 'default', display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(140px, .5fr) auto', gap: 20, alignItems: 'center' }}>
         <div><div style={{ color: '#06b6d4', fontSize: '.68rem', fontWeight: 950 }}>КАРТА ВІДНОВЛЕННЯ №{card.card_number}</div><div style={{ fontSize: '1.05rem', fontWeight: 950, marginTop: 6, overflowWrap: 'anywhere' }}>{card.nomenclature_name}</div><div style={{ color: '#666', fontSize: '.7rem', marginTop: 5 }}>Створено {new Date(card.created_at).toLocaleString('uk-UA')}</div></div>
         <div><div style={{ color: '#777', fontSize: '.65rem', fontWeight: 900 }}>ЕТАП ВІДНОВЛЕННЯ</div><div style={{ fontWeight: 900, marginTop: 5 }}>{card.restoration_stage}</div>{card.operator_name && <div style={{ color: '#888', fontSize: '.7rem', marginTop: 5 }}>{card.operator_name}</div>}</div>
-        <div style={{ textAlign: 'right' }}><div style={{ color: meta.color, fontSize: '.68rem', fontWeight: 1000 }}>{card.shop2_card_id ? `ПЕРЕДАНО: ${card.shop2_stage}` : meta.label}</div><div style={{ fontSize: '1.65rem', fontWeight: 1000, marginTop: 5 }}>{card.status === 'completed' ? `${card.completed_quantity} / ` : ''}{card.quantity} <small style={{ fontSize: '.65rem', color: '#666' }}>{card.unit}</small></div>{card.status === 'completed' && !card.shop2_card_id && Number(card.completed_quantity) > 0 && <div style={{ color: '#f59e0b', fontSize: '.62rem', fontWeight: 950, marginTop: 5 }}>ОЧІКУЄ ПЕРЕДАЧІ В ЦЕХ №2</div>}</div>
+        <div style={{ textAlign: 'right' }}><div style={{ color: meta.color, fontSize: '.68rem', fontWeight: 1000 }}>{card.route_card_id ? 'ПОВЕРНЕНО В НАРЯД' : card.shop2_card_id ? `ПЕРЕДАНО: ${card.shop2_stage}` : meta.label}</div><div style={{ fontSize: '1.65rem', fontWeight: 1000, marginTop: 5 }}>{card.status === 'completed' ? `${card.completed_quantity} / ` : ''}{card.quantity} <small style={{ fontSize: '.65rem', color: '#666' }}>{card.unit}</small></div>{card.status === 'completed' && !card.shop2_card_id && !card.route_card_id && Number(card.completed_quantity) > 0 && <div style={{ color: '#f59e0b', fontSize: '.62rem', fontWeight: 950, marginTop: 5 }}>ОЧІКУЄ ПОВЕРНЕННЯ АБО ПЕРЕДАЧІ</div>}</div>
       </button> })}
     </div>
 
     {selectedCard && <div onClick={() => !saving && setSelectedCard(null)} style={{ position: 'fixed', inset: 0, zIndex: 10050, background: 'rgba(0,0,0,.86)', display: 'grid', placeItems: 'center', padding: 20 }}><div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 510, background: '#0d0d0d', border: '1px solid #292929', borderRadius: 24, padding: 26 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 15 }}><div><div style={{ color: '#06b6d4', fontSize: '.7rem', fontWeight: 950 }}>КАРТА №{selectedCard.card_number}</div><h2 style={{ margin: '8px 0 4px' }}>{selectedCard.nomenclature_name}</h2><div style={{ color: '#888' }}>{selectedCard.restoration_stage} · {selectedCard.quantity} {selectedCard.unit}</div></div><button onClick={() => setSelectedCard(null)} style={{ background: 'transparent', border: 0, color: '#777', cursor: 'pointer' }}><X/></button></div>
-      {selectedCard.status === 'new' ? <><label style={{ display: 'block', color: '#888', fontSize: '.72rem', fontWeight: 900, margin: '25px 0 8px' }}>ПРАЦІВНИК ВКЯ</label><input autoFocus value={operator} onChange={e => setOperator(e.target.value)} placeholder="Вкажіть працівника" style={{ boxSizing: 'border-box', width: '100%', background: '#050505', border: '1px solid #333', borderRadius: 12, color: '#fff', padding: 14 }}/><button onClick={startCard} disabled={saving || !operator.trim()} style={{ width: '100%', marginTop: 20, background: '#06b6d4', border: 0, borderRadius: 13, padding: 14, color: '#001014', fontWeight: 1000, cursor: 'pointer' }}><Play size={17} style={{ verticalAlign: 'middle', marginRight: 7 }}/>ВЗЯТИ В РОБОТУ</button></> : selectedCard.status === 'in_progress' ? <><label style={{ display: 'block', color: '#888', fontSize: '.72rem', fontWeight: 900, margin: '25px 0 8px' }}>ФАКТИЧНО ВІДНОВЛЕНО, {selectedCard.unit}</label><input type="number" min="0" max={selectedCard.quantity} value={completedQty} onChange={e => setCompletedQty(e.target.value)} style={{ boxSizing: 'border-box', width: '100%', background: '#050505', border: '1px solid #333', borderRadius: 12, color: '#fff', padding: 14, fontSize: '1.15rem', fontWeight: 900 }}/><button onClick={completeCard} disabled={saving || completedQty === '' || Number(completedQty) < 0 || Number(completedQty) > Number(selectedCard.quantity)} style={{ width: '100%', marginTop: 20, background: '#10b981', border: 0, borderRadius: 13, padding: 14, color: '#00150e', fontWeight: 1000, cursor: 'pointer' }}><ShieldCheck size={17} style={{ verticalAlign: 'middle', marginRight: 7 }}/>ЗАВЕРШИТИ КАРТУ</button></> : <><label style={{ display: 'block', color: '#888', fontSize: '.72rem', fontWeight: 900, margin: '25px 0 8px' }}>НАСТУПНИЙ ЕТАП ЦЕХУ №2</label><select value={shop2Stage} onChange={event => setShop2Stage(event.target.value)} style={{ boxSizing: 'border-box', width: '100%', background: '#050505', border: '1px solid #333', borderRadius: 12, color: '#fff', padding: 14, fontWeight: 900 }}><option value="Пресування">Пресування</option><option value="Фарбування">Фарбування</option></select><div style={{ color: '#666', fontSize: '.7rem', marginTop: 9 }}>Буде створено окрему карту на {selectedCard.completed_quantity} {selectedCard.unit}. Після завершення етапу деталі надійдуть у базовий залишок.</div><button onClick={dispatchToShop2} disabled={saving || Number(selectedCard.completed_quantity) <= 0} style={{ width: '100%', marginTop: 20, background: '#f59e0b', border: 0, borderRadius: 13, padding: 14, color: '#160d00', fontWeight: 1000, cursor: 'pointer' }}>ПЕРЕДАТИ В ЦЕХ №2</button></>}
+      {selectedCard.status === 'new' && <>
+        <label style={{ display: 'block', color: '#888', fontSize: '.72rem', fontWeight: 900, margin: '25px 0 8px' }}>ПРАЦІВНИК ВКЯ</label>
+        <input autoFocus value={operator} onChange={event => setOperator(event.target.value)} placeholder="Вкажіть працівника" style={{ boxSizing: 'border-box', width: '100%', background: '#050505', border: '1px solid #333', borderRadius: 12, color: '#fff', padding: 14 }}/>
+        <button onClick={startCard} disabled={saving || !operator.trim()} style={{ width: '100%', marginTop: 20, background: '#06b6d4', border: 0, borderRadius: 13, padding: 14, color: '#001014', fontWeight: 1000, cursor: 'pointer' }}><Play size={17} style={{ verticalAlign: 'middle', marginRight: 7 }}/>ВЗЯТИ В РОБОТУ</button>
+      </>}
+      {selectedCard.status === 'in_progress' && <>
+        <label style={{ display: 'block', color: '#888', fontSize: '.72rem', fontWeight: 900, margin: '25px 0 8px' }}>ФАКТИЧНО ВІДНОВЛЕНО, {selectedCard.unit}</label>
+        <input type="number" min="0" max={selectedCard.quantity} value={completedQty} onChange={event => setCompletedQty(event.target.value)} style={{ boxSizing: 'border-box', width: '100%', background: '#050505', border: '1px solid #333', borderRadius: 12, color: '#fff', padding: 14, fontSize: '1.15rem', fontWeight: 900 }}/>
+        <button onClick={completeCard} disabled={saving || completedQty === '' || Number(completedQty) < 0 || Number(completedQty) > Number(selectedCard.quantity)} style={{ width: '100%', marginTop: 20, background: '#10b981', border: 0, borderRadius: 13, padding: 14, color: '#00150e', fontWeight: 1000, cursor: 'pointer' }}><ShieldCheck size={17} style={{ verticalAlign: 'middle', marginRight: 7 }}/>ЗАВЕРШИТИ КАРТУ</button>
+      </>}
+      {selectedCard.status === 'completed' && <>
+        {selectedCard.source_history_id && selectedCard.source_task_id && <div style={{ marginTop: 24, background: '#10b98112', border: '1px solid #10b98144', borderRadius: 14, padding: 15 }}>
+          <div style={{ color: '#10b981', fontSize: '.72rem', fontWeight: 1000 }}>ПОВЕРНЕННЯ У ПОЧАТКОВИЙ НАРЯД</div>
+          <div style={{ color: '#94a3b8', fontSize: '.7rem', marginTop: 7 }}>Відновлені деталі повернуться після етапу «{selectedCard.source_stage_name || 'ВКЯ'}» і продовжать звичайний маршрут до ГП.</div>
+          <button onClick={returnToSourceRoute} disabled={saving || Number(selectedCard.completed_quantity) <= 0} style={{ width: '100%', marginTop: 14, background: '#10b981', border: 0, borderRadius: 12, padding: 14, color: '#00150e', fontWeight: 1000, cursor: 'pointer' }}><CornerUpLeft size={17} style={{ verticalAlign: 'middle', marginRight: 7 }}/>ПОВЕРНУТИ В НАРЯД · {selectedCard.completed_quantity} {selectedCard.unit}</button>
+        </div>}
+        <div style={{ marginTop: 18, borderTop: '1px solid #222', paddingTop: 18 }}>
+          <label style={{ display: 'block', color: '#888', fontSize: '.72rem', fontWeight: 900, marginBottom: 8 }}>{selectedCard.source_history_id ? 'АБО ПЕРЕДАТИ НА ЕТАП ЦЕХУ №2' : 'НАСТУПНИЙ ЕТАП ЦЕХУ №2'}</label>
+          <select value={shop2Stage} onChange={event => setShop2Stage(event.target.value)} style={{ boxSizing: 'border-box', width: '100%', background: '#050505', border: '1px solid #333', borderRadius: 12, color: '#fff', padding: 14, fontWeight: 900 }}><option value="Пресування">Пресування</option><option value="Фарбування">Фарбування</option></select>
+          <div style={{ color: '#666', fontSize: '.7rem', marginTop: 9 }}>{selectedCard.source_history_id ? 'Карта залишиться прив’язаною до початкового наряду.' : 'Стара карта не має походження наряду; після етапу деталі надійдуть у базовий залишок.'}</div>
+          <button onClick={dispatchToShop2} disabled={saving || Number(selectedCard.completed_quantity) <= 0} style={{ width: '100%', marginTop: 14, background: '#f59e0b', border: 0, borderRadius: 13, padding: 14, color: '#160d00', fontWeight: 1000, cursor: 'pointer' }}>ПЕРЕДАТИ В ЦЕХ №2</button>
+        </div>
+      </>}
     </div></div>}
     {legacyDraft && <div onClick={() => !saving && setLegacyDraft(null)} style={{ position: 'fixed', inset: 0, zIndex: 10060, background: 'rgba(0,0,0,.88)', display: 'grid', placeItems: 'center', padding: 20 }}><div onClick={event => event.stopPropagation()} style={{ width: '100%', maxWidth: 500, background: '#0d0d0d', border: '1px solid #f59e0b55', borderRadius: 22, padding: 25 }}><div style={{ display: 'flex', justifyContent: 'space-between', gap: 14 }}><div><div style={{ color: '#f59e0b', fontSize: '.68rem', fontWeight: 1000 }}>РОЗПОДІЛИТИ У КАРТУ</div><h2 style={{ margin: '7px 0 3px', overflowWrap: 'anywhere' }}>{legacyDraft.name}</h2><div style={{ color: '#777' }}>Доступно: {legacyDraft.total_qty} {legacyDraft.unit || 'шт'}</div></div><button onClick={() => setLegacyDraft(null)} style={{ alignSelf: 'flex-start', background: 'transparent', border: 0, color: '#777', cursor: 'pointer' }}><X/></button></div><label style={{ display: 'block', color: '#888', fontSize: '.7rem', fontWeight: 950, margin: '22px 0 7px' }}>КІЛЬКІСТЬ</label><input autoFocus type="number" min="1" max={legacyDraft.total_qty} value={legacyQuantity} onChange={event => setLegacyQuantity(event.target.value)} style={{ boxSizing: 'border-box', width: '100%', background: '#050505', border: '1px solid #333', borderRadius: 11, color: '#fff', padding: 13 }}/><label style={{ display: 'block', color: '#888', fontSize: '.7rem', fontWeight: 950, margin: '17px 0 7px' }}>ЕТАП ВІДНОВЛЕННЯ</label><select value={legacyStageId} onChange={event => setLegacyStageId(event.target.value)} style={{ boxSizing: 'border-box', width: '100%', background: '#050505', border: '1px solid #333', borderRadius: 11, color: '#fff', padding: 13 }}><option value="">Оберіть етап</option>{restorationStages.map(stage => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select><button onClick={assignLegacyItem} disabled={saving || !legacyStageId || !Number.isInteger(Number(legacyQuantity)) || Number(legacyQuantity) <= 0 || Number(legacyQuantity) > Number(legacyDraft.total_qty)} style={{ width: '100%', marginTop: 21, background: '#f59e0b', color: '#170d00', border: 0, borderRadius: 12, padding: 14, fontWeight: 1000, cursor: 'pointer' }}>{saving ? 'СТВОРЕННЯ...' : 'СТВОРИТИ КАРТУ'}</button></div></div>}
   </div>

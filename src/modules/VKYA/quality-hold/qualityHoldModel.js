@@ -4,6 +4,11 @@ export const QUALITY_DISPOSITIONS = Object.freeze({
   FINAL_SCRAP_CATEGORY: 4
 })
 
+export const QUALITY_CLASSIFICATION_OPTIONS = Object.freeze([
+  { category: 1, label: 'Брак', color: '#eab308', description: 'Брак або деталі, які можна передати на доопрацювання' },
+  { category: 4, label: 'Утиль', color: '#ef4444', description: 'Безнадійний брак для остаточного списання' }
+])
+
 const id = value => value === null || value === undefined ? '' : String(value)
 const qty = value => Math.max(0, Number(value) || 0)
 
@@ -39,3 +44,60 @@ export const asScrapTotalRows = (rows = []) => rows.map((row, index) => ({
   is_vkya_final_scrap: true
 }))
 
+export const buildQualityStatusTotals = (inventory = [], quarantineItems = []) => {
+  const inventoryTotal = types => inventory
+    .filter(item => types.includes(item?.type))
+    .reduce((sum, item) => sum + qty(item?.total_qty), 0)
+
+  return {
+    quarantine: quarantineItems.reduce((sum, item) => sum + qty(item?.total_qty), 0),
+    recoverableScrap: inventoryTotal(['scrap_cat_1', 'scrap_cat_2', 'scrap_cat_3']),
+    finalScrap: inventoryTotal(['scrap_cat_4']),
+    restoration: inventoryTotal(['scrap_restoration'])
+  }
+}
+
+const recoverableStorageType = value => value === 'scrap_cat_2' ? 'scrap_cat_2' : 'scrap_cat_1'
+
+export const buildRecoverableScrapLotItems = (rows = []) => rows
+  .filter(row => qty(row?.available_quantity) > 0)
+  .map(row => ({
+    ...row,
+    id: `vkya-lot-${id(row.classification_category_id)}`,
+    name: row.nomenclature_name || row.name || 'Деталь',
+    type: recoverableStorageType(row.storage_type),
+    total_qty: qty(row.available_quantity),
+    is_classified_lot: true,
+    operator: row.source_operator_name,
+    stage: row.source_stage_name,
+    updated_at: row.classified_at,
+    naryad_number: row.order_number || '—'
+  }))
+
+export const buildLegacyRecoverableInventoryItems = (inventory = [], lotRows = []) => {
+  const covered = new Map()
+  lotRows.forEach(row => {
+    const key = `${id(row?.nomenclature_id)}|${recoverableStorageType(row?.storage_type)}`
+    covered.set(key, (covered.get(key) || 0) + qty(row?.available_quantity))
+  })
+
+  return inventory
+    .filter(item => ['scrap_cat_1', 'scrap_cat_2', 'scrap_cat_3'].includes(item?.type) && qty(item?.total_qty) > 0)
+    .map(item => {
+      const type = recoverableStorageType(item.type)
+      const key = `${id(item.nomenclature_id)}|${type}`
+      const represented = covered.get(key) || 0
+      const consumed = Math.min(qty(item.total_qty), represented)
+      covered.set(key, represented - consumed)
+      const remainder = qty(item.total_qty) - consumed
+      return remainder > 0 ? {
+        ...item,
+        id: `legacy-${id(item.id)}`,
+        inventory_id: item.id,
+        type,
+        total_qty: remainder,
+        is_legacy_aggregate: true
+      } : null
+    })
+    .filter(Boolean)
+}
