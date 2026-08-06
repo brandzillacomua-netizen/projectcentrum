@@ -172,6 +172,40 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
   ).length
   
   const availableNoms = (nomenclatures || []).filter(n => n.type !== 'part' && n.type !== 'product' && n.type !== 'finished')
+
+  const stockRows = useMemo(() => {
+    const targetWarehouse = isProcurementOnly ? 'procurement' : 'production'
+    const warehouseRows = (inventory || []).filter(item =>
+      item.type !== 'finished' && item.type !== 'product' && item.warehouse === targetWarehouse
+    )
+
+    if (isProcurementOnly) return warehouseRows
+
+    const representedNomenclatures = new Set(
+      warehouseRows.map(item => item.nomenclature_id).filter(Boolean).map(String)
+    )
+    const representedNames = new Set(
+      warehouseRows.map(item => String(item.name || '').trim().toLowerCase()).filter(Boolean)
+    )
+    const missingSheets = (nomenclatures || [])
+      .filter(nom => /^лист(?:\s|$)/i.test(String(nom.name || '').trim()))
+      .filter(nom => !representedNomenclatures.has(String(nom.id)) && !representedNames.has(String(nom.name || '').trim().toLowerCase()))
+      .map(nom => ({
+        id: `zero-sheet-${nom.id}`,
+        nomenclature_id: nom.id,
+        name: nom.name,
+        unit: nom.unit || 'шт',
+        total_qty: 0,
+        reserved_qty: 0,
+        warehouse: 'production',
+        type: nom.type || 'material',
+        is_virtual_zero_stock: true
+      }))
+
+    return [...warehouseRows, ...missingSheets]
+      .sort((left, right) => String(left.name || '').localeCompare(String(right.name || ''), 'uk'))
+  }, [inventory, nomenclatures, isProcurementOnly])
+
   const isDocAvailable = (doc) => {
     if (!doc.items || doc.items.length === 0) return true
     
@@ -1983,17 +2017,14 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {(inventory || [])
-                      .filter(i => (i.name || '').toLowerCase().includes(searchQuery.toLowerCase()) && 
-                                   i.type !== 'finished' && i.type !== 'product' && 
-                                   i.warehouse === (isProcurementOnly ? 'procurement' : 'production') &&
-                                   (Number(i.total_qty) || 0) > 0)
+                    {stockRows
+                      .filter(i => (i.name || '').toLowerCase().includes(searchQuery.toLowerCase()))
                       .map(item => (
                         <tr key={item.id} style={{ borderBottom: '1px solid #151515' }}>
                           <td style={{ padding: '15px', fontWeight: 700 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                               <span>{item.name}</span>
-                              {currentUser?.login === 'admin@workshop.local' && editingInvId !== item.id && (
+                              {currentUser?.login === 'admin@workshop.local' && !item.is_virtual_zero_stock && editingInvId !== item.id && (
                                 <button
                                   type="button"
                                   onClick={() => {
