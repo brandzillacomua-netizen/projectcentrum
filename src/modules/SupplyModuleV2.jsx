@@ -175,8 +175,13 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
 
   const stockRows = useMemo(() => {
     const targetWarehouse = isProcurementOnly ? 'procurement' : 'production'
+    const isSheet = item => /^лист(?:\s|$)/i.test(String(item?.name || '').trim())
+    const isUnpreparedSheet = item => String(item?.name || '').toLowerCase().includes('[непідготовлений]')
     const warehouseRows = (inventory || []).filter(item =>
-      item.type !== 'finished' && item.type !== 'product' && item.warehouse === targetWarehouse
+      item.type !== 'finished'
+      && item.type !== 'product'
+      && item.warehouse === targetWarehouse
+      && (isProcurementOnly || !isSheet(item) || isUnpreparedSheet(item))
     )
 
     if (isProcurementOnly) return warehouseRows
@@ -188,7 +193,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
       warehouseRows.map(item => String(item.name || '').trim().toLowerCase()).filter(Boolean)
     )
     const missingSheets = (nomenclatures || [])
-      .filter(nom => /^лист(?:\s|$)/i.test(String(nom.name || '').trim()))
+      .filter(nom => isSheet(nom) && isUnpreparedSheet(nom))
       .filter(nom => !representedNomenclatures.has(String(nom.id)) && !representedNames.has(String(nom.name || '').trim().toLowerCase()))
       .map(nom => ({
         id: `zero-sheet-${nom.id}`,
