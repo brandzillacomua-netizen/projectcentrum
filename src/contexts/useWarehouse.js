@@ -1,4 +1,5 @@
 import { supabase } from '../supabase'
+import { getRequestSheetSpec, inventoryMatchesRequest } from '../modules/Warehouse/utils/materialInventoryMatching.js'
 
 /**
  * Warehouse / Supply chain actions
@@ -574,6 +575,23 @@ export function createWarehouseActions({
         matchedInventory = data || []
       }
 
+      const hasSheetRequest = relevantRequests.some(req =>
+        getRequestSheetSpec(req, nomenclatures, inventory)
+      )
+      if (hasSheetRequest) {
+        // A generic "Лист (6мм)" request must also be able to see rows named
+        // "Лист T300 (6мм)" / "Лист T700 (6мм)". Prefix name filters cannot
+        // discover those rows, so fetch sheet candidates explicitly.
+        const { data: sheetInventory, error: sheetInventoryError } = await supabase
+          .from('inventory')
+          .select('*')
+          .ilike('name', '%лист%')
+        if (sheetInventoryError) throw sheetInventoryError
+        const byId = new Map(matchedInventory.map(item => [String(item.id), item]))
+        ;(sheetInventory || []).forEach(item => byId.set(String(item.id), item))
+        matchedInventory = [...byId.values()]
+      }
+
       const inventoryUpdateMap = {}
       const requestUpdateList = []
       const requestsToInsert = []
@@ -601,13 +619,7 @@ export function createWarehouseActions({
           (parsedName && (parsedName.includes('[Непідготовлений]') || parsedName.includes('[неподготовленный]')))
 
         const matches = matchedInventory.filter(i => {
-          const baseMatch = String(i.id) === String(req.inventory_id) ||
-            (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) ||
-            (parsedName && (
-              normalize(i.name) === normalize(parsedName) ||
-              (normalize(i.name).includes('[підготовлений]') && normalize(i.name).replace(' [підготовлений]', '').replace('[підготовлений]', '').trim() === normalize(parsedName)) ||
-              normalize(i.name.replace(/\s*\([^)]*\)$/, '')) === normalize(parsedName)
-            ))
+          const baseMatch = inventoryMatchesRequest(i, req, nomenclatures, matchedInventory)
           if (!baseMatch) return false
           
           if (packagingSource === 'SGP') {
@@ -644,15 +656,7 @@ export function createWarehouseActions({
 
         if (!invItem && !packagingSource) {
           const fallbackMatches = matchedInventory.filter(i => {
-            if (String(i.id) === String(req.inventory_id)) return true
-            if (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) return true
-            if (parsedName) {
-              const normName = normalize(i.name)
-              const normParsed = normalize(parsedName)
-              if (normName === normParsed) return true
-              if (normName.includes('[підготовлений]') && normName.replace(' [підготовлений]', '').replace('[підготовлений]', '').trim() === normParsed) return true
-            }
-            return false
+            return inventoryMatchesRequest(i, req, nomenclatures, matchedInventory)
           })
           invItem = fallbackMatches.sort((a, b) => {
             const availA = (Number(a.total_qty) || 0) - (Number(a.reserved_qty) || 0)

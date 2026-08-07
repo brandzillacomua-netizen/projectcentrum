@@ -1,6 +1,7 @@
 import React from 'react'
 import { Bell, Trash2, Pencil, Check } from 'lucide-react'
 import { parseMaterialName, normalize } from '../hooks/useWarehouseComputed'
+import { availableInventoryForRequest } from '../utils/materialInventoryMatching.js'
 
 const isPreparedSheetName = (name) => {
   const nameLower = String(name || '').toLowerCase()
@@ -119,20 +120,7 @@ export const ConsumablesQueue = ({
             const parsedName = parseMaterialName(req.details)
             const nameLower = parsedName.toLowerCase()
             
-            const matchingInv = (inventory || []).filter(i => {
-              if (i.warehouse !== 'operational' && i.warehouse) return false
-              if (req.inventory_id) return String(i.id) === String(req.inventory_id)
-              if (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) return true
-              if (parsedName) {
-                const normName = normalize(i.name)
-                const normParsed = normalize(parsedName)
-                if (normName === normParsed) return true
-                if (normName.includes('[підготовлений]') && !normName.includes('[непідготовлений]') && normName.replace(' [підготовлений]', '').replace('[підготовлений]', '').trim() === normParsed) return true
-                const normNameNoParens = normalize(i.name.replace(/\s*\([^)]*\)$/, ''))
-                if (normNameNoParens === normParsed) return true
-              }
-              return false
-            })
+            const matchingInv = availableInventoryForRequest(req, inventory, nomenclatures)
             
             const totalOnWh = matchingInv.reduce((sum, i) => sum + (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0), 0)
             

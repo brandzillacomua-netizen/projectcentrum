@@ -469,9 +469,15 @@ export function createProductionActions({
         const s300 = snapshot.sheets_t300 !== undefined ? Number(snapshot.sheets_t300) : 0
         const s700 = snapshot.sheets_t700 !== undefined ? Number(snapshot.sheets_t700) : 0
         if (s700 > 0 && s300 === 0) {
-          matKeyBase = matKeyBase.replace(/т300/gi, 'Т700').replace(/t300/gi, 'Т700')
+          const replaced = matKeyBase.replace(/т300/gi, 'Т700').replace(/t300/gi, 'Т700')
+          matKeyBase = replaced === matKeyBase && /^лист\b/i.test(matKeyBase)
+            ? matKeyBase.replace(/^лист\b/i, 'Лист Т700')
+            : replaced
         } else if (s300 > 0 && s700 === 0) {
-          matKeyBase = matKeyBase.replace(/т700/gi, 'Т300').replace(/t700/gi, 'Т300')
+          const replaced = matKeyBase.replace(/т700/gi, 'Т300').replace(/t700/gi, 'Т300')
+          matKeyBase = replaced === matKeyBase && /^лист\b/i.test(matKeyBase)
+            ? matKeyBase.replace(/^лист\b/i, 'Лист Т300')
+            : replaced
         }
       }
       const explicitRawNom = findExplicitRawMaterialNom(matKeyBase)

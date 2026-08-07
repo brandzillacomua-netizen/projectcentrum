@@ -1,6 +1,7 @@
 import { supabase as supabaseClient } from '../../../supabase'
 import { apiService } from '../../../services/apiDispatcher'
 import { normalize, parseMaterialName } from './useWarehouseComputed'
+import { availableInventoryForRequest, inventoryMatchesRequest } from '../utils/materialInventoryMatching.js'
 
 export const useWarehouseHandlers = ({
   nomenclatures,
@@ -834,19 +835,9 @@ export const useWarehouseHandlers = ({
       const parsedName = parseMaterialName(req.details)
       const nameLower = parsedName.toLowerCase()
       
-      const matching = (inventory || []).filter(i => {
-        if (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) return true
-        if (i.id === req.inventory_id) return true
-        if (parsedName) {
-          const normName = normalize(i.name)
-          const normParsed = normalize(parsedName)
-          if (normName === normParsed) return true
-          if (normName.includes('[підготовлений]') && !normName.includes('[непідготовлений]') && normName.replace(' [підготовлений]', '').replace('[підготовлений]', '').trim() === normParsed) return true
-          const normNameNoParens = normalize(i.name.replace(/\s*\([^)]*\)$/, ''))
-          if (normNameNoParens === normParsed) return true
-        }
-        return false
-      })
+      const matching = (inventory || []).filter(i =>
+        inventoryMatchesRequest(i, req, nomenclatures, inventory)
+      )
       
       const nom = req.nomenclature_id ? nomenclatures.find(n => String(n.id) === String(req.nomenclature_id)) : null
       const packagingSource = req.details?.match(/\[PACKAGING_SOURCE:(SGP|BZ|SO)\]/)?.[1]
@@ -864,20 +855,13 @@ export const useWarehouseHandlers = ({
       const isSgp = packagingSource === 'SGP' || packagingSource === 'BZ' || (!packagingSource && inferredSgp)
       if (isSgp) return
 
-      const operationalItems = matching.filter(i => i.warehouse === 'operational' || !i.warehouse)
+      const operationalItems = availableInventoryForRequest(req, inventory, nomenclatures)
       const available = operationalItems.reduce((sum, i) => sum + (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0), 0)
       const invItem = operationalItems[0] || matching[0]
       
-      const globalAvailable = (inventory || []).filter(i => {
-        if (req.nomenclature_id && String(i.nomenclature_id) === String(req.nomenclature_id)) return true
-        if (parsedName) {
-          const normName = normalize(i.name)
-          const normParsed = normalize(parsedName)
-          if (normName === normParsed) return true
-          if (normName.includes('[підготовлений]') && !normName.includes('[непідготовлений]') && normName.replace(' [підготовлений]', '').replace('[підготовлений]', '').trim() === normParsed) return true
-        }
-        return false
-      }).reduce((acc, i) => acc + (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0), 0)
+      const globalAvailable = matching.reduce((acc, i) =>
+        acc + (Number(i.total_qty) || 0) - (Number(i.reserved_qty) || 0), 0
+      )
 
       const needed = Number(req.quantity)
       if (available < needed) {
