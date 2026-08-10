@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Захист системи CENTRUM (КУЛИЦЯ) — Презентація</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800;900&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #07090e;
+      --panel-bg: rgba(18, 22, 33, 0.75);
+      --panel-border: rgba(255, 255, 255, 0.08);
+      --accent-orange: #ff9000;
+      --accent-cyan: #00f2fe;
+      --accent-green: #10b981;
+      --accent-red: #ef4444;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --font-main: 'Outfit', sans-serif;
+      --font-mono: 'Space Grotesk', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-main);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Background glow effect */
+    .bg-glow {
+      position: absolute;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(255, 144, 0, 0.12) 0%, rgba(0, 0, 0, 0) 70%);
+      top: -200px;
+      right: -200px;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .bg-glow-2 {
+      position: absolute;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(0, 242, 254, 0.08) 0%, rgba(0, 0, 0, 0) 70%);
+      bottom: -150px;
+      left: -150px;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* Top Progress Bar */
+    .progress-bar-container {
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.05);
+      position: relative;
+      z-index: 10;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-orange), var(--accent-cyan));
+      width: 10%;
+      transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 40px;
+      z-index: 10;
+      border-bottom: 1px solid var(--panel-border);
+      background: rgba(7, 9, 14, 0.8);
+      backdrop-filter: blur(10px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 900;
+      font-size: 1.3rem;
+      letter-spacing: 1px;
+    }
+
+    .brand-logo {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, var(--accent-orange), #d97706);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #000;
+      font-weight: 900;
+      box-shadow: 0 0 15px rgba(255, 144, 0, 0.4);
+    }
+
+    .brand-text {
+      color: var(--text-main);
+    }
+
+    .brand-text span {
+      color: var(--accent-orange);
+    }
+
+    .slide-counter {
+      font-family: var(--font-mono);
+      background: rgba(255, 255, 255, 0.05);
+      padding: 6px 16px;
+      border-radius: 20px;
+      border: 1px solid var(--panel-border);
+      font-size: 0.9rem;
+      color: var(--accent-cyan);
+    }
+
+    /* Main Container */
+    .deck-container {
+      flex: 1;
+      position: relative;
+      z-index: 5;
+      overflow: hidden;
+    }
+
+    .slide {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      padding: 40px 60px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(20px) scale(0.98);
+      transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .slide.active {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0) scale(1);
+    }
+
+    /* Typography & Elements */
+    .slide-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--accent-orange);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 12px;
+      font-weight: 700;
+    }
+
+    .slide-title {
+      font-size: 2.5rem;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 24px;
+      background: linear-gradient(135deg, #ffffff 30%, #9ca3af 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 30px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 24px;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 20px;
+      padding: 28px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      transition: all 0.3s ease;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card:hover {
+      border-color: rgba(255, 144, 0, 0.3);
+      transform: translateY(-4px);
+    }
+
+    .card-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: rgba(255, 144, 0, 0.1);
+      color: var(--accent-orange);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      margin-bottom: 16px;
+    }
+
+    .card-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: #fff;
+    }
+
+    .card-desc {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* Comparison Table */
+    .comp-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      background: var(--panel-bg);
+      border-radius: 16px;
+      border: 1px solid var(--panel-border);
+      overflow: hidden;
+    }
+
+    .comp-table th, .comp-table td {
+      padding: 16px 20px;
+      text-align: left;
+      border-bottom: 1px solid var(--panel-border);
+    }
+
+    .comp-table th {
+      background: rgba(255, 255, 255, 0.03);
+      font-weight: 800;
+      color: var(--accent-cyan);
+      font-size: 0.95rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .comp-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .badge-myth {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      display: inline-block;
+      margin-bottom: 6px;
+    }
+
+    .badge-fact {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      display: inline-block;
+      margin-bottom: 6px;
+    }
+
+    /* Gating Workflow Steps */
+    .workflow-step {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      padding: 24px;
+      position: relative;
+    }
+
+    .step-number {
+      font-family: var(--font-mono);
+      font-size: 2.5rem;
+      font-weight: 900;
+      color: rgba(255, 144, 0, 0.2);
+      position: absolute;
+      top: 15px;
+      right: 20px;
+    }
+
+    /* Footer Controls */
+    footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 40px;
+      z-index: 10;
+      border-top: 1px solid var(--panel-border);
+      background: rgba(7, 9, 14, 0.8);
+      backdrop-filter: blur(10px);
+    }
+
+    .nav-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--panel-border);
+      color: var(--text-main);
+      padding: 12px 24px;
+      border-radius: 12px;
+      font-family: var(--font-main);
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: all 0.2s ease;
+    }
+
+    .nav-btn:hover:not(:disabled) {
+      background: var(--accent-orange);
+      color: #000;
+      border-color: var(--accent-orange);
+      box-shadow: 0 0 20px rgba(255, 144, 0, 0.4);
+    }
+
+    .nav-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .keyboard-hint {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .key-badge {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    /* Title Slide Specifics */
+    .title-slide-content {
+      max-width: 900px;
+    }
+
+    .hero-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(255, 144, 0, 0.1);
+      border: 1px solid rgba(255, 144, 0, 0.3);
+      color: var(--accent-orange);
+      padding: 8px 18px;
+      border-radius: 30px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      margin-bottom: 24px;
+    }
+
+    .hero-title {
+      font-size: 3.5rem;
+      font-weight: 900;
+      line-height: 1.1;
+      margin-bottom: 24px;
+    }
+
+    .hero-title span {
+      color: var(--accent-orange);
+      background: linear-gradient(135deg, #ff9000, #ffc107);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-subtitle {
+      font-size: 1.25rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-bottom: 40px;
+    }
+
+    .hero-features {
+      display: flex;
+      gap: 20px;
+    }
+
+    .hero-feature-item {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      padding: 16px 20px;
+      border-radius: 12px;
+      flex: 1;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .dot-orange {
+      width: 10px;
+      height: 10px;
+      background: var(--accent-orange);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--accent-orange);
+    }
+
+    .dot-cyan {
+      width: 10px;
+      height: 10px;
+      background: var(--accent-cyan);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--accent-cyan);
+    }
+
+    .dot-green {
+      width: 10px;
+      height: 10px;
+      background: var(--accent-green);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--accent-green);
+    }
+
+    /* Highlight box */
+    .alert-box {
+      background: rgba(255, 144, 0, 0.08);
+      border: 1px solid rgba(255, 144, 0, 0.3);
+      border-left: 4px solid var(--accent-orange);
+      padding: 18px 24px;
+      border-radius: 12px;
+      margin-top: 20px;
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="bg-glow"></div>
+  <div class="bg-glow-2"></div>
+
+  <!-- Progress Bar -->
+  <div class="progress-bar-container">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-logo">C</div>
+      <div class="brand-text">CENTRUM <span>«КУЛИЦЯ»</span></div>
+    </div>
+    <div class="slide-counter" id="slideCounter">Слайд 1 з 10</div>
+  </header>
+
+  <!-- Main Slides Deck -->
+  <main class="deck-container">
+
+    <!-- SLIDE 1: Title -->
+    <section class="slide active">
+      <div class="title-slide-content">
+        <div class="hero-pill">
+          <span class="dot-orange"></span> СИСТЕМА ОПЕРАЦІЙНОГО КОНТРОЛЮ ВИРОБНИЦТВА
+        </div>
+        <h1 class="hero-title">
+          CENTRUM: Інструмент <span>безконфліктного</span> виконання замовлень
+        </h1>
+        <p class="hero-subtitle">
+          Офіційна презентація-захист архітектури системи. Доказ того, що CENTRUM не є джерелом управлінських рішень, а виступає безперебійним цифровим каркасом обліку ТМЦ, безпеки та аналізу вузьких місць.
+        </p>
+        <div class="hero-features">
+          <div class="hero-feature-item">
+            <span class="dot-orange"></span> 3-Сторонній Шлюз Запуску
+          </div>
+          <div class="hero-feature-item">
+            <span class="dot-cyan"></span> Облік ТМЦ та Бокси Фрез
+          </div>
+          <div class="hero-feature-item">
+            <span class="dot-green"></span> Аналіз Браку (BrakModule)
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 2: Rebuttal of Complaint -->
+    <section class="slide">
+      <div class="slide-tag">ЗІСТАВЛЕННЯ ТАКТИКИ ТА ФАКТІВ</div>
+      <h2 class="slide-title">Аналіз «Доносу» (Документу Люцерна) vs Реальні Факти</h2>
+      
+      <table class="comp-table">
+        <thead>
+          <tr>
+            <th style="width: 45%;">Претензія з документу «Люцерна»</th>
+            <th style="width: 55%;">Реальний функціонал у системі CENTRUM («КУЛИЦЯ»)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <span class="badge-myth">МІФ З ДОКУМЕНТУ</span><br>
+              «Система стає джерелом рішень і підміняє собою керівництво підприємства.»
+            </td>
+            <td>
+              <span class="badge-fact">РЕАЛЬНИЙ ФАКТ CENTRUM</span><br>
+              CENTRUM є <strong>виконавчим інструментом</strong>. Вона не формує політик, а жорстко контролює дотримання регламенту, затвердженого директором.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <span class="badge-myth">МІФ З ДОКУМЕНТУ</span><br>
+              «Замовлення запускаються стихійно без погодження економіки та інженерів.»
+            </td>
+            <td>
+              <span class="badge-fact">РЕАЛЬНИЙ ФАКТ CENTRUM</span><br>
+              У CENTRUM закладено <strong>3-сторонній цифровий шлюз</strong>. Жоден наряд не іде в розкрій без цифрових підписів <strong>Складу + Інженера + Директора</strong>.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <span class="badge-myth">МІФ З ДОКУМЕНТУ</span><br>
+              «Відсутній контроль за інструментом та складськими запасами фрез.»
+            </td>
+            <td>
+              <span class="badge-fact">РЕАЛЬНИЙ ФАКТ CENTRUM</span><br>
+              Впроваджено модуль <strong>WarehousePrepBoxes</strong>: автоматичний облік фрез, підготовка боксів під картки та контроль відновлення інструменту.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- SLIDE 3: Conflict-Free Order Flow Architecture -->
+    <section class="slide">
+      <div class="slide-tag">ОПЕРАЦІЙНА АРХІТЕКТУРА</div>
+      <h2 class="slide-title">Безконфліктне проходження замовлень через виробництво</h2>
+      
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-icon">1</div>
+          <h3 class="card-title">Єдине Джерело Правди</h3>
+          <p class="card-desc">
+            Усі підрозділи (Продажі, Склад, Інженерія, Цех) бачать єдиний статус замовлення у реальному часі. Зникають суперечки «хто не передав документ».
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">2</div>
+          <h3 class="card-title">Автоматична Диспетчеризація</h3>
+          <p class="card-desc">
+            Оператори на терміналах бачать тільки ті завдання, які повністю забезпечені матеріалами та керуючими програмами ЧПК.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">3</div>
+          <h3 class="card-title">Виключення Людського Фактора</h3>
+          <p class="card-desc">
+            Неможливо запустити в розкрій деталі під «чесне слово» — система блокує виконання до моменту проходження офіційного цифрового шлюзу.
+          </p>
+        </div>
+      </div>
+
+      <div class="alert-box">
+        💡 <strong>Результат для підприємства:</strong> Відсутність міжособистісних конфліктів між майстрами та комірниками. Система гарантує ритмічний потік замовлень без хаосу.
+      </div>
+    </section>
+
+    <!-- SLIDE 4: 3-Way Digital Approval Gating -->
+    <section class="slide">
+      <div class="slide-tag">ЦИФРОВИЙ ШЛЮЗ БЕЗПЕКИ</div>
+      <h2 class="slide-title">3-Стороннє Погодження Нарядів (Gatekeeper Workflow)</h2>
+
+      <div class="grid-3">
+        <div class="workflow-step">
+          <span class="step-number">01</span>
+          <h3 class="card-title" style="color: var(--accent-orange);">СКЛАД ТМЦ</h3>
+          <p style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-orange); margin-bottom: 10px;">warehouse_conf = true / partial</p>
+          <p class="card-desc">
+            Перевірка фактичної наявності матеріалів та металу на складі під наряд. Резервування сировини в базі даних.
+          </p>
+        </div>
+
+        <div class="workflow-step">
+          <span class="step-number">02</span>
+          <h3 class="card-title" style="color: var(--accent-cyan);">ІНЖЕНЕРНИЙ ВІДДІЛ</h3>
+          <p style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-cyan); margin-bottom: 10px;">engineer_conf = true</p>
+          <p class="card-desc">
+            Перевірка технічної документації, підготовка карт розкрою та керуючих програм для верстатів ЧПК.
+          </p>
+        </div>
+
+        <div class="workflow-step" style="border-color: rgba(16, 185, 129, 0.4);">
+          <span class="step-number">03</span>
+          <h3 class="card-title" style="color: var(--accent-green);">ФІНАЛЬНИЙ ПІДПИС ДИРЕКТОРА</h3>
+          <p style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-green); margin-bottom: 10px;">director_conf = true</p>
+          <p class="card-desc">
+            Авторизація запуску в DirectorModule. Кнопка активується <strong>лише після підтвердження Складу та Інженера</strong>!
+          </p>
+        </div>
+      </div>
+
+      <div class="alert-box" style="border-left-color: var(--accent-green);">
+        🔒 <strong>Гарантія безпеки:</strong> Директор здійснює стратегічний арбітраж, а система автоматично запобігає запуску "незабезпечених" замовлень.
+      </div>
+    </section>
+
+    <!-- SLIDE 5: TMC & Inventory Accounting -->
+    <section class="slide">
+      <div class="slide-tag">ОБЛІК ТМЦ ТА СИРОВИНИ</div>
+      <h2 class="slide-title">Контроль Матеріальних Цінностей від Закупівлі до Виробу</h2>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3 class="card-title" style="color: var(--accent-orange);">Точний Облік Листового Матеріалу (BOM)</h3>
+          <p class="card-desc" style="margin-bottom: 15px;">
+            Система автоматично підраховує кількість необхідних листів сировини під кожну партію та контролює залишки.
+          </p>
+          <ul style="color: var(--text-muted); line-height: 1.8; font-size: 0.95rem; padding-left: 20px;">
+            <li>Фіксація нормативних та фактичних витрат матеріалів.</li>
+            <li>Автоматичні складські заявки під наряд з прив'язкою до замовлення.</li>
+            <li>Унеможливлення «тіньового» списання металу.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title" style="color: var(--accent-cyan);">Персональна Відповідальність МВО</h3>
+          <p class="card-desc" style="margin-bottom: 15px;">
+            Чітке закріплення матеріальних цінностей за відповідальними особами цехів та складських зон.
+          </p>
+          <ul style="color: var(--text-muted); line-height: 1.8; font-size: 0.95rem; padding-left: 20px;">
+            <li>Оперативний баланс матеріалів на кожній ділянці.</li>
+            <li>Простежуваність руху партій від прийому до відвантаження.</li>
+            <li>Прозорість для економістів та бухгалтерської аналітики.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 6: Tooling & Cutter Boxes Module -->
+    <section class="slide">
+      <div class="slide-tag">ІНСТРУМЕНТАЛЬНЕ ГОСПОДАРСТВО</div>
+      <h2 class="slide-title">Облік Фрез та Комплектація в Бокси (`WarehousePrepBoxes`)</h2>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-icon">✂️</div>
+          <h3 class="card-title">Чек-Лист Фрез під Картку</h3>
+          <p class="card-desc">
+            Система автоматично визначає номенклатуру та кількість фрез, необхідних для виконання конкретної робочої картки.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">📦</div>
+          <h3 class="card-title">Комплектація Боксів</h3>
+          <p class="card-desc">
+            Комірник збирає фізичний бокс інструменту, відмічаючи кожну фрезу у веб-інтерфейсі. На верстат передається 100% готовий комплект.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">🔄</div>
+          <h3 class="card-title">Відновлення & Перегострення</h3>
+          <p class="card-desc">
+            Модуль `CutterRestorationModule` контролює знос інструменту, відправляючи фрези на заточування або списання.
+          </p>
+        </div>
+      </div>
+
+      <div class="alert-box" style="border-left-color: var(--accent-cyan);">
+        🛠️ <strong>Усунення простоїв ЧПК:</strong> Оператор верстата більше не шукає фрези по цеху — бокс чекає на нього біля верстата разом із нарядом!
+      </div>
+    </section>
+
+    <!-- SLIDE 7: Defect / Scrap Analysis (BrakModule) -->
+    <section class="slide">
+      <div class="slide-tag">МОНІТОРИНГ ЯКОСТІ (ВКЯ)</div>
+      <h2 class="slide-title">Аналіз Браку в Розрізі 4-х Вимірів (`BrakModule`)</h2>
+
+      <div class="grid-4">
+        <div class="card" style="text-align: center; align-items: center;">
+          <div class="card-icon" style="background: rgba(239, 68, 68, 0.1); color: var(--accent-red);">👤</div>
+          <h3 class="card-title" style="font-size: 1.1rem;">ОПЕРАТОР</h3>
+          <p class="card-desc" style="font-size: 0.85rem;">Персональний облік помилок для виявлення потреби в навчанні.</p>
+        </div>
+
+        <div class="card" style="text-align: center; align-items: center;">
+          <div class="card-icon" style="background: rgba(255, 144, 0, 0.1); color: var(--accent-orange);">⚙️</div>
+          <h3 class="card-title" style="font-size: 1.1rem;">ЕТАП</h3>
+          <p class="card-desc" style="font-size: 0.85rem;">Розкрій, гибка, фарбування, галтовка, збирання.</p>
+        </div>
+
+        <div class="card" style="text-align: center; align-items: center;">
+          <div class="card-icon" style="background: rgba(0, 242, 254, 0.1); color: var(--accent-cyan);">🏭</div>
+          <h3 class="card-title" style="font-size: 1.1rem;">ВЕРСТАТ</h3>
+          <p class="card-desc" style="font-size: 0.85rem;">Детекція технічних проблем (біння цанги, люфти).</p>
+        </div>
+
+        <div class="card" style="text-align: center; align-items: center;">
+          <div class="card-icon" style="background: rgba(16, 185, 129, 0.1); color: var(--accent-green);">📋</div>
+          <h3 class="card-title" style="font-size: 1.1rem;">ПРИЧИНА</h3>
+          <p class="card-desc" style="font-size: 0.85rem;">Глибока класифікація та звіти `scrap_report_by_reason`.</p>
+        </div>
+      </div>
+
+      <div class="alert-box" style="margin-top: 24px;">
+        📊 <strong>Класифікація за категоріями (Cat 1–4):</strong> Поділ на брак, що підлягає косметичному ремонту, доопрацюванню, відновленню або повному списанню. Відсутність конфліктів завдяки фактологічному протоколюванню.
+      </div>
+    </section>
+
+    <!-- SLIDE 8: Rapid Bottleneck Analysis -->
+    <section class="slide">
+      <div class="slide-tag">ОПЕРАТИВНА АНАЛІТИКА</div>
+      <h2 class="slide-title">Швидкий Аналіз Вузьких Місць на Виробництві</h2>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3 class="card-title" style="color: var(--accent-orange);">Мережа Цехових Терміналів</h3>
+          <p class="card-desc" style="line-height: 1.7;">
+            CENTRUM об'єднує в єдину мережу спеціалізовані термінали: `OperatorTerminalV2`, `PreparationTerminal`, `PaintingTerminal`, `TumblingTerminal` та `SortingTerminal`.
+          </p>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title" style="color: var(--accent-cyan);">Автоматичне Виявлення «Заторів»</h3>
+          <p class="card-desc" style="line-height: 1.7;">
+            Система у режимі реального часу показує накопичення залишків між операціями, сигналізуючи керівництву про потребу перерозподілу операторів або обладнання.
+          </p>
+        </div>
+      </div>
+
+      <div class="grid-3" style="margin-top: 20px;">
+        <div class="card" style="padding: 18px;">
+          <strong style="color: #fff; display: block; margin-bottom: 5px;">Диспетчеризація Викликів</strong>
+          <span style="font-size: 0.85rem; color: var(--text-muted);">Негайний виклик наладчика або ВКЯ (`MachineCallModule`) при виникненні зупинки.</span>
+        </div>
+        <div class="card" style="padding: 18px;">
+          <strong style="color: #fff; display: block; margin-bottom: 5px;">Теплова Карта Завантаження</strong>
+          <span style="font-size: 0.85rem; color: var(--text-muted);">Матриця замовлень у `DirectorModule` для аналізу виконання строків по кожній позиції.</span>
+        </div>
+        <div class="card" style="padding: 18px;">
+          <strong style="color: #fff; display: block; margin-bottom: 5px;">OEE та Ефективність</strong>
+          <span style="font-size: 0.85rem; color: var(--text-muted);">Об'єктивний розрахунок продуктивності обладнання без паперових звітів.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 9: Role Separation (Managerial Decisions vs Execution) -->
+    <section class="slide">
+      <div class="slide-tag">РАМКА ВЗАЄМОДІЇ</div>
+      <h2 class="slide-title">Чітке Розмежування Ролей: Керівництво vs CENTRUM</h2>
+
+      <table class="comp-table">
+        <thead>
+          <tr>
+            <th style="width: 30%;">Сфера Відповідальності</th>
+            <th style="width: 35%; color: var(--accent-orange);">Роль Керівника (Директор / Менеджер)</th>
+            <th style="width: 35%; color: var(--accent-cyan);">Роль системи CENTRUM («КУЛИЦЯ»)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Формування Пріоритетів</strong></td>
+            <td>Визначає пріоритетність замовлень (Категорії A, B, C, E) та дедлайни.</td>
+            <td>Блокує виконання позачергових замовлень і контролює чергу.</td>
+          </tr>
+          <tr>
+            <td><strong>Управління Ризиками</strong></td>
+            <td>Приймає рішення щодо арбітражу при дефіциті ресурсів.</td>
+            <td>Сигналізує про дефіцит і чекає на фінальний підпис директора.</td>
+          </tr>
+          <tr>
+            <td><strong>Диспетчеризація Цеху</strong></td>
+            <td>Організовує роботу змін та відповідає за мотивацію.</td>
+            <td>Надає факт виконання, час операцій та об'єктивну аналітику браку.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- SLIDE 10: Final Summary -->
+    <section class="slide">
+      <div class="slide-tag">ФІНАЛЬНИЙ ВИСНОВОК</div>
+      <h2 class="slide-title">CENTRUM — Фундамент Прозорості та Росту Підприємства</h2>
+
+      <div class="grid-3" style="margin-bottom: 30px;">
+        <div class="card" style="border-color: rgba(255, 144, 0, 0.3);">
+          <div class="card-icon">1</div>
+          <h3 class="card-title">100% Готовність</h3>
+          <p class="card-desc">
+            Увесь функціонал, про який ідеться у документі «Люцерна», **вже реалізовано в CENTRUM** в автоматизованому цифровому форматі.
+          </p>
+        </div>
+
+        <div class="card" style="border-color: rgba(0, 242, 254, 0.3);">
+          <div class="card-icon">2</div>
+          <h3 class="card-title">Швидкість та Порядок</h3>
+          <p class="card-desc">
+            Замість бюрократичних паперових нарадах, погодження відбувається за хвилини через електронний шлюз 3-х підписів.
+          </p>
+        </div>
+
+        <div class="card" style="border-color: rgba(16, 185, 129, 0.3);">
+          <div class="card-icon">3</div>
+          <h3 class="card-title">Виробничий Мир</h3>
+          <p class="card-desc">
+            Система усуває конфлікти між підрозділами, захищає ТМЦ та дає директору повний контроль над вузькими місцями.
+          </p>
+        </div>
+      </div>
+
+      <div class="alert-box" style="text-align: center; background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.3); border-left-color: var(--accent-green);">
+        🚀 <strong>Висновок:</strong> CENTRUM («КУЛИЦЯ») — це надійний цифровий каркас підприємства, який гарантує стабільне та безконфліктне зростання!
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer Navigation -->
+  <footer>
+    <button class="nav-btn" id="prevBtn" onclick="changeSlide(-1)">
+      ← НАЗАД
+    </button>
+
+    <div class="keyboard-hint">
+      Використовуйте клавіші <span class="key-badge">←</span> <span class="key-badge">→</span> або <span class="key-badge">Пробіл</span> для навігації
+    </div>
+
+    <button class="nav-btn" id="nextBtn" onclick="changeSlide(1)">
+      ВПЕРЕД →
+    </button>
+  </footer>
+
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+    const progressBar = document.getElementById('progressBar');
+    const slideCounter = document.getElementById('slideCounter');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+
+    function updateDeck() {
+      slides.forEach((slide, idx) => {
+        if (idx === currentSlide) {
+          slide.classList.add('active');
+        } else {
+          slide.classList.remove('active');
+        }
+      });
+
+      // Update progress bar
+      const progressPercent = ((currentSlide + 1) / totalSlides) * 100;
+      progressBar.style.width = `${progressPercent}%`;
+
+      // Update counter text
+      slideCounter.textContent = `Слайд ${currentSlide + 1} з ${totalSlides}`;
+
+      // Update button states
+      prevBtn.disabled = currentSlide === 0;
+      nextBtn.disabled = currentSlide === totalSlides - 1;
+    }
+
+    function changeSlide(direction) {
+      const newIndex = currentSlide + direction;
+      if (newIndex >= 0 && newIndex < totalSlides) {
+        currentSlide = newIndex;
+        updateDeck();
+      }
+    }
+
+    // Keyboard navigation listener
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'Space') {
+        e.preventDefault();
+        changeSlide(1);
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        changeSlide(-1);
+      }
+    });
+
+    // Initialize deck state
+    updateDeck();
+  </script>
+</body>
+</html>

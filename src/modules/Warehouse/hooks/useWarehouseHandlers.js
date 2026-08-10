@@ -371,8 +371,7 @@ export const useWarehouseHandlers = ({
       let matchedCutters = []
       if (ops && Object.keys(cuttersRates).length > 0) {
         for (const [rateNomId, rateQty] of Object.entries(cuttersRates)) {
-          const existingCutterReq = reqs.find(req => {
-            if (!req.card_id) return false
+          const requestMatchesCutter = req => {
             if (req.nomenclature_id === rateNomId) return true
             
             const reqNom = nomenclatures.find(n => n.id === req.nomenclature_id)
@@ -394,7 +393,15 @@ export const useWarehouseHandlers = ({
             const rateSignature = getCutterSignature(rateNom.name)
             if (!reqSignature || !rateSignature || reqSignature.diameter !== rateSignature.diameter) return false
             return rateSignature.angle === null || reqSignature.angle === rateSignature.angle
-          })
+          }
+
+          const existingCutterReq = reqs.find(req => req.card_id && requestMatchesCutter(req))
+          const reservedCutterReq = reqs.find(req =>
+            !req.card_id &&
+            req.status === 'issued' &&
+            String(req.task_id || '') === String(card.task_id || '') &&
+            requestMatchesCutter(req)
+          )
 
           if (existingCutterReq) {
             matchedCutters.push({
@@ -408,7 +415,8 @@ export const useWarehouseHandlers = ({
             const cardLabel = card.card_info?.split(' ')[0] || `№${card.id.substring(0, 8)}`
             matchedCutters.push({
               id: `synthetic-${rateNomId}-${cardId}`,
-              nomenclature_id: rateNomId,
+              nomenclature_id: reservedCutterReq?.nomenclature_id || rateNomId,
+              inventory_id: reservedCutterReq?.inventory_id || null,
               quantity: Math.ceil(rateQty * cardSheets),
               displayQty: Math.ceil(rateQty * cardSheets),
               status: 'pending',
@@ -416,6 +424,8 @@ export const useWarehouseHandlers = ({
               card_id: cardId,
               task_id: card.task_id,
               order_id: card.order_id,
+              reservation_request_id: reservedCutterReq?.id || null,
+              reservation_quantity: Number(reservedCutterReq?.quantity) || 0,
               isSheet: false,
               isSynthetic: true
             })
@@ -535,13 +545,19 @@ export const useWarehouseHandlers = ({
         const invItem = (matchedInventory || []).find(i => i.warehouse === 'operational' || !i.warehouse) 
           || (matchedInventory || [])[0]
 
-        const qtyToDeduct = req.displayQty ?? Number(req.quantity) ?? 0
+        const qtyToDeduct = Number(req.displayQty ?? req.quantity ?? 0) || 0
 
         if (invItem) {
           const nextTotal = Math.max(0, (Number(invItem.total_qty) || 0) - qtyToDeduct)
-          const wasReserved = req.status === 'issued'
+          // Card-level cutter rows are synthetic, while their stock was
+          // reserved earlier by the task-level issued request. Release that
+          // reservation when the physical cutter is handed out for the card.
+          const wasReserved = req.status === 'issued' || Boolean(req.reservation_request_id)
+          const reservedQtyToRelease = req.reservation_request_id
+            ? Math.min(qtyToDeduct, Math.max(0, Number(req.reservation_quantity) || 0))
+            : qtyToDeduct
           const nextReserved = wasReserved 
-            ? Math.max(0, (Number(invItem.reserved_qty) || 0) - qtyToDeduct)
+            ? Math.max(0, (Number(invItem.reserved_qty) || 0) - reservedQtyToRelease)
             : (Number(invItem.reserved_qty) || 0)
 
           await supabaseClient.from('inventory')
@@ -582,10 +598,28 @@ export const useWarehouseHandlers = ({
               task_id: req.task_id,
               card_id: req.card_id,
               nomenclature_id: req.nomenclature_id,
+              inventory_id: invItem?.id || req.inventory_id || null,
               quantity: qtyToDeduct,
               status: 'completed',
               details: req.details
             })
+
+            if (req.reservation_request_id) {
+              const { data: reservation, error: reservationError } = await supabaseClient
+                .from('material_requests')
+                .select('id,quantity,status')
+                .eq('id', req.reservation_request_id)
+                .maybeSingle()
+              if (reservationError) throw reservationError
+
+              if (reservation?.status === 'issued') {
+                const remainingReservedQty = Math.max(0, (Number(reservation.quantity) || 0) - qtyToDeduct)
+                const reservationResult = remainingReservedQty > 0
+                  ? await supabaseClient.from('material_requests').update({ quantity: remainingReservedQty }).eq('id', reservation.id)
+                  : await supabaseClient.from('material_requests').delete().eq('id', reservation.id)
+                if (reservationResult.error) throw reservationResult.error
+              }
+            }
           } else {
             await supabaseClient.from('material_requests')
               .update({ quantity: qtyToDeduct, status: 'completed' })
