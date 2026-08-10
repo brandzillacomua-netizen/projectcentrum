@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Повний Життєвий Цикл Замовлення у системі «КУЛИЦЯ» (Від А до Я)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800;900&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #05070a;
+      --panel-bg: rgba(15, 19, 28, 0.85);
+      --panel-border: rgba(255, 255, 255, 0.08);
+      --accent-orange: #ff9000;
+      --accent-cyan: #00f2fe;
+      --accent-green: #10b981;
+      --accent-purple: #a855f7;
+      --accent-red: #ef4444;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --font-main: 'Outfit', sans-serif;
+      --font-mono: 'Space Grotesk', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Ambient Background Glows */
+    .bg-glow-1 {
+      position: fixed;
+      width: 700px;
+      height: 700px;
+      background: radial-gradient(circle, rgba(255, 144, 0, 0.1) 0%, rgba(0, 0, 0, 0) 70%);
+      top: -200px;
+      right: -200px;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .bg-glow-2 {
+      position: fixed;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(0, 242, 254, 0.08) 0%, rgba(0, 0, 0, 0) 70%);
+      bottom: -150px;
+      left: -150px;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* Header */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 40px;
+      background: rgba(5, 7, 10, 0.9);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--panel-border);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-weight: 900;
+      font-size: 1.4rem;
+      letter-spacing: 1px;
+    }
+
+    .brand-logo {
+      width: 42px;
+      height: 42px;
+      background: linear-gradient(135deg, var(--accent-orange), #d97706);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #000;
+      font-weight: 900;
+      box-shadow: 0 0 25px rgba(255, 144, 0, 0.4);
+    }
+
+    .brand-text span {
+      color: var(--accent-orange);
+    }
+
+    .header-badge {
+      font-family: var(--font-mono);
+      background: rgba(255, 144, 0, 0.1);
+      border: 1px solid rgba(255, 144, 0, 0.3);
+      color: var(--accent-orange);
+      padding: 6px 18px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    /* Main Content Layout */
+    .main-layout {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      max-width: 1440px;
+      margin: 0 auto;
+      width: 100%;
+      padding: 30px 40px;
+      gap: 40px;
+    }
+
+    /* Sidebar Navigation */
+    .sidebar-nav {
+      width: 300px;
+      position: sticky;
+      top: 90px;
+      height: calc(100vh - 120px);
+      overflow-y: auto;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 20px;
+      padding: 20px;
+      backdrop-filter: blur(12px);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .sidebar-title {
+      font-size: 0.85rem;
+      font-family: var(--font-mono);
+      color: var(--accent-orange);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 10px;
+      font-weight: 700;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      border: 1px solid transparent;
+    }
+
+    .nav-item:hover, .nav-item.active {
+      background: rgba(255, 144, 0, 0.1);
+      color: var(--accent-orange);
+      border-color: rgba(255, 144, 0, 0.25);
+    }
+
+    .nav-num {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    /* Content Area */
+    .content-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 40px;
+    }
+
+    /* Hero Banner */
+    .hero-card {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 24px;
+      padding: 40px;
+      backdrop-filter: blur(16px);
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    .hero-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 6px;
+      height: 100%;
+      background: linear-gradient(180deg, var(--accent-orange), var(--accent-cyan));
+    }
+
+    .hero-title {
+      font-size: 2.6rem;
+      font-weight: 900;
+      line-height: 1.2;
+      margin-bottom: 16px;
+    }
+
+    .hero-title span {
+      color: var(--accent-orange);
+      background: linear-gradient(135deg, #ff9000, #ffc107);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-desc {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      line-height: 1.7;
+      max-width: 900px;
+      margin-bottom: 24px;
+    }
+
+    .hero-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    .stat-box {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--panel-border);
+      padding: 16px;
+      border-radius: 14px;
+    }
+
+    .stat-val {
+      font-family: var(--font-mono);
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: var(--accent-orange);
+    }
+
+    .stat-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Section Cards */
+    .stage-card {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 20px;
+      padding: 32px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+      scroll-margin-top: 100px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      transition: all 0.3s ease;
+    }
+
+    .stage-card:hover {
+      border-color: rgba(255, 144, 0, 0.3);
+    }
+
+    .stage-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--panel-border);
+      padding-bottom: 16px;
+    }
+
+    .stage-title-group {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .stage-badge {
+      font-family: var(--font-mono);
+      background: rgba(255, 144, 0, 0.15);
+      color: var(--accent-orange);
+      border: 1px solid rgba(255, 144, 0, 0.3);
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 1.2rem;
+    }
+
+    .stage-title {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .stage-subtitle {
+      font-size: 0.85rem;
+      color: var(--accent-cyan);
+      font-family: var(--font-mono);
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .sub-card {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--panel-border);
+      border-radius: 14px;
+      padding: 20px;
+    }
+
+    .sub-card-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .benefit-box {
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-left: 4px solid var(--accent-green);
+      border-radius: 14px;
+      padding: 20px;
+      margin-top: 10px;
+    }
+
+    .benefit-title {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--accent-green);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .benefit-desc {
+      font-size: 0.95rem;
+      color: var(--text-main);
+      line-height: 1.6;
+    }
+
+    /* Workflow Diagram Box */
+    .gating-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 10px;
+    }
+
+    .gate-item {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--panel-border);
+      border-radius: 14px;
+      padding: 18px;
+      position: relative;
+    }
+
+    .gate-num {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--accent-orange);
+      margin-bottom: 6px;
+    }
+
+    .gate-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+
+    .gate-code {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      background: rgba(255, 144, 0, 0.1);
+      color: var(--accent-orange);
+      padding: 3px 8px;
+      border-radius: 4px;
+      display: inline-block;
+      margin-bottom: 10px;
+    }
+
+    /* Table styling for Matrix */
+    .matrix-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--panel-border);
+      margin-top: 10px;
+    }
+
+    .matrix-table th, .matrix-table td {
+      padding: 12px 16px;
+      text-align: center;
+      border: 1px solid var(--panel-border);
+      font-size: 0.85rem;
+    }
+
+    .matrix-table th {
+      background: rgba(255, 144, 0, 0.12);
+      color: var(--accent-orange);
+      font-weight: 800;
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .main-layout { flex-direction: column; padding: 20px; }
+      .sidebar-nav { width: 100%; height: auto; position: relative; top: 0; }
+      .hero-stats { grid-template-columns: repeat(2, 1fr); }
+      .grid-2 { grid-template-columns: 1fr; }
+      .gating-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="bg-glow-1"></div>
+  <div class="bg-glow-2"></div>
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-logo">К</div>
+      <div class="brand-text">СИСТЕМА <span>«КУЛИЦЯ»</span></div>
+    </div>
+    <div class="header-badge">📘 Повний Посібник від А до Я</div>
+  </header>
+
+  <!-- Main Content Layout -->
+  <div class="main-layout">
+
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar-nav">
+      <div class="sidebar-title">НАВІГАЦІЯ ПО ЕТАПАХ</div>
+      <a href="#hero" class="nav-item active"><span class="nav-num">00</span> Вступ та Огляд</a>
+      <a href="#stage-1" class="nav-item"><span class="nav-num">01</span> Реєстрація Замовлення</a>
+      <a href="#stage-2" class="nav-item"><span class="nav-num">02</span> Розрахунок BOM & Металу</a>
+      <a href="#stage-3" class="nav-item"><span class="nav-num">03</span> Наряди та Планування</a>
+      <a href="#stage-4" class="nav-item"><span class="nav-num">04</span> 3-Сторонній Шлюз Запуску</a>
+      <a href="#stage-5" class="nav-item"><span class="nav-num">05</span> Бокси Фрез & Інструмент</a>
+      <a href="#stage-6" class="nav-item"><span class="nav-num">06</span> Цехові Термінали (6 Етапів)</a>
+      <a href="#stage-7" class="nav-item"><span class="nav-num">07</span> Контроль ВКЯ & Брак</a>
+      <a href="#stage-8" class="nav-item"><span class="nav-num">08</span> Телеметрія Верстатів</a>
+      <a href="#stage-9" class="nav-item"><span class="nav-num">09</span> Дашборд Деталей за Етапами</a>
+      <a href="#stage-10" class="nav-item"><span class="nav-num">10</span> Відвантаження Клієнту</a>
+      <a href="#summary" class="nav-item"><span class="nav-num">11</span> Підсумкові Вигоди</a>
+    </nav>
+
+    <!-- Content Area -->
+    <main class="content-area">
+
+      <!-- Hero Banner -->
+      <section id="hero" class="hero-card">
+        <h1 class="hero-title">Повний Наскрізний Життєвий Цикл Замовлення у системі <span>«КУЛИЦЯ»</span></h1>
+        <p class="hero-desc">
+          Детальний аналітичний посібник для керівництва підприємства: від моменту внесення замовлення менеджером до фінального підпису накладної при відвантаженні. Покроковий опис цифрового конвеєра, контролю ТМЦ та вигод для заводу.
+        </p>
+
+        <div class="hero-stats">
+          <div class="stat-box">
+            <div class="stat-val">100%</div>
+            <div class="stat-label">Простежуваність партій</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-val">3 Підписи</div>
+            <div class="stat-label">Шлюз безпеки запуску</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-val">6 Етапів</div>
+            <div class="stat-label">Технологічного конвеєра</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-val">2 Секунди</div>
+            <div class="stat-label">Формування звіту директора</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- STAGE 1: Manager Registration -->
+      <section id="stage-1" class="stage-card">
+        <div class="stage-header">
+          <div class="stage-title-group">
+            <div class="stage-badge">01</div>
+            <div>
+              <h2 class="stage-title">Реєстрація Замовлення</h2>
+              <div class="stage-subtitle">Модуль `ManagerModule` / Первинний вхід попиту</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="sub-card">
+            <h3 class="sub-card-title">⚙️ Що відбувається в системі:</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.95rem;">
+              Менеджер з продажів вносить комерційне замовлення клієнта: номенклатура виробу, кількість одиниць, домовлені дедлайни, комерційні умови та креслення. Система створює запис у таблицях `orders` та `order_items` і присвоює унікальний номер наряду (наприклад, `#1042`).
+            </p>
+          </div>
+
+          <div class="sub-card">
+            <h3 class="sub-card-title">🔒 Цифровий контроль:</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.95rem;">
+              Замовлення отримує статус `pending` та з'являється у реєстрі. Жодне замовлення не може бути передане в цех "на словах" або через приватні дзвінки.
+            </p>
+          </div>
+        </div>
+
+        <div class="benefit-box">
+          <div class="benefit-title">🔥 ЧИМ ЦЕ КЛАСНО ДЛЯ ЗАВОДУ:</div>
+          <div class="benefit-desc">
+            Ликвідація хаосу на вході замовлень! Усі комерційні умови фіксуються в системі з першої секунди. Зникають звинувачення "менеджер запізнився передати замовлення" або "забули вказати строк".
+          </div>
+        </div>
+      </section>
+
+      <!-- STAGE 2: BOM & Material Calculation -->
+      <section id="stage-2" class="stage-card">
+        <div class="stage-header">
+          <div class="stage-title-group">
+            <div class="stage-badge">02</div>
+            <div>
+              <h2 class="stage-title">Економічний & Інженерний Розрахунок (BOM)</h2>
+              <div class="stage-subtitle">Специфікація матеріалів, листів та комплектуючих</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="sub-card">
+            <h3 class="sub-card-title">📄 Технологічний розрахунок BOM:</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.95rem;">
+              Система «Кулиця» автоматично розраховує повний специфікований склад металу (норма витрат листів, товщина, марка), а також потребу у металовиробах, метизах та фурнітурі.
+            </p>
+          </div>
+
+          <div class="sub-card">
+            <h3 class="sub-card-title">📊 Контроль залишків на складі:</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.95rem;">
+              Економічний модуль миттєво звіряє потребу з оперативними залишками на складі сировини та показує чи є метал у наявності чи потрібна закупівля.
+            </p>
+          </div>
+        </div>
+
+        <div class="benefit-box">
+          <div class="benefit-title">🔥 ЧИМ ЦЕ КЛАСНО ДЛЯ ЗАВОДУ:</div>
+          <div class="benefit-desc">
+            Точне знання собівартості ДО запуску розкрою! Виробництво не зупиниться посеред зміни через те, що не вистачило 2-х листів металу. Гроші підприємства не заморожуються у надлишкових закупівлях.
+          </div>
+        </div>
+      </section>
+
+      <!-- STAGE 3: Task Batching & Planning -->
+      <section id="stage-3" class="stage-card">
+        <div class="stage-header">
+          <div class="stage-title-group">
+            <div class="stage-badge">03</div>
+            <div>
+              <h2 class="stage-title">Формування Нарядів та Планування</h2>
+              <div class="stage-subtitle">Модуль `MasterModule` / Формування `work_cards`</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="sub-card">
+            <h3 class="sub-card-title">🧩 Розбиття на партії (Batches):</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.95rem;">
+              Майстер або розраховувач формує виробничі наряди (робочі картки `work_cards`), розбиваючи велике замовлення на технологічні пачки з індексами `batch_index`.
+            </p>
+          </div>
+
+          <div class="sub-card">
+            <h3 class="sub-card-title">📍 Призначення обладнання:</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.95rem;">
+              Для кожного наряду визначається рекомендоване обладнання (конкретні верстати ЧПК) та встановлюється нормативний час виконання кожної операції.
+            </p>
+          </div>
+        </div>
+
+        <div class="benefit-box">
+          <div class="benefit-title">🔥 ЧИМ ЦЕ КЛАСНО ДЛЯ ЗАВОДУ:</div>
+          <div class="benefit-desc">
+            Ритмічне завантаження цеху! Виробничі завдання розбиваються на оптимальні партії, що виключає затори біля окремих верстатів та створює прозорий план дій для майстрів змін.
+          </div>
+        </div>
+      </section>
+
+      <!-- STAGE 4: 3-Way Digital Approval Gating -->
+      <section id="stage-4" class="stage-card">
+        <div class="stage-header">
+          <div class="stage-title-group">
+            <div class="stage-badge">04</div>
+            <div>
+              <h2 class="stage-title">3-Сторонній Цифровий Шлюз Запуску</h2>
+              <div class="stage-subtitle">Модуль `DirectorModule` / Шлюз безпеки з 3-х підписів</div>
+            </div>
+          </div>
+        </div>
+
+        <p style="color: var(--text-muted); font-size: 0.95rem;">
+          Найважливіший цифровий замок безпеки заводу: Наряд не з'явиться в черзі верстата доки 3 служби не поставлять свої цифрові підписи!
+        </p>
+
+        <div class="gating-grid">
+          <div class="gate-item">
+            <div class="gate-num">ПІДПИС 1</div>
+            <div class="gate-title">Склад ТМЦ</div>
+            <div class="gate-code">warehouse_conf = true / partial</div>
+            <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">
+              Комірник підтверджує наявність сировини та видачу матеріалу під наряд. Метал зарезервовано.
+            </p>
+          </div>
+
+          <div class="gate-item">
+            <div class="gate-num">ПІДПИС 2</div>
+            <div class="gate-title">Інженерний Відділ</div>
+            <div class="gate-code">engineer_conf = true</div>
+            <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">
+              Інженер завантажує карти розкрою та керуючі програми для ЧПК і підтверджує готовність ПЗ.
+            </p>
+          </div>
+
+          <div class="gate-item" style="border-color: rgba(16, 185, 129, 0.4);">
+            <div class="gate-num">ПІДПИС 3</div>
+            <div class="gate-title">Директор Підприємства</div>
+            <div class="gate-code">director_conf = true</div>
+            <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">
+              Кнопка «Фінальний підпис» в `DirectorModule` <strong>розблоковується лише після перших 2-х підписів</strong>. Директор авторизує запуск.
+            </p>
+          </div>
+        </div>
+
+        <div class="benefit-box">
+          <div class="benefit-title">🔥 ЧИМ ЦЕ КЛАСНО ДЛЯ ЗАВОДУ:</div>
+          <div class="benefit-desc">
+            100% гарантія відсутності простоїв! На верстат НЕ потрапить "порожнє" замовлення без металу чи програми. Повне усунення конфліктів та звинувачень між підрозділами.
+          </div>
+        </div>
+      </section>
+
+      <!-- STAGE 5: Tooling & Cutter Boxes -->
+      <section id="stage-5" class="stage-card">
+        <div class="stage-header">
+          <div class="stage-title-group">
+            <div class="stage-badge">05</div>
+            <div>
+              <h2 class="stage-title">Бокси Фрез та Інструмент</h2>
+              <div class="stage-subtitle">Модулі `WarehousePrepBoxes` та `CutterRestorationModule`</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="sub-card">
+            <h3 class="sub-card-title">✂️ Чек-лист та комплектування боксів:</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.95rem;">
+              Модуль `WarehousePrepBoxes` розраховує перелік фрез під робочу картку. Інструменталка комплектує фрези у бокси, відмічаючи чек-лист у веб-інтерфейсі до установки на верстат.
+            </p>
+          </div>
+
+          <div class="sub-card">
+            <h3 class="sub-card-title">🔄 Контроль зносу та перегострення:</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.95rem;">
+              Модуль `CutterRestorationModule` відстежує напрацювання фрез у часі та направляє їх на планове заточування чи списання.
+            </p>
+          </div>
+        </div>
+
+        <div class="benefit-box">
+          <div class="benefit-title">🔥 ЧИМ ЦЕ КЛАСНО ДЛЯ ЗАВОДУ:</div>
+          <div class="benefit-desc">
+            Оператор ЧПК більше не шукає фрези по цеху — зібраний бокс інструменту чекає на нього біля верстата разом з нарядом! Суттєве зменшення поломок інструменту та браку через тупі фрези.
+          </div>
+        </div>
+      </section>
+
+      <!-- STAGE 6: Workshop Terminals -->
+      <section id="stage-6" class="stage-card">
+        <div class="stage-header">
+          <div class="stage-title-group">
+            <div class="stage-badge">06</div>
+            <div>
+              <h2 class="stage-title">Цехові Термінали (6 Етапів Конвеєра)</h2>
+              <div class="stage-subtitle">Поклітинне виконання замовлення у цеху</div>
+            </div>
+          </div>
+        </div>
+
+        <p style="color: var(--text-muted); font-size: 0.95rem;">
+          Замовлення рухається за суворим маршрутом через спеціалізовані цехові термінали з відміткою виконання за лічені секунди:
+        </p>
+
+        <div class="grid-3">
+          <div class="sub-card">
+            <div style="color: var(--accent-orange); font-weight: 800; font-size: 0.85rem; font-family: var(--font-mono);">ЕТАП 1</div>
+            <h4 style="font-size: 1.1rem; color: #fff; margin: 4px 0 8px 0;">Підготовка</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Видача листового металу зі складу МВО під розкрій (`PreparationTerminal`).</p>
+          </div>
+
+          <div class="sub-card">
+            <div style="color: var(--accent-orange); font-weight: 800; font-size: 0.85rem; font-family: var(--font-mono);">ЕТАП 2</div>
+            <h4 style="font-size: 1.1rem; color: #fff; margin: 4px 0 8px 0;">Розкрій (ЧПК)</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Сканування QR-коду картки (`CENTRUM_CARD_<UUID>`), розкрій на ЧПК (`Shop1Terminal`).</p>
+          </div>
+
+          <div class="sub-card">
+            <div style="color: var(--accent-orange); font-weight: 800; font-size: 0.85rem; font-family: var(--font-mono);">ЕТАП 3</div>
+            <h4 style="font-size: 1.1rem; color: #fff; margin: 4px 0 8px 0;">Галтовка</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Зняття заусенців та обробка поверхонь деталей у галтувальних барабанах (`TumblingTerminal`).</p>
+          </div>
+
+          <div class="sub-card">
+            <div style="color: var(--accent-cyan); font-weight: 800; font-size: 0.85rem; font-family: var(--font-mono);">ЕТАП 4</div>
+            <h4 style="font-size: 1.1rem; color: #fff; margin: 4px 0 8px 0;">Пресування</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Формувальні та пресувальні операції з фіксацією виконаної кількості (`PressingTerminal`).</p>
+          </div>
+
+          <div class="sub-card">
+            <div style="color: var(--accent-cyan); font-weight: 800; font-size: 0.85rem; font-family: var(--font-mono);">ЕТАП 5</div>
+            <h4 style="font-size: 1.1rem; color: #fff; margin: 4px 0 8px 0;">Фарбування</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Порошкове нанесення покриття та термокамера сушки (`PaintingTerminal`).</p>
+          </div>
+
+          <div class="sub-card">
+            <div style="color: var(--accent-green); font-weight: 800; font-size: 0.85rem; font-family: var(--font-mono);">ЕТАП 6</div>
+            <h4 style="font-size: 1.1rem; color: #fff; margin: 4px 0 8px 0;">Збирання</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Фінальна комплектація та збирання готових комплектів (`SortingTerminal`).</p>
+          </div>
+        </div>
+
+        <div class="benefit-box">
+          <div class="benefit-title">🔥 ЧИМ ЦЕ КЛАСНО ДЛЯ ЗАВОДУ:</div>
+          <div class="benefit-desc">
+            Жодної загубленої деталі між дільницями! Система точно знає де перебуває кожна деталь та скільки одиниць знаходиться в роботі у кожного оператора.
+          </div>
+        </div>
+      </section>
+
+      <!-- STAGE 7: QC & Scrap Analysis -->
+      <section id="stage-7" class="stage-card">
+        <div class="stage-header">
+          <div class="stage-title-group">
+            <div class="stage-badge">07</div>
+            <div>
+              <h2 class="stage-title">Контроль ВКЯ & Облік Браку</h2>
+              <div class="stage-subtitle">Модуль `BrakModule` / Контроль якості та класифікація</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="sub-card">
+            <h3 class="sub-card-title">🔍 Класифікація браку по 4-х Категоріях:</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.95rem;">
+              Фахівець ВКЯ сканує картку та фіксує відхилення: Cat 1 (косметичний ремонт), Cat 2 (доопрацювання), Cat 3 (відновлення) або Cat 4 (повне списання).
+            </p>
+          </div>
+
+          <div class="sub-card">
+            <h3 class="sub-card-title">📊 Аналітика за 4-ма вимірами:</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.95rem;">
+              Автоматична прив'язка браку до **Оператора**, **Етапу**, **Верстата** (наприклад, біння цанги) та **Причини** (`scrap_report_by_reason`).
+            </p>
+          </div>
+        </div>
+
+        <div class="benefit-box">
+          <div class="benefit-title">🔥 ЧИМ ЦЕ КЛАСНО ДЛЯ ЗАВОДУ:</div>
+          <div class="benefit-desc">
+            Об'єктивна картина якості без приховування браку! Керівництво бачить справжні причини втрат (несправність верстата чи брак досвіду оператора) і не шукає "цапів-відбувайлів".
+          </div>
+        </div>
+      </section>
+
+      <!-- STAGE 8: Machine Telemetry & Calls -->
+      <section id="stage-8" class="stage-card">
+        <div class="stage-header">
+          <div class="stage-title-group">
+            <div class="stage-badge">08</div>
+            <div>
+              <h2 class="stage-title">Телеметрія Верстатів & Виклики</h2>
+              <div class="stage-subtitle">Модуль `MachineCallModule` / Моніторинг обладнання</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="sub-card">
+            <h3 class="sub-card-title">⚡ Виклик фахівця в 1 клік:</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.95rem;">
+              Оператор верстата в один клік викликає наладчика ЧПК, електрика чи фахівця ВКЯ безпосередньо з терміналу верстата.
+            </p>
+          </div>
+
+          <div class="sub-card">
+            <h3 class="sub-card-title">📈 Облік причин простоїв & OEE:</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.95rem;">
+              Фіксація точно тривалості застою верстата з причин: переналадка, поломка інструменту, очікування сировини чи сервіс.
+            </p>
+          </div>
+        </div>
+
+        <div class="benefit-box">
+          <div class="benefit-title">🔥 ЧИМ ЦЕ КЛАСНО ДЛЯ ЗАВОДУ:</div>
+          <div class="benefit-desc">
+            Скорочення часу простою обладнання на 40-60%! Наладчик отримує сповіщення миттєво, а директор бачить об'єктивний коефіцієнт використання верстатного парку (OEE).
+          </div>
+        </div>
+      </section>
+
+      <!-- STAGE 9: Executive Dashboard - Part Location by Stage -->
+      <section id="stage-9" class="stage-card">
+        <div class="stage-header">
+          <div class="stage-title-group">
+            <div class="stage-badge">09</div>
+            <div>
+              <h2 class="stage-title">Дашборд Перебування Деталей за Етапами</h2>
+              <div class="stage-subtitle">Модуль `DirectorModule` / Матричне бачення замовлень у реальному часі</div>
+            </div>
+          </div>
+        </div>
+
+        <p style="color: var(--text-muted); font-size: 0.95rem;">
+          Головний монітор директора підприємства показує розташування деталей кожної партії за етапами технологічного конвеєра:
+        </p>
+
+        <table class="matrix-table">
+          <thead>
+            <tr>
+              <th>Наряд / Виріб</th>
+              <th>1. Підготовка</th>
+              <th>2. Розкрій</th>
+              <th>3. Галтовка</th>
+              <th>4. Пресування</th>
+              <th>5. Фарбування</th>
+              <th>6. Збирання</th>
+              <th>7. Склад (Готово)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="font-weight: 800; color: var(--accent-orange);">Наряд #1042 (Корпуси)</td>
+              <td style="color: #34d399;">100% [ОК]</td>
+              <td style="color: #34d399;">100% [ОК]</td>
+              <td style="color: #34d399;">100% [ОК]</td>
+              <td style="color: var(--accent-orange); font-weight: 800;">450 шт (В роботі)</td>
+              <td style="color: #666;">—</td>
+              <td style="color: #666;">—</td>
+              <td style="color: #666;">0 шт</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 800; color: var(--accent-cyan);">Наряд #1045 (Кронштейни)</td>
+              <td style="color: #34d399;">100% [ОК]</td>
+              <td style="color: #34d399;">100% [ОК]</td>
+              <td style="color: #34d399;">100% [ОК]</td>
+              <td style="color: #34d399;">100% [ОК]</td>
+              <td style="color: var(--accent-cyan); font-weight: 800;">1200 шт (Фарбування)</td>
+              <td style="color: #666;">—</td>
+              <td style="color: #666;">0 шт</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 800; color: var(--accent-purple);">Наряд #1048 (Шасі)</td>
+              <td style="color: #34d399;">100% [ОК]</td>
+              <td style="color: var(--accent-purple); font-weight: 800;">800 шт (Розкрій)</td>
+              <td style="color: #666;">—</td>
+              <td style="color: #666;">—</td>
+              <td style="color: #666;">—</td>
+              <td style="color: #666;">—</td>
+              <td style="color: #666;">0 шт</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="benefit-box">
+          <div class="benefit-title">🔥 ЧИМ ЦЕ КЛАСНО ДЛЯ ЗАВОДУ:</div>
+          <div class="benefit-desc">
+            Контроль заводу за 2 секунди! Директор негайно детектує вузькі місця, бачить які партії затримуються та може оперативно перерозподілити працівників.
+          </div>
+        </div>
+      </section>
+
+      <!-- STAGE 10: Shipping & Final Delivery -->
+      <section id="stage-10" class="stage-card">
+        <div class="stage-header">
+          <div class="stage-title-group">
+            <div class="stage-badge">10</div>
+            <div>
+              <h2 class="stage-title">Пакування & Відвантаження Клієнту</h2>
+              <div class="stage-subtitle">Модулі `ReceptionTerminal` та `ShippingModule`</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="sub-card">
+            <h3 class="sub-card-title">📦 Комплектація та маркування:</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.95rem;">
+              Готова продукція приймається на СГП через `ReceptionTerminal`, маркується транспортними етикетками та формується у палети.
+            </p>
+          </div>
+
+          <div class="sub-card">
+            <h3 class="sub-card-title">🚚 Формування накладних та закриття:</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.95rem;">
+              Модуль `ShippingModule` генерує видаткові документи, списує готові вироби зі складу та змінює статус замовлення для менеджера на `shipped`.
+            </p>
+          </div>
+        </div>
+
+        <div class="benefit-box">
+          <div class="benefit-title">🔥 ЧИМ ЦЕ КЛАСНО ДЛЯ ЗАВОДУ:</div>
+          <div class="benefit-desc">
+            100% гарантія того, що клієнту відвантажено точну кількість якісних виробів без недокомплекту! Повний замкнений цикл простежуваності: від закупівлі листа металу до підпису клієнта на накладній.
+          </div>
+        </div>
+      </section>
+
+      <!-- SUMMARY SECTION -->
+      <section id="summary" class="stage-card" style="border-color: rgba(16, 185, 129, 0.4);">
+        <div class="stage-header">
+          <div class="stage-title-group">
+            <div class="stage-badge" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border-color: rgba(16, 185, 129, 0.3);">11</div>
+            <div>
+              <h2 class="stage-title">Стратегічні Вигоди для Підприємства</h2>
+              <div class="stage-subtitle">Підсумковий порівняльний аналіз системної трансформації</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <div class="sub-card">
+            <h4 style="color: var(--accent-orange); margin-bottom: 8px;">1. Повний Контроль ТМЦ</h4>
+            <p style="font-size: 0.88rem; color: var(--text-muted); line-height: 1.6;">
+              Унеможливлення розкрадань сировини, понадлімітних видач та туманних залишків. Кожен лист металу та кожна фреза перебувають під цифровим обліком.
+            </p>
+          </div>
+
+          <div class="sub-card">
+            <h4 style="color: var(--accent-cyan); margin-bottom: 8px;">2. Виробничий Мир</h4>
+            <p style="font-size: 0.88rem; color: var(--text-muted); line-height: 1.6;">
+              Усунення конфліктів між цехом, складом та інженерами. Система виключає взаємні звинувачення та забезпечує прозору дисципліну.
+            </p>
+          </div>
+
+          <div class="sub-card">
+            <h4 style="color: var(--accent-green); margin-bottom: 8px;">3. Прозорість для Керівника</h4>
+            <p style="font-size: 0.88rem; color: var(--text-muted); line-height: 1.6;">
+              Директор бачить стан будь-якого замовлення, завантаження верстатів та причин браку у режимі реального часу за 2 секунди.
+            </p>
+          </div>
+        </div>
+
+        <div class="benefit-box" style="text-align: center; margin-top: 10px;">
+          <div class="benefit-title" style="justify-content: center;">🚀 ВИСНОВОК ДИРЕКТОРУ З ВИРОБНИЦТВА:</div>
+          <div class="benefit-desc">
+            Система «КУЛИЦЯ» — це потужний інноваційний двигун нашого заводу. Закінчивши її повне впровадження, ми отримаємо найкращий, найефективніший та найприбутковіший виробничий комплекс у галузі!
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+  </div>
+
+  <script>
+    // Smooth scrolling & active navigation highlights
+    const navLinks = document.querySelectorAll('.sidebar-nav a');
+    const sections = document.querySelectorAll('section[id]');
+
+    window.addEventListener('scroll', () => {
+      let current = '';
+      sections.forEach(section => {
+        const sectionTop = section.offsetTop - 120;
+        if (pageYOffset >= sectionTop) {
+          current = section.getAttribute('id');
+        }
+      });
+
+      navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === `#${current}`) {
+          link.classList.add('active');
+        }
+      });
+    });
+  </script>
+</body>
+</html>

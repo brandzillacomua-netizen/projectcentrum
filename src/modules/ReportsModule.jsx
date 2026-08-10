@@ -52,6 +52,16 @@ const normalizeScrapReasonName = (reason) => {
   return name
 }
 
+const HISTORY_REPORT_TABS = new Set(['employees', 'scrap', 'supplies', 'sheets', 'cutters', 'analytics'])
+const REPORT_CACHE_TTL_MS = 30 * 1000
+
+const dateInputBoundaryIso = (value, nextDay = false) => {
+  if (!value) return null
+  const [year, month, day] = value.split('-').map(Number)
+  const date = new Date(year, month - 1, day + (nextDay ? 1 : 0), 0, 0, 0, 0)
+  return date.toISOString()
+}
+
 const ReportsModule = () => {
   const { 
     inventory, 
@@ -142,6 +152,7 @@ const ReportsModule = () => {
   const [scrapReasonsDb, setScrapReasonsDb] = useState([])
   const [classifiedHistoryIds, setClassifiedHistoryIds] = useState(new Set())
   const [isSyncing, setIsSyncing] = useState(false)
+  const [historyLoadError, setHistoryLoadError] = useState('')
   const [selectedShiftFilter, setSelectedShiftFilter] = useState('all')
   const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState('all')
   const historyRangeCacheRef = useRef(new Map())
@@ -159,99 +170,96 @@ const ReportsModule = () => {
     return Array.from(ops).filter(Boolean).sort();
   }, [systemUsers, workCardHistory]);
 
-  const fetchReportHistoryRange = async (startIso, endIso) => {
-    const cacheKey = `${startIso || ''}|${endIso || ''}`
+  const fetchReportHistoryRange = async (startIso, endExclusiveIso, scrapOnly = false) => {
+    const cacheKey = `${scrapOnly ? 'scrap' : 'all'}|${startIso || ''}|${endExclusiveIso || ''}`
     const cached = historyRangeCacheRef.current.get(cacheKey)
-    if (cached) return cached
+    if (cached && Date.now() - cached.savedAt < REPORT_CACHE_TTL_MS) return cached.rows
 
-    const columns = 'id,card_id,nomenclature_id,operator_name,shift_name,stage_name,qty_completed,scrap_qty,qc_scrap_comment,completed_at,created_at,card_info'
+    const columns = scrapOnly
+      ? 'id,nomenclature_id,operator_name,shift_name,stage_name,scrap_qty,qc_scrap_comment,completed_at'
+      : 'id,card_id,nomenclature_id,operator_name,shift_name,stage_name,qty_completed,scrap_qty,qc_scrap_comment,completed_at,created_at,card_info'
     const applyRange = (query) => {
       let ranged = query
       if (startIso) ranged = ranged.gte('completed_at', startIso)
-      if (endIso) ranged = ranged.lte('completed_at', endIso)
+      if (endExclusiveIso) ranged = ranged.lt('completed_at', endExclusiveIso)
+      if (scrapOnly) ranged = ranged.gt('scrap_qty', 0)
       return ranged
     }
 
-    const { count, error: countError } = await applyRange(
-      supabase.from('work_card_history').select('id', { count: 'exact', head: true })
-    )
-    if (countError) throw countError
-
     const pageSize = 1000
-    const pageCount = Math.ceil((count || 0) / pageSize)
-    const pages = []
+    const rows = []
 
-    // Fetch several independent PostgREST pages concurrently instead of one
-    // 500-row round trip after another. Limit concurrency to avoid flooding DB.
-    for (let batchStart = 0; batchStart < pageCount; batchStart += 6) {
-      const batch = []
-      for (let page = batchStart; page < Math.min(pageCount, batchStart + 6); page += 1) {
-        const from = page * pageSize
-        batch.push(applyRange(
-          supabase
-            .from('work_card_history')
-            .select(columns)
-            .order('completed_at', { ascending: false })
-            .range(from, from + pageSize - 1)
-        ))
-      }
-      const results = await Promise.all(batch)
-      results.forEach(result => {
-        if (result.error) throw result.error
-        pages.push(...(result.data || []))
-      })
+    // Avoid an expensive exact count. Read stable pages until the server returns
+    // the final short page. Sequential reads also cannot expire while queued.
+    for (let from = 0; ; from += pageSize) {
+      const result = await applyRange(
+        supabase
+          .from('work_card_history')
+          .select(columns)
+          .order('completed_at', { ascending: false })
+          .order('id', { ascending: false })
+          .range(from, from + pageSize - 1)
+      )
+      if (result.error) throw result.error
+      const page = result.data || []
+      rows.push(...page)
+      if (page.length < pageSize) break
     }
 
-    historyRangeCacheRef.current.set(cacheKey, pages)
-    return pages
+    historyRangeCacheRef.current.set(cacheKey, { rows, savedAt: Date.now() })
+    return rows
   }
 
   // Функція для завантаження даних за період
   const syncHistory = async (startStr, endStr) => {
     const requestSeq = ++historyRequestSeqRef.current
     setIsSyncing(true)
-    let startIso = null
-    let endIso = null
-    
-    if (startStr) {
-      const d = new Date(startStr)
-      d.setHours(0,0,0,0)
-      startIso = d.toISOString()
-    } else {
+    setHistoryLoadError('')
+    let startIso = dateInputBoundaryIso(startStr)
+    const endExclusiveIso = dateInputBoundaryIso(endStr, true)
+
+    if (!startIso) {
       // Default to 1 month ago if no start date to avoid fetching everything
       const d = new Date()
       d.setMonth(d.getMonth() - 1)
       startIso = d.toISOString()
     }
-    
-    if (endStr) {
-      const d = new Date(endStr)
-      d.setHours(23,59,59,999)
-      endIso = d.toISOString()
-    }
-    
+
     try {
-      let dbReasonsQuery = supabase.from('scrap_report_by_reason').select('*')
-      if (startIso) dbReasonsQuery = dbReasonsQuery.gte('report_day', startIso)
-      if (endIso) dbReasonsQuery = dbReasonsQuery.lte('report_day', endIso)
-
-      let classificationsQuery = supabase.from('scrap_classifications').select('source_history_id')
-      if (startIso) classificationsQuery = classificationsQuery.gte('classified_at', startIso)
-      if (endIso) classificationsQuery = classificationsQuery.lte('classified_at', endIso)
-
-      const [completeHistory, dbReasonsResult, classificationsResult] = await Promise.all([
-        fetchReportHistoryRange(startIso, endIso),
-        dbReasonsQuery,
-        classificationsQuery
-      ])
+      const scrapOnly = activeTab === 'scrap'
+      const completeHistory = await fetchReportHistoryRange(startIso, endExclusiveIso, scrapOnly)
 
       if (requestSeq === historyRequestSeqRef.current) {
         setWorkCardHistory(completeHistory)
-        setScrapReasonsDb(dbReasonsResult.data || [])
-        setClassifiedHistoryIds(new Set((classificationsResult.data || []).map(r => r.source_history_id)))
+      }
+
+      // Reason analytics is optional and considerably heavier. Load it only
+      // when the user actually opens that sub-tab.
+      if (scrapOnly && scrapReportSubTab === 'reasons') {
+        let dbReasonsQuery = supabase.from('scrap_report_by_reason').select('*')
+        if (startIso) dbReasonsQuery = dbReasonsQuery.gte('report_day', startIso)
+        if (endExclusiveIso) dbReasonsQuery = dbReasonsQuery.lt('report_day', endExclusiveIso)
+
+        let classificationsQuery = supabase.from('scrap_classifications').select('source_history_id')
+        if (startIso) classificationsQuery = classificationsQuery.gte('classified_at', startIso)
+        if (endExclusiveIso) classificationsQuery = classificationsQuery.lt('classified_at', endExclusiveIso)
+
+        // These reads share a single browser-side connection slot. Await them
+        // one by one so the second request cannot time out while queued.
+        const dbReasonsResult = await dbReasonsQuery
+        const classificationsResult = await classificationsQuery
+        if (dbReasonsResult.error) throw dbReasonsResult.error
+        if (classificationsResult.error) throw classificationsResult.error
+        if (requestSeq === historyRequestSeqRef.current) {
+          setScrapReasonsDb(dbReasonsResult.data || [])
+          setClassifiedHistoryIds(new Set((classificationsResult.data || []).map(r => r.source_history_id)))
+        }
       }
     } catch (err) {
       console.error("Failed to sync history range:", err)
+      if (requestSeq === historyRequestSeqRef.current) {
+        setHistoryLoadError(err?.message || 'Не вдалося завантажити дані за обраний період')
+      }
     } finally {
       if (requestSeq === historyRequestSeqRef.current) setIsSyncing(false)
     }
@@ -260,11 +268,12 @@ const ReportsModule = () => {
   // Слідкуємо за зміною періоду
   React.useEffect(() => {
     const timer = setTimeout(() => {
+      if (!HISTORY_REPORT_TABS.has(activeTab)) return
       if (startDate || endDate) syncHistory(startDate, endDate)
       else setWorkCardHistory(initialHistory)
     }, 250)
     return () => clearTimeout(timer)
-  }, [startDate, endDate])
+  }, [startDate, endDate, activeTab, scrapReportSubTab])
 
   // Date Filtering Logic
   const handleQuickDateSelect = (e) => {
@@ -1160,6 +1169,12 @@ const ReportsModule = () => {
         );
 
       case 'scrap':
+        if (isSyncing) {
+          return <div className="glass-panel" style={{ background: '#111', padding: '35px', borderRadius: '16px', border: '1px solid #222', color: '#aaa', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}><RefreshCw size={20} className="spin" /> Завантажуємо брак за обраний період…</div>
+        }
+        if (historyLoadError) {
+          return <div className="glass-panel" style={{ background: '#111', padding: '25px', borderRadius: '16px', border: '1px solid #7f1d1d', color: '#fca5a5' }}>Не вдалося завантажити звіт: {historyLoadError}</div>
+        }
         return (
           <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '20px' }}>

@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Повний Аналіз системи «КУЛИЦЯ» (Від А до Я) — Джерело Виробничої Правди</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800;900&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #05070a;
+      --panel-bg: rgba(15, 19, 28, 0.88);
+      --panel-border: rgba(255, 255, 255, 0.08);
+      --accent-orange: #ff9000;
+      --accent-cyan: #00f2fe;
+      --accent-green: #10b981;
+      --accent-purple: #a855f7;
+      --accent-red: #ef4444;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --font-main: 'Outfit', sans-serif;
+      --font-mono: 'Space Grotesk', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    .bg-glow-1 {
+      position: fixed;
+      width: 750px;
+      height: 750px;
+      background: radial-gradient(circle, rgba(255, 144, 0, 0.12) 0%, rgba(0, 0, 0, 0) 70%);
+      top: -250px;
+      right: -200px;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .bg-glow-2 {
+      position: fixed;
+      width: 650px;
+      height: 650px;
+      background: radial-gradient(circle, rgba(0, 242, 254, 0.09) 0%, rgba(0, 0, 0, 0) 70%);
+      bottom: -180px;
+      left: -180px;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 40px;
+      background: rgba(5, 7, 10, 0.92);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--panel-border);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-weight: 900;
+      font-size: 1.4rem;
+      letter-spacing: 1px;
+    }
+
+    .brand-logo {
+      width: 42px;
+      height: 42px;
+      background: linear-gradient(135deg, var(--accent-orange), #d97706);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #000;
+      font-weight: 900;
+      box-shadow: 0 0 25px rgba(255, 144, 0, 0.4);
+    }
+
+    .brand-text span {
+      color: var(--accent-orange);
+    }
+
+    .header-badge {
+      font-family: var(--font-mono);
+      background: rgba(255, 144, 0, 0.1);
+      border: 1px solid rgba(255, 144, 0, 0.3);
+      color: var(--accent-orange);
+      padding: 6px 18px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .main-layout {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      max-width: 1440px;
+      margin: 0 auto;
+      width: 100%;
+      padding: 30px 40px;
+      gap: 40px;
+    }
+
+    .sidebar-nav {
+      width: 310px;
+      position: sticky;
+      top: 90px;
+      height: calc(100vh - 120px);
+      overflow-y: auto;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 20px;
+      padding: 20px;
+      backdrop-filter: blur(12px);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .sidebar-title {
+      font-size: 0.85rem;
+      font-family: var(--font-mono);
+      color: var(--accent-orange);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 10px;
+      font-weight: 700;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      border: 1px solid transparent;
+    }
+
+    .nav-item:hover, .nav-item.active {
+      background: rgba(255, 144, 0, 0.1);
+      color: var(--accent-orange);
+      border-color: rgba(255, 144, 0, 0.25);
+    }
+
+    .nav-num {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .content-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 36px;
+    }
+
+    .hero-card {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 24px;
+      padding: 36px;
+      backdrop-filter: blur(16px);
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    .hero-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 6px;
+      height: 100%;
+      background: linear-gradient(180deg, var(--accent-orange), var(--accent-cyan));
+    }
+
+    .hero-title {
+      font-size: 2.5rem;
+      font-weight: 900;
+      line-height: 1.2;
+      margin-bottom: 16px;
+    }
+
+    .hero-title span {
+      color: var(--accent-orange);
+      background: linear-gradient(135deg, #ff9000, #ffc107);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-desc {
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      line-height: 1.7;
+      max-width: 950px;
+      margin-bottom: 24px;
+    }
+
+    .chain-box {
+      background: rgba(0, 242, 254, 0.06);
+      border: 1px solid rgba(0, 242, 254, 0.25);
+      border-radius: 14px;
+      padding: 16px 20px;
+      margin-top: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+    }
+
+    .chain-node {
+      background: rgba(255, 255, 255, 0.08);
+      padding: 4px 10px;
+      border-radius: 6px;
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .chain-arrow {
+      color: var(--accent-orange);
+      font-weight: 900;
+    }
+
+    .role-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(0, 242, 254, 0.1);
+      border: 1px solid rgba(0, 242, 254, 0.25);
+      color: var(--accent-cyan);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .stage-card {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 20px;
+      padding: 30px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+      scroll-margin-top: 100px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      transition: all 0.3s ease;
+    }
+
+    .stage-card:hover {
+      border-color: rgba(255, 144, 0, 0.3);
+    }
+
+    .stage-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--panel-border);
+      padding-bottom: 14px;
+    }
+
+    .stage-title-group {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .stage-badge {
+      font-family: var(--font-mono);
+      background: rgba(255, 144, 0, 0.15);
+      color: var(--accent-orange);
+      border: 1px solid rgba(255, 144, 0, 0.3);
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 1.15rem;
+    }
+
+    .stage-title {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .stage-subtitle {
+      font-size: 0.82rem;
+      color: var(--accent-cyan);
+      font-family: var(--font-mono);
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+    }
+
+    .sub-card {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--panel-border);
+      border-radius: 14px;
+      padding: 18px;
+    }
+
+    .sub-card-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .code-tag {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      background: rgba(255, 144, 0, 0.12);
+      color: var(--accent-orange);
+      padding: 2px 6px;
+      border-radius: 4px;
+      display: inline-block;
+    }
+
+    .benefit-box {
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-left: 4px solid var(--accent-green);
+      border-radius: 14px;
+      padding: 18px;
+      margin-top: 6px;
+    }
+
+    .benefit-title {
+      font-size: 1rem;
+      font-weight: 800;
+      color: var(--accent-green);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .benefit-desc {
+      font-size: 0.92rem;
+      color: var(--text-main);
+      line-height: 1.6;
+    }
+
+    .gating-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .gate-item {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--panel-border);
+      border-radius: 14px;
+      padding: 16px;
+    }
+
+    .matrix-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--panel-border);
+    }
+
+    .matrix-table th, .matrix-table td {
+      padding: 10px 14px;
+      text-align: center;
+      border: 1px solid var(--panel-border);
+      font-size: 0.82rem;
+    }
+
+    .matrix-table th {
+      background: rgba(255, 144, 0, 0.12);
+      color: var(--accent-orange);
+      font-weight: 800;
+    }
+
+    .compact-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+
+    .compact-table th, .compact-table td {
+      padding: 8px 14px;
+      border: 1px solid var(--panel-border);
+      text-align: left;
+    }
+
+    .compact-table th {
+      background: rgba(255, 144, 0, 0.12);
+      color: var(--accent-orange);
+      font-weight: 800;
+    }
+
+    .compact-table td:nth-child(2) {
+      font-family: var(--font-mono);
+      color: var(--accent-cyan);
+      font-weight: 700;
+    }
+
+    @media (max-width: 1024px) {
+      .main-layout { flex-direction: column; padding: 20px; }
+      .sidebar-nav { width: 100%; height: auto; position: relative; top: 0; }
+      .grid-2, .grid-3, .gating-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="bg-glow-1"></div>
+  <div class="bg-glow-2"></div>
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-logo">К</div>
+      <div class="brand-text">СИСТЕМА <span>«КУЛИЦЯ»</span></div>
+    </div>
+    <div class="header-badge">🔬 Аналіз Архітектури</div>
+  </header>
+
+  <!-- Main Content Layout -->
+  <div class="main-layout">
+
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar-nav">
+      <div class="sidebar-title">КРОКИ ЖИТТЄВОГО ЦИКЛУ</div>
+      <a href="#hero" class="nav-item active"><span class="nav-num">00</span> Огляд та Позиція</a>
+      <a href="#step-1" class="nav-item"><span class="nav-num">01</span> Створення Замовлення & BOM</a>
+      <a href="#step-2" class="nav-item"><span class="nav-num">02</span> Наряд & Розрахунок Сировини</a>
+      <a href="#step-3" class="nav-item"><span class="nav-num">03</span> 3-Сторонній Шлюз Запуску</a>
+      <a href="#step-4" class="nav-item"><span class="nav-num">04</span> Картки `work_cards` & Фрези</a>
+      <a href="#step-5" class="nav-item"><span class="nav-num">05</span> Термінали Цеху №1</a>
+      <a href="#step-6" class="nav-item"><span class="nav-num">06</span> Передача & Робота Цеху №2</a>
+      <a href="#step-7" class="nav-item"><span class="nav-num">07</span> Брак & Механіка Довипуску</a>
+      <a href="#step-8" class="nav-item"><span class="nav-num">08</span> Телеметрія & OEE-Аналітика</a>
+      <a href="#step-9" class="nav-item"><span class="nav-num">09</span> Дашборд Деталей за Етапами</a>
+      <a href="#step-10" class="nav-item"><span class="nav-num">10</span> Внутрішній Задачник `TaskProjectsModule`</a>
+      <a href="#step-11" class="nav-item"><span class="nav-num">11</span> Єдиний Контур Управління</a>
+      <a href="#step-12" class="nav-item"><span class="nav-num">12</span> Управлінський Блок Ролей</a>
+      <a href="#step-13" class="nav-item"><span class="nav-num">13</span> СГП, Пакування & Логістика</a>
+      <a href="#step-14" class="nav-item"><span class="nav-num">14</span> 100% Адаптованість до Бізнесу</a>
+    </nav>
+
+    <!-- Content Area -->
+    <main class="content-area">
+
+      <!-- Hero Banner -->
+      <section id="hero" class="hero-card">
+        <h1 class="hero-title">Аналіз системи <span>«КУЛИЦЯ»</span> (Від А до Я)</h1>
+        <p class="hero-desc">
+          Глибоке покрокове занурення у функціонування цифрового конвеєра нашого заводу. <strong>«КУЛИЦЯ» — джерело виробничої правди.</strong> Симуляція роботи від імені всіх ролей з розбором логіки коду, OEE-аналітики, довипуску браку та вигод для підприємства.
+        </p>
+        <div class="chain-box">
+          <span style="color: var(--accent-orange); font-weight: 800;">🔗 Єдиний цифровий ланцюг:</span>
+          <span class="chain-node">Замовлення</span> <span class="chain-arrow">→</span>
+          <span class="chain-node">Сировина</span> <span class="chain-arrow">→</span>
+          <span class="chain-node">Наряд</span> <span class="chain-arrow">→</span>
+          <span class="chain-node">Обладнання</span> <span class="chain-arrow">→</span>
+          <span class="chain-node">Операція</span> <span class="chain-arrow">→</span>
+          <span class="chain-node">Працівник</span> <span class="chain-arrow">→</span>
+          <span class="chain-node">Результат</span> <span class="chain-arrow">→</span>
+          <span class="chain-node">Склад</span> <span class="chain-arrow">→</span>
+          <span class="chain-node">Відвантаження</span>
+        </div>
+      </section>
+
+      <!-- STEP 1 -->
+      <section id="step-1" class="stage-card">
+        <div class="stage-header">
+          <div class="stage-title-group">
+            <div class="stage-badge">01</div>
+            <div>
+              <h2 class="stage-title">Створення Замовлення та Специфікація Вузлів</h2>
+              <div class="stage-subtitle">Модулі `ManagerModule` & `NomenclatureV2` / Дерево Parent-Child BOM</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="role-badge">👤 РОЛІ: Менеджер з продажів & Головний Конструктор</div>
+
+        <div class="grid-2">
+          <div class="sub-card">
+            <h3 class="sub-card-title">📝 Дії менеджера:</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.92rem;">
+              Менеджер входить у `ManagerModule`, обирає замовника, формує список готових виробів, вказує дедлайни та бажану дату. Замовленню присвоюється унікальний системний код (наприклад, `#1042`).
+            </p>
+          </div>
+
+          <div class="sub-card">
+            <h3 class="sub-card-title">🌳 Специфікація вузлів (BOM):</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.92rem;">
+              У `NomenclatureV2` закладається деревувата структура виробу (Parent-Child BOM): готовий виріб ➔ вузли ➔ деталі розкрою ➔ метизи. Для деталі фіксується площа розкрою, товщина та тип сировини, а також розхід фрез.
+            </p>
+          </div>
+        </div>
+
+        <div class="benefit-box">
+          <div class="benefit-title">🔥 ЧИМ ЦЕ КЛАСНО ДЛЯ ЗАВОДУ:</div>
+          <div class="benefit-desc">
+            Усунення усних замовлень! Завод працює строго за єдиним цифровим довідником специфікацій. Ніяких плутанин між комплектуючими вузлами.
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 2 -->
+      <section id="step-2" class="stage-card">
+        <div class="stage-header">
+          <div class="stage-title-group">
+            <div class="stage-badge">02</div>
+            <div>
+              <h2 class="stage-title">Формування Наряду та Розрахунок Сировини</h2>
+              <div class="stage-subtitle">Модуль `MasterModule_v3` / Створення `plan_snapshot` & `material_requests`</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="role-badge">👤 РОЛЯ: Начальник Цеху / Головний Майстер</div>
+
+        <div class="grid-2">
+          <div class="sub-card">
+            <h3 class="sub-card-title">⚙️ Вибір партії та BOM-зрізу:</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.92rem;">
+              Майстер у `MasterModule_v3` обирає замовлення та розбиває його на пачки з індексами `batch_index`. Система формує `plan_snapshot`: точна кількість необхідних листів сировини (`sheets`), розрахунок деталей (`need`) та перевірка запасу БЗ (`stock`).
+            </p>
+          </div>
+
+          <div class="sub-card">
+            <h3 class="sub-card-title">📋 Заявки на склад (`material_requests`):</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.92rem;">
+              Автоматично створюються записи у таблиці `material_requests`: <span class="code-tag">СКЛАД ОПЕРАТИВНИЙ: Листова сировина T300 (3мм) — 6 л.</span> та <span class="code-tag">ВИТРАТНІ МАТЕРІАЛИ: Фреза Ф2 — 4 од.</span>.
+            </p>
+          </div>
+        </div>
+
+        <div class="benefit-box">
+          <div class="benefit-title">🔥 ЧИМ ЦЕ КЛАСНО ДЛЯ ЗАВОДУ:</div>
+          <div class="benefit-desc">
+            Наряд створюється за 30 секунд. Автоматичний розрахунок необхідної листової сировини виключає людські помилки в документах.
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 3 -->
+      <section id="step-3" class="stage-card">
+        <div class="stage-header">
+          <div class="stage-title-group">
+            <div class="stage-badge">03</div>
+            <div>
+              <h2 class="stage-title">3-Сторонній Цифровий Шлюз Запуску</h2>
+              <div class="stage-subtitle">Модуль `DirectorModule` / 3 підписи безпеки</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="role-badge">👤 РОЛІ: Комірник ➔ Інженер ➔ Директор підприємства</div>
+
+        <div class="gating-grid">
+          <div class="gate-item">
+            <div style="font-family: var(--font-mono); color: var(--accent-orange); font-size: 0.8rem;">ПІДПИС 1</div>
+            <h4 style="color: #fff; margin: 4px 0;">Склад ТМЦ</h4>
+            <div class="code-tag">warehouse_conf = true / partial</div>
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 6px;">
+              Комірник перевіряє наявність сировини та видає її зі складу. Сировину зарезервовано під наряд.
+            </p>
+          </div>
+
+          <div class="gate-item">
+            <div style="font-family: var(--font-mono); color: var(--accent-cyan); font-size: 0.8rem;">ПІДПИС 2</div>
+            <h4 style="color: #fff; margin: 4px 0;">Інженерний Відділ</h4>
+            <div class="code-tag">engineer_conf = true</div>
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 6px;">
+              Інженер перевіряє прив'язку верстата ЧПК, завантажує карту розкрою та програму.
+            </p>
+          </div>
+
+          <div class="gate-item" style="border-color: rgba(16, 185, 129, 0.4);">
+            <div style="font-family: var(--font-mono); color: var(--accent-green); font-size: 0.8rem;">ПІДПИС 3</div>
+            <h4 style="color: #fff; margin: 4px 0;">Директор Підприємства</h4>
+            <div class="code-tag">director_conf = true</div>
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 6px;">
+              Кнопка «Фінальний підпис» в `DirectorModule` <strong>розблоковується лише після перших 2-х підписів</strong>! Директор авторизує запуск.
+            </p>
+          </div>
+        </div>
+
+        <div class="benefit-box">
+          <div class="benefit-title">🔥 ЧИМ ЦЕ КЛАСНО ДЛЯ ЗАВОДУ:</div>
+          <div class="benefit-desc">
+            100% захист від простоїв! На верстат НЕ потрапить наряд, під який не видано сировину або не написано керуючу програму.
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 4 -->
+      <section id="step-4" class="stage-card">
+        <div class="stage-header">
+          <div class="stage-title-group">
+            <div class="stage-badge">04</div>
+            <div>
+              <h2 class="stage-title">Генерація Карток `work_cards` та Бокси Фрез</h2>
+              <div class="stage-subtitle">Модуль `WarehousePrepBoxes` / QR-коди карток та чек-лист фрез</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="role-badge">👤 РОЛІ: Комірник інструменталки & Оператор ЧПК</div>
+
+        <div class="grid-2">
+          <div class="sub-card">
+            <h3 class="sub-card-title">🎴 Генерація карток з QR-кодом:</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.92rem;">
+              Після підпису директора генеруються робочі картки `work_cards` для кожної номенклатури із системним QR-кодом <span class="code-tag">CENTRUM_CARD_&lt;UUID&gt;</span>. Фіксується початкова кількість (`qty_at_start`), операція та верстат.
+            </p>
+          </div>
+
+          <div class="sub-card">
+            <h3 class="sub-card-title">✂️ Комплектування боксів фрез:</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.92rem;">
+              У `WarehousePrepBoxes` інструменталка відбирає фрези під картку, відмічає чек-лист <span class="code-tag">checkedCutters</span> та натискає **«Зібрати бокс»**. Бокс передається на верстат.
+            </p>
+          </div>
+        </div>
+
+        <div class="benefit-box">
+          <div class="benefit-title">🔥 ЧИМ ЦЕ КЛАСНО ДЛЯ ЗАВОДУ:</div>
+          <div class="benefit-desc">
+            Оператор ЧПК не бігає по цеху в пошуках фрез. Зібраний бокс інструменту чекає на нього біля верстата разом із робочою карткою!
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 5 -->
+      <section id="step-5" class="stage-card">
+        <div class="stage-header">
+          <div class="stage-title-group">
+            <div class="stage-badge">05</div>
+            <div>
+              <h2 class="stage-title">Проходження по Терміналах Цеху №1</h2>
+              <div class="stage-subtitle">5 Операційних Терміналів Цеху №1</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="role-badge">👤 РОЛЯ: Оператори терміналів цеху</div>
+
+        <div class="grid-3">
+          <div class="sub-card">
+            <h4 style="color: var(--accent-orange);">1. Підготовка</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">Видача зарезервованої листової сировини МВО зі складу під розкрій (`PreparationTerminal`).</p>
+          </div>
+
+          <div class="sub-card">
+            <h4 style="color: var(--accent-orange);">2. Розкрій (ЧПК)</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">Сканування QR `CENTRUM_CARD_<UUID>`, розкрій на ЧПК, введення виготовленої кількості (`Shop1Terminal`).</p>
+          </div>
+
+          <div class="sub-card">
+            <h4 style="color: var(--accent-orange);">3. Галтовка</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">Зняття заусенців та обробка поверхонь деталей у галтувальних барабанах (`TumblingTerminal`).</p>
+          </div>
+
+          <div class="sub-card">
+            <h4 style="color: var(--accent-cyan);">4. Пресування</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">Формувальні та пресувальні операції з фіксацією виконаної кількості (`PressingTerminal`).</p>
+          </div>
+
+          <div class="sub-card">
+            <h4 style="color: var(--accent-cyan);">5. Фарбування</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">Нанесення порошкового покриття та полімеризація в сушильній камері (`PaintingTerminal`).</p>
+          </div>
+
+          <div class="sub-card">
+            <h4 style="color: var(--accent-green);">6. Комплектація</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">Формування комплектів деталей перед передачею в Цех №2 (`SortingTerminal`).</p>
+          </div>
+        </div>
+
+        <div class="benefit-box">
+          <div class="benefit-title">🔥 ЧИМ ЦЕ КЛАСНО ДЛЯ ЗАВОДУ:</div>
+          <div class="benefit-desc">
+            Відсутність загублених деталей між дільницями! Кожна операція фіксується за 2 секунди, а система знає exact кількість деталей у кожного оператора.
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 6 -->
+      <section id="step-6" class="stage-card">
+        <div class="stage-header">
+          <div class="stage-title-group">
+            <div class="stage-badge">06</div>
+            <div>
+              <h2 class="stage-title">Передача та Специфічна Робота Цеху №2</h2>
+              <div class="stage-subtitle">Модулі `Shop2Module`, `Shop2Terminal` / Механіка `handoverTaskToShop2`</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="role-badge">👤 РОЛІ: Майстер Цеху №1 ➔ Майстер Цеху №2</div>
+
+        <div class="grid-2">
+          <div class="sub-card">
+            <h3 class="sub-card-title">📜 Цифровий Акт Переміщення:</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.92rem;">
+              Майстер Цеху №1 натискає «Передати в Цех №2». Функція `handoverTaskToShop2` створює акт переміщення у `reception_docs` (з кодом <span class="code-tag">T-S1-S2-XXXXXX</span>) та конвертує типи інвентарю з `semi` у `semi_shop2` та `bz_shop2`.
+            </p>
+          </div>
+
+          <div class="sub-card">
+            <h3 class="sub-card-title">🛠️ Специфічні картки Цеху №2:</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.92rem;">
+              Цех №2 приймає деталі та створює власні технологічні картки з маркуванням <span class="code-tag">[ЦЕХ №2]</span>. Проводяться операції остаточного пресування, зварювання, запресування метизів та вузлового збирання.
+            </p>
+          </div>
+        </div>
+
+        <div class="benefit-box">
+          <div class="benefit-title">🔥 ЧИМ ЦЕ КЛАСНО ДЛЯ ЗАВОДУ:</div>
+          <div class="benefit-desc">
+            Чітке розмежовування відповідальності та балансу між цехами! Цех №2 не може заявити, що "не отримав деталі", оскільки факт передачі підтверджено цифровим актом.
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 7 -->
+      <section id="step-7" class="stage-card">
+        <div class="stage-header">
+          <div class="stage-title-group">
+            <div class="stage-badge">07</div>
+            <div>
+              <h2 class="stage-title">Внесення Браку, Класифікація ВКЯ & Механіка Довипуску</h2>
+              <div class="stage-subtitle">Модуль `BrakModule` / Функція `createReworkNaryad`</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="role-badge">👤 РОЛІ: Оператор, Контролер ВКЯ & Головний Інженер</div>
+
+        <div class="grid-2">
+          <div class="sub-card">
+            <h3 class="sub-card-title">🔍 Класифікація браку ВКЯ:</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.92rem;">
+              Оператор або ВКЯ фіксує дефект у <span class="code-tag">BrakModule</span>. ВКЯ класифікує дефект строго на 2 категорії:
+              <br>• <strong style="color: var(--accent-orange);">«БРАК» (Виправний брак):</strong> дефект, який ВКЯ бере на внутрішнє відновлення або передає на доопрацювання з генерацією довипуску.
+              <br>• <strong style="color: var(--accent-red);">«УТИЛЬ» (Незворотний брак):</strong> брак, який неможливо виправити; підлягає обов'язковому довипуску нової деталі.
+            </p>
+          </div>
+
+          <div class="sub-card">
+            <h3 class="sub-card-title">🚀 Механіка Довипуску & Індикація Черги:</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.92rem;">
+              Картку довипуску генерують у 1 клік вручну. «КУЛИЦЯ» показує потребу у довипуску <strong>швидкою кольоровою індикацією в черзі нарядів</strong>:
+              <br>🔴 <strong style="color: #f87171;">Червоне:</strong> Довипуск (екстрене виготовлення деталі замість браку/утилю).
+              <br>🟡 <strong style="color: #fbbf24;">Жовте:</strong> В роботі (наряд/картка в обробці в цеху).
+              <br>🔵 <strong style="color: #60a5fa;">Синє:</strong> Нове (новозгенерований наряд у черзі).
+            </p>
+          </div>
+        </div>
+
+        <div class="benefit-box">
+          <div class="benefit-title">🔥 ЧИМ ЦЕ КЛАСНО ДЛЯ ЗАВОДУ:</div>
+          <div class="benefit-desc">
+            Ніякого приховування браку та неповної комплектації! Матеріал та наряди довипуску під контролем, а черга наочно підказує пріоритет.
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 8 -->
+      <section id="step-8" class="stage-card">
+        <div class="stage-header">
+          <div class="stage-title-group">
+            <div class="stage-badge">08</div>
+            <div>
+              <h2 class="stage-title">Телеметрія Верстатів та OEE-Аналітика</h2>
+              <div class="stage-subtitle">Модуль `MachineCallModule` / Перехід від оцінок до вимірювань OEE</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="role-badge">👤 РОЛІ: Оператор верстата, Наладчик ЧПК, Електрик</div>
+
+        <div class="grid-2">
+          <div class="sub-card">
+            <h3 class="sub-card-title">⚡ Виклик фахівця & Фіксація простоїв:</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.92rem;">
+              Система дозволяє виміряти фактичний час і причини зупинок (злам фрези, збій програми, чекання сировини) та перейти від суб'єктивної оцінки простоїв до об'єктивної OEE-аналітики.
+            </p>
+          </div>
+
+          <div class="sub-card">
+            <h3 class="sub-card-title">📈 Мова фактів замість суперечок:</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.92rem;">
+              <em>«Я не пропоную сперечатися, чи виробництво ефективне. Я пропоную це вимірювати!»</em> — система автоматично розраховує коефіцієнт ефективності використання обладнання (OEE).
+            </p>
+          </div>
+        </div>
+
+        <div class="benefit-box">
+          <div class="benefit-title">🔥 ЧИМ ЦЕ КЛАСНО ДЛЯ ЗАВОДУ:</div>
+          <div class="benefit-desc">
+            Скорочення простоїв обладнання на 40–60%! Наладчик отримує сповіщення миттєво, а директор бачить об'єктивний стан використання верстатного парку.
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 9 -->
+      <section id="step-9" class="stage-card">
+        <div class="stage-header">
+          <div class="stage-title-group">
+            <div class="stage-badge">09</div>
+            <div>
+              <h2 class="stage-title">Дашборд Перебування Деталей за Етапами</h2>
+              <div class="stage-subtitle">Модуль `DirectorModule` / Live-матриця замовлень у реальному часі</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="role-badge">👤 РОЛЬ: Директор підприємства / Керівник виробництва</div>
+
+        <p style="color: var(--text-muted); font-size: 0.92rem;">
+          Головний монітор директора підприємства надає матричний контроль руху кожної партії деталей:
+        </p>
+
+        <table class="matrix-table">
+          <thead>
+            <tr>
+              <th>Наряд / Виріб</th>
+              <th>1. Підготовка</th>
+              <th>2. Розкрій</th>
+              <th>3. Галтовка</th>
+              <th>4. Пресування</th>
+              <th>5. Фарбування</th>
+              <th>6. Збирання</th>
+              <th>7. На Складі</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="font-weight: 800; color: var(--accent-orange);">Наряд #1042 (Корпуси)</td>
+              <td style="color: #34d399;">100% [ОК]</td>
+              <td style="color: #34d399;">100% [ОК]</td>
+              <td style="color: #34d399;">100% [ОК]</td>
+              <td style="color: var(--accent-orange); font-weight: 800;">450 шт (В роботі)</td>
+              <td style="color: #666;">—</td>
+              <td style="color: #666;">—</td>
+              <td style="color: #666;">0 шт</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 800; color: var(--accent-cyan);">Наряд #1045 (Кронштейни)</td>
+              <td style="color: #34d399;">100% [ОК]</td>
+              <td style="color: #34d399;">100% [ОК]</td>
+              <td style="color: #34d399;">100% [ОК]</td>
+              <td style="color: #34d399;">100% [ОК]</td>
+              <td style="color: var(--accent-cyan); font-weight: 800;">1200 шт (Фарбування)</td>
+              <td style="color: #666;">—</td>
+              <td style="color: #666;">0 шт</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 800; color: var(--accent-purple);">Наряд #1048 (Шасі)</td>
+              <td style="color: #34d399;">100% [ОК]</td>
+              <td style="color: var(--accent-purple); font-weight: 800;">800 шт (Розкрій)</td>
+              <td style="color: #666;">—</td>
+              <td style="color: #666;">—</td>
+              <td style="color: #666;">—</td>
+              <td style="color: #666;">—</td>
+              <td style="color: #666;">0 шт</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="benefit-box">
+          <div class="benefit-title">🔥 ЧИМ ЦЕ КЛАСНО ДЛЯ ЗАВОДУ:</div>
+          <div class="benefit-desc">
+            Контроль заводу за 2 секунди! Директор бачить точний баланс деталей у буферах та негайно детектує вузькі місця без нарад.
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 10 -->
+      <section id="step-10" class="stage-card">
+        <div class="stage-header">
+          <div class="stage-title-group">
+            <div class="stage-badge">10</div>
+            <div>
+              <h2 class="stage-title">Внутрішній Задачник та Канбан Проєктів</h2>
+              <div class="stage-subtitle">Модуль `TaskProjectsModule` / Управління внутрішніми проєктами та задачами</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="role-badge">👤 РОЛІ: Керівники підрозділів, Майстри & Технічні спеціалісти</div>
+
+        <div class="grid-2">
+          <div class="sub-card">
+            <h3 class="sub-card-title">📌 Проєктні Канбан-дошки:</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.92rem;">
+              Окремий внутрішній вимір для задач заводських служб: <span class="code-tag">В ЧЕРЗІ</span> ➔ <span class="code-tag">В РОБОТІ</span> ➔ <span class="code-tag">ПЕРЕВІРКА</span> ➔ <span class="code-tag">ВИКОНАНО</span>. Упорядковує ТО верстатів, розробки, ремонти та доручення керівництва.
+            </p>
+          </div>
+
+          <div class="sub-card">
+            <h3 class="sub-card-title">🎯 Чеклісти, Пріоритети & Права:</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.92rem;">
+              Кожна задача має пріоритет (ТЕРМІНОВО, ВИСОКИЙ, СЕРЕДНІЙ, НИЗЬКИЙ), призначених людей (`assignees`), дедлайн та підпункти чекліста. Права доступу розмежовано за відділами (`department_ids`).
+            </p>
+          </div>
+        </div>
+
+        <div class="benefit-box">
+          <div class="benefit-title">🔥 ЧИМ ЦЕ КЛАСНО ДЛЯ ЗАВОДУ:</div>
+          <div class="benefit-desc">
+            Прозорість внутрішніх розпоряджень! Всі операційні завдання та доручення керівника перебувають у єдиному порядку й не плутаються з виробничими нарядами.
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 11: Summary Architecture Matrix -->
+      <section id="step-11" class="stage-card">
+        <div class="stage-header">
+          <div class="stage-title-group">
+            <div class="stage-badge">11</div>
+            <div>
+              <h2 class="stage-title">«КУЛИЦЯ» — Єдиний Контур Операційного Управління</h2>
+              <div class="stage-subtitle">Матриця відповідності управлінських потреб та модулів системи</div>
+            </div>
+          </div>
+        </div>
+
+        <table class="compact-table">
+          <thead>
+            <tr>
+              <th style="width: 45%;">Управлінська потреба підприємства</th>
+              <th style="width: 55%;">Як закриває система «КУЛИЦЯ»</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Єдине джерело замовлення</td><td>ManagerModule</td></tr>
+            <tr><td>Структура виробу (BOM)</td><td>NomenclatureV2 (BOM)</td></tr>
+            <tr><td>Матеріальна потреба</td><td>plan_snapshot</td></tr>
+            <tr><td>Резервування матеріалу</td><td>material_requests + Склад</td></tr>
+            <tr><td>Технічна готовність</td><td>engineer_conf</td></tr>
+            <tr><td>Погодження запуску</td><td>Digital Gate (DirectorModule)</td></tr>
+            <tr><td>Виконання наряду</td><td>work_cards</td></tr>
+            <tr><td>Простежуваність операцій</td><td>QR-коди + Операційні термінали</td></tr>
+            <tr><td>Передача відповідальності між цехами</td><td>Digital Handover (reception_docs)</td></tr>
+            <tr><td>Облік браку</td><td>BrakModule</td></tr>
+            <tr><td>Механіка довипуску</td><td>createReworkNaryad (ВБ0001)</td></tr>
+            <tr><td>Реєстрація простоїв</td><td>MachineCallModule</td></tr>
+            <tr><td>KPI обладнання</td><td>OEE-Аналітика</td></tr>
+            <tr><td>Поточний стан деталей</td><td>Director Dashboard (Матриця 24/7)</td></tr>
+            <tr><td>Зміна пріоритету замовлень</td><td>Журнал рішень (до розвитку)</td></tr>
+            <tr><td>Матеріальні розбіжності</td><td>Контроль BAS / резерв / факт (до розвитку)</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- STEP 12: Management Roles Block -->
+      <section id="step-12" class="stage-card">
+        <div class="stage-header">
+          <div class="stage-title-group">
+            <div class="stage-badge">12</div>
+            <div>
+              <h2 class="stage-title">Управлінський Блок: Система Не Забирає Функції в Людей</h2>
+              <div class="stage-subtitle">Зв'язування управлінських рішень у єдиний цифровий ланцюг</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="sub-card">
+            <h3 class="sub-card-title">🎯 Чіткі ролі за фахом:</h3>
+            <ul style="color: var(--text-muted); line-height: 1.6; font-size: 0.88rem; padding-left: 18px;">
+              <li><strong>Продажі:</strong> працюють з клієнтом.</li>
+              <li><strong>Фінансова функція:</strong> з розрахунками й економікою.</li>
+              <li><strong>Склад:</strong> з достовірністю та рухом матеріалу.</li>
+              <li><strong>Інженери:</strong> з технічною готовністю.</li>
+              <li><strong>Виробництво:</strong> з потужностями та виконанням.</li>
+              <li><strong>Керівництво:</strong> з пріоритетами.</li>
+            </ul>
+          </div>
+
+          <div class="sub-card" style="border-color: rgba(0, 242, 254, 0.4);">
+            <h3 class="sub-card-title" style="color: var(--accent-cyan);">⚡ Завдання системи «КУЛИЦЯ»:</h3>
+            <p style="color: var(--text-main); font-size: 0.95rem; line-height: 1.6; font-weight: 600;">
+              Зв'язати ці рішення в один цифровий ланцюг і не дозволити інформації загубитися між підрозділами заводу.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 13 -->
+      <section id="step-13" class="stage-card">
+        <div class="stage-header">
+          <div class="stage-title-group">
+            <div class="stage-badge">13</div>
+            <div>
+              <h2 class="stage-title">СГП, Пакування та Логістика Відвантаження</h2>
+              <div class="stage-subtitle">Модулі `ReceptionTerminal`, `PackagingModule` & `ShippingModule`</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="role-badge">👤 РОЛІ: Пакувальник, Комірник СГП & Логіст</div>
+
+        <div class="grid-2">
+          <div class="sub-card">
+            <h3 class="sub-card-title">📦 Прийом на СГП та пакування:</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.92rem;">
+              Готова продукція приймається на СГП через `ReceptionTerminal` (`handoverToSGP`), конвертується в інвентар типу `finished`, пакується в палети та маркується транспортними етикетками.
+            </p>
+          </div>
+
+          <div class="sub-card">
+            <h3 class="sub-card-title">🚚 Формування накладних (`ShippingModule`):</h3>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.92rem;">
+              Модуль `ShippingModule` генерує видаткові документи (`shipping_notes`), обирає авто/перевізника, списує готові вироби зі складу та змінює статус замовлення для менеджера на <span class="code-tag">shipped</span>.
+            </p>
+          </div>
+        </div>
+
+        <div class="benefit-box">
+          <div class="benefit-title">🔥 ЧИМ ЦЕ КЛАСНО ДЛЯ ЗАВОДУ:</div>
+          <div class="benefit-desc">
+            100% впевненість у тому, що клієнту відвантажено точну кількість якісних виробів! Замкнений цикл простежуваності: від прийому сировини до підпису клієнта на накладній.
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 14 -->
+      <section id="step-14" class="stage-card" style="border-color: rgba(16, 185, 129, 0.4);">
+        <div class="stage-header">
+          <div class="stage-title-group">
+            <div class="stage-badge" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border-color: rgba(16, 185, 129, 0.3);">14</div>
+            <div>
+              <h2 class="stage-title">Чому система «КУЛИЦЯ» на 100% Адаптована під Наш Бізнес</h2>
+              <div class="stage-subtitle">Порівняльний аналіз із типовими ERP-системами</div>
+            </div>
+          </div>
+        </div>
+
+        <p style="color: var(--text-muted); font-size: 0.95rem; line-height: 1.6;">
+          Стандартні типові ERP-системи (1С, SAP, Odoo) є абстрактними й **НЕ здатні працювати з реальними технологічними процесами металообробки та ЧПК**:
+        </p>
+
+        <div class="grid-2">
+          <div class="sub-card">
+            <h4 style="color: var(--accent-orange); margin-bottom: 6px;">1. Розрахунок Розкрою та Листової Сировини</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">Типові ERP списують сировину "взагалі", тоді як «Кулиця» розраховує карту розкрою, Sheets, розхід фрез та страховий запас БЗ.</p>
+          </div>
+
+          <div class="sub-card">
+            <h4 style="color: var(--accent-cyan); margin-bottom: 6px;">2. Комплектація Боксів Фрез (`WarehousePrepBoxes`)</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">Типові ERP не мають інструментальних боксів під картку та контролю напрацювання фрез (`CutterRestorationModule`).</p>
+          </div>
+
+          <div class="sub-card">
+            <h4 style="color: var(--accent-purple); margin-bottom: 6px;">3. 3-Сторонній Цифровий Шлюз Запуску</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">Типові ERP дозволяють запускати завдання в розкрій без перевірки наявності сировини чи ПЗ. «Кулиця» жорстко вимагає підписи Складу, Інженера та Директора.</p>
+          </div>
+
+          <div class="sub-card">
+            <h4 style="color: var(--accent-green); margin-bottom: 6px;">4. Механіка Довипуску Браку (`createReworkNaryad`)</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">При браку в типових ERP замовлення повисає з недостачею. «Кулиця» в 1 клік створює довипуск `ВБ0001` і рятує дедлайн клієнта.</p>
+          </div>
+        </div>
+
+        <div class="benefit-box" style="text-align: center; margin-top: 10px;">
+          <div class="benefit-title" style="justify-content: center;">🚀 ПІДСУМОК ДИРЕКТОРУ З ВИРОБНИЦТВА:</div>
+          <div class="benefit-desc">
+            «КУЛИЦЯ» — це унікальний суперовий інструмент, розроблений безпосередньо під технологічний цикл нашого заводу. Завершення її впровадження гарантує тотальний порядок, високу прибутковість та повний спокій керівництва!
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+  </div>
+
+  <script>
+    const navLinks = document.querySelectorAll('.sidebar-nav a');
+    const sections = document.querySelectorAll('section[id]');
+
+    window.addEventListener('scroll', () => {
+      let current = '';
+      sections.forEach(section => {
+        const sectionTop = section.offsetTop - 120;
+        if (pageYOffset >= sectionTop) {
+          current = section.getAttribute('id');
+        }
+      });
+
+      navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === `#${current}`) {
+          link.classList.add('active');
+        }
+      });
+    });
+  </script>
+</body>
+</html>

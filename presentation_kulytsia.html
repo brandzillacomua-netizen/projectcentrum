@@ -1,0 +1,1561 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Захист системи «КУЛИЦЯ» — Доповідь Директора з виробництва</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800;900&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #06080d;
+      --panel-bg: rgba(16, 20, 30, 0.82);
+      --panel-border: rgba(255, 255, 255, 0.08);
+      --accent-orange: #ff9000;
+      --accent-cyan: #00f2fe;
+      --accent-green: #10b981;
+      --accent-purple: #a855f7;
+      --accent-red: #ef4444;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --font-main: 'Outfit', sans-serif;
+      --font-mono: 'Space Grotesk', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-main);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .bg-glow-1 {
+      position: absolute;
+      width: 750px;
+      height: 750px;
+      background: radial-gradient(circle, rgba(255, 144, 0, 0.14) 0%, rgba(0, 0, 0, 0) 70%);
+      top: -250px;
+      right: -200px;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .bg-glow-2 {
+      position: absolute;
+      width: 650px;
+      height: 650px;
+      background: radial-gradient(circle, rgba(0, 242, 254, 0.09) 0%, rgba(0, 0, 0, 0) 70%);
+      bottom: -200px;
+      left: -200px;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .progress-bar-container {
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.05);
+      position: relative;
+      z-index: 10;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-orange), var(--accent-cyan), var(--accent-purple));
+      width: 7.14%;
+      transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 40px;
+      z-index: 1000;
+      border-bottom: 1px solid var(--panel-border);
+      background: rgba(6, 8, 13, 0.85);
+      backdrop-filter: blur(12px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-weight: 900;
+      font-size: 1.35rem;
+      letter-spacing: 1px;
+    }
+
+    .brand-logo {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--accent-orange), #d97706);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #000;
+      font-weight: 900;
+      box-shadow: 0 0 20px rgba(255, 144, 0, 0.4);
+    }
+
+    .brand-text span {
+      color: var(--accent-orange);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .upload-btn {
+      background: rgba(0, 242, 254, 0.12);
+      border: 1px solid rgba(0, 242, 254, 0.4);
+      color: var(--accent-cyan);
+      padding: 7px 16px;
+      border-radius: 20px;
+      font-size: 0.84rem;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      box-shadow: 0 0 10px rgba(0, 242, 254, 0.15);
+    }
+
+    .upload-btn:hover {
+      background: rgba(0, 242, 254, 0.3);
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 20px rgba(0, 242, 254, 0.4);
+      transform: translateY(-1px);
+    }
+
+    .export-btn {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: var(--accent-green);
+      padding: 7px 16px;
+      border-radius: 20px;
+      font-size: 0.84rem;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .export-btn:hover {
+      background: rgba(16, 185, 129, 0.3);
+      border-color: var(--accent-green);
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+      transform: translateY(-1px);
+    }
+
+    .speaker-badge {
+      font-family: var(--font-mono);
+      background: rgba(255, 144, 0, 0.1);
+      border: 1px solid rgba(255, 144, 0, 0.25);
+      color: var(--accent-orange);
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .slide-counter {
+      font-family: var(--font-mono);
+      background: rgba(255, 255, 255, 0.05);
+      padding: 6px 16px;
+      border-radius: 20px;
+      border: 1px solid var(--panel-border);
+      font-size: 0.9rem;
+      color: var(--accent-cyan);
+    }
+
+    .deck-container {
+      flex: 1;
+      position: relative;
+      z-index: 5;
+      overflow: hidden;
+    }
+
+    /* SLIDE LAYOUT ALIGNED TO TOP TO LEAVE THE ENTIRE BOTTOM HALF FREE FOR SCREENSHOTS */
+    .slide {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      padding: 30px 60px 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(20px) scale(0.98);
+      transition: all 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .slide.active {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0) scale(1);
+    }
+
+    .slide-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      color: var(--accent-orange);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 6px;
+      font-weight: 700;
+    }
+
+    .slide-title {
+      font-size: 2.2rem;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 14px;
+      background: linear-gradient(135deg, #ffffff 30%, #9ca3af 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      padding: 16px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      transition: all 0.3s ease;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card:hover {
+      border-color: rgba(255, 144, 0, 0.35);
+      transform: translateY(-3px);
+    }
+
+    .card-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: rgba(255, 144, 0, 0.12);
+      color: var(--accent-orange);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      margin-bottom: 8px;
+      font-weight: 800;
+    }
+
+    .card-title {
+      font-size: 1.08rem;
+      font-weight: 700;
+      margin-bottom: 5px;
+      color: #fff;
+    }
+
+    .card-desc {
+      font-size: 0.86rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .comp-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      background: var(--panel-bg);
+      border-radius: 16px;
+      border: 1px solid var(--panel-border);
+      overflow: hidden;
+    }
+
+    .comp-table th, .comp-table td {
+      padding: 8px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--panel-border);
+      font-size: 0.85rem;
+    }
+
+    .comp-table th {
+      background: rgba(255, 255, 255, 0.03);
+      font-weight: 800;
+      color: var(--accent-cyan);
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .badge-myth {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      padding: 2px 7px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      display: inline-block;
+      margin-bottom: 3px;
+    }
+
+    .badge-fact {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      padding: 2px 7px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      display: inline-block;
+      margin-bottom: 3px;
+    }
+
+    .workflow-step {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      padding: 16px;
+      position: relative;
+    }
+
+    .step-number {
+      font-family: var(--font-mono);
+      font-size: 1.6rem;
+      font-weight: 900;
+      color: rgba(255, 144, 0, 0.18);
+      position: absolute;
+      top: 8px;
+      right: 14px;
+    }
+
+    footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 40px;
+      z-index: 1000;
+      border-top: 1px solid var(--panel-border);
+      background: rgba(6, 8, 13, 0.85);
+      backdrop-filter: blur(12px);
+    }
+
+    .nav-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--panel-border);
+      color: var(--text-main);
+      padding: 10px 22px;
+      border-radius: 12px;
+      font-family: var(--font-main);
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .nav-btn:hover:not(:disabled) {
+      background: var(--accent-orange);
+      color: #000;
+      border-color: var(--accent-orange);
+      box-shadow: 0 0 20px rgba(255, 144, 0, 0.4);
+    }
+
+    .nav-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .keyboard-hint {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .key-badge {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .hero-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(255, 144, 0, 0.12);
+      border: 1px solid rgba(255, 144, 0, 0.3);
+      color: var(--accent-orange);
+      padding: 6px 16px;
+      border-radius: 30px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      margin-bottom: 16px;
+    }
+
+    .hero-title {
+      font-size: 3rem;
+      font-weight: 900;
+      line-height: 1.1;
+      margin-bottom: 16px;
+    }
+
+    .hero-title span {
+      color: var(--accent-orange);
+      background: linear-gradient(135deg, #ff9000, #ffc107);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-subtitle {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-bottom: 24px;
+      max-width: 950px;
+    }
+
+    .hero-features {
+      display: flex;
+      gap: 14px;
+      max-width: 950px;
+    }
+
+    .hero-feature-item {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      padding: 12px 16px;
+      border-radius: 12px;
+      flex: 1;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.88rem;
+    }
+
+    .dot-orange { width: 10px; height: 10px; background: var(--accent-orange); border-radius: 50%; box-shadow: 0 0 10px var(--accent-orange); }
+    .dot-cyan { width: 10px; height: 10px; background: var(--accent-cyan); border-radius: 50%; box-shadow: 0 0 10px var(--accent-cyan); }
+    .dot-green { width: 10px; height: 10px; background: var(--accent-green); border-radius: 50%; box-shadow: 0 0 10px var(--accent-green); }
+    .dot-purple { width: 10px; height: 10px; background: var(--accent-purple); border-radius: 50%; box-shadow: 0 0 10px var(--accent-purple); }
+
+    .alert-box {
+      background: rgba(255, 144, 0, 0.08);
+      border: 1px solid rgba(255, 144, 0, 0.3);
+      border-left: 4px solid var(--accent-orange);
+      padding: 12px 16px;
+      border-radius: 12px;
+      margin-top: 12px;
+      font-size: 0.88rem;
+      line-height: 1.45;
+    }
+
+    .chain-box {
+      background: rgba(0, 242, 254, 0.06);
+      border: 1px solid rgba(0, 242, 254, 0.25);
+      border-radius: 14px;
+      padding: 12px 16px;
+      margin-top: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+    }
+
+    .chain-node {
+      background: rgba(255, 255, 255, 0.08);
+      padding: 4px 10px;
+      border-radius: 6px;
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .chain-arrow {
+      color: var(--accent-orange);
+      font-weight: 900;
+    }
+
+    .stage-matrix-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      background: rgba(0,0,0,0.3);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .stage-matrix-table th, .stage-matrix-table td {
+      padding: 6px 10px;
+      text-align: center;
+      border: 1px solid var(--panel-border);
+      font-size: 0.8rem;
+    }
+
+    .stage-matrix-table th {
+      background: rgba(255,144,0,0.12);
+      color: var(--accent-orange);
+      font-weight: 800;
+    }
+
+    .compact-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.76rem;
+    }
+
+    .compact-table th, .compact-table td {
+      padding: 4px 10px;
+      border: 1px solid var(--panel-border);
+      text-align: left;
+      line-height: 1.3;
+    }
+
+    .compact-table th {
+      background: rgba(255, 144, 0, 0.12);
+      color: var(--accent-orange);
+      font-weight: 800;
+      font-size: 0.78rem;
+    }
+
+    .compact-table td:nth-child(2) {
+      font-family: var(--font-mono);
+      color: var(--accent-cyan);
+      font-weight: 700;
+    }
+
+    /* POWERPOINT FLOATING PHOTO SYSTEM WITH PROPORTIONAL RESIZING & ZERO DISTORTION */
+    .draggable-photos-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 500;
+    }
+
+    .draggable-photo-card {
+      position: absolute;
+      pointer-events: auto;
+      background: transparent;
+      border: 2px solid transparent;
+      border-radius: 8px;
+      box-shadow: 0 12px 35px rgba(0, 0, 0, 0.6);
+      cursor: grab;
+      user-select: none;
+      display: inline-block;
+      line-height: 0;
+      padding: 0;
+      margin: 0;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .draggable-photo-card:hover, .draggable-photo-card.active-drag {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 20px rgba(0, 242, 254, 0.6);
+      cursor: grabbing;
+    }
+
+    .draggable-photo-card img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain; /* NEVER SQUISHES OR DISTORTS ASPECT RATIO */
+      border-radius: 6px;
+      pointer-events: none;
+      display: block;
+    }
+
+    /* TOP HOVER CONTROL TOOLBAR */
+    .photo-hover-toolbar {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      z-index: 1000;
+    }
+
+    .draggable-photo-card:hover .photo-hover-toolbar {
+      opacity: 1;
+    }
+
+    .btn-photo-tool {
+      background: rgba(0, 0, 0, 0.85);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 6px;
+      padding: 3px 7px;
+      font-size: 11px;
+      font-weight: bold;
+      cursor: pointer;
+      font-family: var(--font-mono);
+      transition: all 0.15s;
+    }
+
+    .btn-photo-tool:hover {
+      background: var(--accent-cyan);
+      color: #000;
+    }
+
+    .btn-photo-del {
+      background: rgba(239, 68, 68, 0.85);
+      border-color: rgba(239, 68, 68, 0.5);
+    }
+
+    .btn-photo-del:hover {
+      background: #ff0000;
+      color: #fff;
+    }
+
+    /* INTERACTIVE CORNER RESIZE HANDLE */
+    .photo-resize-corner {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      width: 20px;
+      height: 20px;
+      background: rgba(0, 242, 254, 0.8);
+      color: #000;
+      border-top-left-radius: 6px;
+      border-bottom-right-radius: 6px;
+      cursor: se-resize;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 900;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      z-index: 1000;
+    }
+
+    .draggable-photo-card:hover .photo-resize-corner {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="bg-glow-1"></div>
+  <div class="bg-glow-2"></div>
+
+  <!-- Hidden File Input for uploading screenshots -->
+  <input type="file" id="screenshotInput" accept="image/*" multiple style="display: none;" onchange="handleScreenshotSelected(event)">
+
+  <!-- Progress Bar -->
+  <div class="progress-bar-container">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-logo">К</div>
+      <div class="brand-text">СИСТЕМА <span>«КУЛИЦЯ»</span></div>
+    </div>
+    <div class="header-actions">
+      <button class="upload-btn" onclick="triggerScreenshotUpload()" title="Завантажити фото та перетягувати його по екрану (як в PowerPoint)">
+        📷 Додати фото (+)
+      </button>
+      <button class="export-btn" onclick="exportStandaloneHTML()" title="Зберегти 1 автономний файл презентації з усіма вшитими скріншотами">
+        📦 Експорт для відправки
+      </button>
+      <div class="speaker    <!-- SLIDE 1: Title -->
+    <section class="slide active" data-slide-id="slide-1">
+      <div class="draggable-photos-layer" data-layer-slide="1"></div>
+      <div>
+        <div class="hero-pill">
+          <span class="dot-orange"></span> СТРАТЕГІЧНА ПРЕЗЕНТАЦІЯ ДЛЯ КЕРІВНИЦТВА ПІДПРИЄМСТВА
+        </div>
+        <h1 class="hero-title">
+          Система <span>«КУЛИЦЯ»</span>: джерело виробничої правди
+        </h1>
+        <p class="hero-subtitle">
+          Єдиний цифровий контур операційного управління підприємством: від надходження замовлення клієнта до точного відвантаження. Повний контроль сировини, прозора диспетчеризація ЧПК, OEE-аналітика простоїв та 100% збереження технологічної дисципліни.
+        </p>
+        <div class="hero-features">
+          <div class="hero-feature-item">
+            <span class="dot-orange"></span> 3-сторонній шлюз запуску
+          </div>
+          <div class="hero-feature-item">
+            <span class="dot-cyan"></span> Облік ТМЦ та бокси фрез
+          </div>
+          <div class="hero-feature-item">
+            <span class="dot-green"></span> Дашборд деталей за етапами
+          </div>
+          <div class="hero-feature-item">
+            <span class="dot-purple"></span> OEE-аналітика та задачник
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 2: Rebuttal of Criticism -->
+    <section class="slide" data-slide-id="slide-2">
+      <div class="draggable-photos-layer" data-layer-slide="2"></div>
+      <div class="slide-tag">АНАЛІЗ КРИТИЧНИХ ЗАУВАЖЕНЬ</div>
+      <h2 class="slide-title">Системна відповідь на зауваження документу «Люцерна»</h2>
+      
+      <table class="comp-table">
+        <thead>
+          <tr>
+            <th style="width: 45%;">Зауваження з документу «Люцерна»</th>
+            <th style="width: 55%;">Реальний стан та факти у системі «КУЛИЦЯ»</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <span class="badge-myth">ЗАУВАЖЕННЯ</span><br>
+              «Система "Кулиця" стає джерелом рішення і підміняє собою керівництво підприємства.»
+            </td>
+            <td>
+              <span class="badge-fact">РЕАЛЬНИЙ ФАКТ СИСТЕМИ</span><br>
+              <strong>«Кулиця» є цифровим замком безпеки.</strong> Вона не створює політик, а жорстко контролює дотримання регламентів, затверджених керівництвом.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <span class="badge-myth">ЗАУВАЖЕННЯ</span><br>
+              «Виробництво самостійно запускає наряди без погодження економіки та інженерів.»
+            </td>
+            <td>
+              <span class="badge-fact">РЕАЛЬНИЙ ФАКТ СИСТЕМИ</span><br>
+              У «Кулиці» працює <strong>3-сторонній цифровий шлюз</strong>: Наряд блокується доти, доки не отримає підписи: <strong>Склад + Інженер + Директор</strong>.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <span class="badge-myth">ЗАУВАЖЕННЯ</span><br>
+              «Відсутній контроль за матеріалами та інструментальним господарством (фрезами).»
+            </td>
+            <td>
+              <span class="badge-fact">РЕАЛЬНИЙ ФАКТ СИСТЕМИ</span><br>
+              Впроваджено модуль <strong>WarehousePrepBoxes</strong>: автоматичний облік фрез, підготовка боксів під картки та контроль відновлення інструменту.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <span class="badge-myth">ЗАУВАЖЕННЯ</span><br>
+              «Розслідування браку відбуваються складними шляхами постфактум.»
+            </td>
+            <td>
+              <span class="badge-fact">РЕАЛЬНИЙ ФАКТ СИСТЕМИ</span><br>
+              Впроваджено модуль <strong>BrakModule</strong>: миттєва детекція браку на терміналі з вказівкою <strong>оператора, верстата, етапу та конкретної причини</strong>.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- SLIDE 3: Core Concept - Source of Truth & Single Chain -->
+    <section class="slide" data-slide-id="slide-3">
+      <div class="draggable-photos-layer" data-layer-slide="3"></div>
+      <div class="slide-tag">ФУНДАМЕНТАЛЬНА КОНЦЕПЦІЯ</div>
+      <h2 class="slide-title">«КУЛИЦЯ» — джерело виробничої правди</h2>
+      
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-icon">1</div>
+          <h3 class="card-title">Прозорість замість суперечок</h3>
+          <p class="card-desc">
+            Система усуває перепалки між цехом, складом та інженерами («Не дали сировину», «Немає програми»). Усі бачать єдиний статус 24/7.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">2</div>
+          <h3 class="card-title">Сувора диспетчеризація</h3>
+          <p class="card-desc">
+            Оператор на терміналі бачитиме тільки ті завдання, які 100% підтверджені сировиною, ПЗ та фінальним підписом керівника.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">3</div>
+          <h3 class="card-title">Усунення тіньових дій</h3>
+          <p class="card-desc">
+            Неможливо пустити деталь у розкрій «під чесне слово». «Кулиця» гарантує виконання лише санкціонованих замовлень.
+          </p>
+        </div>
+      </div>
+
+      <div class="chain-box">
+        <span style="color: var(--accent-orange); font-weight: 800;">🔗 Наскрізний цифровий ланцюг:</span>
+        <span class="chain-node">Замовлення</span> <span class="chain-arrow">→</span>
+        <span class="chain-node">Сировина</span> <span class="chain-arrow">→</span>
+        <span class="chain-node">Наряд</span> <span class="chain-arrow">→</span>
+        <span class="chain-node">Обладнання</span> <span class="chain-arrow">→</span>
+        <span class="chain-node">Операція</span> <span class="chain-arrow">→</span>
+        <span class="chain-node">Працівник</span> <span class="chain-arrow">→</span>
+        <span class="chain-node">Результат</span> <span class="chain-arrow">→</span>
+        <span class="chain-node">Склад</span> <span class="chain-arrow">→</span>
+        <span class="chain-node">Відвантаження</span>
+      </div>
+    </section>
+
+    <!-- SLIDE 4: 3-Way Approval Gating -->
+    <section class="slide" data-slide-id="slide-4">
+      <div class="draggable-photos-layer" data-layer-slide="4"></div>
+      <div class="slide-tag">ЦИФРОВИЙ ШЛЮЗ БЕЗПЕКИ</div>
+      <h2 class="slide-title">3-стороннє погодження нарядів (Gatekeeper Workflow)</h2>
+
+      <div class="grid-3">
+        <div class="workflow-step">
+          <span class="step-number">01</span>
+          <h3 class="card-title" style="color: var(--accent-orange);">Склад ТМЦ</h3>
+          <p style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-orange); margin-bottom: 8px;">warehouse_conf = true / partial</p>
+          <p class="card-desc">
+            Перевірка наявності сировини та метизів. Резервування сировини в базі під конкретний наряд.
+          </p>
+        </div>
+
+        <div class="workflow-step">
+          <span class="step-number">02</span>
+          <h3 class="card-title" style="color: var(--accent-cyan);">Інженерний відділ</h3>
+          <p style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-cyan); margin-bottom: 8px;">engineer_conf = true</p>
+          <p class="card-desc">
+            Перевірка технологічної документації, підготовка карт розкрою та керуючих програм для верстатів ЧПК.
+          </p>
+        </div>
+
+        <div class="workflow-step" style="border-color: rgba(16, 185, 129, 0.4);">
+          <span class="step-number">03</span>
+          <h3 class="card-title" style="color: var(--accent-green);">Підпис директора</h3>
+          <p style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-green); margin-bottom: 8px;">director_conf = true</p>
+          <p class="card-desc">
+            Авторизація в DirectorModule. Кнопка «Фінальний підпис» активується <strong>лише після підтверджень Складу та Інженера</strong>!
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 5: TMC & Inventory Accounting -->
+    <section class="slide" data-slide-id="slide-5">
+      <div class="draggable-photos-layer" data-layer-slide="5"></div>
+      <div class="slide-tag">ОБЛІК ТМЦ ТА СИРОВИНИ</div>
+      <h2 class="slide-title">Захист матеріальних ресурсів від закупівлі до виробу</h2>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3 class="card-title" style="color: var(--accent-orange);">Точний облік сировини за BOM-специфікацією</h3>
+          <p class="card-desc" style="margin-bottom: 12px;">
+            Система автоматично підраховує кількість листів сировини під кожну партію та контролює фактичний залишок.
+          </p>
+          <ul style="color: var(--text-muted); line-height: 1.7; font-size: 0.9rem; padding-left: 18px;">
+            <li>Фіксація нормативних та фактичних витрат матеріалів.</li>
+            <li>Автоматичні складські заявки під наряд з прив'язкою до замовлення.</li>
+            <li>Унеможливлення «тіньового» списання чи розкрадання сировини.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title" style="color: var(--accent-cyan);">Персональна відповідальність МВО</h3>
+          <p class="card-desc" style="margin-bottom: 12px;">
+            Матеріальні цінності закріплюються за матеріально відповідальними особами дільниць.
+          </p>
+          <ul style="color: var(--text-muted); line-height: 1.7; font-size: 0.9rem; padding-left: 18px;">
+            <li>Оперативний баланс залишків на кожній цеховій зоні.</li>
+            <li>Простежуваність руху партій від прийому до відвантаження.</li>
+            <li>Повна прозорість для економістів та бухгалтерського обліку.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 6: Tooling & Cutter Boxes Module -->
+    <section class="slide" data-slide-id="slide-6">
+      <div class="draggable-photos-layer" data-layer-slide="6"></div>
+      <div class="slide-tag">ІНСТРУМЕНТАЛЬНЕ ГОСПОДАРСТВО</div>
+      <h2 class="slide-title">Облік фрез та комплектація в бокси (`WarehousePrepBoxes`)</h2>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-icon">✂️</div>
+          <h3 class="card-title">Чеклист фрез під картку</h3>
+          <p class="card-desc">
+            Система автоматично розраховує номенклатуру та кількість фрез для кожного технологічного завдання.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">📦</div>
+          <h3 class="card-title">Комплектування боксів</h3>
+          <p class="card-desc">
+            Склад комплектує фрези у фізичні та цифрові бокси, відмічаючи чек-лист кожної позиції до передачі в цех.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">🔄</div>
+          <h3 class="card-title">Відновлення та перегострення</h3>
+          <p class="card-desc">
+            Модуль `CutterRestorationModule` контролює знос інструменту та направляє фрези на сервіс або списання.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 7: Defect Scrap & Rework Mechanics -->
+    <section class="slide" data-slide-id="slide-7">
+      <div class="draggable-photos-layer" data-layer-slide="7"></div>
+      <div class="slide-tag">МОНІТОРИНГ ЯКОСТІ ТА ДОВИПУСК</div>
+      <h2 class="slide-title">Класифікація браку ВКЯ та швидка індикація черги</h2>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3 class="card-title" style="color: var(--accent-orange);">Класифікація браку ВКЯ (`BrakModule`)</h3>
+          <p class="card-desc" style="line-height: 1.55;">
+            ВКЯ фіксує дефекти та класифікує їх strictly за 2 категоріями:
+            <br>• <strong style="color: var(--accent-orange);">«БРАК» (Виправний брак):</strong> дефект, який ВКЯ бере на внутрішнє відновлення або передає на доопрацювання з формуванням довипуску.
+            <br>• <strong style="color: var(--accent-red);">«УТИЛЬ» (Незворотний брак):</strong> дефект, який неможливо виправити; підлягає обов'язковому довипуску нової деталі.
+          </p>
+        </div>
+
+        <div class="card" style="border-color: rgba(16, 185, 129, 0.4);">
+          <h3 class="card-title" style="color: var(--accent-green);">Генерація довипуску та індикація черги</h3>
+          <p class="card-desc" style="line-height: 1.55;">
+            Картку довипуску генерують у 1 клік вручну. «КУЛИЦЯ» показує потребу у довипуску <strong>швидкою кольоровою індикацією у черзі</strong>:
+            <br>🔴 <strong style="color: #f87171;">Червоне:</strong> Довипуск (екстрене заповнення комплектації).
+            <br>🟡 <strong style="color: #fbbf24;">Жовте:</strong> В роботі (процес обробки в цеху).
+            <br>🔵 <strong style="color: #60a5fa;">Синє:</strong> Нове (новозгенерований наряд).
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 8: OEE Analytics & Telemetry -->
+    <section class="slide" data-slide-id="slide-8">
+      <div class="draggable-photos-layer" data-layer-slide="8"></div>
+      <div class="slide-tag">ТЕЛЕМЕТРІЯ ТА OEE-АНАЛІТИКА</div>
+      <h2 class="slide-title">Від суб'єктивних суперечок — до вимірюваної фактології</h2>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3 class="card-title" style="color: var(--accent-cyan);">Фіксація дійсних причин простоїв</h3>
+          <p class="card-desc" style="line-height: 1.6;">
+            Через `MachineCallModule` система дозволяє виміряти фактичний час і причини зупинок (переналадка, відсутність інструменту, ремонт) та перейти від суб'єктивної оцінки простоїв до об'єктивної OEE-аналітики.
+          </p>
+        </div>
+
+        <div class="card" style="border-color: rgba(255, 144, 0, 0.4);">
+          <h3 class="card-title" style="color: var(--accent-orange);">Перехід на мову вимірювань</h3>
+          <p class="card-desc" style="line-height: 1.6;">
+            Без об'єктивних вимірювань простоїв будь-яка дискусія перетворюється на суперечку емоцій. Система «Кулиця» дає мову фактів, чисел та точного показника OEE.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 9: Executive Dashboard - Part Location by Stage -->
+    <section class="slide" data-slide-id="slide-9">
+      <div class="draggable-photos-layer" data-layer-slide="9"></div>
+      <div class="slide-tag">ДАШБОРД ДИРЕКТОРА</div>
+      <h2 class="slide-title">Перебування деталей на кожному етапі в нарядах</h2>
+
+      <p style="color: var(--text-muted); font-size: 0.95rem; line-height: 1.6; margin-bottom: 12px;">
+        Головний матричний дашборд директора надає наочне бачення руху кожної партії деталей через усі технологічні етапи у режимі реального часу 24/7:
+      </p>
+    </section>
+
+    <!-- SLIDE 10: Fast Real-Time Reports -->
+    <section class="slide" data-slide-id="slide-10">
+      <div class="draggable-photos-layer" data-layer-slide="10"></div>
+      <div class="slide-tag">ОПЕРАТИВНА АНАЛІТИКА</div>
+      <h2 class="slide-title">Мега-швидкі звіти 24/7 у кілька кліків</h2>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-icon">⚡</div>
+          <h3 class="card-title">Звіт про виробіток зміни</h3>
+          <p class="card-desc">
+            Миттєве формування звітів про кількість виготовленої продукції за будь-яку зміну, день чи місяць.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">💰</div>
+          <h3 class="card-title">Розрахунок відрядного виробітку</h3>
+          <p class="card-desc">
+            Прозора фактологічна база для нарахування заробітної плати та премій операторам на основі закритих карток.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">📈</div>
+          <h3 class="card-title">Аналітичні довідки браку</h3>
+          <p class="card-desc">
+            Автоматичні звіти про динаміку браку, збереження матеріалу та повторне використання сировини.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 11: TaskProjectsModule - Внутрішній Задачник -->
+    <section class="slide" data-slide-id="slide-11">
+      <div class="draggable-photos-layer" data-layer-slide="11"></div>
+      <div class="slide-tag">ОПЕРАЦІЙНЕ УПРАВЛІННЯ</div>
+      <h2 class="slide-title">Внутрішній задачник та канбан проєктів (`TaskProjectsModule`)</h2>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-icon">📌</div>
+          <h3 class="card-title">Проєктні канбан-дошки</h3>
+          <p class="card-desc">
+            Окремий вимір для задач заводських служб: <strong>В ЧЕРЗІ ➔ В РОБОТІ ➔ ПЕРЕВІРКА ➔ ВИКОНАНО</strong>. Облік ТО верстатів, розробок, закупівель та R&D.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">🎯</div>
+          <h3 class="card-title">Чеклисти та відповідальні</h3>
+          <p class="card-desc">
+            Кожна задача має пріоритет (ТЕРМІНОВО, ВИСОКИЙ, СЕРЕДНІЙ, НИЗЬКИЙ), призначених людей (`assignees`), дедлайн та підпункти чекліста.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">🔒</div>
+          <h3 class="card-title">Розмежування за відділами</h3>
+          <p class="card-desc">
+            Дошки проєктів доступні тим відділам, для яких їх створено (`department_ids`, `member_logins`). Не створює плутанини з виробничими нарядами.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 12: Summary Architecture Matrix (COMPACT & FITS 100%) -->
+    <section class="slide" data-slide-id="slide-12">
+      <div class="draggable-photos-layer" data-layer-slide="12"></div>
+      <div class="slide-tag">СИСТЕМНА АРХІТЕКТУРА</div>
+      <h2 class="slide-title" style="margin-bottom: 8px;">«КУЛИЦЯ» — єдиний контур операційного управління</h2>
+
+      <table class="compact-table">
+        <thead>
+          <tr>
+            <th style="width: 45%;">Управлінська потреба підприємства</th>
+            <th style="width: 55%;">Як закриває система «КУЛИЦЯ»</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Єдине джерело замовлення</td><td>ManagerModule</td></tr>
+          <tr><td>Структура виробу (BOM)</td><td>NomenclatureV2 (BOM)</td></tr>
+          <tr><td>Матеріальна потреба</td><td>plan_snapshot</td></tr>
+          <tr><td>Резервування матеріалу</td><td>material_requests + Склад</td></tr>
+          <tr><td>Технічна готовність</td><td>engineer_conf</td></tr>
+          <tr><td>Погодження запуску</td><td>Digital Gate (DirectorModule)</td></tr>
+          <tr><td>Виконання наряду</td><td>work_cards</td></tr>
+          <tr><td>Простежуваність операцій</td><td>QR-коди + Операційні термінали</td></tr>
+          <tr><td>Передача відповідальності між цехами</td><td>Digital Handover (reception_docs)</td></tr>
+          <tr><td>Облік браку</td><td>BrakModule</td></tr>
+          <tr><td>Механіка довипуску</td><td>createReworkNaryad (ВБ0001)</td></tr>
+          <tr><td>Реєстрація простоїв</td><td>MachineCallModule</td></tr>
+          <tr><td>KPI обладнання</td><td>OEE-Аналітика</td></tr>
+          <tr><td>Поточний стан деталей</td><td>Director Dashboard (Матриця 24/7)</td></tr>
+          <tr><td>Зміна пріоритету замовлень</td><td>Журнал рішень (до розвитку)</td></tr>
+          <tr><td>Матеріальні розбіжності</td><td>Контроль BAS / резерв / факт (до розвитку)</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- SLIDE 13: Management Function Block -->
+    <section class="slide" data-slide-id="slide-13">
+      <div class="draggable-photos-layer" data-layer-slide="13"></div>
+      <div class="slide-tag">УПРАВЛІНСЬКА ФІЛОСОФІЯ</div>
+      <h2 class="slide-title">«КУЛИЦЯ» не повинна забирати функції в людини!</h2>
+
+      <div class="grid-2" style="margin-bottom: 12px;">
+        <div class="card" style="padding: 16px;">
+          <h4 style="color: var(--accent-orange); margin-bottom: 4px;">🎯 Ролі підрозділів заводу:</h4>
+          <ul style="color: var(--text-muted); font-size: 0.85rem; line-height: 1.5; padding-left: 16px;">
+            <li><strong>Продажі:</strong> працюють безпосередньо з клієнтом.</li>
+            <li><strong>Фінансова функція:</strong> працює з розрахунками й економікою.</li>
+            <li><strong>Склад:</strong> працює з достовірністю та рухом матеріалу.</li>
+            <li><strong>Інженери:</strong> забезпечують технічну готовність.</li>
+            <li><strong>Виробництво:</strong> керує потужностями та виконанням.</li>
+            <li><strong>Керівництво:</strong> управляє пріоритетами.</li>
+          </ul>
+        </div>
+
+        <div class="card" style="border-color: rgba(0, 242, 254, 0.4); padding: 16px;">
+          <h4 style="color: var(--accent-cyan); margin-bottom: 6px;">⚡ Головне завдання системи «КУЛИЦЯ»:</h4>
+          <p style="color: var(--text-main); font-size: 0.95rem; line-height: 1.6; font-weight: 600;">
+            Зв'язати всі ці управлінські рішення в <strong>єдиний цифровий ланцюг</strong> і не дозволити інформації загубитися між підрозділами заводу.
+          </p>
+        </div>
+      </div>
+
+      <div class="alert-box" style="border-left-color: var(--accent-green); background: rgba(16, 185, 129, 0.08);">
+        💡 <strong>Системний результат:</strong> Кожен фахівець робить свою роботу, а «КУЛИЦЯ» гарантує 100% прозорість та надійну передачу даних від клієнта до відвантаження!
+      </div>
+    </section>
+
+    <!-- SLIDE 14: Final Summary by Production Director -->
+    <section class="slide" data-slide-id="slide-14">
+      <div class="draggable-photos-layer" data-layer-slide="14"></div>
+      <div class="slide-tag">ВИСНОВОК ДИРЕКТОРА З ВИРОБНИЦТВА</div>
+      <h2 class="slide-title">«КУЛИЦЯ» — це супер-продукт для нашого підприємства</h2>
+
+      <div class="grid-3" style="margin-bottom: 16px;">
+        <div class="card" style="border-color: rgba(255, 144, 0, 0.35);">
+          <div class="card-icon">1</div>
+          <h3 class="card-title">Тотальний контроль</h3>
+          <p class="card-desc">
+            Система дає керівництву 100% контроль над виробництвом, ТМЦ, верстатами, задачничем та рухом кожної деталі.
+          </p>
+        </div>
+
+        <div class="card" style="border-color: rgba(0, 242, 254, 0.35);">
+          <div class="card-icon">2</div>
+          <h3 class="card-title">Виробнича дисципліна</h3>
+          <p class="card-desc">
+            Зникає хаос, приховування браку та самовільний запуск «порожніх» нарядів.
+          </p>
+        </div>
+
+        <div class="card" style="border-color: rgba(16, 185, 129, 0.35);">
+          <div class="card-icon">3</div>
+          <h3 class="card-title">Стратегічний крок уперед</h3>
+          <p class="card-desc">
+            Закінчивши впровадження «Кулиці», ми отримаємо найкращий продукт у галузі!
+          </p>
+        </div>
+      </div>
+    </section>�равління</h2>
+
+      <table class="compact-table">
+        <thead>
+          <tr>
+            <th style="width: 45%;">Управлінська потреба підприємства</th>
+            <th style="width: 55%;">Як закриває система «КУЛИЦЯ»</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Єдине джерело замовлення</td><td>ManagerModule</td></tr>
+          <tr><td>Структура виробу (BOM)</td><td>NomenclatureV2 (BOM)</td></tr>
+          <tr><td>Матеріальна потреба</td><td>plan_snapshot</td></tr>
+          <tr><td>Резервування матеріалу</td><td>material_requests + Склад</td></tr>
+          <tr><td>Технічна готовність</td><td>engineer_conf</td></tr>
+          <tr><td>Погодження запуску</td><td>Digital Gate (DirectorModule)</td></tr>
+          <tr><td>Виконання наряду</td><td>work_cards</td></tr>
+          <tr><td>Простежуваність операцій</td><td>QR-коди + Операційні термінали</td></tr>
+          <tr><td>Передача відповідальності між цехами</td><td>Digital Handover (reception_docs)</td></tr>
+          <tr><td>Облік браку</td><td>BrakModule</td></tr>
+          <tr><td>Механіка довипуску</td><td>createReworkNaryad (ВБ0001)</td></tr>
+          <tr><td>Реєстрація простоїв</td><td>MachineCallModule</td></tr>
+          <tr><td>KPI обладнання</td><td>OEE-Аналітика</td></tr>
+          <tr><td>Поточний стан деталей</td><td>Director Dashboard (Матриця 24/7)</td></tr>
+          <tr><td>Зміна пріоритету замовлень</td><td>Журнал рішень (до розвитку)</td></tr>
+          <tr><td>Матеріальні розбіжності</td><td>Контроль BAS / резерв / факт (до розвитку)</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- SLIDE 13: Management Function Block -->
+    <section class="slide" data-slide-id="slide-13">
+      <div class="draggable-photos-layer" data-layer-slide="13"></div>
+      <div class="slide-tag">УПРАВЛІНСЬКА ФІЛОСОФІЯ</div>
+      <h2 class="slide-title">«КУЛИЦЯ» Не Повинна Забирати Функції в Людини!</h2>
+
+      <div class="grid-2" style="margin-bottom: 12px;">
+        <div class="card" style="padding: 16px;">
+          <h4 style="color: var(--accent-orange); margin-bottom: 4px;">🎯 Ролі підрозділів заводу:</h4>
+          <ul style="color: var(--text-muted); font-size: 0.85rem; line-height: 1.5; padding-left: 16px;">
+            <li><strong>Продажі:</strong> працюють безпосередньо з клієнтом.</li>
+            <li><strong>Фінансова функція:</strong> працює з розрахунками й економікою.</li>
+            <li><strong>Склад:</strong> працює з достовірністю та рухом матеріалу.</li>
+            <li><strong>Інженери:</strong> забезпечують технічну готовність.</li>
+            <li><strong>Виробництво:</strong> керує потужностями та виконанням.</li>
+            <li><strong>Керівництво:</strong> управляє пріоритетами.</li>
+          </ul>
+        </div>
+
+        <div class="card" style="border-color: rgba(0, 242, 254, 0.4); padding: 16px;">
+          <h4 style="color: var(--accent-cyan); margin-bottom: 6px;">⚡ Головне завдання системи «КУЛИЦЯ»:</h4>
+          <p style="color: var(--text-main); font-size: 0.95rem; line-height: 1.6; font-weight: 600;">
+            Зв'язати всі ці управлінські рішення в <strong>єдиний цифровий ланцюг</strong> і не дозволити інформації загубитися між підрозділами заводу.
+          </p>
+        </div>
+      </div>
+
+      <div class="alert-box" style="border-left-color: var(--accent-green); background: rgba(16, 185, 129, 0.08);">
+        💡 <strong>Системний результат:</strong> Кожен фахівець робить свою роботу, а «КУЛИЦЯ» гарантує 100% прозорість та надійну передачу даних від клієнта до відвантаження!
+      </div>
+    </section>
+
+    <!-- SLIDE 14: Final Summary by Production Director -->
+    <section class="slide" data-slide-id="slide-14">
+      <div class="draggable-photos-layer" data-layer-slide="14"></div>
+      <div class="slide-tag">ФІНАЛЬНИЙ ВИСНОВОК ДИРЕКТОРА З ВИРОБНИЦТВА</div>
+      <h2 class="slide-title">«КУЛИЦЯ» — Це Супер-Продукт для Нашого Підприємства!</h2>
+
+      <div class="grid-3" style="margin-bottom: 16px;">
+        <div class="card" style="border-color: rgba(255, 144, 0, 0.35);">
+          <div class="card-icon">1</div>
+          <h3 class="card-title">Тотальний Контроль</h3>
+          <p class="card-desc">
+            Система дає керівництву 100% контроль над виробництвом, ТМЦ, верстатами, задачничем та рухом кожної деталі.
+          </p>
+        </div>
+
+        <div class="card" style="border-color: rgba(0, 242, 254, 0.35);">
+          <div class="card-icon">2</div>
+          <h3 class="card-title">Виробнича Дисципліна</h3>
+          <p class="card-desc">
+            Зникає хаос, приховування браку та самовільний запуск «порожніх» нарядів.
+          </p>
+        </div>
+
+        <div class="card" style="border-color: rgba(16, 185, 129, 0.35);">
+          <div class="card-icon">3</div>
+          <h3 class="card-title">Стратегічний Крок Вперед</h3>
+          <p class="card-desc">
+            Закінчивши впровадження «Кулиці», ми отримаємо найкращий продукт у галузі!
+          </p>
+        </div>
+      </div>
+
+      <div class="alert-box" style="text-align: center; background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.4); border-left-color: var(--accent-green);">
+        🚀 <strong>Заклик до керівництва:</strong> Підтримати завершення впровадження системи «КУЛИЦЯ» та захистити інноваційний розвиток нашого підприємства!
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer Navigation -->
+  <footer>
+    <button class="nav-btn" id="prevBtn" onclick="changeSlide(-1)">
+      ← НАЗАД
+    </button>
+
+    <div class="keyboard-hint">
+      Використовуйте клавіші <span class="key-badge">←</span> <span class="key-badge">→</span> або <span class="key-badge">Пробіл</span> для навігації
+    </div>
+
+    <button class="nav-btn" id="nextBtn" onclick="changeSlide(1)">
+      ВПЕРЕД →
+    </button>
+  </footer>
+
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+    const progressBar = document.getElementById('progressBar');
+    const slideCounter = document.getElementById('slideCounter');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+
+    function updateDeck() {
+      slides.forEach((slide, idx) => {
+        if (idx === currentSlide) {
+          slide.classList.add('active');
+        } else {
+          slide.classList.remove('active');
+        }
+      });
+
+      const progressPercent = ((currentSlide + 1) / totalSlides) * 100;
+      progressBar.style.width = `${progressPercent}%`;
+
+      slideCounter.textContent = `Слайд ${currentSlide + 1} з ${totalSlides}`;
+
+      prevBtn.disabled = currentSlide === 0;
+      nextBtn.disabled = currentSlide === totalSlides - 1;
+
+      renderDraggablePhotos(currentSlide + 1);
+    }
+
+    function changeSlide(direction) {
+      const newIndex = currentSlide + direction;
+      if (newIndex >= 0 && newIndex < totalSlides) {
+        currentSlide = newIndex;
+        updateDeck();
+      }
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'Space') {
+        e.preventDefault();
+        changeSlide(1);
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        changeSlide(-1);
+      }
+    });
+
+    // PROPORTIONAL POWERPOINT PHOTO ENGINE (ZERO SQUISHING, DRAG & CORNER RESIZE)
+    function getSlidePhotos(slideNum) {
+      const raw = localStorage.getItem(`kulytsia_photos_v4_${slideNum}`);
+      if (!raw) return [];
+      try { return JSON.parse(raw); } catch(e) { return []; }
+    }
+
+    function saveSlidePhotos(slideNum, photos) {
+      localStorage.setItem(`kulytsia_photos_v4_${slideNum}`, JSON.stringify(photos));
+    }
+
+    function triggerScreenshotUpload() {
+      document.getElementById('screenshotInput').click();
+    }
+
+    function handleScreenshotSelected(event) {
+      const files = Array.from(event.target.files);
+      if (!files.length) return;
+
+      const slideIndex = currentSlide + 1;
+      let photos = getSlidePhotos(slideIndex);
+
+      let count = 0;
+      files.forEach((file, fIdx) => {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const imgObj = new Image();
+          imgObj.onload = function() {
+            // Compute original aspect ratio to preserve exact image proportions!
+            const naturalW = imgObj.naturalWidth || 500;
+            const naturalH = imgObj.naturalHeight || 300;
+            const aspect = naturalH / naturalW;
+
+            const initW = 480;
+            const initH = Math.round(initW * aspect);
+
+            photos.push({
+              id: 'drag_img_' + Date.now() + '_' + fIdx,
+              src: e.target.result,
+              left: 80 + (photos.length * 30),
+              top: 350 + (photos.length * 20),
+              width: initW,
+              height: initH,
+              aspectRatio: aspect
+            });
+
+            count++;
+            if (count === files.length) {
+              saveSlidePhotos(slideIndex, photos);
+              renderDraggablePhotos(slideIndex);
+            }
+          };
+          imgObj.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+
+      event.target.value = '';
+    }
+
+    function renderDraggablePhotos(slideNum) {
+      const activeSlideEl = slides[slideNum - 1];
+      if (!activeSlideEl) return;
+
+      const layer = activeSlideEl.querySelector('.draggable-photos-layer');
+      if (!layer) return;
+
+      const photos = getSlidePhotos(slideNum);
+      layer.innerHTML = '';
+
+      photos.forEach(photo => {
+        const card = document.createElement('div');
+        card.className = 'draggable-photo-card';
+        card.style.left = (photo.left || 80) + 'px';
+        card.style.top = (photo.top || 350) + 'px';
+        card.style.width = (photo.width || 480) + 'px';
+        card.style.height = (photo.height || 270) + 'px';
+        card.setAttribute('data-id', photo.id);
+
+        card.innerHTML = `
+          <img src="${photo.src}" alt="Скріншот">
+          <div class="photo-hover-toolbar">
+            <button class="btn-photo-tool" onclick="resizePhotoScale(${slideNum}, '${photo.id}', 1.15)" title="Збільшити">+15%</button>
+            <button class="btn-photo-tool" onclick="resizePhotoScale(${slideNum}, '${photo.id}', 0.85)" title="Зменшити">-15%</button>
+            <button class="btn-photo-tool btn-photo-del" onclick="deleteDraggablePhoto(${slideNum}, '${photo.id}', event)" title="Видалити">✕</button>
+          </div>
+          <div class="photo-resize-corner" title="Тягніть куток для зміни розміру">◢</div>
+        `;
+
+        makeElementDraggableAndCornerResizable(card, slideNum, photo.id, photo.aspectRatio || 0.56);
+        layer.appendChild(card);
+      });
+    }
+
+    function resizePhotoScale(slideNum, photoId, factor) {
+      let photos = getSlidePhotos(slideNum);
+      const photo = photos.find(p => p.id === photoId);
+      if (photo) {
+        photo.width = Math.round(photo.width * factor);
+        photo.height = Math.round(photo.height * factor);
+        saveSlidePhotos(slideNum, photos);
+        renderDraggablePhotos(slideNum);
+      }
+    }
+
+    function deleteDraggablePhoto(slideNum, photoId, event) {
+      event.stopPropagation();
+      let photos = getSlidePhotos(slideNum).filter(p => p.id !== photoId);
+      saveSlidePhotos(slideNum, photos);
+      renderDraggablePhotos(slideNum);
+    }
+
+    function makeElementDraggableAndCornerResizable(elmnt, slideNum, photoId, aspectRatio) {
+      const resizeCorner = elmnt.querySelector('.photo-resize-corner');
+
+      // Drag Position Handler
+      elmnt.onmousedown = function(e) {
+        if (e.target.classList.contains('btn-photo-tool') || e.target.classList.contains('photo-resize-corner')) return;
+        e.preventDefault();
+
+        elmnt.classList.add('active-drag');
+        let startX = e.clientX;
+        let startY = e.clientY;
+        let startLeft = elmnt.offsetLeft;
+        let startTop = elmnt.offsetTop;
+
+        document.onmousemove = function(moveEvt) {
+          moveEvt.preventDefault();
+          const dx = moveEvt.clientX - startX;
+          const dy = moveEvt.clientY - startY;
+
+          elmnt.style.left = (startLeft + dx) + 'px';
+          elmnt.style.top = (startTop + dy) + 'px';
+        };
+
+        document.onmouseup = function() {
+          elmnt.classList.remove('active-drag');
+          document.onmousemove = null;
+          document.onmouseup = null;
+
+          let photos = getSlidePhotos(slideNum);
+          const p = photos.find(item => item.id === photoId);
+          if (p) {
+            p.left = elmnt.offsetLeft;
+            p.top = elmnt.offsetTop;
+            saveSlidePhotos(slideNum, photos);
+          }
+        };
+      };
+
+      // Corner Resize Handler (Smooth Proportional Resizing)
+      if (resizeCorner) {
+        resizeCorner.onmousedown = function(e) {
+          e.stopPropagation();
+          e.preventDefault();
+
+          let startX = e.clientX;
+          let startW = elmnt.offsetWidth;
+
+          document.onmousemove = function(moveEvt) {
+            moveEvt.preventDefault();
+            const dx = moveEvt.clientX - startX;
+            const newW = Math.max(120, startW + dx);
+            const newH = Math.round(newW * aspectRatio);
+
+            elmnt.style.width = newW + 'px';
+            elmnt.style.height = newH + 'px';
+          };
+
+          document.onmouseup = function() {
+            document.onmousemove = null;
+            document.onmouseup = null;
+
+            let photos = getSlidePhotos(slideNum);
+            const p = photos.find(item => item.id === photoId);
+            if (p) {
+              p.width = elmnt.offsetWidth;
+              p.height = elmnt.offsetHeight;
+              saveSlidePhotos(slideNum, photos);
+            }
+          };
+        };
+      }
+    }
+
+    // Standalone Single-File HTML Exporter
+    function exportStandaloneHTML() {
+      const htmlClone = document.documentElement.cloneNode(true);
+
+      for (let i = 1; i <= totalSlides; i++) {
+        const photos = getSlidePhotos(i);
+        const slideInClone = htmlClone.querySelectorAll('.slide')[i - 1];
+        if (slideInClone && photos.length) {
+          const layerInClone = slideInClone.querySelector('.draggable-photos-layer');
+          if (layerInClone) {
+            layerInClone.innerHTML = '';
+            photos.forEach(photo => {
+              const card = document.createElement('div');
+              card.className = 'draggable-photo-card';
+              card.style.left = (photo.left || 80) + 'px';
+              card.style.top = (photo.top || 350) + 'px';
+              card.style.width = (photo.width || 480) + 'px';
+              card.style.height = (photo.height || 270) + 'px';
+              card.innerHTML = `<img src="${photo.src}" style="width:100%; height:100%; object-fit:contain;" alt="Скріншот">`;
+              layerInClone.appendChild(card);
+            });
+          }
+        }
+      }
+
+      const actionsInClone = htmlClone.querySelector('.header-actions');
+      if (actionsInClone) {
+        const btns = actionsInClone.querySelectorAll('.upload-btn, .export-btn');
+        btns.forEach(b => b.remove());
+      }
+
+      const fullHTMLContent = "<!DOCTYPE html>\n" + htmlClone.outerHTML;
+
+      const blob = new Blob([fullHTMLContent], { type: 'text/html;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = "Презентація_Кулиця_PowerPoint.html";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+
+    updateDeck();
+  </script>
+</body>
+</html>
