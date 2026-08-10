@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="uk">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Захист системи «КУЛИЦЯ» — Доповідь Директора з виробництва</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800;900&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800;900&family=Space+Grotesk:wght@500;700&display=swap"
+    rel="stylesheet">
   <style>
     :root {
       --bg-dark: #06080d;
@@ -305,7 +308,8 @@
       overflow: hidden;
     }
 
-    .comp-table th, .comp-table td {
+    .comp-table th,
+    .comp-table td {
       padding: 8px 12px;
       text-align: left;
       border-bottom: 1px solid var(--panel-border);
@@ -471,10 +475,37 @@
       font-size: 0.88rem;
     }
 
-    .dot-orange { width: 10px; height: 10px; background: var(--accent-orange); border-radius: 50%; box-shadow: 0 0 10px var(--accent-orange); }
-    .dot-cyan { width: 10px; height: 10px; background: var(--accent-cyan); border-radius: 50%; box-shadow: 0 0 10px var(--accent-cyan); }
-    .dot-green { width: 10px; height: 10px; background: var(--accent-green); border-radius: 50%; box-shadow: 0 0 10px var(--accent-green); }
-    .dot-purple { width: 10px; height: 10px; background: var(--accent-purple); border-radius: 50%; box-shadow: 0 0 10px var(--accent-purple); }
+    .dot-orange {
+      width: 10px;
+      height: 10px;
+      background: var(--accent-orange);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--accent-orange);
+    }
+
+    .dot-cyan {
+      width: 10px;
+      height: 10px;
+      background: var(--accent-cyan);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--accent-cyan);
+    }
+
+    .dot-green {
+      width: 10px;
+      height: 10px;
+      background: var(--accent-green);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--accent-green);
+    }
+
+    .dot-purple {
+      width: 10px;
+      height: 10px;
+      background: var(--accent-purple);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--accent-purple);
+    }
 
     .alert-box {
       background: rgba(255, 144, 0, 0.08);
@@ -518,12 +549,13 @@
       width: 100%;
       border-collapse: collapse;
       margin-top: 8px;
-      background: rgba(0,0,0,0.3);
+      background: rgba(0, 0, 0, 0.3);
       border-radius: 12px;
       overflow: hidden;
     }
 
-    .stage-matrix-table th, .stage-matrix-table td {
+    .stage-matrix-table th,
+    .stage-matrix-table td {
       padding: 6px 10px;
       text-align: center;
       border: 1px solid var(--panel-border);
@@ -531,7 +563,7 @@
     }
 
     .stage-matrix-table th {
-      background: rgba(255,144,0,0.12);
+      background: rgba(255, 144, 0, 0.12);
       color: var(--accent-orange);
       font-weight: 800;
     }
@@ -542,7 +574,8 @@
       font-size: 0.76rem;
     }
 
-    .compact-table th, .compact-table td {
+    .compact-table th,
+    .compact-table td {
       padding: 4px 10px;
       border: 1px solid var(--panel-border);
       text-align: left;
@@ -589,7 +622,8 @@
       transition: border-color 0.2s, box-shadow 0.2s;
     }
 
-    .draggable-photo-card:hover, .draggable-photo-card.active-drag {
+    .draggable-photo-card:hover,
+    .draggable-photo-card.active-drag {
       border-color: var(--accent-cyan);
       box-shadow: 0 0 20px rgba(0, 242, 254, 0.6);
       cursor: grabbing;
@@ -598,7 +632,8 @@
     .draggable-photo-card img {
       width: 100%;
       height: 100%;
-      object-fit: contain; /* NEVER SQUISHES OR DISTORTS ASPECT RATIO */
+      object-fit: contain;
+      /* NEVER SQUISHES OR DISTORTS ASPECT RATIO */
       border-radius: 6px;
       pointer-events: none;
       display: block;
@@ -676,13 +711,15 @@
     }
   </style>
 </head>
+
 <body>
 
   <div class="bg-glow-1"></div>
   <div class="bg-glow-2"></div>
 
   <!-- Hidden File Input for uploading screenshots -->
-  <input type="file" id="screenshotInput" accept="image/*" multiple style="display: none;" onchange="handleScreenshotSelected(event)">
+  <input type="file" id="screenshotInput" accept="image/*" multiple style="display: none;"
+    onchange="handleScreenshotSelected(event)">
 
   <!-- Progress Bar -->
   <div class="progress-bar-container">
@@ -696,13 +733,21 @@
       <div class="brand-text">СИСТЕМА <span>«КУЛИЦЯ»</span></div>
     </div>
     <div class="header-actions">
-      <button class="upload-btn" onclick="triggerScreenshotUpload()" title="Завантажити фото та перетягувати його по екрану (як в PowerPoint)">
+      <button class="upload-btn" onclick="triggerScreenshotUpload()"
+        title="Завантажити фото та перетягувати його по екрану (як в PowerPoint)">
         📷 Додати фото (+)
       </button>
-      <button class="export-btn" onclick="exportStandaloneHTML()" title="Зберегти 1 автономний файл презентації з усіма вшитими скріншотами">
+      <button class="export-btn" onclick="exportStandaloneHTML()"
+        title="Зберегти 1 автономний файл презентації з усіма вшитими скріншотами">
         📦 Експорт для відправки
       </button>
-      <div class="speaker    <!-- SLIDE 1: Title -->
+      <div class="slide-counter" id="slideCounter">Слайд 1 з 15</div>
+    </div>
+  </header>
+
+  <!-- Main Slides Deck -->
+  <main class="deck-container">
+    <!-- SLIDE 1: Title -->
     <section class="slide active" data-slide-id="slide-1">
       <div class="draggable-photos-layer" data-layer-slide="1"></div>
       <div>
@@ -713,7 +758,9 @@
           Система <span>«КУЛИЦЯ»</span>: джерело виробничої правди
         </h1>
         <p class="hero-subtitle">
-          Єдиний цифровий контур операційного управління підприємством: від надходження замовлення клієнта до точного відвантаження. Повний контроль сировини, прозора диспетчеризація ЧПК, OEE-аналітика простоїв та 100% збереження технологічної дисципліни.
+          Єдиний цифровий контур операційного управління підприємством: від надходження замовлення клієнта до точного
+          відвантаження. Повний контроль сировини, прозора диспетчеризація ЧПК, OEE-аналітика простоїв та 100%
+          збереження технологічної дисципліни.
         </p>
         <div class="hero-features">
           <div class="hero-feature-item">
@@ -737,7 +784,7 @@
       <div class="draggable-photos-layer" data-layer-slide="2"></div>
       <div class="slide-tag">АНАЛІЗ КРИТИЧНИХ ЗАУВАЖЕНЬ</div>
       <h2 class="slide-title">Системна відповідь на зауваження документу «Люцерна»</h2>
-      
+
       <table class="comp-table">
         <thead>
           <tr>
@@ -753,7 +800,8 @@
             </td>
             <td>
               <span class="badge-fact">РЕАЛЬНИЙ ФАКТ СИСТЕМИ</span><br>
-              <strong>«Кулиця» є цифровим замком безпеки.</strong> Вона не створює політик, а жорстко контролює дотримання регламентів, затверджених керівництвом.
+              <strong>«Кулиця» є цифровим замком безпеки.</strong> Вона не створює політик, а жорстко контролює
+              дотримання регламентів, затверджених керівництвом.
             </td>
           </tr>
           <tr>
@@ -763,7 +811,8 @@
             </td>
             <td>
               <span class="badge-fact">РЕАЛЬНИЙ ФАКТ СИСТЕМИ</span><br>
-              У «Кулиці» працює <strong>3-сторонній цифровий шлюз</strong>: Наряд блокується доти, доки не отримає підписи: <strong>Склад + Інженер + Директор</strong>.
+              У «Кулиці» працює <strong>3-сторонній цифровий шлюз</strong>: Наряд блокується доти, доки не отримає
+              підписи: <strong>Склад + Інженер + Директор</strong>.
             </td>
           </tr>
           <tr>
@@ -773,7 +822,8 @@
             </td>
             <td>
               <span class="badge-fact">РЕАЛЬНИЙ ФАКТ СИСТЕМИ</span><br>
-              Впроваджено модуль <strong>WarehousePrepBoxes</strong>: автоматичний облік фрез, підготовка боксів під картки та контроль відновлення інструменту.
+              Впроваджено модуль <strong>WarehousePrepBoxes</strong>: автоматичний облік фрез, підготовка боксів під
+              картки та контроль відновлення інструменту.
             </td>
           </tr>
           <tr>
@@ -783,7 +833,8 @@
             </td>
             <td>
               <span class="badge-fact">РЕАЛЬНИЙ ФАКТ СИСТЕМИ</span><br>
-              Впроваджено модуль <strong>BrakModule</strong>: миттєва детекція браку на терміналі з вказівкою <strong>оператора, верстата, етапу та конкретної причини</strong>.
+              Впроваджено модуль <strong>BrakModule</strong>: миттєва детекція браку на терміналі з вказівкою
+              <strong>оператора, верстата, етапу та конкретної причини</strong>.
             </td>
           </tr>
         </tbody>
@@ -795,13 +846,14 @@
       <div class="draggable-photos-layer" data-layer-slide="3"></div>
       <div class="slide-tag">ФУНДАМЕНТАЛЬНА КОНЦЕПЦІЯ</div>
       <h2 class="slide-title">«КУЛИЦЯ» — джерело виробничої правди</h2>
-      
+
       <div class="grid-3">
         <div class="card">
           <div class="card-icon">1</div>
           <h3 class="card-title">Прозорість замість суперечок</h3>
           <p class="card-desc">
-            Система усуває перепалки між цехом, складом та інженерами («Не дали сировину», «Немає програми»). Усі бачать єдиний статус 24/7.
+            Система усуває перепалки між цехом, складом та інженерами («Не дали сировину», «Немає програми»). Усі бачать
+            єдиний статус 24/7.
           </p>
         </div>
 
@@ -809,7 +861,8 @@
           <div class="card-icon">2</div>
           <h3 class="card-title">Сувора диспетчеризація</h3>
           <p class="card-desc">
-            Оператор на терміналі бачитиме тільки ті завдання, які 100% підтверджені сировиною, ПЗ та фінальним підписом керівника.
+            Оператор на терміналі бачитиме тільки ті завдання, які 100% підтверджені сировиною, ПЗ та фінальним підписом
+            керівника.
           </p>
         </div>
 
@@ -817,7 +870,8 @@
           <div class="card-icon">3</div>
           <h3 class="card-title">Усунення тіньових дій</h3>
           <p class="card-desc">
-            Неможливо пустити деталь у розкрій «під чесне слово». «Кулиця» гарантує виконання лише санкціонованих замовлень.
+            Неможливо пустити деталь у розкрій «під чесне слово». «Кулиця» гарантує виконання лише санкціонованих
+            замовлень.
           </p>
         </div>
       </div>
@@ -846,7 +900,8 @@
         <div class="workflow-step">
           <span class="step-number">01</span>
           <h3 class="card-title" style="color: var(--accent-orange);">Склад ТМЦ</h3>
-          <p style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-orange); margin-bottom: 8px;">warehouse_conf = true / partial</p>
+          <p style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-orange); margin-bottom: 8px;">
+            warehouse_conf = true / partial</p>
           <p class="card-desc">
             Перевірка наявності сировини та метизів. Резервування сировини в базі під конкретний наряд.
           </p>
@@ -855,7 +910,8 @@
         <div class="workflow-step">
           <span class="step-number">02</span>
           <h3 class="card-title" style="color: var(--accent-cyan);">Інженерний відділ</h3>
-          <p style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-cyan); margin-bottom: 8px;">engineer_conf = true</p>
+          <p style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-cyan); margin-bottom: 8px;">
+            engineer_conf = true</p>
           <p class="card-desc">
             Перевірка технологічної документації, підготовка карт розкрою та керуючих програм для верстатів ЧПК.
           </p>
@@ -864,9 +920,11 @@
         <div class="workflow-step" style="border-color: rgba(16, 185, 129, 0.4);">
           <span class="step-number">03</span>
           <h3 class="card-title" style="color: var(--accent-green);">Підпис директора</h3>
-          <p style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-green); margin-bottom: 8px;">director_conf = true</p>
+          <p style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-green); margin-bottom: 8px;">
+            director_conf = true</p>
           <p class="card-desc">
-            Авторизація в DirectorModule. Кнопка «Фінальний підпис» активується <strong>лише після підтверджень Складу та Інженера</strong>!
+            Авторизація в DirectorModule. Кнопка «Фінальний підпис» активується <strong>лише після підтверджень Складу
+              та Інженера</strong>!
           </p>
         </div>
       </div>
@@ -882,65 +940,51 @@
         <div class="card">
           <h3 class="card-title" style="color: var(--accent-orange);">Точний облік сировини за BOM-специфікацією</h3>
           <p class="card-desc" style="margin-bottom: 12px;">
-            Система автоматично підраховує кількість листів сировини під кожну партію та контролює фактичний залишок.
-          </p>
-          <ul style="color: var(--text-muted); line-height: 1.7; font-size: 0.9rem; padding-left: 18px;">
-            <li>Фіксація нормативних та фактичних витрат матеріалів.</li>
-            <li>Автоматичні складські заявки під наряд з прив'язкою до замовлення.</li>
-            <li>Унеможливлення «тіньового» списання чи розкрадання сировини.</li>
-          </ul>
-        </div>
-
-        <div class="card">
-          <h3 class="card-title" style="color: var(--accent-cyan);">Персональна відповідальність МВО</h3>
-          <p class="card-desc" style="margin-bottom: 12px;">
-            Матеріальні цінності закріплюються за матеріально відповідальними особами дільниць.
-          </p>
-          <ul style="color: var(--text-muted); line-height: 1.7; font-size: 0.9rem; padding-left: 18px;">
-            <li>Оперативний баланс залишків на кожній цеховій зоні.</li>
-            <li>Простежуваність руху партій від прийому до відвантаження.</li>
-            <li>Повна прозорість для економістів та бухгалтерського обліку.</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <!-- SLIDE 6: Tooling & Cutter Boxes Module -->
-    <section class="slide" data-slide-id="slide-6">
-      <div class="draggable-photos-layer" data-layer-slide="6"></div>
-      <div class="slide-tag">ІНСТРУМЕНТАЛЬНЕ ГОСПОДАРСТВО</div>
-      <h2 class="slide-title">Облік фрез та комплектація в бокси (`WarehousePrepBoxes`)</h2>
+            Система автоматично підра�    <!-- SLIDE 7: Warehouses SO/SV & Supply Chain -->
+    <section class="slide" data-slide-id="slide-7">
+      <div class="draggable-photos-layer" data-layer-slide="7"></div>
+      <div class="slide-tag">СКЛАДСЬКА ЛОГІСТИКА ТА ПОСТАЧАННЯ</div>
+      <h2 class="slide-title">Управління СО, СВ та операційне постачання (`SupplyModuleV2`)</h2>
 
       <div class="grid-3">
         <div class="card">
-          <div class="card-icon">✂️</div>
-          <h3 class="card-title">Чеклист фрез під картку</h3>
+          <div class="card-icon">⚙️</div>
+          <h3 class="card-title">Облік СО (Склад Оснащення)</h3>
           <p class="card-desc">
-            Система автоматично розраховує номенклатуру та кількість фрез для кожного технологічного завдання.
+            Централізований облік технологічного оснащення, пристроїв та специфічних комплектуючих. Адресна видача під конкретні технологічні карти.
           </p>
         </div>
 
         <div class="card">
-          <div class="card-icon">📦</div>
-          <h3 class="card-title">Комплектування боксів</h3>
+          <div class="card-icon">🏭</div>
+          <h3 class="card-title">Контроль СВ (Склад Виробництва)</h3>
           <p class="card-desc">
-            Склад комплектує фрези у фізичні та цифрові бокси, відмічаючи чек-лист кожної позиції до передачі в цех.
+            Оперативний облік напівфабрикатів та готовності виробів. Прийом готових деталей з цеху, формування комплектувальних партій і міжопераційний контроль.
           </p>
         </div>
 
         <div class="card">
-          <div class="card-icon">🔄</div>
-          <h3 class="card-title">Відновлення та перегострення</h3>
+          <div class="card-icon">🚚</div>
+          <h3 class="card-title">Модуль постачання (`SupplyModuleV2`)</h3>
           <p class="card-desc">
-            Модуль `CutterRestorationModule` контролює знос інструменту та направляє фрези на сервіс або списання.
+            Автоматичний підрахунок дефіциту під `plan_snapshot`, швидке формування закупівельних заявок (`procurement-mode`) та запобігання зупинкам цеху.
           </p>
         </div>
       </div>
+
+      <div class="chain-box">
+        <span style="color: var(--accent-orange); font-weight: 800;">🔗 Наскрізний контур постачання:</span>
+        <span class="chain-node">Аналіз дефіциту</span> <span class="chain-arrow">→</span>
+        <span class="chain-node">Заявка постачальнику</span> <span class="chain-arrow">→</span>
+        <span class="chain-node">Прихід на СО/ТМЦ</span> <span class="chain-arrow">→</span>
+        <span class="chain-node">Комплектація наряду</span> <span class="chain-arrow">→</span>
+        <span class="chain-node">Виробництво СВ</span>
+      </div>
     </section>
 
-    <!-- SLIDE 7: Defect Scrap & Rework Mechanics -->
-    <section class="slide" data-slide-id="slide-7">
-      <div class="draggable-photos-layer" data-layer-slide="7"></div>
+    <!-- SLIDE 8: Defect Scrap & Rework Mechanics -->
+    <section class="slide" data-slide-id="slide-8">
+      <div class="draggable-photos-layer" data-layer-slide="8"></div>
       <div class="slide-tag">МОНІТОРИНГ ЯКОСТІ ТА ДОВИПУСК</div>
       <h2 class="slide-title">Класифікація браку ВКЯ та швидка індикація черги</h2>
 
@@ -949,15 +993,18 @@
           <h3 class="card-title" style="color: var(--accent-orange);">Класифікація браку ВКЯ (`BrakModule`)</h3>
           <p class="card-desc" style="line-height: 1.55;">
             ВКЯ фіксує дефекти та класифікує їх strictly за 2 категоріями:
-            <br>• <strong style="color: var(--accent-orange);">«БРАК» (Виправний брак):</strong> дефект, який ВКЯ бере на внутрішнє відновлення або передає на доопрацювання з формуванням довипуску.
-            <br>• <strong style="color: var(--accent-red);">«УТИЛЬ» (Незворотний брак):</strong> дефект, який неможливо виправити; підлягає обов'язковому довипуску нової деталі.
+            <br>• <strong style="color: var(--accent-orange);">«БРАК» (Виправний брак):</strong> дефект, який ВКЯ бере
+            на внутрішнє відновлення або передає на доопрацювання з формуванням довипуску.
+            <br>• <strong style="color: var(--accent-red);">«УТИЛЬ» (Незворотний брак):</strong> дефект, який неможливо
+            виправити; підлягає обов'язковому довипуску нової деталі.
           </p>
         </div>
 
         <div class="card" style="border-color: rgba(16, 185, 129, 0.4);">
           <h3 class="card-title" style="color: var(--accent-green);">Генерація довипуску та індикація черги</h3>
           <p class="card-desc" style="line-height: 1.55;">
-            Картку довипуску генерують у 1 клік вручну. «КУЛИЦЯ» показує потребу у довипуску <strong>швидкою кольоровою індикацією у черзі</strong>:
+            Картку довипуску генерують у 1 клік вручну. «КУЛИЦЯ» показує потребу у довипуску <strong>швидкою кольоровою
+              індикацією у черзі</strong>:
             <br>🔴 <strong style="color: #f87171;">Червоне:</strong> Довипуск (екстрене заповнення комплектації).
             <br>🟡 <strong style="color: #fbbf24;">Жовте:</strong> В роботі (процес обробки в цеху).
             <br>🔵 <strong style="color: #60a5fa;">Синє:</strong> Нове (новозгенерований наряд).
@@ -966,9 +1013,9 @@
       </div>
     </section>
 
-    <!-- SLIDE 8: OEE Analytics & Telemetry -->
-    <section class="slide" data-slide-id="slide-8">
-      <div class="draggable-photos-layer" data-layer-slide="8"></div>
+    <!-- SLIDE 9: OEE Analytics & Telemetry -->
+    <section class="slide" data-slide-id="slide-9">
+      <div class="draggable-photos-layer" data-layer-slide="9"></div>
       <div class="slide-tag">ТЕЛЕМЕТРІЯ ТА OEE-АНАЛІТИКА</div>
       <h2 class="slide-title">Від суб'єктивних суперечок — до вимірюваної фактології</h2>
 
@@ -976,33 +1023,36 @@
         <div class="card">
           <h3 class="card-title" style="color: var(--accent-cyan);">Фіксація дійсних причин простоїв</h3>
           <p class="card-desc" style="line-height: 1.6;">
-            Через `MachineCallModule` система дозволяє виміряти фактичний час і причини зупинок (переналадка, відсутність інструменту, ремонт) та перейти від суб'єктивної оцінки простоїв до об'єктивної OEE-аналітики.
+            Через `MachineCallModule` система дозволяє виміряти фактичний час і причини зупинок (переналадка,
+            відсутність інструменту, ремонт) та перейти від суб'єктивної оцінки простоїв до об'єктивної OEE-аналітики.
           </p>
         </div>
 
         <div class="card" style="border-color: rgba(255, 144, 0, 0.4);">
           <h3 class="card-title" style="color: var(--accent-orange);">Перехід на мову вимірювань</h3>
           <p class="card-desc" style="line-height: 1.6;">
-            Без об'єктивних вимірювань простоїв будь-яка дискусія перетворюється на суперечку емоцій. Система «Кулиця» дає мову фактів, чисел та точного показника OEE.
+            Без об'єктивних вимірювань простоїв будь-яка дискусія перетворюється на суперечку емоцій. Система «Кулиця»
+            дає мову фактів, чисел та точного показника OEE.
           </p>
         </div>
       </div>
     </section>
 
-    <!-- SLIDE 9: Executive Dashboard - Part Location by Stage -->
-    <section class="slide" data-slide-id="slide-9">
-      <div class="draggable-photos-layer" data-layer-slide="9"></div>
+    <!-- SLIDE 10: Executive Dashboard - Part Location by Stage -->
+    <section class="slide" data-slide-id="slide-10">
+      <div class="draggable-photos-layer" data-layer-slide="10"></div>
       <div class="slide-tag">ДАШБОРД ДИРЕКТОРА</div>
       <h2 class="slide-title">Перебування деталей на кожному етапі в нарядах</h2>
 
       <p style="color: var(--text-muted); font-size: 0.95rem; line-height: 1.6; margin-bottom: 12px;">
-        Головний матричний дашборд директора надає наочне бачення руху кожної партії деталей через усі технологічні етапи у режимі реального часу 24/7:
+        Головний матричний дашборд директора надає наочне бачення руху кожної партії деталей через усі технологічні
+        етапи у режимі реального часу 24/7:
       </p>
     </section>
 
-    <!-- SLIDE 10: Fast Real-Time Reports -->
-    <section class="slide" data-slide-id="slide-10">
-      <div class="draggable-photos-layer" data-layer-slide="10"></div>
+    <!-- SLIDE 11: Fast Real-Time Reports -->
+    <section class="slide" data-slide-id="slide-11">
+      <div class="draggable-photos-layer" data-layer-slide="11"></div>
       <div class="slide-tag">ОПЕРАТИВНА АНАЛІТИКА</div>
       <h2 class="slide-title">Мега-швидкі звіти 24/7 у кілька кліків</h2>
 
@@ -1033,9 +1083,9 @@
       </div>
     </section>
 
-    <!-- SLIDE 11: TaskProjectsModule - Внутрішній Задачник -->
-    <section class="slide" data-slide-id="slide-11">
-      <div class="draggable-photos-layer" data-layer-slide="11"></div>
+    <!-- SLIDE 12: TaskProjectsModule - Внутрішній Задачник -->
+    <section class="slide" data-slide-id="slide-12">
+      <div class="draggable-photos-layer" data-layer-slide="12"></div>
       <div class="slide-tag">ОПЕРАЦІЙНЕ УПРАВЛІННЯ</div>
       <h2 class="slide-title">Внутрішній задачник та канбан проєктів (`TaskProjectsModule`)</h2>
 
@@ -1044,7 +1094,8 @@
           <div class="card-icon">📌</div>
           <h3 class="card-title">Проєктні канбан-дошки</h3>
           <p class="card-desc">
-            Окремий вимір для задач заводських служб: <strong>В ЧЕРЗІ ➔ В РОБОТІ ➔ ПЕРЕВІРКА ➔ ВИКОНАНО</strong>. Облік ТО верстатів, розробок, закупівель та R&D.
+            Окремий вимір для задач заводських служб: <strong>В ЧЕРЗІ ➔ В РОБОТІ ➔ ПЕРЕВІРКА ➔ ВИКОНАНО</strong>. Облік
+            ТО верстатів, розробок, закупівель та R&D.
           </p>
         </div>
 
@@ -1052,7 +1103,8 @@
           <div class="card-icon">🎯</div>
           <h3 class="card-title">Чеклисти та відповідальні</h3>
           <p class="card-desc">
-            Кожна задача має пріоритет (ТЕРМІНОВО, ВИСОКИЙ, СЕРЕДНІЙ, НИЗЬКИЙ), призначених людей (`assignees`), дедлайн та підпункти чекліста.
+            Кожна задача має пріоритет (ТЕРМІНОВО, ВИСОКИЙ, СЕРЕДНІЙ, НИЗЬКИЙ), призначених людей (`assignees`), дедлайн
+            та підпункти чекліста.
           </p>
         </div>
 
@@ -1060,15 +1112,16 @@
           <div class="card-icon">🔒</div>
           <h3 class="card-title">Розмежування за відділами</h3>
           <p class="card-desc">
-            Дошки проєктів доступні тим відділам, для яких їх створено (`department_ids`, `member_logins`). Не створює плутанини з виробничими нарядами.
+            Дошки проєктів доступні тим відділам, для яких їх створено (`department_ids`, `member_logins`). Не створює
+            плутанини з виробничими нарядами.
           </p>
         </div>
       </div>
     </section>
 
-    <!-- SLIDE 12: Summary Architecture Matrix (COMPACT & FITS 100%) -->
-    <section class="slide" data-slide-id="slide-12">
-      <div class="draggable-photos-layer" data-layer-slide="12"></div>
+    <!-- SLIDE 13: Summary Architecture Matrix (COMPACT & FITS 100%) -->
+    <section class="slide" data-slide-id="slide-13">
+      <div class="draggable-photos-layer" data-layer-slide="13"></div>
       <div class="slide-tag">СИСТЕМНА АРХІТЕКТУРА</div>
       <h2 class="slide-title" style="margin-bottom: 8px;">«КУЛИЦЯ» — єдиний контур операційного управління</h2>
 
@@ -1080,22 +1133,207 @@
           </tr>
         </thead>
         <tbody>
-          <tr><td>Єдине джерело замовлення</td><td>ManagerModule</td></tr>
-          <tr><td>Структура виробу (BOM)</td><td>NomenclatureV2 (BOM)</td></tr>
-          <tr><td>Матеріальна потреба</td><td>plan_snapshot</td></tr>
-          <tr><td>Резервування матеріалу</td><td>material_requests + Склад</td></tr>
-          <tr><td>Технічна готовність</td><td>engineer_conf</td></tr>
-          <tr><td>Погодження запуску</td><td>Digital Gate (DirectorModule)</td></tr>
-          <tr><td>Виконання наряду</td><td>work_cards</td></tr>
-          <tr><td>Простежуваність операцій</td><td>QR-коди + Операційні термінали</td></tr>
-          <tr><td>Передача відповідальності між цехами</td><td>Digital Handover (reception_docs)</td></tr>
-          <tr><td>Облік браку</td><td>BrakModule</td></tr>
-          <tr><td>Механіка довипуску</td><td>createReworkNaryad (ВБ0001)</td></tr>
-          <tr><td>Реєстрація простоїв</td><td>MachineCallModule</td></tr>
-          <tr><td>KPI обладнання</td><td>OEE-Аналітика</td></tr>
-          <tr><td>Поточний стан деталей</td><td>Director Dashboard (Матриця 24/7)</td></tr>
-          <tr><td>Зміна пріоритету замовлень</td><td>Журнал рішень (до розвитку)</td></tr>
-          <tr><td>Матеріальні розбіжності</td><td>Контроль BAS / резерв / факт (до розвитку)</td></tr>
+          <tr>
+            <td>Єдине джерело замовлення</td>
+            <td>ManagerModule</td>
+          </tr>
+          <tr>
+            <td>Структура виробу (BOM)</td>
+            <td>NomenclatureV2 (BOM)</td>
+          </tr>
+          <tr>
+            <td>Матеріальна потреба</td>
+            <td>plan_snapshot</td>
+          </tr>
+          <tr>
+            <td>Резервування матеріалу</td>
+            <td>material_requests + Склад</td>
+          </tr>
+          <tr>
+            <td>Технічна готовність</td>
+            <td>engineer_conf</td>
+          </tr>
+          <tr>
+            <td>Погодження запуску</td>
+            <td>Digital Gate (DirectorModule)</td>
+          </tr>
+          <tr>
+            <td>Виконання наряду</td>
+            <td>work_cards</td>
+          </tr>
+          <tr>
+            <td>Простежуваність операцій</td>
+            <td>QR-коди + Операційні термінали</td>
+          </tr>
+          <tr>
+            <td>Передача відповідальності між цехами</td>
+            <td>Digital Handover (reception_docs)</td>
+          </tr>
+          <tr>
+            <td>Облік браку</td>
+            <td>BrakModule</td>
+          </tr>
+          <tr>
+            <td>Механіка довипуску</td>
+            <td>createReworkNaryad (ВБ0001)</td>
+          </tr>
+          <tr>
+            <td>Реєстрація простоїв</td>
+            <td>MachineCallModule</td>
+          </tr>
+          <tr>
+            <td>KPI обладнання</td>
+            <td>OEE-Аналітика</td>
+          </tr>
+          <tr>
+            <td>Поточний стан деталей</td>
+            <td>Director Dashboard (Матриця 24/7)</td>
+          </tr>
+          <tr>
+            <td>Зміна пріоритету замовлень</td>
+            <td>Журнал рішень (до розвитку)</td>
+          </tr>
+          <tr>
+            <td>Матеріальні розбіжності</td>
+            <td>Контроль BAS / резерв / факт (до розвитку)</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- SLIDE 14: Management Function Block -->
+    <section class="slide" data-slide-id="slide-14">
+      <div class="draggable-photos-layer" data-layer-slide="14"></div>
+      <div class="slide-tag">УПРАВЛІНСЬКА ФІЛОСОФІЯ</div>
+      <h2 class="slide-title">«КУЛИЦЯ» не повинна забирати функції в людини!</h2>
+
+      <div class="grid-2" style="margin-bottom: 12px;">
+        <div class="card" style="padding: 16px;">
+          <h4 style="color: var(--accent-orange); margin-bottom: 4px;">🎯 Ролі підрозділів заводу:</h4>
+          <ul style="color: var(--text-muted); font-size: 0.85rem; line-height: 1.5; padding-left: 16px;">
+            <li><strong>Продажі:</strong> працюють безпосередньо з клієнтом.</li>
+            <li><strong>Фінансова функція:</strong> працює з розрахунками й економікою.</li>
+            <li><strong>Склад:</strong> працює з достовірністю та рухом матеріалу.</li>
+            <li><strong>Інженери:</strong> забезпечують технічну готовність.</li>
+            <li><strong>Виробництво:</strong> керує потужностями та виконанням.</li>
+            <li><strong>Керівництво:</strong> управляє пріоритетами.</li>
+          </ul>
+        </div>
+
+        <div class="card" style="border-color: rgba(0, 242, 254, 0.4); padding: 16px;">
+          <h4 style="color: var(--accent-cyan); margin-bottom: 6px;">⚡ Головне завдання системи «КУЛИЦЯ»:</h4>
+          <p style="color: var(--text-main); font-size: 0.95rem; line-height: 1.6; font-weight: 600;">
+            Зв'язати всі ці управлінські рішення в <strong>єдиний цифровий ланцюг</strong> і не дозволити інформації
+            загубитися між підрозділами заводу.
+          </p>
+        </div>
+      </div>
+
+      <div class="alert-box" style="border-left-color: var(--accent-green); background: rgba(16, 185, 129, 0.08);">
+        💡 <strong>Системний результат:</strong> Кожен фахівець робить свою роботу, а «КУЛИЦЯ» гарантує 100% прозорість
+        та надійну передачу даних від клієнта до відвантаження!
+      </div>
+    </section>
+
+    <!-- SLIDE 15: Final Summary by Production Director -->
+    <section class="slide" data-slide-id="slide-15">
+      <div class="draggable-photos-layer" data-layer-slide="15"></div>
+      <div class="slide-tag">ВИСНОВОК ДИРЕКТОРА З ВИРОБНИЦТВА</div>
+      <h2 class="slide-title">«КУЛИЦЯ» — це супер-продукт для нашого підприємства</h2>
+
+      <div class="grid-3" style="margin-bottom: 16px;">
+        <div class="card" style="border-color: rgba(255, 144, 0, 0.35);">
+          <div class="card-icon">1</div>
+          <h3 class="card-title">Тотальний контроль</h3>
+          <p class="card-desc">
+            Система дає керівництву 100% контроль над виробництвом, ТМЦ, верстатами, задачничем та рухом кожної деталі.
+          </p>
+        </div>
+
+        <div class="card" style="border-color: rgba(0, 242, 254, 0.35);">
+          <div class="card-icon">2</div>
+          <h3 class="card-title">Виробнича дисципліна</h3>
+          <p class="card-desc">
+            Зникає хаос, приховування браку та самовільний запуск «порожніх» нарядів.
+          </p>
+        </div>
+
+        <div class="card" style="border-color: rgba(16, 185, 129, 0.35);">
+          <div class="card-icon">3</div>
+          <h3 class="card-title">Стратегічний крок уперед</h3>
+          <p class="card-desc">
+            Закінчивши впровадження «Кулиці», ми отримаємо найкращий продукт у галузі!
+          </p>
+        </div>
+      </div>
+    </section>�Я»</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Єдине джерело замовлення</td>
+            <td>ManagerModule</td>
+          </tr>
+          <tr>
+            <td>Структура виробу (BOM)</td>
+            <td>NomenclatureV2 (BOM)</td>
+          </tr>
+          <tr>
+            <td>Матеріальна потреба</td>
+            <td>plan_snapshot</td>
+          </tr>
+          <tr>
+            <td>Резервування матеріалу</td>
+            <td>material_requests + Склад</td>
+          </tr>
+          <tr>
+            <td>Технічна готовність</td>
+            <td>engineer_conf</td>
+          </tr>
+          <tr>
+            <td>Погодження запуску</td>
+            <td>Digital Gate (DirectorModule)</td>
+          </tr>
+          <tr>
+            <td>Виконання наряду</td>
+            <td>work_cards</td>
+          </tr>
+          <tr>
+            <td>Простежуваність операцій</td>
+            <td>QR-коди + Операційні термінали</td>
+          </tr>
+          <tr>
+            <td>Передача відповідальності між цехами</td>
+            <td>Digital Handover (reception_docs)</td>
+          </tr>
+          <tr>
+            <td>Облік браку</td>
+            <td>BrakModule</td>
+          </tr>
+          <tr>
+            <td>Механіка довипуску</td>
+            <td>createReworkNaryad (ВБ0001)</td>
+          </tr>
+          <tr>
+            <td>Реєстрація простоїв</td>
+            <td>MachineCallModule</td>
+          </tr>
+          <tr>
+            <td>KPI обладнання</td>
+            <td>OEE-Аналітика</td>
+          </tr>
+          <tr>
+            <td>Поточний стан деталей</td>
+            <td>Director Dashboard (Матриця 24/7)</td>
+          </tr>
+          <tr>
+            <td>Зміна пріоритету замовлень</td>
+            <td>Журнал рішень (до розвитку)</td>
+          </tr>
+          <tr>
+            <td>Матеріальні розбіжності</td>
+            <td>Контроль BAS / резерв / факт (до розвитку)</td>
+          </tr>
         </tbody>
       </table>
     </section>
@@ -1122,13 +1360,15 @@
         <div class="card" style="border-color: rgba(0, 242, 254, 0.4); padding: 16px;">
           <h4 style="color: var(--accent-cyan); margin-bottom: 6px;">⚡ Головне завдання системи «КУЛИЦЯ»:</h4>
           <p style="color: var(--text-main); font-size: 0.95rem; line-height: 1.6; font-weight: 600;">
-            Зв'язати всі ці управлінські рішення в <strong>єдиний цифровий ланцюг</strong> і не дозволити інформації загубитися між підрозділами заводу.
+            Зв'язати всі ці управлінські рішення в <strong>єдиний цифровий ланцюг</strong> і не дозволити інформації
+            загубитися між підрозділами заводу.
           </p>
         </div>
       </div>
 
       <div class="alert-box" style="border-left-color: var(--accent-green); background: rgba(16, 185, 129, 0.08);">
-        💡 <strong>Системний результат:</strong> Кожен фахівець робить свою роботу, а «КУЛИЦЯ» гарантує 100% прозорість та надійну передачу даних від клієнта до відвантаження!
+        💡 <strong>Системний результат:</strong> Кожен фахівець робить свою роботу, а «КУЛИЦЯ» гарантує 100% прозорість
+        та надійну передачу даних від клієнта до відвантаження!
       </div>
     </section>
 
@@ -1163,103 +1403,6 @@
           </p>
         </div>
       </div>
-    </section>�равління</h2>
-
-      <table class="compact-table">
-        <thead>
-          <tr>
-            <th style="width: 45%;">Управлінська потреба підприємства</th>
-            <th style="width: 55%;">Як закриває система «КУЛИЦЯ»</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr><td>Єдине джерело замовлення</td><td>ManagerModule</td></tr>
-          <tr><td>Структура виробу (BOM)</td><td>NomenclatureV2 (BOM)</td></tr>
-          <tr><td>Матеріальна потреба</td><td>plan_snapshot</td></tr>
-          <tr><td>Резервування матеріалу</td><td>material_requests + Склад</td></tr>
-          <tr><td>Технічна готовність</td><td>engineer_conf</td></tr>
-          <tr><td>Погодження запуску</td><td>Digital Gate (DirectorModule)</td></tr>
-          <tr><td>Виконання наряду</td><td>work_cards</td></tr>
-          <tr><td>Простежуваність операцій</td><td>QR-коди + Операційні термінали</td></tr>
-          <tr><td>Передача відповідальності між цехами</td><td>Digital Handover (reception_docs)</td></tr>
-          <tr><td>Облік браку</td><td>BrakModule</td></tr>
-          <tr><td>Механіка довипуску</td><td>createReworkNaryad (ВБ0001)</td></tr>
-          <tr><td>Реєстрація простоїв</td><td>MachineCallModule</td></tr>
-          <tr><td>KPI обладнання</td><td>OEE-Аналітика</td></tr>
-          <tr><td>Поточний стан деталей</td><td>Director Dashboard (Матриця 24/7)</td></tr>
-          <tr><td>Зміна пріоритету замовлень</td><td>Журнал рішень (до розвитку)</td></tr>
-          <tr><td>Матеріальні розбіжності</td><td>Контроль BAS / резерв / факт (до розвитку)</td></tr>
-        </tbody>
-      </table>
-    </section>
-
-    <!-- SLIDE 13: Management Function Block -->
-    <section class="slide" data-slide-id="slide-13">
-      <div class="draggable-photos-layer" data-layer-slide="13"></div>
-      <div class="slide-tag">УПРАВЛІНСЬКА ФІЛОСОФІЯ</div>
-      <h2 class="slide-title">«КУЛИЦЯ» Не Повинна Забирати Функції в Людини!</h2>
-
-      <div class="grid-2" style="margin-bottom: 12px;">
-        <div class="card" style="padding: 16px;">
-          <h4 style="color: var(--accent-orange); margin-bottom: 4px;">🎯 Ролі підрозділів заводу:</h4>
-          <ul style="color: var(--text-muted); font-size: 0.85rem; line-height: 1.5; padding-left: 16px;">
-            <li><strong>Продажі:</strong> працюють безпосередньо з клієнтом.</li>
-            <li><strong>Фінансова функція:</strong> працює з розрахунками й економікою.</li>
-            <li><strong>Склад:</strong> працює з достовірністю та рухом матеріалу.</li>
-            <li><strong>Інженери:</strong> забезпечують технічну готовність.</li>
-            <li><strong>Виробництво:</strong> керує потужностями та виконанням.</li>
-            <li><strong>Керівництво:</strong> управляє пріоритетами.</li>
-          </ul>
-        </div>
-
-        <div class="card" style="border-color: rgba(0, 242, 254, 0.4); padding: 16px;">
-          <h4 style="color: var(--accent-cyan); margin-bottom: 6px;">⚡ Головне завдання системи «КУЛИЦЯ»:</h4>
-          <p style="color: var(--text-main); font-size: 0.95rem; line-height: 1.6; font-weight: 600;">
-            Зв'язати всі ці управлінські рішення в <strong>єдиний цифровий ланцюг</strong> і не дозволити інформації загубитися між підрозділами заводу.
-          </p>
-        </div>
-      </div>
-
-      <div class="alert-box" style="border-left-color: var(--accent-green); background: rgba(16, 185, 129, 0.08);">
-        💡 <strong>Системний результат:</strong> Кожен фахівець робить свою роботу, а «КУЛИЦЯ» гарантує 100% прозорість та надійну передачу даних від клієнта до відвантаження!
-      </div>
-    </section>
-
-    <!-- SLIDE 14: Final Summary by Production Director -->
-    <section class="slide" data-slide-id="slide-14">
-      <div class="draggable-photos-layer" data-layer-slide="14"></div>
-      <div class="slide-tag">ФІНАЛЬНИЙ ВИСНОВОК ДИРЕКТОРА З ВИРОБНИЦТВА</div>
-      <h2 class="slide-title">«КУЛИЦЯ» — Це Супер-Продукт для Нашого Підприємства!</h2>
-
-      <div class="grid-3" style="margin-bottom: 16px;">
-        <div class="card" style="border-color: rgba(255, 144, 0, 0.35);">
-          <div class="card-icon">1</div>
-          <h3 class="card-title">Тотальний Контроль</h3>
-          <p class="card-desc">
-            Система дає керівництву 100% контроль над виробництвом, ТМЦ, верстатами, задачничем та рухом кожної деталі.
-          </p>
-        </div>
-
-        <div class="card" style="border-color: rgba(0, 242, 254, 0.35);">
-          <div class="card-icon">2</div>
-          <h3 class="card-title">Виробнича Дисципліна</h3>
-          <p class="card-desc">
-            Зникає хаос, приховування браку та самовільний запуск «порожніх» нарядів.
-          </p>
-        </div>
-
-        <div class="card" style="border-color: rgba(16, 185, 129, 0.35);">
-          <div class="card-icon">3</div>
-          <h3 class="card-title">Стратегічний Крок Вперед</h3>
-          <p class="card-desc">
-            Закінчивши впровадження «Кулиці», ми отримаємо найкращий продукт у галузі!
-          </p>
-        </div>
-      </div>
-
-      <div class="alert-box" style="text-align: center; background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.4); border-left-color: var(--accent-green);">
-        🚀 <strong>Заклик до керівництва:</strong> Підтримати завершення впровадження системи «КУЛИЦЯ» та захистити інноваційний розвиток нашого підприємства!
-      </div>
     </section>
 
   </main>
@@ -1271,7 +1414,8 @@
     </button>
 
     <div class="keyboard-hint">
-      Використовуйте клавіші <span class="key-badge">←</span> <span class="key-badge">→</span> або <span class="key-badge">Пробіл</span> для навігації
+      Використовуйте клавіші <span class="key-badge">←</span> <span class="key-badge">→</span> або <span
+        class="key-badge">Пробіл</span> для навігації
     </div>
 
     <button class="nav-btn" id="nextBtn" onclick="changeSlide(1)">
@@ -1330,7 +1474,7 @@
     function getSlidePhotos(slideNum) {
       const raw = localStorage.getItem(`kulytsia_photos_v4_${slideNum}`);
       if (!raw) return [];
-      try { return JSON.parse(raw); } catch(e) { return []; }
+      try { return JSON.parse(raw); } catch (e) { return []; }
     }
 
     function saveSlidePhotos(slideNum, photos) {
@@ -1351,9 +1495,9 @@
       let count = 0;
       files.forEach((file, fIdx) => {
         const reader = new FileReader();
-        reader.onload = function(e) {
+        reader.onload = function (e) {
           const imgObj = new Image();
-          imgObj.onload = function() {
+          imgObj.onload = function () {
             // Compute original aspect ratio to preserve exact image proportions!
             const naturalW = imgObj.naturalWidth || 500;
             const naturalH = imgObj.naturalHeight || 300;
@@ -1442,7 +1586,7 @@
       const resizeCorner = elmnt.querySelector('.photo-resize-corner');
 
       // Drag Position Handler
-      elmnt.onmousedown = function(e) {
+      elmnt.onmousedown = function (e) {
         if (e.target.classList.contains('btn-photo-tool') || e.target.classList.contains('photo-resize-corner')) return;
         e.preventDefault();
 
@@ -1452,7 +1596,7 @@
         let startLeft = elmnt.offsetLeft;
         let startTop = elmnt.offsetTop;
 
-        document.onmousemove = function(moveEvt) {
+        document.onmousemove = function (moveEvt) {
           moveEvt.preventDefault();
           const dx = moveEvt.clientX - startX;
           const dy = moveEvt.clientY - startY;
@@ -1461,7 +1605,7 @@
           elmnt.style.top = (startTop + dy) + 'px';
         };
 
-        document.onmouseup = function() {
+        document.onmouseup = function () {
           elmnt.classList.remove('active-drag');
           document.onmousemove = null;
           document.onmouseup = null;
@@ -1478,14 +1622,14 @@
 
       // Corner Resize Handler (Smooth Proportional Resizing)
       if (resizeCorner) {
-        resizeCorner.onmousedown = function(e) {
+        resizeCorner.onmousedown = function (e) {
           e.stopPropagation();
           e.preventDefault();
 
           let startX = e.clientX;
           let startW = elmnt.offsetWidth;
 
-          document.onmousemove = function(moveEvt) {
+          document.onmousemove = function (moveEvt) {
             moveEvt.preventDefault();
             const dx = moveEvt.clientX - startX;
             const newW = Math.max(120, startW + dx);
@@ -1495,7 +1639,7 @@
             elmnt.style.height = newH + 'px';
           };
 
-          document.onmouseup = function() {
+          document.onmouseup = function () {
             document.onmousemove = null;
             document.onmouseup = null;
 
@@ -1558,4 +1702,5 @@
     updateDeck();
   </script>
 </body>
+
 </html>

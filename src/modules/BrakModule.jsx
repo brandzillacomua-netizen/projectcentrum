@@ -10,6 +10,13 @@ import { createRestorationFromQualityHold, createRestorationFromScrapLot, create
 import { buildLegacyRecoverableInventoryItems, buildQualityStatusTotals, buildRecoverableScrapLotItems, QUALITY_CLASSIFICATION_OPTIONS } from './VKYA/quality-hold/qualityHoldModel'
 
 const VKYA_QUEUE_CACHE_KEY = 'VKYA_CLASSIFICATION_QUEUE_V1'
+const VKYA_REPORT_CACHE_TTL_MS = 30 * 1000
+
+const reportDateBoundaryIso = (value, nextDay = false) => {
+  if (!value) return null
+  const [year, month, day] = value.split('-').map(Number)
+  return new Date(year, month - 1, day + (nextDay ? 1 : 0), 0, 0, 0, 0).toISOString()
+}
 
 const normalizeScrapReasonName = (reason) => {
   const name = reason || 'Причина не вказана'
@@ -88,10 +95,14 @@ export default function BrakModule() {
   const [reportScrapReasonsDb, setReportScrapReasonsDb] = useState([])
   const [reportClassifiedHistoryIds, setReportClassifiedHistoryIds] = useState(new Set())
   const [reportIsSyncing, setReportIsSyncing] = useState(false)
+  const [reportLoadError, setReportLoadError] = useState('')
   const [reportSelectedShiftFilter, setReportSelectedShiftFilter] = useState('all')
   const [reportSelectedEmployeeFilter, setReportSelectedEmployeeFilter] = useState('all')
   const [reportSearchQuery, setReportSearchQuery] = useState('')
   const [reportQuickPeriod, setReportQuickPeriod] = useState('')
+  const reportRangeCacheRef = useRef(new Map())
+  const reportAnalyticsCacheRef = useRef(new Map())
+  const reportRequestSeqRef = useRef(0)
 
   const reportFilterByDate = (dateString) => {
     if (!reportStartDate && !reportEndDate) return true;
@@ -130,88 +141,109 @@ export default function BrakModule() {
     return match1 || match2;
   };
 
-  const fetchReportHistoryRange = async (startIso, endIso) => {
-    const columns = 'id,card_id,nomenclature_id,operator_name,shift_name,stage_name,qty_completed,scrap_qty,qc_scrap_comment,completed_at,created_at,card_info'
+  const fetchReportHistoryRange = async (startIso, endExclusiveIso) => {
+    const cacheKey = `${startIso || 'all'}|${endExclusiveIso || 'open'}`
+    const cached = reportRangeCacheRef.current.get(cacheKey)
+    if (cached && Date.now() - cached.savedAt < VKYA_REPORT_CACHE_TTL_MS) return cached.rows
+
+    const columns = 'id,nomenclature_id,operator_name,shift_name,stage_name,scrap_qty,qc_scrap_comment,completed_at'
     const applyRange = (query) => {
-      let ranged = query
+      let ranged = query.gt('scrap_qty', 0)
       if (startIso) ranged = ranged.gte('completed_at', startIso)
-      if (endIso) ranged = ranged.lte('completed_at', endIso)
+      if (endExclusiveIso) ranged = ranged.lt('completed_at', endExclusiveIso)
       return ranged
     }
 
-    const { count, error: countError } = await applyRange(
-      supabase.from('work_card_history').select('id', { count: 'exact', head: true })
-    )
-    if (countError) throw countError
-
     const pageSize = 1000
-    const pageCount = Math.ceil((count || 0) / pageSize)
-    const pages = []
-
-    for (let batchStart = 0; batchStart < pageCount; batchStart += 6) {
-      const batch = []
-      for (let page = batchStart; page < Math.min(pageCount, batchStart + 6); page += 1) {
-        const from = page * pageSize
-        batch.push(applyRange(
-          supabase
-            .from('work_card_history')
-            .select(columns)
-            .order('completed_at', { ascending: false })
-            .range(from, from + pageSize - 1)
-        ))
-      }
-      const results = await Promise.all(batch)
-      results.forEach(result => {
-        if (result.error) throw result.error
-        pages.push(...(result.data || []))
-      })
+    const rows = []
+    for (let from = 0; ; from += pageSize) {
+      const result = await applyRange(
+        supabase
+          .from('work_card_history')
+          .select(columns)
+          .order('completed_at', { ascending: false })
+          .order('id', { ascending: false })
+          .range(from, from + pageSize - 1)
+      )
+      if (result.error) throw result.error
+      const page = result.data || []
+      rows.push(...page)
+      if (page.length < pageSize) break
     }
-    return pages
+    reportRangeCacheRef.current.set(cacheKey, { rows, savedAt: Date.now() })
+    return rows
+  }
+
+  const fetchReportReasonAnalytics = async (startIso, endExclusiveIso) => {
+    const cacheKey = `${startIso || 'all'}|${endExclusiveIso || 'open'}`
+    const cached = reportAnalyticsCacheRef.current.get(cacheKey)
+    if (cached && Date.now() - cached.savedAt < VKYA_REPORT_CACHE_TTL_MS) return cached
+
+    const fetchAllPages = async (buildQuery) => {
+      const rows = []
+      const pageSize = 1000
+      for (let from = 0; ; from += pageSize) {
+        const result = await buildQuery().range(from, from + pageSize - 1)
+        if (result.error) throw result.error
+        const page = result.data || []
+        rows.push(...page)
+        if (page.length < pageSize) break
+      }
+      return rows
+    }
+
+    const reasonRows = await fetchAllPages(() => {
+      let query = supabase
+        .from('scrap_report_by_reason')
+        .select('*')
+        .order('report_day', { ascending: false })
+        .order('reason_name', { ascending: true })
+      if (startIso) query = query.gte('report_day', startIso)
+      if (endExclusiveIso) query = query.lt('report_day', endExclusiveIso)
+      return query
+    })
+
+    const classificationRows = await fetchAllPages(() => {
+      let query = supabase
+        .from('scrap_classifications')
+        .select('id,source_history_id')
+        .order('classified_at', { ascending: false })
+        .order('id', { ascending: false })
+      if (startIso) query = query.gte('classified_at', startIso)
+      if (endExclusiveIso) query = query.lt('classified_at', endExclusiveIso)
+      return query
+    })
+
+    const result = { reasonRows, classificationRows, savedAt: Date.now() }
+    reportAnalyticsCacheRef.current.set(cacheKey, result)
+    return result
   }
 
   const syncReportHistory = async (startStr, endStr) => {
+    const requestSeq = ++reportRequestSeqRef.current
     setReportIsSyncing(true)
-    let startIso = null
-    let endIso = null
-    
-    if (startStr) {
-      const d = new Date(startStr)
-      d.setHours(0,0,0,0)
-      startIso = d.toISOString()
-    } else {
-      const d = new Date()
-      d.setMonth(d.getMonth() - 1)
-      startIso = d.toISOString()
-    }
-    
-    if (endStr) {
-      const d = new Date(endStr)
-      d.setHours(23,59,59,999)
-      endIso = d.toISOString()
-    }
-    
+    setReportLoadError('')
+    const startIso = reportDateBoundaryIso(startStr)
+    const endExclusiveIso = reportDateBoundaryIso(endStr, true)
+
     try {
-      let dbReasonsQuery = supabase.from('scrap_report_by_reason').select('*')
-      if (startIso) dbReasonsQuery = dbReasonsQuery.gte('report_day', startIso)
-      if (endIso) dbReasonsQuery = dbReasonsQuery.lte('report_day', endIso)
+      const completeHistory = await fetchReportHistoryRange(startIso, endExclusiveIso)
+      if (requestSeq === reportRequestSeqRef.current) setReportWorkCardHistory(completeHistory)
 
-      let classificationsQuery = supabase.from('scrap_classifications').select('source_history_id')
-      if (startIso) classificationsQuery = classificationsQuery.gte('classified_at', startIso)
-      if (endIso) classificationsQuery = classificationsQuery.lte('classified_at', endIso)
-
-      const [completeHistory, dbReasonsResult, classificationsResult] = await Promise.all([
-        fetchReportHistoryRange(startIso, endIso),
-        dbReasonsQuery,
-        classificationsQuery
-      ])
-
-      setReportWorkCardHistory(completeHistory)
-      setReportScrapReasonsDb(dbReasonsResult.data || [])
-      setReportClassifiedHistoryIds(new Set((classificationsResult.data || []).map(r => r.source_history_id)))
+      if (scrapReportSubTab === 'reasons') {
+        const { reasonRows, classificationRows } = await fetchReportReasonAnalytics(startIso, endExclusiveIso)
+        if (requestSeq === reportRequestSeqRef.current) {
+          setReportScrapReasonsDb(reasonRows)
+          setReportClassifiedHistoryIds(new Set(classificationRows.map(r => r.source_history_id)))
+        }
+      }
     } catch (err) {
       console.error("Failed to sync report history range:", err)
+      if (requestSeq === reportRequestSeqRef.current) {
+        setReportLoadError(err?.message || 'Не вдалося завантажити дані за обраний період')
+      }
     } finally {
-      setReportIsSyncing(false)
+      if (requestSeq === reportRequestSeqRef.current) setReportIsSyncing(false)
     }
   }
 
@@ -219,7 +251,7 @@ export default function BrakModule() {
     if (showReportPage) {
       syncReportHistory(reportStartDate, reportEndDate)
     }
-  }, [reportStartDate, reportEndDate, showReportPage])
+  }, [reportStartDate, reportEndDate, showReportPage, scrapReportSubTab])
 
   const handleReportQuickDateSelect = (e) => {
     const val = e.target.value;
@@ -253,9 +285,27 @@ export default function BrakModule() {
       d.setDate(d.getDate() - 6);
       startStr = toISO(d);
     } else if (val === 'month') {
-      const d = new Date();
-      d.setMonth(d.getMonth() - 1);
+      const d = new Date(today.getFullYear(), today.getMonth(), 1);
       startStr = toISO(d);
+    } else if (val === 'previous_month') {
+      const from = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const to = new Date(today.getFullYear(), today.getMonth(), 0);
+      startStr = toISO(from);
+      endStr = toISO(to);
+    } else if (val === 'quarter') {
+      const d = new Date();
+      d.setMonth(d.getMonth() - 3);
+      startStr = toISO(d);
+    } else if (val === 'halfyear') {
+      const d = new Date();
+      d.setMonth(d.getMonth() - 6);
+      startStr = toISO(d);
+    } else if (val === 'year') {
+      const d = new Date();
+      d.setFullYear(d.getFullYear() - 1);
+      startStr = toISO(d);
+    } else if (val === 'all') {
+      startStr = '';
     }
 
     setReportStartDate(startStr);
@@ -1524,6 +1574,11 @@ export default function BrakModule() {
             <option value="3days">Останні 3 дні</option>
             <option value="week">Цей тиждень</option>
             <option value="month">Цей місяць</option>
+            <option value="previous_month">Минулий місяць</option>
+            <option value="quarter">Останні 3 місяці</option>
+            <option value="halfyear">Останні 6 місяців</option>
+            <option value="year">Останній рік</option>
+            <option value="all">За весь час</option>
           </select>
         </div>
 
@@ -1531,6 +1586,8 @@ export default function BrakModule() {
         <div style={{ flex: 1, padding: '30px', width: '100%', boxSizing: 'border-box' }}>
           {reportIsSyncing ? (
             <div style={{ textAlign: 'center', padding: '50px 0', color: '#a1a1aa' }}>Завантаження даних звіту...</div>
+          ) : reportLoadError ? (
+            <div style={{ background: '#111', border: '1px solid #7f1d1d', borderRadius: '14px', padding: '24px', color: '#fca5a5' }}>Не вдалося завантажити звіт: {reportLoadError}</div>
           ) : (
             <div className="report-main-columns" style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
               {/* Left Column: Totals & Stages */}
