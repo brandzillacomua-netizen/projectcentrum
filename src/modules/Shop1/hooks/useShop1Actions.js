@@ -668,21 +668,6 @@ export function useShop1Actions({
         promises.push(handleCuttersInventoryDeduction(currentCard, cuttersBreakdown))
       }
 
-      promises.push(
-        createWorkCard(
-          currentCard.task_id,
-          currentCard.order_id,
-          currentCard.nomenclature_id,
-          CHAIN[0],
-          null,
-          0,
-          `[REDO] після ${currentCard.operation}`,
-          currentCard.quantity,
-          0,
-          true
-        )
-      )
-
       const results = await Promise.all(promises)
       for (const res of results) {
         if (res && res.error) throw res.error
@@ -692,7 +677,7 @@ export function useShop1Actions({
       setShowCompleteModal(false)
       setSelectedCardId(null)
       setIsProcessing(false)
-      alert('Запит на перевипуск створено успішно!')
+      alert('100% брак списано! Нестачу передано Майстру в FOREMAN MODULE.')
     } catch (e) {
       console.error('Rework error:', e)
       setIsProcessing(false)

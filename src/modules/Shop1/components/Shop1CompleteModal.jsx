@@ -184,7 +184,7 @@ export function Shop1CompleteModal({
           {Math.max(0, (currentCard.quantity || 0) - scrapCount) === 0 ? (
             <button onClick={handleRequestRework} disabled={isProcessing}
               style={{ ...btnPrimary, background: '#ef4444', boxShadow: '0 10px 30px rgba(239,68,68,0.3)', opacity: isProcessing ? 0.5 : 1 }}>
-              {isProcessing ? 'ЗБЕРЕЖЕННЯ...' : '♻ ЗАМОВИТИ ДОВИПУСК'}
+              {isProcessing ? 'ЗБЕРЕЖЕННЯ...' : '✖ СПИСАТИ В 100% БРАК (ПЕРЕДАТИ МАЙСТРУ)'}
             </button>
           ) : (
             <button onClick={handleCompleteToBuffer} disabled={isProcessing}

@@ -1201,22 +1201,6 @@ export default function Shop1Terminal() {
         promises.push(handleCuttersInventoryDeduction(currentCard, cuttersBreakdown))
       }
 
-      // 4. Створюємо НОВУ картку (Розкрій) для перевипуску
-      promises.push(
-        createWorkCard(
-          currentCard.task_id,
-          currentCard.order_id,
-          currentCard.nomenclature_id,
-          CHAIN[0], // Розкрій
-          null,     // Машину обере заново
-          0,        // Естімейт
-          `[REDO] після ${currentCard.operation}`,
-          currentCard.quantity,
-          0,
-          true      // isRework = true
-        )
-      )
-
       const results = await Promise.all(promises)
       for (const res of results) {
         if (res && res.error) throw res.error
@@ -1226,7 +1210,7 @@ export default function Shop1Terminal() {
       setShowCompleteModal(false)
       setSelectedCardId(null)
       setIsProcessing(false)
-      alert('Запит на перевипуск створено успішно!')
+      alert('100% брак списано! Нестачу передано Майстру в FOREMAN MODULE.')
     } catch (e) {
       console.error('Rework error:', e)
       setIsProcessing(false)
@@ -3383,7 +3367,7 @@ export default function Shop1Terminal() {
               {Math.max(0, (currentCard.quantity || 0) - scrapCount) === 0 ? (
                 <button onClick={handleRequestRework} disabled={isProcessing}
                   style={{ ...btnPrimary, background: '#ef4444', boxShadow: '0 10px 30px rgba(239,68,68,0.3)', opacity: isProcessing ? 0.5 : 1 }}>
-                  {isProcessing ? 'ЗБЕРЕЖЕННЯ...' : '♻ ЗАМОВИТИ ДОВИПУСК'}
+                  {isProcessing ? 'ЗБЕРЕЖЕННЯ...' : '✖ СПИСАТИ В 100% БРАК (ПЕРЕДАТИ МАЙСТРУ)'}
                 </button>
               ) : (
                 <button onClick={handleCompleteToBuffer} disabled={isProcessing}

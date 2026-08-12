@@ -964,13 +964,40 @@ const KanbanModule = () => {
   }, [companyStructure])
 
   // ── Role detection ──────────────────────────────────────────────────────
+  const isDirector = useMemo(() => {
+    const pos = (currentUser?.position || '').toLowerCase()
+    const rights = currentUser?.access_rights || {}
+    return !!(rights.director || pos.includes('директор') || pos.includes('адмін') || pos.includes('керівник підприємства'))
+  }, [currentUser])
+
   const isManager = useMemo(() => {
     const pos = (currentUser?.position || '').toLowerCase()
     const rights = currentUser?.access_rights || {}
-    return rights.director || rights.master || rights.foreman ||
-      pos.includes('адмін') || pos.includes('директор') || pos.includes('начальник') ||
-      pos.includes('нач') || pos.includes('майстер') || pos.includes('керівник')
-  }, [currentUser])
+    return isDirector || !!(rights.master || rights.foreman || rights.manager ||
+      ['начальник', 'нач', 'майстер', 'менедж', 'керівник'].some(word => pos.includes(word)))
+  }, [currentUser, isDirector])
+
+  const isTaskRelevantToUser = useCallback((task, user) => {
+    if (!user || !task) return false
+    const login = user.login
+    if (task.created_by === login) return true
+    if (getAssignees(task).includes(login)) return true
+    if (Array.isArray(task.checklist) && task.checklist.some(item => getChecklistAssignees(item).includes(login))) return true
+    if (task.is_collective) {
+      const userDept = getUserDeptId(user.department, companyStructure)
+      if (task.department === 'all' || (userDept && task.department === userDept)) return true
+    }
+    return false
+  }, [companyStructure])
+
+  const canManageTask = useCallback((task) => {
+    if (!task || !currentUser) return false
+    const login = currentUser.login
+    if (task.created_by === login) return true
+    if (getAssignees(task).includes(login)) return true
+    if (isDirector) return true
+    return isManager
+  }, [currentUser, isDirector, isManager])
 
   // ── Filters & Search ────────────────────────────────────────────────────
   const [filterMode, setFilterMode] = useState('all')
@@ -1005,17 +1032,13 @@ const KanbanModule = () => {
   // ── Default filter by role ──────────────────────────────────────────────
   useEffect(() => {
     setFilterMode('all')
-  }, [isManager])
+  }, [isDirector])
 
   // ── Stats ───────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
     let list = (managementTasks || []).filter(t => !t.project_id)
-    if (!isManager) {
-      list = list.filter(t =>
-        getAssignees(t).includes(currentUser?.login) ||
-        t.created_by === currentUser?.login ||
-        t.is_collective
-      )
+    if (!isDirector) {
+      list = list.filter(t => isTaskRelevantToUser(t, currentUser))
     }
     return {
       total: list.length,
@@ -1023,32 +1046,25 @@ const KanbanModule = () => {
       done: list.filter(t => t.status === 'done').length,
       overdue: list.filter(t => isOverdueTask(t)).length,
     }
-  }, [managementTasks, isManager, currentUser])
+  }, [managementTasks, isDirector, currentUser, isTaskRelevantToUser])
 
   // ── Filtered tasks ──────────────────────────────────────────────────────
   const filteredTasks = useMemo(() => {
     let list = (managementTasks || []).filter(t => !t.project_id)
-    if (!isManager) {
-      list = list.filter(t =>
-        getAssignees(t).includes(currentUser?.login) ||
-        t.created_by === currentUser?.login ||
-        t.is_collective
-      )
+    if (!isDirector) {
+      list = list.filter(t => isTaskRelevantToUser(t, currentUser))
     }
     if (filterMode === 'my') {
-      const deptId = getUserDeptId(currentUser?.department, companyStructure)
-      list = list.filter(t => 
-        getAssignees(t).includes(currentUser?.login) || 
-        (!isManager && t.is_collective && (t.department === deptId || t.department === 'all'))
-      )
-    }
-    else if (filterMode === 'assigned_by_me') list = list.filter(t => t.created_by === currentUser?.login && !getAssignees(t).includes(currentUser?.login))
-    else if (filterMode === 'department') {
+      list = list.filter(t => getAssignees(t).includes(currentUser?.login))
+    } else if (filterMode === 'assigned_by_me') {
+      list = list.filter(t => t.created_by === currentUser?.login)
+    } else if (filterMode === 'department') {
       const deptId = getUserDeptId(currentUser?.department, companyStructure)
       list = list.filter(t => t.is_collective && (t.department === deptId || t.department === 'all'))
     } else if (filterMode === 'unassigned') {
       list = list.filter(t => getAssignees(t).length === 0 && !t.is_collective)
     }
+
     if (selectedDeptFilter !== 'all') {
       list = list.filter(t => getTaskDepartment(t, systemUsers, companyStructure) === selectedDeptFilter)
     }
@@ -1255,9 +1271,7 @@ const KanbanModule = () => {
   // ─── Status actions ─────────────────────────────────────────────────────
   const canAdvance = (task) => {
     if (task.status === 'done') return false
-    const isAssignee = getAssignees(task).includes(currentUser?.login)
-    const isCollForDept = task.is_collective && (getUserDeptId(currentUser?.department, companyStructure) === task.department || task.department === 'all')
-    return isAssignee || isCollForDept || isManager
+    return canManageTask(task)
   }
 
   // ─── Status change in detail modal ─────────────────────────────────────
@@ -1280,6 +1294,7 @@ const KanbanModule = () => {
   // ─── Card actions inline ─────────────────────────────────────────────────
   const CardActions = ({ task }) => {
     if (!canAdvance(task)) return null
+    const canApprove = canManageTask(task)
     return (
       <div className="card-actions" onClick={e => e.stopPropagation()}>
         {task.status === 'todo' && (
@@ -1294,7 +1309,7 @@ const KanbanModule = () => {
         )}
         {task.status === 'review' && (
           <div className="ca-row">
-            {isManager ? (
+            {canApprove ? (
               <>
                 <button className="ca-btn ca-approve" onClick={async () => updateManagementTask(task.id, { status: 'done' })}>✓ Прийняти</button>
                 <button className="ca-btn ca-reject" onClick={async () => updateManagementTask(task.id, { status: 'in_progress' })}>✕ Відхилити</button>
@@ -1332,8 +1347,8 @@ const KanbanModule = () => {
               <span>Внутрішні домовленості</span>
             </div>
           </div>
-          {isManager && (
-            <div className="role-badge manager-badge"><Shield size={11} /> Менеджер</div>
+          {isDirector && (
+            <div className="role-badge manager-badge"><Shield size={11} /> Керівник</div>
           )}
           <Link to="/tasks/projects" className="projects-nav-btn">
             <span className="projects-nav-icon"><Briefcase size={16} /></span>
@@ -1350,15 +1365,15 @@ const KanbanModule = () => {
           </div>
 
           <div className="kb-filters">
-            {isManager ? (
+            {isDirector ? (
               <>
-                {[['all', 'УСІ'], ['my', 'МОЇ'], ['assigned_by_me', 'ДОРУЧЕНО'], ['unassigned', 'БЕЗ ВИКОН.']].map(([id, lbl]) => (
+                {[['all', 'УСІ ЗАДАЧІ'], ['my', 'Я ВИКОНАВЕЦЬ'], ['assigned_by_me', 'Я АВТОР'], ['unassigned', 'БЕЗ ВИКОНАВЦЯ']].map(([id, lbl]) => (
                   <button key={id} className={`kf-btn ${filterMode === id ? 'active' : ''}`} onClick={() => { setFilterMode(id); setStatsFilter('all') }}>{lbl}</button>
                 ))}
               </>
             ) : (
               <>
-                {[['my', 'ПЕРСОНАЛЬНІ'], ['department', 'ВІДДІЛ'], ['all', 'ДОСТУПНІ']].map(([id, lbl]) => (
+                {[['all', 'МОЇ ТА ДОРУЧЕНІ'], ['my', 'Я ВИКОНАВЕЦЬ'], ['assigned_by_me', 'Я АВТОР'], ['department', 'ВІДДІЛ']].map(([id, lbl]) => (
                   <button key={id} className={`kf-btn ${filterMode === id ? 'active' : ''}`} onClick={() => { setFilterMode(id); setStatsFilter('all') }}>{lbl}</button>
                 ))}
               </>
@@ -1433,7 +1448,7 @@ const KanbanModule = () => {
                     return (
                       <div key={task.id} className={`kb-card ${overdue ? 'overdue' : ''}`}
                         style={{ '--pb': accentColor }}
-                        draggable={isManager}
+                        draggable={canManageTask(task)}
                         onDragStart={e => handleDragStart(e, task.id)}
                         onDragEnd={handleDragEnd}
                         onClick={() => handleOpenTask(task)}>
@@ -1502,7 +1517,7 @@ const KanbanModule = () => {
                         <CardActions task={task} />
 
                         {/* Manager controls */}
-                        {isManager && (
+                        {isDirector ? true : isTaskRelevantToUser(task, currentUser) && (
                           <div className="card-mgr-btns" onClick={e => e.stopPropagation()}>
                             <button className="mgr-btn edit-btn" onClick={e => handleOpenEdit(task, e)} title="Редагувати"><Edit3 size={12} /></button>
                             <button className="mgr-btn del-btn" onClick={e => handleDelete(task.id, e)} title="Видалити"><Trash2 size={12} /></button>
@@ -1596,9 +1611,7 @@ const KanbanModule = () => {
                 const in7 = new Date(now.getTime() + 7 * 86400000)
                 const allTasks = (managementTasks || []).filter(t => !t.project_id)
                 // Tasks visible to current user
-                const visibleTasks = isManager ? allTasks : allTasks.filter(t =>
-                  t.assigned_to === currentUser?.login || t.is_collective
-                )
+                const visibleTasks = isDirector ? allTasks : allTasks.filter(t => isTaskRelevantToUser(t, currentUser))
                 const upcoming = visibleTasks
                   .filter(t => t.deadline && t.status !== 'done')
                   .map(t => ({ ...t, _dl: new Date(t.deadline) }))
@@ -1642,9 +1655,7 @@ const KanbanModule = () => {
             <div className="sb-stats-grid">
               {(() => {
                 const all = (managementTasks || []).filter(t => !t.project_id)
-                const visibleAll = isManager ? all : all.filter(t =>
-                  t.assigned_to === currentUser?.login || t.is_collective
-                )
+                const visibleAll = isDirector ? all : all.filter(t => isTaskRelevantToUser(t, currentUser))
                 const byStatus = COLUMNS.map(col => ({
                   ...col,
                   count: visibleAll.filter(t => t.status === col.id).length,
@@ -1711,7 +1722,7 @@ const KanbanModule = () => {
                 <h2>{selectedTask.title}</h2>
               </div>
               <div className="modal-head-right">
-                {isManager && (
+                {canManageTask(selectedTask) && (
                   <>
                     <button className="icon-btn" onClick={() => { setDetailOpen(false); handleOpenEdit(selectedTask) }} title="Редагувати"><Edit3 size={16} /></button>
                     <button className="icon-btn danger" onClick={e => handleDelete(selectedTask.id, e)} title="Видалити"><Trash2 size={16} /></button>
@@ -1727,7 +1738,7 @@ const KanbanModule = () => {
                 {/* Status */}
                 <div className="side-block">
                   <label>СТАТУС</label>
-                  {isManager ? (
+                  {canManageTask(selectedTask) ? (
                     <select className="status-select" value={selectedTask.status}
                       onChange={async e => handleStatusChange(e.target.value)}>
                       {COLUMNS.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
@@ -1795,7 +1806,7 @@ const KanbanModule = () => {
                       )}
                       {selectedTask.status === 'review' && (
                         <>
-                          {isManager ? (
+                          {canManageTask(selectedTask) ? (
                             <>
                               <button className="sa-btn sa-approve" onClick={() => handleStatusChange('done')}>✓ Прийняти</button>
                               <button className="sa-btn sa-reject" onClick={() => handleStatusChange('in_progress')}>✕ Відхилити</button>
