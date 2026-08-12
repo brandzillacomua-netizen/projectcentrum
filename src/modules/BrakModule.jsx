@@ -497,16 +497,18 @@ export default function BrakModule() {
       const normalizedNumber = cardNumber.toLowerCase()
       let foundCard = (workCards || []).find(card => {
         const id = String(card.id || '').trim().toLowerCase()
-        return id === normalizedNumber || id.startsWith(normalizedNumber) || id.endsWith(normalizedNumber)
+        const info = String(card.card_info || '').toLowerCase()
+        return id.includes(normalizedNumber) || info.includes(normalizedNumber)
       })
 
-      if (!foundCard && /^[0-9a-f-]{36}$/i.test(cardNumber)) {
+      if (!foundCard) {
         const { data, error } = await supabase
           .from('work_cards')
           .select('*')
-          .eq('id', cardNumber)
+          .ilike('id', `%${cardNumber}%`)
+          .limit(1)
           .maybeSingle()
-        if (error) throw error
+        if (error && error.code !== 'PGRST116') throw error
         foundCard = data
       }
 
@@ -744,6 +746,7 @@ export default function BrakModule() {
 
   const [localScrapHistory, setLocalScrapHistory] = useState([])
   const [queuePage, setQueuePage] = useState(1)
+  const [queueSearchQuery, setQueueSearchQuery] = useState('')
   const [scrapSourceMeta, setScrapSourceMeta] = useState({ cards: {}, tasks: {}, orders: {}, sequences: {} })
   const queueCursorRef = useRef(null)
   const queueProjectionRef = useRef(new Map())
@@ -1118,8 +1121,39 @@ export default function BrakModule() {
     })
     .filter(Boolean);
 
+  const filteredReadyItems = useMemo(() => {
+    const q = queueSearchQuery.trim().toLowerCase()
+    if (!q) return readyItems
+
+    return readyItems.filter(item => {
+      const nomName = String(item.name || '').toLowerCase()
+      const naryadNum = String(item.naryad_number || '').toLowerCase()
+      const cardSeq = String(item.card_sequence || '').toLowerCase()
+      const taskCardSeq = String(item.task_card_sequence || '').toLowerCase()
+      const sysCardNum = String(item.card_number || '').toLowerCase()
+      const fullCardId = String(item.card_id || '').toLowerCase()
+      const operatorName = String(item.operator || '').toLowerCase()
+      const stageName = String(item.stage || '').toLowerCase()
+
+      return (
+        nomName.includes(q) ||
+        naryadNum.includes(q) ||
+        cardSeq.includes(q) ||
+        taskCardSeq.includes(q) ||
+        sysCardNum.includes(q) ||
+        fullCardId.includes(q) ||
+        operatorName.includes(q) ||
+        stageName.includes(q)
+      )
+    })
+  }, [readyItems, queueSearchQuery])
+
   const queuePageSize = 10;
-  const totalPages = Math.ceil(readyItems.length / queuePageSize);
+  const totalPages = Math.ceil(filteredReadyItems.length / queuePageSize);
+
+  useEffect(() => {
+    setQueuePage(1);
+  }, [queueSearchQuery]);
 
   useEffect(() => {
     if (queuePage > 1 && queuePage > totalPages) {
@@ -1127,7 +1161,7 @@ export default function BrakModule() {
     }
   }, [totalPages, queuePage]);
 
-  const paginatedReadyItems = readyItems.slice((queuePage - 1) * queuePageSize, queuePage * queuePageSize);
+  const paginatedReadyItems = filteredReadyItems.slice((queuePage - 1) * queuePageSize, queuePage * queuePageSize);
 
   // New defects remain in quarantine until VKYA chooses recoverable scrap or final scrap.
   // Category 3 is included only as a rolling-deployment fallback; the migration moves it to category 1.
@@ -1988,13 +2022,35 @@ export default function BrakModule() {
           
           {/* List of Pending Items */}
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
               <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 950 }}>
                 {viewingCategory ? `Деталі: ${viewingCategoryLabel}` : 'КАРАНТИН · ОЧІКУЮТЬ КЛАСИФІКАЦІЇ ВКЯ'}
               </h2>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
+                {!viewingCategory && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#111', border: '1px solid #333', padding: '6px 14px', borderRadius: '12px', minWidth: '280px' }}>
+                    <Search size={16} color="#ef4444" />
+                    <input
+                      type="text"
+                      placeholder="Пошук (введіть 1-2 символи: № картки, наряд, деталь)..."
+                      value={queueSearchQuery}
+                      onChange={e => setQueueSearchQuery(e.target.value)}
+                      style={{ background: 'transparent', border: 'none', color: '#fff', outline: 'none', fontSize: '0.82rem', width: '100%', fontWeight: 700 }}
+                    />
+                    {queueSearchQuery && (
+                      <button onClick={() => setQueueSearchQuery('')} style={{ background: 'transparent', border: 0, color: '#888', cursor: 'pointer', padding: 0 }}>
+                        <X size={15} />
+                      </button>
+                    )}
+                  </div>
+                )}
                 <div style={{ background: viewingCategory ? '#444' : '#ef444415', padding: '8px 14px', borderRadius: '10px', color: viewingCategory ? '#fff' : '#ef4444', fontSize: '0.75rem', fontWeight: 1000 }}>
-                  {viewingCategory ? `${itemsInCat.length} ПОЗИЦІЙ` : `${readyItems.length} ПОЗИЦІЙ`}
+                  {viewingCategory
+                    ? `${itemsInCat.length} ПОЗИЦІЙ`
+                    : queueSearchQuery.trim()
+                      ? `ЗНАЙДЕНО: ${filteredReadyItems.length} з ${readyItems.length}`
+                      : `${readyItems.length} ПОЗИЦІЙ`
+                  }
                 </div>
               </div>
             </div>
