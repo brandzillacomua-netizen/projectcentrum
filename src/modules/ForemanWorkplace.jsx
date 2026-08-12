@@ -1803,7 +1803,8 @@ const ForemanWorkplace = () => {
                                       .reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
                                   }, 0)
                                   const machineWaiting = machineCards.filter(c => c.status === 'new' || c.status === 'waiting-materials').length
-                                  const machineDone = machineCards.filter(c => c.status === 'completed' || c.status === 'at-buffer' || c.status === 'waiting-buffer').length
+                                  const machineInWork = machineCards.filter(c => c.status === 'in-progress').length
+                                  const machineDone = machineCards.filter(c => ['completed', 'at-buffer', 'waiting-buffer', 'at-shop2-buffer'].includes(c.status)).length
 
                                   return (
                                     <div key={machineKey} style={{ background: '#0b0b0b', border: '1px solid #1f1f1f', borderRadius: '14px', overflow: 'hidden' }}>
@@ -1816,6 +1817,7 @@ const ForemanWorkplace = () => {
                                           <div style={{ color: '#555', fontSize: '0.6rem', fontWeight: 800, marginTop: '3px' }}>
                                             КАРТОК: <span style={{ color: '#fff' }}>{machineCards.length}</span>
                                             {machineWaiting > 0 && <span style={{ color: '#eab308' }}> | ОЧІКУЄ: {machineWaiting}</span>}
+                                            {machineInWork > 0 && <span style={{ color: '#ff9000' }}> | В РОБОТІ: {machineInWork}</span>}
                                             {machineDone > 0 && <span style={{ color: '#10b981' }}> | ГОТОВІ: {machineDone}</span>}
                                           </div>
                                         </div>
