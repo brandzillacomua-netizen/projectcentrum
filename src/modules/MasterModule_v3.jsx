@@ -91,6 +91,7 @@ const MasterModule = () => {
   }
 
   const [activeNaryadOrder, setActiveNaryadOrder] = useState(null)
+  const [useStockBZ, setUseStockBZ] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [selectedMachine, setSelectedMachine] = useState(null)
   const [rowMachines, setRowMachines] = useState({}) // { [partNomId]: machineType }
@@ -936,7 +937,7 @@ const MasterModule = () => {
           }
 
           // Create the production task only after the final stock check.
-          const createdTask = await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters, naryadParts, partCutterOverrides, rowMachinesSplits));
+          const createdTask = await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters, naryadParts, partCutterOverrides, rowMachinesSplits, useStockBZ));
 
           if (createdTask) {
             setReprintTask(createdTask);
@@ -970,7 +971,7 @@ const MasterModule = () => {
         setReprintTask(null)
         setActiveNaryadOrder(null)
       } else {
-        const createdTask = await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters, naryadParts, partCutterOverrides, rowMachinesSplits))
+        const createdTask = await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters, naryadParts, partCutterOverrides, rowMachinesSplits, useStockBZ))
         
         if (createdTask) {
           setReprintTask(createdTask);
@@ -1059,6 +1060,12 @@ const MasterModule = () => {
       setReprintTask(task)
       setSelectedMachine({ name: task.machine_name })
       setActiveNaryadOrder(order)
+      if (task.plan_snapshot?._use_bz !== undefined) {
+        setUseStockBZ(Boolean(task.plan_snapshot._use_bz))
+      } else {
+        const hadStock = Object.values(task.plan_snapshot || {}).some(s => typeof s === 'object' && Number(s?.stock) > 0)
+        setUseStockBZ(hadStock)
+      }
     }
 
     setSelectedCutters({})
@@ -1147,10 +1154,10 @@ const MasterModule = () => {
 
         const snapshot = reprintTask?.plan_snapshot?.[String(part.nom.id)]
         const totalNeeded = snapshot ? snapshot.need : (currentQty * (Number(part.quantity_per_parent) || 1))
-        const inStock = snapshot ? snapshot.stock : (() => {
+        const inStock = snapshot ? (snapshot.stock || 0) : (useStockBZ ? (() => {
           const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
           return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
-        })()
+        })() : 0)
         const totalToProduce = Math.max(0, totalNeeded - inStock)
         const matKeyBase = (part.nom.material_type || part.nom.name || 'Інше').trim()
 
@@ -1238,10 +1245,10 @@ const MasterModule = () => {
         const snapshot = reprintTask?.plan_snapshot?.[String(part.nom.id)]
         const override = snapshot?.cutter_override || partCutterOverrides[part.nom.id] || '2'
         const totalNeeded = snapshot ? snapshot.need : (currentQty * (Number(part.quantity_per_parent) || 1))
-        const inStock = snapshot ? snapshot.stock : (() => {
+        const inStock = snapshot ? (snapshot.stock || 0) : (useStockBZ ? (() => {
           const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
           return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
-        })()
+        })() : 0)
         const totalToProduce = snapshot ? snapshot.plan : (isReprintMode ? 0 : Math.max(0, totalNeeded - inStock))
         const unitsPerSheet = Number(part.nom.units_per_sheet) || 1
         
@@ -1954,6 +1961,21 @@ const MasterModule = () => {
                           : (naryadDeadline ? new Date(naryadDeadline).toLocaleDateString('uk-UA') : '—')}
                       </span>
                     </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }} className="no-print">
+                      <span style={{ fontSize: '0.65rem', color: '#555', fontWeight: 900, textTransform: 'uppercase' }}>ВИКОРИСТОВУВАТИ БЗ</span>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: isReprintMode ? 'default' : 'pointer', userSelect: 'none', background: '#0a0a0a', border: `1px solid ${useStockBZ ? '#ff900055' : '#222'}`, padding: '6px 12px', borderRadius: '12px' }}>
+                        <input
+                          type="checkbox"
+                          disabled={isReprintMode}
+                          checked={useStockBZ}
+                          onChange={(e) => setUseStockBZ(e.target.checked)}
+                          style={{ accentColor: '#ff9000', width: '17px', height: '17px', cursor: isReprintMode ? 'default' : 'pointer' }}
+                        />
+                        <span style={{ fontSize: '0.85rem', fontWeight: 900, color: useStockBZ ? '#ff9000' : '#666' }}>
+                          {useStockBZ ? 'Враховувати БЗ зі складу' : 'Всюди 0 в колонці БЗ'}
+                        </span>
+                      </label>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2124,10 +2146,10 @@ const displayParts = getDisplayPartsForOrderItem(it)
 
                         // If reprint, use snapshot. Otherwise use thisNaryadQty
                         const totalNeeded = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1))
-                        const inStock = snapshot ? snapshot.stock : (() => {
+                        const inStock = snapshot ? (snapshot.stock || 0) : (useStockBZ ? (() => {
                           const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
                           return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
-                        })()
+                        })() : 0)
                         const totalToProduce = snapshot ? snapshot.plan : Math.max(0, totalNeeded - inStock)
 
                         const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
@@ -2774,10 +2796,10 @@ const displayParts = getDisplayPartsForOrderItem(it)
                           displayParts.forEach(part => {
                             const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)];
                             const need = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1));
-                            const inStock = snapshot ? snapshot.stock : (() => {
+                            const inStock = snapshot ? (snapshot.stock || 0) : (useStockBZ ? (() => {
                               const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'));
                               return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0;
-                            })();
+                            })() : 0);
                             const plan = snapshot ? snapshot.plan : Math.max(0, need - inStock);
                             const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1;
                             const sheets = Math.ceil(plan / unitsPerSheet);
@@ -2887,10 +2909,10 @@ const displayParts = getDisplayPartsForOrderItem(it)
                         const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)]
 
                         const totalNeeded = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1))
-                        const inStock = snapshot ? snapshot.stock : (() => {
+                        const inStock = snapshot ? (snapshot.stock || 0) : (useStockBZ ? (() => {
                           const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
                           return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
-                        })()
+                        })() : 0)
                         const totalToProduce = snapshot ? snapshot.plan : Math.max(0, totalNeeded - inStock)
 
                         const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1

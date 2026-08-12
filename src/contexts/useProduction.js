@@ -1378,7 +1378,7 @@ export function createProductionActions({
     return { total: totalQty, planned, produced, packaged, isFullyPackaged: packaged >= totalQty && totalQty > 0, isFullyPlanned: planned >= totalQty && totalQty > 0, status }
   }
 
-  const createNaryad = async (orderId, machineName, customQuantities = null, customDeadline = null, customRowMachines = null, customMaterialSplits = null, customCutters = null, customBOMParts = null, customCutterOverrides = null, customRowMachinesSplits = null) => {
+  const createNaryad = async (orderId, machineName, customQuantities = null, customDeadline = null, customRowMachines = null, customMaterialSplits = null, customCutters = null, customBOMParts = null, customCutterOverrides = null, customRowMachinesSplits = null, customUseStockBZ = true) => {
     const bzOperationId = crypto.randomUUID()
     let bzReservationCreated = false
     let bzReservationAttached = false
@@ -1389,7 +1389,7 @@ export function createProductionActions({
       let totalPlanQty = 0
       const materialSummary = {}
       const bzStockDeductions = []
-      const plan_snapshot = {}
+      const plan_snapshot = { _use_bz: customUseStockBZ }
 
       const getDisplayParts = (item) => customBOMParts && customBOMParts[item.id]
         ? customBOMParts[item.id].map(p => ({ nom: p.nom, qtyPer: p.quantity_per_parent }))
@@ -1401,23 +1401,27 @@ export function createProductionActions({
           })()
 
       const bzRequestedByNom = {}
-      order.order_items?.forEach(item => {
-        const requestedQty = customQuantities && customQuantities[item.id] !== undefined
-          ? Number(customQuantities[item.id])
-          : Number(item.quantity)
-        if (requestedQty <= 0) return
-        getDisplayParts(item).forEach(part => {
-          if (!part.nom) return
-          const quantity = requestedQty * (Number(part.qtyPer) || 1)
-          bzRequestedByNom[part.nom.id] = (bzRequestedByNom[part.nom.id] || 0) + quantity
+      if (customUseStockBZ) {
+        order.order_items?.forEach(item => {
+          const requestedQty = customQuantities && customQuantities[item.id] !== undefined
+            ? Number(customQuantities[item.id])
+            : Number(item.quantity)
+          if (requestedQty <= 0) return
+          getDisplayParts(item).forEach(part => {
+            if (!part.nom) return
+            const quantity = requestedQty * (Number(part.qtyPer) || 1)
+            bzRequestedByNom[part.nom.id] = (bzRequestedByNom[part.nom.id] || 0) + quantity
+          })
         })
-      })
+      }
 
       const actorName = [currentUser?.last_name, currentUser?.first_name].filter(Boolean).join(' ') || currentUser?.login || 'system'
       const { data: bzReserveData, error: bzReserveError } = await supabase.rpc('reserve_bz_for_naryad', {
         p_operation_id: bzOperationId,
         p_order_id: orderId,
-        p_items: Object.entries(bzRequestedByNom).map(([nomenclature_id, quantity]) => ({ nomenclature_id, quantity })),
+        p_items: customUseStockBZ
+          ? Object.entries(bzRequestedByNom).map(([nomenclature_id, quantity]) => ({ nomenclature_id, quantity }))
+          : [],
         p_actor_id: currentUser?.id || null,
         p_actor_name: actorName
       })
@@ -1442,7 +1446,7 @@ export function createProductionActions({
           const totalNeeded = requestedQty * (Number(part.qtyPer) || 1)
           const allocationKey = String(part.nom.id)
           const allocatedRemaining = bzAllocationRemaining[allocationKey] || 0
-          const usedFromStock = Math.min(totalNeeded, allocatedRemaining)
+          const usedFromStock = customUseStockBZ ? Math.min(totalNeeded, allocatedRemaining) : 0
           bzAllocationRemaining[allocationKey] = Math.max(0, allocatedRemaining - usedFromStock)
           const totalToProduce = Math.max(0, totalNeeded - usedFromStock)
           const isManufactured = part.nom.type === 'part' || part.nom.type === 'raw' || !part.nom.type;
