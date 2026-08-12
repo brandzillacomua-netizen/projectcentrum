@@ -1682,9 +1682,9 @@ const ForemanWorkplace = () => {
                       const shortage = (totalBZ - groupScrap) < 0 ? Math.abs(totalBZ - groupScrap) : 0
 
                       const stages = activeCards.reduce((acc, c) => {
-                        if (c.status === 'new') acc.waiting++
-                        else if (c.status === 'completed') acc.reception++
-                        else if (c.status === 'at-buffer' || c.status === 'waiting-buffer') acc.reception++ // Буфер = фактично готово
+                        if (c.status === 'new' || c.status === 'waiting-materials') acc.waiting++
+                        else if (c.status === 'completed' || c.status === 'at-buffer' || c.status === 'waiting-buffer' || c.status === 'at-shop2-buffer') acc.reception++
+                        else if (c.status === 'in-progress') acc.cutting++
                         else if (c.operation?.includes('Розкрій')) acc.cutting++
                         else if (c.operation?.includes('Галтовка')) acc.tumbling++
                         else if (c.operation?.includes('Прийомка')) acc.reception++
@@ -1714,7 +1714,7 @@ const ForemanWorkplace = () => {
                               <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800 }}>
                                 КАРТОК: <span style={{ color: '#fff' }}>{activeCards.length}</span>
                                 <small style={{ marginLeft: '10px', color: '#333' }}>
-                                  ({stages.waiting > 0 && <span style={{ color: '#eab308', marginRight: '6px' }}>{stages.waiting}</span>}
+                                  ({stages.waiting > 0 && <span style={{ color: '#eab308', marginRight: '6px' }}>Очікують: {stages.waiting}</span>}
                                   {stages.cutting > 0 && <span style={{ color: '#ff9000', marginRight: '6px' }}>В роботі: {stages.cutting}</span>}
                                   {stages.reception > 0 && <span style={{ color: '#10b981' }}>Готові: {stages.reception}</span>})
                                 </small>

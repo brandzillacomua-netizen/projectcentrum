@@ -194,7 +194,8 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
           const expanded = expandedId === part.nomId
           const load = getLoadProgress(part)
           const completedCards = (part.productionCards || []).filter(card => ['completed', 'at-shop2-buffer', 'at-buffer', 'waiting-buffer'].includes(card.status)).length
-          const inWorkCards = (part.productionCards || []).filter(card => card.status === 'in-progress' && (card.operation || 'Розкрій').includes('Розкрій')).length
+          const inWorkCards = (part.productionCards || []).filter(card => card.status === 'in-progress').length
+          const waitingCards = (part.productionCards || []).filter(card => card.status === 'new' || card.status === 'waiting-materials').length
           const redoCards = getRedoProductionCards(part)
           const waitingMaterials = (part.cards || []).some(card => card.status === 'waiting-materials')
           const bzAfterScrap = part.spareFromSheets - part.scrap
@@ -219,7 +220,8 @@ const WorkCardsArchive = ({ parts, task, expandedId, onToggle, onOpenReissue, on
                   <div style={{ fontSize: '0.68rem', color: '#555', fontWeight: 900, textTransform: 'uppercase' }}>
                     Карток: <span style={{ color: '#fff' }}>{load.loaded}</span>
                     <small style={{ marginLeft: '8px', color: '#333' }}>
-                      ({inWorkCards > 0 && <span style={{ color: '#ff9000', marginRight: '6px' }}>В роботі: {inWorkCards}</span>}
+                      ({waitingCards > 0 && <span style={{ color: '#eab308', marginRight: '6px' }}>Очікують: {waitingCards}</span>}
+                      {inWorkCards > 0 && <span style={{ color: '#ff9000', marginRight: '6px' }}>В роботі: {inWorkCards}</span>}
                       {completedCards > 0 && <span style={{ color: '#10b981' }}>Готові: {completedCards}</span>})
                     </small>
                   </div>

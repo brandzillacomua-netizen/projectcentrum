@@ -1055,9 +1055,9 @@ export function ForemanTaskDetails({
             const shortage = (totalBZ - groupScrap) < 0 ? Math.abs(totalBZ - groupScrap) : 0
 
             const stages = activeCards.reduce((acc, c) => {
-              if (c.status === 'new') acc.waiting++
-              else if (c.status === 'completed') acc.reception++
-              else if (c.status === 'at-buffer' || c.status === 'waiting-buffer') acc.reception++
+              if (c.status === 'new' || c.status === 'waiting-materials') acc.waiting++
+              else if (c.status === 'completed' || c.status === 'at-buffer' || c.status === 'waiting-buffer' || c.status === 'at-shop2-buffer') acc.reception++
+              else if (c.status === 'in-progress') acc.cutting++
               else if (c.operation?.includes('Розкрій')) acc.cutting++
               else if (c.operation?.includes('Галтовка')) acc.tumbling++
               else if (c.operation?.includes('Прийомка')) acc.reception++
@@ -1084,7 +1084,7 @@ export function ForemanTaskDetails({
                     <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800 }}>
                       КАРТОК: <span style={{ color: '#fff' }}>{activeCards.length}</span>
                       <small style={{ marginLeft: '10px', color: '#333' }}>
-                        ({stages.waiting > 0 && <span style={{ color: '#eab308', marginRight: '6px' }}>{stages.waiting}</span>}
+                        ({stages.waiting > 0 && <span style={{ color: '#eab308', marginRight: '6px' }}>Очікують: {stages.waiting}</span>}
                         {stages.cutting > 0 && <span style={{ color: '#ff9000', marginRight: '6px' }}>В роботі: {stages.cutting}</span>}
                         {stages.reception > 0 && <span style={{ color: '#10b981' }}>Готові: {stages.reception}</span>})
                       </small>
@@ -1158,7 +1158,8 @@ export function ForemanTaskDetails({
                             .reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
                         }, 0)
                         const machineWaiting = machineCards.filter(c => c.status === 'new' || c.status === 'waiting-materials').length
-                        const machineDone = machineCards.filter(c => c.status === 'completed' || c.status === 'at-buffer' || c.status === 'waiting-buffer').length
+                        const machineInWork = machineCards.filter(c => c.status === 'in-progress').length
+                        const machineDone = machineCards.filter(c => ['completed', 'at-buffer', 'waiting-buffer', 'at-shop2-buffer'].includes(c.status)).length
 
                         return (
                           <div key={machineKey} style={{ background: '#0b0b0b', border: '1px solid #1f1f1f', borderRadius: '14px', overflow: 'hidden' }}>
@@ -1171,6 +1172,7 @@ export function ForemanTaskDetails({
                                 <div style={{ color: '#555', fontSize: '0.6rem', fontWeight: 800, marginTop: '3px' }}>
                                   КАРТОК: <span style={{ color: '#fff' }}>{machineCards.length}</span>
                                   {machineWaiting > 0 && <span style={{ color: '#eab308' }}> | ОЧІКУЄ: {machineWaiting}</span>}
+                                  {machineInWork > 0 && <span style={{ color: '#ff9000' }}> | В РОБОТІ: {machineInWork}</span>}
                                   {machineDone > 0 && <span style={{ color: '#10b981' }}> | ГОТОВІ: {machineDone}</span>}
                                 </div>
                               </div>
