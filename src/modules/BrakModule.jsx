@@ -1137,10 +1137,10 @@ export default function BrakModule() {
       return (
         nomName.includes(q) ||
         naryadNum.includes(q) ||
-        cardSeq.includes(q) ||
-        taskCardSeq.includes(q) ||
+        cardSeq === q ||
+        taskCardSeq === q ||
         sysCardNum.includes(q) ||
-        fullCardId.includes(q) ||
+        fullCardId === q ||
         operatorName.includes(q) ||
         stageName.includes(q)
       )
