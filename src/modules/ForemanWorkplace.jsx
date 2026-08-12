@@ -1684,8 +1684,7 @@ const ForemanWorkplace = () => {
                       const stages = activeCards.reduce((acc, c) => {
                         if (c.status === 'new' || c.status === 'waiting-materials') acc.waiting++
                         else if (c.status === 'completed' || c.status === 'at-buffer' || c.status === 'waiting-buffer' || c.status === 'at-shop2-buffer') acc.reception++
-                        else if (c.status === 'in-progress') acc.cutting++
-                        else if (c.operation?.includes('Розкрій')) acc.cutting++
+                        else if (c.status === 'in-progress' && (c.operation || 'Розкрій').includes('Розкрій')) acc.cutting++
                         else if (c.operation?.includes('Галтовка')) acc.tumbling++
                         else if (c.operation?.includes('Прийомка')) acc.reception++
                         return acc
