@@ -746,7 +746,6 @@ export default function BrakModule() {
 
   const [localScrapHistory, setLocalScrapHistory] = useState([])
   const [queuePage, setQueuePage] = useState(1)
-  const [queueSearchQuery, setQueueSearchQuery] = useState('')
   const [scrapSourceMeta, setScrapSourceMeta] = useState({ cards: {}, tasks: {}, orders: {}, sequences: {} })
   const queueCursorRef = useRef(null)
   const queueProjectionRef = useRef(new Map())
@@ -1122,7 +1121,7 @@ export default function BrakModule() {
     .filter(Boolean);
 
   const filteredReadyItems = useMemo(() => {
-    const q = queueSearchQuery.trim().toLowerCase()
+    const q = manualCardNumber.trim().toLowerCase()
     if (!q) return readyItems
 
     return readyItems.filter(item => {
@@ -1146,14 +1145,14 @@ export default function BrakModule() {
         stageName.includes(q)
       )
     })
-  }, [readyItems, queueSearchQuery])
+  }, [readyItems, manualCardNumber])
 
   const queuePageSize = 10;
   const totalPages = Math.ceil(filteredReadyItems.length / queuePageSize);
 
   useEffect(() => {
     setQueuePage(1);
-  }, [queueSearchQuery]);
+  }, [manualCardNumber]);
 
   useEffect(() => {
     if (queuePage > 1 && queuePage > totalPages) {
@@ -1847,7 +1846,7 @@ export default function BrakModule() {
           >
             <Camera size={18} /> СКАНУВАТИ КАРТКУ
           </button>}
-          {!showReasonCatalog && <div style={{ display: 'flex', alignItems: 'stretch', background: '#0a0a0a', border: '1px solid #333', borderRadius: '14px', overflow: 'hidden' }}>
+          {!showReasonCatalog && <div style={{ display: 'flex', alignItems: 'center', background: '#0a0a0a', border: '1px solid #333', borderRadius: '14px', overflow: 'hidden' }}>
             <input
               value={manualCardNumber}
               onChange={event => {
@@ -1857,13 +1856,22 @@ export default function BrakModule() {
               onKeyDown={event => {
                 if (event.key === 'Enter') openQcCardByNumber()
               }}
-              placeholder="Системний № картки"
+              placeholder="№ картки, наряд або деталь..."
               aria-label="Системний номер картки"
-              style={{ width: '220px', minWidth: 0, padding: '0 14px', background: 'transparent', border: 'none', color: '#fff', outline: 'none', fontSize: '0.82rem', fontWeight: 750 }}
+              style={{ width: '240px', minWidth: 0, padding: '0 14px', background: 'transparent', border: 'none', color: '#fff', outline: 'none', fontSize: '0.82rem', fontWeight: 750 }}
             />
+            {manualCardNumber && (
+              <button
+                onClick={() => setManualCardNumber('')}
+                style={{ background: 'transparent', border: 0, color: '#666', cursor: 'pointer', padding: '0 8px', display: 'flex', alignItems: 'center' }}
+                title="Очистити пошук"
+              >
+                <X size={15} />
+              </button>
+            )}
             <button
               onClick={openQcCardByNumber}
-              style={{ padding: '0 16px', background: '#ef444418', border: 'none', borderLeft: '1px solid #333', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '7px', fontWeight: 900 }}
+              style={{ padding: '12px 16px', background: '#ef444418', border: 'none', borderLeft: '1px solid #333', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '7px', fontWeight: 900 }}
             >
               <Search size={17} /> ЗНАЙТИ
             </button>
@@ -2026,28 +2034,11 @@ export default function BrakModule() {
               <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 950 }}>
                 {viewingCategory ? `Деталі: ${viewingCategoryLabel}` : 'КАРАНТИН · ОЧІКУЮТЬ КЛАСИФІКАЦІЇ ВКЯ'}
               </h2>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
-                {!viewingCategory && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#111', border: '1px solid #333', padding: '6px 14px', borderRadius: '12px', minWidth: '280px' }}>
-                    <Search size={16} color="#ef4444" />
-                    <input
-                      type="text"
-                      placeholder="Пошук (введіть 1-2 символи: № картки, наряд, деталь)..."
-                      value={queueSearchQuery}
-                      onChange={e => setQueueSearchQuery(e.target.value)}
-                      style={{ background: 'transparent', border: 'none', color: '#fff', outline: 'none', fontSize: '0.82rem', width: '100%', fontWeight: 700 }}
-                    />
-                    {queueSearchQuery && (
-                      <button onClick={() => setQueueSearchQuery('')} style={{ background: 'transparent', border: 0, color: '#888', cursor: 'pointer', padding: 0 }}>
-                        <X size={15} />
-                      </button>
-                    )}
-                  </div>
-                )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                 <div style={{ background: viewingCategory ? '#444' : '#ef444415', padding: '8px 14px', borderRadius: '10px', color: viewingCategory ? '#fff' : '#ef4444', fontSize: '0.75rem', fontWeight: 1000 }}>
                   {viewingCategory
                     ? `${itemsInCat.length} ПОЗИЦІЙ`
-                    : queueSearchQuery.trim()
+                    : manualCardNumber.trim()
                       ? `ЗНАЙДЕНО: ${filteredReadyItems.length} з ${readyItems.length}`
                       : `${readyItems.length} ПОЗИЦІЙ`
                   }
