@@ -1714,7 +1714,8 @@ const ForemanWorkplace = () => {
                               <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800 }}>
                                 КАРТОК: <span style={{ color: '#fff' }}>{activeCards.length}</span>
                                 <small style={{ marginLeft: '10px', color: '#333' }}>
-                                  ({stages.waiting > 0 && <span style={{ color: '#eab308' }}>{stages.waiting} </span>}
+                                  ({stages.waiting > 0 && <span style={{ color: '#eab308', marginRight: '6px' }}>{stages.waiting}</span>}
+                                  {stages.cutting > 0 && <span style={{ color: '#ff9000', marginRight: '6px' }}>В роботі: {stages.cutting}</span>}
                                   {stages.reception > 0 && <span style={{ color: '#10b981' }}>Готові: {stages.reception}</span>})
                                 </small>
                               </div>
