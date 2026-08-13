@@ -2109,16 +2109,10 @@ export default function BrakModule() {
                            style={{ background: '#ef4444', border: 'none', color: '#fff', padding: '10px 15px', borderRadius: '12px', fontWeight: 900, fontSize: '0.75rem', cursor: 'pointer' }}
                          >СПИСАТИ</button>
                         ) : (
-                          <>
-                           <button 
-                             onClick={() => openReworkModal(item)}
-                             style={{ background: '#10b981', border: 'none', color: '#fff', padding: '10px 15px', borderRadius: '12px', fontWeight: 900, fontSize: '0.75rem', cursor: 'pointer' }}
-                           >НА ДООПРАЦЮВАННЯ</button>
-                           <button 
-                             onClick={() => openRestorationModal(item)}
-                             style={{ background: '#06b6d4', border: 'none', color: '#fff', padding: '10px 15px', borderRadius: '12px', fontWeight: 900, fontSize: '0.75rem', cursor: 'pointer' }}
-                           >НА ВІДНОВЛЕННЯ</button>
-                         </>
+                          <button 
+                            onClick={() => openRestorationModal(item)}
+                            style={{ background: '#06b6d4', border: 'none', color: '#fff', padding: '10px 15px', borderRadius: '12px', fontWeight: 900, fontSize: '0.75rem', cursor: 'pointer' }}
+                          >НА ВІДНОВЛЕННЯ</button>
                         )}
                     </div>
                   </div>
