@@ -211,7 +211,7 @@ export default function ForemanPrintQueue({
               <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '28px', margin: '4px 0' }}>
                 <div style={{ display: 'flex', border: '1.5px solid #000', height: '100%' }}>
                   <div style={{ padding: '0 15px', borderRight: '1.5px solid #000', display: 'flex', alignItems: 'center', fontSize: '10pt', fontWeight: 900 }}>Листи відповідають</div>
-                  <div style={{ padding: '0 15px', borderRight: '1.5px solid #000', display: 'flex', alignItems: 'center', fontSize: '10pt', fontWeight: 900 }}>{nomenclature?.material_type || '—'}</div>
+                  <div style={{ padding: '0 15px', borderRight: '1.5px solid #000', display: 'flex', alignItems: 'center', fontSize: '10pt', fontWeight: 900 }}>{getDisplayMaterial(nomenclature, snapshotPart) || nomenclature?.material_type || '—'}</div>
                   <div style={{ padding: '0 15px', display: 'flex', alignItems: 'center', fontSize: '14pt', fontWeight: 900 }}>☐</div>
                 </div>
               </div>
