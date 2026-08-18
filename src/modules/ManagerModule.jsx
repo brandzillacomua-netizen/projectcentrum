@@ -13,7 +13,8 @@ import {
   User,
   Package,
   Clock,
-  Pencil
+  Pencil,
+  FileText
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
@@ -34,38 +35,46 @@ const ManagerModule = () => {
 
   const generateNextOrderNum = () => {
     const today = new Date();
-    const dd = String(today.getDate()).padStart(2, '0');
+    const yy = String(today.getFullYear()).slice(-2);
     const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const datePrefix = `${yy}${mm}${dd}`;
+
     const yyyy = today.getFullYear();
-    const datePrefix = `${dd}${mm}${yyyy}`;
-    
+    const legacyPrefixFull = `${dd}${mm}${yyyy}`;
+    const legacyPrefixShort = `${dd}${mm}${yy}`;
+
     const todayOrders = (orders || []).filter(o => {
       const num = o.order_num || '';
       const cleanNum = num.replace(/^№/, '');
-      return cleanNum.startsWith(datePrefix);
+      return (
+        cleanNum.startsWith(datePrefix) ||
+        cleanNum.startsWith(legacyPrefixFull) ||
+        cleanNum.startsWith(legacyPrefixShort)
+      );
     });
-    
+
     let maxSeq = 0;
     todayOrders.forEach(o => {
       const num = o.order_num || '';
       const cleanNum = num.replace(/^№/, '');
       const parts = cleanNum.split('-');
-      if (parts.length === 2) {
-        const seq = parseInt(parts[1], 10);
+      if (parts.length >= 2) {
+        const seq = parseInt(parts[parts.length - 1], 10);
         if (!isNaN(seq) && seq > maxSeq) {
           maxSeq = seq;
         }
       }
     });
-    
+
     const nextSeq = maxSeq + 1;
-    const seqStr = String(nextSeq).padStart(2, '0');
-    return `${datePrefix}-${seqStr}`;
+    return `${datePrefix}-${nextSeq}`;
   }
 
   const [orderHeader, setOrderHeader] = useState({ 
     orderDate: new Date().toISOString().split('T')[0],
     orderNum: '',
+    invoiceNum: '',
     customer: '',
     official_customer: '',
     nomenclature_id: '',
@@ -106,6 +115,7 @@ const ManagerModule = () => {
   const [editingOrderHeader, setEditingOrderHeader] = useState({
     customer: '',
     official_customer: '',
+    invoice_num: '',
     nomenclature_id: '',
     quantity: 1,
     deadline: ''
@@ -118,6 +128,7 @@ const ManagerModule = () => {
     setEditingOrderHeader({
       customer: order.customer || '',
       official_customer: order.official_customer || '',
+      invoice_num: order.invoice_num || '',
       nomenclature_id: order.nomenclature_id || '',
       quantity: order.quantity || 1,
       deadline: order.deadline ? order.deadline.split('T')[0] : ''
@@ -137,6 +148,7 @@ const ManagerModule = () => {
       const headerWithInfo = {
         customer: editingOrderHeader.customer,
         official_customer: editingOrderHeader.official_customer,
+        invoice_num: editingOrderHeader.invoice_num,
         deadline: editingOrderHeader.deadline,
         quantity: editingOrderHeader.quantity,
         productName: selectedProduct?.name || ''
@@ -273,6 +285,7 @@ const ManagerModule = () => {
       setOrderHeader({ 
         ...orderHeader,
         orderNum: '',
+        invoiceNum: '',
         customer: '',
         official_customer: '',
         nomenclature_id: '',
@@ -332,6 +345,14 @@ const ManagerModule = () => {
                 <div className="input-wrapper" style={{ background: 'rgba(255,255,255,0.02)' }}>
                   <Package size={16} />
                   <input value={orderHeader.orderNum} readOnly style={{ opacity: 0.7, cursor: 'not-allowed' }} placeholder="Генерується автоматично..." />
+                </div>
+              </div>
+
+              <div className="form-group-modern">
+                <label>№ РАХУНКУ (ОПЦІОНАЛЬНО)</label>
+                <div className="input-wrapper">
+                  <FileText size={16} />
+                  <input value={orderHeader.invoiceNum} onChange={e => setOrderHeader({...orderHeader, invoiceNum: e.target.value})} placeholder="Введіть № рахунку..." />
                 </div>
               </div>
 
@@ -411,7 +432,7 @@ const ManagerModule = () => {
                 
                 <div className="search-box-modern">
                    <Search size={18} />
-                   <input placeholder="Пошук номеру або клієнта..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                   <input placeholder="Пошук номеру, рахунку або клієнта..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                 </div>
              </div>
           </div>
@@ -422,6 +443,7 @@ const ManagerModule = () => {
                    <thead>
                      <tr>
                         <th>№ ЗАМОВЛЕННЯ</th>
+                        <th>№ РАХУНКУ</th>
                         <th>ЗАМОВНИК</th>
                         <th>ВИРІБ</th>
                         <th>КІЛЬКІСТЬ</th>
@@ -439,6 +461,9 @@ const ManagerModule = () => {
                            return (
                              <tr key={order.id} onClick={() => setSelectedOrder(order)}>
                                <td className="order-num-cell">#{order.order_num}</td>
+                               <td className="invoice-num-cell" style={{ color: order.invoice_num ? '#3b82f6' : '#555', fontWeight: 600, fontSize: '0.88rem' }}>
+                                 {order.invoice_num ? `№ ${order.invoice_num}` : '—'}
+                               </td>
                                <td className="customer-cell">{order.customer}</td>
                                <td className="product-cell">{prodName}</td>
                                <td className="qty-cell"><strong>{prog.packaged} / {ordQty}</strong> шт</td>
@@ -555,6 +580,14 @@ const ManagerModule = () => {
                   </div>
 
                   <div className="form-group-modern">
+                    <label>№ РАХУНКУ (ОПЦІОНАЛЬНО)</label>
+                    <div className="input-wrapper">
+                      <FileText size={16} />
+                      <input value={editingOrderHeader.invoice_num} onChange={e => setEditingOrderHeader({ ...editingOrderHeader, invoice_num: e.target.value })} placeholder="Вкажіть номер рахунку..." />
+                    </div>
+                  </div>
+
+                  <div className="form-group-modern">
                     <label>ГОТОВИЙ ВИРІБ</label>
                     <div className="input-wrapper">
                       <Layers size={16} />
@@ -596,6 +629,12 @@ const ManagerModule = () => {
                       <div className="detail-item">
                          <label>ЗАМОВНИК</label>
                          <div>{selectedOrder.customer}</div>
+                      </div>
+                      <div className="detail-item">
+                         <label>№ РАХУНКУ</label>
+                         <div style={{ color: selectedOrder.invoice_num ? '#3b82f6' : '#555', fontWeight: 700 }}>
+                           {selectedOrder.invoice_num ? `№ ${selectedOrder.invoice_num}` : '—'}
+                         </div>
                       </div>
                       <div className="detail-item">
                          <label>ТЕРМІН</label>

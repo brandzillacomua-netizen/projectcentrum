@@ -160,14 +160,19 @@ export function createProductionActions({
     const orderedQty = items?.[0]?.quantity || header.quantity || 0;
     
     // Update order header
-    const { error } = await supabase.from('orders').update({
+    const updatePayload = {
       customer: header.customer,
       official_customer: header.official_customer,
       deadline: header.deadline,
       nomenclature_id: supaNomenclatureId,
       quantity: Number(orderedQty),
       accessories: header.productName || '',
-    }).eq('id', orderId)
+    };
+    if (header.invoice_num !== undefined || header.invoiceNum !== undefined) {
+      updatePayload.invoice_num = header.invoice_num || header.invoiceNum || null;
+    }
+
+    const { error } = await supabase.from('orders').update(updatePayload).eq('id', orderId)
     
     if (error) throw error
 
@@ -435,6 +440,7 @@ export function createProductionActions({
       order_num: header.orderNum,
       customer: header.customer,
       official_customer: header.official_customer,
+      invoice_num: header.invoiceNum || header.invoice_num || null,
       deadline: header.deadline,
       status: 'pending',
       source: header.source || 'Виробництво',
