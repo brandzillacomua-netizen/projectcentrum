@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Layers, X, RefreshCw } from 'lucide-react'
 import { useMES } from '../../../MESContext'
 import { supabase } from '../../../supabase'
@@ -59,7 +60,9 @@ export const ReserveAnalysisModal = ({
       orderNum,
       productName,
       quantity: Number(req.quantity) || 0,
-      date: req.created_at ? new Date(req.created_at).toLocaleDateString('uk-UA') : '—'
+      date: req.created_at ? new Date(req.created_at).toLocaleDateString('uk-UA') : '—',
+      taskId: req.task_id,
+      orderId: req.order_id
     }
   })
 
@@ -134,8 +137,26 @@ export const ReserveAnalysisModal = ({
               <tbody>
                 {reserveDetails.map((detail, idx) => (
                   <tr key={detail.id || idx} style={{ borderBottom: '1px solid #1a1a1a', background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
-                    <td style={{ padding: '12px 10px', fontWeight: 800, color: '#3b82f6' }}>
-                      {detail.orderNum}
+                    <td style={{ padding: '12px 10px', fontWeight: 800 }}>
+                      {detail.taskId ? (
+                        <Link
+                          to={`/master?task=${detail.taskId}`}
+                          style={{ color: '#3b82f6', textDecoration: 'underline', cursor: 'pointer' }}
+                          onClick={onClose}
+                        >
+                          {detail.orderNum}
+                        </Link>
+                      ) : detail.orderId ? (
+                        <Link
+                          to={`/master?order=${detail.orderId}`}
+                          style={{ color: '#3b82f6', textDecoration: 'underline', cursor: 'pointer' }}
+                          onClick={onClose}
+                        >
+                          {detail.orderNum}
+                        </Link>
+                      ) : (
+                        <span style={{ color: '#888' }}>{detail.orderNum}</span>
+                      )}
                     </td>
                     <td style={{ padding: '12px 10px', color: '#ddd', fontWeight: 700 }}>
                       {detail.productName}

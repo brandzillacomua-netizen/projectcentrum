@@ -491,10 +491,10 @@ export function createWarehouseActions({
     })[0]
 
     if (invItem) {
-      await supabase.from('inventory').update({ reserved_qty: (Number(invItem.reserved_qty) || 0) + Number(req.quantity) }).eq('id', invItem.id)
-      await supabase.from('material_requests').update({ status: 'issued', inventory_id: invItem.id }).eq('id', requestId)
+      await supabase.from('inventory').update({ total_qty: Math.max(0, (Number(invItem.total_qty) || 0) - Number(req.quantity)) }).eq('id', invItem.id)
+      await supabase.from('material_requests').update({ status: 'completed', inventory_id: invItem.id }).eq('id', requestId)
     } else {
-      await supabase.from('material_requests').update({ status: 'issued' }).eq('id', requestId)
+      await supabase.from('material_requests').update({ status: 'completed' }).eq('id', requestId)
     }
 
     try {
@@ -672,14 +672,14 @@ export function createWarehouseActions({
           if (available >= needed) {
             // Повне забезпечення
             inventoryUpdateMap[invItem.id] = (inventoryUpdateMap[invItem.id] || 0) + needed
-            requestUpdateList.push({ id: req.id, status: 'issued', inventory_id: invItem.id })
+            requestUpdateList.push({ id: req.id, status: 'completed', inventory_id: invItem.id })
           } else if (available > 0) {
             // Часткове забезпечення: розділяємо на два запити (виданий і дефіцитний)
             const shortage = needed - available
             inventoryUpdateMap[invItem.id] = (inventoryUpdateMap[invItem.id] || 0) + available
             
-            // 1. Оновлюємо оригінальний запит на кількість, яка є в наявності, і ставимо status: 'issued'
-            requestUpdateList.push({ id: req.id, status: 'issued', inventory_id: invItem.id, quantity: available })
+            // 1. Оновлюємо оригінальний запит на кількість, яка є в наявності, і ставимо status: 'completed'
+            requestUpdateList.push({ id: req.id, status: 'completed', inventory_id: invItem.id, quantity: available })
             
             // 2. Додаємо новий запит на дефіцит у pending
             requestsToInsert.push({
@@ -712,17 +712,17 @@ export function createWarehouseActions({
             console.log(`[issueMaterialsBatch] Skipping prepared sheet (no inventory): ${parsedName}`)
           } else {
             // Для інших матеріалів без інвентарного запису (СГП тощо) — видаємо як раніше
-            requestUpdateList.push({ id: req.id, status: 'issued' })
+            requestUpdateList.push({ id: req.id, status: 'completed' })
           }
         }
       })
 
-      const invUpdates = Object.entries(inventoryUpdateMap).map(([id, addQty]) => {
+      const invUpdates = Object.entries(inventoryUpdateMap).map(([id, subQty]) => {
         const item = matchedInventory.find(i => String(i.id) === String(id))
         if (!item) return null
         return {
           ...item,
-          reserved_qty: (Number(item.reserved_qty) || 0) + addQty
+          total_qty: Math.max(0, (Number(item.total_qty) || 0) - subQty)
         }
       }).filter(Boolean)
 

@@ -453,22 +453,42 @@ const MasterModule = () => {
 
   // Deep Link loading of specific naryad (task) or new order creation modal
   useEffect(() => {
-    if (tasks.length === 0) return
-
     const taskId = searchParams.get('task')
+    const orderId = searchParams.get('order')
+
     if (taskId) {
       const task = tasks.find(t => String(t.id) === String(taskId))
       if (task) {
-        // Clear param to prevent loop/sticky modal if closed
         handleReprint(task)
+      } else {
+        // Fetch directly from database to support old/archived tasks
+        supabase
+          .from('tasks')
+          .select('*')
+          .eq('id', taskId)
+          .maybeSingle()
+          .then(({ data, error }) => {
+            if (!error && data) {
+              handleReprint(data)
+            }
+          })
       }
-    } else {
-      const orderId = searchParams.get('order')
-      if (orderId) {
-        const order = orders.find(o => String(o.id) === String(orderId)) || allOrdersMap[orderId]
-        if (order) {
-          handleOpenNaryadModal(order)
-        }
+    } else if (orderId) {
+      const order = orders.find(o => String(o.id) === String(orderId)) || allOrdersMap[orderId]
+      if (order) {
+        handleOpenNaryadModal(order)
+      } else {
+        // Fetch order directly from database
+        supabase
+          .from('orders')
+          .select('*, order_items(*)')
+          .eq('id', orderId)
+          .maybeSingle()
+          .then(({ data, error }) => {
+            if (!error && data) {
+              handleOpenNaryadModal(data)
+            }
+          })
       }
     }
   }, [tasks, orders, allOrdersMap, searchParams])
