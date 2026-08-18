@@ -1465,10 +1465,42 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
 
                                 return (
                                   <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#111', padding: '10px 12px', borderRadius: '10px', border: '1px solid #222' }}>
-                                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#eee' }}>{reqName}</span>
-                                    <div style={{ textTransform: 'uppercase', fontSize: '0.7rem', color: itemEnough ? '#10b981' : '#ef4444', fontWeight: 800, textAlign: 'right' }}>
-                                      Потрібно: {qty} шт | Наявні: {available} шт
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'left' }}>
+                                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#eee' }}>{reqName}</span>
+                                      <div style={{ textTransform: 'uppercase', fontSize: '0.7rem', color: itemEnough ? '#10b981' : '#ef4444', fontWeight: 800 }}>
+                                        Потрібно: {qty} шт | Наявні: {available} шт
+                                      </div>
                                     </div>
+                                    {itemEnough && (
+                                      <button 
+                                        disabled={processingDocs.has(req.id)}
+                                        onClick={async () => {
+                                          setProcessingDocs(prev => new Set(prev).add(req.id))
+                                          try {
+                                            await issueMaterialsBatch([req.id], group.taskId)
+                                            alert(`Матеріал "${reqName}" успішно видано!`)
+                                          } catch (e) {
+                                            alert('Помилка: ' + e.message)
+                                          } finally {
+                                            setProcessingDocs(prev => { const next = new Set(prev); next.delete(req.id); return next; })
+                                          }
+                                        }}
+                                        style={{
+                                          background: '#10b981',
+                                          color: '#000',
+                                          border: 'none',
+                                          padding: '6px 12px',
+                                          borderRadius: '8px',
+                                          fontSize: '0.7rem',
+                                          fontWeight: 900,
+                                          cursor: processingDocs.has(req.id) ? 'not-allowed' : 'pointer',
+                                          textTransform: 'uppercase',
+                                          marginLeft: '15px'
+                                        }}
+                                      >
+                                        {processingDocs.has(req.id) ? '...' : 'Видати'}
+                                      </button>
+                                    )}
                                   </div>
                                 )
                               })}

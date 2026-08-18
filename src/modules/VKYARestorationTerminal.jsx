@@ -116,6 +116,46 @@ export default function VKYARestorationTerminal() {
     }
   }
 
+  const returnLegacyToBZ = async () => {
+    if (!selectedCard || selectedCard.status !== 'completed' || selectedCard.route_card_id) return
+    if (!window.confirm(`Повернути ${selectedCard.completed_quantity} ${selectedCard.unit || 'шт'} безпосередньо у Базовий залишок (БЗ)?`)) return
+    setSaving(true)
+    try {
+      const { error: returnError } = await supabase.rpc('return_legacy_restoration_to_bz', {
+        p_restoration_card_id: selectedCard.id,
+        p_returned_by: userName(currentUser) || selectedCard.operator_name || null
+      })
+      if (returnError) throw returnError
+      setSelectedCard(null)
+      await loadCards()
+      alert(`✅ ${selectedCard.completed_quantity} шт. успішно зараховано у Базовий залишок на склад.`)
+    } catch (retError) {
+      setError(retError.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const dispatchToShop2 = async (stage) => {
+    if (!selectedCard || selectedCard.status !== 'completed' || selectedCard.shop2_card_id) return
+    if (!window.confirm(`Передати ${selectedCard.completed_quantity} ${selectedCard.unit || 'шт'} у Цех №2 (${stage})?`)) return
+    setSaving(true)
+    try {
+      const { data, error: dispatchError } = await supabase.rpc('dispatch_vkya_restoration_to_shop2', {
+        p_restoration_card_id: selectedCard.id,
+        p_shop2_stage: stage
+      })
+      if (dispatchError) throw dispatchError
+      setSelectedCard(null)
+      await loadCards()
+      alert(`✅ Деталі успішно передано в Цех №2 (${stage}).`)
+    } catch (dispatchErr) {
+      setError(dispatchErr.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const assignLegacyItem = async () => {
     const quantity = Number(legacyQuantity)
     if (!legacyDraft || !legacyStageId || !Number.isInteger(quantity) || quantity <= 0 || quantity > Number(legacyDraft.total_qty)) return
@@ -169,7 +209,7 @@ export default function VKYARestorationTerminal() {
       {visibleCards.map(card => { const meta = STATUS[card.status]; const canOpen = card.status !== 'completed' || (!card.shop2_card_id && !card.route_card_id); return <button key={card.id} onClick={() => canOpen && openCard(card)} style={{ textAlign: 'left', background: '#101010', color: '#fff', border: '1px solid #202020', borderRadius: 18, padding: 20, cursor: canOpen ? 'pointer' : 'default', display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(140px, .5fr) auto', gap: 20, alignItems: 'center' }}>
         <div><div style={{ color: '#06b6d4', fontSize: '.68rem', fontWeight: 950 }}>КАРТА ВІДНОВЛЕННЯ №{card.card_number}</div><div style={{ fontSize: '1.05rem', fontWeight: 950, marginTop: 6, overflowWrap: 'anywhere' }}>{card.nomenclature_name}</div><div style={{ color: '#666', fontSize: '.7rem', marginTop: 5 }}>Створено {new Date(card.created_at).toLocaleString('uk-UA')}</div></div>
         <div><div style={{ color: '#777', fontSize: '.65rem', fontWeight: 900 }}>ЕТАП ВІДНОВЛЕННЯ</div><div style={{ fontWeight: 900, marginTop: 5 }}>{card.restoration_stage}</div>{card.operator_name && <div style={{ color: '#888', fontSize: '.7rem', marginTop: 5 }}>{card.operator_name}</div>}</div>
-        <div style={{ textAlign: 'right' }}><div style={{ color: meta.color, fontSize: '.68rem', fontWeight: 1000 }}>{card.route_card_id ? 'ПОВЕРНЕНО В НАРЯД' : card.shop2_card_id ? `ПЕРЕДАНО: ${card.shop2_stage}` : meta.label}</div><div style={{ fontSize: '1.65rem', fontWeight: 1000, marginTop: 5 }}>{card.status === 'completed' ? `${card.completed_quantity} / ` : ''}{card.quantity} <small style={{ fontSize: '.65rem', color: '#666' }}>{card.unit}</small></div>{card.status === 'completed' && !card.shop2_card_id && !card.route_card_id && Number(card.completed_quantity) > 0 && <div style={{ color: '#f59e0b', fontSize: '.62rem', fontWeight: 950, marginTop: 5 }}>ОЧІКУЄ ПОВЕРНЕННЯ В НАРЯД</div>}</div>
+        <div style={{ textAlign: 'right' }}><div style={{ color: meta.color, fontSize: '.68rem', fontWeight: 1000 }}>{card.route_card_id ? (card.route_card_id === '00000000-0000-0000-0000-000000000000' ? 'ПОВЕРНЕНО НА СКЛАД (БЗ)' : 'ПОВЕРНЕНО В НАРЯД') : card.shop2_card_id ? `ПЕРЕДАНО: ${card.shop2_stage}` : meta.label}</div><div style={{ fontSize: '1.65rem', fontWeight: 1000, marginTop: 5 }}>{card.status === 'completed' ? `${card.completed_quantity} / ` : ''}{card.quantity} <small style={{ fontSize: '.65rem', color: '#666' }}>{card.unit}</small></div>{card.status === 'completed' && !card.shop2_card_id && !card.route_card_id && Number(card.completed_quantity) > 0 && <div style={{ color: '#f59e0b', fontSize: '.62rem', fontWeight: 950, marginTop: 5 }}>{card.source_task_id ? 'ОЧІКУЄ ПОВЕРНЕННЯ В НАРЯД' : 'ОЧІКУЄ РІШЕННЯ'}</div>}</div>
       </button> })}
     </div>
 
@@ -191,13 +231,32 @@ export default function VKYARestorationTerminal() {
         <div style={{ color: '#777', fontSize: '.7rem', marginTop: 10 }}>Уся кількість карти має бути розподілена між відновленими деталями та остаточним утилем.</div>
         <button onClick={completeCard} disabled={saving || finalScrapQty === '' || !Number.isInteger(Number(finalScrapQty)) || Number(finalScrapQty) < 0 || Number(finalScrapQty) > Number(selectedCard.quantity)} style={{ width: '100%', marginTop: 20, background: '#10b981', border: 0, borderRadius: 13, padding: 14, color: '#00150e', fontWeight: 1000, cursor: 'pointer' }}><ShieldCheck size={17} style={{ verticalAlign: 'middle', marginRight: 7 }}/>ЗАВЕРШИТИ КАРТУ</button>
       </>}
-      {selectedCard.status === 'completed' && <>
-        {selectedCard.source_history_id && selectedCard.source_task_id && <div style={{ marginTop: 24, background: '#10b98112', border: '1px solid #10b98144', borderRadius: 14, padding: 15 }}>
-          <div style={{ color: '#10b981', fontSize: '.72rem', fontWeight: 1000 }}>ПОВЕРНЕННЯ У БУФЕР ЦЕХУ №2</div>
-          <div style={{ color: '#94a3b8', fontSize: '.7rem', marginTop: 7 }}>Відновлені деталі надійдуть у Буфер Цеху №2 початкового наряду. Начальник Цеху №2 зможе направити їх на потрібний етап (Пресування, Фарбування тощо).</div>
-          <button onClick={returnToSourceRoute} disabled={saving || Number(selectedCard.completed_quantity) <= 0} style={{ width: '100%', marginTop: 14, background: '#10b981', border: 0, borderRadius: 12, padding: 14, color: '#00150e', fontWeight: 1000, cursor: 'pointer' }}><CornerUpLeft size={17} style={{ verticalAlign: 'middle', marginRight: 7 }}/>ПОВЕРНУТИ В НАРЯД (В БУФЕР ЦЕХУ №2) · {selectedCard.completed_quantity} {selectedCard.unit}</button>
-        </div>}
-      </>}
+      {selectedCard.status === 'completed' && (
+        <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 15 }}>
+          {selectedCard.source_history_id && selectedCard.source_task_id ? (
+            <div style={{ background: '#10b98112', border: '1px solid #10b98144', borderRadius: 14, padding: 15 }}>
+              <div style={{ color: '#10b981', fontSize: '.72rem', fontWeight: 1000 }}>ПОВЕРНЕННЯ У БУФЕР ЦЕХУ №2</div>
+              <div style={{ color: '#94a3b8', fontSize: '.7rem', marginTop: 7 }}>Відновлені деталі надійдуть у Буфер Цеху №2 початкового наряду. Начальник Цеху №2 зможе направити їх на потрібний етап (Пресування, Фарбування тощо).</div>
+              <button onClick={returnToSourceRoute} disabled={saving || Number(selectedCard.completed_quantity) <= 0} style={{ width: '100%', marginTop: 14, background: '#10b981', border: 0, borderRadius: 12, padding: 14, color: '#00150e', fontWeight: 1000, cursor: 'pointer' }}><CornerUpLeft size={17} style={{ verticalAlign: 'middle', marginRight: 7 }}/>ПОВЕРНУТИ В НАРЯД (В БУФЕР ЦЕХУ №2) · {selectedCard.completed_quantity} {selectedCard.unit}</button>
+            </div>
+          ) : (
+            <div style={{ background: '#f59e0b12', border: '1px solid #f59e0b44', borderRadius: 14, padding: 15 }}>
+              <div style={{ color: '#f59e0b', fontSize: '.72rem', fontWeight: 1000 }}>ПОВЕРНЕННЯ НА СКЛАД (В БАЗОВИЙ ЗАЛИШОК)</div>
+              <div style={{ color: '#94a3b8', fontSize: '.7rem', marginTop: 7 }}>Ця карта створена зі старого обліку і не має зв'язку з активним нарядом. Відновлені деталі будуть зараховані безпосередньо в Базовий залишок (БЗ) на склад.</div>
+              <button onClick={returnLegacyToBZ} disabled={saving || Number(selectedCard.completed_quantity) <= 0} style={{ width: '100%', marginTop: 14, background: '#f59e0b', border: 0, borderRadius: 12, padding: 14, color: '#170d00', fontWeight: 1000, cursor: 'pointer' }}><CornerUpLeft size={17} style={{ verticalAlign: 'middle', marginRight: 7 }}/>ПОВЕРНУТИ НА СКЛАД (БЗ) · {selectedCard.completed_quantity} {selectedCard.unit}</button>
+            </div>
+          )}
+
+          <div style={{ background: '#06b6d412', border: '1px solid #06b6d444', borderRadius: 14, padding: 15 }}>
+            <div style={{ color: '#06b6d4', fontSize: '.72rem', fontWeight: 1000 }}>ПЕРЕДАЧА В ЦЕХ №2</div>
+            <div style={{ color: '#94a3b8', fontSize: '.7rem', marginTop: 7 }}>Ви можете передати ці відновлені деталі як нове завдання у Цех №2 для проходження додаткової обробки.</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 14 }}>
+              <button onClick={() => dispatchToShop2('Пресування')} disabled={saving || Number(selectedCard.completed_quantity) <= 0} style={{ background: '#06b6d4', border: 0, borderRadius: 12, padding: 12, color: '#001014', fontWeight: 1000, cursor: 'pointer', fontSize: '.78rem' }}>🛠️ ПРЕСУВАННЯ</button>
+              <button onClick={() => dispatchToShop2('Фарбування')} disabled={saving || Number(selectedCard.completed_quantity) <= 0} style={{ background: '#06b6d4', border: 0, borderRadius: 12, padding: 12, color: '#001014', fontWeight: 1000, cursor: 'pointer', fontSize: '.78rem' }}>🎨 ФАРБУВАННЯ</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div></div>}
     {legacyDraft && <div onClick={() => !saving && setLegacyDraft(null)} style={{ position: 'fixed', inset: 0, zIndex: 10060, background: 'rgba(0,0,0,.88)', display: 'grid', placeItems: 'center', padding: 20 }}><div onClick={event => event.stopPropagation()} style={{ width: '100%', maxWidth: 500, background: '#0d0d0d', border: '1px solid #f59e0b55', borderRadius: 22, padding: 25 }}><div style={{ display: 'flex', justifyContent: 'space-between', gap: 14 }}><div><div style={{ color: '#f59e0b', fontSize: '.68rem', fontWeight: 1000 }}>РОЗПОДІЛИТИ У КАРТУ</div><h2 style={{ margin: '7px 0 3px', overflowWrap: 'anywhere' }}>{legacyDraft.name}</h2><div style={{ color: '#777' }}>Доступно: {legacyDraft.total_qty} {legacyDraft.unit || 'шт'}</div></div><button onClick={() => setLegacyDraft(null)} style={{ alignSelf: 'flex-start', background: 'transparent', border: 0, color: '#777', cursor: 'pointer' }}><X/></button></div><label style={{ display: 'block', color: '#888', fontSize: '.7rem', fontWeight: 950, margin: '22px 0 7px' }}>КІЛЬКІСТЬ</label><input autoFocus type="number" min="1" max={legacyDraft.total_qty} value={legacyQuantity} onChange={event => setLegacyQuantity(event.target.value)} style={{ boxSizing: 'border-box', width: '100%', background: '#050505', border: '1px solid #333', borderRadius: 11, color: '#fff', padding: 13 }}/><label style={{ display: 'block', color: '#888', fontSize: '.7rem', fontWeight: 950, margin: '17px 0 7px' }}>ЕТАП ВІДНОВЛЕННЯ</label><select value={legacyStageId} onChange={event => setLegacyStageId(event.target.value)} style={{ boxSizing: 'border-box', width: '100%', background: '#050505', border: '1px solid #333', borderRadius: 11, color: '#fff', padding: 13 }}><option value="">Оберіть етап</option>{restorationStages.map(stage => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select><button onClick={assignLegacyItem} disabled={saving || !legacyStageId || !Number.isInteger(Number(legacyQuantity)) || Number(legacyQuantity) <= 0 || Number(legacyQuantity) > Number(legacyDraft.total_qty)} style={{ width: '100%', marginTop: 21, background: '#f59e0b', color: '#170d00', border: 0, borderRadius: 12, padding: 14, fontWeight: 1000, cursor: 'pointer' }}>{saving ? 'СТВОРЕННЯ...' : 'СТВОРИТИ КАРТУ'}</button></div></div>}
   </div>

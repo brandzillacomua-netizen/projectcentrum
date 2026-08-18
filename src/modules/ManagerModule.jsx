@@ -458,6 +458,7 @@ const ManagerModule = () => {
                            const prodName = nom ? nom.name : (order.accessories || '—');
                            const ordQty = order.quantity || 0;
                            const prog = getOrderProductionProgress(order.id);
+                           const inWorkQty = Math.max(0, prog.planned - prog.packaged);
                            return (
                              <tr key={order.id} onClick={() => setSelectedOrder(order)}>
                                <td className="order-num-cell">#{order.order_num}</td>
@@ -466,7 +467,15 @@ const ManagerModule = () => {
                                </td>
                                <td className="customer-cell">{order.customer}</td>
                                <td className="product-cell">{prodName}</td>
-                               <td className="qty-cell"><strong>{prog.packaged} / {ordQty}</strong> шт</td>
+                               <td className="qty-cell">
+                                 <strong>{prog.packaged}</strong>
+                                 {inWorkQty > 0 && (
+                                   <span style={{ color: '#ff9000', fontSize: '0.85rem', fontWeight: '500', marginLeft: '5px', marginRight: '5px' }} title="В роботі">
+                                     (в роботі: {inWorkQty})
+                                   </span>
+                                 )}
+                                 <strong> / {ordQty}</strong> шт
+                               </td>
                                <td className="date-cell">{order.deadline ? new Date(order.deadline).toLocaleDateString() : '—'}</td>
                                <td><span className={`status-pill ${prog.status}`}>{getStatusLabel(prog.status)}</span></td>
                                <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
@@ -500,43 +509,58 @@ const ManagerModule = () => {
 
              {/* Mobile Registry View (Cards) */}
              <div className="mobile-registry-cards mobile-only">
-                {clientOrders.map(order => (
-                  <div key={order.id} onClick={() => setSelectedOrder(order)} className="mobile-order-card">
-                     <div className="card-top">
-                        <span className="card-order-num">#{order.order_num}</span>
-                        <span className={`status-pill ${order.status}`}>{getStatusLabel(order.status)}</span>
-                     </div>
-                     <div className="card-customer">{order.customer}</div>
-                     <div className="card-product">{nomenclatures.find(n => n.id === order.order_items?.[0]?.nomenclature_id)?.name || '—'}</div>
-                     <div className="card-footer">
-                        <span>{order.order_items?.[0]?.quantity} {order.unit || 'шт'}</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <span className="card-deadline"><Calendar size={12} /> {order.deadline ? new Date(order.deadline).toLocaleDateString() : '—'}</span>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditInit(order);
-                            }}
-                            style={{
-                              background: 'rgba(255,144,0,0.1)',
-                              border: '1px solid rgba(255,144,0,0.25)',
-                              borderRadius: '8px',
-                              width: '30px',
-                              height: '30px',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: '#ff9000',
-                              cursor: 'pointer'
-                            }}
-                            title="Швидке редагування"
-                          >
-                            <Pencil size={13} />
-                          </button>
-                        </div>
-                     </div>
-                  </div>
-                ))}
+                {clientOrders.map(order => {
+                  const nom = nomenclatures.find(n => String(n.id) === String(order.nomenclature_id));
+                  const prodName = nom ? nom.name : (order.accessories || '—');
+                  const ordQty = order.quantity || 0;
+                  const prog = getOrderProductionProgress(order.id);
+                  const inWorkQty = Math.max(0, prog.planned - prog.packaged);
+                  return (
+                    <div key={order.id} onClick={() => setSelectedOrder(order)} className="mobile-order-card">
+                       <div className="card-top">
+                          <span className="card-order-num">#{order.order_num}</span>
+                          <span className={`status-pill ${prog.status}`}>{getStatusLabel(prog.status)}</span>
+                       </div>
+                       <div className="card-customer">{order.customer}</div>
+                       <div className="card-product">{prodName}</div>
+                       <div className="card-footer">
+                          <span>
+                            <strong>{prog.packaged}</strong>
+                            {inWorkQty > 0 && (
+                              <span style={{ color: '#ff9000', fontSize: '0.8rem', fontWeight: '500', marginLeft: '4px', marginRight: '4px' }}>
+                                (в роботі: {inWorkQty})
+                              </span>
+                            )}
+                            <strong> / {ordQty}</strong> шт
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                             <span className="card-deadline"><Calendar size={12} /> {order.deadline ? new Date(order.deadline).toLocaleDateString() : '—'}</span>
+                             <button
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 handleEditInit(order);
+                               }}
+                               style={{
+                                 background: 'rgba(255,144,0,0.1)',
+                                 border: '1px solid rgba(255,144,0,0.25)',
+                                 borderRadius: '8px',
+                                 width: '30px',
+                                 height: '30px',
+                                 display: 'inline-flex',
+                                 alignItems: 'center',
+                                 justifyContent: 'center',
+                                 color: '#ff9000',
+                                 cursor: 'pointer'
+                               }}
+                               title="Швидке редагування"
+                             >
+                               <Pencil size={13} />
+                             </button>
+                          </div>
+                       </div>
+                    </div>
+                  );
+                })}
              </div>
 
              {clientOrders.length === 0 && !loading && (

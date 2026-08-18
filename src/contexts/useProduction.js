@@ -1331,7 +1331,7 @@ export function createProductionActions({
     const orderTasks = tasks.filter(t => String(t.order_id) === String(orderId))
     const batches = {}
     orderTasks.forEach(t => {
-      const key = t.batch_index || `task_${t.id}`
+      const key = t.batch_index || 'default'
       const qty = Number(t.planned_sets) || 0
       const isPackaged = t.plan_snapshot?._metadata?.is_packaged === true
       const isProduced = t.status === 'completed' || t.step.includes('ЦЕХ №2') || t.step.includes('Паквання')
