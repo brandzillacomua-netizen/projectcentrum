@@ -1,81 +1,5 @@
-import React, { useState } from 'react'
-import { Package, Printer, X } from 'lucide-react'
-import { QRCodeSVG } from 'qrcode.react'
-
-// Simple and robust Code 128 barcode renderer as an inline SVG component.
-const Barcode128 = ({ value, width = 2.0, height = 28 }) => {
-  const patterns = [
-    "11011001100", "11001101100", "11001100110", "10010011000", "10010001100", 
-    "10001001100", "10011000100", "10001100100", "11001001000", "11001000100", 
-    "11000100100", "10110011100", "10011011100", "10011001110", "10111001100", 
-    "10011100110", "10011100100", "11100110100", "11100100110", "11100100100", 
-    "11011011100", "11011001110", "11001101110", "11101111010", "11101101110", 
-    "11101100110", "11100110110", "11100110010", "11011011000", "11011000110", 
-    "11000110110", "11000110010", "10110111100", "10011011110", "10011001111", 
-    "10111100110", "10011110110", "10011110011", "11110110100", "11110110010", 
-    "11110011010", "11000111010", "11000111001", "11011111010", "11011111001", 
-    "11110111010", "11110111001", "11011011110", "11011001111", "11100111110", 
-    "11110011110", "11110110110", "11110110011", "11110011011", "11011111011", 
-    "11110111011", "11011111010", "11011111001", "11011011110", "11011001111", 
-    "11101111110", "11111011110", "11111011011", "11011001100", "11011001111", 
-    "11011111011", "11110110110", "11110110011", "11110011011", "11011111011", 
-    "11110111011", "11110111001", "11011011110", "11011001111", "11011111011", 
-    "11110110110", "11110110011", "11110011011", "11101101111", "11101111011", 
-    "11111011010", "11111011001", "11000111010", "11000111001", "11011111010", 
-    "11011111001", "11110110100", "11110110010", "11110011010", "11110011001", 
-    "11011011000", "11011000110", "11000110110", "11000110010", "11011001000", 
-    "11011000100", "11011000100", "11110110100", "11110110010", "11011011000", 
-    "11011000110", "11000110110", "11000110010", "11011110100", "11011110010", 
-    "11011110110", "11101111010"
-  ];
-  
-  const charSet = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
-  const startCodeB = "11010010000";
-  const stopCode = "1100011101011";
-
-  try {
-    let checksum = 104;
-    let barcodeString = startCodeB;
-
-    for (let i = 0; i < value.length; i++) {
-      const char = value[i];
-      const codeIndex = charSet.indexOf(char);
-      if (codeIndex === -1) throw new Error("Invalid character for Code 128");
-      
-      checksum += codeIndex * (i + 1);
-      barcodeString += patterns[codeIndex];
-    }
-
-    const checksumModulo = checksum % 103;
-    barcodeString += patterns[checksumModulo];
-    barcodeString += stopCode;
-
-    const totalBars = barcodeString.length;
-    const svgWidth = totalBars * width + 30; // 15px margin left & right for quiet zone
-
-    return (
-      <svg width={svgWidth} height={height} viewBox={`0 0 ${svgWidth} ${height}`} style={{ display: 'block', background: '#fff' }}>
-        {barcodeString.split('').map((char, index) => {
-          if (char === '1') {
-            return (
-              <rect
-                key={index}
-                x={index * width + 15}
-                y={0}
-                width={width}
-                height={height}
-                fill="#000000"
-              />
-            )
-          }
-          return null
-        })}
-      </svg>
-    )
-  } catch (err) {
-    return <span style={{ color: '#ef4444', fontSize: '0.6rem' }}>Err</span>
-  }
-}
+import React from 'react'
+import { Package } from 'lucide-react'
 
 export const BoxesView = ({
   cardsWithBoxes,
@@ -90,24 +14,8 @@ export const BoxesView = ({
   handlePrepareBox,
   isProcessing
 }) => {
-  const [boxNumberState, setBoxNumberState] = useState({}) 
-  const [checkedSheets, setCheckedSheets] = useState({}) 
+  const [checkedSheets, setCheckedSheets] = React.useState({}) 
   
-  const [maxGeneratedBox, setMaxGeneratedBox] = useState(() => {
-    const saved = localStorage.getItem('centrum_max_box_number')
-    return saved ? parseInt(saved, 10) : 10
-  })
-  
-  const [showPrintModal, setShowPrintModal] = useState(false)
-  const [printFrom, setPrintFrom] = useState(1)
-  const [printTo, setPrintTo] = useState(() => {
-    const saved = localStorage.getItem('centrum_max_box_number')
-    return saved ? parseInt(saved, 10) : 10
-  })
-  const [isPrintingMode, setIsPrintingMode] = useState(false)
-  const [activePrintTab, setActivePrintTab] = useState('reprint') // 'reprint' or 'generate'
-  const [newBoxesQty, setNewBoxesQty] = useState(10)
-
   // Group boxes
   const groups = {}
   cardsWithBoxes.forEach(box => {
@@ -120,8 +28,7 @@ export const BoxesView = ({
     if (search) {
       const matches = cardNum.toLowerCase().includes(search) || 
                       partName.toLowerCase().includes(search) || 
-                      orderNum.toLowerCase().includes(search) ||
-                      (box.card.box_number && box.card.box_number.toLowerCase().includes(search))
+                      orderNum.toLowerCase().includes(search)
       if (!matches) return
     }
 
@@ -154,134 +61,8 @@ export const BoxesView = ({
 
   const groupList = Object.values(groups)
 
-  const printItems = []
-  if (isPrintingMode) {
-    const fromVal = Math.max(1, Number(printFrom) || 1)
-    const toVal = Math.min(1000, Number(printTo) || 1000)
-    for (let i = fromVal; i <= toVal; i++) {
-      const formattedNum = String(i).padStart(4, '0')
-      printItems.push({
-        box_number: i,
-        barcode: formattedNum // only code the number (e.g. '0005') for thicker, high-readability bars
-      })
-    }
-  }
-
-  const triggerPrint = () => {
-    setTimeout(() => {
-      window.print()
-      setIsPrintingMode(false)
-    }, 500)
-  }
-
-  if (isPrintingMode) {
-    return (
-      <div className="barcode-only-print-page" style={{ background: '#fff', color: '#000', minHeight: '100vh', padding: '0px' }}>
-        <style dangerouslySetInnerHTML={{ __html: `
-          @media print {
-            body * {
-              visibility: hidden !important;
-            }
-            .barcode-only-print-page, .barcode-only-print-page * {
-              visibility: visible !important;
-            }
-            .barcode-only-print-page {
-              position: absolute !important;
-              left: 0 !important;
-              top: 0 !important;
-              width: 100% !important;
-              background: #fff !important;
-            }
-            .no-print, .no-print * {
-              visibility: hidden !important;
-              display: none !important;
-              height: 0 !important;
-            }
-          }
-        `}} />
-
-        <div className="no-print" style={{ marginBottom: '15px', display: 'flex', gap: '10px', padding: '10px' }}>
-          <button 
-            onClick={triggerPrint}
-            style={{ padding: '8px 16px', background: '#10b981', color: '#000', border: 'none', borderRadius: '6px', fontWeight: 900, cursor: 'pointer', fontSize: '0.8rem' }}
-          >
-            ДРУКУВАТИ ЗАРАЗ
-          </button>
-          <button 
-            onClick={() => setIsPrintingMode(false)}
-            style={{ padding: '8px 16px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 900, cursor: 'pointer', fontSize: '0.8rem' }}
-          >
-            СКАСУВАТИ
-          </button>
-        </div>
-
-        {/* Barcode labels grid optimized for scanner readability */}
-        <div className="print-area" style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', 
-          gap: '10px',
-          background: '#fff',
-          padding: '0px'
-        }}>
-          {printItems.map(item => (
-            <div key={item.box_number} style={{ 
-              border: '1px dashed #ccc',
-              borderRadius: '4px',
-              padding: '2px 8px', 
-              textAlign: 'center', 
-              display: 'flex', 
-              flexDirection: 'row', 
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              background: '#fff',
-              color: '#000',
-              pageBreakInside: 'avoid',
-              height: '10mm',
-              maxHeight: '10mm',
-              boxSizing: 'border-box',
-              overflow: 'hidden'
-            }}>
-              <div style={{ fontSize: '0.7rem', fontWeight: 1000, whiteSpace: 'nowrap', marginRight: '8px' }}>
-                №{item.box_number}
-              </div>
-              <div style={{ flex: 1, display: 'flex', justifyContent: 'center', background: '#fff', overflow: 'hidden', padding: '2px 6px' }}>
-                <QRCodeSVG value={`BOX-${String(item.box_number).padStart(4, '0')}`} size={32} />
-              </div>
-              <div style={{ fontSize: '0.55rem', fontWeight: 900, whiteSpace: 'nowrap', marginLeft: '8px', letterSpacing: '0.05em' }}>
-                BOX-{String(item.box_number).padStart(4, '0')}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '25px' }}>
-      
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
-        <button
-          onClick={() => setShowPrintModal(true)}
-          style={{
-            background: 'rgba(255, 144, 0, 0.1)',
-            border: '1px solid rgba(255, 144, 0, 0.3)',
-            color: '#ff9000',
-            padding: '10px 20px',
-            borderRadius: '12px',
-            fontSize: '0.8rem',
-            fontWeight: 900,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            cursor: 'pointer',
-            transition: 'all 0.2s'
-          }}
-        >
-          <Printer size={16} /> ДРУК ШТРИХ-КОДІВ БОКСІВ
-        </button>
-      </div>
-
       {groupList.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px', color: '#555', fontSize: '0.85rem' }}>
           Не знайдено боксів для підготовки
@@ -445,12 +226,8 @@ export const BoxesView = ({
                               const cardNum = boxItem.card.card_info?.split(' ')[0] || `№${cardId.substring(0, 8)}`
                               const isAllChecked = boxItem.cutters.every(c => checkedCutters[cardId]?.[c.nomenclature_id])
                               const isSheetChecked = !!checkedSheets[cardId] || boxItem.isPrepared
-                              
-                              const currentBoxNumber = boxNumberState[cardId] !== undefined 
-                                ? boxNumberState[cardId] 
-                                : (boxItem.card.box_number || '')
 
-                              const canSubmit = currentBoxNumber.trim().length > 0 && isAllChecked && isSheetChecked
+                              const canSubmit = isAllChecked && isSheetChecked
 
                               return (
                                 <div 
@@ -470,11 +247,6 @@ export const BoxesView = ({
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #1e1e1e', paddingBottom: '10px' }}>
                                     <div>
                                       <strong style={{ fontSize: '1.05rem', color: '#fff' }}>Картка {cardNum}</strong>
-                                      {boxItem.card.box_number && (
-                                        <div style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 900, marginTop: '4px' }}>
-                                          📍 БОКС №{boxItem.card.box_number}
-                                        </div>
-                                      )}
                                     </div>
                                     {boxItem.isPrepared ? (
                                       <span style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '4px 10px', borderRadius: '8px', fontSize: '0.68rem', fontWeight: 900, textTransform: 'uppercase' }}>
@@ -496,27 +268,6 @@ export const BoxesView = ({
                                       <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 800 }}>ЛИСТИ</div>
                                       <div style={{ fontSize: '0.75rem', color: '#aaa', fontWeight: 700 }}>{boxItem.cardSheets} л.</div>
                                     </div>
-                                  </div>
-
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                    <label style={{ fontSize: '0.68rem', color: '#888', fontWeight: 800 }}>ПРИСВОЇТИ БОКС (ШТРИХ-КОД / НОМЕР):</label>
-                                    <input 
-                                      type="text"
-                                      placeholder="Введіть або зчитайте штрих-код боксу..."
-                                      value={currentBoxNumber}
-                                      disabled={boxItem.isPrepared}
-                                      onChange={e => setBoxNumberState(prev => ({ ...prev, [cardId]: e.target.value }))}
-                                      style={{ 
-                                        background: '#000', 
-                                        border: currentBoxNumber ? '1px solid #3b82f6' : '1px solid #222', 
-                                        borderRadius: '10px', 
-                                        padding: '10px 14px', 
-                                        color: '#fff', 
-                                        fontSize: '0.8rem', 
-                                        outline: 'none',
-                                        fontWeight: 900
-                                      }}
-                                    />
                                   </div>
 
                                   <div>
@@ -597,7 +348,7 @@ export const BoxesView = ({
                                   {!boxItem.isPrepared && (
                                     <button
                                       disabled={isProcessing || !canSubmit}
-                                      onClick={() => handlePrepareBox(boxItem, currentBoxNumber)}
+                                      onClick={() => handlePrepareBox(boxItem, null)}
                                       style={{
                                         width: '100%',
                                         padding: '12px',
@@ -619,11 +370,9 @@ export const BoxesView = ({
                                       }}
                                     >
                                       <Package size={16} /> 
-                                      {!currentBoxNumber.trim() 
-                                        ? 'Введіть номер боксу' 
-                                        : !isAllChecked || !isSheetChecked 
-                                          ? 'Позначте всі матеріали' 
-                                          : `Завершити комплектацію боксу №${currentBoxNumber}`
+                                      {!isAllChecked || !isSheetChecked 
+                                        ? 'Позначте всі матеріали' 
+                                        : `Завершити комплектацію боксу`
                                       }
                                     </button>
                                   )}
@@ -641,155 +390,6 @@ export const BoxesView = ({
           )
         })
       )}
-
-      {/* Barcodes Printing Modal Dialog */}
-      {showPrintModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 10060, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ background: '#111', border: '1px solid #333', borderRadius: '24px', padding: '25px', width: '100%', maxWidth: '380px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '1rem', fontWeight: 900, color: '#ff9000', margin: 0 }}>ДРУК ЕТИКЕТОК БОКСІВ</h3>
-              <button onClick={() => setShowPrintModal(false)} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer' }}><X size={20} /></button>
-            </div>
-
-            {/* Tabs selector */}
-            <div style={{ display: 'flex', gap: '5px', background: '#000', padding: '4px', borderRadius: '10px', marginBottom: '20px' }}>
-              <button
-                onClick={() => setActivePrintTab('reprint')}
-                style={{
-                  flex: 1,
-                  padding: '10px 5px',
-                  background: activePrintTab === 'reprint' ? '#111' : 'transparent',
-                  color: activePrintTab === 'reprint' ? '#ff9000' : '#888',
-                  border: activePrintTab === 'reprint' ? '1px solid #222' : 'none',
-                  borderRadius: '8px',
-                  fontSize: '0.72rem',
-                  fontWeight: 900,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-              >
-                ПЕРЕДРУК
-              </button>
-              <button
-                onClick={() => setActivePrintTab('generate')}
-                style={{
-                  flex: 1,
-                  padding: '10px 5px',
-                  background: activePrintTab === 'generate' ? '#111' : 'transparent',
-                  color: activePrintTab === 'generate' ? '#ff9000' : '#888',
-                  border: activePrintTab === 'generate' ? '1px solid #222' : 'none',
-                  borderRadius: '8px',
-                  fontSize: '0.72rem',
-                  fontWeight: 900,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-              >
-                СТВОРИТИ НОВІ
-              </button>
-            </div>
-            
-            {activePrintTab === 'reprint' ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '25px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '0.65rem', color: '#888', fontWeight: 800 }}>ДІАПАЗОН БОКСІВ ВІД:</label>
-                  <input 
-                    type="number"
-                    min="1"
-                    max={maxGeneratedBox}
-                    value={printFrom}
-                    onChange={e => setPrintFrom(Math.max(1, Math.min(maxGeneratedBox, Number(e.target.value) || 1)))}
-                    style={{ background: '#000', border: '1px solid #222', borderRadius: '8px', padding: '10px', color: '#fff', fontSize: '0.85rem', fontWeight: 700 }}
-                  />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '0.65rem', color: '#888', fontWeight: 800 }}>ДІАПАЗОН БОКСІВ ДО (макс. {maxGeneratedBox}):</label>
-                  <input 
-                    type="number"
-                    min="1"
-                    max={maxGeneratedBox}
-                    value={printTo}
-                    onChange={e => setPrintTo(Math.max(1, Math.min(maxGeneratedBox, Number(e.target.value) || 1)))}
-                    style={{ background: '#000', border: '1px solid #222', borderRadius: '8px', padding: '10px', color: '#fff', fontSize: '0.85rem', fontWeight: 700 }}
-                  />
-                </div>
-
-                <button
-                  onClick={() => {
-                    setShowPrintModal(false)
-                    setIsPrintingMode(true)
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    background: '#ff9000',
-                    color: '#000',
-                    border: 'none',
-                    borderRadius: '10px',
-                    fontWeight: 900,
-                    fontSize: '0.82rem',
-                    cursor: 'pointer',
-                    marginTop: '5px'
-                  }}
-                >
-                  ПЕРЕДРУКУВАТИ БОКСИ {printFrom}-{printTo}
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '25px' }}>
-                <div style={{ background: '#080808', padding: '12px', borderRadius: '10px', border: '1px solid #1a1a1a', textAlign: 'center' }}>
-                  <div style={{ fontSize: '0.65rem', color: '#888', fontWeight: 800 }}>ВЖЕ СТВОРЕНО БОКСІВ:</div>
-                  <div style={{ fontSize: '1.4rem', color: '#10b981', fontWeight: 950, marginTop: '2px' }}>{maxGeneratedBox} шт</div>
-                  <div style={{ fontSize: '0.62rem', color: '#555', marginTop: '4px', fontWeight: 700 }}>Наступний бокс буде мати номер {maxGeneratedBox + 1}</div>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '0.65rem', color: '#888', fontWeight: 800 }}>СКІЛЬКИ НОВИХ БОКСІВ СТВОРИТИ?</label>
-                  <input 
-                    type="number"
-                    min="1"
-                    max="100"
-                    value={newBoxesQty}
-                    onChange={e => setNewBoxesQty(Math.max(1, Math.min(100, Number(e.target.value) || 1)))}
-                    style={{ background: '#000', border: '1px solid #222', borderRadius: '8px', padding: '10px', color: '#fff', fontSize: '0.85rem', fontWeight: 700 }}
-                  />
-                </div>
-
-                <button
-                  onClick={() => {
-                    const qty = Math.max(1, Number(newBoxesQty) || 1)
-                    const startNum = maxGeneratedBox + 1
-                    const endNum = maxGeneratedBox + qty
-                    localStorage.setItem('centrum_max_box_number', endNum)
-                    setMaxGeneratedBox(endNum)
-                    
-                    setPrintFrom(startNum)
-                    setPrintTo(endNum)
-                    
-                    setShowPrintModal(false)
-                    setIsPrintingMode(true)
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    background: '#10b981',
-                    color: '#000',
-                    border: 'none',
-                    borderRadius: '10px',
-                    fontWeight: 900,
-                    fontSize: '0.82rem',
-                    cursor: 'pointer',
-                    marginTop: '5px'
-                  }}
-                >
-                  ЗГЕНЕРУВАТИ ТА НАДРУКУВАТИ БОКСИ {maxGeneratedBox + 1}-{maxGeneratedBox + Number(newBoxesQty)}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
     </div>
   )
 }

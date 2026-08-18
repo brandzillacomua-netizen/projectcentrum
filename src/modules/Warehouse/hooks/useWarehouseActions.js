@@ -172,12 +172,21 @@ export function useWarehouseActions(dataHook) {
         }
       }
 
+      if (dataHook.scannedCard) {
+        const nextCardInfo = `${dataHook.scannedCard.card_info || ''} [MATERIALS_ISSUED:true]`.trim()
+        await supabaseClient
+          .from('work_cards')
+          .update({ card_info: nextCardInfo })
+          .eq('id', dataHook.scannedCard.id)
+      }
+
       alert('Матеріали успішно списано та видано!')
       dataHook.setScannedCard(null)
       dataHook.setScannedRequests([])
       dataHook.setIsScanning(false)
       refreshTable('inventory')
       refreshTable('material_requests')
+      refreshTable('work_cards')
     } catch (err) {
       alert('Помилка видачі: ' + err.message)
     } finally {

@@ -628,11 +628,19 @@ export const useWarehouseHandlers = ({
         }
       }
 
+      if (scannedCard) {
+        const nextCardInfo = `${scannedCard.card_info || ''} [MATERIALS_ISSUED:true]`.trim()
+        await supabaseClient
+          .from('work_cards')
+          .update({ card_info: nextCardInfo })
+          .eq('id', scannedCard.id)
+      }
+
       alert('Матеріали успішно списано та видано!')
       setScannedCard(null)
       setScannedRequests([])
       setIsScanning(false)
-      if (typeof fetchData === 'function') fetchData(['inventory', 'material_requests'])
+      if (typeof fetchData === 'function') fetchData(['inventory', 'material_requests', 'work_cards'])
     } catch (err) {
       alert('Помилка видачі: ' + err.message)
     } finally {

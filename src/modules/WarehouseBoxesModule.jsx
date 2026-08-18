@@ -106,6 +106,36 @@ const WarehouseBoxesModule = () => {
     })
   }, [cardsWithBoxes, orders])
 
+  useEffect(() => {
+    if (allBoxes.length === 0 || requests.length === 0) return
+    console.log("=== DIAGNOSTIC: WAREHOUSE BOXES ISSUED CHECK ===")
+    const ordersToCheck = ['14082026-01', '07082026-03', '10082026-01', '15072026-01']
+    ordersToCheck.forEach(orderNum => {
+      const orderBoxes = allBoxes.filter(b => b.orderNum.includes(orderNum))
+      const cardIds = orderBoxes.map(b => String(b.card.id))
+      const taskIds = [...new Set(orderBoxes.map(b => String(b.card.task_id)))]
+      
+      const completedReqs = requests.filter(r => 
+        r.status === 'completed' && 
+        (cardIds.includes(String(r.card_id)) || taskIds.includes(String(r.task_id)))
+      )
+      
+      const activeReqs = requests.filter(r => 
+        (r.status === 'pending' || r.status === 'issued') && 
+        (cardIds.includes(String(r.card_id)) || taskIds.includes(String(r.task_id)))
+      )
+      
+      console.log(`Order: ${orderNum}, Cards: ${orderBoxes.length}, Completed: ${completedReqs.length}, Active (Pending/Issued): ${activeReqs.length}`)
+      if (activeReqs.length > 0) {
+        console.log("Active Requests:")
+        activeReqs.forEach(r => {
+          console.log(`  -> ID: ${r.id}, Status: ${r.status}, CardID: ${r.card_id || 'TASK LEVEL'}, Details: "${r.details}"`)
+        })
+      }
+    })
+    console.log("=================================================")
+  }, [allBoxes, requests])
+
   // Filter boxes by search query, selected order, and tab status
   const filteredBoxes = useMemo(() => {
     return allBoxes.filter(box => {
@@ -113,8 +143,7 @@ const WarehouseBoxesModule = () => {
       if (search) {
         const matchesSearch = box.cardNum.toLowerCase().includes(search) || 
                               box.partName.toLowerCase().includes(search) || 
-                              box.orderNum.toLowerCase().includes(search) ||
-                              (box.card.box_number && box.card.box_number.toLowerCase().includes(search))
+                              box.orderNum.toLowerCase().includes(search)
         if (!matchesSearch) return false
       }
 
@@ -143,12 +172,19 @@ const WarehouseBoxesModule = () => {
         ordersMap[box.orderNum] = {
           orderNum: box.orderNum,
           total: 0,
-          pending: 0
+          pending: 0,
+          prepared: 0,
+          issued: 0
         }
       }
       ordersMap[box.orderNum].total += 1
-      if (!box.isPrepared) {
+      if (box.isPrepared) {
+        ordersMap[box.orderNum].prepared += 1
+      } else {
         ordersMap[box.orderNum].pending += 1
+      }
+      if (box.isIssued) {
+        ordersMap[box.orderNum].issued += 1
       }
     })
     return Object.values(ordersMap).sort((a, b) => b.pending - a.pending)
@@ -236,8 +272,7 @@ const WarehouseBoxesModule = () => {
     const boxItem = allBoxes.find(box => {
       const cardNum = box.card.card_info?.split(' ')[0]
       return String(box.card.id) === String(cardId) ||
-        String(cardNum) === String(cardId) ||
-        String(box.card.box_number || '') === String(cardId)
+        String(cardNum) === String(cardId)
     })
 
     if (!boxItem) {
@@ -281,10 +316,13 @@ const WarehouseBoxesModule = () => {
           </div>
         </div>
         
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <ManualIssueJournalButton onClick={manualIssue.openJournal} compact={isMobile} />
           <span style={{ fontSize: '0.68rem', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '3px 8px', borderRadius: '6px', fontWeight: 950 }}>
-            {allBoxes.filter(b => b.isPrepared).length}/{allBoxes.length} ГОТОВО
+            ЗІБРАНО: {allBoxes.filter(b => b.isPrepared).length}/{allBoxes.length}
+          </span>
+          <span style={{ fontSize: '0.68rem', background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', padding: '3px 8px', borderRadius: '6px', fontWeight: 950 }}>
+            ВИДАНО: {allBoxes.filter(b => b.isIssued).length}/{allBoxes.length}
           </span>
         </div>
       </nav>
@@ -387,8 +425,12 @@ const WarehouseBoxesModule = () => {
                 >
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                     <span>#{ord.orderNum}</span>
-                    <span style={{ fontSize: '0.65rem', color: ord.pending > 0 ? '#ff9000' : '#10b981', fontWeight: 600 }}>
-                      {ord.pending > 0 ? `Очікує: ${ord.pending} шт` : 'Усі зібрано'}
+                    <span style={{ fontSize: '0.65rem', color: ord.pending > 0 ? '#ff9000' : ord.issued === ord.total ? '#3b82f6' : '#10b981', fontWeight: 600 }}>
+                      {ord.pending > 0 
+                        ? `Очікує збірки: ${ord.pending} шт` 
+                        : ord.issued === ord.total 
+                          ? 'Усі видано' 
+                          : `Зібрано: ${ord.prepared}/${ord.total} (Видано: ${ord.issued})`}
                     </span>
                   </div>
                   <span style={{ background: '#181818', color: '#666', fontSize: '0.7rem', padding: '2px 8px', borderRadius: '6px' }}>{ord.total}</span>
@@ -558,8 +600,10 @@ const WarehouseBoxesModule = () => {
                       </span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
                         <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', whiteSpace: 'nowrap' }}>
-                          <strong style={{ fontSize: '0.82rem', color: group.pending ? '#ff9000' : '#10b981' }}>{group.prepared}/{group.items.length}</strong>
-                          <span style={{ fontSize: '0.56rem', color: '#777', fontWeight: 800, textTransform: 'uppercase' }}>готово</span>
+                          <strong style={{ fontSize: '0.78rem', color: group.items.filter(b => b.isIssued).length === group.items.length ? '#3b82f6' : group.pending ? '#ff9000' : '#10b981' }}>
+                            Зібр: {group.prepared}/{group.items.length} • Вид: {group.items.filter(b => b.isIssued).length}
+                          </strong>
+                          <span style={{ fontSize: '0.54rem', color: '#777', fontWeight: 800, textTransform: 'uppercase' }}>статус комплектації</span>
                         </span>
                         <ChevronDown size={19} style={{ color: '#888', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform .2s ease' }} />
                       </span>
@@ -578,11 +622,7 @@ const WarehouseBoxesModule = () => {
                 const isAllChecked = boxItem.cutters.every(c => checkedCutters[cardId]?.[c.nomenclature_id])
                 const isSheetChecked = !!checkedSheets[cardId] || boxItem.isPrepared
                 
-                const currentBoxNumber = boxNumberState[cardId] !== undefined 
-                  ? boxNumberState[cardId] 
-                  : (boxItem.card.box_number || '')
-
-                const canSubmit = currentBoxNumber.trim().length > 0 && isAllChecked && isSheetChecked
+                const canSubmit = isAllChecked && isSheetChecked
 
                 return (
                   <div
@@ -608,9 +648,13 @@ const WarehouseBoxesModule = () => {
                         <strong style={{ fontSize: '0.95rem', color: '#fff' }}>Картка {boxItem.cardNum}</strong>
                       </div>
                       
-                      {boxItem.isPrepared ? (
+                      {boxItem.isIssued ? (
+                        <span style={{ background: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', padding: '3px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 950 }}>
+                          ВИДАНО
+                        </span>
+                      ) : boxItem.isPrepared ? (
                         <span style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', padding: '3px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 900 }}>
-                          ГОТОВО
+                          ЗІБРАНО
                         </span>
                       ) : (
                         <span style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', padding: '3px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 900 }}>
@@ -637,29 +681,6 @@ const WarehouseBoxesModule = () => {
                         <div style={{ fontSize: '0.55rem', color: '#444', fontWeight: 800 }}>ЛИСТИ</div>
                         <div style={{ fontSize: '0.72rem', color: '#ff9000', fontWeight: 900 }}>{boxItem.cardSheets} л.</div>
                       </div>
-                    </div>
-
-                    {/* Box code input */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <label style={{ fontSize: '0.6rem', color: '#888', fontWeight: 800 }}>НОМЕР / ШТРИХ-КОД БОКСУ:</label>
-                      <input 
-                        type="text"
-                        placeholder="Введіть код..."
-                        value={currentBoxNumber}
-                        disabled={boxItem.isPrepared}
-                        onChange={e => setBoxNumberState(prev => ({ ...prev, [cardId]: e.target.value }))}
-                        style={{ 
-                          background: '#000', 
-                          border: currentBoxNumber ? '1px solid #ff9000' : '1px solid #222', 
-                          borderRadius: '8px', 
-                          padding: '8px 12px', 
-                          color: '#fff', 
-                          fontSize: '0.78rem', 
-                          outline: 'none',
-                          fontWeight: 900,
-                          boxSizing: 'border-box'
-                        }}
-                      />
                     </div>
 
                     {/* Filling Checklists */}
@@ -740,7 +761,7 @@ const WarehouseBoxesModule = () => {
                     {!boxItem.isPrepared && (
                       <button
                         disabled={isProcessing || !canSubmit}
-                        onClick={() => handlers.handlePrepareBox(boxItem, currentBoxNumber)}
+                        onClick={() => handlers.handlePrepareBox(boxItem, null)}
                         style={{
                           width: '100%',
                           padding: '10px',
@@ -755,11 +776,9 @@ const WarehouseBoxesModule = () => {
                           marginTop: '2px'
                         }}
                       >
-                        {!currentBoxNumber.trim() 
-                          ? 'Вкажіть бокс' 
-                          : !isAllChecked || !isSheetChecked 
-                            ? 'Позначте вміст' 
-                            : `Зібрати бокс №${currentBoxNumber}`
+                        {!isAllChecked || !isSheetChecked 
+                          ? 'Позначте вміст' 
+                          : `Завершити комплектацію боксу`
                         }
                       </button>
                     )}

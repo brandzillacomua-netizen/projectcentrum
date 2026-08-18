@@ -271,7 +271,7 @@ const fetchOperationalMaterialRequests = async () => {
     .eq('status', 'completed')
     .order('created_at', { ascending: false })
     .order('id', { ascending: false })
-    .limit(1000)
+    .limit(5000)
 
   if (completedError) return { data: null, error: completedError }
 

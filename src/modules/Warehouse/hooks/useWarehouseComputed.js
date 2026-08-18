@@ -223,6 +223,8 @@ export const useWarehouseComputed = ({
         })
       }
 
+      const isPrepared = (card.card_info || '').includes('[BOX_PREPARED:true]')
+
       list.push({
         card,
         nom,
@@ -230,7 +232,106 @@ export const useWarehouseComputed = ({
         cardSheets,
         activeMaterialName,
         cutters: preparedCutters,
-        isPrepared: (card.card_info || '').includes('[BOX_PREPARED:true]')
+        isPrepared,
+        isIssued: false
+      })
+    })
+
+    // Group items by task_id and activeMaterialName to allocate completed sheets
+    const isSheetRequest = (req) => {
+      const reqNom = nomenclatures.find(n => n.id === req.nomenclature_id)
+      const name = reqNom?.name || req.details || ''
+      const lowerName = name.toLowerCase()
+      return lowerName.includes('лист') || lowerName.includes('sheet')
+    }
+
+    const isSheetMatchingPart = (req, activeMat, partNom) => {
+      if (!activeMat) return false
+      const reqNom = nomenclatures.find(n => n.id === req.nomenclature_id)
+      const reqName = reqNom?.name || req.details || ''
+      const reqMatNorm = normalize(reqName)
+      const activeMaterials = activeMat.split('+').map(m => normalize(m.trim()))
+
+      if (activeMaterials.some(act => reqMatNorm.includes(act) || act.includes(reqMatNorm))) {
+        return true
+      }
+      
+      const reqDetails = req.details || ''
+      if (partNom && normalize(reqDetails).includes(normalize(partNom.name))) {
+        return true
+      }
+      
+      return false
+    }
+
+    const groups = {}
+    list.forEach(item => {
+      const key = `${item.card.task_id}-${normalize(item.activeMaterialName)}`
+      if (!groups[key]) {
+        groups[key] = {
+          items: [],
+          totalCompletedSheets: 0
+        }
+      }
+      groups[key].items.push(item)
+    })
+
+    Object.keys(groups).forEach(key => {
+      const group = groups[key]
+      const firstItem = group.items[0]
+      const taskId = firstItem.card.task_id
+      const activeMaterialName = firstItem.activeMaterialName
+      const nom = firstItem.nom
+
+      const completedSheets = (requests || []).filter(r => 
+        String(r.task_id) === String(taskId) && 
+        r.status === 'completed' && 
+        isSheetRequest(r) && 
+        isSheetMatchingPart(r, activeMaterialName, nom)
+      )
+      
+      group.totalCompletedSheets = completedSheets.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+
+      // Sort items by card index in task (stable ordering)
+      group.items.sort((a, b) => {
+        const getIndex = (box) => {
+          const match = (box.card.card_info || '').match(/^(\d+)\/(\d+)$/)
+          return match ? parseInt(match[1], 10) : 999
+        }
+        return getIndex(a) - getIndex(b)
+      })
+
+      // Allocate the completed sheets to the items
+      let remainingCompleted = group.totalCompletedSheets
+      group.items.forEach(item => {
+        const isPersistentIssued = (item.card.card_info || '').includes('[MATERIALS_ISSUED:true]')
+        if (isPersistentIssued) {
+          item.isIssued = true
+          return
+        }
+
+        const hasPendingSheetsForTask = (requests || []).some(r => 
+          String(r.task_id) === String(item.card.task_id) && 
+          (r.status === 'pending' || r.status === 'issued') && 
+          isSheetRequest(r) && 
+          isSheetMatchingPart(r, item.activeMaterialName, item.nom)
+        )
+
+        if (!hasPendingSheetsForTask) {
+          // If the task has no pending/issued sheets for this material, then all cards of this material are fully issued
+          item.isIssued = item.isPrepared
+        } else if (remainingCompleted >= item.cardSheets) {
+          item.isIssued = item.isPrepared
+          remainingCompleted -= item.cardSheets
+        } else {
+          // Check if there is a card-specific completed sheet request
+          const hasCardSpecificCompleted = (requests || []).some(r => 
+            String(r.card_id) === String(item.card.id) && 
+            r.status === 'completed' && 
+            isSheetRequest(r)
+          )
+          item.isIssued = item.isPrepared && hasCardSpecificCompleted
+        }
       })
     })
 
