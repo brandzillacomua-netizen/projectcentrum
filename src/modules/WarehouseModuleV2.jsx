@@ -33,6 +33,7 @@ import { KittingModal } from './Warehouse/components/KittingModal'
 import { ConsumablesQueue } from './Warehouse/components/ConsumablesQueue'
 import { BoxesView } from './Warehouse/components/BoxesView'
 import { RegistryView } from './Warehouse/components/RegistryView'
+import { ReserveAnalysisModal } from './Warehouse/components/ReserveAnalysisModal'
 import { useManualInventoryIssue } from './Warehouse/ManualIssue/useManualInventoryIssue'
 import { ManualInventoryIssueUI, ManualIssueJournalButton } from './Warehouse/ManualIssue/ManualInventoryIssueUI'
 
@@ -102,6 +103,7 @@ const WarehouseModuleV2 = () => {
   const [cameraError, setCameraError] = useState(null)
   const [manualCardInput, setManualCardInput] = useState('')
   const [manualSearchInput, setManualSearchInput] = useState('')
+  const [reserveAnalysisItem, setReserveAnalysisItem] = useState(null)
 
   const itemsPerPage = 8
   const [currentPage, setCurrentPage] = useState(1)
@@ -691,8 +693,18 @@ const WarehouseModuleV2 = () => {
                                     <button type="button" onClick={() => setEditingInvId(null)} style={{ background: '#222', border: 'none', borderRadius: '6px', padding: '5px 10px', color: '#fff', cursor: 'pointer' }}><X size={14} /></button>
                                   </div>
                                 ) : (
-                                  item.reserved_qty || 0
-                                )}
+                                    Number(item.reserved_qty) > 0 ? (
+                                      <span 
+                                        onClick={() => setReserveAnalysisItem(item)}
+                                        style={{ textDecoration: 'underline', cursor: 'pointer', color: '#3b82f6' }}
+                                        title="Аналіз резерву"
+                                      >
+                                        {item.reserved_qty}
+                                      </span>
+                                    ) : (
+                                      0
+                                    )
+                                  )}
                               </td>
                               <td style={{ padding: '15px', textAlign: 'right', color: '#333', fontSize: '0.7rem' }}>
                                 {item.updated_at ? `${new Date(item.updated_at).toLocaleDateString()} ${new Date(item.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '—'}
@@ -776,8 +788,18 @@ const WarehouseModuleV2 = () => {
                                 <button type="button" onClick={() => setEditingInvId(null)} style={{ background: '#222', border: 'none', borderRadius: '6px', padding: '5px 10px', color: '#fff', cursor: 'pointer' }}><X size={14} /></button>
                               </div>
                             ) : (
-                              item.reserved_qty || 0
-                            )}
+                                Number(item.reserved_qty) > 0 ? (
+                                  <span 
+                                    onClick={() => setReserveAnalysisItem(item)}
+                                    style={{ textDecoration: 'underline', cursor: 'pointer', color: '#3b82f6' }}
+                                    title="Аналіз резерву"
+                                  >
+                                    {item.reserved_qty}
+                                  </span>
+                                ) : (
+                                  0
+                                )
+                              )}
                           </td>
                           <td style={{ padding: '15px', textAlign: 'right', color: '#333', fontSize: '0.7rem' }}>
                             {item.updated_at ? `${new Date(item.updated_at).toLocaleDateString()} ${new Date(item.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '—'}
@@ -865,7 +887,18 @@ const WarehouseModuleV2 = () => {
                                 {activeTab !== 'bz' && (
                                   <div>
                                     <div style={{ fontSize: '0.6rem', color: '#555' }}>РЕЗЕРВ</div>
-                                    <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#3b82f6' }}>{item.reserved_qty || 0}</div>
+                                    <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#3b82f6' }}>
+                                  {Number(item.reserved_qty) > 0 ? (
+                                    <span 
+                                      onClick={() => setReserveAnalysisItem(item)}
+                                      style={{ textDecoration: 'underline', cursor: 'pointer' }}
+                                    >
+                                      {item.reserved_qty}
+                                    </span>
+                                  ) : (
+                                    0
+                                  )}
+                                </div>
                                   </div>
                                 )}
                               </>
@@ -947,7 +980,18 @@ const WarehouseModuleV2 = () => {
                             {activeTab !== 'bz' && (
                               <div>
                                 <div style={{ fontSize: '0.6rem', color: '#555' }}>РЕЗЕРВ</div>
-                                <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#3b82f6' }}>{item.reserved_qty || 0}</div>
+                                <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#3b82f6' }}>
+                                  {Number(item.reserved_qty) > 0 ? (
+                                    <span 
+                                      onClick={() => setReserveAnalysisItem(item)}
+                                      style={{ textDecoration: 'underline', cursor: 'pointer' }}
+                                    >
+                                      {item.reserved_qty}
+                                    </span>
+                                  ) : (
+                                    0
+                                  )}
+                                </div>
                               </div>
                             )}
                           </>
@@ -1002,6 +1046,15 @@ const WarehouseModuleV2 = () => {
         handleToggleCutterCheck={handlers.handleToggleCutterCheck}
         handlePrepareBox={handlers.handlePrepareBox}
         isProcessing={isProcessing}
+      />
+
+      <ReserveAnalysisModal
+        item={reserveAnalysisItem}
+        onClose={() => setReserveAnalysisItem(null)}
+        requests={requests}
+        orders={orders}
+        tasks={tasks}
+        nomenclatures={nomenclatures}
       />
 
       <style>{`
