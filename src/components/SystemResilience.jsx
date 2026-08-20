@@ -192,6 +192,21 @@ export function ServiceWorkerUpdateManager() {
   React.useEffect(() => {
     if (!('serviceWorker' in navigator)) return undefined
 
+    const isLocalhost = Boolean(
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '[::1]' ||
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname.endsWith('.localhost')
+    )
+
+    // Unregister and disable SW on localhost/DEV environment to prevent SSL SecurityError blocking requests
+    if (import.meta.env.DEV || isLocalhost) {
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        registrations.forEach(reg => reg.unregister())
+      }).catch(() => {})
+      return undefined
+    }
+
     let disposed = false
     let refreshing = false
     const workerListeners = []
@@ -224,7 +239,13 @@ export function ServiceWorkerUpdateManager() {
         workerListeners.push(() => reg.removeEventListener('updatefound', handleUpdateFound))
         reg.update().catch(() => {})
       })
-      .catch(error => console.error('[SW] Registration failed:', error))
+      .catch(error => {
+        // Suppress noisy console errors for self-signed HTTPS / local dev environment
+        if (error?.name === 'SecurityError' || String(error?.message || '').includes('SSL') || String(error || '').includes('SecurityError')) {
+          return
+        }
+        console.warn('[SW] Registration skipped:', error?.message || error)
+      })
 
     return () => {
       disposed = true

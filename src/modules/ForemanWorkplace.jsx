@@ -17,7 +17,7 @@ import MaterialCorrectionModal from './Foreman2/features/material-correction/Mat
 import MaterialCorrectionAction from './Foreman2/features/material-correction/MaterialCorrectionAction.jsx'
 import { useMaterialCorrection } from './Foreman2/features/material-correction/useMaterialCorrection.js'
 import { getPendingMaterialCorrection } from './Foreman2/features/material-correction/materialCorrectionState.js'
-import { getDisplayPartsForOrderItem as getDisplayPartsForOrderItemHelper, getStandardMachineType, findMachineByName, MACHINE_TYPES } from './Foreman/utils/foremanHelpers'
+import { getDisplayPartsForOrderItem as getDisplayPartsForOrderItemHelper, getStandardMachineType, findMachineByName, MACHINE_TYPES, getScrapBreakdown } from './Foreman/utils/foremanHelpers'
 import { getFinalScrapForTaskPart } from './VKYA/quality-hold/qualityHoldModel.js'
 import { useQualityLossTotals } from './VKYA/quality-hold/useQualityLossTotals.js'
 
@@ -1621,6 +1621,7 @@ const ForemanWorkplace = () => {
                       const groupScrap = qualityLoss.isAvailable
                         ? getFinalScrapForTaskPart(qualityLoss.index, task.id, nomId)
                         : detectedScrap
+                      const groupBreakdown = getScrapBreakdown(activeCards, groupHistory, workCards)
 
                       const snapshot = task.plan_snapshot?.[nomId] || task.plan_snapshot?.[nom?.id]
                       const orderRef = task.orders || orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
@@ -1684,7 +1685,7 @@ const ForemanWorkplace = () => {
 
                       const totalSheetsMax = Math.max(plannedSheets, totalSheets)
                       const totalBZ = (totalSheetsMax * unitsPerSheet) + stockBZ - need
-                      const shortage = (totalBZ - groupScrap) < 0 ? Math.abs(totalBZ - groupScrap) : 0
+                      const shortage = (totalBZ - groupBreakdown.initialScrap) < 0 ? Math.abs(totalBZ - groupBreakdown.initialScrap) : 0
 
                       const stages = activeCards.reduce((acc, c) => {
                         if (c.status === 'new' || c.status === 'waiting-materials') acc.waiting++
@@ -1726,9 +1727,19 @@ const ForemanWorkplace = () => {
                               <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800, paddingLeft: '10px' }}>
                                 ПРИЙНЯТО: <span style={{ color: '#3b82f6' }}>{groupProduced}</span>
                               </div>
-                              <div style={{ fontSize: '0.7rem', color: groupScrap > 0 ? '#ef4444' : '#333', fontWeight: 950 }}>
-                                ВКЯ: {detectedScrap}{qualityLoss.isAvailable ? ` · УТИЛЬ: ${groupScrap}` : ''}
+                              <div style={{ fontSize: '0.7rem', color: groupBreakdown.initialScrap > 0 ? '#ef4444' : '#333', fontWeight: 950 }}>
+                                БРАК: {groupBreakdown.initialScrap}
                               </div>
+                              {groupBreakdown.returned > 0 && (
+                                <div style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 950 }}>
+                                  ПОВЕРНУТО: {groupBreakdown.returned}
+                                </div>
+                              )}
+                              {groupBreakdown.initialScrap > 0 && (
+                                <div style={{ fontSize: '0.7rem', color: groupBreakdown.util > 0 ? '#f59e0b' : '#666', fontWeight: 950 }}>
+                                  УТИЛЬ: {groupBreakdown.util}
+                                </div>
+                              )}
                               {activeCards.some(c => c.status === 'waiting-materials') && (
                                 <div style={{
                                   padding: '3px 8px',
@@ -1801,11 +1812,7 @@ const ForemanWorkplace = () => {
                                   const machineKey = `${nomId}:${machineTypeKey}`
                                   const isMachineExpanded = !!expandedArchiveMachines[machineKey]
                                   const machineProduced = machineCards.reduce((sum, c) => sum + (countAsProduced(c) ? (Number(c.quantity) || 0) : 0), 0)
-                                  const machineScrap = machineCards.reduce((sum, c) => {
-                                    return sum + groupHistory
-                                      .filter(h => String(h.card_id) === String(c.id))
-                                      .reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
-                                  }, 0)
+                                  const machineBreakdown = getScrapBreakdown(machineCards, groupHistory, workCards)
                                   const machineWaiting = machineCards.filter(c => c.status === 'new' || c.status === 'waiting-materials').length
                                   const machineInWork = machineCards.filter(c => c.status === 'in-progress').length
                                   const machineDone = machineCards.filter(c => ['completed', 'at-buffer', 'waiting-buffer', 'at-shop2-buffer'].includes(c.status)).length
@@ -1827,7 +1834,13 @@ const ForemanWorkplace = () => {
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                                           <div style={{ color: '#555', fontSize: '0.65rem', fontWeight: 900 }}>ПРИЙНЯТО: <span style={{ color: '#3b82f6' }}>{machineProduced}</span></div>
-                                          <div style={{ color: machineScrap > 0 ? '#ef4444' : '#555', fontSize: '0.65rem', fontWeight: 950 }}>БРАК: {machineScrap}</div>
+                                          <div style={{ color: machineBreakdown.initialScrap > 0 ? '#ef4444' : '#555', fontSize: '0.65rem', fontWeight: 950 }}>БРАК: {machineBreakdown.initialScrap}</div>
+                                          {machineBreakdown.returned > 0 && (
+                                            <div style={{ color: '#10b981', fontSize: '0.65rem', fontWeight: 950 }}>ПОВЕРНУТО: {machineBreakdown.returned}</div>
+                                          )}
+                                          {machineBreakdown.initialScrap > 0 && (
+                                            <div style={{ color: machineBreakdown.util > 0 ? '#f59e0b' : '#555', fontSize: '0.65rem', fontWeight: 950 }}>УТИЛЬ: {machineBreakdown.util}</div>
+                                          )}
                                           <div style={{ color: '#555', fontWeight: 950, fontSize: '0.75rem' }}>{isMachineExpanded ? '▼' : '▶'}</div>
                                         </div>
                                       </div>
@@ -1840,6 +1853,7 @@ const ForemanWorkplace = () => {
                                   const cardScrap = groupHistory
                                     .filter(h => String(h.card_id) === String(card.id))
                                     .reduce((sum, h) => sum + (Number(h.scrap_qty) || 0), 0)
+                                  const cardBreakdown = getScrapBreakdown(card, groupHistory, workCards)
 
                                   const getStatusBadge = () => {
                                     if (card.status === 'new') return { label: 'ОЧІКУЄ', color: '#eab308' }
@@ -1854,7 +1868,7 @@ const ForemanWorkplace = () => {
                                     <div
                                       key={card.id}
                                       className="archive-card-hover"
-                                      style={{ background: '#0f0f0f', padding: '15px', borderRadius: '20px', display: 'flex', gap: '15px', alignItems: 'center', border: `1px solid ${isRedo ? '#ef444444' : '#1a1a1a'}`, borderLeft: cardScrap > 0 ? '4px solid #ef4444' : `1px solid ${isRedo ? '#ef444444' : '#1a1a1a'}`, cursor: 'pointer', transition: '0.2s', position: 'relative' }}
+                                      style={{ background: '#0f0f0f', padding: '15px', borderRadius: '20px', display: 'flex', gap: '15px', alignItems: 'center', border: `1px solid ${isRedo ? '#ef444444' : '#1a1a1a'}`, borderLeft: cardBreakdown.initialScrap > 0 ? '4px solid #ef4444' : `1px solid ${isRedo ? '#ef444444' : '#1a1a1a'}`, cursor: 'pointer', transition: '0.2s', position: 'relative' }}
                                       onClick={() => setPrintQueue({
                                         task,
                                         part: { nom, nomenclature_id: card.nomenclature_id },

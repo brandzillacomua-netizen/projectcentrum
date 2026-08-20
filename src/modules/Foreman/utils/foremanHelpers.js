@@ -178,3 +178,69 @@ export const formatDurationHMS = (seconds) => {
   if (m > 0) return `${m}хв ${s}с`
   return `${s}с`
 }
+
+/**
+ * Calculates initial scrap, returned from VKYA, and unrecoverable scrap (util).
+ * @param {Object|Array} cards - Card or list of cards
+ * @param {Array} historyList - History entries
+ * @param {Array} allWorkCards - All work cards in system
+ */
+export const getScrapBreakdown = (cards, historyList = [], allWorkCards = []) => {
+  const cardArray = Array.isArray(cards) ? cards : [cards]
+  const cardIdsStrings = cardArray.map(c => String(c.id))
+
+  const histories = historyList.filter(h => h.card_id && cardIdsStrings.includes(String(h.card_id)))
+  const initialScrap = histories.reduce((sum, h) => sum + (Number(h.scrap_qty) || 0), 0)
+
+  let returned = 0
+
+  cardArray.forEach(c => {
+    const info = c.card_info || ''
+    const matches = info.match(/\[VKYA_(?:RESTORED_)?RETURN:[^:]+:(\d+)\]/g)
+    if (matches) {
+      matches.forEach(m => {
+        const q = m.match(/(\d+)\]$/)
+        if (q) returned += parseInt(q[1])
+      })
+    }
+    if ((info.includes('[VKYA_RESTORED_RETURN]') || info.includes('[VKYA_RETURN]') || info.includes('[VKYA_RETURNED_TO_ROUTE]')) &&
+        !info.includes('VKYA_RESTORED_RETURN:') && !info.includes('VKYA_RETURN:')) {
+      returned += Number(c.quantity) || 0
+    }
+  })
+
+  if (allWorkCards && allWorkCards.length > 0) {
+    allWorkCards.forEach(ac => {
+      const info = ac.card_info || ''
+      if (info.includes('[SOURCE_CARD:')) {
+        const sourceMatch = info.match(/\[SOURCE_CARD:([^\]]+)\]/)
+        if (sourceMatch && cardIdsStrings.includes(sourceMatch[1])) {
+          if (!cardIdsStrings.includes(String(ac.id))) {
+            returned += Number(ac.quantity) || 0
+          }
+        }
+      }
+    })
+  }
+
+  histories.forEach(h => {
+    const info = h.card_info || ''
+    const matches = info.match(/\[VKYA_(?:RESTORED_)?RETURN:[^:]+:(\d+)\]/g)
+    if (matches) {
+      matches.forEach(m => {
+        const q = m.match(/(\d+)\]$/)
+        if (q) returned += parseInt(q[1])
+      })
+    }
+  })
+
+  const safeReturned = Math.min(initialScrap, returned)
+  const util = Math.max(0, initialScrap - safeReturned)
+
+  return {
+    initialScrap,
+    returned: safeReturned,
+    util
+  }
+}
+
