@@ -598,7 +598,7 @@ const MasterModule = () => {
     const grouped = {};
     rawItems.forEach(item => {
       const thickNum = extractThicknessNumber(item.name);
-      const thick = thickNum ? `Лист (${thickNum}мм)` : 'Інше';
+      const thick = thickNum ? `${thickNum}мм` : 'Інше';
       const isT700 = item.name.toLowerCase().includes('т700') || item.name.toLowerCase().includes('t700');
       
       if (!grouped[thick]) {
@@ -3490,7 +3490,7 @@ const displayParts = getDisplayPartsForOrderItem(it)
                           borderRadius: '14px',
                           border: '1px solid #1a1a1a'
                         }}>
-                          <span style={{ fontSize: '1rem', color: '#eee', fontWeight: 800 }}>Лист ({item.thickness})</span>
+                          <span style={{ fontSize: '1rem', color: '#eee', fontWeight: 800 }}>{item.thickness === 'Інше' ? 'Інше' : `Лист (${item.thickness})`}</span>
                           <span style={{
                             textAlign: 'center',
                             fontSize: '1.25rem',
