@@ -4,7 +4,7 @@ import { useMES } from '../../../MESContext'
 
 const TYPE_COLORS = { product: '#f59e0b', part: '#60a5fa', raw: '#34d399', consumable: '#f87171', assembly: '#a78bfa' }
 const TYPE_LABELS = { product: 'Виріб', part: 'Деталь', raw: 'Сировина', consumable: 'Метиз', assembly: 'Вузол' }
-const SHEET_THICKNESS_OPTIONS = ['0.5', '0.8', '1', '1.2', '1.5', '2', '2.5', '3', '4', '5', '6', '8', '10', '12']
+const SHEET_THICKNESS_VALUES = ['0.5', '0.8', '1', '1.2', '1.5', '2', '2.5', '3', '4', '5', '6', '8', '10', '12']
 
 function autoClassify(nom) {
   if (!nom) return 'Інше'
@@ -32,14 +32,14 @@ function NomCreateModal({ onClose, onCreated, supabase, refreshTable, prefilledN
 
   const handleSave = async () => {
     if (!name.trim()) return alert('Введіть назву')
-    if (type === 'part' && !sheetThickness) return alert('Оберіть товщину листа')
+    if (type === 'part' && !sheetThickness) return alert('Оберіть марку та товщину листа')
     if (type === 'part' && (!Number.isInteger(Number(unitsPerSheet)) || Number(unitsPerSheet) <= 0)) return alert('Вкажіть кількість деталей на лист цілим числом більше нуля')
     setSaving(true)
     try {
       const payload = {
         name: name.trim(),
         type,
-        material_type: type === 'part' ? `Лист ${sheetThickness}мм` : (materialType.trim() || null),
+        material_type: type === 'part' ? sheetThickness : (materialType.trim() || null),
         ...(type === 'part' ? { units_per_sheet: Number(unitsPerSheet) } : {})
       }
       const { data, error } = await supabase.from('nomenclatures').insert(payload).select().single()
@@ -64,10 +64,18 @@ function NomCreateModal({ onClose, onCreated, supabase, refreshTable, prefilledN
           </select>
           {type === 'part' ? (
             <>
-              <select value={sheetThickness} onChange={e => setSheetThickness(e.target.value)} style={{ width: '100%', padding: '10px', background: '#111', border: '1px solid #222', color: '#fff', borderRadius: '8px' }}>
-                <option value="">Оберіть товщину листа</option>
-                {SHEET_THICKNESS_OPTIONS.map(value => <option key={value} value={value}>Лист {value}мм</option>)}
-              </select>
+              <div>
+                <label style={{ fontSize: '0.7rem', color: '#666', fontWeight: 800, textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Марка і товщина листа</label>
+                <select value={sheetThickness} onChange={e => setSheetThickness(e.target.value)} style={{ width: '100%', padding: '10px', background: '#111', border: '1px solid #222', color: '#fff', borderRadius: '8px' }}>
+                  <option value="">Оберіть марку та товщину</option>
+                  <optgroup label="Т300">
+                    {SHEET_THICKNESS_VALUES.map(value => <option key={`Т300-${value}`} value={`Лист Т300-${value}`}>Лист Т300-{value}</option>)}
+                  </optgroup>
+                  <optgroup label="Т700">
+                    {SHEET_THICKNESS_VALUES.map(value => <option key={`Т700-${value}`} value={`Лист Т700-${value}`}>Лист Т700-{value}</option>)}
+                  </optgroup>
+                </select>
+              </div>
               <input type="number" min="1" step="1" value={unitsPerSheet} onChange={e => setUnitsPerSheet(e.target.value)} style={{ width: '100%', padding: '10px', background: '#111', border: '1px solid #222', color: '#fff', borderRadius: '8px' }} placeholder="Кількість деталей на лист" />
             </>
           ) : (

@@ -1181,13 +1181,16 @@ const MasterModule = () => {
         const totalToProduce = Math.max(0, totalNeeded - inStock)
         const matKeyBase = (part.nom.material_type || part.nom.name || 'Інше').trim()
 
-        // Match the prepared sheet nomenclature directly by name using robust normalization
-        const thickMatch = matKeyBase.match(/\((\d+(?:\.\d+)?)мм\)/i)
+        const thickMatch = matKeyBase.match(/\((\d+(?:\.\d+)?)мм\)/i) || matKeyBase.match(/[-_\s](?:Т300|Т700|T300|T700)[-_\s](\d+(?:\.\d+)?)/i) || matKeyBase.match(/[-_](\d+(?:\.\d+)?)$/i)
         const thicknessClean = thickMatch ? `${thickMatch[1]}мм` : matKeyBase.toLowerCase().replace(/\s+/g, '')
+        const rawThickNum = thickMatch ? thickMatch[1] : null
         const prepNom = nomenclatures.find(n =>
           n.name.toLowerCase().includes('підготовлений') &&
           !n.name.toLowerCase().includes('непідготовлений') &&
-          n.name.toLowerCase().replace(/\s+/g, '').includes(`(${thicknessClean})`)
+          (
+            n.name.toLowerCase().replace(/\s+/g, '').includes(`(${thicknessClean})`) ||
+            (rawThickNum && (n.name.toLowerCase().includes(`(${rawThickNum}мм)`) || n.name.toLowerCase().includes(` ${rawThickNum}мм`) || n.name.toLowerCase().includes(`-${rawThickNum}`)))
+          )
         )
 
         const unitsPerSheet = Number(part.nom.units_per_sheet) || 1

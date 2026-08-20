@@ -718,7 +718,8 @@ export function ForemanTaskDetails({
                                       const snapMat = (task.plan_snapshot || {})[String(part.nom?.id)]?.material; const baseMat = (snapMat || part.nom?.material_type || '').toLowerCase()
                                       const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(task.id))
                                       const extractThickness = (str) => {
-                                        const match = str.match(/(\d+(?:\.\d+)?)\s*мм/)
+                                        if (!str) return null
+                                        const match = str.replace(/,/g, '.').match(/(\d+(?:\.\d+)?)\s*мм/i) || str.replace(/,/g, '.').match(/[-_\s](?:Т300|Т700|T300|T700)[-_\s](\d+(?:\.\d+)?)/i) || str.replace(/,/g, '.').match(/[-_](\d+(?:\.\d+)?)$/i)
                                         return match ? match[1] + 'мм' : null
                                       }
                                       const baseThickness = extractThickness(baseMat)
@@ -747,7 +748,8 @@ export function ForemanTaskDetails({
                                       const snapMat = (task.plan_snapshot || {})[String(part.nom?.id)]?.material; const baseMat = (snapMat || part.nom?.material_type || '').toLowerCase()
                                       const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(task.id))
                                       const extractThickness = (str) => {
-                                        const match = str.match(/(\d+(?:\.\d+)?)\s*мм/)
+                                        if (!str) return null
+                                        const match = str.replace(/,/g, '.').match(/(\d+(?:\.\d+)?)\s*мм/i) || str.replace(/,/g, '.').match(/[-_\s](?:Т300|Т700|T300|T700)[-_\s](\d+(?:\.\d+)?)/i) || str.replace(/,/g, '.').match(/[-_](\d+(?:\.\d+)?)$/i)
                                         return match ? match[1] + 'мм' : null
                                       }
                                       const baseThickness = extractThickness(baseMat)
@@ -933,7 +935,8 @@ export function ForemanTaskDetails({
                                       const snapMat = (task.plan_snapshot || {})[String(part.nom?.id)]?.material; const baseMat = (snapMat || part.nom?.material_type || '').toLowerCase()
                                       const taskReqs = (materialRequests || []).filter(r => String(r.task_id) === String(task.id))
                                       const extractThickness = (str) => {
-                                        const match = str.match(/(\d+(?:\.\d+)?)\s*мм/)
+                                        if (!str) return null
+                                        const match = str.replace(/,/g, '.').match(/(\d+(?:\.\d+)?)\s*мм/i) || str.replace(/,/g, '.').match(/[-_\s](?:Т300|Т700|T300|T700)[-_\s](\d+(?:\.\d+)?)/i) || str.replace(/,/g, '.').match(/[-_](\d+(?:\.\d+)?)$/i)
                                         return match ? match[1] + 'мм' : null
                                       }
                                       const baseThickness = extractThickness(baseMat)

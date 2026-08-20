@@ -1061,7 +1061,7 @@ const MachineOperationsTab = () => {
 }
 
 // ─── NOM QUICK-CREATE MODAL ───────────────────────────────────────────────────
-const SHEET_THICKNESS_OPTIONS = ['0.5', '0.8', '1', '1.2', '1.5', '2', '2.5', '3', '4', '5', '6', '8', '10', '12']
+const SHEET_THICKNESS_VALUES = ['0.5', '0.8', '1', '1.2', '1.5', '2', '2.5', '3', '4', '5', '6', '8', '10', '12']
 
 const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, prefilledName = '' }) => {
   const [name, setName] = useState(prefilledName)
@@ -1073,7 +1073,7 @@ const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, prefilledN
 
   const handleSave = async () => {
     if (!name.trim()) return alert('Введіть назву')
-    if (type === 'part' && !sheetThickness) return alert('Оберіть товщину листа')
+    if (type === 'part' && !sheetThickness) return alert('Оберіть марку та товщину листа')
     if (type === 'part' && (!Number.isInteger(Number(unitsPerSheet)) || Number(unitsPerSheet) <= 0)) {
       return alert('Вкажіть кількість деталей на лист цілим числом більше нуля')
     }
@@ -1082,7 +1082,7 @@ const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, prefilledN
       const payload = {
         name: name.trim(),
         type,
-        material_type: type === 'part' ? `Лист ${sheetThickness}мм` : (materialType.trim() || null),
+        material_type: type === 'part' ? sheetThickness : (materialType.trim() || null),
         ...(type === 'part' ? { units_per_sheet: Number(unitsPerSheet) } : {})
       }
       const { data, error } = await supabase.from('nomenclatures').insert(payload).select().single()
@@ -1122,12 +1122,16 @@ const NomCreateModal = ({ onClose, onCreated, supabase, refreshTable, prefilledN
           {type === 'part' ? (
             <>
               <div>
-                <label style={labelStyle}>Товщина листа</label>
+                <label style={labelStyle}>Марка і товщина листа</label>
                 <select value={sheetThickness} onChange={e => setSheetThickness(e.target.value)} style={inputStyle}>
-                  <option value="">Оберіть товщину</option>
-                  {SHEET_THICKNESS_OPTIONS.map(value => <option key={value} value={value}>Лист {value}мм</option>)}
+                  <option value="">Оберіть марку та товщину</option>
+                  <optgroup label="Т300">
+                    {SHEET_THICKNESS_VALUES.map(value => <option key={`Т300-${value}`} value={`Лист Т300-${value}`}>Лист Т300-{value}</option>)}
+                  </optgroup>
+                  <optgroup label="Т700">
+                    {SHEET_THICKNESS_VALUES.map(value => <option key={`Т700-${value}`} value={`Лист Т700-${value}`}>Лист Т700-{value}</option>)}
+                  </optgroup>
                 </select>
-                <div style={{ marginTop: '6px', color: '#555', fontSize: '0.7rem' }}>Марка металу обирається пізніше під час створення наряду.</div>
               </div>
               <div>
                 <label style={labelStyle}>Кількість деталей на лист</label>

@@ -14,7 +14,9 @@ export const getSheetSpec = (name) => {
   const value = String(name || '')
   if (!/(?:^|\s)лист(?:\s|$)/i.test(value)) return null
 
-  const thicknessMatch = value.replace(/,/g, '.').match(/(\d+(?:\.\d+)?)\s*мм/i)
+  const thicknessMatch = value.replace(/,/g, '.').match(/(\d+(?:\.\d+)?)\s*мм/i) ||
+    value.replace(/,/g, '.').match(/[-_\s](?:Т300|Т700|T300|T700)[-_\s](\d+(?:\.\d+)?)/i) ||
+    value.replace(/,/g, '.').match(/[-_](\d+(?:\.\d+)?)$/i)
   if (!thicknessMatch) return null
 
   const gradeMatch = value.match(/[тt]\s*(300|700)\b/i)

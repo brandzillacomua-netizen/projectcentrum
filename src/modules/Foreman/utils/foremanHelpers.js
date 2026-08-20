@@ -16,6 +16,15 @@ export const getRequestQty = (r) => {
   return match ? Number(match[1]) : 0
 }
 
+export const extractThickness = (str) => {
+  if (!str) return null
+  const mmMatch = String(str).replace(/,/g, '.').match(/(\d+(?:\.\d+)?)\s*мм/i)
+  if (mmMatch) return mmMatch[1] + 'мм'
+  const dashMatch = String(str).replace(/,/g, '.').match(/[-_\s](?:Т300|Т700|T300|T700)[-_\s](\d+(?:\.\d+)?)/i) || String(str).replace(/,/g, '.').match(/[-_](\d+(?:\.\d+)?)$/i)
+  if (dashMatch) return dashMatch[1] + 'мм'
+  return null
+}
+
 export const getDisplayMaterial = (partNom, snapshot) => {
   const baseMat = partNom?.material_type || '—'
   if (!snapshot) return baseMat
