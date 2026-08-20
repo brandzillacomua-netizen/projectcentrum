@@ -556,11 +556,24 @@ const MasterModule = () => {
   const [materialSplits, setMaterialSplits] = useState({}) // { [partId]: { t300: number, t700: number } }
   const [stockInfoModalData, setStockInfoModalData] = useState(null)
 
+  const extractThicknessNumber = (str) => {
+    if (!str) return null
+    const s = String(str).replace(/,/g, '.')
+    const mmMatch = s.match(/(\d+(?:\.\d+)?)\s*мм/i)
+    if (mmMatch) return mmMatch[1]
+    const dashMatch = s.match(/[-_\s](?:Т300|Т700|T300|T700)[-_\s](\d+(?:\.\d+)?)/i) || s.match(/[-_](\d+(?:\.\d+)?)$/i)
+    if (dashMatch) return dashMatch[1]
+    const parenMatch = s.match(/\((\d+(?:\.\d+)?)\)/)
+    if (parenMatch) return parenMatch[1]
+    if (/лист|sheet|т300|т700|t300|t700/i.test(s)) {
+      const numMatch = s.match(/(\d+(?:\.\d+)?)/)
+      if (numMatch) return numMatch[1]
+    }
+    return null
+  }
+
   const handleShowStockInfo = () => {
-    const neededThicknesses = materialSummary.map(m => {
-      const match = m.name.match(/\((\d+(?:\.\d+)?)мм\)/i);
-      return match ? match[1] : null;
-    }).filter(Boolean);
+    const neededThicknesses = materialSummary.map(m => extractThicknessNumber(m.name)).filter(Boolean);
 
     const rawItems = nomenclatures
       .filter(n => {
@@ -568,8 +581,7 @@ const MasterModule = () => {
         if (!isPreparedSheet) return false;
         
         if (neededThicknesses.length > 0) {
-          const match = n.name.match(/\((\d+(?:\.\d+)?)мм\)/i);
-          const thick = match ? match[1] : null;
+          const thick = extractThicknessNumber(n.name);
           return thick && neededThicknesses.includes(thick);
         }
         return true;
@@ -585,8 +597,8 @@ const MasterModule = () => {
 
     const grouped = {};
     rawItems.forEach(item => {
-      const thickMatch = item.name.match(/\((\d+(?:\.\d+)?)мм\)/i);
-      const thick = thickMatch ? `${thickMatch[1]}мм` : 'Інше';
+      const thickNum = extractThicknessNumber(item.name);
+      const thick = thickNum ? `Лист (${thickNum}мм)` : 'Інше';
       const isT700 = item.name.toLowerCase().includes('т700') || item.name.toLowerCase().includes('t700');
       
       if (!grouped[thick]) {
@@ -600,7 +612,11 @@ const MasterModule = () => {
     });
 
     const items = Object.values(grouped).sort((a, b) => {
-      return (parseFloat(a.thickness) || 0) - (parseFloat(b.thickness) || 0);
+      const getThick = (name) => {
+        const num = extractThicknessNumber(name);
+        return num ? parseFloat(num) : 999;
+      }
+      return getThick(a.thickness) - getThick(b.thickness);
     });
 
     setStockInfoModalData({
