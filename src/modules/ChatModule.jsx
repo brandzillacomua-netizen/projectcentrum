@@ -597,10 +597,16 @@ const ChatModule = () => {
       const unreadDivider = document.getElementById('unread-divider')
       if (isInitial && unreadDivider) {
         unreadDivider.scrollIntoView({ behavior: instant ? 'auto' : 'smooth', block: 'center' })
+      } else if (panel) {
+        if (instant) {
+          panel.scrollTop = panel.scrollHeight
+        } else {
+          panel.scrollTo({ top: panel.scrollHeight, behavior: 'smooth' })
+        }
       } else {
         messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth', block: 'end' })
       }
-    }, 10)
+    }, 20)
   }
 
   const showSetupError = (err) => {
@@ -2086,7 +2092,7 @@ const ChatModule = () => {
                     </React.Fragment>
                   )
                 })}
-                <div ref={messagesEndRef} />
+                <div ref={messagesEndRef} style={{ height: '32px', flexShrink: 0, minHeight: '32px' }} />
               </section>
 
               <ReadOnlyChannelNotice visible={activeIsChannel && !canPostHere} />
@@ -2862,10 +2868,10 @@ const ChatModule = () => {
           margin-top: 4px;
         }
         .messages-panel {
-          flex: 1;
+          flex: 1 1 0%;
           min-height: 0;
           overflow-y: auto;
-          padding: 24px;
+          padding: 24px 24px 32px 24px;
           display: flex;
           flex-direction: column;
           gap: 16px;
@@ -3048,13 +3054,12 @@ const ChatModule = () => {
         }
         .composer {
           padding: 16px 24px;
-          background: rgba(10, 10, 12, 0.85);
+          background: rgba(10, 10, 12, 0.95);
           backdrop-filter: blur(12px);
-          position: sticky;
-          bottom: 0;
+          position: relative;
           z-index: 5;
           flex: 0 0 auto;
-          border-top: 1px solid rgba(255,255,255,0.05);
+          border-top: 1px solid rgba(255,255,255,0.08);
         }
         .emoji-picker-container {
           margin-bottom: 12px;

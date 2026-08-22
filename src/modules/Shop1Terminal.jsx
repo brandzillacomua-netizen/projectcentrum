@@ -1628,86 +1628,9 @@ export default function Shop1Terminal() {
   }
 
   const validateCuttersUsageLimit = async (addedQty) => {
-    if (!currentCard?.task_id || !addedQty || addedQty <= 0) return true
-
-    const currentTask = (tasks || []).find(task => String(task.id) === String(currentCard.task_id))
-    const snapshotCutters = Array.isArray(currentTask?.plan_snapshot?.consumables)
-      ? currentTask.plan_snapshot.consumables.filter(item => String(item?.name || '').toLowerCase().includes('фреза'))
-      : []
-
-    let plannedCutters = snapshotCutters.reduce((sum, item) => sum + (Number(item.total) || 0), 0)
-
-    if (plannedCutters <= 0) {
-      const { data: taskRequests, error: reqError } = await supabase
-        .from('material_requests')
-        .select('quantity, details, nomenclature_id, nomenclature:nomenclatures(name)')
-        .eq('task_id', currentCard.task_id)
-
-      if (reqError) {
-        console.warn('Failed to validate cutter usage limit:', reqError)
-        return true
-      }
-
-      const getReqQty = r => {
-        const declaredQty = Number(String(r.details || '').match(/[—-]\s*(\d+(?:[.,]\d+)?)/)?.[1]?.replace(',', '.') || 0)
-        return declaredQty || Number(r.quantity) || 0
-      }
-
-      plannedCutters = (taskRequests || []).reduce((sum, request) => {
-        const nomName = request.nomenclature?.name?.toLowerCase() || (nomenclatures || []).find(n => String(n.id) === String(request.nomenclature_id))?.name?.toLowerCase() || ''
-        const details = String(request.details || '').toLowerCase()
-        return nomName.includes('фреза') || details.includes('фреза') ? sum + getReqQty(request) : sum
-      }, 0)
-    }
-
-    if (plannedCutters <= 0) return true
-
-    const { data: taskCards, error: cardsError } = await supabase
-      .from('work_cards')
-      .select('id')
-      .eq('task_id', currentCard.task_id)
-      .limit(10000)
-
-    if (cardsError) {
-      console.warn('Failed to load task cards for cutter validation:', cardsError)
-      return true
-    }
-
-    const cardIds = (taskCards || []).map(card => card.id)
-    let existingActual = 0
-
-    for (let i = 0; i < cardIds.length; i += 75) {
-      const chunk = cardIds.slice(i, i + 75)
-      const { data: historyChunk, error: historyError } = await supabase
-        .from('work_card_history')
-        .select('card_id, stage_name, cutters_used, card_info')
-        .in('card_id', chunk)
-        .limit(10000)
-
-      if (historyError) {
-        console.warn('Failed to load cutter history for validation:', historyError)
-        return true
-      }
-
-      ;(historyChunk || []).forEach(row => {
-        if (!String(row.stage_name || '').trim().startsWith('Розкрій')) return
-        if (String(row.card_id) === String(currentCard.id)) return
-
-        const parsed = parseCuttersBreakdown(row.card_info)
-        if (parsed) {
-          existingActual += Object.values(parsed).reduce((sum, qty) => sum + (Number(qty) || 0), 0)
-        } else {
-          existingActual += Number(row.cutters_used) || 0
-        }
-      })
-    }
-
-    const nextActual = existingActual + addedQty
-    const allowedActual = Math.max(plannedCutters * 2, plannedCutters + 10)
-    if (nextActual <= allowedActual) return true
-
-    alert(`Неможливо списати фрези: факт по наряду стане ${nextActual} шт при плані ${plannedCutters} шт. Перевірте введення фрез або зверніться до керівника.`)
-    return false
+    // Всі фактичні списання фрез зараховуються безперешкодно,
+    // щоб оператори завжди вказували реальні витрати і звітність була 100% точною.
+    return true
   }
 
   // ── ДІЯ 2: Завершити етап → БУФЕР (in-progress → at-buffer) ──────────
