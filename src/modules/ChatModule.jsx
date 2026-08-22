@@ -25,6 +25,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { sendPushToUsers } from '../services/pushService'
 import { KanbanTaskModal } from './KanbanModule'
+import { encryptChatMessage, decryptChatMessage, decryptMessageList } from '../utils/chatCrypto'
 import {
   ChannelBadge,
   ChannelPollModal,
@@ -772,13 +773,15 @@ const ChatModule = () => {
           }
         }
 
-        messageRows.forEach(message => {
+        const decryptedMessageRows = await decryptMessageList(messageRows)
+        decryptedMessageRows.forEach(message => {
           if (message.id) sidebarMessageIdsRef.current.add(String(message.id))
         })
         while (sidebarMessageIdsRef.current.size > 5000) {
           const oldest = sidebarMessageIdsRef.current.values().next().value
           sidebarMessageIdsRef.current.delete(oldest)
         }
+        messageRows = decryptedMessageRows
       }
 
       const messagesByThread = messageRows.reduce((map, message) => {
@@ -864,7 +867,8 @@ const ChatModule = () => {
         .limit(300)
 
       if (msgError) throw msgError
-      const nextMessages = await signChatAttachments(data || [])
+      const signedMessages = await signChatAttachments(data || [])
+      const nextMessages = await decryptMessageList(signedMessages, threadId)
       
       if (activeThreadIdRef.current !== threadId) return
       const isInitialLoad = messagesRef.current.length === 0
@@ -1011,10 +1015,16 @@ const ChatModule = () => {
     readReceiptTimersRef.current.set(threadId, timer)
   }
 
-  const applyMessageToThreadList = (message) => {
+  const applyMessageToThreadList = async (message) => {
     if (!message?.thread_id || message.deleted_at || rememberSidebarMessage(message.id)) return
     const threadId = String(message.thread_id)
     if (!threadsRef.current.some(thread => String(thread.id) === threadId)) return
+
+    let decryptedMsg = message
+    if (message.body && typeof message.body === 'string' && message.body.startsWith('[ENC:v1:')) {
+      const decryptedBody = await decryptChatMessage(message.body, threadId)
+      decryptedMsg = { ...message, body: decryptedBody }
+    }
 
     const isMine = String(message.sender_id) === String(meIdRef.current)
     const readImmediately = !isMine && isActiveThreadAtBottom(threadId)
@@ -1023,11 +1033,11 @@ const ChatModule = () => {
       const rows = participantsRef.current.filter(row => String(row.thread_id) === threadId)
       return {
         ...thread,
-        last_message: getMessagePreview(message),
+        last_message: getMessagePreview(decryptedMsg),
         last_message_at: message.created_at || thread.last_message_at,
         updated_at: message.created_at || thread.updated_at,
         lastMessageSenderId: message.sender_id || null,
-        lastMessagePreview: getThreadPreview(thread, message, rows),
+        lastMessagePreview: getThreadPreview(thread, decryptedMsg, rows),
         unreadCount: isMine
           ? (thread.unreadCount || 0)
           : (readImmediately ? 0 : (thread.unreadCount || 0) + 1)
@@ -1148,8 +1158,14 @@ const ChatModule = () => {
           return
         }
 
-        const incoming = await signChatAttachment(payload.new)
-        if (!incoming || String(incoming.thread_id) !== String(activeThreadIdRef.current)) return
+        const incomingSigned = await signChatAttachment(payload.new)
+        if (!incomingSigned || String(incomingSigned.thread_id) !== String(activeThreadIdRef.current)) return
+
+        let incoming = incomingSigned
+        if (incomingSigned.body && typeof incomingSigned.body === 'string' && incomingSigned.body.startsWith('[ENC:v1:')) {
+          const decryptedBody = await decryptChatMessage(incomingSigned.body, incomingSigned.thread_id)
+          incoming = { ...incomingSigned, body: decryptedBody }
+        }
 
         if (payload.eventType === 'INSERT') {
           updateMessagesState(previous => {
@@ -1536,6 +1552,7 @@ const ChatModule = () => {
     try {
       setReadHorizon(null)
       const attachment = await uploadPendingImage(activeThreadId)
+      const encryptedText = text ? await encryptChatMessage(text, activeThreadId) : null
       const { data: sentMessage, error: sendError } = await supabase
         .from('chat_messages')
         .insert([{
@@ -1543,7 +1560,7 @@ const ChatModule = () => {
           sender_id: me.id || null,
           sender_login: me.login,
           sender_name: me.name,
-          body: text || null,
+          body: encryptedText,
           attachment_url: attachment?.url || null,
           attachment_path: attachment?.path || null,
           attachment_type: attachment?.type || null,
@@ -1558,7 +1575,8 @@ const ChatModule = () => {
       if (sendError) throw sendError
 
       if (sentMessage) {
-        const displayedMessage = await signChatAttachment(sentMessage)
+        const signedMessage = await signChatAttachment(sentMessage)
+        const displayedMessage = { ...signedMessage, body: text || null }
         updateMessagesState(previous => {
           if (previous.some(message => String(message.id) === String(displayedMessage.id))) return previous
           return [...previous, displayedMessage].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
@@ -2461,12 +2479,14 @@ const ChatModule = () => {
             const task = Array.isArray(data) ? data[0] : data
             if (task && activeThreadId) {
               try {
+                const sysText = `Нове завдання: ${task.title}`
+                const encryptedBody = await encryptChatMessage(sysText, activeThreadId)
                 await supabase.from('chat_messages').insert([{
                   thread_id: activeThreadId,
                   sender_id: me.id || null,
                   sender_login: me.login,
                   sender_name: me.name,
-                  body: `Нове завдання: ${task.title}`,
+                  body: encryptedBody,
                   attachment_type: 'system_task',
                   attachment_name: task.title,
                   attachment_url: task.id?.toString(),
