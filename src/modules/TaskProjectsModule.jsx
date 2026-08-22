@@ -116,7 +116,7 @@ export default function TaskProjectsModule() {
     }
     const result = editingTask
       ? await updateManagementTask(editingTask.id, payload)
-      : await addManagementTask({ ...payload, status: 'todo', department: 'all', checklist: [] })
+      : await addManagementTask({ status: 'todo', department: 'all', ...payload })
     setSaving(false)
     if (result?.error) return alert(`Не вдалося зберегти задачу: ${result.error.message}`)
     closeTaskModal()
@@ -166,7 +166,7 @@ export default function TaskProjectsModule() {
                 const assignee = systemUsers.find(u => u.login === task.assigned_to)
                 const checklist = asArray(task.checklist)
                 const checklistDone = checklist.filter(i => i.done).length
-                return <article className="tp-task" key={task.id} draggable={canManage} onDragStart={e => e.dataTransfer.setData('taskId', task.id)} style={{ borderLeftColor: task.color || column.color }}>
+                return <article className="tp-task" key={task.id} draggable={canManage} onDragStart={e => e.dataTransfer.setData('taskId', task.id)} onClick={() => openTaskForm(task)} style={{ borderLeftColor: task.color || column.color, cursor: 'pointer' }}>
                   <div className={`tp-priority p-${task.priority || 'medium'}`}>{task.priority === 'urgent' ? 'ТЕРМІНОВО' : task.priority === 'high' ? 'ВИСОКИЙ' : task.priority === 'low' ? 'НИЗЬКИЙ' : 'СЕРЕДНІЙ'}</div>
                   <h3>{task.title}</h3>{task.description && <p>{task.description}</p>}
                   {!!checklist.length && <div className="tp-check-progress"><i><b style={{ width: `${Math.round(checklistDone / checklist.length * 100)}%` }} /></i><span><CheckSquare size={12} /> {checklistDone}/{checklist.length}</span></div>}
@@ -174,7 +174,7 @@ export default function TaskProjectsModule() {
                     <span><Users size={13} /> {asArray(task.assignees).length > 1 ? `${userName(assignee)} +${task.assignees.length - 1}` : assignee ? userName(assignee) : 'Не призначено'}</span>
                     {task.deadline && <span><Calendar size={13} /> {new Date(task.deadline).toLocaleDateString('uk-UA')}</span>}
                   </footer>
-                  {canManage && <div className="tp-task-actions"><button onClick={() => openTaskForm(task)}><Edit3 size={13} /></button><button onClick={() => confirm('Видалити задачу?') && deleteManagementTask(task.id)}><Trash2 size={13} /></button></div>}
+                  {canManage && <div className="tp-task-actions"><button onClick={e => { e.stopPropagation(); openTaskForm(task) }}><Edit3 size={13} /></button><button onClick={e => { e.stopPropagation(); confirm('Видалити задачу?') && deleteManagementTask(task.id) }}><Trash2 size={13} /></button></div>}
                 </article>
               })}
               {!tasks.length && <div className="tp-empty-column">Перетягніть задачу сюди</div>}
