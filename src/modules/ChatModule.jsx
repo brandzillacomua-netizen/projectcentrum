@@ -1552,7 +1552,7 @@ const ChatModule = () => {
     try {
       setReadHorizon(null)
       const attachment = await uploadPendingImage(activeThreadId)
-      const encryptedText = text ? await encryptChatMessage(text, activeThreadId) : null
+      const encryptedText = text ? encryptChatMessage(text, activeThreadId) : null
       const { data: sentMessage, error: sendError } = await supabase
         .from('chat_messages')
         .insert([{
