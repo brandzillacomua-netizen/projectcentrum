@@ -1828,60 +1828,16 @@ const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
       `}</style>
 
       {/* Floating Menu Toggle Button */}
-      <div className="no-print" style={{ position: 'fixed', top: '15px', left: '20px', zIndex: 99998 }}>
+      <div className="no-print floating-hamburger-wrapper" style={{ position: 'fixed', top: '15px', left: '20px', zIndex: 99998 }}>
         <button
+          className="floating-hamburger-btn"
           onClick={() => setMenuOpen(true)}
-          style={{
-            position: 'relative',
-            background: 'rgba(255, 144, 0, 0.08)',
-            border: '1px solid rgba(255, 144, 0, 0.3)',
-            color: '#ff9000',
-            borderRadius: '12px',
-            width: '42px',
-            height: '42px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.6), 0 0 10px rgba(255, 144, 0, 0.15)',
-            transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.background = 'rgba(255, 144, 0, 0.16)';
-            e.currentTarget.style.borderColor = '#ff9000';
-            e.currentTarget.style.transform = 'scale(1.08)';
-            e.currentTarget.style.boxShadow = '0 6px 24px rgba(0,0,0,0.7), 0 0 15px rgba(255, 144, 0, 0.3)';
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.background = 'rgba(255, 144, 0, 0.08)';
-            e.currentTarget.style.borderColor = 'rgba(255, 144, 0, 0.3)';
-            e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.6), 0 0 10px rgba(255, 144, 0, 0.15)';
-          }}
+          aria-label="Всі розділи та меню"
+          title="Відкрити меню навігації"
         >
           <Menu size={22} strokeWidth={2.5} />
           {menuBadgeCount > 0 && (
-            <span
-              className="notif-badge-pulse"
-              style={{
-                position: 'absolute',
-                top: '-4px',
-                right: '-4px',
-                background: '#ef4444',
-                color: '#fff',
-                borderRadius: '50%',
-                minWidth: '16px',
-                height: '16px',
-                fontSize: '0.55rem',
-                fontWeight: 900,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '0 4px',
-                border: '2px solid #0a0a0a',
-                boxShadow: '0 0 8px rgba(239, 68, 68, 0.8)'
-              }}
-            >
+            <span className="notif-badge-pulse floating-hamburger-badge">
               {menuBadgeCount}
             </span>
           )}

@@ -961,20 +961,20 @@ const DashboardModule = () => {
   }, [selectedOrderId, orders])
 
   return (
-    <div className="dashboard-module-v2" style={{ background: '#09090b', minHeight: '100vh', color: '#f4f4f5', display: 'flex', flexDirection: 'column' }}>
+    <div className="dashboard-module-v2" style={{ background: 'var(--bg, #09090b)', minHeight: '100vh', color: 'var(--text, #f4f4f5)', display: 'flex', flexDirection: 'column' }}>
       {/* Navigation bar matching look and feel of other modules */}
       <nav className="module-nav" style={{
         flexShrink: 0,
         padding: '0 24px',
         height: '70px',
-        background: '#09090b',
-        borderBottom: '1px solid #27272a',
+        background: 'var(--bg, #09090b)',
+        borderBottom: '1px solid var(--glass-border, #27272a)',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <Link to="/" style={{ color: '#a1a1aa', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', transition: 'color 0.2s' }}>
+          <Link to="/" style={{ color: 'var(--text-muted, #a1a1aa)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', transition: 'color 0.2s' }}>
             <ArrowLeft size={18} /> <span className="hide-mobile">На головну</span>
           </Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -984,7 +984,7 @@ const DashboardModule = () => {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <div style={{ textAlign: 'right', lineHeight: 1.2 }} className="hide-mobile">
-            <div style={{ fontSize: '0.85rem', fontWeight: 900, color: '#f4f4f5' }}>{currentUser?.first_name} {currentUser?.last_name}</div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 900, color: 'var(--text, #f4f4f5)' }}>{currentUser?.first_name} {currentUser?.last_name}</div>
             <div style={{ fontSize: '0.65rem', color: '#ff9000', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{currentUser?.position}</div>
           </div>
         </div>
@@ -1036,13 +1036,13 @@ const DashboardModule = () => {
 
       {/* Module Content Area */}
       <div className="module-content" style={{ padding: '30px', overflowY: 'auto', flex: 1, maxWidth: '1600px', margin: '0 auto', width: '100%' }}>
-        <section className="glass-panel" style={{ padding: '30px', borderRadius: '32px', border: '1px solid #27272a', background: 'rgba(15,15,18,0.7)', backdropFilter: 'blur(20px)', boxShadow: '0 20px 40px rgba(0,0,0,0.4)' }}>
+        <section className="glass-panel" style={{ padding: '30px', borderRadius: '32px', border: '1px solid var(--glass-border, #27272a)', background: 'var(--card-bg, rgba(15,15,18,0.7))', backdropFilter: 'blur(20px)', boxShadow: '0 20px 40px rgba(0,0,0,0.4)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px', marginBottom: '25px' }}>
             <div>
-              <h2 style={{ fontSize: '1.4rem', fontWeight: 950, margin: '0 0 5px 0', display: 'flex', alignItems: 'center', gap: '10px', color: '#ffffff', letterSpacing: '0.5px' }}>
+              <h2 style={{ fontSize: '1.4rem', fontWeight: 950, margin: '0 0 5px 0', display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text, #ffffff)', letterSpacing: '0.5px' }}>
                 <LayoutDashboard style={{ color: '#ff9000' }} size={24} /> ДАШБОРД ВИРОБНИЦТВА (WIP)
               </h2>
-              <p style={{ color: '#a1a1aa', fontSize: '0.78rem', margin: 0 }}>Розподіл деталей та напівфабрикатів за етапами технологічного ланцюжка</p>
+              <p style={{ color: 'var(--text-muted, #a1a1aa)', fontSize: '0.78rem', margin: 0 }}>Розподіл деталей та напівфабрикатів за етапами технологічного ланцюжка</p>
             </div>
 
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -1050,9 +1050,9 @@ const DashboardModule = () => {
               <button
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                style={{ background: '#18181b', border: '1px solid #27272a', color: '#fff', padding: '10px 14px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s', fontSize: '0.85rem' }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#27272a'; e.currentTarget.style.borderColor = '#ff9000'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#18181b'; e.currentTarget.style.borderColor = '#27272a'; }}
+                style={{ background: 'var(--card-bg, #18181b)', border: '1px solid var(--glass-border, #27272a)', color: '#fff', padding: '10px 14px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s', fontSize: '0.85rem' }}
+                
+                
               >
                 <RefreshCw className={isRefreshing ? 'anim-spin' : ''} size={16} />
                 <span>Оновити дані</span>
@@ -1061,7 +1061,7 @@ const DashboardModule = () => {
           </div>
 
           {/* Filters and Search Bar */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', background: '#09090b', padding: '15px 20px', borderRadius: '18px', marginBottom: '20px', border: '1px solid #27272a' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', background: 'var(--bg, #09090b)', padding: '15px 20px', borderRadius: '18px', marginBottom: '20px', border: '1px solid var(--glass-border, #27272a)' }}>
             <div style={{ position: 'relative', flex: 1, minWidth: '260px' }}>
               <Search size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#71717a' }} />
               <input
@@ -1069,13 +1069,13 @@ const DashboardModule = () => {
                 placeholder="Пошук деталі за назвою або кодом..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                style={{ width: '100%', padding: '12px 15px 12px 42px', background: '#18181b', border: '1px solid #27272a', borderRadius: '12px', color: '#fff', fontSize: '0.85rem', outline: 'none', transition: 'border-color 0.2s' }}
+                style={{ width: '100%', padding: '12px 15px 12px 42px', background: 'var(--card-bg, #18181b)', border: '1px solid var(--glass-border, #27272a)', borderRadius: '12px', color: '#fff', fontSize: '0.85rem', outline: 'none', transition: 'border-color 0.2s' }}
                 onFocus={e => e.target.style.borderColor = '#ff9000'}
                 onBlur={e => e.target.style.borderColor = '#27272a'}
               />
             </div>
 
-            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#a1a1aa', fontSize: '0.85rem', cursor: 'pointer', userSelect: 'none' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-muted, #a1a1aa)', fontSize: '0.85rem', cursor: 'pointer', userSelect: 'none' }}>
               <input
                 type="checkbox"
                 checked={wipOnly}
@@ -1101,7 +1101,7 @@ const DashboardModule = () => {
                       <div style={{ fontSize: '0.65rem', color: '#71717a', fontWeight: 600, marginTop: '1px' }}>Аналіз потенціалу нарядів та обмежувальних деталей</div>
                     </div>
                   </div>
-                  <div style={{ fontSize: '0.7rem', color: '#52525b', fontWeight: 700, background: '#18181b', border: '1px solid #27272a', padding: '5px 12px', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '0.7rem', color: '#52525b', fontWeight: 700, background: 'var(--card-bg, #18181b)', border: '1px solid var(--glass-border, #27272a)', padding: '5px 12px', borderRadius: '8px' }}>
                     {filteredTrends.length} наряд(ів)
                   </div>
                 </div>
@@ -1130,7 +1130,7 @@ const DashboardModule = () => {
 
                     return (
                       <div key={id} style={{
-                        background: 'linear-gradient(145deg, #141417, #0f0f12)',
+                        background: 'var(--card-bg, linear-gradient(145deg, #141417, #0f0f12))',
                         border: `1px solid ${accentBorder}`,
                         borderRadius: '20px',
                         overflow: 'hidden',
@@ -1151,7 +1151,7 @@ const DashboardModule = () => {
                               <span style={{ fontSize: '0.58rem', background: accentBg, color: accentColor, padding: '3px 8px', borderRadius: '6px', fontWeight: 900, letterSpacing: '0.06em', border: `1px solid ${accentBorder}` }}>
                                 {statusLabel}
                               </span>
-                              <div style={{ fontSize: '0.95rem', fontWeight: 900, color: '#f4f4f5', marginTop: '7px', lineHeight: 1.2 }}>{trend.name}</div>
+                              <div style={{ fontSize: '0.95rem', fontWeight: 900, color: 'var(--text, #f4f4f5)', marginTop: '7px', lineHeight: 1.2 }}>{trend.name}</div>
                               {trend.code && <div style={{ fontSize: '0.62rem', color: '#52525b', fontWeight: 700, marginTop: '3px' }}>КОД: {trend.code}</div>}
                             </div>
 
@@ -1172,7 +1172,7 @@ const DashboardModule = () => {
                               <span style={{ color: '#71717a' }}>Виконання потреби замовлень</span>
                               <span style={{ color: accentColor }}>{pct}%</span>
                             </div>
-                            <div style={{ height: '7px', background: '#09090b', borderRadius: '10px', overflow: 'hidden', border: '1px solid #27272a', position: 'relative' }}>
+                            <div style={{ height: '7px', background: 'var(--bg, #09090b)', borderRadius: '10px', overflow: 'hidden', border: '1px solid var(--glass-border, #27272a)', position: 'relative' }}>
                               <div style={{ width: `${pct}%`, height: '100%', background: `linear-gradient(90deg, ${accentColor}, ${accentColor}cc)`, borderRadius: '10px', transition: 'width 0.5s ease', boxShadow: `0 0 8px ${accentColor}66` }} />
                             </div>
                           </div>
@@ -1236,27 +1236,27 @@ const DashboardModule = () => {
           {/* ========================================== */}
           {/* SPREADSHEET REPLICA (GROUPED)       */}
           {/* ========================================== */}
-          <div className="wip-table-container" style={{ borderRadius: '16px', border: '1px solid #27272a', background: '#09090b', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', padding: '1px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'inherit', fontSize: '0.8rem', color: '#f4f4f5' }}>
+          <div className="wip-table-container" style={{ borderRadius: '16px', border: '1px solid var(--glass-border, #27272a)', background: 'var(--bg, #09090b)', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', padding: '1px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'inherit', fontSize: '0.8rem', color: 'var(--text, #f4f4f5)' }}>
               <thead>
-                <tr style={{ background: '#18181b', color: '#a1a1aa', textAlign: 'center', borderBottom: '2px solid #27272a' }}>
-                  <th className="wip-sticky-col" style={{ padding: '14px 18px', textAlign: 'left', fontWeight: 'bold', borderRight: '1px solid #27272a', color: '#f4f4f5', position: 'sticky', top: 0, left: 0, zIndex: 40, background: '#18181b' }}>Номенклатура</th>
+                <tr style={{ background: 'var(--card-bg, #18181b)', color: 'var(--text-muted, #a1a1aa)', textAlign: 'center', borderBottom: '2px solid #27272a' }}>
+                  <th className="wip-sticky-col" style={{ padding: '14px 18px', textAlign: 'left', fontWeight: 'bold', borderRight: '1px solid #27272a', color: 'var(--text, #f4f4f5)', position: 'sticky', top: 0, left: 0, zIndex: 40, background: 'var(--card-bg, #18181b)' }}>Номенклатура</th>
                   <th className="wip-sticky-sum" style={{ padding: '14px 18px', fontWeight: 'bold', borderRight: '1px solid #27272a', background: '#251b14', color: '#ff9000', position: 'sticky', top: 0, zIndex: 40 }}>Сума</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: '#18181b', color: '#a1a1aa', position: 'sticky', top: 0, zIndex: 10 }}>Очікують Розкрою</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', position: 'sticky', top: 0, zIndex: 10, background: '#18181b' }}>Розкрій (Робота)</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: '#18181b', color: '#a1a1aa', position: 'sticky', top: 0, zIndex: 10 }}>Буфер Розкрою</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', position: 'sticky', top: 0, zIndex: 10, background: '#18181b' }}>Галтовка (Робота)</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: '#18181b', color: '#a1a1aa', position: 'sticky', top: 0, zIndex: 10 }}>Буфер Галтовки</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', position: 'sticky', top: 0, zIndex: 10, background: '#18181b' }}>Прийомка (Робота)</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: '#18181b', color: '#a1a1aa', position: 'sticky', top: 0, zIndex: 10 }}>Сортування (Робота)</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: '#18181b', color: '#a1a1aa', position: 'sticky', top: 0, zIndex: 10 }}>Буфер Цеху №2</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: '#18181b', color: '#a1a1aa', position: 'sticky', top: 0, zIndex: 10 }}>Очікують Малярки</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', position: 'sticky', top: 0, zIndex: 10, background: '#18181b' }}>Малярка (Робота)</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: '#18181b', color: '#a1a1aa', position: 'sticky', top: 0, zIndex: 10 }}>Буфер Малярки</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', position: 'sticky', top: 0, zIndex: 10, background: '#18181b' }}>Пресування (Робота)</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: '#18181b', color: '#a1a1aa', position: 'sticky', top: 0, zIndex: 10 }}>Буфер Пресування</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', position: 'sticky', top: 0, zIndex: 10, background: '#18181b' }}>Доопрацювання (Робота)</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: '#18181b', color: '#a1a1aa', position: 'sticky', top: 0, zIndex: 10 }}>Буфер Доопрацювання</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'var(--card-bg, #18181b)', color: 'var(--text-muted, #a1a1aa)', position: 'sticky', top: 0, zIndex: 10 }}>Очікують Розкрою</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', position: 'sticky', top: 0, zIndex: 10, background: 'var(--card-bg, #18181b)' }}>Розкрій (Робота)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'var(--card-bg, #18181b)', color: 'var(--text-muted, #a1a1aa)', position: 'sticky', top: 0, zIndex: 10 }}>Буфер Розкрою</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', position: 'sticky', top: 0, zIndex: 10, background: 'var(--card-bg, #18181b)' }}>Галтовка (Робота)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'var(--card-bg, #18181b)', color: 'var(--text-muted, #a1a1aa)', position: 'sticky', top: 0, zIndex: 10 }}>Буфер Галтовки</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', position: 'sticky', top: 0, zIndex: 10, background: 'var(--card-bg, #18181b)' }}>Прийомка (Робота)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'var(--card-bg, #18181b)', color: 'var(--text-muted, #a1a1aa)', position: 'sticky', top: 0, zIndex: 10 }}>Сортування (Робота)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'var(--card-bg, #18181b)', color: 'var(--text-muted, #a1a1aa)', position: 'sticky', top: 0, zIndex: 10 }}>Буфер Цеху №2</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'var(--card-bg, #18181b)', color: 'var(--text-muted, #a1a1aa)', position: 'sticky', top: 0, zIndex: 10 }}>Очікують Малярки</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', position: 'sticky', top: 0, zIndex: 10, background: 'var(--card-bg, #18181b)' }}>Малярка (Робота)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'var(--card-bg, #18181b)', color: 'var(--text-muted, #a1a1aa)', position: 'sticky', top: 0, zIndex: 10 }}>Буфер Малярки</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', position: 'sticky', top: 0, zIndex: 10, background: 'var(--card-bg, #18181b)' }}>Пресування (Робота)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'var(--card-bg, #18181b)', color: 'var(--text-muted, #a1a1aa)', position: 'sticky', top: 0, zIndex: 10 }}>Буфер Пресування</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', position: 'sticky', top: 0, zIndex: 10, background: 'var(--card-bg, #18181b)' }}>Доопрацювання (Робота)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '500', borderRight: '1px solid #27272a', background: 'var(--card-bg, #18181b)', color: 'var(--text-muted, #a1a1aa)', position: 'sticky', top: 0, zIndex: 10 }}>Буфер Доопрацювання</th>
                   <th style={{ padding: '14px 18px', fontWeight: 'bold', borderRight: '1px solid #27272a', background: '#12251e', color: '#10b981', position: 'sticky', top: 0, zIndex: 10 }}>Склад (СГП)</th>
                   <th style={{ padding: '14px 18px', fontWeight: 'bold', borderRight: '1px solid #27272a', background: '#12251e', color: '#10b981', position: 'sticky', top: 0, zIndex: 10 }}>Склад БЗ</th>
                   <th style={{ padding: '14px 18px', fontWeight: 'bold', background: '#221414', color: '#ef4444', position: 'sticky', top: 0, zIndex: 10 }}>Брак</th>
@@ -1276,13 +1276,13 @@ const DashboardModule = () => {
                     return (
                       <React.Fragment key={group.id}>
                         {/* Group Header Row */}
-                        <tr style={{ background: '#1c1917', color: '#fff', borderBottom: '2px solid #27272a' }}>
-                          <td colSpan={20} style={{ padding: '14px 18px', textAlign: 'left', fontWeight: 'bold', borderBottom: '1px solid #27272a', position: 'sticky', left: 0, background: '#1c1917', zIndex: 2 }}>
+                        <tr style={{ background: 'var(--bg, #1c1917)', color: '#fff', borderBottom: '2px solid #27272a' }}>
+                          <td colSpan={20} style={{ padding: '14px 18px', textAlign: 'left', fontWeight: 'bold', borderBottom: '1px solid var(--glass-border, #27272a)', position: 'sticky', left: 0, background: 'var(--bg, #1c1917)', zIndex: 2 }}>
                             <div style={{ position: 'sticky', left: '16px', display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px 12px', maxWidth: 'calc(100vw - 40px)' }}>
                               <span style={{ color: '#ff9000' }}>📦</span>
                               <span style={{ whiteSpace: 'nowrap' }}>{group.name}{group.code ? ` (${group.code})` : ''}</span>
                               {group.trend && (
-                                <span style={{ color: '#a1a1aa', fontSize: '0.78rem', fontWeight: 'normal' }}>
+                                <span style={{ color: 'var(--text-muted, #a1a1aa)', fontSize: '0.78rem', fontWeight: 'normal' }}>
                                   (Потенційний тренд: <strong style={{ color: '#fff' }}>{group.trend.potential}</strong> / {group.trend.demand || 0} компл. | На СГП: <strong style={{ color: '#10b981' }}>{group.trend.actual} компл.</strong>)
                                 </span>
                               )}
@@ -1293,7 +1293,7 @@ const DashboardModule = () => {
                         {/* Group Row Items */}
                         {group.rows.map((row, idx) => (
                           <tr key={row.id} className="wip-row">
-                            <td className="wip-sticky-col" style={{ padding: '12px 18px', fontWeight: 'bold', color: '#f4f4f5', borderRight: '1px solid #27272a', paddingLeft: '30px', position: 'sticky', left: 0, background: '#09090b', zIndex: 2 }}>
+                            <td className="wip-sticky-col" style={{ padding: '12px 18px', fontWeight: 'bold', color: 'var(--text, #f4f4f5)', borderRight: '1px solid #27272a', paddingLeft: '30px', position: 'sticky', left: 0, background: 'var(--bg, #09090b)', zIndex: 2 }}>
                               {row.name}
                               {row.code && <span style={{ display: 'block', fontSize: '0.72rem', color: '#71717a', fontWeight: 'normal', marginTop: '2px' }}>Код: {row.code}</span>}
                             </td>
@@ -1322,7 +1322,7 @@ const DashboardModule = () => {
                         ))}
 
                         {/* Group Subtotals */}
-                        <tr style={{ background: '#121214', fontWeight: 'bold', borderTop: '1px solid #27272a', borderBottom: '1px solid #27272a', color: '#a1a1aa', fontSize: '0.78rem' }}>
+                        <tr style={{ background: '#121214', fontWeight: 'bold', borderTop: '1px solid #27272a', borderBottom: '1px solid var(--glass-border, #27272a)', color: 'var(--text-muted, #a1a1aa)', fontSize: '0.78rem' }}>
                           <td className="wip-sticky-col" style={{ padding: '12px 18px', borderRight: '1px solid #27272a', fontStyle: 'italic', paddingLeft: '30px', position: 'sticky', left: 0, background: '#121214', zIndex: 2 }}>
                             Підсумок по виробу:
                           </td>
@@ -1355,8 +1355,8 @@ const DashboardModule = () => {
 
                 {/* Grand Total Row */}
                 {groupedDashboardData.length > 0 && (
-                  <tr style={{ background: '#18181b', fontWeight: 'bold', borderTop: '2px solid #ff9000', color: '#fff', fontSize: '0.8rem' }}>
-                    <td className="wip-sticky-col" style={{ padding: '14px 18px', borderRight: '1px solid #27272a', textTransform: 'uppercase', letterSpacing: '0.5px', position: 'sticky', left: 0, background: '#18181b', zIndex: 2 }}>ЗАГАЛЬНИЙ WIP РАЗОМ:</td>
+                  <tr style={{ background: 'var(--card-bg, #18181b)', fontWeight: 'bold', borderTop: '2px solid #ff9000', color: '#fff', fontSize: '0.8rem' }}>
+                    <td className="wip-sticky-col" style={{ padding: '14px 18px', borderRight: '1px solid #27272a', textTransform: 'uppercase', letterSpacing: '0.5px', position: 'sticky', left: 0, background: 'var(--card-bg, #18181b)', zIndex: 2 }}>ЗАГАЛЬНИЙ WIP РАЗОМ:</td>
                     <td className="wip-sticky-sum" style={{ padding: '14px 18px', textAlign: 'center', background: '#2e2014', borderRight: '1px solid #27272a', color: '#ff9000', position: 'sticky', zIndex: 2 }}>
                       {renderValue(totals.sum, 'sum')}
                     </td>

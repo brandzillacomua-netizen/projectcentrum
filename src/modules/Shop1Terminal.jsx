@@ -5173,23 +5173,12 @@ export default function Shop1Terminal() {
       )}
 
       <style>{`
-        .s1-stage-hover:hover { background: #181818!important; transform: translateY(-3px); }
-        .s1-stage-hover { transition: all 0.2s cubic-bezier(0.4,0,0.2,1)!important; }
+        .s1-stage-hover { transition: all 0.2s cubic-bezier(0.4,0,0.2,1); }
+        .s1-stage-hover:hover { transform: translateY(-3px); }
         .spin-s1 { animation: spinS1 1s linear infinite; }
         @keyframes spinS1 { 100% { transform: rotate(360deg); } }
         .s1-burger-btn { display: none; }
         @media (max-width: 768px) { .s1-burger-btn { display: flex!important; } }
-
-        /* Hover effect for cards */
-        .s1-stage-hover {
-          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .s1-stage-hover:hover {
-          background: #111 !important;
-          border-color: #333 !important;
-          transform: translateY(-2px);
-          box-shadow: 0 8px 20px rgba(0,0,0,0.4) !important;
-        }
 
         .stages-grid-responsive {
           grid-template-columns: 1fr auto 1fr auto 1.5fr;

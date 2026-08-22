@@ -290,14 +290,13 @@ const fetchWorkCardScrapTotals = async (taskIds = []) => {
   const pageSize = 1000
   const allRows = []
 
-  for (let chunkStart = 0; chunkStart < scopedTaskIds.length; chunkStart += 40) {
-    const taskChunk = scopedTaskIds.slice(chunkStart, chunkStart + 40)
+  for (let chunkStart = 0; chunkStart < scopedTaskIds.length; chunkStart += 20) {
+    const taskChunk = scopedTaskIds.slice(chunkStart, chunkStart + 20)
     for (let from = 0; ; from += pageSize) {
       const { data, error } = await supabase
         .from('work_card_scrap_totals')
         .select('*')
         .in('task_id', taskChunk)
-        .order('updated_at', { ascending: false })
         .range(from, from + pageSize - 1)
 
       if (error) return { data: null, error }
@@ -322,14 +321,13 @@ const fetchWorkCardFlowTotals = async (taskIds = []) => {
 
   // Keep PostgREST URLs bounded while still supporting more than one shop's
   // active tasks. The result is de-duplicated after all task chunks are read.
-  for (let chunkStart = 0; chunkStart < scopedTaskIds.length; chunkStart += 40) {
-    const taskChunk = scopedTaskIds.slice(chunkStart, chunkStart + 40)
+  for (let chunkStart = 0; chunkStart < scopedTaskIds.length; chunkStart += 20) {
+    const taskChunk = scopedTaskIds.slice(chunkStart, chunkStart + 20)
     for (let from = 0; ; from += pageSize) {
       const { data, error } = await supabase
         .from('work_card_flow_totals')
         .select('*')
         .in('task_id', taskChunk)
-        .order('updated_at', { ascending: false })
         .range(from, from + pageSize - 1)
 
       if (error) return { data: allRows.length > 0 ? allRows : null, error }
@@ -763,7 +761,7 @@ export function useData() {
         needsTable('system_users') ? supabase.from('system_users').select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar, last_seen, shift_calendar').order('login') : skippedTable(),
         needsTable('machines') ? supabase.from('machines').select('*').order('name') : skippedTable(),
         // Kanban badge counter
-        needsTable('management_tasks') ? supabase.from('management_tasks').select('*').neq('status', 'completed').order('created_at', { ascending: false }) : skippedTable(),
+        needsTable('management_tasks') ? supabase.from('management_tasks').select('*').neq('status', 'done').order('created_at', { ascending: false }) : skippedTable(),
         needsTable('task_projects') ? supabase.from('task_projects').select('*').order('created_at', { ascending: false }) : skippedTable(),
         // Customers for manager
         needsTable('customers') ? supabase.from('customers').select('id,name,official_name').limit(50).order('name') : skippedTable(),
@@ -1121,7 +1119,7 @@ export function useData() {
         const data = requireData(await fetchPendingMachineCalls())
         if (data) setMachineCalls(data)
       } else if (tableName === 'management_tasks') {
-        const data = requireData(await supabase.from('management_tasks').select('*').neq('status', 'completed').order('created_at', { ascending: false }))
+        const data = requireData(await supabase.from('management_tasks').select('*').neq('status', 'done').order('created_at', { ascending: false }))
         if (data) setManagementTasks(data)
       } else if (tableName === 'task_projects') {
         const data = requireData(await supabase.from('task_projects').select('*').order('created_at', { ascending: false }))
@@ -2282,6 +2280,41 @@ export function useData() {
     }
   }, [])
 
+
+  const fetchCompletedManagementTasks = async (page = 0, pageSize = 20) => {
+    const from = page * pageSize
+    const to = from + pageSize - 1
+    try {
+      const { data, error, count } = await supabase
+        .from('management_tasks')
+        .select('*', { count: 'exact' })
+        .eq('status', 'done')
+        .order('created_at', { ascending: false })
+        .range(from, to)
+
+      if (error) throw error
+      return { data: data || [], count: count || 0, error: null }
+    } catch (e) {
+      console.error('Failed to fetch completed management tasks:', e)
+      return { data: [], count: 0, error: e }
+    }
+  }
+
+  const fetchCompletedManagementTasksCount = async () => {
+    try {
+      const { count, error } = await supabase
+        .from('management_tasks')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'done')
+
+      if (error) throw error
+      return count || 0
+    } catch (e) {
+      console.error('Failed to fetch completed management tasks count:', e)
+      return 0
+    }
+  }
+
   // Return all state and basic setters needed for actions
   return {
     orders, setOrders,
@@ -2309,7 +2342,7 @@ export function useData() {
     sessionLoading, setSessionLoading,
     loading, setLoading,
     hasMoreOrders, setHasMoreOrders,
-    normalize, fetchOrders, fetchData, fetchCritical, fetchModuleData, refreshProductionSummary, fetchTaskPlanSnapshot, fetchHistoryRange, fetchTaskArchiveCards, refreshTable, clearAllData,
+    normalize, fetchOrders, fetchData, fetchCritical, fetchModuleData, refreshProductionSummary, fetchTaskPlanSnapshot, fetchHistoryRange, fetchTaskArchiveCards, fetchCompletedManagementTasks, fetchCompletedManagementTasksCount, refreshTable, clearAllData,
     productionData,
     companyStructure, setCompanyStructure, upsertCompanyStructure, deleteCompanyStructure,
     companyPositions, setCompanyPositions, upsertCompanyPosition, deleteCompanyPosition,

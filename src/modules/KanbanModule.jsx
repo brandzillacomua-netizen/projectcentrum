@@ -923,7 +923,7 @@ export const ChecklistEditor = ({ items, onToggle, newItem, setNewItem, onAdd, o
 // ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
 
 const KanbanModule = () => {
-  const { managementTasks, systemUsers, addManagementTask, updateManagementTask, deleteManagementTask, currentUser, setManagementTasks, companyStructure } = useMES()
+  const { managementTasks, systemUsers, addManagementTask, updateManagementTask, deleteManagementTask, currentUser, setManagementTasks, companyStructure, fetchCompletedManagementTasks, fetchCompletedManagementTasksCount } = useMES()
 
   const DEPARTMENTS = useMemo(() => {
     const list = [{ id: 'all', label: 'Усі відділи' }]
@@ -1008,6 +1008,39 @@ const KanbanModule = () => {
   const [showSearch, setShowSearch] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 
+  // ── Completed Tasks On-Demand State ─────────────────────────────────────
+  const [completedCount, setCompletedCount] = useState(0)
+  const [completedTasks, setCompletedTasks] = useState([])
+  const [completedPage, setCompletedPage] = useState(0)
+  const [hasMoreCompleted, setHasMoreCompleted] = useState(true)
+  const [isFetchingCompleted, setIsFetchingCompleted] = useState(false)
+
+  useEffect(() => {
+    if (typeof fetchCompletedManagementTasksCount === 'function') {
+      fetchCompletedManagementTasksCount().then(cnt => setCompletedCount(cnt))
+    }
+    if (typeof fetchCompletedManagementTasks === 'function') {
+      setIsFetchingCompleted(true)
+      fetchCompletedManagementTasks(0, 20).then(res => {
+        setCompletedTasks(res.data || [])
+        if (res.count !== undefined) setCompletedCount(res.count)
+        setHasMoreCompleted((res.data || []).length === 20)
+        setIsFetchingCompleted(false)
+      })
+    }
+  }, [])
+
+  const loadMoreCompleted = async () => {
+    if (isFetchingCompleted || !hasMoreCompleted || typeof fetchCompletedManagementTasks !== 'function') return
+    const nextPage = completedPage + 1
+    setIsFetchingCompleted(true)
+    const res = await fetchCompletedManagementTasks(nextPage, 20)
+    setCompletedTasks(prev => [...prev, ...(res.data || [])])
+    setCompletedPage(nextPage)
+    setHasMoreCompleted((res.data || []).length === 20)
+    setIsFetchingCompleted(false)
+  }
+
   // ── Modals ──────────────────────────────────────────────────────────────
   const [createOpen, setCreateOpen] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
@@ -1043,7 +1076,7 @@ const KanbanModule = () => {
     return {
       total: list.length,
       inProgress: list.filter(t => t.status === 'in_progress').length,
-      done: list.filter(t => t.status === 'done').length,
+      done: completedCount,
       overdue: list.filter(t => isOverdueTask(t)).length,
     }
   }, [managementTasks, isDirector, currentUser, isTaskRelevantToUser])
@@ -1420,14 +1453,15 @@ const KanbanModule = () => {
       <div className={`kb-body-container ${isSidebarOpen ? 'sidebar-open' : ''}`}>
         <main className="kb-board">
           {COLUMNS.map(column => {
-            const columnTasks = filteredTasks.filter(t => t.status === column.id)
+            const columnTasks = column.id === 'done' ? completedTasks : filteredTasks.filter(t => t.status === column.id)
+            const columnCount = column.id === 'done' ? completedCount : columnTasks.length
             return (
               <div key={column.id} className={`kb-col ${activeMobileColumn === column.id ? 'mob-active' : ''}`}
                 onDragOver={handleDragOver} onDrop={e => handleDrop(e, column.id)}>
                 <div className="col-head" style={{ borderTopColor: column.color }}>
                   <div className="col-head-left">
                     <h3 style={{ color: column.color }}>{column.title}</h3>
-                    <span className="col-cnt" style={{ background: `${column.color}15`, color: column.color }}>{columnTasks.length}</span>
+                    <span className="col-cnt" style={{ background: `${column.color}15`, color: column.color }}>{columnCount}</span>
                   </div>
                   {column.id === 'todo' && (
                     <button className="col-add-btn" onClick={() => setCreateOpen(true)} title="Нова задача">
@@ -1531,6 +1565,16 @@ const KanbanModule = () => {
                       <KanbanSquare size={24} color="#1a1a1a" />
                       <span>Порожньо</span>
                     </div>
+                  )}
+                {column.id === 'done' && hasMoreCompleted && (
+                    <button
+                      className="btn-ghost"
+                      style={{ width: '100%', marginTop: '10px', fontSize: '0.75rem', padding: '8px 12px' }}
+                      disabled={isFetchingCompleted}
+                      onClick={loadMoreCompleted}
+                    >
+                      {isFetchingCompleted ? 'Завантаження...' : 'Завантажити ще 20 виконаних'}
+                    </button>
                   )}
                 </div>
               </div>

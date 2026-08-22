@@ -93,8 +93,32 @@ const ChatAvatar = ({ src, label, size = 'small' }) => {
     return <img src={src} alt={label} onError={() => setFailed(true)} />
   }
 
+  const getLabelGradient = (name = '') => {
+    const str = String(name || 'User')
+    let hash = 0
+    for (let i = 0; i < str.length; i += 1) {
+      hash = (hash << 5) - hash + str.charCodeAt(i)
+      hash |= 0
+    }
+    const gradients = [
+      'linear-gradient(135deg, #6366f1, #4f46e5)',
+      'linear-gradient(135deg, #3b82f6, #1d4ed8)',
+      'linear-gradient(135deg, #10b981, #047857)',
+      'linear-gradient(135deg, #f59e0b, #d97706)',
+      'linear-gradient(135deg, #8b5cf6, #6d28d9)',
+      'linear-gradient(135deg, #ec4899, #be185d)',
+      'linear-gradient(135deg, #06b6d4, #0e7490)'
+    ]
+    const index = Math.abs(hash) % gradients.length
+    return gradients[index]
+  }
+
+  const bgStyle = (src && getAvatarGradient(src) !== getAvatarGradient(''))
+    ? getAvatarGradient(src)
+    : getLabelGradient(label)
+
   return (
-    <span className={`chat-initials-avatar ${size}`} style={{ background: getAvatarGradient(src) }}>
+    <span className={`chat-initials-avatar ${size}`} style={{ background: bgStyle, color: '#ffffff' }}>
       {getInitials(label)}
     </span>
   )
@@ -2234,37 +2258,19 @@ const ChatModule = () => {
               </button>
             </div>
             
-            <div style={{ display: 'flex', gap: '8px', padding: '0 16px', marginTop: '12px', marginBottom: '8px' }}>
+            <div className="new-chat-type-switcher" style={{ display: 'flex', gap: '8px', padding: '4px', marginTop: '10px', marginBottom: '8px' }}>
               <button
+                className={`new-chat-type-btn ${newChatType === 'private' ? 'active' : ''}`}
                 onClick={() => { setNewChatType('private'); setSelectedUserIds([]); setNewTitle(''); }}
-                style={{
-                  flex: 1, padding: '8px', borderRadius: '6px',
-                  background: newChatType === 'private' ? 'rgba(255,144,0,0.15)' : 'transparent',
-                  color: newChatType === 'private' ? '#ff9000' : '#888',
-                  border: newChatType === 'private' ? '1px solid rgba(255,144,0,0.3)' : '1px solid rgba(255,255,255,0.05)',
-                  cursor: 'pointer', fontWeight: 600, transition: 'all 0.2s'
-                }}
               >Особистий</button>
               <button
+                className={`new-chat-type-btn ${newChatType === 'group' ? 'active' : ''}`}
                 onClick={() => { setNewChatType('group'); setSelectedUserIds([]); }}
-                style={{
-                  flex: 1, padding: '8px', borderRadius: '6px',
-                  background: newChatType === 'group' ? 'rgba(255,144,0,0.15)' : 'transparent',
-                  color: newChatType === 'group' ? '#ff9000' : '#888',
-                  border: newChatType === 'group' ? '1px solid rgba(255,144,0,0.3)' : '1px solid rgba(255,255,255,0.05)',
-                  cursor: 'pointer', fontWeight: 600, transition: 'all 0.2s'
-                }}
               >Група</button>
               {isSuperAdmin && (
                 <button
+                  className={`new-chat-type-btn ${newChatType === 'channel' ? 'active' : ''}`}
                   onClick={() => { setNewChatType('channel'); setSelectedUserIds(users.map(user => user.id)); setNewTitle(''); }}
-                  style={{
-                    flex: 1, padding: '8px', borderRadius: '6px',
-                    background: newChatType === 'channel' ? 'rgba(59,130,246,0.15)' : 'transparent',
-                    color: newChatType === 'channel' ? '#93c5fd' : '#888',
-                    border: newChatType === 'channel' ? '1px solid rgba(59,130,246,0.35)' : '1px solid rgba(255,255,255,0.05)',
-                    cursor: 'pointer', fontWeight: 600, transition: 'all 0.2s'
-                  }}
                 >Канал</button>
               )}
             </div>
@@ -2272,14 +2278,14 @@ const ChatModule = () => {
             {newChatType !== 'private' && (
               <input
                 className="title-input"
-                style={{ margin: '8px 16px', width: 'calc(100% - 32px)' }}
+                style={{ margin: '8px 0', width: '100%' }}
                 value={newTitle}
                 onChange={e => setNewTitle(e.target.value)}
                 placeholder={newChatType === 'channel' ? 'Назва каналу...' : 'Введіть назву групи...'}
               />
             )}
 
-            <div className="member-search" style={{ marginTop: newChatType !== 'private' ? 0 : '12px' }}>
+            <div className="member-search" style={{ marginTop: newChatType !== 'private' ? 0 : '8px' }}>
               <Search size={16} />
               <input
                 value={userSearch}
@@ -2529,7 +2535,15 @@ const ChatModule = () => {
           min-width: 0;
           background: #080809;
         }
-        .chat-sidebar-head,
+        .chat-sidebar-head {
+          min-height: 76px;
+          padding: 18px 18px 18px 64px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
         .chat-header {
           min-height: 76px;
           padding: 18px;

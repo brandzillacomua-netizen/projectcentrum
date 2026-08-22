@@ -24,11 +24,11 @@ import { useQualityLossTotals } from './VKYA/quality-hold/useQualityLossTotals.j
 
 const renderVal = (val = 0, type = 'normal', demand = 0) => {
   if (val === 0 && !demand) {
-    return <span style={{ color: '#3f3f46', fontWeight: 400 }}>0</span>
+    return <span style={{ color: 'var(--text-muted, #64748b)', fontWeight: 400 }}>0</span>
   }
-  let color = '#f4f4f5'
-  let bg = 'rgba(255,255,255,0.04)'
-  let border = '1px solid rgba(255,255,255,0.08)'
+  let color = 'var(--text, #1e293b)'
+  let bg = 'var(--chip-bg, rgba(0,0,0,0.03))'
+  let border = '1px solid var(--glass-border, rgba(0,0,0,0.08))'
 
   if (type === 'sum') {
     color = '#ff9000'; bg = 'rgba(255,144,0,0.08)'; border = '1px solid rgba(255,144,0,0.2)'
@@ -151,10 +151,10 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
   const [isFull, setIsFull] = React.useState(false)
 
   const renderTable = (scrollMaxHeight) => (
-    <div style={{ borderRadius: '16px', border: '1px solid #27272a', background: '#09090b', overflow: 'auto', maxHeight: scrollMaxHeight, width: '100%' }}>
+    <div style={{ borderRadius: '16px', border: '1px solid var(--glass-border, #27272a)', background: 'var(--bg, #09090b)', overflow: 'auto', maxHeight: scrollMaxHeight, width: '100%' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem', color: '#f4f4f5', minWidth: '800px' }}>
         <thead>
-          <tr style={{ background: '#18181b', color: '#a1a1aa', textAlign: 'center', borderBottom: '2px solid #27272a' }}>
+          <tr style={{ background: 'var(--card-bg, #18181b)', color: '#a1a1aa', textAlign: 'center', borderBottom: '2px solid #27272a' }}>
             <th className="wip-col-nomenclature" style={TH_STICKY}>Номенклатура</th>
             <th className="wip-col-sum" style={TH_SUM}>Сума</th>
             <th style={TH}>Очік. Розкрій</th>
@@ -192,8 +192,8 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
               return (
                 <React.Fragment key={group.id}>
                   {/* Group header */}
-                  <tr style={{ background: '#1c1917', borderBottom: '2px solid #27272a' }}>
-                    <td colSpan={22} style={{ padding: '12px 16px', fontWeight: 'bold', color: '#fff', position: 'sticky', left: 0, background: '#1c1917', zIndex: 2 }}>
+                  <tr style={{ background: 'var(--group-head-bg, #1c1917)', borderBottom: '2px solid var(--glass-border, #27272a)' }}>
+                    <td colSpan={22} style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--text, #fff)', position: 'sticky', left: 0, background: 'var(--group-head-bg, #1c1917)', zIndex: 2 }}>
                       <span style={{ color: '#ff9000', marginRight: '8px' }}>📦</span>
                       {group.name}{group.code ? ` (${group.code})` : ''}
                       {group.trend && (
@@ -207,9 +207,9 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
 
                   {/* Rows */}
                   {group.rows.map(row => (
-                    <tr key={row.id} style={{ background: '#09090b', borderBottom: '1px solid #1f1f22', transition: 'background 0.15s' }}
-                      onMouseEnter={e => e.currentTarget.style.background = '#18181b'}
-                      onMouseLeave={e => e.currentTarget.style.background = '#09090b'}>
+                    <tr key={row.id} style={{ background: 'var(--bg, #09090b)', borderBottom: '1px solid #1f1f22', transition: 'background 0.15s' }}
+                      
+                      >
                       <td className="wip-col-nomenclature" style={{ ...TD_STICKY, paddingLeft: '28px' }}>
                         {row.name}
                         {row.code && <span style={{ display: 'block', fontSize: '0.68rem', color: '#52525b', marginTop: '1px' }}>Код: {row.code}</span>}
@@ -239,7 +239,7 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
                   ))}
 
                   {/* Subtotals */}
-                  <tr style={{ background: '#141416', fontWeight: 'bold', borderTop: '1px solid #27272a', borderBottom: '1px solid #27272a', color: '#a1a1aa', fontSize: '0.76rem' }}>
+                  <tr style={{ background: 'var(--subtotal-bg, #141416)', fontWeight: 'bold', borderTop: '1px solid var(--glass-border, #27272a)', borderBottom: '1px solid var(--glass-border, #27272a)', color: 'var(--text-muted, #a1a1aa)', fontSize: '0.76rem' }}>
                     <td className="wip-col-nomenclature" style={{ ...TD_STICKY, fontStyle: 'italic', paddingLeft: '28px', color: '#52525b' }}>Підсумок по виробу:</td>
                     <td className="wip-col-sum" style={{ ...TD_SUM, background: '#251a12' }}>{renderVal(gt.sum, 'sum')}</td>
                     <td style={TD}>{renderVal(gt.qCutWait)}</td>
@@ -273,7 +273,7 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
             const allRows = groupedData.flatMap(g => g.rows)
             const gt = getGroupTotals(allRows)
             return (
-              <tr style={{ background: '#18181b', fontWeight: 'bold', borderTop: '2px solid #ff9000', color: '#fff', fontSize: '0.8rem' }}>
+              <tr style={{ background: 'var(--card-bg, #18181b)', fontWeight: 'bold', borderTop: '2px solid #ff9000', color: '#fff', fontSize: '0.8rem' }}>
                 <td className="wip-col-nomenclature" style={{ ...TD_STICKY, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.72rem' }}>ЗАГАЛЬНИЙ WIP РАЗОМ:</td>
                 <td className="wip-col-sum" style={{ ...TD_SUM, background: '#2e2014', color: '#ff9000' }}>{renderVal(gt.sum, 'sum')}</td>
                 <td style={TD}>{renderVal(gt.qCutWait)}</td>
@@ -320,7 +320,7 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
 
       {/* Full screen modal */}
       {isFull && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: '#09090b', zIndex: 99999, padding: '16px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'var(--bg, #09090b)', zIndex: 99999, padding: '16px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
             <span style={{ fontSize: '0.85rem', fontWeight: 900, textTransform: 'uppercase', color: '#ff9000' }}>WIP Таблиця (Повноекранний аналіз)</span>
             <button
@@ -340,12 +340,12 @@ const WipTable = ({ groupedData, maxHeight = 'calc(100vh - 320px)', emptyText = 
 }
 
 // Table cell style constants
-const TH = { padding: '11px 10px', fontWeight: 600, borderRight: '1px solid #27272a', position: 'sticky', top: 0, background: '#18181b', zIndex: 10, whiteSpace: 'nowrap', fontSize: '0.72rem' }
+const TH = { padding: '11px 10px', fontWeight: 600, borderRight: '1px solid #27272a', position: 'sticky', top: 0, background: 'var(--card-bg, #18181b)', zIndex: 10, whiteSpace: 'nowrap', fontSize: '0.72rem' }
 const TH_STICKY = { ...TH, textAlign: 'left', color: '#f4f4f5', position: 'sticky', top: 0, left: 0, zIndex: 40, minWidth: '200px', maxWidth: '200px', width: '200px' }
-const TH_SUM = { ...TH, background: '#251b14', color: '#ff9000', position: 'sticky', top: 0, left: '200px', zIndex: 40, minWidth: '110px', maxWidth: '110px', width: '110px' }
+const TH_SUM = { ...TH, background: 'var(--sum-head-bg, #251b14)', color: '#ea580c', position: 'sticky', top: 0, left: '200px', zIndex: 40, minWidth: '110px', maxWidth: '110px', width: '110px' }
 const TD = { padding: '10px 10px', textAlign: 'center', borderRight: '1px solid #1f1f22' }
-const TD_STICKY = { ...TD, textAlign: 'left', fontWeight: 'bold', color: '#f4f4f5', borderRight: '1px solid #27272a', position: 'sticky', left: 0, background: '#09090b', zIndex: 2, minWidth: '200px', maxWidth: '200px', width: '200px' }
-const TD_SUM = { ...TD, background: '#1c130d', borderRight: '1px solid #27272a', fontWeight: 'bold', position: 'sticky', left: '200px', zIndex: 2, minWidth: '110px', maxWidth: '110px', width: '110px' }
+const TD_STICKY = { ...TD, textAlign: 'left', fontWeight: 'bold', color: '#f4f4f5', borderRight: '1px solid #27272a', position: 'sticky', left: 0, background: 'var(--bg, #09090b)', zIndex: 2, minWidth: '200px', maxWidth: '200px', width: '200px' }
+const TD_SUM = { ...TD, background: 'var(--sum-cell-bg, #1c130d)', borderRight: '1px solid var(--glass-border, #27272a)', fontWeight: 'bold', position: 'sticky', left: '200px', zIndex: 2, minWidth: '110px', maxWidth: '110px', width: '110px' }
 
 // ─────────────────────────────────────────────────────────────
 // Main Module
@@ -1060,10 +1060,10 @@ const ForemanDashboardModule = () => {
   const selectedOrder = selectedTask ? ordersMap[selectedTask.order_id] : null
 
   return (
-    <div style={{ background: '#09090b', minHeight: '100vh', color: '#f4f4f5', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div className="foreman-dashboard-module" style={{ background: 'var(--bg, #09090b)', minHeight: '100vh', color: 'var(--text, #f4f4f5)', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, system-ui, sans-serif' }}>
 
       {/* ── NAV ── */}
-      <nav style={{ flexShrink: 0, padding: '0 24px', height: '68px', background: '#09090b', borderBottom: '1px solid #27272a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <nav style={{ flexShrink: 0, padding: '0 24px', height: '68px', background: 'var(--bg, #09090b)', borderBottom: '1px solid var(--glass-border, #27272a)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <Link to="/" style={{ color: '#71717a', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', transition: 'color 0.2s' }}
             onMouseEnter={e => e.currentTarget.style.color = '#fff'}
@@ -1089,9 +1089,9 @@ const ForemanDashboardModule = () => {
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            style={{ background: '#18181b', border: '1px solid #27272a', color: '#fff', padding: '8px 14px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', transition: 'all 0.2s' }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = '#ef4444'; e.currentTarget.style.background = '#1c1010' }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = '#27272a'; e.currentTarget.style.background = '#18181b' }}
+            style={{ background: 'var(--card-bg, #18181b)', border: '1px solid var(--glass-border, #27272a)', color: '#fff', padding: '8px 14px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', transition: 'all 0.2s' }}
+            
+            
           >
             <RefreshCw size={14} style={{ animation: isRefreshing ? 'spin 1s linear infinite' : 'none' }} />
             Оновити
@@ -1104,7 +1104,7 @@ const ForemanDashboardModule = () => {
       </nav>
 
       {/* ── TABS ── */}
-      <div style={{ display: 'flex', overflowX: 'auto', gap: '8px', padding: '14px 24px', background: '#09090b', borderBottom: '1px solid #27272a', scrollbarWidth: 'none' }}>
+      <div style={{ display: 'flex', overflowX: 'auto', gap: '8px', padding: '14px 24px', background: 'var(--bg, #09090b)', borderBottom: '1px solid var(--glass-border, #27272a)', scrollbarWidth: 'none' }}>
         {/* Overview tab */}
         <button
           onClick={() => setSelectedTaskId(null)}
@@ -1164,9 +1164,9 @@ const ForemanDashboardModule = () => {
               key={task.id}
               onClick={() => setSelectedTaskId(task.id)}
               style={{
-                background: isActive ? `${tabColor}18` : '#18181b',
-                color: isActive ? tabColor : '#71717a',
-                border: `1px solid ${isActive ? tabColor + '60' : '#27272a'}`,
+                background: isActive ? `${tabColor}18` : 'var(--tab-inactive-bg, #18181b)',
+                color: isActive ? tabColor : 'var(--text-muted, #71717a)',
+                border: `1px solid ${isActive ? tabColor + '60' : 'var(--glass-border, #27272a)'}`,
                 padding: '8px 16px', borderRadius: '10px', fontWeight: 800, fontSize: '0.78rem',
                 cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s', flexShrink: 0,
                 display: 'flex', alignItems: 'center', gap: '6px'
@@ -1196,7 +1196,7 @@ const ForemanDashboardModule = () => {
                 { label: 'Потреба в довипуску', value: activeTasks.filter(t => taskStatusMap[t.id] === 'shortage').length, color: '#ef4444', icon: '⚠️' },
                 { label: 'Нові (без карток)', value: activeTasks.filter(t => taskStatusMap[t.id] === 'new').length, color: '#3b82f6', icon: '🆕' },
               ].map(stat => (
-                <div key={stat.label} style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '14px', padding: '16px 18px', display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <div key={stat.label} style={{ background: 'var(--card-bg, #18181b)', border: '1px solid var(--glass-border, #27272a)', borderRadius: '14px', padding: '16px 18px', display: 'flex', gap: '12px', alignItems: 'center' }}>
                   <div style={{ fontSize: '1.6rem', lineHeight: 1 }}>{stat.icon}</div>
                   <div>
                     <div style={{ fontSize: '1.4rem', fontWeight: 950, color: stat.color, lineHeight: 1.1 }}>{stat.value}</div>
@@ -1248,7 +1248,7 @@ const ForemanDashboardModule = () => {
                         key={task.id}
                         onClick={() => setSelectedTaskId(task.id)}
                         style={{
-                          background: 'linear-gradient(145deg, #141417, #111113)',
+                          background: 'var(--card-bg, linear-gradient(145deg, #141417, #111113))',
                           border: `1px solid ${accentColor}30`,
                           borderRadius: '18px', cursor: 'pointer', overflow: 'hidden',
                           transition: 'all 0.2s', boxShadow: '0 4px 16px rgba(0,0,0,0.3)'
@@ -1276,7 +1276,7 @@ const ForemanDashboardModule = () => {
                               <span style={{ color: '#52525b' }}>Виконання</span>
                               <span style={{ color: accentColor }}>{progress.actual} / {progress.demand} компл. ({pct}%)</span>
                             </div>
-                            <div style={{ height: '6px', background: '#1f1f23', borderRadius: '6px', overflow: 'hidden', border: '1px solid #27272a' }}>
+                            <div style={{ height: '6px', background: '#1f1f23', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--glass-border, #27272a)' }}>
                               <div style={{ width: `${pct}%`, height: '100%', background: `linear-gradient(90deg, ${accentColor}, ${accentColor}99)`, borderRadius: '6px', transition: 'width 0.5s ease', boxShadow: `0 0 6px ${accentColor}60` }} />
                             </div>
                           </div>
@@ -1302,7 +1302,7 @@ const ForemanDashboardModule = () => {
                   placeholder="Пошук деталі..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  style={{ width: '100%', padding: '10px 12px 10px 36px', background: '#18181b', border: '1px solid #27272a', borderRadius: '10px', color: '#fff', fontSize: '0.82rem', outline: 'none', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '10px 12px 10px 36px', background: 'var(--card-bg, #18181b)', border: '1px solid var(--glass-border, #27272a)', borderRadius: '10px', color: '#fff', fontSize: '0.82rem', outline: 'none', boxSizing: 'border-box' }}
                   onFocus={e => e.target.style.borderColor = '#ef4444'}
                   onBlur={e => e.target.style.borderColor = '#27272a'}
                 />
@@ -1675,7 +1675,7 @@ const OrderDetailView = ({
   return (
     <div>
       {/* Header card */}
-      <div style={{ background: 'linear-gradient(145deg, #141417, #111113)', border: `1px solid ${accentColor}30`, borderRadius: '20px', overflow: 'hidden', marginBottom: '24px', boxShadow: `0 8px 32px rgba(0,0,0,0.3), 0 0 0 1px ${accentColor}15` }}>
+      <div style={{ background: 'var(--card-bg, linear-gradient(145deg, #141417, #111113))', border: `1px solid ${accentColor}30`, borderRadius: '20px', overflow: 'hidden', marginBottom: '24px', boxShadow: `0 8px 32px rgba(0,0,0,0.3), 0 0 0 1px ${accentColor}15` }}>
         <div style={{ height: '4px', background: `linear-gradient(90deg, ${accentColor}, ${accentColor}40)` }} />
         <div style={{ padding: '22px 24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
@@ -1709,7 +1709,7 @@ const OrderDetailView = ({
                 { label: 'Потреба', value: progress.demand, color: '#a1a1aa' },
                 { label: 'Виконано', value: `${pct}%`, color: accentColor },
               ].map(s => (
-                <div key={s.label} style={{ background: '#0f0f12', border: '1px solid #27272a', borderRadius: '12px', padding: '12px 16px' }}>
+                <div key={s.label} style={{ background: '#0f0f12', border: '1px solid var(--glass-border, #27272a)', borderRadius: '12px', padding: '12px 16px' }}>
                   <div style={{ fontSize: '1.4rem', fontWeight: 950, color: s.color, lineHeight: 1 }}>{s.value}</div>
                   <div style={{ fontSize: '0.62rem', color: '#52525b', fontWeight: 800, textTransform: 'uppercase', marginTop: '4px', letterSpacing: '0.08em' }}>{s.label}</div>
                 </div>
@@ -1723,7 +1723,7 @@ const OrderDetailView = ({
               <span style={{ color: '#52525b' }}>ВИКОНАННЯ НАРЯДУ</span>
               <span style={{ color: accentColor }}>{pct}%</span>
             </div>
-            <div style={{ height: '10px', background: '#0f0f12', borderRadius: '10px', overflow: 'hidden', border: '1px solid #27272a', position: 'relative' }}>
+            <div style={{ height: '10px', background: '#0f0f12', borderRadius: '10px', overflow: 'hidden', border: '1px solid var(--glass-border, #27272a)', position: 'relative' }}>
               <div style={{ width: `${pct}%`, height: '100%', background: `linear-gradient(90deg, ${accentColor}, ${accentColor}99)`, borderRadius: '10px', transition: 'width 0.6s ease', boxShadow: `0 0 10px ${accentColor}50` }} />
               {pct > 0 && pct < 100 && (
                 <div style={{ position: 'absolute', left: `${pct}%`, top: '50%', transform: 'translateY(-50%)', width: '2px', height: '14px', background: '#fff', opacity: 0.4 }} />
@@ -1769,7 +1769,7 @@ const OrderDetailView = ({
             placeholder="Пошук деталі..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            style={{ width: '100%', padding: '10px 12px 10px 36px', background: '#18181b', border: '1px solid #27272a', borderRadius: '10px', color: '#fff', fontSize: '0.82rem', outline: 'none', boxSizing: 'border-box' }}
+            style={{ width: '100%', padding: '10px 12px 10px 36px', background: 'var(--card-bg, #18181b)', border: '1px solid var(--glass-border, #27272a)', borderRadius: '10px', color: '#fff', fontSize: '0.82rem', outline: 'none', boxSizing: 'border-box' }}
             onFocus={e => e.target.style.borderColor = '#ef4444'}
             onBlur={e => e.target.style.borderColor = '#27272a'}
           />
@@ -1792,7 +1792,7 @@ const OrderDetailView = ({
       />
 
       {/* ─── CARD FLOW VISUALIZATION SECTION ─── */}
-      <div style={{ marginTop: '35px', background: '#111115', border: '1px solid #27272a', borderRadius: '24px', padding: '25px', boxShadow: '0 10px 40px rgba(0,0,0,0.4)' }}>
+      <div style={{ marginTop: '35px', background: '#111115', border: '1px solid var(--glass-border, #27272a)', borderRadius: '24px', padding: '25px', boxShadow: '0 10px 40px rgba(0,0,0,0.4)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
           <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#ff9000', fontWeight: 950, display: 'flex', alignItems: 'center', gap: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             <span>📊</span> ХРОНОЛОГІЯ ТА СТАТУС РУХУ КАРТ (ПО ВСІХ КАРТКАХ ДЕТАЛІ)
@@ -1921,7 +1921,7 @@ const OrderDetailView = ({
 
                   {/* ── STACKED TIME TIMELINE BAR ── */}
                   <div style={{ marginBottom: '16px' }}>
-                    <div style={{ height: '24px', background: '#09090b', borderRadius: '12px', border: '1px solid #27272a', overflow: 'hidden', display: 'flex', width: '100%', position: 'relative' }}>
+                    <div style={{ height: '24px', background: 'var(--bg, #09090b)', borderRadius: '12px', border: '1px solid var(--glass-border, #27272a)', overflow: 'hidden', display: 'flex', width: '100%', position: 'relative' }}>
                       {totalDurationMs === 0 ? (
                         <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#444', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                           ⏳ Очікування запуску першої операції
@@ -1961,7 +1961,7 @@ const OrderDetailView = ({
 
                   {/* Timeline breakdown legend */}
                   {totalDurationMs > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px 20px', fontSize: '0.72rem', color: '#a1a1aa', padding: '10px 12px', background: '#0f0f13', borderRadius: '12px', border: '1px solid #27272a', marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px 20px', fontSize: '0.72rem', color: '#a1a1aa', padding: '10px 12px', background: '#0f0f13', borderRadius: '12px', border: '1px solid var(--glass-border, #27272a)', marginBottom: '16px' }}>
                       {stagesConfig.map(s => {
                         const ms = stageDurations[s.key] || 0
                         if (ms <= 0) return null

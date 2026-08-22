@@ -4074,6 +4074,60 @@ const displayParts = getDisplayPartsForOrderItem(it)
           .module-content {
             padding: 10px !important;
           }
+
+          /* ── MOBILE MODAL & WORKSHEET ADAPTATION ── */
+          .worksheet-modal-overlay {
+            padding: 0 !important;
+            align-items: flex-start !important;
+          }
+          .worksheet-panel {
+            width: 100vw !important;
+            max-width: 100vw !important;
+            height: 100vh !important;
+            max-height: 100vh !important;
+            border-radius: 0 !important;
+            border: none !important;
+          }
+          .worksheet-header-area {
+            padding: 12px 14px !important;
+            border-bottom: 1px solid #222 !important;
+          }
+          .worksheet-header-area .doc-ti {
+            font-size: 1.1rem !important;
+            flex-wrap: wrap !important;
+            gap: 6px !important;
+          }
+          .worksheet-header-area .doc-ti button {
+            margin-left: 0 !important;
+            padding: 3px 6px !important;
+            font-size: 0.65rem !important;
+          }
+          .worksheet-header-area .print-info-box {
+            padding: 8px 10px !important;
+            margin-top: 8px !important;
+            border-radius: 10px !important;
+          }
+          .worksheet-header-area .print-prod-info {
+            font-size: 0.9rem !important;
+            margin-bottom: 6px !important;
+          }
+          .worksheet-header-area .print-info-box div[style*="gridTemplateColumns"] {
+            grid-template-columns: 1fr 1fr !important;
+            gap: 8px !important;
+          }
+          .worksheet-scrollable {
+            padding: 10px 12px !important;
+          }
+          .worksheet-panel > .no-print:last-child {
+            padding: 10px 14px !important;
+            gap: 8px !important;
+          }
+          .worksheet-panel > .no-print:last-child button {
+            padding: 8px 12px !important;
+            font-size: 0.78rem !important;
+            flex: 1 !important;
+            justify-content: center !important;
+          }
         }
         .interactive-naryad-title {
           text-decoration: underline !important;
