@@ -197,8 +197,13 @@ const Shop2Module = () => {
       !(t.step?.includes('Пресування') || t.step?.includes('ЦЕХ №2') || t.step?.includes('Доопрацювання'))
     )
 
-    // If Shop 1 task is not completed, we cannot close Shop 2 yet
-    if (!s1Task || s1Task.status !== 'completed') {
+    const isReworkOrDirectTask = !s1Task || 
+      taskObj.step?.includes('Доопрацювання') || 
+      orderObj?.order_num?.startsWith('ВБ') || 
+      Boolean(taskObj.plan_snapshot && Object.values(taskObj.plan_snapshot).some(v => v && typeof v === 'object' && v.is_rework))
+
+    // If Shop 1 task is not completed (and this is NOT a direct/rework task), we cannot close Shop 2 yet
+    if (!isReworkOrDirectTask && s1Task && s1Task.status !== 'completed') {
       return false
     }
 
@@ -210,14 +215,14 @@ const Shop2Module = () => {
     const hasUncompleted = taskCards.some(wc => wc.status !== 'completed')
     if (hasUncompleted) return false
 
-    // We must ensure for every item that there is no remaining buffer
+    // Ensure for every item that there is no remaining un-carded buffer
     for (const item of itemsToCheck) {
       const nomId = item.nom?.id
       if (!nomId) continue
 
       // Calculate remaining buffer in Shop 2
       const bufSrcCards = (workCards || []).filter(c =>
-        String(c.task_id) === String(s1Task.id) &&
+        (s1Task ? String(c.task_id) === String(s1Task.id) : String(c.order_id) === String(taskObj.order_id)) &&
         String(c.nomenclature_id) === String(nomId) &&
         c.status === 'at-shop2-buffer'
       )
@@ -225,8 +230,9 @@ const Shop2Module = () => {
       const bufUsed = bufSrcCards.reduce((s, c) => s + (Number(c.used_in_shop2_qty) || 0), 0)
       const total2 = bufTotal - bufUsed
 
+      // Якщо в буфері є недогенеровані деталі (total2 > 0), наряд закривати НЕ МОЖНА!
       if (total2 > 0) {
-        return false // Still has parts in buffer waiting to be taken into work
+        return false
       }
     }
 
@@ -465,6 +471,10 @@ const Shop2Module = () => {
               const order = orders.find(o => o.id === task.order_id)
               const isActive = activeTaskId === task.id
               const isCompleted = task.status === 'completed'
+              const isReworkTask = order?.order_num?.startsWith('ВБ') || 
+                task.step?.includes('Доопрацювання') || 
+                Boolean(task.plan_snapshot && Object.values(task.plan_snapshot).some(v => v && typeof v === 'object' && v.is_rework))
+              const isWaitingForShop1 = task.status === 'waiting' && !hasBufferParts(task) && !isReworkTask
 
               return (
                 <div
@@ -477,11 +487,11 @@ const Shop2Module = () => {
                     cursor: 'pointer',
                     transition: '0.2s',
                     borderBottom: '1px solid #1a1a1a',
-                    opacity: (task.status === 'waiting' && !hasBufferParts(task)) ? 0.5 : 1
+                    opacity: isWaitingForShop1 ? 0.5 : 1
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontWeight: 800, fontSize: '1rem', color: isCompleted ? '#444' : (task.status === 'waiting' && !hasBufferParts(task)) ? '#555' : '#fff' }}>№ {order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}</div>
+                    <div style={{ fontWeight: 800, fontSize: '1rem', color: isCompleted ? '#444' : isWaitingForShop1 ? '#555' : '#fff' }}>№ {order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       {(() => {
                         if (isCompleted) {
@@ -559,7 +569,7 @@ const Shop2Module = () => {
                       </div>
                     )
                   })()}
-                  {task.status === 'waiting' && !hasBufferParts(task) && (
+                  {isWaitingForShop1 && (
                     <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 900, marginTop: '8px' }}>ЧЕК. ДЕТАЛІ З ЦЕХ №1</div>
                   )}
                   {task.status === 'waiting' && hasBufferParts(task) && (
@@ -858,12 +868,14 @@ const Shop2Module = () => {
                                 {(() => {
                                   const stage = selectedStages[String(item.nom?.id)] || task.plan_snapshot?.[String(item.nom?.id)]?.shop2_stage
 
+                                  const isReworkOrder = order?.order_num?.startsWith('ВБ') || task.step?.includes('Доопрацювання')
+
                                   // Обчислюємо, чи вже була згенерована картка (з активних або архівних)
                                   const allCardsForCheck = [...(workCards || []), ...(completedCards || []).filter(ac => !(workCards || []).some(wc => wc.id === ac.id))]
                                   const existingCard = allCardsForCheck.find(wc => {
                                     const idMatch = String(wc.task_id) === String(task.id) && String(wc.nomenclature_id) === String(item.nom?.id)
                                     const opMatch = String(wc.operation || '').toLowerCase().trim() === String(stage || '').toLowerCase().trim()
-                                    return idMatch && opMatch
+                                    return idMatch && (opMatch || isReworkOrder)
                                   })
 
                                   // Перевіряємо чи завершені картки покривають потребу (для довипуску)
@@ -879,13 +891,13 @@ const Shop2Module = () => {
                                   const bufUsed2 = bufSrcCards2.reduce((s, c) => s + (Number(c.used_in_shop2_qty) || 0), 0)
                                   const total2 = bufTotal2 - bufUsed2
 
-                                  if (task.status === 'completed' || (existingCard && existingCard.status === 'completed' && (total2 <= 0 || isNeedCovered))) {
+                                  if (task.status === 'completed' || (existingCard && existingCard.status === 'completed' && total2 <= 0) || (isReworkOrder && (completedS2Qty >= plannedNeed || (existingCard && existingCard.status === 'completed')))) {
                                     return <div style={{ color: '#10b981', fontSize: '0.7rem', fontWeight: 900 }}>ГОТОВО</div>
                                   }
 
-                                  // Ефективний залишок: якщо потреба покрита, зайвий буфер ігноруємо
-                                  const effectiveTotal2 = isNeedCovered ? 0 : total2
-                                  const remNeed2 = Math.min(effectiveTotal2, displayNeed)
+                                  // Залишок буфера доступний для генерації карт (план -> finished, надлишок -> БЗ)
+                                  const effectiveTotal2 = total2
+                                  const remNeed2 = Math.min(effectiveTotal2, Math.max(0, plannedNeed - completedS2Qty))
                                   const remBz2 = Math.max(0, effectiveTotal2 - remNeed2)
 
                                   const printBtn = existingCard ? (
@@ -965,6 +977,7 @@ const Shop2Module = () => {
                                     )
                                   }
 
+                                  if (isReworkOrder || completedS2Qty >= plannedNeed) return <div style={{ color: '#10b981', fontSize: '0.7rem', fontWeight: 900 }}>ГОТОВО</div>
                                   if (bufTotal2 === 0) return <div style={{ color: '#444', fontSize: '0.65rem', fontWeight: 700 }}>Очікує буфер</div>
                                   return <div style={{ color: '#10b981', fontSize: '0.7rem', fontWeight: 900 }}>ГОТОВО</div>
                                 })()}

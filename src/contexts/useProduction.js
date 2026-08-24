@@ -2089,7 +2089,43 @@ export function createProductionActions({
           await supabase.from('inventory').update({ total_qty: 0 }).eq('id', semiShop2Item.id)
         }
       }
-      refreshTable('inventory'); refreshTable('tasks')
+
+      // Also clean up any unconsumed at-shop2-buffer cards for this order and move leftover stock to BZ
+      if (task.order_id) {
+        const { data: unconsumedBufferCards } = await supabase
+          .from('work_cards')
+          .select('*')
+          .eq('order_id', task.order_id)
+          .eq('status', 'at-shop2-buffer')
+
+        if (unconsumedBufferCards && unconsumedBufferCards.length > 0) {
+          for (const bufCard of unconsumedBufferCards) {
+            const bufQty = Number(bufCard.quantity) || 0
+            const usedQty = Number(bufCard.used_in_shop2_qty) || 0
+            const leftover = bufQty - usedQty
+            if (leftover > 0) {
+              await supabase.from('work_cards').update({ used_in_shop2_qty: bufQty }).eq('id', bufCard.id)
+              const { data: bzItem } = await supabase.from('inventory').select('*').eq('nomenclature_id', bufCard.nomenclature_id).eq('type', 'bz').limit(1).maybeSingle()
+              if (bzItem) {
+                await supabase.from('inventory').update({ total_qty: (Number(bzItem.total_qty) || 0) + leftover }).eq('id', bzItem.id)
+              } else {
+                const nom = nomenclatures.find(n => String(n.id) === String(bufCard.nomenclature_id))
+                await supabase.from('inventory').insert([{
+                  nomenclature_id: bufCard.nomenclature_id,
+                  name: nom?.name || 'Деталь',
+                  unit: nom?.unit || 'шт',
+                  total_qty: leftover,
+                  reserved_qty: 0,
+                  type: 'bz',
+                  pocket_owner: null
+                }])
+              }
+            }
+          }
+        }
+      }
+
+      refreshTable('inventory'); refreshTable('tasks'); refreshTable('work_cards')
     } catch (err) { console.error('Error completing Shop 2 task:', err); throw err }
   }
 

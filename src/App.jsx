@@ -1384,8 +1384,13 @@ const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
           !(t.step?.includes('Пресування') || t.step?.includes('ЦЕХ №2') || t.step?.includes('Доопрацювання'))
         );
 
+        const isReworkOrDirectTask = !s1Task || 
+          task.step?.includes('Доопрацювання') || 
+          orderObj?.order_num?.startsWith('ВБ') || 
+          Boolean(task.plan_snapshot && Object.values(task.plan_snapshot).some(v => v && typeof v === 'object' && v.is_rework));
+
         let isAllDone = false;
-        if (s1Task && s1Task.status === 'completed') {
+        if (isReworkOrDirectTask || (s1Task && s1Task.status === 'completed')) {
           // Check if there are any uncompleted work cards in Shop 2 for this task
           const taskCards = (workCards || []).filter(wc => String(wc.task_id) === String(task.id));
           const hasUncompleted = taskCards.some(wc => wc.status !== 'completed');
@@ -1397,7 +1402,7 @@ const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
 
               // Calculate remaining buffer in Shop 2
               const bufSrcCards = (workCards || []).filter(c =>
-                String(c.task_id) === String(s1Task.id) &&
+                (s1Task ? String(c.task_id) === String(s1Task.id) : String(c.order_id) === String(task.order_id)) &&
                 String(c.nomenclature_id) === String(nomId) &&
                 c.status === 'at-shop2-buffer'
               );
@@ -1405,7 +1410,10 @@ const GlobalUserNav = ({ chatUnreadCount = 0 }) => {
               const bufUsed = bufSrcCards.reduce((s, c) => s + (Number(c.used_in_shop2_qty) || 0), 0);
               const total2 = bufTotal - bufUsed;
 
-              return total2 <= 0;
+              if (total2 > 0) {
+                return false;
+              }
+              return true;
             });
           }
         }
