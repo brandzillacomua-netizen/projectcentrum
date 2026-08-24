@@ -296,7 +296,7 @@ export function ForemanTaskDetails({
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
               <h2 style={{ fontSize: '2.4rem', fontWeight: 950, margin: 0, display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
-                Наряд №{order?.order_num}{task.batch_index ? `/${task.batch_index}` : ''}
+                Наряд №{order?.order_num || task.plan_snapshot?._prep_num || (task.step === 'Підготовка' ? 'ПІДГОТОВКА' : (task.id ? `ID-${task.id.slice(0, 6)}` : ''))}{task.batch_index ? `/${task.batch_index}` : ''}
                 {task.status === 'completed' && (
                   <div style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', color: '#10b981', padding: '5px 15px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 950, letterSpacing: '1px' }}>
                     ВИКОНАНО
@@ -1055,9 +1055,10 @@ export function ForemanTaskDetails({
               return sum + (c.actualSheets ? Number(c.actualSheets) : Math.ceil(originalQty / unitsPerSheet))
             }, 0)
             
-            const totalSheetsMax = Math.max(plannedSheets, totalSheets)
-            const totalBZ = (totalSheetsMax * unitsPerSheet) + stockBZ - need
-            const shortage = (totalBZ - groupScrap) < 0 ? Math.abs(totalBZ - groupScrap) : 0
+            const hasCardsInProgress = activeCards.some(c => !countAsProduced(c))
+            const utilScrap = groupBreakdown?.util || 0
+            const netAvailable = groupProduced - utilScrap
+            const shortage = (need > 0 && !hasCardsInProgress && netAvailable < need) ? (need - netAvailable) : 0
 
             const stages = activeCards.reduce((acc, c) => {
               if (c.status === 'new' || c.status === 'waiting-materials') acc.waiting++
@@ -1077,11 +1078,14 @@ export function ForemanTaskDetails({
                 >
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <div style={{ fontWeight: 900, fontSize: '0.95rem', color: '#fff' }}>{nom?.name || 'Невідома деталь'}</div>
-                    <div style={{ fontSize: '0.65rem', color: '#444', marginTop: '2px', fontWeight: 700 }}>
-                      Потреба: <span style={{ color: '#aaa' }}>{need}</span> |{' '}
-                      Вироблено: <span style={{ color: '#3b82f6' }}>{groupProduced}</span> |{' '}
-                      БЗ: <span style={{ color: groupProduced - need >= 0 ? '#10b981' : '#aaa' }}>
-                        {groupProduced - need > 0 ? `+${groupProduced - need}` : '+0'}
+                    <div style={{ fontSize: '0.65rem', color: '#888', marginTop: '3px', fontWeight: 700 }}>
+                      Потреба: <span style={{ color: '#fff', fontWeight: 800 }}>{need}</span> |{' '}
+                      Вироблено (придатно): <span style={{ color: netAvailable >= need ? '#10b981' : '#ef4444', fontWeight: 900 }}>{netAvailable}</span>
+                      {Number(stockBZ) > 0 && (
+                        <> (із Складу БЗ: <span style={{ color: '#10b981' }}>+{stockBZ} шт.</span>)</>
+                      )}
+                      {' '}| БЗ: <span style={{ color: (netAvailable - need) >= 0 ? '#10b981' : '#ef4444', fontWeight: 900 }}>
+                        {(netAvailable - need) >= 0 ? `+${netAvailable - need}` : (netAvailable - need)}
                       </span>
                     </div>
                   </div>
@@ -1095,7 +1099,9 @@ export function ForemanTaskDetails({
                       </small>
                     </div>
                     <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800, paddingLeft: '10px' }}>
-                      ПРИЙНЯТО: <span style={{ color: '#3b82f6' }}>{groupProduced}</span>
+                      ПРИЙНЯТО: <span style={{ color: netAvailable >= need ? '#10b981' : '#ef4444', fontWeight: 900 }}>
+                        {netAvailable}
+                      </span>
                     </div>
                     <div style={{ fontSize: '0.7rem', color: groupBreakdown.initialScrap > 0 ? '#ef4444' : '#333', fontWeight: 950 }}>
                       БРАК: {groupBreakdown.initialScrap}

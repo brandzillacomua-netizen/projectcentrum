@@ -8,7 +8,7 @@ export const MACHINE_TYPES = [
   'CNC KE XIN - 4 - 16 листів (ФЕЯ)'
 ]
 
-export const SHORTAGE_CACHE_KEY = 'foreman_shortage_map_v1'
+export const SHORTAGE_CACHE_KEY = 'foreman_shortage_map_v2'
 
 export const getRequestQty = (r) => {
   if (r.quantity !== null && r.quantity !== undefined) return Number(r.quantity)

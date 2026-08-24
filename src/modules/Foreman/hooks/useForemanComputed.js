@@ -1,5 +1,5 @@
 import { useMemo, useEffect } from 'react'
-import { countAsProduced, getDisplayPartsForOrderItem, SHORTAGE_CACHE_KEY } from '../utils/foremanHelpers'
+import { countAsProduced, getDisplayPartsForOrderItem, getScrapBreakdown, SHORTAGE_CACHE_KEY } from '../utils/foremanHelpers'
 
 export function useForemanComputed({
   tasks, orders, allOrdersMap, workCards, workCardHistory,
@@ -33,7 +33,9 @@ export function useForemanComputed({
       })
     }
 
-    const allCards = [...activeCards, ...staticCompletedCards, ...cachedArchiveCards]
+    const activeCardIds = new Set(activeCards.map(c => String(c.id)))
+    const uniqueStaticCompleted = staticCompletedCards.filter(c => !activeCardIds.has(String(c.id)))
+    const allCards = [...activeCards, ...uniqueStaticCompleted, ...cachedArchiveCards]
 
     allCards.forEach(card => {
       const tid = card.task_id
@@ -44,13 +46,13 @@ export function useForemanComputed({
       if (countAsProduced(card)) {
         prodCache[tid][nid] = (prodCache[tid][nid] || 0) + (Number(card.quantity) || 0)
       }
-      const isRedo = (card.card_info || '').includes('[REDO]')
-      const isActive = !countAsProduced(card)
-      if (isRedo && isActive) rCache[tid][nid] = true
+      const isRedo = (card.card_info || '').includes('[REDO]') || Boolean(card.is_rework)
+      if (isRedo) {
+        rCache[tid] = true
+      }
     })
 
-    const activeCardIds = new Set(activeCards.map(c => c.id))
-    const activeHistory = workCardHistory.filter(h => h.card_id && activeCardIds.has(h.card_id))
+    const activeHistory = workCardHistory.filter(h => h.card_id && activeCardIds.has(String(h.card_id)))
 
     const cachedHistory = []
     if (taskDataCacheRef.current?.taskHistory) {
@@ -120,37 +122,54 @@ export function useForemanComputed({
   const taskCardsCountMap = useMemo(() => {
     const map = {}
     tasks.forEach(task => {
-      map[task.id] = workCards.filter(c => c.task_id === task.id && c.operation !== 'Склад БЗ').length
+      map[task.id] = allCardsCache.filter(c => c.task_id === task.id && c.operation !== 'Склад БЗ').length
     })
     return map
-  }, [tasks, workCards])
+  }, [tasks, allCardsCache])
 
   // ── taskReadinessMap ───────────────────────────────────────────────
   const taskReadinessMap = useMemo(() => {
     const map = {}
     tasks.forEach(task => {
       if (task.status === 'completed') { map[task.id] = false; return }
-      const order = task.orders || orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
-      const taskCache = productionCache[task.id] || {}
-      const isReady = order?.order_items?.every(item => {
-        const rows = getDisplayPartsForOrderItem(task, item, bomItems, nomenclatures)
-        const shop1Parts = rows.filter(r => r.nom?.type === 'part')
-        if (shop1Parts.length === 0) return true
-        return shop1Parts.every(part => {
-          const nomId = String(part.nom?.id)
-          const snapshot = task.plan_snapshot?.[nomId]
-          const need = snapshot ? snapshot.need : (Number(item.quantity) * (Number(part.quantity_per_parent) || 1))
-          if (need === 0) return true
-          const produced = taskCache[nomId] || 0
-          return produced >= need
-        })
-      })
-      const taskCards = allCardsCache.filter(c => c.task_id === task.id)
+      const snapshot = task.plan_snapshot || {}
+      const taskCards = allCardsCache.filter(c => c.task_id === task.id && c.operation !== 'Склад БЗ')
+
+      if (taskCards.length === 0) { map[task.id] = false; return }
       const hasActiveInProgressCards = taskCards.some(c => !countAsProduced(c))
-      map[task.id] = Boolean(isReady) && !hasActiveInProgressCards
+      if (hasActiveInProgressCards) { map[task.id] = false; return }
+
+      const partIds = Object.keys(snapshot).filter(idStr => {
+        if (idStr.startsWith('_') || ['materialSummary', 'arrivals', 'arrival_doc_id', 'arrival_doc', 'nomenclatures', 'selectedCutters', 'consumables'].includes(idStr)) return false
+        const snap = snapshot[idStr]
+        return snap && typeof snap === 'object' && Number(snap.need || 0) > 0
+      })
+
+      if (partIds.length === 0) { map[task.id] = false; return }
+
+      const allPartsSatisfied = partIds.every(nomIdStr => {
+        const snap = snapshot[nomIdStr]
+        const need = Number(snap?.need) || 0
+        if (need === 0) return true
+
+        const nom = nomenclatures.find(n => String(n.id) === String(nomIdStr) || String(n.id) === String(snap?.id) || n.name === nomIdStr || n.nomenclature_code === nomIdStr)
+        const targetNomId = nom ? String(nom.id) : (snap?.id ? String(snap.id) : String(nomIdStr))
+
+        const laserCards = allCardsCache.filter(c => c.task_id === task.id && (String(c.nomenclature_id) === targetNomId || String(c.nomenclature_id) === String(nomIdStr) || (nom && String(c.nomenclature_id) === String(nom.id))) && c.operation !== 'Склад БЗ')
+
+        const grossProduced = laserCards
+          .filter(c => countAsProduced(c))
+          .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+
+        const stockBZ = Number(snap?.stock) || 0
+        const netAvailable = grossProduced + stockBZ
+        return netAvailable >= need
+      })
+
+      map[task.id] = allPartsSatisfied
     })
     return map
-  }, [tasks, orders, allOrdersMap, nomenclatures, bomItems, productionCache, allCardsCache, scrapCache])
+  }, [tasks, nomenclatures, staticHistory, workCardHistory, allCardsCache])
 
   // ── taskShortageMap ────────────────────────────────────────────────
   const taskShortageMapComputed = useMemo(() => {
@@ -158,60 +177,89 @@ export function useForemanComputed({
     tasks.forEach(task => {
       if (task.status === 'completed') { map[task.id] = false; return }
       const snapshot = task.plan_snapshot || {}
-      const taskScrap = scrapCache[task.id] || {}
-      const taskCards = allCardsCache.filter(c => c.task_id === task.id)
+      const taskCards = allCardsCache.filter(c => c.task_id === task.id && c.operation !== 'Склад БЗ')
+
+      if (taskCards.length === 0) { map[task.id] = false; return }
+
+      const hasActiveInProgressCards = taskCards.some(c => !countAsProduced(c))
+      const hasRedoCard = taskCards.some(c => (c.card_info || '').includes('[REDO]') || Boolean(c.is_rework))
+
+      // ⚠️ Поки картки знаходяться у процесі порізки на верстатах (і це не довипуск REDO) — наряд «В РОБОТІ» (жовтий)
+      if (hasActiveInProgressCards && !hasRedoCard) {
+        map[task.id] = false
+        return
+      }
+
+      const partIds = Object.keys(snapshot).filter(idStr => {
+        if (idStr.startsWith('_') || ['materialSummary', 'arrivals', 'arrival_doc_id', 'arrival_doc', 'nomenclatures', 'selectedCutters', 'consumables'].includes(idStr)) return false
+        const snap = snapshot[idStr]
+        return snap && typeof snap === 'object' && Number(snap.need || 0) > 0
+      })
 
       let hasShortage = false
-      Object.keys(snapshot).forEach(nomIdStr => {
+      partIds.forEach(nomIdStr => {
         if (hasShortage) return
-        const nom = nomenclatures.find(n => String(n.id) === String(nomIdStr))
-        if (nom?.type !== 'part') return
         const snap = snapshot[nomIdStr]
-        if (!snap) return
-        const need = Number(snap.need) || 0
-        const stockBZ = Number(snap.stock) || 0
-        const unitsPerSheet = Number(snap.units_per_sheet) || Number(nom?.units_per_sheet) || 1
-        const nomCards = taskCards.filter(c => String(c.nomenclature_id) === String(nomIdStr))
-        const productionCards = nomCards.filter(c => c.operation !== 'Склад БЗ')
-        if (nomCards.length === 0) return
-        const totalSheets = productionCards.reduce((sum, c) => {
-          const cardScrap = cardScrapCache[c.id] || 0
-          const originalQty = (Number(c.quantity) || 0) + cardScrap
-          return sum + (c.actualSheets ? Number(c.actualSheets) : Math.ceil(originalQty / unitsPerSheet))
-        }, 0)
-        const plannedSheets = Number(snap.sheets) || 0
-        const totalSheetsMax = productionCards.length > 0 ? Math.max(plannedSheets, totalSheets) : plannedSheets
-        const totalBZ = (totalSheetsMax * unitsPerSheet) + stockBZ - need
-        const groupScrap = taskScrap[nomIdStr] || 0
-        const shortage = (totalBZ - groupScrap) < 0 ? Math.abs(totalBZ - groupScrap) : 0
-        if (shortage > 0) hasShortage = true
+        const need = Number(snap?.need) || 0
+        if (need === 0) return
+
+        const nom = nomenclatures.find(n => String(n.id) === String(nomIdStr) || String(n.id) === String(snap?.id) || n.name === nomIdStr || n.nomenclature_code === nomIdStr)
+        const targetNomId = nom ? String(nom.id) : (snap?.id ? String(snap.id) : String(nomIdStr))
+
+        const laserCardsAll = allCardsCache.filter(c => c.task_id === task.id && (String(c.nomenclature_id) === targetNomId || String(c.nomenclature_id) === String(nomIdStr) || (nom && String(c.nomenclature_id) === String(nom.id))) && c.operation !== 'Склад БЗ')
+        const unitsPerSheet = Number(nom?.units_per_sheet) || 1
+        const plannedSheets = Number(snap?.sheets || snap?.count || snap?.sheets_count) || Math.ceil(need / unitsPerSheet)
+        const breakdown = getScrapBreakdown(laserCardsAll, [...staticHistory, ...workCardHistory], allCardsCache)
+
+        const grossProduced = laserCardsAll
+          .filter(c => countAsProduced(c))
+          .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
+
+        const stockBZ = Number(snap?.stock) || 0
+        const netAvailable = grossProduced + stockBZ
+
+        // ⚠️ Якщо ще не всі планові листи згенеровані/порізані ТА немає браку — це первинне виробництво, а не дефіцит!
+        const hasUnfinishedPlanned = (laserCardsAll.length < plannedSheets) && breakdown.initialScrap === 0
+        if (netAvailable < need && !hasUnfinishedPlanned) {
+          hasShortage = true
+        }
       })
-      map[task.id] = hasShortage
+
+      map[task.id] = hasShortage || hasRedoCard
     })
     return map
-  }, [tasks, scrapCache, nomenclatures, allCardsCache, cardScrapCache])
+  }, [tasks, nomenclatures, staticHistory, workCardHistory, allCardsCache])
 
 
   // ── relevantTasks ──────────────────────────────────────────────────
   const relevantTasks = useMemo(() => {
+    const getPriority = (t) => {
+      if (t.status === 'completed') return 4
+      const cardsCount = taskCardsCountMap?.[t.id] || 0
+      if (cardsCount === 0) return 0 // 🔵 1. НОВІ
+
+      const isReady = Boolean(taskReadinessMap?.[t.id])
+      const isShortage = !isReady && (
+        (t.id in taskShortageMapComputed) ? Boolean(taskShortageMapComputed[t.id]) : Boolean(cachedShortageMap?.[t.id])
+      )
+      if (isShortage) return 1 // 🔴 2. ЧЕРВОНІ (НЕСТАЧА)
+
+      if (isReady) return 3 // 🟢 4. ГОТОВІ
+      return 2 // 🟡 3. ЖОВТІ (В РОБОТІ)
+    }
+
     return tasks
       .filter(t => {
-        const stepName = (t.step || '').toLowerCase()
-        const isLaser = stepName.includes('розкрій') || stepName.includes('різка')
-        if (t.status !== 'completed') {
-          return (t.warehouse_conf === 'true' || t.warehouse_conf === 'partial') && t.engineer_conf && t.director_conf && isLaser
+        const step = (t.step || '').toLowerCase()
+        if (step.includes('пресування') || step.includes('цех №2') || step.includes('доопрацювання') || step.includes('підготовка')) {
+          return false
         }
-        const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
-        const isRecent = (t.completed_at && new Date(t.completed_at) > threeDaysAgo) || (t.updated_at && new Date(t.updated_at) > threeDaysAgo)
-        return isRecent && (isLaser || !t.step)
+        return true
       })
       .sort((a, b) => {
-        if (a.status === 'completed' && b.status !== 'completed') return 1
-        if (a.status !== 'completed' && b.status === 'completed') return -1
-        const aShortage = taskShortageMapComputed[a.id] || cachedShortageMap[a.id] || false
-        const bShortage = taskShortageMapComputed[b.id] || cachedShortageMap[b.id] || false
-        if (aShortage && !bShortage) return -1
-        if (!aShortage && bShortage) return 1
+        const pA = getPriority(a)
+        const pB = getPriority(b)
+        if (pA !== pB) return pA - pB
         return new Date(b.created_at) - new Date(a.created_at)
       })
   }, [tasks, taskReadinessMap, taskShortageMapComputed, cachedShortageMap, taskCardsCountMap, staticHistoryLength])

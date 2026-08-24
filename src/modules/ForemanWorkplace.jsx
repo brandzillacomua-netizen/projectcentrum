@@ -245,6 +245,7 @@ const ForemanWorkplace = () => {
     customLoadingCapacities, setCustomLoadingCapacities
   } = useForemanData()
 
+  const [activeTab, setActiveTab] = useState('active') // 'active' | 'archive'
   const [selectedCutterTypes, setSelectedCutterTypes] = useState({})
   const [selectedNomLoadCapacity, setSelectedNomLoadCapacity] = useState('')
   const [nomLoadCapacityOverrides, setNomLoadCapacityOverrides] = useState({})
@@ -432,7 +433,7 @@ const ForemanWorkplace = () => {
       .then(async (cardsData) => {
 
         // Only track completed cards in staticCompletedCards — active cards come from workCards global state
-        const completedCards = (cardsData || []).filter(c => c.status === 'completed');
+        const completedCards = (cardsData || []).filter(c => countAsProduced(c));
         setStaticCompletedCards(completedCards);
 
         // For shortage/scrap math we only need rows where scrap_qty > 0.
@@ -471,13 +472,66 @@ const ForemanWorkplace = () => {
 
 
 
+  const [activeTaskCards, setActiveTaskCards] = useState([])
+
+  const activeTaskIdsKey = useMemo(() => {
+    return (tasks || [])
+      .filter(t => t.status !== 'completed' && t.step && !t.step.includes('Пресування') && !t.step.includes('ЦЕХ №2') && !t.step.includes('Доопрацювання'))
+      .map(t => t.id)
+      .sort()
+      .join('|')
+  }, [tasks])
+
+  useEffect(() => {
+    if (!activeTaskIdsKey) return
+    const taskIds = activeTaskIdsKey.split('|').filter(Boolean)
+    if (taskIds.length === 0) return
+
+    let cancelled = false
+    const fetchScopedCards = async () => {
+      try {
+        const chunkSize = 25
+        const pageSize = 1000
+        const rows = []
+        for (let i = 0; i < taskIds.length; i += chunkSize) {
+          const chunk = taskIds.slice(i, i + chunkSize)
+          for (let from = 0; ; from += pageSize) {
+            const { data, error } = await supabase
+              .from('work_cards')
+              .select('*')
+              .in('task_id', chunk)
+              .range(from, from + pageSize - 1)
+            if (error) break
+            const page = data || []
+            rows.push(...page)
+            if (page.length < pageSize) break
+          }
+        }
+        if (!cancelled && rows.length > 0) {
+          setActiveTaskCards(rows)
+        }
+      } catch (err) {
+        console.error('Error fetching scoped work_cards for Shop 1 active queue:', err)
+      }
+    }
+    fetchScopedCards()
+    return () => { cancelled = true }
+  }, [activeTaskIdsKey])
+
+  const effectiveWorkCards = useMemo(() => {
+    if (activeTaskCards.length === 0) return workCards
+    const activeSet = new Set(activeTaskCards.map(c => String(c.id)))
+    const remaining = (workCards || []).filter(c => !activeSet.has(String(c.id)))
+    return [...activeTaskCards, ...remaining]
+  }, [activeTaskCards, workCards])
+
   const {
     productionCache, scrapCache, redoCache, allCardsCache, cardScrapCache,
     taskCardsCountMap, taskReadinessMap,
     taskShortageMap,
-    relevantTasks, activeQueueCount
+    relevantTasks: rawRelevantTasks, activeQueueCount: rawActiveQueueCount
   } = useForemanComputed({
-    tasks, orders, allOrdersMap, workCards, workCardHistory, workCardScrapTotals,
+    tasks, orders, allOrdersMap, workCards: effectiveWorkCards, workCardHistory, workCardScrapTotals,
     workCardFinalScrapTotals: qualityLoss.rows,
     hasFinalScrapProjection: qualityLoss.isAvailable,
     staticCompletedCards, staticHistory, archiveCards, taskHistory,
@@ -485,6 +539,65 @@ const ForemanWorkplace = () => {
     cachedShortageMap,
     staticHistoryLength: staticHistory.length
   })
+
+  const isShop1Task = (t) => {
+    if (!t) return false
+    const step = (t.step || '').toLowerCase()
+    if (step.includes('пресування') || step.includes('цех №2') || step.includes('доопрацювання') || step.includes('підготовка')) {
+      return false
+    }
+    return true
+  }
+
+  const shop1ActiveTasks = useMemo(() => {
+    const getPriority = (t) => {
+      if (t.status === 'completed') return 4
+      const cardsCount = taskCardsCountMap?.[t.id] || 0
+      if (cardsCount === 0) return 0 // 🔵 1. НОВІ
+
+      const isReady = Boolean(taskReadinessMap?.[t.id])
+      const isShortage = !isReady && (
+        (t.id in (taskShortageMap || {})) ? Boolean(taskShortageMap[t.id]) : Boolean(cachedShortageMap?.[t.id])
+      )
+      if (isShortage) return 1 // 🔴 2. ЧЕРВОНІ (НЕСТАЧА)
+
+      if (isReady) return 3 // 🟢 4. ГОТОВІ
+      return 2 // 🟡 3. ЖОВТІ (В РОБОТІ)
+    }
+
+    return (tasks || [])
+      .filter(t => t.status !== 'completed' && isShop1Task(t))
+      .sort((a, b) => {
+        const pA = getPriority(a)
+        const pB = getPriority(b)
+        if (pA !== pB) return pA - pB
+        return new Date(b.created_at) - new Date(a.created_at)
+      })
+  }, [tasks, taskShortageMap, cachedShortageMap, taskCardsCountMap, taskReadinessMap])
+
+  const shop1ArchiveTasks = useMemo(() => {
+    return (tasks || [])
+      .filter(t => t.status === 'completed' && isShop1Task(t))
+      .sort((a, b) => new Date(b.completed_at || b.updated_at || b.created_at) - new Date(a.completed_at || a.updated_at || a.created_at))
+  }, [tasks])
+
+  const displayRelevantTasks = useMemo(() => {
+    return activeTab === 'active' ? shop1ActiveTasks : shop1ArchiveTasks
+  }, [activeTab, shop1ActiveTasks, shop1ArchiveTasks])
+
+  useEffect(() => {
+    if (activeTaskId) {
+      const task = tasks.find(t => t.id === activeTaskId)
+      if (task && task.status === 'completed' && activeTab === 'active') {
+        setActiveTab('archive')
+      }
+    } else if (displayRelevantTasks.length > 0) {
+      setActiveTaskId(displayRelevantTasks[0].id)
+    }
+  }, [activeTaskId, tasks, displayRelevantTasks, activeTab])
+
+  const relevantTasks = displayRelevantTasks
+  const activeQueueCount = shop1ActiveTasks.length
 
   const {
     handleResolveCall: handleResolveCallRaw,
@@ -707,6 +820,10 @@ const ForemanWorkplace = () => {
           itemsPerPage={itemsPerPage}
           isDrawerOpen={isDrawerOpen}
           setIsDrawerOpen={setIsDrawerOpen}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          activeQueueCount={shop1ActiveTasks.length}
+          archiveQueueCount={shop1ArchiveTasks.length}
           onSelectTask={(taskId) => {
             setActiveTaskId(taskId)
             setIsDrawerOpen(false)
@@ -795,22 +912,8 @@ const ForemanWorkplace = () => {
                   .join(', ')
               }
 
-              // ПЕРЕВІРКА НА ПОВНЕ ВИКОНАННЯ
-              // Картки вважаються «виробленими», якщо вони completed, at-buffer або на стадії прийомки
-              const isTaskComplete = order?.order_items?.every(item => {
-                const rows = getDisplayPartsForOrderItem(task, item)
-                const shop1Parts = rows.filter(r => r.nom?.type === 'part')
-                return shop1Parts.every(part => {
-                  const snapshot = task.plan_snapshot?.[String(part.nom?.id)]
-                  const need = snapshot ? snapshot.need : (Number(item.quantity) * (Number(part.quantity_per_parent) || 1))
-                  const produced = taskCards
-                    .filter(c => String(c.nomenclature_id) === String(part.nom?.id))
-                    .reduce((sum, c) => sum + (countAsProduced(c) ? Number(c.quantity) : 0), 0)
-                  return produced >= need
-                })
-              })
-
-              const isReady = taskReadinessMap[task.id]
+              const isReady = Boolean(taskReadinessMap[task.id])
+              const isTaskComplete = isReady
               // Активний наряд — override з повною taskHistory
               const isShortage = taskShortageMap[task.id] || cachedShortageMap[task.id] || false
               const taskCardsCount = taskCardsCountMap[task.id] || 0
@@ -1615,13 +1718,14 @@ const ForemanWorkplace = () => {
                       const cardIdsStrings = activeCards.map(c => String(c.id))
                       const groupHistory = taskHistory.filter(h => h.card_id && cardIdsStrings.includes(String(h.card_id)))
 
-                      // Вироблено = всі картки що вже виготовлені (completed, at-buffer, на прийомці)
-                      const groupProduced = activeCards.reduce((sum, c) => sum + (countAsProduced(c) ? (Number(c.quantity) || 0) : 0), 0)
+                      // Вироблено = фактичний розкрій на лазері (без картки Складу БЗ)
+                      const laserCards = activeCards.filter(c => c.operation !== 'Склад БЗ')
+                      const grossCutOnLaser = laserCards.reduce((sum, c) => sum + (countAsProduced(c) ? (Number(c.quantity) || 0) : 0), 0)
                       const detectedScrap = groupHistory.reduce((sum, h) => sum + (Number(h.scrap_qty) || 0), 0)
                       const groupScrap = qualityLoss.isAvailable
                         ? getFinalScrapForTaskPart(qualityLoss.index, task.id, nomId)
                         : detectedScrap
-                      const groupBreakdown = getScrapBreakdown(activeCards, groupHistory, workCards)
+                      const groupBreakdown = getScrapBreakdown(laserCards, groupHistory, workCards)
 
                       const snapshot = task.plan_snapshot?.[nomId] || task.plan_snapshot?.[nom?.id]
                       const orderRef = task.orders || orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
@@ -1650,19 +1754,7 @@ const ForemanWorkplace = () => {
                         ...(archiveCards || []).filter(c => String(c.nomenclature_id) === String(nom?.id))
                       ]
 
-                      const qCutWait = orderCards.filter(c => c.operation === 'Розкрій' && c.status === 'new').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-                      const qCut = orderCards.filter(c => c.operation === 'Розкрій' && c.status === 'in-progress').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
                       const qCutBuf = orderCards.filter(c => c.operation === 'Розкрій' && c.status === 'at-buffer').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-                      const qGalt = orderCards.filter(c => c.operation === 'Галтовка' && c.status === 'in-progress').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-                      const qGaltBuf = orderCards.filter(c => c.operation === 'Галтовка' && c.status === 'at-buffer').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-                      const qPriyCards = orderCards.filter(c => c.operation === 'Прийомка').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-                      const qSortAct = orderCards.filter(c => c.operation === 'Сортування' && ['in-progress', 'at-buffer'].includes(c.status)).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-                      const qSortCards = orderCards.filter(c => c.status === 'at-shop2-buffer').reduce((sum, c) => sum + Math.max(0, (Number(c.quantity) || 0) - (Number(c.used_in_shop2_qty) || 0)), 0)
-                      const qMalWait = orderCards.filter(c => ['Фарбування', 'Малярка'].includes(c.operation) && c.status === 'new').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-                      const qMal = orderCards.filter(c => ['Фарбування', 'Малярка'].includes(c.operation) && c.status === 'in-progress').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-                      const qMalBuf = orderCards.filter(c => ['Фарбування', 'Малярка'].includes(c.operation) && c.status === 'at-buffer').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-                      const qPres = orderCards.filter(c => c.operation === 'Пресування' && ['new', 'in-progress'].includes(c.status)).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
-                      const qPresBuf = orderCards.filter(c => c.operation === 'Пресування' && c.status === 'at-buffer').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
                       const qDoop = orderCards.filter(c => c.operation === 'Доопрацювання' && ['new', 'in-progress'].includes(c.status)).reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
                       const qDoopBuf = orderCards.filter(c => c.operation === 'Доопрацювання' && c.status === 'at-buffer').reduce((sum, c) => sum + (Number(c.quantity) || 0), 0)
 
@@ -1671,21 +1763,11 @@ const ForemanWorkplace = () => {
                       const qSgp = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom?.id) && (i.type === 'finished' || i.warehouse === 'sgp' || i.warehouse === 'SGP')).reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
 
                       const unitsPerSheet = Number(nom?.units_per_sheet) || 1;
-                      const plannedSheets = snapshot?.sheets || 0;
-                      const stockBZ = snapshot?.stock || 0;
+                      const plannedSheets = Number(snapshot?.sheets || snapshot?.count || snapshot?.sheets_count) || Math.ceil(need / unitsPerSheet);
+                      const stockBZ = Number(snapshot?.stock) || 0;
 
-                      const totalSheets = activeCards.reduce((sum, c) => {
-                        if (c.operation === 'Склад БЗ') return sum
-                        const cardScrap = groupHistory
-                          .filter(h => String(h.card_id) === String(c.id))
-                          .reduce((s, h) => s + (Number(h.scrap_qty) || 0), 0)
-                        const originalQty = (Number(c.quantity) || 0) + cardScrap
-                        return sum + (c.actualSheets ? Number(c.actualSheets) : Math.ceil(originalQty / unitsPerSheet))
-                      }, 0)
-
-                      const totalSheetsMax = Math.max(plannedSheets, totalSheets)
-                      const totalBZ = (totalSheetsMax * unitsPerSheet) + stockBZ - need
-                      const shortage = (totalBZ - groupBreakdown.initialScrap) < 0 ? Math.abs(totalBZ - groupBreakdown.initialScrap) : 0
+                      const netAvailable = grossCutOnLaser + stockBZ
+                      const shortage = (need > 0 && netAvailable < need) ? (need - netAvailable) : 0
 
                       const stages = activeCards.reduce((acc, c) => {
                         if (c.status === 'new' || c.status === 'waiting-materials') acc.waiting++
@@ -1696,6 +1778,14 @@ const ForemanWorkplace = () => {
                         return acc
                       }, { waiting: 0, cutting: 0, tumbling: 0, reception: 0 })
 
+                      const hasPartCardsInProgress = stages.waiting > 0 || stages.cutting > 0
+                      const hasRedoCardForPart = activeCards.some(c => (c.card_info || '').includes('[REDO]') || Boolean(c.is_rework))
+                      
+                      // ⚠️ Якщо ще не всі планові листи згенеровані/порізані ТА немає браку — це первинне виробництво, а не дефіцит!
+                      const hasUnfinishedPlannedProduction = (activeCards.length < plannedSheets) && groupBreakdown.initialScrap === 0 && !hasRedoCardForPart
+                      const isPendingOrPlanned = hasPartCardsInProgress || hasUnfinishedPlannedProduction
+                      const showShortageBtn = shortage > 0 && task.status !== 'completed' && !hasPartCardsInProgress && !hasUnfinishedPlannedProduction
+
                       return (
                         <div key={nomId} className="nomenclature-archive-group" style={{ marginBottom: '0' }}>
                           <div
@@ -1704,14 +1794,11 @@ const ForemanWorkplace = () => {
                           >
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                               <div style={{ fontWeight: 900, fontSize: '0.95rem', color: '#fff' }}>{nom?.name || 'Невідома деталь'}</div>
-                              <div style={{ fontSize: '0.65rem', color: '#444', marginTop: '2px', fontWeight: 700 }}>
+                              <div style={{ fontSize: '0.65rem', color: '#888', marginTop: '2px', fontWeight: 700 }}>
                                 Потреба: <span style={{ color: '#aaa' }}>{need}</span> |{' '}
-                                Вироблено: <span style={{ color: '#3b82f6' }}>{groupProduced}</span> |{' '}
-                                БЗ: <span style={{ color: groupProduced - need >= 0 ? '#10b981' : '#aaa' }}>
-                                  {groupProduced - need > 0
-                                    ? `+${groupProduced - need}`
-                                    : '+0'
-                                  }
+                                Вироблено (придатно): <span style={{ color: netAvailable >= need ? '#10b981' : (isPendingOrPlanned ? '#aaa' : '#ef4444'), fontWeight: 900 }}>{netAvailable}</span> |{' '}
+                                БЗ: <span style={{ color: (netAvailable - need) >= 0 ? '#10b981' : (isPendingOrPlanned ? '#aaa' : '#ef4444'), fontWeight: 900 }}>
+                                  {(netAvailable - need) >= 0 ? `+${netAvailable - need}` : (netAvailable - need)}
                                 </span>
                               </div>
                             </div>
@@ -1725,7 +1812,7 @@ const ForemanWorkplace = () => {
                                 </small>
                               </div>
                               <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800, paddingLeft: '10px' }}>
-                                ПРИЙНЯТО: <span style={{ color: '#3b82f6' }}>{groupProduced}</span>
+                                ПРИЙНЯТО: <span style={{ color: netAvailable >= need ? '#10b981' : (hasPartCardsInProgress ? '#aaa' : '#ef4444'), fontWeight: 900 }}>{netAvailable}</span>
                               </div>
                               <div style={{ fontSize: '0.7rem', color: groupBreakdown.initialScrap > 0 ? '#ef4444' : '#333', fontWeight: 950 }}>
                                 БРАК: {groupBreakdown.initialScrap}
@@ -1754,7 +1841,7 @@ const ForemanWorkplace = () => {
                                   ОЧІКУЄ СКЛАД
                                 </div>
                               )}
-                              {shortage > 0 && task.status !== 'completed' && (
+                              {showShortageBtn && (
                                 <div onClick={(e) => e.stopPropagation()} style={{ padding: '4px 12px', borderRadius: '8px', background: '#ef444422', border: '1px solid #ef444444', display: 'flex', alignItems: 'center', gap: '12px' }}>
                                   <div style={{ color: '#ef4444', fontSize: '0.7rem', fontWeight: 950 }}>НЕСТАЧА: {shortage}</div>
                                   <button
