@@ -1,5 +1,5 @@
 import { useMemo, useEffect } from 'react'
-import { countAsProduced, getDisplayPartsForOrderItem, getScrapBreakdown, SHORTAGE_CACHE_KEY } from '../utils/foremanHelpers'
+import { countAsProduced, getDisplayPartsForOrderItem, getScrapBreakdown, SHORTAGE_CACHE_KEY, findMachineByName } from '../utils/foremanHelpers'
 
 export function useForemanComputed({
   tasks, orders, allOrdersMap, workCards, workCardHistory,
@@ -9,7 +9,8 @@ export function useForemanComputed({
   staticCompletedCards, staticHistory, archiveCards, taskHistory,
   nomenclatures, bomItems, taskDataCacheRef,
   cachedShortageMap,
-  staticHistoryLength
+  staticHistoryLength,
+  machines
 }) {
   // ── Merge all cards + compute production/scrap/redo caches ──────────
   const { productionCache, scrapCache, redoCache, allCardsCache, cardScrapCache } = useMemo(() => {
@@ -139,6 +140,8 @@ export function useForemanComputed({
       const hasActiveInProgressCards = taskCards.some(c => !countAsProduced(c))
       if (hasActiveInProgressCards) { map[task.id] = false; return }
 
+      const hasUnfinishedRedoCard = taskCards.some(c => ((c.card_info || '').includes('[REDO]') || Boolean(c.is_rework)) && !countAsProduced(c))
+
       const partIds = Object.keys(snapshot).filter(idStr => {
         if (idStr.startsWith('_') || ['materialSummary', 'arrivals', 'arrival_doc_id', 'arrival_doc', 'nomenclatures', 'selectedCutters', 'consumables'].includes(idStr)) return false
         const snap = snapshot[idStr]
@@ -147,6 +150,7 @@ export function useForemanComputed({
 
       if (partIds.length === 0) { map[task.id] = false; return }
 
+      let hasAnyPartShortage = false
       const allPartsSatisfied = partIds.every(nomIdStr => {
         const snap = snapshot[nomIdStr]
         const need = Number(snap?.need) || 0
@@ -163,10 +167,15 @@ export function useForemanComputed({
 
         const stockBZ = Number(snap?.stock) || 0
         const netAvailable = grossProduced + stockBZ
+
+        if (netAvailable < need) {
+          hasAnyPartShortage = true
+        }
+
         return netAvailable >= need
       })
 
-      map[task.id] = allPartsSatisfied
+      map[task.id] = allPartsSatisfied && !hasUnfinishedRedoCard && !hasAnyPartShortage
     })
     return map
   }, [tasks, nomenclatures, staticHistory, workCardHistory, allCardsCache])
@@ -181,14 +190,7 @@ export function useForemanComputed({
 
       if (taskCards.length === 0) { map[task.id] = false; return }
 
-      const hasActiveInProgressCards = taskCards.some(c => !countAsProduced(c))
-      const hasRedoCard = taskCards.some(c => (c.card_info || '').includes('[REDO]') || Boolean(c.is_rework))
-
-      // ⚠️ Поки картки знаходяться у процесі порізки на верстатах (і це не довипуск REDO) — наряд «В РОБОТІ» (жовтий)
-      if (hasActiveInProgressCards && !hasRedoCard) {
-        map[task.id] = false
-        return
-      }
+      const hasUnfinishedRedoCard = taskCards.some(c => ((c.card_info || '').includes('[REDO]') || Boolean(c.is_rework)) && !countAsProduced(c))
 
       const partIds = Object.keys(snapshot).filter(idStr => {
         if (idStr.startsWith('_') || ['materialSummary', 'arrivals', 'arrival_doc_id', 'arrival_doc', 'nomenclatures', 'selectedCutters', 'consumables'].includes(idStr)) return false
@@ -207,9 +209,25 @@ export function useForemanComputed({
         const targetNomId = nom ? String(nom.id) : (snap?.id ? String(snap.id) : String(nomIdStr))
 
         const laserCardsAll = allCardsCache.filter(c => c.task_id === task.id && (String(c.nomenclature_id) === targetNomId || String(c.nomenclature_id) === String(nomIdStr) || (nom && String(c.nomenclature_id) === String(nom.id))) && c.operation !== 'Склад БЗ')
+        if (laserCardsAll.length === 0) return
+
         const unitsPerSheet = Number(nom?.units_per_sheet) || 1
-        const plannedSheets = Number(snap?.sheets || snap?.count || snap?.sheets_count) || Math.ceil(need / unitsPerSheet)
-        const breakdown = getScrapBreakdown(laserCardsAll, [...staticHistory, ...workCardHistory], allCardsCache)
+        const plan = Number(snap?.plan || snap?.need || need) || 0
+        const sheets = Number(snap?.sheets || snap?.count || snap?.sheets_count) || Math.ceil(plan / unitsPerSheet) || 0
+        const loadCapacity = Number(snap?.load_capacity || snap?.custom_capacity) || findMachineByName(snap?.machine, machines)?.sheet_capacity || 4
+        const targetTotalCards = Math.ceil(sheets / (loadCapacity || 1))
+
+        let generatedSheets = 0
+        let generatedQty = 0
+        laserCardsAll.forEach(c => {
+          generatedSheets += Math.ceil(Number(c.quantity) / (unitsPerSheet || 1))
+          generatedQty += Number(c.quantity)
+        })
+
+        const isPlanFullyGenerated = 
+          (targetTotalCards > 0 && laserCardsAll.length >= targetTotalCards) ||
+          (sheets > 0 && generatedSheets >= sheets) ||
+          (plan > 0 && generatedQty >= plan)
 
         const grossProduced = laserCardsAll
           .filter(c => countAsProduced(c))
@@ -217,15 +235,21 @@ export function useForemanComputed({
 
         const stockBZ = Number(snap?.stock) || 0
         const netAvailable = grossProduced + stockBZ
+        const plannedTotalQty = (sheets * unitsPerSheet) + stockBZ
+        const spareFromSheets = Math.max(0, plannedTotalQty - need)
 
-        // ⚠️ Якщо ще не всі планові листи згенеровані/порізані ТА немає браку — це первинне виробництво, а не дефіцит!
-        const hasUnfinishedPlanned = (laserCardsAll.length < plannedSheets) && breakdown.initialScrap === 0
-        if (netAvailable < need && !hasUnfinishedPlanned) {
+        const totalScrap = scrapCache?.[task.id]?.[targetNomId] || 0
+        const rawPartShortage = Math.max(0, totalScrap - spareFromSheets)
+        const partShortage = Math.min(rawPartShortage, Math.max(0, need - netAvailable))
+
+        const allCardsFinished = laserCardsAll.length > 0 && laserCardsAll.every(c => countAsProduced(c))
+
+        if (partShortage > 0 || (allCardsFinished && netAvailable < need)) {
           hasShortage = true
         }
       })
 
-      map[task.id] = hasShortage || hasRedoCard
+      map[task.id] = hasShortage || hasUnfinishedRedoCard
     })
     return map
   }, [tasks, nomenclatures, staticHistory, workCardHistory, allCardsCache])

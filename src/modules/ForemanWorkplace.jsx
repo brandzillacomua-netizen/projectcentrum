@@ -537,7 +537,8 @@ const ForemanWorkplace = () => {
     staticCompletedCards, staticHistory, archiveCards, taskHistory,
     nomenclatures, bomItems, taskDataCacheRef,
     cachedShortageMap,
-    staticHistoryLength: staticHistory.length
+    staticHistoryLength: staticHistory.length,
+    machines
   })
 
   const isShop1Task = (t) => {
@@ -586,15 +587,15 @@ const ForemanWorkplace = () => {
   }, [activeTab, shop1ActiveTasks, shop1ArchiveTasks])
 
   useEffect(() => {
-    if (activeTaskId) {
-      const task = tasks.find(t => t.id === activeTaskId)
-      if (task && task.status === 'completed' && activeTab === 'active') {
-        setActiveTab('archive')
+    if (displayRelevantTasks.length > 0) {
+      const isCurrentTaskInDisplay = displayRelevantTasks.some(t => t.id === activeTaskId)
+      if (!isCurrentTaskInDisplay) {
+        setActiveTaskId(displayRelevantTasks[0].id)
       }
-    } else if (displayRelevantTasks.length > 0) {
-      setActiveTaskId(displayRelevantTasks[0].id)
+    } else if (activeTaskId) {
+      setActiveTaskId(null)
     }
-  }, [activeTaskId, tasks, displayRelevantTasks, activeTab])
+  }, [displayRelevantTasks, activeTaskId])
 
   const relevantTasks = displayRelevantTasks
   const activeQueueCount = shop1ActiveTasks.length
@@ -825,6 +826,12 @@ const ForemanWorkplace = () => {
           activeQueueCount={shop1ActiveTasks.length}
           archiveQueueCount={shop1ArchiveTasks.length}
           onSelectTask={(taskId) => {
+            const targetTask = tasks.find(t => t.id === taskId)
+            if (targetTask?.status === 'completed') {
+              setActiveTab('archive')
+            } else if (targetTask) {
+              setActiveTab('active')
+            }
             setActiveTaskId(taskId)
             setIsDrawerOpen(false)
             setSearchParams({ task: taskId })
@@ -1763,11 +1770,25 @@ const ForemanWorkplace = () => {
                       const qSgp = (inventory || []).filter(i => String(i.nomenclature_id) === String(nom?.id) && (i.type === 'finished' || i.warehouse === 'sgp' || i.warehouse === 'SGP')).reduce((sum, i) => sum + (Number(i.total_qty) || 0), 0)
 
                       const unitsPerSheet = Number(nom?.units_per_sheet) || 1;
-                      const plannedSheets = Number(snapshot?.sheets || snapshot?.count || snapshot?.sheets_count) || Math.ceil(need / unitsPerSheet);
+                      const plan = Number(snapshot?.plan || snapshot?.need || need) || 0;
+                      const sheets = Number(snapshot?.sheets || snapshot?.count || snapshot?.sheets_count) || Math.ceil(plan / unitsPerSheet);
+                      const loadCapacity = Number(snapshot?.load_capacity || snapshot?.custom_capacity) || findMachine(snapshot?.machine)?.sheet_capacity || 4;
+                      const targetTotalCards = Math.ceil(sheets / (loadCapacity || 1));
                       const stockBZ = Number(snapshot?.stock) || 0;
 
                       const netAvailable = grossCutOnLaser + stockBZ
-                      const shortage = (need > 0 && netAvailable < need) ? (need - netAvailable) : 0
+                      const plannedTotalQty = (sheets * unitsPerSheet) + stockBZ
+                      const spareFromSheets = plannedTotalQty - need
+                      const utilScrap = groupBreakdown?.util || 0
+                      const rawShortage = (need > 0) ? Math.max(0, Math.ceil(utilScrap - spareFromSheets)) : 0
+                      const shortage = Math.min(rawShortage, Math.max(0, need - netAvailable))
+
+                      let generatedSheetsCalc = 0
+                      let generatedQtyCalc = 0
+                      laserCards.forEach(c => {
+                        generatedSheetsCalc += Math.ceil(Number(c.quantity) / (unitsPerSheet || 1))
+                        generatedQtyCalc += Number(c.quantity)
+                      })
 
                       const stages = activeCards.reduce((acc, c) => {
                         if (c.status === 'new' || c.status === 'waiting-materials') acc.waiting++
@@ -1780,11 +1801,14 @@ const ForemanWorkplace = () => {
 
                       const hasPartCardsInProgress = stages.waiting > 0 || stages.cutting > 0
                       const hasRedoCardForPart = activeCards.some(c => (c.card_info || '').includes('[REDO]') || Boolean(c.is_rework))
-                      
-                      // ⚠️ Якщо ще не всі планові листи згенеровані/порізані ТА немає браку — це первинне виробництво, а не дефіцит!
-                      const hasUnfinishedPlannedProduction = (activeCards.length < plannedSheets) && groupBreakdown.initialScrap === 0 && !hasRedoCardForPart
-                      const isPendingOrPlanned = hasPartCardsInProgress || hasUnfinishedPlannedProduction
-                      const showShortageBtn = shortage > 0 && task.status !== 'completed' && !hasPartCardsInProgress && !hasUnfinishedPlannedProduction
+                      const isPlanFullyGenerated = 
+                        (targetTotalCards > 0 && laserCards.length >= targetTotalCards) ||
+                        (sheets > 0 && generatedSheetsCalc >= sheets) ||
+                        (plan > 0 && generatedQtyCalc >= plan);
+
+                      const hasShortageUI = shortage > 0 && task.status !== 'completed' && activeCards.length > 0 && isPlanFullyGenerated && !hasPartCardsInProgress
+                      const canClickReissue = isPlanFullyGenerated && !hasPartCardsInProgress
+                      const isPendingOrPlanned = hasPartCardsInProgress || !isPlanFullyGenerated || activeCards.length === 0
 
                       return (
                         <div key={nomId} className="nomenclature-archive-group" style={{ marginBottom: '0' }}>
@@ -1841,11 +1865,12 @@ const ForemanWorkplace = () => {
                                   ОЧІКУЄ СКЛАД
                                 </div>
                               )}
-                              {showShortageBtn && (
-                                <div onClick={(e) => e.stopPropagation()} style={{ padding: '4px 12px', borderRadius: '8px', background: '#ef444422', border: '1px solid #ef444444', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                  <div style={{ color: '#ef4444', fontSize: '0.7rem', fontWeight: 950 }}>НЕСТАЧА: {shortage}</div>
+                              {hasShortageUI && (
+                                <div onClick={(e) => e.stopPropagation()} style={{ padding: '4px 12px', borderRadius: '8px', background: canClickReissue ? '#ef444422' : 'rgba(255, 144, 0, 0.1)', border: canClickReissue ? '1px solid #ef444444' : '1px solid rgba(255, 144, 0, 0.3)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                  <div style={{ color: canClickReissue ? '#ef4444' : '#ff9000', fontSize: '0.7rem', fontWeight: 950 }}>НЕСТАЧА: {shortage}</div>
                                   <button
                                     onClick={() => {
+                                      if (!canClickReissue) return
                                       const unitsPerSheet = Number(nom?.units_per_sheet) || 1;
                                       const sheetsNeeded = Math.ceil(shortage / unitsPerSheet);
                                       const activeCardMachine = activeCards[0]?.machine || (task.plan_snapshot?.[String(nom?.id)]?.machine);
@@ -1855,16 +1880,23 @@ const ForemanWorkplace = () => {
                                       const cardsNeeded = Math.ceil(sheetsNeeded / capacity);
                                       setGenModal({ task, part: { nom }, total: cardsNeeded, targetTotal: cardsNeeded, requirement: shortage, created: 0, machineName, sheets: sheetsNeeded, isRepair: true, capacity })
                                     }}
-                                    disabled={shortage <= 0}
+                                    disabled={!canClickReissue}
+                                    title={!canClickReissue ? (hasPartCardsInProgress ? 'Картки для цієї деталі ще ріжуться на лазері' : 'Спочатку згенеруйте всі планові картки для цієї деталі') : ''}
                                     style={{
-                                      background: (shortage <= 0) ? '#444' : '#ef4444',
-                                      color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '0.6rem', fontWeight: 900,
-                                      cursor: (shortage <= 0) ? 'not-allowed' : 'pointer',
+                                      background: canClickReissue ? '#ef4444' : '#222',
+                                      color: canClickReissue ? '#fff' : '#666',
+                                      border: canClickReissue ? 'none' : '1px solid #333',
+                                      padding: '4px 10px',
+                                      borderRadius: '6px',
+                                      fontSize: '0.65rem',
+                                      fontWeight: 950,
+                                      cursor: canClickReissue ? 'pointer' : 'not-allowed',
                                       textTransform: 'uppercase',
-                                      opacity: (shortage <= 0) ? 0.6 : 1
+                                      opacity: canClickReissue ? 1 : 0.6,
+                                      boxShadow: canClickReissue ? '0 2px 8px rgba(239, 68, 68, 0.4)' : 'none'
                                     }}
                                   >
-                                    {activeCards.some(c => ['new', 'waiting-materials'].includes(c.status) && (c.card_info || '').includes('[REDO]')) ? 'ДОВИПУСТИТИ ЩЕ' : 'ДОВИПУСК'}
+                                    ДОВИПУСК
                                   </button>
                                 </div>
                               )}

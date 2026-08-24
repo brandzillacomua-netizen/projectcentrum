@@ -58,33 +58,49 @@ const Shop2Module = () => {
   }, [location.state])
 
   useEffect(() => {
+    fetchData(['tasks', 'orders', 'work_cards', 'inventory'])
+    const interval = setInterval(() => {
+      fetchData(['tasks', 'orders', 'work_cards', 'inventory'])
+    }, 10000)
+    return () => clearInterval(interval)
+  }, [fetchData])
+
+  useEffect(() => {
     if (activeTaskId && typeof fetchTaskPlanSnapshot === 'function') {
       fetchTaskPlanSnapshot(activeTaskId).catch(() => {})
     }
   }, [activeTaskId, fetchTaskPlanSnapshot])
 
+  const [activeTab, setActiveTab] = useState('active')
+
   // Фільтруємо наряди для Цеху №2 (Пресування/ЦЕХ №2)
+  const allShop2Tasks = useMemo(() => {
+    return tasks.filter(t => 
+      t.step?.includes('Пресування') || 
+      t.step?.includes('ЦЕХ №2') ||
+      t.step?.includes('Доопрацювання')  // ВБ-накази з відділу браку
+    )
+  }, [tasks])
+
+  const activeQueueCount = useMemo(() => {
+    return allShop2Tasks.filter(t => t.status !== 'completed').length
+  }, [allShop2Tasks])
+
+  const archiveQueueCount = useMemo(() => {
+    return allShop2Tasks.filter(t => t.status === 'completed').length
+  }, [allShop2Tasks])
+
   const relevantTasks = useMemo(() => {
-    return tasks
-      .filter(t => 
-        t.step?.includes('Пресування') || 
-        t.step?.includes('ЦЕХ №2') ||
-        t.step?.includes('Доопрацювання')  // ВБ-накази з відділу браку
-      )
+    return allShop2Tasks
+      .filter(t => activeTab === 'archive' ? t.status === 'completed' : t.status !== 'completed')
       .sort((a, b) => {
-        if (a.status === 'completed' && b.status !== 'completed') return 1
-        if (a.status !== 'completed' && b.status === 'completed') return -1
         const aWaiting = a.status === 'waiting' && !hasBufferParts(a)
         const bWaiting = b.status === 'waiting' && !hasBufferParts(b)
         if (aWaiting && !bWaiting) return 1
         if (!aWaiting && bWaiting) return -1
         return new Date(b.created_at) - new Date(a.created_at)
       })
-  }, [tasks, workCards])
-
-  const activeQueueCount = useMemo(() => {
-    return relevantTasks.filter(t => t.status !== 'completed').length
-  }, [relevantTasks])
+  }, [allShop2Tasks, activeTab, workCards])
 
   // Завантажуємо завершені карти для всіх нарядів Цеху №2
   useEffect(() => {
@@ -461,9 +477,76 @@ const Shop2Module = () => {
             transition: '0.3s transform'
           }}
         >
-          <div style={{ padding: '20px', color: '#444', fontWeight: 800, fontSize: '0.65rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            ЧЕРГА НАРЯДІВ ({relevantTasks.length})
-            {isDrawerOpen && <X size={18} onClick={() => setIsDrawerOpen(false)} style={{ cursor: 'pointer' }} />}
+          <div style={{ padding: '15px 20px', borderBottom: '1px solid #1a1a1a', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#888', fontWeight: 800, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              <span>{activeTab === 'active' ? `АКТИВНІ НАРЯДИ (${activeQueueCount})` : `АРХІВ НАРАДІВ (${archiveQueueCount})`}</span>
+              {isDrawerOpen && (
+                <button onClick={() => setIsDrawerOpen(false)} style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer' }}>
+                  <X size={18} />
+                </button>
+              )}
+            </div>
+
+            {/* Вкладки Активні / Архів */}
+            <div style={{ display: 'flex', background: '#0a0a0a', padding: '3px', borderRadius: '10px', border: '1px solid #222' }}>
+              <button
+                onClick={() => { setActiveTab('active'); setCurrentPage(1); }}
+                style={{
+                  flex: 1,
+                  padding: '7px 10px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: activeTab === 'active' ? '#8b5cf6' : 'transparent',
+                  color: activeTab === 'active' ? '#fff' : '#777',
+                  fontWeight: 900,
+                  fontSize: '0.7rem',
+                  cursor: 'pointer',
+                  transition: '0.2s'
+                }}
+              >
+                ⚡ АКТИВНІ ({activeQueueCount})
+              </button>
+              <button
+                onClick={() => { setActiveTab('archive'); setCurrentPage(1); }}
+                style={{
+                  flex: 1,
+                  padding: '7px 10px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: activeTab === 'archive' ? '#10b981' : 'transparent',
+                  color: activeTab === 'archive' ? '#fff' : '#777',
+                  fontWeight: 900,
+                  fontSize: '0.7rem',
+                  cursor: 'pointer',
+                  transition: '0.2s'
+                }}
+              >
+                📁 АРХІВ ({archiveQueueCount})
+              </button>
+            </div>
+
+            {/* Пагінація перелистування сторінок у верхній шапці */}
+            {relevantTasks.length > itemsPerPage && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#0a0a0a', padding: '6px 12px', borderRadius: '8px', border: '1px solid #1f1f1f', marginTop: '2px' }}>
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(p => p - 1)}
+                  style={{ background: '#1c1c1c', border: '1px solid #333', color: '#fff', padding: '4px 12px', borderRadius: '6px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', opacity: currentPage === 1 ? 0.3 : 1, fontSize: '0.7rem', fontWeight: 800 }}
+                >
+                  ← Назад
+                </button>
+                <div style={{ fontSize: '0.7rem', color: '#aaa', fontWeight: 900 }}>
+                  {currentPage} / {Math.ceil(relevantTasks.length / itemsPerPage)}
+                </div>
+                <button
+                  disabled={currentPage === Math.ceil(relevantTasks.length / itemsPerPage)}
+                  onClick={() => setCurrentPage(p => p + 1)}
+                  style={{ background: '#1c1c1c', border: '1px solid #333', color: '#fff', padding: '4px 12px', borderRadius: '6px', cursor: currentPage === Math.ceil(relevantTasks.length / itemsPerPage) ? 'not-allowed' : 'pointer', opacity: currentPage === Math.ceil(relevantTasks.length / itemsPerPage) ? 0.3 : 1, fontSize: '0.7rem', fontWeight: 800 }}
+                >
+                  Вперед →
+                </button>
+              </div>
+            )}
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -597,26 +680,30 @@ const Shop2Module = () => {
                 Поки що немає нарядів для виконання
               </div>
             )}
-          </div>
 
-          {/* ПАГІНАЦІЯ */}
-          {relevantTasks.length > itemsPerPage && (
-            <div style={{ padding: '15px', borderTop: '1px solid #222', display: 'flex', justifyContent: 'center', gap: '10px' }}>
-              <button
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(p => p - 1)}
-                style={{ background: '#222', border: 'none', color: '#fff', padding: '5px 12px', borderRadius: '4px', cursor: 'pointer', opacity: currentPage === 1 ? 0.3 : 1 }}
-              >Назад</button>
-              <div style={{ fontSize: '0.75rem', color: '#555', fontWeight: 800, alignSelf: 'center' }}>
-                {currentPage} / {Math.ceil(relevantTasks.length / itemsPerPage)}
+            {/* ПАГІНАЦІЯ ВНИЗУ — ОДРАЗУ ПІД ОСТАННІМ НАРАДОМ */}
+            {relevantTasks.length > itemsPerPage && (
+              <div style={{ padding: '12px 15px', borderTop: '1px solid #1a1a1a', background: '#0e0e0e', display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '10px 0' }}>
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(p => p - 1)}
+                  style={{ background: '#1c1c1c', border: '1px solid #333', color: '#fff', padding: '6px 14px', borderRadius: '8px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', opacity: currentPage === 1 ? 0.3 : 1, fontSize: '0.75rem', fontWeight: 800 }}
+                >
+                  ← Назад
+                </button>
+                <div style={{ fontSize: '0.75rem', color: '#aaa', fontWeight: 900 }}>
+                  {currentPage} / {Math.ceil(relevantTasks.length / itemsPerPage)}
+                </div>
+                <button
+                  disabled={currentPage === Math.ceil(relevantTasks.length / itemsPerPage)}
+                  onClick={() => setCurrentPage(p => p + 1)}
+                  style={{ background: '#1c1c1c', border: '1px solid #333', color: '#fff', padding: '6px 14px', borderRadius: '8px', cursor: currentPage === Math.ceil(relevantTasks.length / itemsPerPage) ? 'not-allowed' : 'pointer', opacity: currentPage === Math.ceil(relevantTasks.length / itemsPerPage) ? 0.3 : 1, fontSize: '0.75rem', fontWeight: 800 }}
+                >
+                  Вперед →
+                </button>
               </div>
-              <button
-                disabled={currentPage === Math.ceil(relevantTasks.length / itemsPerPage)}
-                onClick={() => setCurrentPage(p => p + 1)}
-                style={{ background: '#222', border: 'none', color: '#fff', padding: '5px 12px', borderRadius: '4px', cursor: 'pointer', opacity: currentPage === Math.ceil(relevantTasks.length / itemsPerPage) ? 0.3 : 1 }}
-              >Вперед</button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* ───── ЦЕНТРАЛЬНА ЧАСТИНА (ДЕТАЛІЗУЦІЯ) ───── */}

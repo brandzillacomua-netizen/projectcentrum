@@ -1056,9 +1056,12 @@ export function ForemanTaskDetails({
             }, 0)
             
             const hasCardsInProgress = activeCards.some(c => !countAsProduced(c))
+            const netAvailable = groupProduced + Number(stockBZ || 0)
+            const plannedTotalQty = (sheets * unitsPerSheet) + Number(stockBZ || 0)
+            const spareFromSheets = plannedTotalQty - need
             const utilScrap = groupBreakdown?.util || 0
-            const netAvailable = groupProduced - utilScrap
-            const shortage = (need > 0 && !hasCardsInProgress && netAvailable < need) ? (need - netAvailable) : 0
+            const rawShortage = (need > 0 && !hasCardsInProgress) ? Math.max(0, Math.ceil(utilScrap - spareFromSheets)) : 0
+            const shortage = Math.min(rawShortage, Math.max(0, need - netAvailable))
 
             const stages = activeCards.reduce((acc, c) => {
               if (c.status === 'new' || c.status === 'waiting-materials') acc.waiting++

@@ -173,6 +173,9 @@ const wrapRealtimeChannel = (channel, topic) => {
 }
 
 export const rawSupabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    lock: false
+  },
   global: {
     fetch: trackedSupabaseFetch,
     headers: {

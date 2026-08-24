@@ -233,6 +233,29 @@ export default function ForemanTaskQueue({
         {relevantTasks.length === 0 && (
           <div style={{ padding: '20px', color: '#333', fontSize: '0.8rem' }}>Немає нарядів</div>
         )}
+
+        {/* Пагінація одразу під останнім нарядом у списку */}
+        {relevantTasks.length > itemsPerPage && (
+          <div style={{ padding: '12px 15px', borderTop: '1px solid #1f1f1f', display: 'flex', justifyContent: 'center', gap: '12px', background: '#0a0a0a', margin: '15px 10px 20px 10px', borderRadius: '8px', border: '1px solid #1f1f1f' }}>
+            <button
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(p => p - 1)}
+              style={{ background: '#1c1c1c', border: '1px solid #333', color: '#fff', padding: '5px 12px', borderRadius: '6px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', opacity: currentPage === 1 ? 0.3 : 1, fontSize: '0.7rem', fontWeight: 800 }}
+            >
+              ← Назад
+            </button>
+            <div style={{ fontSize: '0.7rem', color: '#aaa', fontWeight: 900, display: 'flex', alignItems: 'center' }}>
+              {currentPage} / {Math.ceil(relevantTasks.length / itemsPerPage)}
+            </div>
+            <button
+              disabled={currentPage === Math.ceil(relevantTasks.length / itemsPerPage)}
+              onClick={() => setCurrentPage(p => p + 1)}
+              style={{ background: '#1c1c1c', border: '1px solid #333', color: '#fff', padding: '4px 12px', borderRadius: '6px', cursor: currentPage === Math.ceil(relevantTasks.length / itemsPerPage) ? 'not-allowed' : 'pointer', opacity: currentPage === Math.ceil(relevantTasks.length / itemsPerPage) ? 0.3 : 1, fontSize: '0.7rem', fontWeight: 800 }}
+            >
+              Вперед →
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
