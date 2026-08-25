@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import {
   LayoutDashboard,
   ArrowLeft,
@@ -14,7 +14,12 @@ import {
   Package,
   Clock,
   Pencil,
-  FileText
+  FileText,
+  Sparkles,
+  Lock,
+  AlertCircle,
+  FolderPlus,
+  CheckCircle2
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
@@ -22,7 +27,7 @@ import { apiService } from '../services/apiDispatcher'
 import { nomenclatureService } from '../services/nomenclatureService'
 import { supabase } from '../supabase'
 
-const ProductSearchSelect = ({ products = [], value, onChange, placeholder = "Введіть назву або код виробу..." }) => {
+const ProductSearchSelect = ({ products = [], value, onChange, onCreateNewProduct, placeholder = "Введіть назву або код виробу..." }) => {
   const [isOpen, setIsOpen] = useState(false)
   const [query, setQuery] = useState('')
   const containerRef = useRef(null)
@@ -115,45 +120,342 @@ const ProductSearchSelect = ({ products = [], value, onChange, placeholder = "В
         <div
           className="hints-dropdown"
           style={{
-            maxHeight: '260px',
+            maxHeight: '280px',
             overflowY: 'auto',
             boxShadow: '0 12px 30px rgba(0,0,0,0.85)',
             border: '1px solid rgba(255,144,0,0.2)',
-            background: '#0d0d0d'
+            background: '#0d0d0d',
+            display: 'flex',
+            flexDirection: 'column'
           }}
         >
-          {filteredProducts.length > 0 ? (
-            filteredProducts.map(p => {
-              const isSelected = String(p.id) === String(value)
-              return (
-                <div
-                  key={p.id}
-                  onClick={() => handleSelect(p)}
-                  className="hint-item"
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    background: isSelected ? 'rgba(255,144,0,0.12)' : undefined,
-                    color: isSelected ? '#ff9000' : '#fff',
-                    fontWeight: isSelected ? 800 : 400
-                  }}
-                >
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <span>{p.name}</span>
-                    {p.code && <span style={{ fontSize: '0.72rem', color: '#888' }}>Код / Арт: {p.code}</span>}
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {filteredProducts.length > 0 ? (
+              filteredProducts.map(p => {
+                const isSelected = String(p.id) === String(value)
+                return (
+                  <div
+                    key={p.id}
+                    onClick={() => handleSelect(p)}
+                    className="hint-item"
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      background: isSelected ? 'rgba(255,144,0,0.12)' : undefined,
+                      color: isSelected ? '#ff9000' : '#fff',
+                      fontWeight: isSelected ? 800 : 400
+                    }}
+                  >
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <span>{p.name}</span>
+                      {p.code && <span style={{ fontSize: '0.72rem', color: '#888' }}>Код / Арт: {p.code}</span>}
+                    </div>
+                    {isSelected && <span style={{ fontSize: '0.8rem', color: '#ff9000', fontWeight: 900 }}>✓</span>}
                   </div>
-                  {isSelected && <span style={{ fontSize: '0.8rem', color: '#ff9000', fontWeight: 900 }}>✓</span>}
-                </div>
-              )
-            })
-          ) : (
-            <div style={{ padding: '14px', fontSize: '0.82rem', color: '#666', textAlign: 'center' }}>
-              Нічого не знайдено за запитом &quot;{query}&quot;
+                )
+              })
+            ) : (
+              <div style={{ padding: '14px', fontSize: '0.82rem', color: '#666', textAlign: 'center' }}>
+                Нічого не знайдено за запитом &quot;{query}&quot;
+              </div>
+            )}
+          </div>
+
+          {/* "+ Створити новий готовий виріб" Button */}
+          {onCreateNewProduct && (
+            <div
+              onClick={() => {
+                setIsOpen(false)
+                onCreateNewProduct(query)
+              }}
+              style={{
+                padding: '12px 16px',
+                background: 'rgba(255,144,0,0.08)',
+                borderTop: '1px solid rgba(255,144,0,0.2)',
+                color: '#ff9000',
+                fontWeight: 900,
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,144,0,0.2)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,144,0,0.08)'}
+            >
+              <Plus size={16} />
+              <span>+ Створити новий готовий виріб</span>
             </div>
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+const CreateProductModal = ({ isOpen, onClose, onCreated, initialQuery = '', nomenclatures = [] }) => {
+  const { refreshTable } = useMES()
+  const [projType, setProjType] = useState('RND')
+  const [projNum, setProjNum] = useState('')
+  const [modelName, setModelName] = useState('')
+  const [customCode, setCustomCode] = useState('')
+  const [unit, setUnit] = useState('шт')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errorMsg, setErrorMsg] = useState('')
+
+  useEffect(() => {
+    if (isOpen) {
+      setErrorMsg('')
+      setIsSubmitting(false)
+      const numMatch = initialQuery.match(/\d+/)
+      if (numMatch) {
+        setProjNum(numMatch[0])
+        const cleanName = initialQuery.replace(/\d+/, '').trim()
+        setModelName(cleanName)
+      } else {
+        setProjNum('')
+        setModelName(initialQuery.trim())
+      }
+      setProjType('RND')
+      setCustomCode('')
+      setUnit('шт')
+    }
+  }, [isOpen, initialQuery])
+
+  const generatedName = useMemo(() => {
+    let tag = ''
+    if (projType === 'RND' && projNum.trim()) tag = `(RND${projNum.trim()})`
+    else if (projType === 'IP' && projNum.trim()) tag = `(інд. проект ${projNum.trim()})`
+
+    let res = 'Комплект карбонової рами'
+    if (tag) res += ` ${tag}`
+    if (modelName.trim()) res += tag ? `, ${modelName.trim()}` : ` ${modelName.trim()}`
+    return res.replace(/\s+/g, ' ').trim()
+  }, [projType, projNum, modelName])
+
+  const isDuplicate = useMemo(() => {
+    if (!generatedName) return false
+    const norm = generatedName.toLowerCase().replace(/\s+/g, '')
+    return nomenclatures.some(n => (n.name || '').toLowerCase().replace(/\s+/g, '') === norm)
+  }, [generatedName, nomenclatures])
+
+  if (!isOpen) return null
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (isSubmitting) return
+    if (!generatedName || generatedName === 'Комплект карбонової рами') {
+      setErrorMsg('Будь ласка, вкажіть номер проєкту або назву моделі!')
+      return
+    }
+
+    setIsSubmitting(true)
+    setErrorMsg('')
+
+    try {
+      // Check if item with exact same name already exists in nomenclatures
+      const normName = generatedName.toLowerCase().replace(/\s+/g, '')
+      const existingNom = nomenclatures.find(n => (n.name || '').toLowerCase().replace(/\s+/g, '') === normName)
+
+      let newNom = existingNom
+
+      if (!existingNom) {
+        // 1. Insert into nomenclatures table if not already present
+        const { data: inserted, error: insertNomErr } = await supabase
+          .from('nomenclatures')
+          .insert([{
+            name: generatedName,
+            type: 'product',
+            unit: unit || 'шт'
+          }])
+          .select()
+          .single()
+
+        if (insertNomErr) throw insertNomErr
+        newNom = inserted
+      }
+
+      const nextCode = nomenclatures.reduce((max, n) => {
+        const num = parseInt(String(n.code || '').replace(/\D/g, ''))
+        return !isNaN(num) && num > max ? num : max
+      }, 90000) + 1
+
+      const codeStr = customCode.trim() || `V2-${nextCode}`
+
+      // 2. Insert into nomenclatures_v2 table
+      const v2Payload = {
+        code: codeStr,
+        name: generatedName,
+        group_id: 'grp_production_frames',
+        unit: unit || 'шт',
+        rule_type: 'full_frame',
+        rule_params: { projType, projNum: projNum.trim(), name: modelName.trim() },
+        status: 'active'
+      }
+
+      try {
+        const { error: v2Err } = await supabase.from('nomenclatures_v2').insert([v2Payload])
+        if (v2Err) console.warn('nomenclatures_v2 insert warning:', v2Err)
+      } catch (v2Ex) {
+        console.warn('nomenclatures_v2 insert error:', v2Ex)
+      }
+
+      // 3. Refresh context tables
+      if (typeof refreshTable === 'function') {
+        refreshTable('nomenclatures')
+      }
+
+      // 4. Callback with new item ID
+      onCreated(newNom ? newNom.id : null)
+      onClose()
+    } catch (err) {
+      console.error('Failed to create product:', err)
+      setErrorMsg('Помилка створення виробу: ' + err.message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      <div style={{ background: '#0d0d0d', border: '1px solid rgba(255,144,0,0.3)', borderRadius: '24px', width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto', padding: '30px', boxShadow: '0 20px 50px rgba(0,0,0,0.9)', fontFamily: '"Outfit", sans-serif' }}>
+        
+        {/* Modal Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '15px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Sparkles size={22} color="#ff9000" />
+            <h3 style={{ margin: 0, fontWeight: 900, fontSize: '1.2rem', color: '#fff' }}>
+              Створення готового виробу (Продакшн)
+            </h3>
+          </div>
+          <button type="button" onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#666', cursor: 'pointer' }}><X size={20} /></button>
+        </div>
+
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          
+          {/* Category Selector (READ ONLY / LOCKED TO PRODUCTION) */}
+          <div>
+            <label style={{ fontSize: '0.72rem', fontWeight: 900, color: '#777', textTransform: 'uppercase', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              КАТЕГОРІЯ (ФІКСОВАНА) <Lock size={12} color="#ff9000" />
+            </label>
+            <div style={{ background: 'rgba(255,144,0,0.05)', border: '1px solid rgba(255,144,0,0.2)', borderRadius: '12px', padding: '12px 16px', color: '#ff9000', fontWeight: 800, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Layers size={16} />
+              <span>04. Готова продукція → Продакшн (FG.PRODUCTION)</span>
+            </div>
+            <span style={{ fontSize: '0.68rem', color: '#666', marginTop: '4px', display: 'block' }}>Менеджеру дозволено створювати лише готові вироби у папку Продакшн</span>
+          </div>
+
+          {/* Live Preview Card */}
+          <div style={{ background: 'rgba(255,144,0,0.08)', border: '1px solid rgba(255,144,0,0.35)', borderRadius: '16px', padding: '18px' }}>
+            <div style={{ fontSize: '0.68rem', fontWeight: 900, color: '#ff9000', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.5px' }}>
+              ✨ СГЕНЕРОВАНА СТАНДАРТИЗОВАНА НАЗВА:
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#fff', wordBreak: 'break-word' }}>
+              {generatedName}
+            </div>
+
+            {isDuplicate && (
+              <div style={{ marginTop: '10px', color: '#ef4444', fontSize: '0.78rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <AlertCircle size={14} /> Увага: Виріб з такою назвою вже існує в базі!
+              </div>
+            )}
+          </div>
+
+          {errorMsg && (
+            <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '12px', padding: '12px 16px', color: '#ef4444', fontSize: '0.82rem', fontWeight: 800 }}>
+              {errorMsg}
+            </div>
+          )}
+
+          {/* Form Fields */}
+          <div style={{ background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div>
+                <label style={{ fontSize: '0.72rem', color: '#888', fontWeight: 900, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>ТИП ПРОЄКТУ</label>
+                <select 
+                  value={projType} 
+                  onChange={e => setProjType(e.target.value)} 
+                  style={{ width: '100%', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', padding: '10px 12px', color: '#fff', fontWeight: 700, outline: 'none' }}
+                >
+                  <option value="RND">Серія RND</option>
+                  <option value="IP">Індивідуальний проєкт (ІП)</option>
+                  <option value="CUSTOM">Кастомна серія / Без тегу</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.72rem', color: '#888', fontWeight: 900, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>НОМЕР ПРОЄКТУ</label>
+                <input 
+                  type="text" 
+                  value={projNum} 
+                  onChange={e => setProjNum(e.target.value)} 
+                  placeholder="напр. 210, 176..." 
+                  style={{ width: '100%', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', padding: '10px 12px', color: '#fff', outline: 'none' }} 
+                />
+              </div>
+            </div>
+
+            <div>
+              <label style={{ fontSize: '0.72rem', color: '#888', fontWeight: 900, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>НАЗВА МОДЕЛІ / РАМИ</label>
+              <input 
+                type="text" 
+                value={modelName} 
+                onChange={e => setModelName(e.target.value)} 
+                placeholder="напр. Drozd, Interceptor..." 
+                style={{ width: '100%', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', padding: '10px 12px', color: '#fff', outline: 'none' }} 
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div>
+                <label style={{ fontSize: '0.72rem', color: '#888', fontWeight: 900, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>КОД / АРТИКУЛ (ОПЦІОНАЛЬНО)</label>
+                <input 
+                  type="text" 
+                  value={customCode} 
+                  onChange={e => setCustomCode(e.target.value)} 
+                  placeholder="Автоматично (V2-XXXXX)" 
+                  style={{ width: '100%', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', padding: '10px 12px', color: '#fff', outline: 'none' }} 
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.72rem', color: '#888', fontWeight: 900, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>ОДИНИЦЯ ВИМІРУ</label>
+                <input 
+                  type="text" 
+                  value={unit} 
+                  onChange={e => setUnit(e.target.value)} 
+                  readOnly 
+                  style={{ width: '100%', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', padding: '10px 12px', color: '#888', outline: 'none', cursor: 'not-allowed' }} 
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end', marginTop: '10px' }}>
+            <button 
+              type="button" 
+              onClick={onClose} 
+              className="btn-load-more" 
+              style={{ padding: '12px 24px' }}
+            >
+              СКАСУВАТИ
+            </button>
+            <button 
+              type="submit" 
+              disabled={isSubmitting} 
+              className="btn-primary-modern" 
+              style={{ padding: '12px 24px', boxShadow: 'none', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              <Sparkles size={16} />
+              {isSubmitting ? 'ЗБЕРЕЖЕННЯ...' : 'ЗБЕРЕГТИ ТА ОБРАТИ ВИРІБ'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }
@@ -163,6 +465,11 @@ const ManagerModule = () => {
   const [localCustomers, setLocalCustomers] = useState([])
   const searchTimeout = useRef(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  
+  // Product Creation Modal State
+  const [isCreateProductOpen, setIsCreateProductOpen] = useState(false)
+  const [createProductQuery, setCreateProductQuery] = useState('')
+  const [targetProductField, setTargetProductField] = useState('registration')
   
   // Filtering & Pagination State
   const [dateFilter, setDateFilter] = useState('month')
@@ -511,6 +818,11 @@ const ManagerModule = () => {
                   products={nomenclatures.filter(n => n.type === 'product')}
                   value={orderHeader.nomenclature_id}
                   onChange={id => setOrderHeader({ ...orderHeader, nomenclature_id: id })}
+                  onCreateNewProduct={(q) => {
+                    setCreateProductQuery(q)
+                    setTargetProductField('registration')
+                    setIsCreateProductOpen(true)
+                  }}
                 />
               </div>
 
@@ -749,6 +1061,11 @@ const ManagerModule = () => {
                       products={nomenclatures.filter(n => n.type === 'product')}
                       value={editingOrderHeader.nomenclature_id}
                       onChange={id => setEditingOrderHeader({ ...editingOrderHeader, nomenclature_id: id })}
+                      onCreateNewProduct={(q) => {
+                        setCreateProductQuery(q)
+                        setTargetProductField('edit')
+                        setIsCreateProductOpen(true)
+                      }}
                     />
                   </div>
 
@@ -1118,6 +1435,20 @@ const ManagerModule = () => {
         }
         @media (min-width: 769px) { .mobile-only { display: none !important; } }
       `}} />
+      <CreateProductModal
+        isOpen={isCreateProductOpen}
+        onClose={() => setIsCreateProductOpen(false)}
+        initialQuery={createProductQuery}
+        nomenclatures={nomenclatures}
+        onCreated={(newId) => {
+          if (!newId) return
+          if (targetProductField === 'edit') {
+            setEditingOrderHeader(prev => ({ ...prev, nomenclature_id: newId }))
+          } else {
+            setOrderHeader(prev => ({ ...prev, nomenclature_id: newId }))
+          }
+        }}
+      />
     </div>
   )
 }

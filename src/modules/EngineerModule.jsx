@@ -1752,24 +1752,61 @@ const SpecBuilderTab = () => {
     finally { setSaving(false) }
   }
 
-  // Catalog: group bom_items by parent — only show finished products & assemblies
+  // Catalog: group bom_items by parent — show all finished products & assemblies (including empty ones without BOMs)
   const catalogParents = useMemo(() => {
     const q = catalogSearch.toLowerCase()
-    const parentIds = [...new Set(bomItems.map(b => b.parent_id))]
-    return parentIds
-      .map(pid => ({
-        nom: nomenclatures.find(n => String(n.id) === String(pid)),
-        children: bomItems.filter(b => String(b.parent_id) === String(pid))
-      }))
+    
+    // 1. Get all products and assemblies from nomenclatures
+    const productNoms = nomenclatures.filter(n => n.type === 'product' || n.type === 'assembly')
+    
+    // 2. Include any additional parent IDs from bomItems
+    const knownNomIds = new Set(productNoms.map(n => String(n.id)))
+    bomItems.forEach(b => {
+      if (!knownNomIds.has(String(b.parent_id))) {
+        const found = nomenclatures.find(n => String(n.id) === String(b.parent_id))
+        if (found) {
+          productNoms.push(found)
+          knownNomIds.add(String(found.id))
+        }
+      }
+    })
+
+    // 3. De-duplicate by normalized name so historical duplicate DB rows merge into single clean catalog entries
+    const mapByName = new Map()
+    productNoms.forEach(nom => {
+      const normName = (nom.name || '').trim().toLowerCase()
+      if (!normName) return
+      
+      const children = bomItems.filter(b => String(b.parent_id) === String(nom.id))
+      const existing = mapByName.get(normName)
+
+      if (!existing) {
+        mapByName.set(normName, { nom, children })
+      } else {
+        // If current entry has children (BOM items) and existing doesn't, prefer current entry with children
+        if (children.length > 0 && existing.children.length === 0) {
+          mapByName.set(normName, { nom, children })
+        }
+      }
+    })
+
+    const uniqueParents = Array.from(mapByName.values())
+
+    return uniqueParents
       .filter(p => {
         if (!p.nom) return false
-        // Only show product or assembly parents — skip raw/part/consumable
         const t = p.nom.type
         if (t && t !== 'product' && t !== 'assembly') return false
         if (q && !p.nom.name.toLowerCase().includes(q)) return false
         return true
       })
-      .sort((a, b) => a.nom.name.localeCompare(b.nom.name))
+      .sort((a, b) => {
+        // Empty specifications (0 children) appear FIRST at the top!
+        const aEmpty = a.children.length === 0 ? 0 : 1
+        const bEmpty = b.children.length === 0 ? 0 : 1
+        if (aEmpty !== bEmpty) return aEmpty - bEmpty
+        return a.nom.name.localeCompare(b.nom.name)
+      })
   }, [bomItems, nomenclatures, catalogSearch])
 
   const TYPE_COLORS = { product: '#f59e0b', part: '#60a5fa', raw: '#34d399', consumable: '#f87171', assembly: '#a78bfa' }
@@ -2469,40 +2506,119 @@ const SpecBuilderTab = () => {
             </div>
           ) : catalogParents.map(({ nom, children }) => {
             const isExpanded = expandedParents[nom.id]
+            const isEmpty = children.length === 0
+
             return (
-              <div key={nom.id} style={{ background: '#0d0d0d', border: '1px solid #1a1a1a', borderRadius: '14px', overflow: 'hidden' }}>
+              <div
+                key={nom.id}
+                style={{
+                  background: isEmpty ? 'rgba(239, 68, 68, 0.05)' : '#0d0d0d',
+                  border: isEmpty ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid #1a1a1a',
+                  borderRadius: '14px',
+                  overflow: 'hidden',
+                  boxShadow: isEmpty ? '0 0 15px rgba(239, 68, 68, 0.15)' : 'none',
+                  transition: 'all 0.2s'
+                }}
+              >
                 <div
-                  onClick={() => { setDossierParentId(nom.id); setViewMode('dossier') }}
+                  onClick={() => {
+                    if (isEmpty) {
+                      setParentId(nom.id)
+                      setViewMode('editor')
+                    } else {
+                      setDossierParentId(nom.id)
+                      setViewMode('dossier')
+                    }
+                  }}
                   style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 20px', cursor: 'pointer', transition: 'background 0.2s' }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#111'}
+                  onMouseEnter={e => e.currentTarget.style.background = isEmpty ? 'rgba(239, 68, 68, 0.12)' : '#111'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <Package size={16} color="#6366f1"/>
-                    <span style={{ fontWeight: 800, fontSize: '0.95rem', color: '#c7d2fe' }}>{nom.name}</span>
-                    <span style={{ fontSize: '0.65rem', color: TYPE_COLORS[nom.type] || '#888', fontWeight: 900, background: (TYPE_COLORS[nom.type] || '#555') + '22', padding: '2px 8px', borderRadius: '20px' }}>{TYPE_LABELS[nom.type] || nom.type}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                    <Package size={16} color={isEmpty ? '#ef4444' : '#6366f1'} />
+                    <span style={{ fontWeight: 800, fontSize: '0.95rem', color: isEmpty ? '#fca5a5' : '#c7d2fe' }}>{nom.name}</span>
+                    <span style={{ fontSize: '0.65rem', color: TYPE_COLORS[nom.type] || '#888', fontWeight: 900, background: (TYPE_COLORS[nom.type] || '#555') + '22', padding: '2px 8px', borderRadius: '20px' }}>
+                      {TYPE_LABELS[nom.type] || nom.type}
+                    </span>
+                    {isEmpty && (
+                      <span style={{
+                        fontSize: '0.65rem',
+                        color: '#fff',
+                        fontWeight: 900,
+                        background: '#ef4444',
+                        padding: '3px 10px',
+                        borderRadius: '20px',
+                        letterSpacing: '0.5px',
+                        textTransform: 'uppercase',
+                        boxShadow: '0 2px 8px rgba(239,68,68,0.5)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px'
+                      }}>
+                        <AlertCircle size={11} /> ПОРОЖНЯ
+                      </span>
+                    )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span style={{ fontSize: '0.75rem', color: '#555', fontWeight: 700 }}>{children.length} позицій</span>
-                    <button
-                      onClick={e => { e.stopPropagation(); setDossierParentId(nom.id); setViewMode('dossier') }}
-                      style={{ padding: '5px 12px', background: 'rgba(99,102,241,0.1)', border: '1px solid #6366f133', color: '#818cf8', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px' }}
-                    >
-                      <Layers size={11}/> Досьє виробу
-                    </button>
+                    <span style={{ fontSize: '0.75rem', color: isEmpty ? '#ef4444' : '#555', fontWeight: isEmpty ? 900 : 700 }}>
+                      {isEmpty ? '0 позицій (ПОРОЖНЯ)' : `${children.length} позицій`}
+                    </span>
+
+                    {!isEmpty && (
+                      <button
+                        onClick={e => { e.stopPropagation(); setDossierParentId(nom.id); setViewMode('dossier') }}
+                        style={{ padding: '5px 12px', background: 'rgba(99,102,241,0.1)', border: '1px solid #6366f133', color: '#818cf8', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px' }}
+                      >
+                        <Layers size={11}/> Досьє виробу
+                      </button>
+                    )}
+
                     <button
                       onClick={e => { e.stopPropagation(); setParentId(nom.id); setViewMode('editor') }}
-                      style={{ padding: '5px 12px', background: 'rgba(99,102,241,0.05)', border: '1px solid #6366f120', color: '#818cf8', borderRadius: '6px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px' }}
+                      style={{
+                        padding: '6px 14px',
+                        background: isEmpty ? '#ef4444' : 'rgba(99,102,241,0.05)',
+                        border: isEmpty ? 'none' : '1px solid #6366f120',
+                        color: isEmpty ? '#fff' : '#818cf8',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '0.7rem',
+                        fontWeight: 900,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        boxShadow: isEmpty ? '0 3px 10px rgba(239,68,68,0.4)' : 'none'
+                      }}
                     >
-                      <Edit2 size={11}/> Конструктор
+                      <Edit2 size={11}/> {isEmpty ? '+ Наповнити специфікацію' : 'Конструктор'}
                     </button>
+
                     <button
                       onClick={async e => {
                         e.stopPropagation()
-                        if (!confirm(`Видалити специфікацію «${nom.name}»?`)) return
-                        await supabase.from('bom_items').delete().eq('parent_id', nom.id)
-                        await refreshTable('bom_items')
+                        if (!confirm(`Видалити позицію та специфікацію «${nom.name}»?`)) return
+                        try {
+                          await supabase.from('bom_items').delete().eq('parent_id', nom.id)
+                          await supabase.from('nomenclature_catalog_profiles').delete().eq('nomenclature_id', nom.id)
+                          await supabase.from('nomenclatures_v2').delete().eq('id', nom.id)
+
+                          const { error: nomErr } = await supabase.from('nomenclatures').delete().eq('id', nom.id)
+                          if (nomErr) {
+                            if (nomErr.code === '23503' || (nomErr.message && nomErr.message.includes('foreign key'))) {
+                              alert(`Неможливо видалити «${nom.name}», оскільки цей виріб вже використовується в існуючих замовленнях або робочих картах!`)
+                            } else {
+                              alert(`Помилка видалення: ${nomErr.message}`)
+                            }
+                            return
+                          }
+
+                          await refreshTable('bom_items')
+                          await refreshTable('nomenclatures')
+                        } catch (err) {
+                          alert('Помилка видалення: ' + err.message)
+                        }
                       }}
+                      title="Видалити позицію з системи"
                       style={{ padding: '5px 8px', background: 'rgba(239,68,68,0.06)', border: '1px solid #ef444420', color: '#ef4444', borderRadius: '6px', cursor: 'pointer' }}
                     >
                       <Trash2 size={12}/>
