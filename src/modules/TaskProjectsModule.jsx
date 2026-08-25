@@ -4,14 +4,14 @@ import { ArrowLeft, BriefcaseBusiness, Calendar, CheckCircle2, CheckSquare, Chev
 import { useMES } from '../MESContext'
 import { ChecklistEditor } from './KanbanModule'
 
-const COLUMNS = [
+const DEFAULT_COLUMNS = [
   { id: 'todo', title: 'В ЧЕРЗІ', color: '#8b5cf6' },
   { id: 'in_progress', title: 'В РОБОТІ', color: '#3b82f6' },
   { id: 'review', title: 'ПЕРЕВІРКА', color: '#f59e0b' },
   { id: 'done', title: 'ВИКОНАНО', color: '#10b981' },
 ]
-const COLORS = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899']
-const emptyProject = { name: '', description: '', color: COLORS[0], member_logins: [], department_ids: [] }
+const COLORS = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4', '#f97316', '#a855f7']
+const emptyProject = { name: '', description: '', color: COLORS[0], member_logins: [], department_ids: [], columns: DEFAULT_COLUMNS }
 const emptyTask = { title: '', description: '', priority: 'medium', color: '', assignees: [], deadline: '', checklist: [] }
 const taskId = () => Math.random().toString(36).slice(2) + Date.now().toString(36)
 
@@ -78,6 +78,7 @@ export default function TaskProjectsModule() {
     setProjectForm(project ? {
       name: project.name || '', description: project.description || '', color: project.color || COLORS[0],
       member_logins: asArray(project.member_logins), department_ids: asArray(project.department_ids).map(String),
+      columns: Array.isArray(project.columns) && project.columns.length > 0 ? project.columns : DEFAULT_COLUMNS,
     } : emptyProject)
     setProjectModal(true)
   }
@@ -148,10 +149,32 @@ export default function TaskProjectsModule() {
   const allowedDeptNames = new Set(companyStructure.filter(d => asArray(targetProject?.department_ids).map(String).includes(String(d.id))).map(d => d.name))
   const assignableUsers = targetProject ? systemUsers.filter(u => allowedLogins.has(u.login) || allowedDeptNames.has(u.department)) : systemUsers
 
+  const [isAddingCol, setIsAddingCol] = useState(false)
+  const [newColTitle, setNewColTitle] = useState('')
+  const [newColColor, setNewColColor] = useState(COLORS[0])
+
+  const handleAddColumnSubmit = async () => {
+    if (!newColTitle.trim() || !activeProject) return
+    const projectColumns = Array.isArray(activeProject?.columns) && activeProject.columns.length > 0 ? activeProject.columns : DEFAULT_COLUMNS
+    const newCol = {
+      id: 'col_' + Date.now().toString(36),
+      title: newColTitle.trim().toUpperCase(),
+      color: newColColor
+    }
+    const updatedCols = [...projectColumns, newCol]
+    await updateTaskProject(activeProject.id, { columns: updatedCols })
+    setNewColTitle('')
+    setIsAddingCol(false)
+  }
+
   if (activeProject) {
     const isOwnerOrManager = isDirector || activeProject.created_by === currentUser?.login
-    const completed = projectTasks.filter(t => t.status === 'done').length
+    const projectColumns = Array.isArray(activeProject?.columns) && activeProject.columns.length > 0 ? activeProject.columns : DEFAULT_COLUMNS
+    const doneColumnId = projectColumns.find(c => c.id === 'done' || (c.title || '').toLowerCase().includes('виконан') || (c.title || '').toLowerCase().includes('готов'))?.id || projectColumns[projectColumns.length - 1]?.id
+    const completed = projectTasks.filter(t => t.status === doneColumnId).length
     const pct = projectTasks.length ? Math.round(completed / projectTasks.length * 100) : 0
+    const gridColsCount = isOwnerOrManager ? projectColumns.length + 1 : projectColumns.length
+
     return <div className="tp-root">
       <header className="tp-header">
         <div className="tp-heading">
@@ -164,11 +187,92 @@ export default function TaskProjectsModule() {
           {isOwnerOrManager && <button className="tp-secondary" onClick={() => openProjectForm(activeProject)}><Edit3 size={15} /> Налаштувати</button>}
         </div>
       </header>
-      <main className="tp-board">
-        {COLUMNS.map(column => {
+      <main className="tp-board" style={{ gridTemplateColumns: `repeat(${gridColsCount}, minmax(270px, 1fr))` }}>
+        {projectColumns.map((column, colIndex) => {
           const tasks = projectTasks.filter(t => t.status === column.id)
           return <section className="tp-column" key={column.id} onDragOver={e => e.preventDefault()} onDrop={e => updateManagementTask(e.dataTransfer.getData('taskId'), { status: column.id })}>
-            <div className="tp-column-head"><span style={{ color: column.color }}>{column.title}</span><b>{tasks.length}</b></div>
+            <div className="tp-column-head">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+                <span style={{ color: column.color, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{column.title}</span>
+                <b>{tasks.length}</b>
+              </div>
+              {isOwnerOrManager && (
+                <div className="tp-col-controls">
+                  <input
+                    type="color"
+                    value={column.color || '#3b82f6'}
+                    onChange={async e => {
+                      const newColor = e.target.value
+                      const updated = projectColumns.map((c, i) => i === colIndex ? { ...c, color: newColor } : c)
+                      await updateTaskProject(activeProject.id, { columns: updated })
+                    }}
+                    title="Змінити колір"
+                    className="tp-col-color-picker"
+                  />
+                  <button
+                    type="button"
+                    onClick={async e => {
+                      e.stopPropagation()
+                      const newTitle = prompt('Нова назва колонки:', column.title)
+                      if (newTitle && newTitle.trim() && newTitle.trim() !== column.title) {
+                        const updated = projectColumns.map((c, i) => i === colIndex ? { ...c, title: newTitle.trim().toUpperCase() } : c)
+                        await updateTaskProject(activeProject.id, { columns: updated })
+                      }
+                    }}
+                    title="Перейменувати колонку"
+                  >
+                    <Edit3 size={12} />
+                  </button>
+                  {colIndex > 0 && (
+                    <button
+                      type="button"
+                      onClick={async e => {
+                        e.stopPropagation()
+                        const updated = [...projectColumns]
+                        const temp = updated[colIndex - 1]
+                        updated[colIndex - 1] = updated[colIndex]
+                        updated[colIndex] = temp
+                        await updateTaskProject(activeProject.id, { columns: updated })
+                      }}
+                      title="Вліво"
+                    >
+                      ←
+                    </button>
+                  )}
+                  {colIndex < projectColumns.length - 1 && (
+                    <button
+                      type="button"
+                      onClick={async e => {
+                        e.stopPropagation()
+                        const updated = [...projectColumns]
+                        const temp = updated[colIndex + 1]
+                        updated[colIndex + 1] = updated[colIndex]
+                        updated[colIndex] = temp
+                        await updateTaskProject(activeProject.id, { columns: updated })
+                      }}
+                      title="Вправо"
+                    >
+                      →
+                    </button>
+                  )}
+                  {projectColumns.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={async e => {
+                        e.stopPropagation()
+                        if (!confirm(`Видалити колонку «${column.title}»?`)) return
+                        const updated = projectColumns.filter((_, i) => i !== colIndex)
+                        await updateTaskProject(activeProject.id, { columns: updated })
+                      }}
+                      title="Видалити"
+                      className="tp-col-del"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
             <div className="tp-cards">
               {tasks.map(task => {
                 const assignee = systemUsers.find(u => u.login === task.assigned_to)
@@ -193,6 +297,44 @@ export default function TaskProjectsModule() {
             </div>
           </section>
         })}
+
+        {isOwnerOrManager && (
+          isAddingCol ? (
+            <div className="tp-new-column-card">
+              <span style={{ fontSize: '0.72rem', color: '#ff9000', fontWeight: 900 }}>НОВА КОЛОНКА</span>
+              <input
+                autoFocus
+                placeholder="Назва колонки..."
+                value={newColTitle}
+                onChange={e => setNewColTitle(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') handleAddColumnSubmit()
+                  if (e.key === 'Escape') setIsAddingCol(false)
+                }}
+              />
+              <div className="tp-new-col-colors">
+                {COLORS.map(c => (
+                  <button
+                    key={c}
+                    type="button"
+                    className={newColColor === c ? 'active' : ''}
+                    style={{ background: c }}
+                    onClick={() => setNewColColor(c)}
+                  />
+                ))}
+              </div>
+              <div className="tp-new-col-actions">
+                <button className="tp-primary-sm" onClick={handleAddColumnSubmit}>Додати</button>
+                <button className="tp-secondary-sm" onClick={() => setIsAddingCol(false)}><X size={14} /></button>
+              </div>
+            </div>
+          ) : (
+            <button className="tp-add-column-card" onClick={() => setIsAddingCol(true)}>
+              <Plus size={22} />
+              <span>Додати колонку</span>
+            </button>
+          )
+        )}
       </main>
       {!taskModal && !projectModal && <button className="tp-floating-add" onClick={() => openTaskForm()} title="Створити задачу"><Plus size={25} /></button>}
       {taskModal && <ProjectTaskModal form={taskForm} setForm={setTaskForm} users={assignableUsers} editing={editingTask} saving={saving} onSubmit={saveTask} onClose={closeTaskModal} project={activeProject} />}
@@ -318,10 +460,117 @@ function Modal({ title, onClose, children }) {
 
 function ProjectModal({ projectForm, setProjectForm, saveProject, saving, editingProject, systemUsers, companyStructure, onClose, onDelete }) {
   const toggle = (field, value) => setProjectForm(prev => ({ ...prev, [field]: prev[field].includes(value) ? prev[field].filter(v => v !== value) : [...prev[field], value] }))
+  const cols = projectForm.columns || DEFAULT_COLUMNS
+
   return <Modal title={editingProject ? 'Налаштування проєкту' : 'Новий проєкт'} onClose={onClose}><form onSubmit={saveProject} className="tp-form">
     <label>Назва<input required autoFocus value={projectForm.name} onChange={e => setProjectForm({ ...projectForm, name: e.target.value })} /></label>
     <label>Опис<textarea rows="3" value={projectForm.description} onChange={e => setProjectForm({ ...projectForm, description: e.target.value })} /></label>
-    <div><span className="tp-label">Колір</span><div className="tp-colors">{COLORS.map(c => <button type="button" key={c} className={projectForm.color === c ? 'active' : ''} style={{ background: c }} onClick={() => setProjectForm({ ...projectForm, color: c })} />)}</div></div>
+    <div><span className="tp-label">Колір проєкту</span><div className="tp-colors">{COLORS.map(c => <button type="button" key={c} className={projectForm.color === c ? 'active' : ''} style={{ background: c }} onClick={() => setProjectForm({ ...projectForm, color: c })} />)}</div></div>
+    
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+        <span className="tp-label">СТОВПЦІ КАНБАН-ДОШКИ ({cols.length})</span>
+        <button
+          type="button"
+          onClick={() => {
+            const newColId = 'col_' + Date.now().toString(36)
+            const nextColor = COLORS[cols.length % COLORS.length]
+            setProjectForm(prev => ({
+              ...prev,
+              columns: [...(prev.columns || DEFAULT_COLUMNS), { id: newColId, title: 'НОВИЙ СТОВПЕЦЬ', color: nextColor }]
+            }))
+          }}
+          style={{ background: 'rgba(255,144,0,0.1)', border: '1px solid rgba(255,144,0,0.3)', color: '#ff9000', padding: '4px 10px', borderRadius: '8px', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+        >
+          <Plus size={13} /> Додати стовпець
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto', paddingRight: '4px' }}>
+        {cols.map((col, index) => (
+          <div key={col.id || index} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg, #111)', padding: '6px 10px', borderRadius: '10px', border: '1px solid var(--glass-border, #222)' }}>
+            <input
+              type="color"
+              value={col.color || '#3b82f6'}
+              onChange={e => {
+                const val = e.target.value
+                setProjectForm(prev => ({
+                  ...prev,
+                  columns: (prev.columns || DEFAULT_COLUMNS).map((c, i) => i === index ? { ...c, color: val } : c)
+                }))
+              }}
+              style={{ width: '24px', height: '24px', border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}
+              title="Змінити колір стовпця"
+            />
+            <input
+              type="text"
+              value={col.title}
+              placeholder="Назва стовпця..."
+              onChange={e => {
+                const val = e.target.value
+                setProjectForm(prev => ({
+                  ...prev,
+                  columns: (prev.columns || DEFAULT_COLUMNS).map((c, i) => i === index ? { ...c, title: val } : c)
+                }))
+              }}
+              style={{ flex: 1, background: 'transparent', border: '1px solid #252525', padding: '5px 8px', borderRadius: '7px', fontSize: '0.78rem', color: '#fff', outline: 'none' }}
+            />
+            {index > 0 && (
+              <button
+                type="button"
+                title="Вліво"
+                onClick={() => {
+                  setProjectForm(prev => {
+                    const list = [...(prev.columns || DEFAULT_COLUMNS)]
+                    const temp = list[index - 1]
+                    list[index - 1] = list[index]
+                    list[index] = temp
+                    return { ...prev, columns: list }
+                  })
+                }}
+                style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', padding: '2px 4px', fontSize: '0.9rem', fontWeight: 900 }}
+              >
+                ←
+              </button>
+            )}
+            {index < cols.length - 1 && (
+              <button
+                type="button"
+                title="Вправо"
+                onClick={() => {
+                  setProjectForm(prev => {
+                    const list = [...(prev.columns || DEFAULT_COLUMNS)]
+                    const temp = list[index + 1]
+                    list[index + 1] = list[index]
+                    list[index] = temp
+                    return { ...prev, columns: list }
+                  })
+                }}
+                style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', padding: '2px 4px', fontSize: '0.9rem', fontWeight: 900 }}
+              >
+                →
+              </button>
+            )}
+            {cols.length > 1 && (
+              <button
+                type="button"
+                title="Видалити стовпець"
+                onClick={() => {
+                  setProjectForm(prev => ({
+                    ...prev,
+                    columns: (prev.columns || DEFAULT_COLUMNS).filter((_, i) => i !== index)
+                  }))
+                }}
+                style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
+              >
+                <Trash2 size={13} />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+
     <SearchPicker label="Додати відділи" placeholder="Почніть вводити назву відділу…" options={companyStructure.map(d => ({ value: String(d.id), label: d.name || d.label }))} selected={projectForm.department_ids} onToggle={value => toggle('department_ids', value)} />
     <SearchPicker label="Додати окремих людей" placeholder="Введіть ім’я або прізвище…" options={systemUsers.map(u => ({ value: u.login, label: userName(u), meta: u.department || '' }))} selected={projectForm.member_logins} onToggle={value => toggle('member_logins', value)} />
     <div className="tp-modal-actions">{editingProject && onDelete && <button type="button" className="tp-danger" onClick={onDelete}><Trash2 size={15} /> Видалити</button>}<button className="tp-primary" disabled={saving}>{saving ? 'Збереження…' : 'Зберегти проєкт'}</button></div>
@@ -373,10 +622,26 @@ function Styles() { return <style>{`
   .tp-progress{display:flex;align-items:center;gap:9px;color:var(--text-muted, #888);font-size:.72rem}
   .tp-progress i{width:90px;height:5px;background:var(--glass-border, #202020);border-radius:5px;overflow:hidden}
   .tp-progress b{display:block;height:100%}
-  .tp-board{display:grid;grid-template-columns:repeat(4,minmax(270px,1fr));gap:14px;padding:20px 26px;overflow-x:auto}
+  .tp-board{display:grid;gap:14px;padding:20px 26px;overflow-x:auto;align-items:start}
   .tp-column{background:var(--card-bg, #090909);border:1px solid var(--glass-border, #171717);border-radius:15px;min-height:calc(100vh - 120px)}
-  .tp-column-head{padding:16px;display:flex;justify-content:space-between;font-size:.72rem;font-weight:900;letter-spacing:1px;border-bottom:1px solid var(--glass-border, #171717)}
+  .tp-column-head{padding:16px;display:flex;justify-content:space-between;align-items:center;font-size:.72rem;font-weight:900;letter-spacing:1px;border-bottom:1px solid var(--glass-border, #171717)}
   .tp-column-head b{color:var(--text-muted, #555)}
+  .tp-col-controls{display:none;align-items:center;gap:3px;margin-left:auto}
+  .tp-column-head:hover .tp-col-controls{display:flex}
+  .tp-col-controls button{background:none;border:none;color:#888;cursor:pointer;padding:2px 4px;font-size:0.75rem;border-radius:4px;display:flex;align-items:center;transition:all 0.15s}
+  .tp-col-controls button:hover{color:#ff9000;background:rgba(255,144,0,0.12)}
+  .tp-col-controls .tp-col-del:hover{color:#ef4444;background:rgba(239,68,68,0.12)}
+  .tp-col-color-picker{width:16px;height:16px;border:none;background:none;cursor:pointer;padding:0;border-radius:50%}
+  .tp-add-column-card{min-width:270px;min-height:140px;border:2px dashed var(--glass-border, #222);border-radius:15px;background:var(--card-bg, #090909);color:var(--text-muted, #666);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer;transition:all 0.2s;font-weight:800;font-size:0.82rem}
+  .tp-add-column-card:hover{border-color:#ff9000;color:#ff9000;background:rgba(255,144,0,0.04);transform:translateY(-2px)}
+  .tp-new-column-card{min-width:270px;background:var(--card-bg, #0d0d0d);border:1px solid #ff900055;border-radius:15px;padding:16px;display:flex;flex-direction:column;gap:10px;box-shadow:0 8px 30px rgba(0,0,0,0.5)}
+  .tp-new-column-card input{background:#141414;border:1px solid #292929;border-radius:8px;padding:8px 12px;color:#fff;font-size:0.82rem;outline:none}
+  .tp-new-col-colors{display:flex;gap:6px}
+  .tp-new-col-colors button{width:18px;height:18px;border-radius:50%;border:2px solid transparent;cursor:pointer}
+  .tp-new-col-colors button.active{border-color:#fff}
+  .tp-new-col-actions{display:flex;gap:8px;justify-content:flex-end}
+  .tp-primary-sm{background:#ff9000;color:#000;border:none;padding:5px 12px;border-radius:7px;font-weight:800;font-size:0.75rem;cursor:pointer}
+  .tp-secondary-sm{background:#222;color:#aaa;border:none;padding:5px;border-radius:7px;cursor:pointer;display:flex;align-items:center}
   .tp-cards{padding:11px;display:flex;flex-direction:column;gap:10px}
   .tp-task{position:relative;background:var(--card-bg, #111);border:1px solid var(--glass-border, #222);border-radius:13px;padding:15px;cursor:pointer;transition:transform 0.15s,border-color 0.15s,box-shadow 0.15s}
   .tp-task:hover{border-color:rgba(255,255,255,0.15);transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,0.3)}
