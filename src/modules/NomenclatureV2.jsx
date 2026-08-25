@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../supabase';
+import { useMES } from '../MESContext';
 
 // ── Default Hierarchical Tree of Groups for ERP Accounting ─────────────────
 const DEFAULT_ERP_GROUPS = [
@@ -253,28 +254,29 @@ export const generateStandardName = (ruleType, params) => {
       }
       return `${category} ${code}`.trim();
     }
-    case 'full_frame': {
-      // Rule: Комплект карбонової рами [(RNDXXX/ІПХХ)], {Name}
+    case 'full_frame':
+    case 'element_kit': {
+      const prefixChoice = params.prefixChoice || (ruleType === 'element_kit' ? 'Комплект карбонових елементів' : 'Комплект карбонової рами');
+      const prefix = (prefixChoice === 'custom' ? params.customPrefix || '' : prefixChoice).trim();
+      
       const projType = params.projType || 'RND';
       const projNum = (params.projNum || '').trim();
-      const name = (params.name || '').trim();
-      let tag = '';
-      if (projType === 'RND' && projNum) tag = `(RND${projNum})`;
-      else if (projType === 'IP' && projNum) tag = `(інд. проект ${projNum})`;
+      const customProjType = (params.customProjType || '').trim();
       
-      let res = 'Комплект карбонової рами';
-      if (tag) res += ` ${tag}`;
-      if (name) res += tag ? `, ${name}` : ` ${name}`;
-      return res.replace(/\s+/g, ' ').trim();
-    }
-    case 'element_kit': {
-      // Rule: Комплект карбонових елементів [(RNDХХХ)] {Name}
-      const projNum = (params.projNum || '').trim();
+      const seriesType = params.seriesType || '';
+      const seriesLabel = (seriesType === 'custom' ? params.customSeries || '' : seriesType).trim();
+      
       const name = (params.name || '').trim();
-      let tag = projNum ? `(RND${projNum})` : '';
-      let res = 'Комплект карбонових елементів';
+
+      let tag = '';
+      if (projType === 'RND' && projNum) tag = `(RND ${projNum})`;
+      else if (projType === 'IP' && projNum) tag = `(ІП ${projNum})`;
+      else if (projType === 'CUSTOM' && projNum) tag = customProjType ? `(${customProjType} ${projNum})` : `(${projNum})`;
+
+      let res = prefix || 'Комплект карбонової рами';
       if (tag) res += ` ${tag}`;
-      if (name) res += ` ${name}`;
+      if (seriesLabel) res += ` ${seriesLabel}`;
+      if (name) res += tag || seriesLabel ? `, ${name}` : ` ${name}`;
       return res.replace(/\s+/g, ' ').trim();
     }
     case 'frame_part': {
@@ -436,8 +438,45 @@ const GroupTreeNode = ({ group, allGroups, activeGroupId, onSelectGroup, onAddSu
 
 // ── Main NomenclatureV2 Component ───────────────────────────────────────────
 const NomenclatureV2 = () => {
+  const { currentUser } = useMES();
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const INITIAL_PREFIXES = ['Комплект карбонової рами', 'Комплект карбонових елементів', 'Складова рами'];
+  const INITIAL_SERIES = ['F', 'KHARAK', 'Drozd', 'BITA'];
+
+  const [prefixList, setPrefixList] = useState(() => {
+    try {
+      const raw = localStorage.getItem('centrum_nom_prefixes');
+      if (raw) { const p = JSON.parse(raw); if (Array.isArray(p) && p.length > 0) return p; }
+    } catch (e) {}
+    return INITIAL_PREFIXES;
+  });
+
+  const [seriesList, setSeriesList] = useState(() => {
+    try {
+      const raw = localStorage.getItem('centrum_nom_series');
+      if (raw) { const s = JSON.parse(raw); if (Array.isArray(s) && s.length > 0) return s; }
+    } catch (e) {}
+    return INITIAL_SERIES;
+  });
+
+  const [showPrefixManage, setShowPrefixManage] = useState(false);
+  const [showSeriesManage, setShowSeriesManage] = useState(false);
+
+  const isDirector = !!(currentUser?.rights?.director || currentUser?.access_rights?.director || ['адмін', 'директор', 'керівник'].some(w => (currentUser?.position || '').toLowerCase().includes(w)));
+
+  const removePrefixItem = (itemToRemove) => {
+    const updated = prefixList.filter(i => i !== itemToRemove);
+    setPrefixList(updated);
+    try { localStorage.setItem('centrum_nom_prefixes', JSON.stringify(updated)); } catch (e) {}
+  };
+
+  const removeSeriesItem = (itemToRemove) => {
+    const updated = seriesList.filter(i => i !== itemToRemove);
+    setSeriesList(updated);
+    try { localStorage.setItem('centrum_nom_series', JSON.stringify(updated)); } catch (e) {}
+  };
   
   const [groups, setGroups] = useState(DEFAULT_ERP_GROUPS);
   const [selectedGroup, setSelectedGroup] = useState(null);
@@ -1745,24 +1784,143 @@ const NomenclatureV2 = () => {
                 {/* FULL FRAME & KITS */}
                 {(wizardRuleType === 'full_frame' || wizardRuleType === 'element_kit') && (
                   <>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <label style={{ fontSize: '0.72rem', color: '#666', fontWeight: 800, margin: 0 }}>ПОЧАТОК НАЗВИ / ТИП ВИРОБУ</label>
+                        {isDirector && (
+                          <button
+                            type="button"
+                            onClick={() => setShowPrefixManage(!showPrefixManage)}
+                            style={{ background: 'none', border: 'none', color: '#ff9000', fontSize: '0.68rem', fontWeight: 800, cursor: 'pointer', padding: 0 }}
+                          >
+                            ⚙️ {showPrefixManage ? 'Сховати' : 'Редагувати список'}
+                          </button>
+                        )}
+                      </div>
+
+                      {showPrefixManage && isDirector && (
+                        <div style={{ background: '#161616', border: '1px solid #333', borderRadius: '10px', padding: '10px 12px', marginTop: '4px', marginBottom: '8px' }}>
+                          <div style={{ fontSize: '0.68rem', color: '#ff9000', fontWeight: 900, marginBottom: '6px' }}>ВИДАЛЕННЯ ЗІ СПИСКУ (АДМІН/КЕРІВНИК):</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            {prefixList.map(item => (
+                              <div key={item} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: '#ddd' }}>
+                                <span>{item}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => removePrefixItem(item)}
+                                  style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px 6px' }}
+                                  title="Видалити зі списку"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <select 
+                        value={wizardParams.prefixChoice || (wizardRuleType === 'element_kit' ? 'Комплект карбонових елементів' : 'Комплект карбонової рами')} 
+                        onChange={e => setWizardParams({...wizardParams, prefixChoice: e.target.value})} 
+                        style={inputStyle}
+                      >
+                        {prefixList.map(p => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                        <option value="custom">✏️ + Свій варіант...</option>
+                      </select>
+                      {wizardParams.prefixChoice === 'custom' && (
+                        <input 
+                          type="text" 
+                          value={wizardParams.customPrefix || ''} 
+                          onChange={e => setWizardParams({...wizardParams, customPrefix: e.target.value})} 
+                          placeholder="напр. Набір карбонових деталей" 
+                          style={{ ...inputStyle, marginTop: '8px', border: '1px solid #ff9000' }} 
+                        />
+                      )}
+                    </div>
+
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                       <div>
                         <label style={{ fontSize: '0.72rem', color: '#666', fontWeight: 800 }}>ТИП ПРОЄКТУ</label>
-                        <select value={wizardParams.projType} onChange={e => setWizardParams({...wizardParams, projType: e.target.value})} style={inputStyle}>
+                        <select value={wizardParams.projType || 'SERIAL'} onChange={e => setWizardParams({...wizardParams, projType: e.target.value})} style={inputStyle}>
+                          <option value="SERIAL">Серійний виріб (без дужок / без тегу)</option>
                           <option value="RND">Серія RND</option>
                           <option value="IP">Індивідуальний проєкт (ІП)</option>
-                          <option value="CUSTOM">Кастомна серія</option>
+                          <option value="CUSTOM">✏️ + Свій тип проєкту...</option>
                         </select>
+                        {wizardParams.projType === 'CUSTOM' && (
+                          <input 
+                            type="text" 
+                            value={wizardParams.customProjType || ''} 
+                            onChange={e => setWizardParams({...wizardParams, customProjType: e.target.value})} 
+                            placeholder="напр. Спецпроєкт" 
+                            style={{ ...inputStyle, marginTop: '8px', border: '1px solid #ff9000' }} 
+                          />
+                        )}
                       </div>
                       <div>
                         <label style={{ fontSize: '0.72rem', color: '#666', fontWeight: 800 }}>НОМЕР ПРОЄКТУ</label>
-                        <input type="text" value={wizardParams.projNum} onChange={e => setWizardParams({...wizardParams, projNum: e.target.value})} placeholder="напр. 176 або 62" style={inputStyle} />
+                        <input type="text" value={wizardParams.projNum || ''} onChange={e => setWizardParams({...wizardParams, projNum: e.target.value})} placeholder="напр. 52 або 176" style={inputStyle} />
                       </div>
                     </div>
 
                     <div>
-                      <label style={{ fontSize: '0.72rem', color: '#666', fontWeight: 800 }}>НАЗВА МОДЕЛІ</label>
-                      <input type="text" value={wizardParams.name} onChange={e => setWizardParams({...wizardParams, name: e.target.value})} placeholder="напр. Drozd Interceptor" style={inputStyle} />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <label style={{ fontSize: '0.72rem', color: '#666', fontWeight: 800, margin: 0 }}>ТИП СЕРІЇ</label>
+                        {isDirector && (
+                          <button
+                            type="button"
+                            onClick={() => setShowSeriesManage(!showSeriesManage)}
+                            style={{ background: 'none', border: 'none', color: '#ff9000', fontSize: '0.68rem', fontWeight: 800, cursor: 'pointer', padding: 0 }}
+                          >
+                            ⚙️ {showSeriesManage ? 'Сховати' : 'Редагувати список'}
+                          </button>
+                        )}
+                      </div>
+
+                      {showSeriesManage && isDirector && (
+                        <div style={{ background: '#161616', border: '1px solid #333', borderRadius: '10px', padding: '10px 12px', marginTop: '4px', marginBottom: '8px' }}>
+                          <div style={{ fontSize: '0.68rem', color: '#ff9000', fontWeight: 900, marginBottom: '6px' }}>ВИДАЛЕННЯ ЗІ СПИСКУ (АДМІН/КЕРІВНИК):</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            {seriesList.map(item => (
+                              <div key={item} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: '#ddd' }}>
+                                <span>{item}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => removeSeriesItem(item)}
+                                  style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px 6px' }}
+                                  title="Видалити зі списку"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <select value={wizardParams.seriesType || ''} onChange={e => setWizardParams({...wizardParams, seriesType: e.target.value})} style={inputStyle}>
+                        <option value="">— Не вказано (без серії)</option>
+                        {seriesList.map(s => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                        <option value="custom">✏️ + Своя серія (ввести свою)...</option>
+                      </select>
+                      {wizardParams.seriesType === 'custom' && (
+                        <input 
+                          type="text" 
+                          value={wizardParams.customSeries || ''} 
+                          onChange={e => setWizardParams({...wizardParams, customSeries: e.target.value})} 
+                          placeholder="напр. Серія Марун" 
+                          style={{ ...inputStyle, marginTop: '8px', border: '1px solid #ff9000' }} 
+                        />
+                      )}
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.72rem', color: '#666', fontWeight: 800 }}>НАЗВА МОДЕЛІ / МОДИФІКАЦІЯ</label>
+                      <input type="text" value={wizardParams.name || ''} onChange={e => setWizardParams({...wizardParams, name: e.target.value})} placeholder="напр. Drozd Interceptor" style={inputStyle} />
                     </div>
                   </>
                 )}

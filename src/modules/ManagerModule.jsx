@@ -197,8 +197,13 @@ const ProductSearchSelect = ({ products = [], value, onChange, onCreateNewProduc
 
 const CreateProductModal = ({ isOpen, onClose, onCreated, initialQuery = '', nomenclatures = [] }) => {
   const { refreshTable } = useMES()
-  const [projType, setProjType] = useState('RND')
+  const [prefixChoice, setPrefixChoice] = useState('Комплект карбонової рами')
+  const [customPrefix, setCustomPrefix] = useState('')
+  const [projType, setProjType] = useState('SERIAL')
+  const [customProjType, setCustomProjType] = useState('')
   const [projNum, setProjNum] = useState('')
+  const [seriesType, setSeriesType] = useState('')
+  const [customSeries, setCustomSeries] = useState('')
   const [modelName, setModelName] = useState('')
   const [customCode, setCustomCode] = useState('')
   const [unit, setUnit] = useState('шт')
@@ -218,22 +223,41 @@ const CreateProductModal = ({ isOpen, onClose, onCreated, initialQuery = '', nom
         setProjNum('')
         setModelName(initialQuery.trim())
       }
-      setProjType('RND')
+      setPrefixChoice('Комплект карбонової рами')
+      setCustomPrefix('')
+      setProjType('SERIAL')
+      setCustomProjType('')
+      setSeriesType('')
+      setCustomSeries('')
       setCustomCode('')
       setUnit('шт')
     }
   }, [isOpen, initialQuery])
 
   const generatedName = useMemo(() => {
-    let tag = ''
-    if (projType === 'RND' && projNum.trim()) tag = `(RND${projNum.trim()})`
-    else if (projType === 'IP' && projNum.trim()) tag = `(інд. проект ${projNum.trim()})`
+    const prefix = (prefixChoice === 'custom' ? customPrefix : prefixChoice).trim()
 
-    let res = 'Комплект карбонової рами'
+    let tag = ''
+    const pNum = projNum.trim()
+    if (projType === 'RND' && pNum) {
+      tag = `(RND ${pNum})`
+    } else if (projType === 'IP' && pNum) {
+      tag = `(ІП ${pNum})`
+    } else if (projType === 'CUSTOM' && pNum) {
+      const pCustomType = customProjType.trim()
+      tag = pCustomType ? `(${pCustomType} ${pNum})` : `(${pNum})`
+    }
+
+    const sLabel = (seriesType === 'custom' ? customSeries : seriesType).trim()
+    const mName = modelName.trim()
+
+    let res = prefix || 'Комплект карбонової рами'
     if (tag) res += ` ${tag}`
-    if (modelName.trim()) res += tag ? `, ${modelName.trim()}` : ` ${modelName.trim()}`
+    if (sLabel) res += ` ${sLabel}`
+    if (mName) res += tag || sLabel ? `, ${mName}` : ` ${mName}`
+
     return res.replace(/\s+/g, ' ').trim()
-  }, [projType, projNum, modelName])
+  }, [prefixChoice, customPrefix, projType, customProjType, projNum, seriesType, customSeries, modelName])
 
   const isDuplicate = useMemo(() => {
     if (!generatedName) return false
@@ -372,6 +396,62 @@ const CreateProductModal = ({ isOpen, onClose, onCreated, initialQuery = '', nom
           {/* Form Fields */}
           <div style={{ background: '#111', padding: '20px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ fontSize: '0.72rem', color: '#888', fontWeight: 900, textTransform: 'uppercase', margin: 0 }}>ПОЧАТОК НАЗВИ / ТИП ВИРОБУ</label>
+                {isDirector && (
+                  <button
+                    type="button"
+                    onClick={() => setShowPrefixManage(!showPrefixManage)}
+                    style={{ background: 'none', border: 'none', color: '#ff9000', fontSize: '0.68rem', fontWeight: 800, cursor: 'pointer', padding: 0 }}
+                  >
+                    ⚙️ {showPrefixManage ? 'Сховати' : 'Редагувати список'}
+                  </button>
+                )}
+              </div>
+
+              {showPrefixManage && isDirector && (
+                <div style={{ background: '#161616', border: '1px solid #333', borderRadius: '12px', padding: '10px 12px', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '0.68rem', color: '#ff9000', fontWeight: 900, marginBottom: '6px' }}>ВИДАЛЕННЯ ЗІ СПИСКУ (АДМІН/КЕРІВНИК):</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {prefixList.map(item => (
+                      <div key={item} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: '#ddd' }}>
+                        <span>{item}</span>
+                        <button
+                          type="button"
+                          onClick={() => removePrefixItem(item)}
+                          style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px 6px' }}
+                          title="Видалити зі списку"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <select 
+                value={prefixChoice} 
+                onChange={e => setPrefixChoice(e.target.value)} 
+                style={{ width: '100%', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', padding: '10px 12px', color: '#fff', fontWeight: 700, outline: 'none' }}
+              >
+                {prefixList.map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+                <option value="custom">✏️ + Свій варіант...</option>
+              </select>
+              {prefixChoice === 'custom' && (
+                <input 
+                  type="text" 
+                  value={customPrefix} 
+                  onChange={e => setCustomPrefix(e.target.value)} 
+                  placeholder="напр. Набір карбонових деталей" 
+                  style={{ width: '100%', background: '#1a1a1a', border: '1px solid #ff9000', borderRadius: '12px', padding: '10px 12px', color: '#fff', marginTop: '8px', outline: 'none' }} 
+                />
+              )}
+            </div>
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               <div>
                 <label style={{ fontSize: '0.72rem', color: '#888', fontWeight: 900, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>ТИП ПРОЄКТУ</label>
@@ -380,10 +460,20 @@ const CreateProductModal = ({ isOpen, onClose, onCreated, initialQuery = '', nom
                   onChange={e => setProjType(e.target.value)} 
                   style={{ width: '100%', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', padding: '10px 12px', color: '#fff', fontWeight: 700, outline: 'none' }}
                 >
+                  <option value="SERIAL">Серійний виріб (без дужок / без тегу)</option>
                   <option value="RND">Серія RND</option>
                   <option value="IP">Індивідуальний проєкт (ІП)</option>
-                  <option value="CUSTOM">Кастомна серія / Без тегу</option>
+                  <option value="CUSTOM">✏️ + Свій тип проєкту...</option>
                 </select>
+                {projType === 'CUSTOM' && (
+                  <input 
+                    type="text" 
+                    value={customProjType} 
+                    onChange={e => setCustomProjType(e.target.value)} 
+                    placeholder="напр. Спецпроєкт" 
+                    style={{ width: '100%', background: '#1a1a1a', border: '1px solid #ff9000', borderRadius: '12px', padding: '10px 12px', color: '#fff', marginTop: '8px', outline: 'none' }} 
+                  />
+                )}
               </div>
 
               <div>
@@ -392,10 +482,67 @@ const CreateProductModal = ({ isOpen, onClose, onCreated, initialQuery = '', nom
                   type="text" 
                   value={projNum} 
                   onChange={e => setProjNum(e.target.value)} 
-                  placeholder="напр. 210, 176..." 
+                  placeholder="напр. 52, 176..." 
                   style={{ width: '100%', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', padding: '10px 12px', color: '#fff', outline: 'none' }} 
                 />
               </div>
+            </div>
+
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ fontSize: '0.72rem', color: '#888', fontWeight: 900, textTransform: 'uppercase', margin: 0 }}>ТИП СЕРІЇ</label>
+                {isDirector && (
+                  <button
+                    type="button"
+                    onClick={() => setShowSeriesManage(!showSeriesManage)}
+                    style={{ background: 'none', border: 'none', color: '#ff9000', fontSize: '0.68rem', fontWeight: 800, cursor: 'pointer', padding: 0 }}
+                  >
+                    ⚙️ {showSeriesManage ? 'Сховати' : 'Редагувати список'}
+                  </button>
+                )}
+              </div>
+
+              {showSeriesManage && isDirector && (
+                <div style={{ background: '#161616', border: '1px solid #333', borderRadius: '12px', padding: '10px 12px', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '0.68rem', color: '#ff9000', fontWeight: 900, marginBottom: '6px' }}>ВИДАЛЕННЯ ЗІ СПИСКУ (АДМІН/КЕРІВНИК):</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {seriesList.map(item => (
+                      <div key={item} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: '#ddd' }}>
+                        <span>{item}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeSeriesItem(item)}
+                          style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px 6px' }}
+                          title="Видалити зі списку"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <select 
+                value={seriesType} 
+                onChange={e => setSeriesType(e.target.value)} 
+                style={{ width: '100%', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', padding: '10px 12px', color: '#fff', fontWeight: 700, outline: 'none' }}
+              >
+                <option value="">— Не вказано (без серії)</option>
+                {seriesList.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+                <option value="custom">✏️ + Своя серія...</option>
+              </select>
+              {seriesType === 'custom' && (
+                <input 
+                  type="text" 
+                  value={customSeries} 
+                  onChange={e => setCustomSeries(e.target.value)} 
+                  placeholder="напр. Серія Марун" 
+                  style={{ width: '100%', background: '#1a1a1a', border: '1px solid #ff9000', borderRadius: '12px', padding: '10px 12px', color: '#fff', marginTop: '8px', outline: 'none' }} 
+                />
+              )}
             </div>
 
             <div>
