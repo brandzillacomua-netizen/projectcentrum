@@ -149,7 +149,7 @@ export default function TaskProjectsModule() {
   const assignableUsers = targetProject ? systemUsers.filter(u => allowedLogins.has(u.login) || allowedDeptNames.has(u.department)) : systemUsers
 
   if (activeProject) {
-    const isOwnerOrManager = manager || activeProject.created_by === currentUser?.login
+    const isOwnerOrManager = isDirector || activeProject.created_by === currentUser?.login
     const completed = projectTasks.filter(t => t.status === 'done').length
     const pct = projectTasks.length ? Math.round(completed / projectTasks.length * 100) : 0
     return <div className="tp-root">
