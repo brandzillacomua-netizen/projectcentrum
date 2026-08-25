@@ -1752,6 +1752,29 @@ export function createProductionActions({
       }
 
       if (bzStockDeductions.length > 0) {
+        // Deduct allocated BZ stock from inventory table
+        for (const allocation of bzStockDeductions) {
+          try {
+            const { data: bzItem } = await supabase
+              .from('inventory')
+              .select('*')
+              .eq('nomenclature_id', allocation.nomenclature_id)
+              .eq('type', 'bz')
+              .limit(1)
+              .maybeSingle()
+
+            if (bzItem) {
+              const nextQty = Math.max(0, (Number(bzItem.total_qty) || 0) - Number(allocation.quantity))
+              await supabase
+                .from('inventory')
+                .update({ total_qty: nextQty })
+                .eq('id', bzItem.id)
+            }
+          } catch (invErr) {
+            console.warn('Failed to deduct BZ inventory:', invErr)
+          }
+        }
+
         const cardsToInsert = bzStockDeductions.map(allocation => ({
           task_id: tData.id,
           order_id: orderId,
@@ -1782,6 +1805,7 @@ export function createProductionActions({
             await supabase.from('work_card_history').insert(historyToInsert)
           }
         }
+        refreshTable('inventory')
       }
 
       // ── Fire all remaining writes in parallel ────────────────────────────
