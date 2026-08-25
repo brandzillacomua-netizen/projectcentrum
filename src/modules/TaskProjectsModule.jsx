@@ -18,11 +18,17 @@ const taskId = () => Math.random().toString(36).slice(2) + Date.now().toString(3
 const userName = u => [u?.last_name, u?.first_name].filter(Boolean).join(' ') || u?.login || 'Користувач'
 const asArray = value => Array.isArray(value) ? value : []
 
+const isDirectorUser = user => {
+  const pos = (user?.position || '').toLowerCase()
+  const rights = user?.access_rights || user?.rights || {}
+  return !!(rights.director || ['адмін', 'директор', 'керівник підприємства'].some(word => pos.includes(word)))
+}
+
 const isManagerUser = user => {
   const pos = (user?.position || '').toLowerCase()
-  const rights = user?.access_rights || {}
+  const rights = user?.access_rights || user?.rights || {}
   return !!(rights.director || rights.master || rights.foreman || rights.manager ||
-    ['адмін', 'директор', 'начальник', 'майстер', 'керівник'].some(word => pos.includes(word)))
+    ['адмін', 'директор', 'начальник', 'майстер', 'керівник', 'менедж'].some(word => pos.includes(word)))
 }
 
 export default function TaskProjectsModule() {
@@ -31,7 +37,8 @@ export default function TaskProjectsModule() {
     addTaskProject, updateTaskProject, deleteTaskProject,
     addManagementTask, updateManagementTask, deleteManagementTask,
   } = useMES()
-  const manager = isManagerUser(currentUser)
+  const isDirector = isDirectorUser(currentUser)
+  const canCreateProject = isDirector || isManagerUser(currentUser)
   const [activeId, setActiveId] = useState(null)
   const [projectModal, setProjectModal] = useState(false)
   const [editingProject, setEditingProject] = useState(null)
@@ -56,10 +63,11 @@ export default function TaskProjectsModule() {
   }, [currentUser, companyStructure])
 
   const visibleProjects = useMemo(() => taskProjects.filter(project => {
-    if (manager || project.created_by === currentUser?.login) return true
+    if (project.status === 'archived') return false
+    if (isDirector || project.created_by === currentUser?.login) return true
     if (asArray(project.member_logins).includes(currentUser?.login)) return true
     return asArray(project.department_ids).some(id => userDepartmentIds.includes(String(id)))
-  }).filter(project => project.status !== 'archived'), [taskProjects, manager, currentUser, userDepartmentIds])
+  }), [taskProjects, isDirector, currentUser, userDepartmentIds])
 
   const activeProject = visibleProjects.find(p => p.id === activeId)
   const projectTasks = useMemo(() => managementTasks.filter(t => String(t.project_id || '') === String(activeId || '')), [managementTasks, activeId])
@@ -223,7 +231,7 @@ export default function TaskProjectsModule() {
           <div className="tp-project-progress"><i style={{ width: `${pct}%` }} /></div>
         </article>
       })}
-      {!filteredProjects.length && <div className="tp-empty"><FolderKanban size={44} /><h2>Проєктів поки немає</h2><p>{manager ? 'Створіть перший проєкт і сформуйте його команду.' : 'Вас ще не додано до жодного активного проєкту.'}</p></div>}
+      {!filteredProjects.length && <div className="tp-empty"><FolderKanban size={44} /><h2>Проєктів поки немає</h2><p>{canCreateProject ? 'Створіть перший проєкт і сформуйте його команду.' : 'Вас ще не додано до жодного активного проєкту.'}</p></div>}
     </main>
     {projectModal && <ProjectModal {...{ projectForm, setProjectForm, saveProject, saving, editingProject, systemUsers, companyStructure }} onClose={() => setProjectModal(false)} />}
     {taskModal && <ProjectTaskModal form={taskForm} setForm={setTaskForm} users={assignableUsers} editing={editingTask} saving={saving} onSubmit={saveTask} onClose={closeTaskModal} project={targetProject} />}
@@ -238,7 +246,7 @@ export default function TaskProjectsModule() {
         <div className="tp-add-popup">
           {!selectingProject ? (
             <>
-              {manager && (
+              {canCreateProject && (
                 <button className="tp-menu-item" onClick={() => { openProjectForm(); setAddMenuOpen(false); }}>
                   <Plus size={16} color="#ff9000" />
                   <span>Створити проєкт</span>
