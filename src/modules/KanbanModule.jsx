@@ -1016,25 +1016,27 @@ const KanbanModule = () => {
   const [isFetchingCompleted, setIsFetchingCompleted] = useState(false)
 
   useEffect(() => {
+    if (!currentUser) return
+    setCompletedPage(0)
     if (typeof fetchCompletedManagementTasksCount === 'function') {
-      fetchCompletedManagementTasksCount().then(cnt => setCompletedCount(cnt))
+      fetchCompletedManagementTasksCount(currentUser, isDirector).then(cnt => setCompletedCount(cnt))
     }
     if (typeof fetchCompletedManagementTasks === 'function') {
       setIsFetchingCompleted(true)
-      fetchCompletedManagementTasks(0, 20).then(res => {
+      fetchCompletedManagementTasks(0, 20, currentUser, isDirector).then(res => {
         setCompletedTasks(res.data || [])
         if (res.count !== undefined) setCompletedCount(res.count)
         setHasMoreCompleted((res.data || []).length === 20)
         setIsFetchingCompleted(false)
       })
     }
-  }, [])
+  }, [currentUser?.login, isDirector])
 
   const loadMoreCompleted = async () => {
     if (isFetchingCompleted || !hasMoreCompleted || typeof fetchCompletedManagementTasks !== 'function') return
     const nextPage = completedPage + 1
     setIsFetchingCompleted(true)
-    const res = await fetchCompletedManagementTasks(nextPage, 20)
+    const res = await fetchCompletedManagementTasks(nextPage, 20, currentUser, isDirector)
     setCompletedTasks(prev => [...prev, ...(res.data || [])])
     setCompletedPage(nextPage)
     setHasMoreCompleted((res.data || []).length === 20)
@@ -1067,19 +1069,47 @@ const KanbanModule = () => {
     setFilterMode('all')
   }, [isDirector])
 
+  // ── Filtered completed tasks ──────────────────────────────────────────────
+  const filteredCompletedTasks = useMemo(() => {
+    let list = (completedTasks || []).filter(t => !t.project_id)
+    if (!isDirector) {
+      list = list.filter(t => isTaskRelevantToUser(t, currentUser))
+    }
+    if (filterMode === 'my') {
+      list = list.filter(t => getAssignees(t).includes(currentUser?.login))
+    } else if (filterMode === 'assigned_by_me') {
+      list = list.filter(t => t.created_by === currentUser?.login)
+    } else if (filterMode === 'department') {
+      const deptId = getUserDeptId(currentUser?.department, companyStructure)
+      list = list.filter(t => t.is_collective && (t.department === deptId || t.department === 'all'))
+    } else if (filterMode === 'unassigned') {
+      list = list.filter(t => getAssignees(t).length === 0 && !t.is_collective)
+    }
+
+    if (selectedDeptFilter !== 'all') {
+      list = list.filter(t => getTaskDepartment(t, systemUsers, companyStructure) === selectedDeptFilter)
+    }
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase()
+      list = list.filter(t => (t.title || '').toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q))
+    }
+    return list
+  }, [completedTasks, isDirector, currentUser, filterMode, selectedDeptFilter, searchQuery, isTaskRelevantToUser, systemUsers, companyStructure])
+
   // ── Stats ───────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
     let list = (managementTasks || []).filter(t => !t.project_id)
     if (!isDirector) {
       list = list.filter(t => isTaskRelevantToUser(t, currentUser))
     }
+    const hasActiveFilters = filterMode !== 'all' || selectedDeptFilter !== 'all' || searchQuery
     return {
       total: list.length,
       inProgress: list.filter(t => t.status === 'in_progress').length,
-      done: completedCount,
+      done: hasActiveFilters ? filteredCompletedTasks.length : completedCount,
       overdue: list.filter(t => isOverdueTask(t)).length,
     }
-  }, [managementTasks, isDirector, currentUser, isTaskRelevantToUser])
+  }, [managementTasks, isDirector, currentUser, isTaskRelevantToUser, completedCount, filteredCompletedTasks.length, filterMode, selectedDeptFilter, searchQuery])
 
   // ── Filtered tasks ──────────────────────────────────────────────────────
   const filteredTasks = useMemo(() => {
@@ -1439,7 +1469,10 @@ const KanbanModule = () => {
       {/* ── MOBILE TABS ─────────────────────────────────────────────────── */}
       <div className="kb-mobile-tabs">
         {COLUMNS.map(col => {
-          const cnt = filteredTasks.filter(t => t.status === col.id).length
+          const hasActiveFilters = filterMode !== 'all' || selectedDeptFilter !== 'all' || searchQuery
+          const cnt = col.id === 'done'
+            ? (hasActiveFilters ? filteredCompletedTasks.length : completedCount)
+            : filteredTasks.filter(t => t.status === col.id).length
           return (
             <button key={col.id} className={`mob-tab ${activeMobileColumn === col.id ? 'active' : ''}`}
               style={{ '--cc': col.color }} onClick={() => setActiveMobileColumn(col.id)}>
@@ -1453,8 +1486,11 @@ const KanbanModule = () => {
       <div className={`kb-body-container ${isSidebarOpen ? 'sidebar-open' : ''}`}>
         <main className="kb-board">
           {COLUMNS.map(column => {
-            const columnTasks = column.id === 'done' ? completedTasks : filteredTasks.filter(t => t.status === column.id)
-            const columnCount = column.id === 'done' ? completedCount : columnTasks.length
+            const hasActiveFilters = filterMode !== 'all' || selectedDeptFilter !== 'all' || searchQuery
+            const columnTasks = column.id === 'done' ? filteredCompletedTasks : filteredTasks.filter(t => t.status === column.id)
+            const columnCount = column.id === 'done'
+              ? (hasActiveFilters ? filteredCompletedTasks.length : completedCount)
+              : columnTasks.length
             return (
               <div key={column.id} className={`kb-col ${activeMobileColumn === column.id ? 'mob-active' : ''}`}
                 onDragOver={handleDragOver} onDrop={e => handleDrop(e, column.id)}>

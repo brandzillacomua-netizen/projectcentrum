@@ -2281,14 +2281,21 @@ export function useData() {
   }, [])
 
 
-  const fetchCompletedManagementTasks = async (page = 0, pageSize = 20) => {
+  const fetchCompletedManagementTasks = async (page = 0, pageSize = 20, user = null, isDirector = true) => {
     const from = page * pageSize
     const to = from + pageSize - 1
     try {
-      const { data, error, count } = await supabase
+      let query = supabase
         .from('management_tasks')
         .select('*', { count: 'exact' })
         .eq('status', 'done')
+
+      if (!isDirector && user?.login) {
+        const login = user.login
+        query = query.or(`created_by.eq.${login},assigned_to.eq.${login},assignees.cs.["${login}"],is_collective.eq.true`)
+      }
+
+      const { data, error, count } = await query
         .order('created_at', { ascending: false })
         .range(from, to)
 
@@ -2300,12 +2307,19 @@ export function useData() {
     }
   }
 
-  const fetchCompletedManagementTasksCount = async () => {
+  const fetchCompletedManagementTasksCount = async (user = null, isDirector = true) => {
     try {
-      const { count, error } = await supabase
+      let query = supabase
         .from('management_tasks')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'done')
+
+      if (!isDirector && user?.login) {
+        const login = user.login
+        query = query.or(`created_by.eq.${login},assigned_to.eq.${login},assignees.cs.["${login}"],is_collective.eq.true`)
+      }
+
+      const { count, error } = await query
 
       if (error) throw error
       return count || 0
