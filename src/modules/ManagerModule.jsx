@@ -196,7 +196,44 @@ const ProductSearchSelect = ({ products = [], value, onChange, onCreateNewProduc
 }
 
 const CreateProductModal = ({ isOpen, onClose, onCreated, initialQuery = '', nomenclatures = [] }) => {
-  const { refreshTable } = useMES()
+  const { refreshTable, currentUser } = useMES()
+
+  const INITIAL_PREFIXES = ['Комплект карбонової рами', 'Комплект карбонових елементів', 'Складова рами']
+  const INITIAL_SERIES = ['F', 'KHARAK', 'Drozd', 'BITA']
+
+  const [prefixList, setPrefixList] = useState(() => {
+    try {
+      const raw = localStorage.getItem('centrum_nom_prefixes')
+      if (raw) { const p = JSON.parse(raw); if (Array.isArray(p) && p.length > 0) return p; }
+    } catch (e) {}
+    return INITIAL_PREFIXES
+  })
+
+  const [seriesList, setSeriesList] = useState(() => {
+    try {
+      const raw = localStorage.getItem('centrum_nom_series')
+      if (raw) { const s = JSON.parse(raw); if (Array.isArray(s) && s.length > 0) return s; }
+    } catch (e) {}
+    return INITIAL_SERIES
+  })
+
+  const [showPrefixManage, setShowPrefixManage] = useState(false)
+  const [showSeriesManage, setShowSeriesManage] = useState(false)
+
+  const isDirector = !!(currentUser?.rights?.director || currentUser?.access_rights?.director || ['адмін', 'директор', 'керівник'].some(w => (currentUser?.position || '').toLowerCase().includes(w)))
+
+  const removePrefixItem = (itemToRemove) => {
+    const updated = prefixList.filter(i => i !== itemToRemove)
+    setPrefixList(updated)
+    try { localStorage.setItem('centrum_nom_prefixes', JSON.stringify(updated)) } catch (e) {}
+  }
+
+  const removeSeriesItem = (itemToRemove) => {
+    const updated = seriesList.filter(i => i !== itemToRemove)
+    setSeriesList(updated)
+    try { localStorage.setItem('centrum_nom_series', JSON.stringify(updated)) } catch (e) {}
+  }
+
   const [prefixChoice, setPrefixChoice] = useState('Комплект карбонової рами')
   const [customPrefix, setCustomPrefix] = useState('')
   const [projType, setProjType] = useState('SERIAL')
