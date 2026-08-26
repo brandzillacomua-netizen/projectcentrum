@@ -1821,9 +1821,9 @@ const ForemanWorkplace = () => {
                         (sheets > 0 && generatedSheetsCalc >= sheets) ||
                         (plan > 0 && generatedQtyCalc >= plan);
 
-                      const hasShortageUI = shortage > 0 && task.status !== 'completed' && activeCards.length > 0 && isPlanFullyGenerated && !hasPartCardsInProgress
-                      const canClickReissue = isPlanFullyGenerated && !hasPartCardsInProgress
-                      const isPendingOrPlanned = hasPartCardsInProgress || !isPlanFullyGenerated || activeCards.length === 0
+                      const hasShortageUI = shortage > 0 && task.status !== 'completed' && activeCards.length > 0
+                      const canClickReissue = shortage > 0 || (isPlanFullyGenerated && !hasPartCardsInProgress)
+                      const isPendingOrPlanned = (hasPartCardsInProgress && shortage <= 0) || !isPlanFullyGenerated || activeCards.length === 0
 
                       return (
                         <div key={nomId} className="nomenclature-archive-group" style={{ marginBottom: '0' }}>
@@ -1851,7 +1851,7 @@ const ForemanWorkplace = () => {
                                 </small>
                               </div>
                               <div style={{ fontSize: '0.7rem', color: '#555', fontWeight: 800, paddingLeft: '10px' }}>
-                                ПРИЙНЯТО: <span style={{ color: netAvailable >= need ? '#10b981' : (hasPartCardsInProgress ? '#aaa' : '#ef4444'), fontWeight: 900 }}>{netAvailable}</span>
+                                ПРИЙНЯТО: <span style={{ color: netAvailable >= need ? '#10b981' : ((hasPartCardsInProgress && shortage <= 0) ? '#aaa' : '#ef4444'), fontWeight: 900 }}>{netAvailable}</span>
                               </div>
                               <div style={{ fontSize: '0.7rem', color: groupBreakdown.initialScrap > 0 ? '#ef4444' : '#333', fontWeight: 950 }}>
                                 БРАК: {groupBreakdown.initialScrap}

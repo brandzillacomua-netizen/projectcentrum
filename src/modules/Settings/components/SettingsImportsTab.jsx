@@ -269,9 +269,9 @@ export function SettingsImportsTab({
         {cuttersUploadStatus === 'idle' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div style={{ border: '2px dashed rgba(255,144,0,0.3)', borderRadius: '18px', padding: '36px 20px', textAlign: 'center', background: 'rgba(255,144,0,0.01)', cursor: 'pointer', transition: 'all 0.2s ease', position: 'relative', maxWidth: '520px' }}>
-              <input id="cutters-file-input" type="file" accept=".csv" onChange={handleCuttersFileChange} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
+              <input id="cutters-file-input" type="file" accept=".csv,.xlsx,.xls" onChange={handleCuttersFileChange} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
               <Upload size={38} color="#ff9000" style={{ marginBottom: '14px', opacity: 0.8, marginLeft: 'auto', marginRight: 'auto' }} />
-              <h4 style={{ margin: '0 0 6px 0', fontSize: '0.9rem', fontWeight: 800 }}>Оберіть або перетягніть CSV файл</h4>
+              <h4 style={{ margin: '0 0 6px 0', fontSize: '0.9rem', fontWeight: 800 }}>Оберіть або перетягніть CSV / Excel файл</h4>
             </div>
           </div>
         )}

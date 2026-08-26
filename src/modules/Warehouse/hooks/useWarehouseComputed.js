@@ -362,6 +362,23 @@ export const useWarehouseComputed = ({
       if (activeTab === 'bz') return itemType === 'bz' && matchesSearch
       if (activeTab === 'scrap') return itemType.startsWith('scrap') && matchesSearch
       
+      if (activeTab === 'sheets') {
+        const nameLower = itemName.toLowerCase()
+        const isRubber = nameLower.includes('гума') || nameLower.includes('гумов') || nameLower.includes('накладка')
+        const isSheetItem = (nameLower.includes('лист') || nameLower.includes('підготовл')) && !isRubber
+        return isOperational && isSheetItem && matchesSearch
+      }
+      if (activeTab === 'cutters') {
+        const nameLower = itemName.toLowerCase()
+        const isCutterItem = nameLower.includes('фреза')
+        return isOperational && isCutterItem && matchesSearch
+      }
+      if (activeTab === 'hardware') {
+        const nameLower = itemName.toLowerCase()
+        const isHardwareItem = itemType === 'hardware' || nameLower.includes('гайка') || nameLower.includes('гвинт') || nameLower.includes('болт') || nameLower.includes('шайба')
+        return isOperational && isHardwareItem && matchesSearch
+      }
+
       if (activeTab === 'raw') {
         return (itemType === 'raw' || itemType === 'consumable' || itemType === 'hardware') && matchesSearch
       }

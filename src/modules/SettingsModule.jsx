@@ -1022,7 +1022,7 @@ const SettingsModule = () => {
             type: 'raw',
             warehouse: 'operational',
             unit: unitText,
-            total_qty: qtyVal,
+          total_qty: qtyVal,
             reserved_qty: 0,
             updated_at: new Date().toISOString()
           })
@@ -1055,6 +1055,21 @@ const SettingsModule = () => {
     }
   }
 
+  const parseDiameterFromName = (name) => {
+    if (!name) return 0
+    const match = name.match(/(?:^|\s|ø)(\d+(?:[.,]\d+)?)\s*(?:[хxХX*×]|\s*мм|\s*mm)/i)
+    if (match && match[1]) {
+      const val = parseFloat(match[1].replace(',', '.'))
+      if (!isNaN(val) && val > 0) return val
+    }
+    const genericMatch = name.match(/(\d+(?:[.,]\d+)?)/)
+    if (genericMatch && genericMatch[1]) {
+      const val = parseFloat(genericMatch[1].replace(',', '.'))
+      if (!isNaN(val) && val > 0) return val
+    }
+    return 0
+  }
+
   // ── CUTTER (ФРЕЗИ) UPLOAD HELPERS ──
 
   const handleCuttersFileChange = async (e) => {
@@ -1062,6 +1077,22 @@ const SettingsModule = () => {
       const file = e.target.files[0]
       if (!file) return
       setCuttersFile(file)
+
+      if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+        const data = await file.arrayBuffer()
+        const wb = XLSX.read(data)
+        const ws = wb.Sheets[wb.SheetNames[0]]
+        const parsed = XLSX.utils.sheet_to_json(ws, { header: 1 })
+        const filtered = parsed.filter(row => row && row.length > 0 && row.some(cell => cell !== undefined && cell !== ''))
+        if (filtered.length > 0) {
+          processCuttersCSV(filtered.map(row => row.map(cell => String(cell ?? ''))))
+        } else {
+          alert('Помилка: файл порожній або має невірний формат.')
+        }
+        e.target.value = ''
+        return
+      }
+
       const reader = new FileReader()
       reader.onload = (event) => {
         try {

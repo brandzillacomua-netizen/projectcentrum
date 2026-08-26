@@ -1060,7 +1060,7 @@ export function ForemanTaskDetails({
             const plannedTotalQty = (sheets * unitsPerSheet) + Number(stockBZ || 0)
             const spareFromSheets = plannedTotalQty - need
             const utilScrap = groupBreakdown?.util || 0
-            const rawShortage = (need > 0 && !hasCardsInProgress) ? Math.max(0, Math.ceil(utilScrap - spareFromSheets)) : 0
+            const rawShortage = (need > 0) ? Math.max(0, Math.ceil(utilScrap - spareFromSheets)) : 0
             const shortage = Math.min(rawShortage, Math.max(0, need - netAvailable))
 
             const stages = activeCards.reduce((acc, c) => {
