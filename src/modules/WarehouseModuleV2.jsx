@@ -264,8 +264,6 @@ const WarehouseModuleV2 = () => {
     const getCount = tabId => (groupedByType.get(tabId)?.size || 0) + (receptionCounts[tabId] || 0)
     return [
       { id: 'raw', label: 'Оперативний', icon: <Package size={18} />, count: getCount('raw') },
-      { id: 'sheets', label: 'Листи', icon: <FolderOpen size={18} />, count: (inventory || []).filter(i => (i.warehouse === 'operational' || !i.warehouse) && Number(i.total_qty) > 0 && (i.name || '').toLowerCase().includes('лист') && !(i.name || '').toLowerCase().includes('гума') && !(i.name || '').toLowerCase().includes('накладка')).length },
-      { id: 'cutters', label: 'Фрези', icon: <Layers size={18} />, count: (inventory || []).filter(i => (i.warehouse === 'operational' || !i.warehouse) && Number(i.total_qty) > 0 && (i.name || '').toLowerCase().includes('фреза')).length },
       { id: 'boxes', label: 'Бокси фрез', icon: <WarehouseIcon size={18} />, count: cardsWithBoxes.filter(c => !c.isPrepared).length },
       { id: 'pocket', label: 'Кишеня майстра', icon: <FolderOpen size={18} />, count: getCount('pocket') },
       { id: 'semi', label: 'Напівфабрикати', icon: <Layers size={18} />, count: getCount('semi') },

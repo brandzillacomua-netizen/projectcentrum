@@ -1873,7 +1873,8 @@ const MasterModule = () => {
               {tasks.filter(t => {
                 if (t.status === 'completed' || t.status === 'pending' || !isShop1Task(t)) return false;
 
-                const order = orders.find(o => o.id === t.order_id) || allOrdersMap[t.order_id];
+                const order = orders.find(o => String(o.id) === String(t.order_id)) || allOrdersMap[t.order_id];
+                if (['14082026-01', '10082026-01', '260821-1'].includes(String(order?.order_num || '').trim())) return false;
                 const isNP = t.step === 'Підготовка' || order?.order_num?.includes('НП') || t.plan_snapshot?._prep_num?.includes('НП');
                 const isVB = order?.order_num?.includes('ВБ') || t.plan_snapshot?._prep_num?.includes('ВБ');
 
