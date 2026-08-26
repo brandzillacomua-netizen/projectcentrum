@@ -207,18 +207,22 @@ export function createProductionActions({
     const cardIds = wcList ? wcList.map(c => c.id) : []
 
     if (cardIds.length > 0) {
+      await supabase.from('cutter_usage_events').delete().in('source_card_id', cardIds)
       await supabase.from('work_card_history').delete().in('card_id', cardIds)
       await supabase.from('work_cards').delete().in('id', cardIds)
     }
+    await supabase.from('cutter_usage_events').delete().eq('order_id', orderId)
     await supabase.from('work_cards').delete().eq('order_id', orderId)
 
     if (taskIds.length > 0) {
+      await supabase.from('cutter_usage_events').delete().in('task_id', taskIds)
       await supabase.from('material_requests').delete().in('task_id', taskIds)
       await supabase.from('purchase_requests').delete().in('task_id', taskIds)
       await supabase.from('reception_docs').delete().in('task_id', taskIds)
       await supabase.from('tasks').delete().in('id', taskIds)
     }
     
+    await supabase.from('cutter_usage_events').delete().eq('order_id', orderId)
     await supabase.from('material_requests').delete().eq('order_id', orderId)
     await supabase.from('purchase_requests').delete().eq('order_id', orderId)
     await supabase.from('reception_docs').delete().eq('order_id', orderId)
@@ -415,22 +419,33 @@ export function createProductionActions({
       ]))
 
       if (cardIds.length > 0) {
+        await supabase.from('cutter_usage_events').delete().in('source_card_id', cardIds)
         await supabase.from('work_card_history').delete().in('card_id', cardIds)
+        await supabase.from('vkya_reclassification_queue').delete().in('source_card_id', cardIds)
+        await supabase.from('vkya_restoration_cards').delete().in('source_card_id', cardIds)
+        await supabase.from('vkya_restoration_cards').delete().in('route_card_id', cardIds)
         await supabase.from('work_cards').delete().in('id', cardIds)
       }
+      await supabase.from('cutter_usage_events').delete().eq('order_id', orderId)
       await supabase.from('work_cards').delete().eq('order_id', orderId)
 
       if (taskIds.length > 0) {
+        await supabase.from('cutter_usage_events').delete().in('task_id', taskIds)
         await supabase.from('material_requests').delete().in('task_id', taskIds)
         await supabase.from('purchase_requests').delete().in('task_id', taskIds)
         await supabase.from('reception_docs').delete().in('task_id', taskIds)
+        await supabase.from('vkya_reclassification_queue').delete().in('source_task_id', taskIds)
+        await supabase.from('vkya_restoration_cards').delete().in('source_task_id', taskIds)
         await supabase.from('tasks').delete().in('id', taskIds)
       }
 
       // Delete by order_id
+      await supabase.from('cutter_usage_events').delete().eq('order_id', orderId)
       await supabase.from('material_requests').delete().eq('order_id', orderId)
       await supabase.from('purchase_requests').delete().eq('order_id', orderId)
       await supabase.from('reception_docs').delete().eq('order_id', orderId)
+      await supabase.from('vkya_reclassification_queue').delete().eq('source_order_id', orderId)
+      await supabase.from('vkya_restoration_cards').delete().eq('source_order_id', orderId)
       await supabase.from('order_items').delete().eq('order_id', orderId)
       await supabase.from('work_cards').delete().eq('order_id', orderId)
 
