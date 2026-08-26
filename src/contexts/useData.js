@@ -6,8 +6,8 @@ import { getIndexedCache, setIndexedCache, removeIndexedCache } from '../service
 import { fetchProductionSummary } from '../services/statisticsService'
 import { fetchFulfillmentTasks, fetchMissingOrdersForTasks, isFulfillmentRoute } from '../services/fulfillmentQueueService'
 
-const CACHE_KEY = 'MES_APP_CACHE_V2'
-const LEGACY_CACHE_KEYS = ['MES_APP_CACHE_V1']
+const CACHE_KEY = 'MES_APP_CACHE_V10'
+const LEGACY_CACHE_KEYS = ['MES_APP_CACHE_V1', 'MES_APP_CACHE_V2', 'MES_APP_CACHE_V3', 'MES_APP_CACHE_V4', 'MES_APP_CACHE_V5', 'MES_APP_CACHE_V6', 'MES_APP_CACHE_V7', 'MES_APP_CACHE_V8', 'MES_APP_CACHE_V9']
 const USER_CACHE_KEY = 'MES_SESSION_USER'  // Full user object for instant restore
 const TARGET_REFRESH_TTL_MS = 900
 const TARGET_REFRESH_TTL_BY_TABLE = Object.freeze({
@@ -421,26 +421,28 @@ const fetchPendingMachineCalls = async () => {
 }
 
 const mergeTaskRows = (existing = [], incoming = []) => {
-  const merged = new Map(existing.map(item => [String(item.id), item]))
-  incoming.forEach(item => {
-    const cached = merged.get(String(item.id))
-    merged.set(String(item.id), {
+  if (!Array.isArray(incoming)) return existing
+  const existingMap = new Map((existing || []).map(item => [String(item.id), item]))
+  const result = incoming.map(item => {
+    const cached = existingMap.get(String(item.id))
+    return {
       ...cached,
       ...item,
       plan_snapshot: item.plan_snapshot || cached?.plan_snapshot || null
-    })
+    }
   })
-  return Array.from(merged.values()).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+  return result.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
 }
 
 const mergeOrderRows = (existing = [], incoming = []) => {
-  const merged = new Map(existing.map(item => [String(item.id), item]))
-  incoming.forEach(item => {
-    if (!item?.id) return
-    const cached = merged.get(String(item.id))
-    merged.set(String(item.id), { ...cached, ...item })
-  })
-  return Array.from(merged.values()).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+  if (!Array.isArray(incoming)) return existing
+  const existingMap = new Map((existing || []).map(item => [String(item.id), item]))
+  const result = incoming.map(item => {
+    if (!item?.id) return item
+    const cached = existingMap.get(String(item.id))
+    return { ...cached, ...item }
+  }).filter(Boolean)
+  return result.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
 }
 
 const isTaskInFulfillmentSlice = (task, pathname) => {
@@ -658,6 +660,18 @@ export function useData() {
       try { localStorage.removeItem(cacheKey) } catch { /* ignore unavailable storage */ }
       removeIndexedCache(cacheKey).catch(() => {})
     })
+    try {
+      localStorage.removeItem('foreman_shortage_map_v1')
+      localStorage.removeItem('MES_APP_CACHE_V1')
+      localStorage.removeItem('MES_APP_CACHE_V2')
+      localStorage.removeItem('MES_APP_CACHE_V3')
+      localStorage.removeItem('MES_APP_CACHE_V4')
+      localStorage.removeItem('MES_APP_CACHE_V5')
+      localStorage.removeItem('MES_APP_CACHE_V6')
+      localStorage.removeItem('MES_APP_CACHE_V7')
+      localStorage.removeItem('MES_APP_CACHE_V8')
+      localStorage.removeItem('MES_APP_CACHE_V9')
+    } catch (e) {}
     getIndexedCache(CACHE_KEY).then(cached => {
       if (cancelled || !cached) return
       const restore = (setter, field) => setter(prev => Array.isArray(prev) && prev.length > 0 ? prev : (cached[field] ?? prev))

@@ -59,12 +59,7 @@ export function useForemanData() {
   const [staticHistory, setStaticHistory] = useState([])
   const [customLoadingCapacities, setCustomLoadingCapacities] = useState({})
 
-  const [cachedShortageMap, setCachedShortageMap] = useState(() => {
-    try {
-      const raw = localStorage.getItem('foreman_shortage_map_v1')
-      return raw ? JSON.parse(raw) : {}
-    } catch { return {} }
-  })
+  const [cachedShortageMap, setCachedShortageMap] = useState({})
 
   return {
     activeView, setActiveView,
