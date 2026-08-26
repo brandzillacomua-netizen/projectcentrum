@@ -1598,10 +1598,17 @@ export function useData() {
 
     if (routeHasTable('management_tasks')) {
       activeChannel2 = activeChannel2.on('postgres_changes', { event: '*', schema: 'public', table: 'management_tasks' }, (payload) => {
+        let statusUpdates = {}
+        try {
+          statusUpdates = JSON.parse(localStorage.getItem('centrum_task_status_updates') || '{}')
+        } catch (e) {}
+
         if (payload.eventType === 'INSERT') {
-          setManagementTasks(prev => prev.some(t => t.id === payload.new.id) ? prev : [payload.new, ...prev])
+          const item = statusUpdates[payload.new.id] ? { ...payload.new, ...statusUpdates[payload.new.id] } : payload.new
+          setManagementTasks(prev => prev.some(t => t.id === item.id) ? prev.map(t => t.id === item.id ? { ...t, ...item } : t) : [item, ...prev])
         } else if (payload.eventType === 'UPDATE') {
-          setManagementTasks(prev => prev.map(t => t.id === payload.new.id ? { ...t, ...payload.new } : t))
+          const item = statusUpdates[payload.new.id] ? { ...payload.new, ...statusUpdates[payload.new.id] } : payload.new
+          setManagementTasks(prev => prev.map(t => t.id === item.id ? { ...t, ...item } : t))
         } else if (payload.eventType === 'DELETE') {
           setManagementTasks(prev => prev.filter(t => t.id !== payload.old.id))
         }
