@@ -853,7 +853,20 @@ export function useData() {
 
         if (su) setSystemUsers(su)
         if (mc) setMachines(mc)
-        if (mt) setManagementTasks(mt)
+        if (mt) {
+          try {
+            const statusUpdates = JSON.parse(localStorage.getItem('centrum_task_status_updates') || '{}')
+            const createdTasks = JSON.parse(localStorage.getItem('centrum_created_management_tasks') || '[]')
+            const map = new Map()
+            mt.forEach(t => map.set(t.id, statusUpdates[t.id] ? { ...t, ...statusUpdates[t.id] } : t))
+            createdTasks.forEach(t => {
+              if (!map.has(t.id)) map.set(t.id, statusUpdates[t.id] ? { ...t, ...statusUpdates[t.id] } : t)
+            })
+            setManagementTasks(Array.from(map.values()).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)))
+          } catch (e) {
+            setManagementTasks(mt)
+          }
+        }
         if (tp) setTaskProjects(tp)
         if (c) setCustomers(c)
         if (!oErr && latest) {
@@ -1120,14 +1133,23 @@ export function useData() {
         if (data) setMachineCalls(data)
       } else if (tableName === 'management_tasks') {
         const data = requireData(await supabase.from('management_tasks').select('*').or('status.neq.done,project_id.not.is.null').order('created_at', { ascending: false }))
-        if (data) {
-          try {
-            const saved = JSON.parse(localStorage.getItem('centrum_task_status_updates') || '{}')
-            const patched = data.map(t => saved[t.id] ? { ...t, ...saved[t.id] } : t)
-            setManagementTasks(patched)
-          } catch (e) {
-            setManagementTasks(data)
+        try {
+          const statusUpdates = JSON.parse(localStorage.getItem('centrum_task_status_updates') || '{}')
+          const createdTasks = JSON.parse(localStorage.getItem('centrum_created_management_tasks') || '[]')
+          
+          const map = new Map()
+          if (Array.isArray(data)) {
+            data.forEach(t => map.set(t.id, statusUpdates[t.id] ? { ...t, ...statusUpdates[t.id] } : t))
           }
+          if (Array.isArray(createdTasks)) {
+            createdTasks.forEach(t => {
+              if (!map.has(t.id)) map.set(t.id, statusUpdates[t.id] ? { ...t, ...statusUpdates[t.id] } : t)
+            })
+          }
+          const merged = Array.from(map.values()).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+          setManagementTasks(merged)
+        } catch (e) {
+          if (data) setManagementTasks(data)
         }
       } else if (tableName === 'task_projects') {
         const data = requireData(await supabase.from('task_projects').select('*').order('created_at', { ascending: false }))

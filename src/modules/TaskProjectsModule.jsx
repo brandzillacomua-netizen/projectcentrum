@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import React, { useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, BriefcaseBusiness, Calendar, CheckCircle2, CheckSquare, ChevronLeft, Edit3, FolderKanban, Plus, Search, Trash2, Users, X } from 'lucide-react'
 import { useMES } from '../MESContext'
 import { ChecklistEditor } from './KanbanModule'
@@ -53,7 +53,29 @@ export default function TaskProjectsModule() {
   } = useMES()
   const isDirector = isDirectorUser(currentUser)
   const canCreateProject = isDirector || isManagerUser(currentUser)
-  const [activeId, setActiveId] = useState(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const urlProjectId = searchParams.get('project')
+  const savedProjectId = localStorage.getItem('centrum_active_project_id')
+  
+  const [activeId, setActiveIdState] = useState(() => urlProjectId || savedProjectId || null)
+
+  useEffect(() => {
+    if (urlProjectId && urlProjectId !== activeId) {
+      setActiveIdState(urlProjectId)
+      localStorage.setItem('centrum_active_project_id', urlProjectId)
+    }
+  }, [urlProjectId])
+
+  const setActiveId = (id) => {
+    setActiveIdState(id)
+    if (id) {
+      localStorage.setItem('centrum_active_project_id', id)
+      setSearchParams({ project: id }, { replace: true })
+    } else {
+      localStorage.removeItem('centrum_active_project_id')
+      setSearchParams({}, { replace: true })
+    }
+  }
   const [projectModal, setProjectModal] = useState(false)
   const [editingProject, setEditingProject] = useState(null)
   const [projectForm, setProjectForm] = useState(emptyProject)

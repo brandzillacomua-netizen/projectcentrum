@@ -1297,6 +1297,10 @@ export function createProductionActions({
     }
 
     setManagementTasks(prev => [newTaskObj, ...prev])
+    try {
+      const saved = JSON.parse(localStorage.getItem('centrum_created_management_tasks') || '[]')
+      localStorage.setItem('centrum_created_management_tasks', JSON.stringify([newTaskObj, ...saved.filter(t => t.id !== newTaskObj.id)]))
+    } catch (e) {}
 
     try {
       const { data, error } = await supabase.from('management_tasks').insert([cleanPayload]).select()
@@ -1311,6 +1315,12 @@ export function createProductionActions({
   }
   const updateManagementTask = async (taskId, updates) => {
     setManagementTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updates } : t))
+    try {
+      const savedTasks = JSON.parse(localStorage.getItem('centrum_created_management_tasks') || '[]')
+      const updatedTasks = savedTasks.map(t => t.id === taskId ? { ...t, ...updates } : t)
+      localStorage.setItem('centrum_created_management_tasks', JSON.stringify(updatedTasks))
+    } catch (e) {}
+
     if (updates.status || updates.project_id) {
       try {
         const saved = JSON.parse(localStorage.getItem('centrum_task_status_updates') || '{}')
@@ -1322,8 +1332,17 @@ export function createProductionActions({
     return { error }
   }
   const deleteManagementTask = async (taskId) => {
+    setManagementTasks(prev => prev.filter(t => t.id !== taskId))
+    try {
+      const savedTasks = JSON.parse(localStorage.getItem('centrum_created_management_tasks') || '[]')
+      localStorage.setItem('centrum_created_management_tasks', JSON.stringify(savedTasks.filter(t => t.id !== taskId)))
+
+      const savedUpdates = JSON.parse(localStorage.getItem('centrum_task_status_updates') || '{}')
+      delete savedUpdates[taskId]
+      localStorage.setItem('centrum_task_status_updates', JSON.stringify(savedUpdates))
+    } catch (e) {}
+
     const { error } = await supabase.from('management_tasks').delete().eq('id', taskId)
-    if (!error) setManagementTasks(prev => prev.filter(t => t.id !== taskId))
     return { error }
   }
 
