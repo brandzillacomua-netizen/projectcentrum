@@ -193,6 +193,37 @@ const WarehouseModuleV2 = () => {
     setItemToDelete(item)
   }
 
+  const confirmDeleteInventoryItem = async () => {
+    if (!itemToDelete || isDeleting) return
+    setIsDeleting(true)
+    try {
+      const { error } = await supabase.from('inventory').delete().eq('id', itemToDelete.id)
+      if (error) throw error
+      if (typeof refreshTable === 'function') refreshTable('inventory')
+      if (typeof fetchData === 'function') fetchData(['inventory'])
+      setItemToDelete(null)
+    } catch (err) {
+      alert(`Помилка видалення: ${err.message || err}`)
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!itemToDelete) return
+    const handleKeyDown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        confirmDeleteInventoryItem()
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        setItemToDelete(null)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [itemToDelete, isDeleting])
+
   const handleWarehouseScan = async rawValue => {
     if (manualIssue.handleScannedCode(rawValue)) {
       setIsScanning(false)
@@ -1345,20 +1376,7 @@ const WarehouseModuleV2 = () => {
                 <button
                   type="button"
                   disabled={isDeleting}
-                  onClick={async () => {
-                    setIsDeleting(true)
-                    try {
-                      const { error } = await supabase.from('inventory').delete().eq('id', itemToDelete.id)
-                      if (error) throw error
-                      if (typeof refreshTable === 'function') refreshTable('inventory')
-                      if (typeof fetchData === 'function') fetchData(['inventory'])
-                      setItemToDelete(null)
-                    } catch (err) {
-                      alert(`Помилка видалення: ${err.message || err}`)
-                    } finally {
-                      setIsDeleting(false)
-                    }
-                  }}
+                  onClick={confirmDeleteInventoryItem}
                   style={{
                     background: 'linear-gradient(135deg, #ef4444, #dc2626)',
                     color: '#fff',

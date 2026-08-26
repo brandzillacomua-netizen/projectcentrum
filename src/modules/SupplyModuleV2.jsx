@@ -64,6 +64,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
   const [draftItems, setDraftItems] = useState([])
   const [selectedQty, setSelectedQty] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [stockFolder, setStockFolder] = useState('all')
   const [expandedDoc, setExpandedDoc] = useState(null)
   const [showReception, setShowReception] = useState(false)
   const [shortageModal, setShortageModal] = useState(null)
@@ -85,11 +86,50 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
   const [savingQr, setSavingQr] = useState(false)
   const [selectedQrNomIds, setSelectedQrNomIds] = useState(new Set())
 
-  // Super admin inventory editing state
+  // Super admin inventory editing & deletion state
   const [editingInvId, setEditingInvId] = useState(null)
   const [editingInvTotal, setEditingInvTotal] = useState('')
   const [editingInvReserved, setEditingInvReserved] = useState('')
   const [savingInv, setSavingInv] = useState(false)
+  const [itemToDelete, setItemToDelete] = useState(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const isAdmin = currentUser?.login === 'admin@workshop.local' || currentUser?.role === 'admin' || currentUser?.role === 'director' || (currentUser?.position || '').toLowerCase().includes('адмін') || (currentUser?.position || '').toLowerCase().includes('директор')
+
+  const handleDeleteInventoryItem = (item) => {
+    if (!item || !item.id || item.is_virtual_zero_stock) return
+    setItemToDelete(item)
+  }
+
+  const confirmDeleteInventoryItem = async () => {
+    if (!itemToDelete || isDeleting) return
+    setIsDeleting(true)
+    try {
+      const { error } = await supabase.from('inventory').delete().eq('id', itemToDelete.id)
+      if (error) throw error
+      if (typeof fetchData === 'function') fetchData(['inventory', 'nomenclatures'])
+      setItemToDelete(null)
+    } catch (err) {
+      alert(`Помилка видалення: ${err.message || err}`)
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!itemToDelete) return
+    const handleKeyDown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        confirmDeleteInventoryItem()
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        setItemToDelete(null)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [itemToDelete, isDeleting])
 
 
   const parseMaterialName = (details) => {
@@ -210,6 +250,37 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
     return [...warehouseRows, ...missingSheets]
       .sort((left, right) => String(left.name || '').localeCompare(String(right.name || ''), 'uk'))
   }, [inventory, nomenclatures, isProcurementOnly])
+
+  const stockFolderCounts = useMemo(() => {
+    const allCount = stockRows.length
+    const isSheet = i => (i.name || '').toLowerCase().includes('лист') && !(i.name || '').toLowerCase().includes('гума') && !(i.name || '').toLowerCase().includes('накладка')
+    const isCutter = i => (i.name || '').toLowerCase().includes('фреза')
+    const isHardware = i => i.type === 'hardware' || (i.name || '').toLowerCase().includes('гайка') || (i.name || '').toLowerCase().includes('гвинт') || (i.name || '').toLowerCase().includes('болт') || (i.name || '').toLowerCase().includes('шайба') || (i.name || '').toLowerCase().includes('заклепка') || (i.name || '').toLowerCase().includes('шпилька')
+
+    const sheetsCount = stockRows.filter(isSheet).length
+    const cuttersCount = stockRows.filter(isCutter).length
+    const hardwareCount = stockRows.filter(isHardware).length
+    const otherCount = stockRows.filter(i => !isSheet(i) && !isCutter(i) && !isHardware(i)).length
+
+    return { all: allCount, sheets: sheetsCount, cutters: cuttersCount, hardware: hardwareCount, other: otherCount }
+  }, [stockRows])
+
+  const filteredStockRows = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    const isSheet = i => (i.name || '').toLowerCase().includes('лист') && !(i.name || '').toLowerCase().includes('гума') && !(i.name || '').toLowerCase().includes('накладка')
+    const isCutter = i => (i.name || '').toLowerCase().includes('фреза')
+    const isHardware = i => i.type === 'hardware' || (i.name || '').toLowerCase().includes('гайка') || (i.name || '').toLowerCase().includes('гвинт') || (i.name || '').toLowerCase().includes('болт') || (i.name || '').toLowerCase().includes('шайба') || (i.name || '').toLowerCase().includes('заклепка') || (i.name || '').toLowerCase().includes('шпилька')
+
+    return stockRows.filter(i => {
+      if (query && !(i.name || '').toLowerCase().includes(query)) return false
+
+      if (stockFolder === 'sheets') return isSheet(i)
+      if (stockFolder === 'cutters') return isCutter(i)
+      if (stockFolder === 'hardware') return isHardware(i)
+      if (stockFolder === 'other') return !isSheet(i) && !isCutter(i) && !isHardware(i)
+      return true
+    })
+  }, [stockRows, searchQuery, stockFolder])
 
   const isDocAvailable = (doc) => {
     if (!doc.items || doc.items.length === 0) return true
@@ -2034,7 +2105,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
           {/* STOCK COLUMN */}
           {!showCreate && activeTab === 'stock' && (
             <section className="stock-col glass-panel" style={{ background: '#111', padding: '25px', borderRadius: '24px', border: '1px solid #222' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 900, margin: 0 }}>СКЛАДСЬКІ ЗАЛИШКИ</h3>
                 <div style={{ position: 'relative' }}>
                   <input
@@ -2043,6 +2114,51 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                   />
                 </div>
               </div>
+
+              {/* Папки склада СВ */}
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '22px', flexWrap: 'wrap', alignItems: 'center', background: '#0a0a0a', padding: '10px 14px', borderRadius: '16px', border: '1px solid #1f1f1f' }}>
+                <span style={{ fontSize: '.72rem', color: '#666', fontWeight: 850, marginRight: '4px' }}>Папки склада:</span>
+                {[
+                  { id: 'all', label: '📁 Всі позиції', count: stockFolderCounts.all, color: '#ff9000' },
+                  { id: 'sheets', label: '📄 Папка «Листи»', count: stockFolderCounts.sheets, color: '#38bdf8' },
+                  { id: 'cutters', label: '✂️ Папка «Фрези»', count: stockFolderCounts.cutters, color: '#10b981' },
+                  { id: 'hardware', label: '🔩 Папка «Метизи»', count: stockFolderCounts.hardware, color: '#a855f7' },
+                  { id: 'other', label: '📦 Папка «Інше»', count: stockFolderCounts.other, color: '#eab308' }
+                ].map(folder => (
+                  <button
+                    key={folder.id}
+                    type="button"
+                    onClick={() => setStockFolder(folder.id)}
+                    style={{
+                      background: stockFolder === folder.id ? folder.color : '#141414',
+                      color: stockFolder === folder.id ? '#000' : '#ccc',
+                      border: stockFolder === folder.id ? `1px solid ${folder.color}` : '1px solid #282828',
+                      padding: '8px 14px',
+                      borderRadius: '11px',
+                      fontSize: '.78rem',
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <span>{folder.label}</span>
+                    <span style={{
+                      background: stockFolder === folder.id ? 'rgba(0,0,0,0.2)' : '#222',
+                      color: stockFolder === folder.id ? '#000' : folder.color,
+                      fontSize: '.7rem',
+                      padding: '2px 7px',
+                      borderRadius: '99px',
+                      fontWeight: 1000
+                    }}>
+                      {folder.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
               <div className="table-responsive-container">
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
@@ -2054,26 +2170,41 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {stockRows
-                      .filter(i => (i.name || '').toLowerCase().includes(searchQuery.toLowerCase()))
-                      .map(item => (
+                    {filteredStockRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: '#444', fontSize: '0.85rem' }}>
+                          У цій папці позицій не знайдено
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredStockRows.map(item => (
                         <tr key={item.id} style={{ borderBottom: '1px solid #151515' }}>
                           <td style={{ padding: '15px', fontWeight: 700 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                               <span>{item.name}</span>
-                              {currentUser?.login === 'admin@workshop.local' && !item.is_virtual_zero_stock && editingInvId !== item.id && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingInvId(item.id)
-                                    setEditingInvTotal(String(item.total_qty || 0))
-                                    setEditingInvReserved(String(item.reserved_qty || 0))
-                                  }}
-                                  style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer', display: 'inline-flex', padding: '4px' }}
-                                  title="Редагувати запаси"
-                                >
-                                  <Pencil size={12} />
-                                </button>
+                              {isAdmin && !item.is_virtual_zero_stock && editingInvId !== item.id && (
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingInvId(item.id)
+                                      setEditingInvTotal(String(item.total_qty || 0))
+                                      setEditingInvReserved(String(item.reserved_qty || 0))
+                                    }}
+                                    style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer', display: 'inline-flex', padding: '4px' }}
+                                    title="Редагувати запаси"
+                                  >
+                                    <Pencil size={12} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteInventoryItem(item)}
+                                    style={{ background: 'transparent', border: 'none', color: '#ef4444', opacity: 0.7, cursor: 'pointer', display: 'inline-flex', padding: '4px' }}
+                                    title="Видалити позицію зі складу"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
                               )}
                             </div>
                           </td>
@@ -2083,6 +2214,10 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                                 type="number"
                                 value={editingInvTotal}
                                 onChange={e => setEditingInvTotal(e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') handleSaveInventoryQty(item.id)
+                                  if (e.key === 'Escape') setEditingInvId(null)
+                                }}
                                 style={{ width: '80px', background: '#000', border: '1px solid #ff9000', color: '#fff', textAlign: 'center', borderRadius: '6px', padding: '4px' }}
                               />
                             ) : (
@@ -2101,6 +2236,10 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                                   type="number"
                                   value={editingInvReserved}
                                   onChange={e => setEditingInvReserved(e.target.value)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') handleSaveInventoryQty(item.id)
+                                    if (e.key === 'Escape') setEditingInvId(null)
+                                  }}
                                   style={{ width: '80px', background: '#000', border: '1px solid #3b82f6', color: '#fff', textAlign: 'center', borderRadius: '6px', padding: '4px' }}
                                 />
                                 <button
@@ -2125,7 +2264,7 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                           </td>
                         </tr>
                       ))
-                    }
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -2532,6 +2671,103 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                 style={{ flex: 2, padding: '12px', borderRadius: '10px', background: '#ef4444', color: '#fff', border: 'none', fontWeight: 950, cursor: 'pointer' }}
               >
                 {isProcessing ? 'ОБРОБКА...' : 'НАДІСЛАТИ ЗАПИТ'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {itemToDelete && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.75)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px'
+          }}
+          onClick={() => !isDeleting && setItemToDelete(null)}
+        >
+          <div
+            style={{
+              background: '#121212',
+              border: '1px solid #282828',
+              borderRadius: '24px',
+              padding: '28px',
+              maxWidth: '460px',
+              width: '100%',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.8)',
+              position: 'relative'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '20px' }}>
+              <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '12px', borderRadius: '16px', color: '#ef4444', display: 'flex' }}>
+                <AlertTriangle size={26} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 900, color: '#fff' }}>
+                  ПІДТВЕРДЖЕННЯ ВИДАЛЕННЯ
+                </h3>
+                <span style={{ fontSize: '0.68rem', color: '#ef4444', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Дія незворотна
+                </span>
+              </div>
+            </div>
+
+            <div style={{ background: '#080808', border: '1px solid #222', borderRadius: '16px', padding: '16px', marginBottom: '24px' }}>
+              <p style={{ margin: '0 0 8px 0', fontSize: '0.82rem', color: '#888' }}>
+                Ви дійсно бажаєте безповоротно видалити позицію зі склада?
+              </p>
+              <div style={{ fontSize: '0.95rem', fontWeight: 900, color: '#fff', wordBreak: 'break-word', lineHeight: '1.4' }}>
+                {itemToDelete.name}
+              </div>
+              <div style={{ display: 'flex', gap: '15px', marginTop: '12px', fontSize: '0.78rem', color: '#555' }}>
+                <span>Наявність: <strong style={{ color: '#ff9000' }}>{itemToDelete.total_qty || 0} {itemToDelete.unit || 'шт'}</strong></span>
+                <span>ID: <code style={{ color: '#444' }}>{String(itemToDelete.id).substring(0, 8)}</code></span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setItemToDelete(null)}
+                style={{
+                  background: '#1a1a1a',
+                  color: '#ccc',
+                  border: '1px solid #333',
+                  padding: '12px 22px',
+                  borderRadius: '12px',
+                  fontWeight: 800,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Скасувати
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={confirmDeleteInventoryItem}
+                style={{
+                  background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '12px 24px',
+                  borderRadius: '12px',
+                  fontWeight: 900,
+                  fontSize: '0.82rem',
+                  cursor: isDeleting ? 'wait' : 'pointer',
+                  boxShadow: '0 4px 15px rgba(239, 68, 68, 0.4)',
+                  opacity: isDeleting ? 0.6 : 1
+                }}
+              >
+                {isDeleting ? 'Видалення...' : 'Видалити остаточно'}
               </button>
             </div>
           </div>
