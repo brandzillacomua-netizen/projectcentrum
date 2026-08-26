@@ -106,35 +106,7 @@ const WarehouseBoxesModule = () => {
     })
   }, [cardsWithBoxes, orders])
 
-  useEffect(() => {
-    if (allBoxes.length === 0 || requests.length === 0) return
-    console.log("=== DIAGNOSTIC: WAREHOUSE BOXES ISSUED CHECK ===")
-    const ordersToCheck = ['14082026-01', '07082026-03', '10082026-01', '15072026-01']
-    ordersToCheck.forEach(orderNum => {
-      const orderBoxes = allBoxes.filter(b => b.orderNum.includes(orderNum))
-      const cardIds = orderBoxes.map(b => String(b.card.id))
-      const taskIds = [...new Set(orderBoxes.map(b => String(b.card.task_id)))]
-      
-      const completedReqs = requests.filter(r => 
-        r.status === 'completed' && 
-        (cardIds.includes(String(r.card_id)) || taskIds.includes(String(r.task_id)))
-      )
-      
-      const activeReqs = requests.filter(r => 
-        (r.status === 'pending' || r.status === 'issued') && 
-        (cardIds.includes(String(r.card_id)) || taskIds.includes(String(r.task_id)))
-      )
-      
-      console.log(`Order: ${orderNum}, Cards: ${orderBoxes.length}, Completed: ${completedReqs.length}, Active (Pending/Issued): ${activeReqs.length}`)
-      if (activeReqs.length > 0) {
-        console.log("Active Requests:")
-        activeReqs.forEach(r => {
-          console.log(`  -> ID: ${r.id}, Status: ${r.status}, CardID: ${r.card_id || 'TASK LEVEL'}, Details: "${r.details}"`)
-        })
-      }
-    })
-    console.log("=================================================")
-  }, [allBoxes, requests])
+
 
   // Filter boxes by search query, selected order, and tab status
   const filteredBoxes = useMemo(() => {

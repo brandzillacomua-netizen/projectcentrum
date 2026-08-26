@@ -190,72 +190,103 @@ export function createProductionActions({
   }
 
   const deleteOrder = async (orderId) => {
-    // Delete linked order items first
-    await supabase.from('order_items').delete().eq('order_id', orderId)
+    try {
+      const { data: tasks } = await supabase.from('tasks').select('id').eq('order_id', orderId)
+      const taskIds = tasks ? tasks.map(t => t.id) : []
 
-    // Delete linked tasks and tasks' material requests
-    const { data: tasks } = await supabase.from('tasks').select('id').eq('order_id', orderId)
-    const taskIds = tasks ? tasks.map(t => t.id) : []
+      let wcQuery = supabase.from('work_cards').select('id')
+      if (taskIds.length > 0) {
+        wcQuery = wcQuery.or(`order_id.eq.${orderId},task_id.in.(${taskIds.join(',')})`)
+      } else {
+        wcQuery = wcQuery.eq('order_id', orderId)
+      }
+      const { data: wcList } = await wcQuery
+      const cardIds = wcList ? wcList.map(c => c.id) : []
 
-    let wcQuery = supabase.from('work_cards').select('id')
-    if (taskIds.length > 0) {
-      wcQuery = wcQuery.or(`order_id.eq.${orderId},task_id.in.(${taskIds.join(',')})`)
-    } else {
-      wcQuery = wcQuery.eq('order_id', orderId)
+      let crbQuery = supabase.from('cutter_restoration_batches').select('id')
+      if (cardIds.length > 0 && taskIds.length > 0) {
+        crbQuery = crbQuery.or(`order_id.eq.${orderId},source_card_id.in.(${cardIds.join(',')}),task_id.in.(${taskIds.join(',')})`)
+      } else if (cardIds.length > 0) {
+        crbQuery = crbQuery.or(`order_id.eq.${orderId},source_card_id.in.(${cardIds.join(',')})`)
+      } else if (taskIds.length > 0) {
+        crbQuery = crbQuery.or(`order_id.eq.${orderId},task_id.in.(${taskIds.join(',')})`)
+      } else {
+        crbQuery = crbQuery.eq('order_id', orderId)
+      }
+      const { data: crbList } = await crbQuery
+      const crbIds = crbList ? crbList.map(b => b.id) : []
+
+      let vrcQuery = supabase.from('vkya_restoration_cards').select('id')
+      if (cardIds.length > 0 && taskIds.length > 0) {
+        vrcQuery = vrcQuery.or(`source_order_id.eq.${orderId},source_card_id.in.(${cardIds.join(',')}),source_task_id.in.(${taskIds.join(',')}),route_card_id.in.(${cardIds.join(',')})`)
+      } else if (cardIds.length > 0) {
+        vrcQuery = vrcQuery.or(`source_order_id.eq.${orderId},source_card_id.in.(${cardIds.join(',')}),route_card_id.in.(${cardIds.join(',')})`)
+      } else if (taskIds.length > 0) {
+        vrcQuery = vrcQuery.or(`source_order_id.eq.${orderId},source_task_id.in.(${taskIds.join(',')})`)
+      } else {
+        vrcQuery = vrcQuery.eq('source_order_id', orderId)
+      }
+      const { data: vrcList } = await vrcQuery
+      const vrcIds = vrcList ? vrcList.map(c => c.id) : []
+
+      // Phase 1: Deep leaf tables
+      await Promise.allSettled([
+        crbIds.length ? supabase.from('cutter_restoration_events').delete().in('batch_id', crbIds) : Promise.resolve(),
+        vrcIds.length ? supabase.from('vkya_scrap_lot_allocations').delete().in('restoration_card_id', vrcIds) : Promise.resolve(),
+        cardIds.length ? supabase.from('vkya_scrap_lot_allocations').delete().in('rework_card_id', cardIds) : Promise.resolve(),
+        taskIds.length ? supabase.from('vkya_scrap_lot_allocations').delete().in('rework_task_id', taskIds) : Promise.resolve(),
+        supabase.from('vkya_scrap_lot_allocations').delete().eq('rework_order_id', orderId),
+        cardIds.length ? supabase.from('vkya_quality_resolutions').delete().in('source_card_id', cardIds) : Promise.resolve(),
+        cardIds.length ? supabase.from('vkya_quality_resolutions').delete().in('route_card_id', cardIds) : Promise.resolve(),
+        taskIds.length ? supabase.from('vkya_quality_resolutions').delete().in('task_id', taskIds) : Promise.resolve(),
+        supabase.from('vkya_quality_resolutions').delete().eq('order_id', orderId)
+      ])
+
+      // Phase 2: Mid-level tables
+      await Promise.allSettled([
+        vrcIds.length ? supabase.from('vkya_restoration_cards').delete().in('id', vrcIds) : Promise.resolve(),
+        crbIds.length ? supabase.from('cutter_restoration_batches').delete().in('id', crbIds) : Promise.resolve(),
+        cardIds.length ? supabase.from('vkya_reclassification_queue').delete().in('source_card_id', cardIds) : Promise.resolve(),
+        cardIds.length ? supabase.from('vkya_restoration_cards').delete().in('source_card_id', cardIds) : Promise.resolve(),
+        cardIds.length ? supabase.from('vkya_restoration_cards').delete().in('route_card_id', cardIds) : Promise.resolve(),
+        cardIds.length ? supabase.from('cutter_usage_events').delete().in('source_card_id', cardIds) : Promise.resolve(),
+        cardIds.length ? supabase.from('work_card_scrap_totals').delete().in('card_id', cardIds) : Promise.resolve(),
+        cardIds.length ? supabase.from('work_card_history').delete().in('card_id', cardIds) : Promise.resolve(),
+        taskIds.length ? supabase.from('vkya_reclassification_queue').delete().in('source_task_id', taskIds) : Promise.resolve(),
+        taskIds.length ? supabase.from('vkya_restoration_cards').delete().in('source_task_id', taskIds) : Promise.resolve(),
+        taskIds.length ? supabase.from('cutter_restoration_batches').delete().in('task_id', taskIds) : Promise.resolve(),
+        taskIds.length ? supabase.from('cutter_usage_events').delete().in('task_id', taskIds) : Promise.resolve(),
+        taskIds.length ? supabase.from('material_requests').delete().in('task_id', taskIds) : Promise.resolve(),
+        taskIds.length ? supabase.from('purchase_requests').delete().in('task_id', taskIds) : Promise.resolve(),
+        taskIds.length ? supabase.from('reception_docs').delete().in('task_id', taskIds) : Promise.resolve(),
+        taskIds.length ? supabase.from('work_card_scrap_totals').delete().in('task_id', taskIds) : Promise.resolve(),
+        supabase.from('vkya_reclassification_queue').delete().eq('source_order_id', orderId),
+        supabase.from('vkya_restoration_cards').delete().eq('source_order_id', orderId),
+        supabase.from('cutter_restoration_batches').delete().eq('order_id', orderId),
+        supabase.from('cutter_usage_events').delete().eq('order_id', orderId),
+        supabase.from('material_requests').delete().eq('order_id', orderId),
+        supabase.from('purchase_requests').delete().eq('order_id', orderId),
+        supabase.from('reception_docs').delete().eq('order_id', orderId),
+        supabase.from('work_card_scrap_totals').delete().eq('order_id', orderId)
+      ])
+
+      // Phase 3: Work Cards, Tasks & Order Items
+      await Promise.allSettled([
+        cardIds.length ? supabase.from('work_cards').delete().in('id', cardIds) : Promise.resolve(),
+        taskIds.length ? supabase.from('tasks').delete().in('id', taskIds) : Promise.resolve(),
+        supabase.from('work_cards').delete().eq('order_id', orderId),
+        supabase.from('order_items').delete().eq('order_id', orderId)
+      ])
+
+      // Phase 4: Order row
+      await supabase.from('orders').delete().eq('id', orderId)
+    } catch (e) {
+      console.warn('deleteOrder non-critical cleanup warning:', e)
+    } finally {
+      refreshTable('orders')
+      refreshTable('work_cards')
+      refreshTable('tasks')
     }
-    const { data: wcList } = await wcQuery
-    const cardIds = wcList ? wcList.map(c => c.id) : []
-
-    if (cardIds.length > 0) {
-      await supabase.from('vkya_quality_resolutions').delete().in('source_card_id', cardIds)
-      await supabase.from('vkya_quality_resolutions').delete().in('route_card_id', cardIds)
-      await supabase.from('vkya_reclassification_queue').delete().in('source_card_id', cardIds)
-      await supabase.from('vkya_restoration_cards').delete().in('source_card_id', cardIds)
-      await supabase.from('vkya_restoration_cards').delete().in('route_card_id', cardIds)
-      await supabase.from('cutter_restoration_batches').delete().in('source_card_id', cardIds)
-      await supabase.from('cutter_usage_events').delete().in('source_card_id', cardIds)
-      await supabase.from('work_card_scrap_totals').delete().in('card_id', cardIds)
-      await supabase.from('work_card_history').delete().in('card_id', cardIds)
-      await supabase.from('work_cards').delete().in('id', cardIds)
-    }
-    await supabase.from('vkya_quality_resolutions').delete().eq('order_id', orderId)
-    await supabase.from('vkya_reclassification_queue').delete().eq('source_order_id', orderId)
-    await supabase.from('vkya_restoration_cards').delete().eq('source_order_id', orderId)
-    await supabase.from('cutter_restoration_batches').delete().eq('order_id', orderId)
-    await supabase.from('cutter_usage_events').delete().eq('order_id', orderId)
-    await supabase.from('work_card_scrap_totals').delete().eq('order_id', orderId)
-    await supabase.from('work_cards').delete().eq('order_id', orderId)
-
-    if (taskIds.length > 0) {
-      await supabase.from('vkya_quality_resolutions').delete().in('task_id', taskIds)
-      await supabase.from('vkya_reclassification_queue').delete().in('source_task_id', taskIds)
-      await supabase.from('vkya_restoration_cards').delete().in('source_task_id', taskIds)
-      await supabase.from('cutter_restoration_batches').delete().in('task_id', taskIds)
-      await supabase.from('cutter_usage_events').delete().in('task_id', taskIds)
-      await supabase.from('material_requests').delete().in('task_id', taskIds)
-      await supabase.from('purchase_requests').delete().in('task_id', taskIds)
-      await supabase.from('reception_docs').delete().in('task_id', taskIds)
-      await supabase.from('work_card_scrap_totals').delete().in('task_id', taskIds)
-      await supabase.from('tasks').delete().in('id', taskIds)
-    }
-    
-    await supabase.from('vkya_quality_resolutions').delete().eq('order_id', orderId)
-    await supabase.from('vkya_reclassification_queue').delete().eq('source_order_id', orderId)
-    await supabase.from('vkya_restoration_cards').delete().eq('source_order_id', orderId)
-    await supabase.from('cutter_restoration_batches').delete().eq('order_id', orderId)
-    await supabase.from('cutter_usage_events').delete().eq('order_id', orderId)
-    await supabase.from('material_requests').delete().eq('order_id', orderId)
-    await supabase.from('purchase_requests').delete().eq('order_id', orderId)
-    await supabase.from('reception_docs').delete().eq('order_id', orderId)
-    await supabase.from('work_card_scrap_totals').delete().eq('order_id', orderId)
-
-    // Delete the order itself
-    const { error } = await supabase.from('orders').delete().eq('id', orderId)
-    if (error) throw error
-    
-    refreshTable('orders')
-    refreshTable('work_cards')
-    refreshTable('tasks')
   }
 
   const superDeleteOrder = async (orderId) => {
@@ -440,55 +471,90 @@ export function createProductionActions({
         ...(allWcData ? allWcData.map(c => c.id) : [])
       ]))
 
-      if (cardIds.length > 0) {
-        await supabase.from('vkya_quality_resolutions').delete().in('source_card_id', cardIds)
-        await supabase.from('vkya_quality_resolutions').delete().in('route_card_id', cardIds)
-        await supabase.from('vkya_reclassification_queue').delete().in('source_card_id', cardIds)
-        await supabase.from('vkya_restoration_cards').delete().in('source_card_id', cardIds)
-        await supabase.from('vkya_restoration_cards').delete().in('route_card_id', cardIds)
-        await supabase.from('cutter_restoration_batches').delete().in('source_card_id', cardIds)
-        await supabase.from('cutter_usage_events').delete().in('source_card_id', cardIds)
-        await supabase.from('work_card_scrap_totals').delete().in('card_id', cardIds)
-        await supabase.from('work_card_history').delete().in('card_id', cardIds)
-        await supabase.from('work_cards').delete().in('id', cardIds)
+      // Fetch linked cutter_restoration_batches
+      let crbQuery = supabase.from('cutter_restoration_batches').select('id')
+      if (cardIds.length > 0 && taskIds.length > 0) {
+        crbQuery = crbQuery.or(`order_id.eq.${orderId},source_card_id.in.(${cardIds.join(',')}),task_id.in.(${taskIds.join(',')})`)
+      } else if (cardIds.length > 0) {
+        crbQuery = crbQuery.or(`order_id.eq.${orderId},source_card_id.in.(${cardIds.join(',')})`)
+      } else if (taskIds.length > 0) {
+        crbQuery = crbQuery.or(`order_id.eq.${orderId},task_id.in.(${taskIds.join(',')})`)
+      } else {
+        crbQuery = crbQuery.eq('order_id', orderId)
       }
-      await supabase.from('vkya_quality_resolutions').delete().eq('order_id', orderId)
-      await supabase.from('vkya_reclassification_queue').delete().eq('source_order_id', orderId)
-      await supabase.from('vkya_restoration_cards').delete().eq('source_order_id', orderId)
-      await supabase.from('cutter_restoration_batches').delete().eq('order_id', orderId)
-      await supabase.from('cutter_usage_events').delete().eq('order_id', orderId)
-      await supabase.from('work_card_scrap_totals').delete().eq('order_id', orderId)
-      await supabase.from('work_cards').delete().eq('order_id', orderId)
+      const { data: crbData } = await crbQuery
+      const crbIds = crbData ? crbData.map(b => b.id) : []
 
-      if (taskIds.length > 0) {
-        await supabase.from('vkya_quality_resolutions').delete().in('task_id', taskIds)
-        await supabase.from('vkya_reclassification_queue').delete().in('source_task_id', taskIds)
-        await supabase.from('vkya_restoration_cards').delete().in('source_task_id', taskIds)
-        await supabase.from('cutter_restoration_batches').delete().in('task_id', taskIds)
-        await supabase.from('cutter_usage_events').delete().in('task_id', taskIds)
-        await supabase.from('material_requests').delete().in('task_id', taskIds)
-        await supabase.from('purchase_requests').delete().in('task_id', taskIds)
-        await supabase.from('reception_docs').delete().in('task_id', taskIds)
-        await supabase.from('work_card_scrap_totals').delete().in('task_id', taskIds)
-        await supabase.from('tasks').delete().in('id', taskIds)
+      if (crbIds.length > 0) {
+        await supabase.from('cutter_restoration_events').delete().in('batch_id', crbIds)
+        await supabase.from('cutter_restoration_batches').delete().in('id', crbIds)
       }
 
-      // Delete by order_id
-      await supabase.from('vkya_quality_resolutions').delete().eq('order_id', orderId)
-      await supabase.from('vkya_reclassification_queue').delete().eq('source_order_id', orderId)
-      await supabase.from('vkya_restoration_cards').delete().eq('source_order_id', orderId)
-      await supabase.from('cutter_restoration_batches').delete().eq('order_id', orderId)
-      await supabase.from('cutter_usage_events').delete().eq('order_id', orderId)
-      await supabase.from('material_requests').delete().eq('order_id', orderId)
-      await supabase.from('purchase_requests').delete().eq('order_id', orderId)
-      await supabase.from('reception_docs').delete().eq('order_id', orderId)
-      await supabase.from('work_card_scrap_totals').delete().eq('order_id', orderId)
-      await supabase.from('order_items').delete().eq('order_id', orderId)
-      await supabase.from('work_cards').delete().eq('order_id', orderId)
+      // Fetch linked vkya_restoration_cards
+      let vrcQuery = supabase.from('vkya_restoration_cards').select('id')
+      if (cardIds.length > 0 && taskIds.length > 0) {
+        vrcQuery = vrcQuery.or(`source_order_id.eq.${orderId},source_card_id.in.(${cardIds.join(',')}),source_task_id.in.(${taskIds.join(',')}),route_card_id.in.(${cardIds.join(',')})`)
+      } else if (cardIds.length > 0) {
+        vrcQuery = vrcQuery.or(`source_order_id.eq.${orderId},source_card_id.in.(${cardIds.join(',')}),route_card_id.in.(${cardIds.join(',')})`)
+      } else if (taskIds.length > 0) {
+        vrcQuery = vrcQuery.or(`source_order_id.eq.${orderId},source_task_id.in.(${taskIds.join(',')})`)
+      } else {
+        vrcQuery = vrcQuery.eq('source_order_id', orderId)
+      }
+      const { data: vrcData } = await vrcQuery
+      const vrcIds = vrcData ? vrcData.map(c => c.id) : []
 
-      // Delete order
-      const { error: orderDelErr } = await supabase.from('orders').delete().eq('id', orderId)
-      if (orderDelErr) throw orderDelErr
+      // Phase 1: Deep leaf tables
+      await Promise.allSettled([
+        crbIds.length ? supabase.from('cutter_restoration_events').delete().in('batch_id', crbIds) : Promise.resolve(),
+        vrcIds.length ? supabase.from('vkya_scrap_lot_allocations').delete().in('restoration_card_id', vrcIds) : Promise.resolve(),
+        cardIds.length ? supabase.from('vkya_scrap_lot_allocations').delete().in('rework_card_id', cardIds) : Promise.resolve(),
+        taskIds.length ? supabase.from('vkya_scrap_lot_allocations').delete().in('rework_task_id', taskIds) : Promise.resolve(),
+        supabase.from('vkya_scrap_lot_allocations').delete().eq('rework_order_id', orderId),
+        cardIds.length ? supabase.from('vkya_quality_resolutions').delete().in('source_card_id', cardIds) : Promise.resolve(),
+        cardIds.length ? supabase.from('vkya_quality_resolutions').delete().in('route_card_id', cardIds) : Promise.resolve(),
+        taskIds.length ? supabase.from('vkya_quality_resolutions').delete().in('task_id', taskIds) : Promise.resolve(),
+        supabase.from('vkya_quality_resolutions').delete().eq('order_id', orderId)
+      ])
+
+      // Phase 2: Mid-level tables
+      await Promise.allSettled([
+        vrcIds.length ? supabase.from('vkya_restoration_cards').delete().in('id', vrcIds) : Promise.resolve(),
+        crbIds.length ? supabase.from('cutter_restoration_batches').delete().in('id', crbIds) : Promise.resolve(),
+        cardIds.length ? supabase.from('vkya_reclassification_queue').delete().in('source_card_id', cardIds) : Promise.resolve(),
+        cardIds.length ? supabase.from('vkya_restoration_cards').delete().in('source_card_id', cardIds) : Promise.resolve(),
+        cardIds.length ? supabase.from('vkya_restoration_cards').delete().in('route_card_id', cardIds) : Promise.resolve(),
+        cardIds.length ? supabase.from('cutter_usage_events').delete().in('source_card_id', cardIds) : Promise.resolve(),
+        cardIds.length ? supabase.from('work_card_scrap_totals').delete().in('card_id', cardIds) : Promise.resolve(),
+        cardIds.length ? supabase.from('work_card_history').delete().in('card_id', cardIds) : Promise.resolve(),
+        taskIds.length ? supabase.from('vkya_reclassification_queue').delete().in('source_task_id', taskIds) : Promise.resolve(),
+        taskIds.length ? supabase.from('vkya_restoration_cards').delete().in('source_task_id', taskIds) : Promise.resolve(),
+        taskIds.length ? supabase.from('cutter_restoration_batches').delete().in('task_id', taskIds) : Promise.resolve(),
+        taskIds.length ? supabase.from('cutter_usage_events').delete().in('task_id', taskIds) : Promise.resolve(),
+        taskIds.length ? supabase.from('material_requests').delete().in('task_id', taskIds) : Promise.resolve(),
+        taskIds.length ? supabase.from('purchase_requests').delete().in('task_id', taskIds) : Promise.resolve(),
+        taskIds.length ? supabase.from('reception_docs').delete().in('task_id', taskIds) : Promise.resolve(),
+        taskIds.length ? supabase.from('work_card_scrap_totals').delete().in('task_id', taskIds) : Promise.resolve(),
+        supabase.from('vkya_reclassification_queue').delete().eq('source_order_id', orderId),
+        supabase.from('vkya_restoration_cards').delete().eq('source_order_id', orderId),
+        supabase.from('cutter_restoration_batches').delete().eq('order_id', orderId),
+        supabase.from('cutter_usage_events').delete().eq('order_id', orderId),
+        supabase.from('material_requests').delete().eq('order_id', orderId),
+        supabase.from('purchase_requests').delete().eq('order_id', orderId),
+        supabase.from('reception_docs').delete().eq('order_id', orderId),
+        supabase.from('work_card_scrap_totals').delete().eq('order_id', orderId)
+      ])
+
+      // Phase 3: Work Cards, Tasks & Order Items
+      await Promise.allSettled([
+        cardIds.length ? supabase.from('work_cards').delete().in('id', cardIds) : Promise.resolve(),
+        taskIds.length ? supabase.from('tasks').delete().in('id', taskIds) : Promise.resolve(),
+        supabase.from('work_cards').delete().eq('order_id', orderId),
+        supabase.from('order_items').delete().eq('order_id', orderId)
+      ])
+
+      // Phase 4: Order row
+      await supabase.from('orders').delete().eq('id', orderId)
 
       refreshTable('orders')
       refreshTable('inventory')
