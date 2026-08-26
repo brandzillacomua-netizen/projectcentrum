@@ -192,21 +192,44 @@ export function createProductionActions({
   const deleteOrder = async (orderId) => {
     // Delete linked order items first
     await supabase.from('order_items').delete().eq('order_id', orderId)
-    
+
     // Delete linked tasks and tasks' material requests
     const { data: tasks } = await supabase.from('tasks').select('id').eq('order_id', orderId)
-    if (tasks && tasks.length > 0) {
-      const taskIds = tasks.map(t => t.id)
+    const taskIds = tasks ? tasks.map(t => t.id) : []
+
+    let wcQuery = supabase.from('work_cards').select('id')
+    if (taskIds.length > 0) {
+      wcQuery = wcQuery.or(`order_id.eq.${orderId},task_id.in.(${taskIds.join(',')})`)
+    } else {
+      wcQuery = wcQuery.eq('order_id', orderId)
+    }
+    const { data: wcList } = await wcQuery
+    const cardIds = wcList ? wcList.map(c => c.id) : []
+
+    if (cardIds.length > 0) {
+      await supabase.from('work_card_history').delete().in('card_id', cardIds)
+      await supabase.from('work_cards').delete().in('id', cardIds)
+    }
+    await supabase.from('work_cards').delete().eq('order_id', orderId)
+
+    if (taskIds.length > 0) {
       await supabase.from('material_requests').delete().in('task_id', taskIds)
-      await supabase.from('work_cards').delete().in('task_id', taskIds)
+      await supabase.from('purchase_requests').delete().in('task_id', taskIds)
+      await supabase.from('reception_docs').delete().in('task_id', taskIds)
       await supabase.from('tasks').delete().in('id', taskIds)
     }
     
+    await supabase.from('material_requests').delete().eq('order_id', orderId)
+    await supabase.from('purchase_requests').delete().eq('order_id', orderId)
+    await supabase.from('reception_docs').delete().eq('order_id', orderId)
+
     // Delete the order itself
     const { error } = await supabase.from('orders').delete().eq('id', orderId)
     if (error) throw error
     
     refreshTable('orders')
+    refreshTable('work_cards')
+    refreshTable('tasks')
   }
 
   const superDeleteOrder = async (orderId) => {
@@ -378,12 +401,24 @@ export function createProductionActions({
         if (invErr) throw invErr
       }
 
-      // Delete work card history
-      const cardIds = workCardsData ? workCardsData.map(c => c.id) : []
+      // Delete work card history and work cards
+      let allWcQuery = supabase.from('work_cards').select('id')
+      if (taskIds.length > 0) {
+        allWcQuery = allWcQuery.or(`order_id.eq.${orderId},task_id.in.(${taskIds.join(',')})`)
+      } else {
+        allWcQuery = allWcQuery.eq('order_id', orderId)
+      }
+      const { data: allWcData } = await allWcQuery
+      const cardIds = Array.from(new Set([
+        ...(workCardsData ? workCardsData.map(c => c.id) : []),
+        ...(allWcData ? allWcData.map(c => c.id) : [])
+      ]))
+
       if (cardIds.length > 0) {
         await supabase.from('work_card_history').delete().in('card_id', cardIds)
         await supabase.from('work_cards').delete().in('id', cardIds)
       }
+      await supabase.from('work_cards').delete().eq('order_id', orderId)
 
       if (taskIds.length > 0) {
         await supabase.from('material_requests').delete().in('task_id', taskIds)
@@ -397,6 +432,7 @@ export function createProductionActions({
       await supabase.from('purchase_requests').delete().eq('order_id', orderId)
       await supabase.from('reception_docs').delete().eq('order_id', orderId)
       await supabase.from('order_items').delete().eq('order_id', orderId)
+      await supabase.from('work_cards').delete().eq('order_id', orderId)
 
       // Delete order
       const { error: orderDelErr } = await supabase.from('orders').delete().eq('id', orderId)
