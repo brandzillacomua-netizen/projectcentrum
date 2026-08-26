@@ -1,5 +1,5 @@
 import React from 'react'
-import { ListChecks, Search, Printer } from 'lucide-react'
+import { ListChecks, Search, Printer, Trash2 } from 'lucide-react'
 
 export function MasterQueue({
   filteredPending,
@@ -11,6 +11,7 @@ export function MasterQueue({
   setTempSets,
   setTempDeadline,
   getPlannedQty,
+  handleDeleteOrder,
   nomenclatures,
   tasks,
   orders
@@ -68,18 +69,32 @@ export function MasterQueue({
                   {order.order_date ? new Date(order.order_date).toLocaleDateString('uk-UA') : ''}
                 </span>
               </div>
-              <button
-                onClick={() => {
-                  setQuickPlanOrder(order);
-                  const maxRem = Math.max(...(order.order_items?.map(it => Number(it.quantity) - getPlannedQty(it.id)) || [0]));
-                  setTempSets(maxRem);
-                  setTempDeadline(order.deadline || '');
-                }}
-                style={{ background: 'rgba(255,144,0,0.1)', border: '1px solid rgba(255,144,0,0.2)', color: '#ff9000', cursor: 'pointer', padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
-                title="Відкрити наряд"
-              >
-                <Printer size={18} />
-              </button>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <button
+                  onClick={() => {
+                    setQuickPlanOrder(order);
+                    const maxRem = Math.max(...(order.order_items?.map(it => Number(it.quantity) - getPlannedQty(it.id)) || [0]));
+                    setTempSets(maxRem);
+                    setTempDeadline(order.deadline || '');
+                  }}
+                  style={{ background: 'rgba(255,144,0,0.1)', border: '1px solid rgba(255,144,0,0.2)', color: '#ff9000', cursor: 'pointer', padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+                  title="Відкрити наряд"
+                >
+                  <Printer size={18} />
+                </button>
+                {typeof handleDeleteOrder === 'function' && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteOrder(order.id, order.order_num);
+                    }}
+                    style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444', cursor: 'pointer', padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+                    title="Видалити/Закрити замовлення"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                )}
+              </div>
             </div>
             <div style={{ fontSize: '0.85rem', color: '#ccc', fontWeight: 700, marginBottom: '15px' }}>{order.customer}</div>
             

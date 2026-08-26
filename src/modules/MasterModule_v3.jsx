@@ -12,7 +12,8 @@ import {
   Monitor,
   CheckCircle2,
   Info,
-  Shuffle
+  Shuffle,
+  Trash2
 } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useMES } from '../MESContext'
@@ -494,21 +495,55 @@ const MasterModule = () => {
   }, [tasks, orders, allOrdersMap, searchParams])
 
   const getPlannedQty = (orderItemId) => {
-    const item = orders.flatMap(o => o.order_items || []).find(it => it.id === orderItemId)
+    const allKnownOrders = [...orders, ...Object.values(allOrdersMap)]
+    const item = allKnownOrders.flatMap(o => o?.order_items || []).find(it => String(it.id) === String(orderItemId))
     if (!item) return 0
 
     const orderTasks = tasks.filter(t => String(t.order_id) === String(item.order_id))
+    if (orderTasks.length === 0) return 0
+    if (orderTasks.every(t => t.status === 'completed')) return Number(item.quantity) || 0
 
     // Групуємо наряди за індексом партії (batch_index), щоб не рахувати одну й ту саму партію двічі на різних етапах
     const batches = {}
     orderTasks.forEach(t => {
       const key = t.batch_index || `task_${t.id}`
-      const qty = Number(t.planned_sets) || 0
+      let qty = 0
+      if (t.plan_snapshot) {
+        const snapEntries = Object.values(t.plan_snapshot).filter(s => s && typeof s === 'object')
+        const matchedSnap = snapEntries.find(s => String(s.order_item_id) === String(item.id)) ||
+                            snapEntries.find(s => String(s.id) === String(item.nomenclature_id))
+        if (matchedSnap) {
+          qty = Number(matchedSnap.need || (matchedSnap.plan + (matchedSnap.stock || 0))) || 0
+        } else {
+          const snapPartNeeds = snapEntries
+            .filter(s => s.need !== undefined || s.plan !== undefined)
+            .map(s => Number(s.need || (s.plan + (s.stock || 0))) || 0)
+          if (snapPartNeeds.length > 0) {
+            qty = Math.max(...snapPartNeeds)
+          }
+        }
+      }
+      if (qty <= 0) {
+        qty = Number(t.planned_sets) || 0
+      }
       if (!batches[key] || qty > batches[key]) {
         batches[key] = qty
       }
     })
     return Object.values(batches).reduce((acc, q) => acc + q, 0)
+  }
+
+  const handleDeleteOrder = async (orderId, orderNum) => {
+    if (!window.confirm(`Ви впевнені, що хочете видалити/закрити замовлення №${orderNum}?`)) return
+    try {
+      await supabase.from('material_requests').delete().eq('order_id', orderId).neq('status', 'completed')
+      const { error } = await supabase.from('orders').update({ status: 'completed' }).eq('id', orderId)
+      if (error) throw error
+      alert(`Замовлення №${orderNum} успішно закрите!`)
+      if (typeof fetchModuleData === 'function') fetchModuleData('master')
+    } catch (e) {
+      alert('Помилка закриття замовлення: ' + e.message)
+    }
   }
 
   const getBatchSuffix = () => {
@@ -530,14 +565,34 @@ const MasterModule = () => {
   }
 
   const pendingOrders = orders.filter(o => {
-    // Якщо замовлення в архіві або відвантажено - не показуємо
-    if (o.status === 'completed' || o.status === 'shipped') return false
+    // Якщо замовлення в архіві, відвантажено, скасовано або закрите - не показуємо
+    if (['completed', 'shipped', 'cancelled', 'closed'].includes(o.status)) return false
+
+    // Не показуємо замовлення без позицій або віртуальні чернетки без елементів
+    if (!o.order_items || o.order_items.length === 0) return false
+
+    // Якщо всі наряди для цього замовлення уже завершені — не показуємо
+    const orderTasks = tasks.filter(t => String(t.order_id) === String(o.id))
+    if (orderTasks.length > 0 && orderTasks.every(t => t.status === 'completed')) return false
+
+    // Якщо для замовлення вже створено наряд, і всі його позиції покриті — прибираємо з черги
+    if (orderTasks.length > 0) {
+      const isFullyPlanned = o.order_items.every(it => {
+        const planned = getPlannedQty(it.id)
+        const total = Number(it.quantity) || 0
+        return planned >= total
+      })
+      if (isFullyPlanned) return false
+    } else if (o.status === 'in-progress') {
+      // Замовлення вже в роботі. Якщо об'єкт tasks ще завантажується, не показуємо його тимчасово як 0/N у черзі
+      return false
+    }
 
     // Якщо нове (pending) - показуємо
     if (o.status === 'pending') return true
 
     // Для всіх інших (in-progress, packaged) - перевіряємо чи є що ще планувати
-    return o.order_items?.some(it => {
+    return o.order_items.some(it => {
       const planned = getPlannedQty(it.id)
       const total = Number(it.quantity) || 0
       return planned < total
@@ -1575,18 +1630,30 @@ const MasterModule = () => {
                   {order.order_date ? new Date(order.order_date).toLocaleDateString('uk-UA') : ''}
                 </span>
               </div>
-              <button
-                onClick={() => {
-                  setQuickPlanOrder(order);
-                  const maxRem = Math.max(...(order.order_items?.map(it => Number(it.quantity) - getPlannedQty(it.id)) || [0]));
-                  setTempSets(maxRem);
-                  setTempDeadline(order.deadline || '');
-                }}
-                style={{ background: 'rgba(255,144,0,0.1)', border: '1px solid rgba(255,144,0,0.2)', color: '#ff9000', cursor: 'pointer', padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
-                title="Відкрити наряд"
-              >
-                <Printer size={18} />
-              </button>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <button
+                  onClick={() => {
+                    setQuickPlanOrder(order);
+                    const maxRem = Math.max(...(order.order_items?.map(it => Number(it.quantity) - getPlannedQty(it.id)) || [0]));
+                    setTempSets(maxRem);
+                    setTempDeadline(order.deadline || '');
+                  }}
+                  style={{ background: 'rgba(255,144,0,0.1)', border: '1px solid rgba(255,144,0,0.2)', color: '#ff9000', cursor: 'pointer', padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+                  title="Відкрити наряд"
+                >
+                  <Printer size={18} />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteOrder(order.id, order.order_num);
+                  }}
+                  style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444', cursor: 'pointer', padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+                  title="Видалити/Закрити замовлення"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
             </div>
             <div style={{ fontSize: '0.85rem', color: '#ccc', fontWeight: 700, marginBottom: '15px' }}>{order.customer}</div>
             <div style={{ marginBottom: '15px', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '12px', border: '1px solid #1a1a1a' }}>
@@ -1816,7 +1883,7 @@ const MasterModule = () => {
                 return true;
               }).map(task => {
                 const order = orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
-                let taskProductNames = 'Виріб...'
+                let taskProductNames = ''
                 if (task.step === 'Підготовка') {
                   taskProductNames = Object.entries(task.plan_snapshot || {})
                     .filter(([key]) => !key.startsWith('_'))
@@ -1826,7 +1893,17 @@ const MasterModule = () => {
                   taskProductNames = order?.order_items
                     ?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name)
                     .filter(Boolean)
-                    .join(', ') || 'Виріб...'
+                    .join(', ')
+                  if (!taskProductNames && task.plan_snapshot) {
+                    const snapItems = Object.entries(task.plan_snapshot)
+                      .filter(([key]) => !key.startsWith('_') && key !== 'materialSummary' && key !== 'selectedCutters' && key !== 'consumables')
+                      .map(([_, it]) => it.name)
+                      .filter(Boolean)
+                    if (snapItems.length > 0) {
+                      taskProductNames = [...new Set(snapItems)].join(', ')
+                    }
+                  }
+                  if (!taskProductNames) taskProductNames = order?.accessories || 'Виріб...'
                 }
 
                 const isSkladConfirmed = task.warehouse_conf === 'true'
@@ -1845,7 +1922,7 @@ const MasterModule = () => {
                         >
                           {task.step === 'Підготовка'
                             ? `№ ${task.plan_snapshot?._prep_num || 'НП------'}`
-                            : `№ ${order?.order_num || ''}${task.batch_index ? `/${task.batch_index}` : ''}`}
+                            : `№ ${order?.order_num || task.order_num || task.plan_snapshot?._prep_num || ''}${task.batch_index ? `/${task.batch_index}` : ''}`}
                         </strong>
                         <span style={{ fontSize: '0.75rem', color: '#888', fontWeight: 700, marginTop: '2px' }}>
                           {task.step === 'Підготовка' ? 'ПІДГОТОВКА СИРОВИНИ' : (order?.customer || 'ПРЯМИЙ')}

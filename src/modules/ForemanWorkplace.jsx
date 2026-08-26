@@ -554,7 +554,6 @@ const ForemanWorkplace = () => {
     if (!t) return false
     const str = JSON.stringify(t)
     if (str.includes('14082026-01') || str.includes('10082026-01') || str.includes('260821-1')) return true
-    if (str.includes('Київ К-ІП9/10/31/36/37-9-10-11')) return true
     return false
   }
 

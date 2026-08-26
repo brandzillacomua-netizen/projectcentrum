@@ -6,8 +6,8 @@ import { getIndexedCache, setIndexedCache, removeIndexedCache } from '../service
 import { fetchProductionSummary } from '../services/statisticsService'
 import { fetchFulfillmentTasks, fetchMissingOrdersForTasks, isFulfillmentRoute } from '../services/fulfillmentQueueService'
 
-const CACHE_KEY = 'MES_APP_CACHE_V11'
-const LEGACY_CACHE_KEYS = ['MES_APP_CACHE_V1', 'MES_APP_CACHE_V2', 'MES_APP_CACHE_V3', 'MES_APP_CACHE_V4', 'MES_APP_CACHE_V5', 'MES_APP_CACHE_V6', 'MES_APP_CACHE_V7', 'MES_APP_CACHE_V8', 'MES_APP_CACHE_V9', 'MES_APP_CACHE_V10']
+const CACHE_KEY = 'MES_APP_CACHE_V12'
+const LEGACY_CACHE_KEYS = ['MES_APP_CACHE_V1', 'MES_APP_CACHE_V2', 'MES_APP_CACHE_V3', 'MES_APP_CACHE_V4', 'MES_APP_CACHE_V5', 'MES_APP_CACHE_V6', 'MES_APP_CACHE_V7', 'MES_APP_CACHE_V8', 'MES_APP_CACHE_V9', 'MES_APP_CACHE_V10', 'MES_APP_CACHE_V11']
 
 const F10_NOM_IDS = new Set([
   '5ecf63e5-802d-4f98-8291-aad9a52bfaa4',
@@ -234,7 +234,7 @@ const fetchActiveWorkCards = async () => {
     if (!data || data.length < pageSize) break
   }
 
-  const uniqueCards = Array.from(new Map(allCards.map(c => [String(c.id), c])).values()).filter(c => !isF10Card(c))
+  const uniqueCards = Array.from(new Map(allCards.map(c => [String(c.id), c])).values())
   return { data: uniqueCards, error: null }
 }
 
@@ -448,7 +448,6 @@ const isPurgedTask = (task) => {
   if (orderNum && isPurgedOrderNum(orderNum)) return true
   const str = JSON.stringify(task)
   if (str.includes('14082026-01') || str.includes('10082026-01') || str.includes('260821-1')) return true
-  if (str.includes('Київ К-ІП9/10/31/36/37-9-10-11')) return true
   return false
 }
 
@@ -1080,14 +1079,23 @@ export function useData() {
 
     const request = (async () => {
       if (key === 'master') {
-        // Keep the aggregate behind the staggered bootstrap instead of adding
-        // another expensive query to the login burst.
-        await fetchData(['orders', 'tasks', 'inventory', 'material_requests'])
+        targetRefreshLastRef.current['orders'] = 0
+        targetRefreshLastRef.current[getTargetRefreshKey('tasks')] = 0
+        targetRefreshLastRef.current['inventory'] = 0
+        targetRefreshLastRef.current['material_requests'] = 0
+        await Promise.all([
+          refreshTable('orders'),
+          refreshTable('tasks'),
+          refreshTable('inventory'),
+          refreshTable('material_requests')
+        ])
         await refreshProductionSummary()
-      } else if (key === 'foreman' && path.includes('foreman-dashboard')) {
-        // This projection is large, so only the dashboard that consumes it
-        // receives it. ForemanWorkplace keeps using its task-scoped history.
-        await fetchData(['work_card_scrap_totals', 'work_card_flow_totals'])
+      } else if (key === 'foreman') {
+        targetRefreshLastRef.current[getTargetRefreshKey('tasks')] = 0
+        await refreshTable('tasks')
+        if (path.includes('foreman-dashboard')) {
+          await fetchData(['work_card_scrap_totals', 'work_card_flow_totals'])
+        }
       }
     })().finally(() => {
       delete moduleLoadInFlightRef.current[key]
