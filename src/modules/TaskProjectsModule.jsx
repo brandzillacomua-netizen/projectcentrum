@@ -197,10 +197,11 @@ export default function TaskProjectsModule() {
                 <b>{tasks.length}</b>
               </div>
               {isOwnerOrManager && (
-                <div className="tp-col-controls">
+                <div className="tp-col-controls" onMouseDown={e => e.stopPropagation()}>
                   <input
                     type="color"
                     value={column.color || '#3b82f6'}
+                    onMouseDown={e => e.stopPropagation()}
                     onChange={async e => {
                       const newColor = e.target.value
                       const updated = projectColumns.map((c, i) => i === colIndex ? { ...c, color: newColor } : c)
@@ -211,8 +212,10 @@ export default function TaskProjectsModule() {
                   />
                   <button
                     type="button"
+                    onMouseDown={e => e.stopPropagation()}
                     onClick={async e => {
                       e.stopPropagation()
+                      e.preventDefault()
                       const newTitle = prompt('Нова назва колонки:', column.title)
                       if (newTitle && newTitle.trim() && newTitle.trim() !== column.title) {
                         const updated = projectColumns.map((c, i) => i === colIndex ? { ...c, title: newTitle.trim().toUpperCase() } : c)
@@ -226,8 +229,10 @@ export default function TaskProjectsModule() {
                   {colIndex > 0 && (
                     <button
                       type="button"
+                      onMouseDown={e => e.stopPropagation()}
                       onClick={async e => {
                         e.stopPropagation()
+                        e.preventDefault()
                         const updated = [...projectColumns]
                         const temp = updated[colIndex - 1]
                         updated[colIndex - 1] = updated[colIndex]
@@ -242,8 +247,10 @@ export default function TaskProjectsModule() {
                   {colIndex < projectColumns.length - 1 && (
                     <button
                       type="button"
+                      onMouseDown={e => e.stopPropagation()}
                       onClick={async e => {
                         e.stopPropagation()
+                        e.preventDefault()
                         const updated = [...projectColumns]
                         const temp = updated[colIndex + 1]
                         updated[colIndex + 1] = updated[colIndex]
@@ -258,8 +265,10 @@ export default function TaskProjectsModule() {
                   {projectColumns.length > 1 && (
                     <button
                       type="button"
+                      onMouseDown={e => e.stopPropagation()}
                       onClick={async e => {
                         e.stopPropagation()
+                        e.preventDefault()
                         if (!confirm(`Видалити колонку «${column.title}»?`)) return
                         const updated = projectColumns.filter((_, i) => i !== colIndex)
                         await updateTaskProject(activeProject.id, { columns: updated })

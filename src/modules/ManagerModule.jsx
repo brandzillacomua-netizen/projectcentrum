@@ -288,10 +288,11 @@ const CreateProductModal = ({ isOpen, onClose, onCreated, initialQuery = '', nom
     const sLabel = (seriesType === 'custom' ? customSeries : seriesType).trim()
     const mName = modelName.trim()
 
+    const seriesAndModel = (sLabel && mName) ? `${sLabel}${mName}` : (sLabel || mName)
+
     let res = prefix || 'Комплект карбонової рами'
     if (tag) res += ` ${tag}`
-    if (sLabel) res += ` ${sLabel}`
-    if (mName) res += tag || sLabel ? `, ${mName}` : ` ${mName}`
+    if (seriesAndModel) res += ` ${seriesAndModel}`
 
     return res.replace(/\s+/g, ' ').trim()
   }, [prefixChoice, customPrefix, projType, customProjType, projNum, seriesType, customSeries, modelName])

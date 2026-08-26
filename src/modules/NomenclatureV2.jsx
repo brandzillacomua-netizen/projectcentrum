@@ -259,7 +259,7 @@ export const generateStandardName = (ruleType, params) => {
       const prefixChoice = params.prefixChoice || (ruleType === 'element_kit' ? 'Комплект карбонових елементів' : 'Комплект карбонової рами');
       const prefix = (prefixChoice === 'custom' ? params.customPrefix || '' : prefixChoice).trim();
       
-      const projType = params.projType || 'RND';
+      const projType = params.projType || 'SERIAL';
       const projNum = (params.projNum || '').trim();
       const customProjType = (params.customProjType || '').trim();
       
@@ -273,10 +273,11 @@ export const generateStandardName = (ruleType, params) => {
       else if (projType === 'IP' && projNum) tag = `(ІП ${projNum})`;
       else if (projType === 'CUSTOM' && projNum) tag = customProjType ? `(${customProjType} ${projNum})` : `(${projNum})`;
 
+      const seriesAndModel = (seriesLabel && name) ? `${seriesLabel}${name}` : (seriesLabel || name);
+
       let res = prefix || 'Комплект карбонової рами';
       if (tag) res += ` ${tag}`;
-      if (seriesLabel) res += ` ${seriesLabel}`;
-      if (name) res += tag || seriesLabel ? `, ${name}` : ` ${name}`;
+      if (seriesAndModel) res += ` ${seriesAndModel}`;
       return res.replace(/\s+/g, ' ').trim();
     }
     case 'frame_part': {
