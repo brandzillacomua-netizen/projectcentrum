@@ -1530,8 +1530,6 @@ export default function Shop1ForemanModule() {
               }
               nariadReportCache.current.set(task.id, { data: fallbackData, savedAt: Date.now() })
               setNariadReportData(fallbackData)
-            } catch (e) {
-              console.error(e)
               alert('Помилка завантаження звіту: ' + e.message)
             } finally {
               setNariadReportLoading(false)

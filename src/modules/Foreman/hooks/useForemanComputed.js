@@ -274,6 +274,9 @@ export function useForemanComputed({
 
     return tasks
       .filter(t => {
+        const order = allOrdersMap[t.order_id] || orders?.find(o => o.id === t.order_id)
+        const orderNum = order?.order_num || t.order_num || t.plan_snapshot?._prep_num || ''
+        if (['14082026-01', '10082026-01', '260821-1'].includes(String(orderNum).trim())) return false
         const step = (t.step || '').toLowerCase()
         if (step.includes('пресування') || step.includes('цех №2') || step.includes('доопрацювання') || step.includes('підготовка')) {
           return false

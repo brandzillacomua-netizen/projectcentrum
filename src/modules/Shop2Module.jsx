@@ -75,12 +75,17 @@ const Shop2Module = () => {
 
   // Фільтруємо наряди для Цеху №2 (Пресування/ЦЕХ №2)
   const allShop2Tasks = useMemo(() => {
-    return tasks.filter(t => 
-      t.step?.includes('Пресування') || 
-      t.step?.includes('ЦЕХ №2') ||
-      t.step?.includes('Доопрацювання')  // ВБ-накази з відділу браку
-    )
-  }, [tasks])
+    return tasks.filter(t => {
+      const order = orders?.find(o => o.id === t.order_id)
+      const orderNum = order?.order_num || t.order_num || t.plan_snapshot?._prep_num || ''
+      if (['14082026-01', '10082026-01', '260821-1'].includes(String(orderNum).trim())) return false
+      return (
+        t.step?.includes('Пресування') || 
+        t.step?.includes('ЦЕХ №2') ||
+        t.step?.includes('Доопрацювання')
+      )
+    })
+  }, [tasks, orders])
 
   const activeQueueCount = useMemo(() => {
     return allShop2Tasks.filter(t => t.status !== 'completed').length

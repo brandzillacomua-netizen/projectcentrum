@@ -194,7 +194,11 @@ const fromCache = (field, def) => () => {
     const cached = localStorage.getItem(CACHE_KEY)
     if (!cached) return def
     const parsed = JSON.parse(cached)
-    return parsed[field] ?? def
+    const val = parsed[field] ?? def
+    if (Array.isArray(val)) {
+      return val.filter(item => !isPurgedOrderNum(item?.order_num) && !isPurgedOrderNum(item?.plan_snapshot?._prep_num))
+    }
+    return val
   } catch { return def }
 }
 
@@ -420,8 +424,21 @@ const fetchPendingMachineCalls = async () => {
   return { data: rows, error: null }
 }
 
+const PURGED_ORDER_NUMS = new Set(['14082026-01', '10082026-01', '260821-1'])
+const isPurgedOrderNum = (num) => PURGED_ORDER_NUMS.has(String(num || '').trim())
+
+const isPurgedTask = (task) => {
+  if (!task) return false
+  const orderNum = task.order_num || task.plan_snapshot?._prep_num || task.plan_snapshot?._metadata?.order_num
+  if (orderNum && isPurgedOrderNum(orderNum)) return true
+  const str = JSON.stringify(task)
+  if (str.includes('14082026-01') || str.includes('10082026-01') || str.includes('260821-1')) return true
+  if (str.includes('Київ К-ІП9/10/31/36/37-9-10-11')) return true
+  return false
+}
+
 const mergeTaskRows = (existing = [], incoming = []) => {
-  if (!Array.isArray(incoming)) return existing
+  if (!Array.isArray(incoming)) return (existing || []).filter(t => !isPurgedTask(t))
   const existingMap = new Map((existing || []).map(item => [String(item.id), item]))
   const result = incoming.map(item => {
     const cached = existingMap.get(String(item.id))
@@ -430,7 +447,7 @@ const mergeTaskRows = (existing = [], incoming = []) => {
       ...item,
       plan_snapshot: item.plan_snapshot || cached?.plan_snapshot || null
     }
-  })
+  }).filter(t => !isPurgedTask(t))
   return result.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
 }
 
@@ -441,7 +458,7 @@ const mergeOrderRows = (existing = [], incoming = []) => {
     if (!item?.id) return item
     const cached = existingMap.get(String(item.id))
     return { ...cached, ...item }
-  }).filter(Boolean)
+  }).filter(o => o && !isPurgedOrderNum(o?.order_num))
   return result.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
 }
 

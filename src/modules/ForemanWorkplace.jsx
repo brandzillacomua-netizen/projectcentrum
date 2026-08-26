@@ -550,6 +550,14 @@ const ForemanWorkplace = () => {
     return true
   }
 
+  const isPurgedTaskInForeman = (t) => {
+    if (!t) return false
+    const str = JSON.stringify(t)
+    if (str.includes('14082026-01') || str.includes('10082026-01') || str.includes('260821-1')) return true
+    if (str.includes('Київ К-ІП9/10/31/36/37-9-10-11')) return true
+    return false
+  }
+
   const shop1ActiveTasks = useMemo(() => {
     const getPriority = (t) => {
       if (t.status === 'completed') return 4
@@ -567,7 +575,7 @@ const ForemanWorkplace = () => {
     }
 
     return (tasks || [])
-      .filter(t => t.status !== 'completed' && isShop1Task(t))
+      .filter(t => !isPurgedTaskInForeman(t) && t.status !== 'completed' && isShop1Task(t))
       .sort((a, b) => {
         const pA = getPriority(a)
         const pB = getPriority(b)
@@ -578,7 +586,7 @@ const ForemanWorkplace = () => {
 
   const shop1ArchiveTasks = useMemo(() => {
     return (tasks || [])
-      .filter(t => t.status === 'completed' && isShop1Task(t))
+      .filter(t => !isPurgedTaskInForeman(t) && t.status === 'completed' && isShop1Task(t))
       .sort((a, b) => new Date(b.completed_at || b.updated_at || b.created_at) - new Date(a.completed_at || a.updated_at || a.created_at))
   }, [tasks])
 
@@ -587,6 +595,13 @@ const ForemanWorkplace = () => {
   }, [activeTab, shop1ActiveTasks, shop1ArchiveTasks])
 
   useEffect(() => {
+    const currentTaskObj = (tasks || []).find(t => t.id === activeTaskId)
+    if (isPurgedTaskInForeman(currentTaskObj)) {
+      try { localStorage.removeItem('foreman_active_task_id') } catch {}
+      const valid = displayRelevantTasks.find(t => !isPurgedTaskInForeman(t))
+      setActiveTaskId(valid ? valid.id : null)
+      return
+    }
     if (displayRelevantTasks.length > 0) {
       const isCurrentTaskInDisplay = displayRelevantTasks.some(t => t.id === activeTaskId)
       if (!isCurrentTaskInDisplay) {
@@ -595,7 +610,7 @@ const ForemanWorkplace = () => {
     } else if (activeTaskId) {
       setActiveTaskId(null)
     }
-  }, [displayRelevantTasks, activeTaskId])
+  }, [displayRelevantTasks, activeTaskId, tasks])
 
   const relevantTasks = displayRelevantTasks
   const activeQueueCount = shop1ActiveTasks.length

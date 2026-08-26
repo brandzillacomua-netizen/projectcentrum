@@ -101,7 +101,14 @@ export default function ForemanTaskQueue({
         )}
       </div>
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        {relevantTasks.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(task => {
+        {relevantTasks
+          .filter(t => {
+            const o = t.orders || orders?.find(x => x.id === t.order_id) || allOrdersMap?.[t.order_id]
+            const num = o?.order_num || t.order_num || t.plan_snapshot?._prep_num || ''
+            return !['14082026-01', '10082026-01', '260821-1'].includes(String(num).trim())
+          })
+          .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+          .map(task => {
           const order = task.orders || orders.find(o => o.id === task.order_id) || allOrdersMap[task.order_id]
           const isActive = activeTaskId === task.id
           const isCompleted = task.status === 'completed'

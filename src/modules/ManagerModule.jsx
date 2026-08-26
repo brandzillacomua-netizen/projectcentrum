@@ -723,7 +723,7 @@ const ManagerModule = () => {
   
   const clientOrders = (orders || []).filter(o => {
     const num = o.order_num || ''
-    return !num.startsWith('ВБ') && !num.startsWith('VB')
+    return !num.startsWith('ВБ') && !num.startsWith('VB') && num !== '14082026-01' && num !== '10082026-01' && num !== '260821-1'
   })
 
   const [selectedOrder, setSelectedOrder] = useState(null)
