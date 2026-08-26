@@ -1220,6 +1220,12 @@ export default function Shop1Terminal() {
   // - картки в буфері будь-якого CHAIN етапу (чекають переміщення)
   // - картки що були вже відскановані в цьому сеансі
   const queueCards = workCards.filter(c => {
+    // 0. Виключення F10 деталей
+    const f10NomIds = new Set(['5ecf63e5-802d-4f98-8291-aad9a52bfaa4', '50947afc-4e40-4165-a682-780275d5feda', '343417a7-4a5c-4e31-8f44-18abb41defec', 'b77e0883-0af2-40a4-a834-a1e47b6570da'])
+    if (f10NomIds.has(String(c.nomenclature_id))) return false
+    const cardInfoStr = JSON.stringify(c)
+    if (cardInfoStr.includes('Київ К-ІП9/10/31/36/37-9-10-11') || cardInfoStr.includes('Київ К-ІП9-10-П-7-46')) return false
+
     // 1. Обов'язкові виключення
     if (c.status === 'completed' || c.status === 'in-progress' || c.status === 'paused' || c.status === 'at-shop2-buffer') return false
     

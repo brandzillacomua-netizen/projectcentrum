@@ -6,8 +6,23 @@ import { getIndexedCache, setIndexedCache, removeIndexedCache } from '../service
 import { fetchProductionSummary } from '../services/statisticsService'
 import { fetchFulfillmentTasks, fetchMissingOrdersForTasks, isFulfillmentRoute } from '../services/fulfillmentQueueService'
 
-const CACHE_KEY = 'MES_APP_CACHE_V10'
-const LEGACY_CACHE_KEYS = ['MES_APP_CACHE_V1', 'MES_APP_CACHE_V2', 'MES_APP_CACHE_V3', 'MES_APP_CACHE_V4', 'MES_APP_CACHE_V5', 'MES_APP_CACHE_V6', 'MES_APP_CACHE_V7', 'MES_APP_CACHE_V8', 'MES_APP_CACHE_V9']
+const CACHE_KEY = 'MES_APP_CACHE_V11'
+const LEGACY_CACHE_KEYS = ['MES_APP_CACHE_V1', 'MES_APP_CACHE_V2', 'MES_APP_CACHE_V3', 'MES_APP_CACHE_V4', 'MES_APP_CACHE_V5', 'MES_APP_CACHE_V6', 'MES_APP_CACHE_V7', 'MES_APP_CACHE_V8', 'MES_APP_CACHE_V9', 'MES_APP_CACHE_V10']
+
+const F10_NOM_IDS = new Set([
+  '5ecf63e5-802d-4f98-8291-aad9a52bfaa4',
+  '50947afc-4e40-4165-a682-780275d5feda',
+  '343417a7-4a5c-4e31-8f44-18abb41defec',
+  'b77e0883-0af2-40a4-a834-a1e47b6570da'
+])
+
+const isF10Card = (card) => {
+  if (!card) return false
+  if (F10_NOM_IDS.has(String(card.nomenclature_id))) return true
+  const info = JSON.stringify(card)
+  if (info.includes('Київ К-ІП9/10/31/36/37-9-10-11') || info.includes('Київ К-ІП9-10-П-7-46')) return true
+  return false
+}
 const USER_CACHE_KEY = 'MES_SESSION_USER'  // Full user object for instant restore
 const TARGET_REFRESH_TTL_MS = 900
 const TARGET_REFRESH_TTL_BY_TABLE = Object.freeze({
@@ -219,7 +234,7 @@ const fetchActiveWorkCards = async () => {
     if (!data || data.length < pageSize) break
   }
 
-  const uniqueCards = Array.from(new Map(allCards.map(c => [String(c.id), c])).values())
+  const uniqueCards = Array.from(new Map(allCards.map(c => [String(c.id), c])).values()).filter(c => !isF10Card(c))
   return { data: uniqueCards, error: null }
 }
 

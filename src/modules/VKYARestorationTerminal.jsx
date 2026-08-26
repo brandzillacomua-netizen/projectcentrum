@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, CheckCircle2, Clock3, CornerUpLeft, Play, RefreshCw, Search, ShieldCheck, Wrench, X } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Clock3, CornerUpLeft, Play, RefreshCw, Search, ShieldCheck, Wrench, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMES } from '../MESContext'
 import { supabase } from '../supabase'
 import { useRestorationStages } from '../hooks/useRestorationStages'
 import { returnRestorationToRoute } from './VKYA/quality-hold/qualityHoldService'
+
+const PAGE_SIZE = 20
 
 const STATUS = {
   new: { label: 'ОЧІКУЄ', color: '#f59e0b' },
@@ -22,6 +24,7 @@ export default function VKYARestorationTerminal() {
   const [error, setError] = useState('')
   const [tab, setTab] = useState('active')
   const [query, setQuery] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
   const [selectedCard, setSelectedCard] = useState(null)
   const [operator, setOperator] = useState(userName(currentUser))
   const [completedQty, setCompletedQty] = useState('')
@@ -49,6 +52,10 @@ export default function VKYARestorationTerminal() {
     return () => window.clearTimeout(timer)
   }, [loadCards])
 
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [tab, query])
+
   const visibleCards = useMemo(() => cards.filter(card => {
     const matchesTab = tab === 'awaiting_action'
       ? card.status === 'completed' && !card.shop2_card_id && !card.route_card_id && Number(card.completed_quantity) > 0
@@ -58,6 +65,13 @@ export default function VKYARestorationTerminal() {
     const haystack = `${card.card_number} ${card.nomenclature_name} ${card.restoration_stage} ${card.operator_name || ''}`.toLowerCase()
     return matchesTab && haystack.includes(query.trim().toLowerCase())
   }), [cards, query, tab])
+
+  const totalPages = Math.ceil(visibleCards.length / PAGE_SIZE) || 1
+
+  const paginatedCards = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE
+    return visibleCards.slice(start, start + PAGE_SIZE)
+  }, [visibleCards, currentPage])
 
   const startCard = async () => {
     if (!selectedCard || !operator.trim()) return
@@ -199,19 +213,136 @@ export default function VKYARestorationTerminal() {
     </section>}
 
     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
-      {[['active', 'АКТИВНІ КАРТИ'], ['awaiting_action', 'ОЧІКУЮТЬ РІШЕННЯ'], ['completed', 'ЗАВЕРШЕНІ']].map(([value, label]) => <button key={value} onClick={() => setTab(value)} style={{ background: tab === value ? '#06b6d4' : '#111', color: tab === value ? '#001014' : '#aaa', border: '1px solid #222', padding: '10px 18px', borderRadius: 11, fontWeight: 950, cursor: 'pointer' }}>{label}</button>)}
-      <label style={{ flex: 1, minWidth: 230, display: 'flex', alignItems: 'center', gap: 9, background: '#0d0d0d', border: '1px solid #222', borderRadius: 11, padding: '0 13px' }}><Search size={16} color="#666"/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Пошук за деталлю, етапом або картою" style={{ width: '100%', border: 0, outline: 0, background: 'transparent', color: '#fff', padding: '11px 0' }}/></label>
+      {[
+        ['active', 'АКТИВНІ КАРТИ', cards.filter(c => c.status !== 'completed').length],
+        ['awaiting_action', 'ОЧІКУЮТЬ РІШЕННЯ', cards.filter(c => c.status === 'completed' && !c.shop2_card_id && !c.route_card_id && Number(c.completed_quantity) > 0).length],
+        ['completed', 'ЗАВЕРШЕНІ', cards.filter(c => c.status === 'completed' && (Boolean(c.shop2_card_id) || Boolean(c.route_card_id) || Number(c.completed_quantity) === 0)).length]
+      ].map(([value, label, count]) => (
+        <button
+          key={value}
+          onClick={() => setTab(value)}
+          style={{
+            background: tab === value ? '#06b6d4' : '#111',
+            color: tab === value ? '#001014' : '#aaa',
+            border: '1px solid #222',
+            padding: '10px 18px',
+            borderRadius: 11,
+            fontWeight: 950,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8
+          }}
+        >
+          <span>{label}</span>
+          <span style={{
+            background: tab === value ? 'rgba(0,16,20,0.2)' : '#222',
+            color: tab === value ? '#001014' : '#06b6d4',
+            fontSize: '.75rem',
+            padding: '2px 8px',
+            borderRadius: 99,
+            fontWeight: 900
+          }}>
+            {count}
+          </span>
+        </button>
+      ))}
+      <label style={{ flex: 1, minWidth: 230, display: 'flex', alignItems: 'center', gap: 9, background: '#0d0d0d', border: '1px solid #222', borderRadius: 11, padding: '0 13px' }}>
+        <Search size={16} color="#666"/>
+        <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Пошук за деталлю, етапом або картою" style={{ width: '100%', border: 0, outline: 0, background: 'transparent', color: '#fff', padding: '11px 0' }}/>
+      </label>
     </div>
 
     {error && <div style={{ background: '#ef444418', border: '1px solid #ef444455', color: '#fca5a5', borderRadius: 12, padding: 14, marginBottom: 16 }}>Помилка: {error}</div>}
     {!loading && visibleCards.length === 0 && <div style={{ border: '2px dashed #222', borderRadius: 22, padding: 55, textAlign: 'center', color: '#555' }}>У цій черзі карт немає</div>}
+
+    {visibleCards.length > 0 && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 14, padding: '10px 16px', background: '#0a0a0a', border: '1px solid #1c1c1c', borderRadius: 13 }}>
+        <div style={{ color: '#888', fontSize: '.8rem', fontWeight: 850 }}>
+          Показано <strong style={{ color: '#fff' }}>{Math.min((currentPage - 1) * PAGE_SIZE + 1, visibleCards.length)}–{Math.min(currentPage * PAGE_SIZE, visibleCards.length)}</strong> з <strong style={{ color: '#06b6d4' }}>{visibleCards.length}</strong> карт
+        </div>
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              style={{ background: '#141414', border: '1px solid #282828', color: currentPage === 1 ? '#444' : '#fff', borderRadius: 8, padding: '6px 12px', cursor: currentPage === 1 ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: '.8rem', fontWeight: 900 }}
+            >
+              <ChevronLeft size={15}/> Назад
+            </button>
+            <span style={{ fontSize: '.82rem', fontWeight: 900, color: '#aaa' }}>
+              <strong style={{ color: '#fff' }}>{currentPage}</strong> / {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              style={{ background: '#141414', border: '1px solid #282828', color: currentPage === totalPages ? '#444' : '#fff', borderRadius: 8, padding: '6px 12px', cursor: currentPage === totalPages ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: '.8rem', fontWeight: 900 }}
+            >
+              Вперед <ChevronRight size={15}/>
+            </button>
+          </div>
+        )}
+      </div>
+    )}
+
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {visibleCards.map(card => { const meta = STATUS[card.status]; const canOpen = card.status !== 'completed' || (!card.shop2_card_id && !card.route_card_id); return <button key={card.id} onClick={() => canOpen && openCard(card)} style={{ textAlign: 'left', background: '#101010', color: '#fff', border: '1px solid #202020', borderRadius: 18, padding: 20, cursor: canOpen ? 'pointer' : 'default', display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(140px, .5fr) auto', gap: 20, alignItems: 'center' }}>
+      {paginatedCards.map(card => { const meta = STATUS[card.status]; const canOpen = card.status !== 'completed' || (!card.shop2_card_id && !card.route_card_id); return <button key={card.id} onClick={() => canOpen && openCard(card)} style={{ textAlign: 'left', background: '#101010', color: '#fff', border: '1px solid #202020', borderRadius: 18, padding: 20, cursor: canOpen ? 'pointer' : 'default', display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(140px, .5fr) auto', gap: 20, alignItems: 'center' }}>
         <div><div style={{ color: '#06b6d4', fontSize: '.68rem', fontWeight: 950 }}>КАРТА ВІДНОВЛЕННЯ №{card.card_number}</div><div style={{ fontSize: '1.05rem', fontWeight: 950, marginTop: 6, overflowWrap: 'anywhere' }}>{card.nomenclature_name}</div><div style={{ color: '#666', fontSize: '.7rem', marginTop: 5 }}>Створено {new Date(card.created_at).toLocaleString('uk-UA')}</div></div>
         <div><div style={{ color: '#777', fontSize: '.65rem', fontWeight: 900 }}>ЕТАП ВІДНОВЛЕННЯ</div><div style={{ fontWeight: 900, marginTop: 5 }}>{card.restoration_stage}</div>{card.operator_name && <div style={{ color: '#888', fontSize: '.7rem', marginTop: 5 }}>{card.operator_name}</div>}</div>
         <div style={{ textAlign: 'right' }}><div style={{ color: meta.color, fontSize: '.68rem', fontWeight: 1000 }}>{card.route_card_id ? (card.route_card_id === '00000000-0000-0000-0000-000000000000' ? 'ПОВЕРНЕНО НА СКЛАД (БЗ)' : 'ПОВЕРНЕНО В НАРЯД') : card.shop2_card_id ? `ПЕРЕДАНО: ${card.shop2_stage}` : meta.label}</div><div style={{ fontSize: '1.65rem', fontWeight: 1000, marginTop: 5 }}>{card.status === 'completed' ? `${card.completed_quantity} / ` : ''}{card.quantity} <small style={{ fontSize: '.65rem', color: '#666' }}>{card.unit}</small></div>{card.status === 'completed' && !card.shop2_card_id && !card.route_card_id && Number(card.completed_quantity) > 0 && <div style={{ color: '#f59e0b', fontSize: '.62rem', fontWeight: 950, marginTop: 5 }}>{card.source_task_id ? 'ОЧІКУЄ ПОВЕРНЕННЯ В НАРЯД' : 'ОЧІКУЄ РІШЕННЯ'}</div>}</div>
       </button> })}
     </div>
+
+    {visibleCards.length > 0 && totalPages > 1 && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginTop: 20, padding: '12px 18px', background: '#0a0a0a', border: '1px solid #1c1c1c', borderRadius: 14 }}>
+        <div style={{ color: '#888', fontSize: '.82rem', fontWeight: 850 }}>
+          Показано <strong style={{ color: '#fff' }}>{Math.min((currentPage - 1) * PAGE_SIZE + 1, visibleCards.length)}–{Math.min(currentPage * PAGE_SIZE, visibleCards.length)}</strong> з <strong style={{ color: '#06b6d4' }}>{visibleCards.length}</strong> карт
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            style={{ background: '#141414', border: '1px solid #282828', color: currentPage === 1 ? '#444' : '#fff', borderRadius: 9, padding: '7px 14px', cursor: currentPage === 1 ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: '.82rem', fontWeight: 900 }}
+          >
+            <ChevronLeft size={16}/> Назад
+          </button>
+          {Array.from({ length: totalPages }, (_, idx) => idx + 1)
+            .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+            .map((page, idx, array) => {
+              const prev = array[idx - 1]
+              const showEllipsis = prev && page - prev > 1
+              return (
+                <div key={page} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {showEllipsis && <span style={{ color: '#555', padding: '0 4px' }}>...</span>}
+                  <button
+                    onClick={() => setCurrentPage(page)}
+                    style={{
+                      background: currentPage === page ? '#06b6d4' : '#121212',
+                      color: currentPage === page ? '#001014' : '#aaa',
+                      border: '1px solid #222',
+                      borderRadius: 8,
+                      width: 34,
+                      height: 34,
+                      fontWeight: 950,
+                      fontSize: '.82rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {page}
+                  </button>
+                </div>
+              )
+            })}
+          <button
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            style={{ background: '#141414', border: '1px solid #282828', color: currentPage === totalPages ? '#444' : '#fff', borderRadius: 9, padding: '7px 14px', cursor: currentPage === totalPages ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: '.82rem', fontWeight: 900 }}
+          >
+            Вперед <ChevronRight size={16}/>
+          </button>
+        </div>
+      </div>
+    )}
 
     {selectedCard && <div onClick={() => !saving && setSelectedCard(null)} style={{ position: 'fixed', inset: 0, zIndex: 10050, background: 'rgba(0,0,0,.86)', display: 'grid', placeItems: 'center', padding: 20 }}><div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 510, background: '#0d0d0d', border: '1px solid #292929', borderRadius: 24, padding: 26 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 15 }}><div><div style={{ color: '#06b6d4', fontSize: '.7rem', fontWeight: 950 }}>КАРТА №{selectedCard.card_number}</div><h2 style={{ margin: '8px 0 4px' }}>{selectedCard.nomenclature_name}</h2><div style={{ color: '#888' }}>{selectedCard.restoration_stage} · {selectedCard.quantity} {selectedCard.unit}</div></div><button onClick={() => setSelectedCard(null)} style={{ background: 'transparent', border: 0, color: '#777', cursor: 'pointer' }}><X/></button></div>
