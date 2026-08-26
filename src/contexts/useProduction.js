@@ -1289,16 +1289,35 @@ export function createProductionActions({
     cleanPayload.assignees = Array.isArray(cleanPayload.assignees) ? cleanPayload.assignees : []
     cleanPayload.checklist = Array.isArray(cleanPayload.checklist) ? cleanPayload.checklist : []
 
-    const { data, error } = await supabase.from('management_tasks').insert([{
+    const newTaskObj = {
+      id: 'task_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       ...cleanPayload,
       created_by: currentUserLogin || 'system',
       created_at: new Date().toISOString()
-    }]).select()
-    if (!error && data?.[0]) setManagementTasks(prev => [data[0], ...prev])
-    return { data: data?.[0], error }
+    }
+
+    setManagementTasks(prev => [newTaskObj, ...prev])
+
+    try {
+      const { data, error } = await supabase.from('management_tasks').insert([cleanPayload]).select()
+      if (!error && data?.[0]) {
+        setManagementTasks(prev => prev.map(t => t.id === newTaskObj.id ? data[0] : t))
+        return { data: data[0], error: null }
+      }
+      return { data: newTaskObj, error }
+    } catch (err) {
+      return { data: newTaskObj, error: err }
+    }
   }
   const updateManagementTask = async (taskId, updates) => {
     setManagementTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updates } : t))
+    if (updates.status || updates.project_id) {
+      try {
+        const saved = JSON.parse(localStorage.getItem('centrum_task_status_updates') || '{}')
+        saved[taskId] = { ...(saved[taskId] || {}), ...updates }
+        localStorage.setItem('centrum_task_status_updates', JSON.stringify(saved))
+      } catch (e) {}
+    }
     const { error } = await supabase.from('management_tasks').update(updates).eq('id', taskId)
     return { error }
   }

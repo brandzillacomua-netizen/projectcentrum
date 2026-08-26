@@ -4,6 +4,20 @@ import { ArrowLeft, BriefcaseBusiness, Calendar, CheckCircle2, CheckSquare, Chev
 import { useMES } from '../MESContext'
 import { ChecklistEditor } from './KanbanModule'
 
+const getSavedProjectColumns = (projectId) => {
+  if (!projectId) return null
+  try {
+    const raw = localStorage.getItem('centrum_project_columns')
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (parsed[projectId] && Array.isArray(parsed[projectId]) && parsed[projectId].length > 0) {
+        return parsed[projectId]
+      }
+    }
+  } catch (e) {}
+  return null
+}
+
 const DEFAULT_COLUMNS = [
   { id: 'todo', title: 'В ЧЕРЗІ', color: '#8b5cf6' },
   { id: 'in_progress', title: 'В РОБОТІ', color: '#3b82f6' },
@@ -169,7 +183,9 @@ export default function TaskProjectsModule() {
 
   if (activeProject) {
     const isOwnerOrManager = isDirector || activeProject.created_by === currentUser?.login
-    const projectColumns = Array.isArray(activeProject?.columns) && activeProject.columns.length > 0 ? activeProject.columns : DEFAULT_COLUMNS
+    const projectColumns = (Array.isArray(activeProject?.columns) && activeProject.columns.length > 0)
+      ? activeProject.columns
+      : (getSavedProjectColumns(activeProject?.id) || DEFAULT_COLUMNS)
     const doneColumnId = projectColumns.find(c => c.id === 'done' || (c.title || '').toLowerCase().includes('виконан') || (c.title || '').toLowerCase().includes('готов'))?.id || projectColumns[projectColumns.length - 1]?.id
     const completed = projectTasks.filter(t => t.status === doneColumnId).length
     const pct = projectTasks.length ? Math.round(completed / projectTasks.length * 100) : 0

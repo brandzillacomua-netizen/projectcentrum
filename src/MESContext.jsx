@@ -104,9 +104,20 @@ export const MESProvider = ({ children }) => {
   }
 
   const updateTaskProject = async (id, updates) => {
-    const { data: rows, error } = await supabase.from('task_projects').update(updates).eq('id', id).select()
-    if (!error) data.setTaskProjects(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p))
-    return { data: rows?.[0], error }
+    data.setTaskProjects(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p))
+    if (updates.columns) {
+      try {
+        const saved = JSON.parse(localStorage.getItem('centrum_project_columns') || '{}')
+        saved[id] = updates.columns
+        localStorage.setItem('centrum_project_columns', JSON.stringify(saved))
+      } catch (e) {}
+    }
+    try {
+      const { data: rows, error } = await supabase.from('task_projects').update(updates).eq('id', id).select()
+      return { data: rows?.[0], error }
+    } catch (err) {
+      return { data: null, error: err }
+    }
   }
 
   const deleteTaskProject = async (id) => {

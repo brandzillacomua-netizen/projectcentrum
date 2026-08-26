@@ -761,7 +761,7 @@ export function useData() {
         needsTable('system_users') ? supabase.from('system_users').select('id, login, first_name, last_name, position, access_rights, department, shift, notification_settings, avatar, last_seen, shift_calendar').order('login') : skippedTable(),
         needsTable('machines') ? supabase.from('machines').select('*').order('name') : skippedTable(),
         // Kanban badge counter
-        needsTable('management_tasks') ? supabase.from('management_tasks').select('*').neq('status', 'done').order('created_at', { ascending: false }) : skippedTable(),
+        needsTable('management_tasks') ? supabase.from('management_tasks').select('*').or('status.neq.done,project_id.not.is.null').order('created_at', { ascending: false }) : skippedTable(),
         needsTable('task_projects') ? supabase.from('task_projects').select('*').order('created_at', { ascending: false }) : skippedTable(),
         // Customers for manager
         needsTable('customers') ? supabase.from('customers').select('id,name,official_name').limit(50).order('name') : skippedTable(),
@@ -1119,8 +1119,16 @@ export function useData() {
         const data = requireData(await fetchPendingMachineCalls())
         if (data) setMachineCalls(data)
       } else if (tableName === 'management_tasks') {
-        const data = requireData(await supabase.from('management_tasks').select('*').neq('status', 'done').order('created_at', { ascending: false }))
-        if (data) setManagementTasks(data)
+        const data = requireData(await supabase.from('management_tasks').select('*').or('status.neq.done,project_id.not.is.null').order('created_at', { ascending: false }))
+        if (data) {
+          try {
+            const saved = JSON.parse(localStorage.getItem('centrum_task_status_updates') || '{}')
+            const patched = data.map(t => saved[t.id] ? { ...t, ...saved[t.id] } : t)
+            setManagementTasks(patched)
+          } catch (e) {
+            setManagementTasks(data)
+          }
+        }
       } else if (tableName === 'task_projects') {
         const data = requireData(await supabase.from('task_projects').select('*').order('created_at', { ascending: false }))
         if (data) setTaskProjects(data)
