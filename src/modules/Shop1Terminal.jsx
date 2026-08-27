@@ -411,21 +411,37 @@ export default function Shop1Terminal() {
   }
 
   // ── QR-сканер (Зроблено "таким самим", як в інших терміналах) ──────────
+  // ── QR-сканер (Зроблено з гарним підключенням камери та обробкою DOM) ─────
   useEffect(() => {
-    let html5QrCode = null
-    if (isScanning && window.Html5Qrcode) {
-      html5QrCode = new window.Html5Qrcode("reader")
-      const config = { fps: 15, qrbox: { width: 260, height: 260 } }
+    if (!isScanning) return
 
-      const stopAndClose = async () => {
-        if (html5QrCode && html5QrCode.isScanning) await html5QrCode.stop().catch(() => { })
-        setIsScanning(false)
+    let html5QrCode = null
+    let timer = null
+
+    const startScanner = async () => {
+      if (!window.Html5Qrcode) {
+        setScanError('Бібліотека сканування не завантажена. Оновіть сторінку.')
+        return
+      }
+      const el = document.getElementById("reader")
+      if (!el) {
+        timer = setTimeout(startScanner, 50)
+        return
       }
 
-      html5QrCode.start(
-        { facingMode: "environment" },
-        config,
-        async (text) => {
+      try {
+        html5QrCode = new window.Html5Qrcode("reader")
+        const config = { fps: 20, qrbox: { width: 260, height: 260 } }
+
+        const stopAndClose = async () => {
+          if (html5QrCode && html5QrCode.isScanning) await html5QrCode.stop().catch(() => { })
+          setIsScanning(false)
+        }
+
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          config,
+          async (text) => {
             if (text.startsWith('CENTRUM_CARD_')) {
               const id = text.replace('CENTRUM_CARD_', '').trim()
 
@@ -442,7 +458,6 @@ export default function Shop1Terminal() {
 
               if (!card) {
                 setIsSyncing(true)
-                // Direct DB lookup for instant discovery of newly created or restored cards
                 const { data: freshCards } = await supabase
                   .from('work_cards')
                   .select('*')
@@ -482,32 +497,50 @@ export default function Shop1Terminal() {
                 return
               }
 
-            if (card.status === 'completed') {
-              setScanError(`Картка #${id} вже завершена`);
-              return
-            }
+              if (card.status === 'completed') {
+                setScanError(`Картка #${card.id.slice(-8).toUpperCase()} вже завершена`)
+                return
+              }
 
-            // Додаємо в локальну чергу та активуємо
-            setScannedIds(prev => prev.includes(card.id) ? prev : [...prev, card.id])
-            setSelectedCardId(card.id)
-            setScanError(null)
-            checkCardMaterials(card)
-            window.scrollTo({ top: 0, behavior: 'smooth' })
-          } else {
-            // Check if it's a machine call QR code URL
-            const isMachineQR = await handleMachineQRScan(text)
-            if (isMachineQR) {
-              await stopAndClose()
+              // Додаємо в локальну чергу та активуємо
+              setScannedIds(prev => prev.includes(card.id) ? prev : [...prev, card.id])
+              setSelectedCardId(card.id)
+              setScanError(null)
+              checkCardMaterials(card)
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+            } else {
+              // Check if it's a machine call QR code URL
+              const isMachineQR = await handleMachineQRScan(text)
+              if (isMachineQR) {
+                await stopAndClose()
+              }
             }
           }
-        }
-      ).catch(err => {
+        )
+      } catch (err) {
         console.error("Scanner error:", err)
-        setScanError(`Помилка камери: ${err}. Перевірте дозволи у браузері.`)
-        // Не закриваємо setIsScanning(false) одразу, щоб користувач бачим помилку в самому інтерфейсі
-      })
+        setScanError(`Помилка камери: ${err?.message || err}. Перевірте надання дозволу на доступ до камери.`)
+      }
     }
-    return () => { if (html5QrCode && html5QrCode.isScanning) html5QrCode.stop().catch(() => { }) }
+
+    setScanError(null)
+    timer = setTimeout(startScanner, 100)
+
+    return () => {
+      clearTimeout(timer)
+      if (html5QrCode) {
+        if (html5QrCode.isScanning) {
+          html5QrCode.stop().then(() => {
+            try {
+              const videoEl = document.querySelector('#reader video')
+              if (videoEl && videoEl.srcObject) {
+                videoEl.srcObject.getTracks().forEach(track => track.stop())
+              }
+            } catch (e) {}
+          }).catch(() => {})
+        }
+      }
+    }
   }, [isScanning, workCards])
 
   // ── Global Scanner Keydown Listener ───────────────────────────────────────
