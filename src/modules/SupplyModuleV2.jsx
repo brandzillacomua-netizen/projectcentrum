@@ -22,6 +22,7 @@ import { apiService } from '../services/apiDispatcher'
 import { supabase } from '../supabase'
 import { ScannerPanel } from './Warehouse/components/ScannerPanel'
 import { ReceptionAcceptanceModal } from './Warehouse/components/ReceptionAcceptanceModal'
+import { ReserveAnalysisModal } from './Warehouse/components/ReserveAnalysisModal'
 
 const getQR = (nom) => {
   if (!nom || !nom.additional_info) return ''
@@ -86,6 +87,9 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
   const [savingQr, setSavingQr] = useState(false)
   const [selectedQrNomIds, setSelectedQrNomIds] = useState(new Set())
 
+  // Reserve analysis modal state
+  const [reserveAnalysisItem, setReserveAnalysisItem] = useState(null)
+
   // Super admin inventory editing & deletion state
   const [editingInvId, setEditingInvId] = useState(null)
   const [editingInvTotal, setEditingInvTotal] = useState('')
@@ -93,6 +97,32 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
   const [savingInv, setSavingInv] = useState(false)
   const [itemToDelete, setItemToDelete] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  const getItemReservedQty = (item) => {
+    if (!item) return 0
+    const dbReserved = Number(item.reserved_qty) || 0
+    let prepReserved = 0
+    const itemNameClean = (item.name || '').replace(/\[(Непідготовлений|Підготовлений)\]/gi, '').trim()
+    ;(tasks || []).filter(t => t.step === 'Підготовка' && t.status === 'pending' && t.warehouse_conf === 'true').forEach(t => {
+      if (t.plan_snapshot) {
+        let snapshot = t.plan_snapshot
+        if (typeof snapshot === 'string') {
+          try { snapshot = JSON.parse(snapshot) } catch (e) { snapshot = {} }
+        }
+        if (snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot)) {
+          Object.values(snapshot).forEach(part => {
+            if (!part || typeof part !== 'object') return
+            const nomId = String(part.id || part.nomenclature_id || '')
+            const pName = (part.name || '').replace(/\[(Непідготовлений|Підготовлений)\]/gi, '').trim()
+            if ((nomId && String(nomId) === String(item.nomenclature_id)) || pName === itemNameClean) {
+              prepReserved += Number(part.sheets || part.plan || part.need || 0)
+            }
+          })
+        }
+      }
+    })
+    return Math.max(dbReserved, prepReserved)
+  }
 
   const isAdmin = currentUser?.login === 'admin@workshop.local' || currentUser?.role === 'admin' || currentUser?.role === 'director' || (currentUser?.position || '').toLowerCase().includes('адмін') || (currentUser?.position || '').toLowerCase().includes('директор')
 
@@ -2227,9 +2257,9 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                             )}
                           </td>
                           <td style={{ padding: '15px', textAlign: 'center', color: '#10b981', fontWeight: 900 }}>
-                            {editingInvId === item.id ? (Number(editingInvTotal) || 0) - (Number(editingInvReserved) || 0) : (item.total_qty || 0) - (item.reserved_qty || 0)}
+                            {editingInvId === item.id ? (Number(editingInvTotal) || 0) - (Number(editingInvReserved) || 0) : Math.max(0, (item.total_qty || 0) - getItemReservedQty(item))}
                           </td>
-                          <td style={{ padding: '15px', textAlign: 'center', color: Number(item.reserved_qty) > 0 ? '#3b82f6' : '#222', fontWeight: 800 }}>
+                          <td style={{ padding: '15px', textAlign: 'center', color: getItemReservedQty(item) > 0 ? '#3b82f6' : '#222', fontWeight: 800 }}>
                             {editingInvId === item.id ? (
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                                 <input
@@ -2259,7 +2289,17 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
                                 </button>
                               </div>
                             ) : (
-                              item.reserved_qty || 0
+                              getItemReservedQty(item) > 0 ? (
+                                <span
+                                  onClick={() => setReserveAnalysisItem(item)}
+                                  style={{ textDecoration: 'underline', cursor: 'pointer', color: '#3b82f6', fontWeight: 900 }}
+                                  title="Аналіз резерву"
+                                >
+                                  {getItemReservedQty(item)}
+                                </span>
+                              ) : (
+                                0
+                              )
                             )}
                           </td>
                         </tr>
@@ -2772,6 +2812,17 @@ const SupplyModule = ({ isProcurementOnly = false }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {reserveAnalysisItem && (
+        <ReserveAnalysisModal
+          item={reserveAnalysisItem}
+          onClose={() => setReserveAnalysisItem(null)}
+          requests={requests}
+          orders={orders}
+          tasks={tasks}
+          nomenclatures={nomenclatures}
+        />
       )}
 
       <ScannerPanel

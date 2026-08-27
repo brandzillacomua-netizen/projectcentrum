@@ -24,7 +24,6 @@ export const ReserveAnalysisModal = ({
   )
 
   const reserveDetails = matchedRequests.map(req => {
-    // 1. Order number
     let orderNum = '—'
     if (req.order_id) {
       const order = (orders || []).find(o => String(o.id) === String(req.order_id))
@@ -38,7 +37,6 @@ export const ReserveAnalysisModal = ({
       }
     }
     
-    // 2. Product name
     let productName = '—'
     if (req.task_id) {
       const task = (tasks || []).find(t => String(t.id) === String(req.task_id))
@@ -56,13 +54,45 @@ export const ReserveAnalysisModal = ({
     }
 
     return {
-      id: req.id,
-      orderNum,
+      id: `req-${req.id}`,
+      orderNum: orderNum || 'Запит боксу',
       productName,
       quantity: Number(req.quantity) || 0,
       date: req.created_at ? new Date(req.created_at).toLocaleDateString('uk-UA') : '—',
       taskId: req.task_id,
       orderId: req.order_id
+    }
+  })
+
+  // Also include active unstarted preparation tasks for production warehouse
+  (tasks || []).filter(t => t.step === 'Підготовка' && t.status === 'pending' && t.warehouse_conf === 'true').forEach(t => {
+    if (t.plan_snapshot) {
+      let snapshot = t.plan_snapshot
+      if (typeof snapshot === 'string') {
+        try { snapshot = JSON.parse(snapshot) } catch (e) { snapshot = {} }
+      }
+      if (snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot)) {
+        Object.values(snapshot).forEach(part => {
+          if (!part || typeof part !== 'object') return
+          const nomId = String(part.id || part.nomenclature_id || '')
+          const pName = (part.name || '').replace(/\[(Непідготовлений|Підготовлений)\]/gi, '').trim()
+          const iName = (item.name || '').replace(/\[(Непідготовлений|Підготовлений)\]/gi, '').trim()
+
+          if ((nomId && String(nomId) === String(item.nomenclature_id)) || pName === iName) {
+            const qty = Number(part.sheets || part.plan || part.need || 0)
+            if (qty > 0) {
+              reserveDetails.push({
+                id: `prep-${t.id}-${part.id}`,
+                orderNum: t.naryad_number || t.plan_snapshot?._prep_num || 'Наряд Підготовка',
+                productName: 'Підготовка листа',
+                quantity: qty,
+                date: t.created_at ? new Date(t.created_at).toLocaleDateString('uk-UA') : '—',
+                taskId: t.id
+              })
+            }
+          }
+        })
+      }
     }
   })
 
