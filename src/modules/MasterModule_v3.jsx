@@ -93,6 +93,14 @@ const MasterModule = () => {
 
   const [activeNaryadOrder, setActiveNaryadOrder] = useState(null)
   const [useStockBZ, setUseStockBZ] = useState(true)
+  const [partBZOverrides, setPartBZOverrides] = useState({})
+  const isPartBZActive = (partNomId) => {
+    if (!partNomId) return useStockBZ
+    if (partBZOverrides[String(partNomId)] !== undefined) {
+      return Boolean(partBZOverrides[String(partNomId)])
+    }
+    return Boolean(useStockBZ)
+  }
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [selectedMachine, setSelectedMachine] = useState(null)
   const [rowMachines, setRowMachines] = useState({}) // { [partNomId]: machineType }
@@ -1028,7 +1036,7 @@ const MasterModule = () => {
           }
 
           // Create the production task only after the final stock check.
-          const createdTask = await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters, naryadParts, partCutterOverrides, rowMachinesSplits, useStockBZ));
+          const createdTask = await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters, naryadParts, partCutterOverrides, rowMachinesSplits, useStockBZ, partBZOverrides));
 
           if (createdTask) {
             setReprintTask(createdTask);
@@ -1062,7 +1070,7 @@ const MasterModule = () => {
         setReprintTask(null)
         setActiveNaryadOrder(null)
       } else {
-        const createdTask = await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters, naryadParts, partCutterOverrides, rowMachinesSplits, useStockBZ))
+        const createdTask = await apiService.submitCreateTask(activeNaryadOrder.id, taskMachineName, (oid, m) => createNaryad(oid, m, naryadQtys, naryadDeadline, rowMachines, materialSplits, selectedCutters, naryadParts, partCutterOverrides, rowMachinesSplits, useStockBZ, partBZOverrides))
         
         if (createdTask) {
           setReprintTask(createdTask);
@@ -1153,9 +1161,11 @@ const MasterModule = () => {
       setActiveNaryadOrder(order)
       if (task.plan_snapshot?._use_bz !== undefined) {
         setUseStockBZ(Boolean(task.plan_snapshot._use_bz))
+        setPartBZOverrides(task.plan_snapshot._part_bz_overrides || {})
       } else {
         const hadStock = Object.values(task.plan_snapshot || {}).some(s => typeof s === 'object' && Number(s?.stock) > 0)
         setUseStockBZ(hadStock)
+        setPartBZOverrides({})
       }
     }
 
@@ -2085,7 +2095,10 @@ const MasterModule = () => {
                           type="checkbox"
                           disabled={isReprintMode}
                           checked={useStockBZ}
-                          onChange={(e) => setUseStockBZ(e.target.checked)}
+                          onChange={(e) => {
+                            setUseStockBZ(e.target.checked)
+                            setPartBZOverrides({})
+                          }}
                           style={{ accentColor: '#ff9000', width: '17px', height: '17px', cursor: isReprintMode ? 'default' : 'pointer' }}
                         />
                         <span style={{ fontSize: '0.85rem', fontWeight: 900, color: useStockBZ ? '#ff9000' : '#666' }}>
@@ -2263,10 +2276,12 @@ const displayParts = getDisplayPartsForOrderItem(it)
 
                         // If reprint, use snapshot. Otherwise use thisNaryadQty
                         const totalNeeded = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1))
-                        const inStock = snapshot ? (snapshot.stock || 0) : (useStockBZ ? (() => {
+                        const availableBZ = (() => {
                           const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
                           return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
-                        })() : 0)
+                        })()
+                        const isPartActiveBZ = isPartBZActive(part.nom?.id)
+                        const inStock = snapshot ? (snapshot.stock || 0) : (isPartActiveBZ ? Math.min(totalNeeded, availableBZ) : 0)
                         const totalToProduce = snapshot ? snapshot.plan : Math.max(0, totalNeeded - inStock)
 
                         const unitsPerSheet = Number(part.nom?.units_per_sheet) || 1
@@ -2779,8 +2794,52 @@ const displayParts = getDisplayPartsForOrderItem(it)
                                 totalNeeded.toString()
                               )}
                             </td>
-                            <td style={{ padding: '10px 4px', textAlign: 'center', color: '#555', fontSize: '0.85rem' }} className="no-print">
-                              {inStock.toString()}
+                            <td style={{ padding: '6px 4px', textAlign: 'center' }} className="no-print">
+                              {isReprintMode ? (
+                                <span style={{ fontSize: '0.85rem', fontWeight: 800, color: inStock > 0 ? '#10b981' : '#666' }}>
+                                  {inStock}
+                                </span>
+                              ) : (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <label
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '5px',
+                                      cursor: 'pointer',
+                                      userSelect: 'none',
+                                      padding: '3px 8px',
+                                      borderRadius: '8px',
+                                      background: isPartActiveBZ ? (availableBZ > 0 ? 'rgba(16, 185, 129, 0.12)' : '#111') : 'rgba(239, 68, 68, 0.1)',
+                                      border: `1px solid ${isPartActiveBZ ? (availableBZ > 0 ? 'rgba(16, 185, 129, 0.35)' : '#222') : 'rgba(239, 68, 68, 0.3)'}`,
+                                      transition: 'all 0.15s ease'
+                                    }}
+                                    title={
+                                      isPartActiveBZ
+                                        ? `Враховується БЗ для цієї деталі (доступно на складі: ${availableBZ} шт)`
+                                        : `Ігнорувати БЗ для цієї деталі (на складі є: ${availableBZ} шт)`
+                                    }
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isPartActiveBZ}
+                                      onChange={(e) => {
+                                        const val = e.target.checked
+                                        setPartBZOverrides(prev => ({ ...prev, [String(part.nom?.id)]: val }))
+                                      }}
+                                      style={{ accentColor: '#ff9000', width: '15px', height: '15px', cursor: 'pointer' }}
+                                    />
+                                    <span style={{
+                                      fontSize: '0.85rem',
+                                      fontWeight: 950,
+                                      color: isPartActiveBZ ? (availableBZ > 0 ? '#10b981' : '#777') : '#ef4444',
+                                      textDecoration: !isPartActiveBZ && availableBZ > 0 ? 'line-through' : 'none'
+                                    }}>
+                                      {inStock}
+                                    </span>
+                                  </label>
+                                </div>
+                              )}
                             </td>
                             <td style={{ padding: '10px 4px', textAlign: 'center', fontSize: '1.2rem', color: '#ff9000', fontWeight: 1000 }} className="col-plan">
                               {totalToProduce.toString()}
@@ -3026,7 +3085,8 @@ const displayParts = getDisplayPartsForOrderItem(it)
                         const snapshot = reprintTask?.plan_snapshot?.[String(part.nom?.id)]
 
                         const totalNeeded = snapshot ? snapshot.need : (thisNaryadQty * (Number(part.quantity_per_parent) || 1))
-                        const inStock = snapshot ? (snapshot.stock || 0) : (useStockBZ ? (() => {
+                        const isPartActiveBZ = isPartBZActive(part.nom?.id)
+                        const inStock = snapshot ? (snapshot.stock || 0) : (isPartActiveBZ ? (() => {
                           const bzInv = inventory.find(i => String(i.nomenclature_id) === String(part.nom?.id) && i.type === 'bz' && (!i.pocket_owner || i.pocket_owner === 'Не вказано'))
                           return bzInv ? Math.max(0, (Number(bzInv.total_qty) || 0) - (Number(bzInv.reserved_qty) || 0)) : 0
                         })() : 0)

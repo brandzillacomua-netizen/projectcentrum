@@ -1576,7 +1576,7 @@ export function createProductionActions({
     return { total: totalQty, planned, produced, packaged, isFullyPackaged: packaged >= totalQty && totalQty > 0, isFullyPlanned: planned >= totalQty && totalQty > 0, status }
   }
 
-  const createNaryad = async (orderId, machineName, customQuantities = null, customDeadline = null, customRowMachines = null, customMaterialSplits = null, customCutters = null, customBOMParts = null, customCutterOverrides = null, customRowMachinesSplits = null, customUseStockBZ = true) => {
+  const createNaryad = async (orderId, machineName, customQuantities = null, customDeadline = null, customRowMachines = null, customMaterialSplits = null, customCutters = null, customBOMParts = null, customCutterOverrides = null, customRowMachinesSplits = null, customUseStockBZ = true, customPartBZOverrides = null) => {
     const bzOperationId = crypto.randomUUID()
     let bzReservationCreated = false
     let bzReservationAttached = false
@@ -1587,7 +1587,7 @@ export function createProductionActions({
       let totalPlanQty = 0
       const materialSummary = {}
       const bzStockDeductions = []
-      const plan_snapshot = { _use_bz: customUseStockBZ }
+      const plan_snapshot = { _use_bz: customUseStockBZ, _part_bz_overrides: customPartBZOverrides || {} }
 
       const getDisplayParts = (item) => customBOMParts && customBOMParts[item.id]
         ? customBOMParts[item.id].map(p => ({ nom: p.nom, qtyPer: p.quantity_per_parent }))
@@ -1599,25 +1599,30 @@ export function createProductionActions({
           })()
 
       const bzRequestedByNom = {}
-      if (customUseStockBZ) {
-        order.order_items?.forEach(item => {
-          const requestedQty = customQuantities && customQuantities[item.id] !== undefined
-            ? Number(customQuantities[item.id])
-            : Number(item.quantity)
-          if (requestedQty <= 0) return
-          getDisplayParts(item).forEach(part => {
-            if (!part.nom) return
+      order.order_items?.forEach(item => {
+        const requestedQty = customQuantities && customQuantities[item.id] !== undefined
+          ? Number(customQuantities[item.id])
+          : Number(item.quantity)
+        if (requestedQty <= 0) return
+        getDisplayParts(item).forEach(part => {
+          if (!part.nom) return
+          const partId = String(part.nom.id)
+          const isBZActiveForPart = (customPartBZOverrides && customPartBZOverrides[partId] !== undefined)
+            ? Boolean(customPartBZOverrides[partId])
+            : Boolean(customUseStockBZ)
+
+          if (isBZActiveForPart) {
             const quantity = requestedQty * (Number(part.qtyPer) || 1)
             bzRequestedByNom[part.nom.id] = (bzRequestedByNom[part.nom.id] || 0) + quantity
-          })
+          }
         })
-      }
+      })
 
       const actorName = [currentUser?.last_name, currentUser?.first_name].filter(Boolean).join(' ') || currentUser?.login || 'system'
       const { data: bzReserveData, error: bzReserveError } = await supabase.rpc('reserve_bz_for_naryad', {
         p_operation_id: bzOperationId,
         p_order_id: orderId,
-        p_items: customUseStockBZ
+        p_items: Object.keys(bzRequestedByNom).length > 0
           ? Object.entries(bzRequestedByNom).map(([nomenclature_id, quantity]) => ({ nomenclature_id, quantity }))
           : [],
         p_actor_id: currentUser?.id || null,
@@ -1644,7 +1649,12 @@ export function createProductionActions({
           const totalNeeded = requestedQty * (Number(part.qtyPer) || 1)
           const allocationKey = String(part.nom.id)
           const allocatedRemaining = bzAllocationRemaining[allocationKey] || 0
-          const usedFromStock = customUseStockBZ ? Math.min(totalNeeded, allocatedRemaining) : 0
+
+          const isBZActiveForPart = (customPartBZOverrides && customPartBZOverrides[allocationKey] !== undefined)
+            ? Boolean(customPartBZOverrides[allocationKey])
+            : Boolean(customUseStockBZ)
+
+          const usedFromStock = isBZActiveForPart ? Math.min(totalNeeded, allocatedRemaining) : 0
           bzAllocationRemaining[allocationKey] = Math.max(0, allocatedRemaining - usedFromStock)
           const totalToProduce = Math.max(0, totalNeeded - usedFromStock)
           const isManufactured = part.nom.type === 'part' || part.nom.type === 'raw' || !part.nom.type;
