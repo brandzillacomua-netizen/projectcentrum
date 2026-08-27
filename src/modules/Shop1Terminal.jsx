@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { ScannerPanel } from './Warehouse/components/ScannerPanel'
 import { useScrapReasons } from '../hooks/useScrapReasons'
 import { ArrowLeft, Camera, X, ChevronRight, Package, AlertTriangle, ClipboardList, Menu, ArrowRight, Layers, RefreshCw, Eye, Search, QrCode, Sun, Moon } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -4269,71 +4270,81 @@ export default function Shop1Terminal() {
         </div>
       </div>
 
-      {/* ── QR-сканер (Класичний вигляд з Ручним Вводом) ────────────────── */}
-      {isScanning && (
-        <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 10001, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '20px', padding: '20px' }}>
-          <button onClick={() => { setIsScanning(false); setShowManualInput(false); setScanError(null); }}
-            style={{ position: 'absolute', top: 24, right: 24, background: '#1a1a1a', border: 'none', color: '#fff', padding: '12px', borderRadius: '50%', cursor: 'pointer' }}>
-            <X size={26} />
-          </button>
+      {/* ── QR-сканер ────────────────────────────────────────────────────── */}
+      <ScannerPanel
+        isScanning={isScanning}
+        setIsScanning={setIsScanning}
+        manualCardInput={manualId}
+        setManualCardInput={setManualId}
+        handleCardScan={async (scannedId) => {
+          let id = String(scannedId || '').trim()
+          if (id.startsWith('CENTRUM_CARD_')) {
+            id = id.replace('CENTRUM_CARD_', '').trim()
+          }
 
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 1000, color: '#eab308', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '4px' }}>ЦЕХ №1 · ТЕРМІНАЛ</div>
-            <div style={{ color: '#555', fontSize: '0.65rem', fontWeight: 700 }}>{showManualInput ? 'ВВЕДІТЬ НОМЕР КАРТКИ ВРУЧНУ' : 'ВІДСКАНУЙТЕ КАРТКУ ТЕХНОЛОГІЧНОГО ПРОЦЕСУ'}</div>
-          </div>
+          const isMachineQR = await handleMachineQRScan(scannedId)
+          if (isMachineQR) return
 
-          {!showManualInput ? (
-            <>
-              {/* Чистий контейнер для сканера */}
-              <div style={{ width: '100%', maxWidth: '480px', background: '#0a0a0a', borderRadius: '32px', border: '2px solid #eab30830', overflow: 'hidden', minHeight: '300px', position: 'relative' }}>
-                <div id="reader" style={{ width: '100%' }} />
-              </div>
+          const queryLower = id.toLowerCase()
+          const hexSuffix = queryLower.slice(-8)
 
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px', width: '100%' }}>
-                {scanError && (
-                  <div style={{ color: '#ef4444', fontSize: '0.75rem', fontWeight: 900, textAlign: 'center', background: '#ef444415', padding: '12px 24px', borderRadius: '16px', border: '1px solid #ef444430', maxWidth: '380px' }}>
-                    ⚠️ {scanError}
-                  </div>
-                )}
+          let card = workCards.find(c => 
+            String(c.id).trim().toLowerCase() === queryLower ||
+            String(c.id).trim().toLowerCase().endsWith(hexSuffix) ||
+            (c.card_info && c.card_info.toLowerCase().includes(hexSuffix))
+          )
 
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <button onClick={() => setShowManualInput(true)}
-                    style={{ background: '#1a1a1a', border: '1px solid #333', color: '#eab308', padding: '12px 24px', borderRadius: '14px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer' }}>
-                    ⌨️ ВВЕСТИ НОМЕР ВРУЧНУ
-                  </button>
-                  <button onClick={() => { setIsScanning(false); setScanError(null); }}
-                    style={{ background: 'transparent', border: '1px solid #222', color: '#555', padding: '12px 24px', borderRadius: '14px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer' }}>
-                    ПОВЕРНУТИСЬ
-                  </button>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div style={{ background: '#111', width: '100%', maxWidth: '400px', padding: '30px', borderRadius: '24px', border: '1px solid #222' }}>
-              <form onSubmit={handleManualEntry} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <input
-                  type="text"
-                  autoFocus
-                  placeholder="Приклад: 12345"
-                  value={manualId}
-                  onChange={e => setManualId(e.target.value)}
-                  style={{ width: '100%', background: '#000', border: '2px solid #eab30850', color: '#fff', fontSize: '2.5rem', textAlign: 'center', padding: '15px', borderRadius: '16px', fontWeight: 900, fontFamily: 'monospace' }}
-                />
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <button type="submit" disabled={!manualId || isProcessing}
-                    style={{ flex: 2, background: '#eab308', color: '#000', border: 'none', padding: '18px', borderRadius: '14px', fontSize: '1.1rem', fontWeight: 900, cursor: 'pointer' }}>
-                    ВІДКРИТИ КАРТКУ
-                  </button>
-                  <button type="button" onClick={() => { setShowManualInput(false); setManualId(''); }}
-                    style={{ flex: 1, background: '#1a1a1a', color: '#fff', border: 'none', padding: '15px', borderRadius: '14px', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer' }}>
-                    НАЗАД
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-        </div>
-      )}
+          if (!card) {
+            setIsSyncing(true)
+            const { data: freshCards } = await supabase
+              .from('work_cards')
+              .select('*')
+              .ilike('id', `%${hexSuffix}`)
+
+            const freshCard = (freshCards && freshCards.length > 0) ? freshCards[0] : null
+            setIsSyncing(false)
+
+            if (!freshCard) {
+              const { data: directCard } = await supabase
+                .from('work_cards')
+                .select('*')
+                .eq('id', id)
+                .single()
+
+              if (!directCard) {
+                throw new Error(`Картку №${id.slice(-8).toUpperCase()} не знайдено.`)
+              }
+              card = directCard
+            } else {
+              card = freshCard
+            }
+
+            setWorkCards(prev => prev.some(c => c.id === card.id)
+              ? prev.map(c => c.id === card.id ? { ...c, ...card } : c)
+              : [card, ...prev])
+          }
+
+          // Дозволяємо картки "Нова", ті що в ланцюжку Цеху №1, або в буфері Сортування
+          const isNew = card.status === 'new' || !card.operation || card.operation === 'Нова'
+          const isInChain = CHAIN.includes(card.operation) || String(card.operation).startsWith('Розкрій') || String(card.operation).startsWith('Галтовка') || card.operation === 'Прийомка' || card.operation === 'Сортування'
+          const isSorting = card.status === 'at-buffer' && card.operation === 'Сортування'
+
+          if (!isNew && !isInChain && !isSorting) {
+            throw new Error(`Картка #${card.id.slice(-8).toUpperCase()} — не для Цеху №1 (${card.operation})`)
+          }
+
+          if (card.status === 'completed') {
+            throw new Error(`Картка #${card.id.slice(-8).toUpperCase()} вже завершена`)
+          }
+
+          setScannedIds(prev => prev.includes(card.id) ? prev : [...prev, card.id])
+          setSelectedCardId(card.id)
+          setScanError(null)
+          checkCardMaterials(card)
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+        }}
+        color="#eab308"
+      />
 
       {/* ── Модалка СОРТУВАННЯ → Цех №2 (з активної картки або буфера) ──────── */}
       {showSortingModal && currentCard && (
