@@ -657,32 +657,32 @@ const Shop2Terminal = () => {
     }
     setIsProcessing(true)
     try {
-      const reasonText = qcReason === 'Інше (коментар)'
-        ? `Інше (${qcCustomReason || 'без коментаря'})`
-        : qcReason
-      const op = `ВКЯ (${qcInspector || 'відповідальний'}) — Причина: ${reasonText}`
+      const inspectorName = qcInspector || 'відповідальний ВКЯ'
+      const operatorName = selectedOperator || currentCard.operator_name || currentCard.card_info?.match(/\[OPERATOR:([^\]]+)\]/)?.[1] || 'Оператор Цеху №2'
+      const stageName = currentCard.operation || selectedStage || 'Пресування [ЦЕХ №2]'
       const newQty = Math.max(0, currentCard.quantity - qcScrapCount)
 
       const promises = []
 
-      // 1. Запис у work_card_history
+      // 1. Запис у work_card_history з точним етапом, оператором та інспектором ВКЯ
       promises.push(
         supabase.from('work_card_history').insert([{
           card_id: currentCard.id,
           nomenclature_id: currentCard.nomenclature_id,
-          stage_name: 'Контроль ВКЯ',
-          operator_name: op,
+          stage_name: stageName,
+          operator_name: operatorName,
           qty_at_start: currentCard.quantity,
           qty_completed: newQty,
           scrap_qty: qcScrapCount,
           started_at: new Date().toISOString(),
           completed_at: new Date().toISOString(),
           is_archived_scrap: true,
-          shift_name: currentCard.shift_name,
-          manager_name: currentCard.manager_name,
-          machine_name: currentCard.machine,
+          shift_name: selectedShift || currentCard.shift_name,
+          manager_name: selectedManager || currentCard.manager_name,
+          machine_name: selectedMachine || currentCard.machine,
           qc_scrap_reason: qcReason,
-          qc_scrap_comment: qcReason === 'Інше (коментар)' ? qcCustomReason : null
+          qc_scrap_comment: qcReason === 'Інше (коментар)' ? qcCustomReason : null,
+          card_info: `[ЦЕХ №2] ${currentCard.card_info || ''} [QC_INSPECTOR:${inspectorName}] [VKYA_SOURCE_STATUS:${currentCard.status || ''}] [VKYA_SOURCE_OPERATION:${stageName}]`.trim()
         }])
       )
 
@@ -994,9 +994,9 @@ const Shop2Terminal = () => {
                     </Link>
                   )}
                   <button onClick={() => setShowQCModal(true)}
-                    style={{ background: '#ef444415', border: '1px solid #ef444440', color: '#ef4444', padding: '10px 14px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-                    title="Внести додатковий брак ВКЯ">
-                    🛡️ <span className="hide-mobile">БРАК ВКЯ</span>
+                    style={{ background: '#ef4444', border: 'none', color: '#ffffff', padding: '10px 16px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 950, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 15px rgba(239, 68, 68, 0.4)' }}
+                    title="Фіксація браку ВКЯ">
+                    🛡️ БРАК ВКЯ
                   </button>
                   <button onClick={() => setSelectedCardId(null)} style={{ background: '#111', border: 'none', color: '#555', padding: '10px', borderRadius: '12px', cursor: 'pointer' }}>
                     <X size={24} />

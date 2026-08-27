@@ -215,13 +215,15 @@ const PackagingModule = () => {
     }
   }
 
-  // ─── ГРУПУВАННЯ НАРЯДІВ ────────────────────────────────────────────────────
   const batchList = useMemo(() => {
-    const relevantTasks = tasks.filter(t => t.status === 'completed' || t.plan_snapshot?._metadata?.is_packaged === true)
+    const relevantTasks = tasks.filter(t => {
+      if (t.plan_snapshot?._metadata?.is_packaged === true) return false
+      return t.status === 'in-progress' || t.status === 'completed' || t.status === 'active' || t.status === 'new'
+    })
     const batchGroups = {}
     relevantTasks.forEach(task => {
       const order = orders.find(o => o.id === task.order_id)
-      if (!order) return
+      if (!order || order.status === 'deleted' || order.status === 'cancelled' || order.status === 'shipped') return
       if (order.order_num && (order.order_num.startsWith('ВБ') || order.order_num.startsWith('VB'))) return
       const bIdx = task.batch_index || ''
       const key = bIdx ? `${task.order_id}_${bIdx}` : `${task.order_id}_whole`

@@ -34,8 +34,7 @@ const fetchCompatibilityQueue = async (client, queue) => {
     const { data, error } = await client
       .from('tasks')
       .select(TASK_FIELDS)
-      .eq('status', 'completed')
-      .order('completed_at', { ascending: false, nullsFirst: false })
+      .in('status', ['in-progress', 'completed', 'active', 'new'])
       .order('created_at', { ascending: false })
       .limit(1000)
 
