@@ -225,13 +225,49 @@ const PackagingModule = () => {
       const order = orders.find(o => o.id === task.order_id)
       if (!order || order.status === 'deleted' || order.status === 'cancelled' || order.status === 'shipped') return
       if (order.order_num && (order.order_num.startsWith('ВБ') || order.order_num.startsWith('VB'))) return
-      const bIdx = task.batch_index || ''
-      const key = bIdx ? `${task.order_id}_${bIdx}` : `${task.order_id}_whole`
-      if (!batchGroups[key]) {
-        const productNames = order.order_items?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ') || '—'
-        batchGroups[key] = { key, orderId: task.order_id, orderNum: order.order_num, customer: order.customer, productNames, batchIndex: bIdx, plannedSets: task.planned_sets || 0, isPackaged: task.plan_snapshot?._metadata?.is_packaged === true, tasks: [] }
+      
+      let schedule = []
+      try {
+        const parsed = typeof order.report === 'string' ? JSON.parse(order.report) : (order.report || {})
+        schedule = Array.isArray(parsed.batch_schedule) ? parsed.batch_schedule : []
+      } catch (e) {}
+
+      if (schedule.length > 0) {
+        schedule.forEach(sb => {
+          if (sb.packaged === true) return
+          const key = `${task.order_id}_sched_${sb.batch_num}`
+          if (!batchGroups[key]) {
+            const productNames = order.order_items?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ') || '—'
+            batchGroups[key] = {
+              key,
+              orderId: task.order_id,
+              orderNum: order.order_num,
+              customer: order.customer,
+              productNames,
+              batchIndex: `П${sb.batch_num}`,
+              batchNum: sb.batch_num,
+              plannedSets: sb.quantity || 0,
+              deadline: sb.deadline || order.deadline,
+              isPackaged: false,
+              isScheduledBatch: true,
+              tasks: []
+            }
+          }
+          if (!batchGroups[key].tasks.some(t => t.id === task.id)) {
+            batchGroups[key].tasks.push(task)
+          }
+        })
+      } else {
+        const bIdx = task.batch_index || ''
+        const key = bIdx ? `${task.order_id}_${bIdx}` : `${task.order_id}_whole`
+        if (!batchGroups[key]) {
+          const productNames = order.order_items?.map(it => nomenclatures.find(n => n.id === it.nomenclature_id)?.name).filter(Boolean).join(', ') || '—'
+          batchGroups[key] = { key, orderId: task.order_id, orderNum: order.order_num, customer: order.customer, productNames, batchIndex: bIdx, plannedSets: task.planned_sets || 0, isPackaged: task.plan_snapshot?._metadata?.is_packaged === true, tasks: [] }
+        }
+        if (!batchGroups[key].tasks.some(t => t.id === task.id)) {
+          batchGroups[key].tasks.push(task)
+        }
       }
-      batchGroups[key].tasks.push(task)
     })
 
     return Object.values(batchGroups).map(batch => {
@@ -665,18 +701,58 @@ const PackagingModule = () => {
       // 2. Закриваємо наряд і записуємо пакувальника в метадані
       const packerName = `${packer.first_name || ''} ${packer.last_name || ''}`.trim() || packer.login
 
-      for (const task of activeBatchData.tasks) {
-        const newSnapshot = { 
-          ...(task.plan_snapshot || {}), 
-          _metadata: { 
-            ...(task.plan_snapshot?._metadata || {}), 
-            is_packaged: true, 
-            packaged_at: new Date().toISOString(),
-            packaged_by: packerName,
-            packaged_by_id: packer.id
-          } 
+      if (activeBatchData.isScheduledBatch && activeBatchData.batchNum) {
+        const orderRow = orders.find(o => o.id === activeBatchData.orderId)
+        if (orderRow) {
+          let currentReport = {}
+          try {
+            currentReport = typeof orderRow.report === 'string' ? JSON.parse(orderRow.report) : (orderRow.report || {})
+          } catch (e) {}
+          
+          const schedule = Array.isArray(currentReport.batch_schedule) ? currentReport.batch_schedule : []
+          const updatedSchedule = schedule.map(sb => {
+            if (sb.batch_num === activeBatchData.batchNum) {
+              return { ...sb, packaged: true, packaged_at: new Date().toISOString(), packaged_by: packerName }
+            }
+            return sb
+          })
+          
+          await supabase
+            .from('orders')
+            .update({ report: JSON.stringify({ ...currentReport, batch_schedule: updatedSchedule }) })
+            .eq('id', activeBatchData.orderId)
+
+          const allScheduledDone = updatedSchedule.every(sb => sb.packaged === true)
+          if (allScheduledDone) {
+            for (const task of activeBatchData.tasks) {
+              const newSnapshot = { 
+                ...(task.plan_snapshot || {}), 
+                _metadata: { 
+                  ...(task.plan_snapshot?._metadata || {}), 
+                  is_packaged: true, 
+                  packaged_at: new Date().toISOString(),
+                  packaged_by: packerName,
+                  packaged_by_id: packer.id
+                } 
+              }
+              await supabase.from('tasks').update({ plan_snapshot: newSnapshot }).eq('id', task.id)
+            }
+          }
         }
-        await supabase.from('tasks').update({ plan_snapshot: newSnapshot }).eq('id', task.id)
+      } else {
+        for (const task of activeBatchData.tasks) {
+          const newSnapshot = { 
+            ...(task.plan_snapshot || {}), 
+            _metadata: { 
+              ...(task.plan_snapshot?._metadata || {}), 
+              is_packaged: true, 
+              packaged_at: new Date().toISOString(),
+              packaged_by: packerName,
+              packaged_by_id: packer.id
+            } 
+          }
+          await supabase.from('tasks').update({ plan_snapshot: newSnapshot }).eq('id', task.id)
+        }
       }
 
       alert('Наряд успішно запаковано!')

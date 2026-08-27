@@ -655,11 +655,82 @@ const ManagerModule = () => {
   const [isCreateProductOpen, setIsCreateProductOpen] = useState(false)
   const [createProductQuery, setCreateProductQuery] = useState('')
   const [targetProductField, setTargetProductField] = useState('registration')
+
+  // Batch Schedule Modal State
+  const [isBatchScheduleOpen, setIsBatchScheduleOpen] = useState(false)
+  const [batchScheduleList, setBatchScheduleList] = useState([])
+  const [isSavingSchedule, setIsSavingSchedule] = useState(false)
   
   // Filtering & Pagination State
   const [dateFilter, setDateFilter] = useState('month')
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(0)
+
+  const handleBatchScheduleInit = (order) => {
+    let existing = []
+    try {
+      const parsed = typeof order.report === 'string' ? JSON.parse(order.report) : (order.report || {})
+      existing = Array.isArray(parsed.batch_schedule) ? parsed.batch_schedule : []
+    } catch (e) {}
+
+    if (existing.length === 0) {
+      existing = [
+        { batch_num: 1, quantity: order.quantity || 0, deadline: order.deadline || '' }
+      ]
+    }
+    setBatchScheduleList(existing)
+    setIsBatchScheduleOpen(true)
+  }
+
+  const handleAddBatchItem = () => {
+    setBatchScheduleList(prev => [
+      ...prev,
+      { batch_num: prev.length + 1, quantity: 0, deadline: selectedOrder?.deadline || '' }
+    ])
+  }
+
+  const handleRemoveBatchItem = (index) => {
+    setBatchScheduleList(prev => prev.filter((_, i) => i !== index).map((b, idx) => ({ ...b, batch_num: idx + 1 })))
+  }
+
+  const handleUpdateBatchItem = (index, field, value) => {
+    setBatchScheduleList(prev => prev.map((b, i) => i === index ? { ...b, [field]: value } : b))
+  }
+
+  const handleSaveBatchSchedule = async () => {
+    if (!selectedOrder) return
+    setIsSavingSchedule(true)
+    try {
+      let currentReport = {}
+      try {
+        currentReport = typeof selectedOrder.report === 'string' ? JSON.parse(selectedOrder.report) : (selectedOrder.report || {})
+      } catch (e) {}
+
+      const updatedReport = {
+        ...currentReport,
+        batch_schedule: batchScheduleList.map((b, idx) => ({
+          batch_num: idx + 1,
+          quantity: Number(b.quantity) || 0,
+          deadline: b.deadline || ''
+        }))
+      }
+
+      const { error } = await supabase
+        .from('orders')
+        .update({ report: JSON.stringify(updatedReport) })
+        .eq('id', selectedOrder.id)
+
+      if (error) throw error
+
+      alert('Календар партій успішно збережено!')
+      setIsBatchScheduleOpen(false)
+      fetchOrders(currentPage, false, { searchQuery, dateRange: dateFilter })
+    } catch (err) {
+      alert('Помилка збереження календаря партій: ' + err.message)
+    } finally {
+      setIsSavingSchedule(false)
+    }
+  }
 
   const generateNextOrderNum = () => {
     const today = new Date();
@@ -1324,23 +1395,112 @@ const ManagerModule = () => {
                       )}
                    </div>
 
-                   {/* Action Buttons: Edit and Delete */}
-                   <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '20px', flexWrap: 'wrap' }}>
+                   {/* Action Buttons: Edit, Batch Schedule, and Delete */}
+                   <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '20px', flexWrap: 'wrap' }}>
                       {currentUser?.login === 'admin@workshop.local' && (
-                        <button onClick={() => handleSuperDeleteClick(selectedOrder.id)} disabled={isSubmitting} className="btn-primary-modern" style={{ background: 'linear-gradient(135deg, #ef4444, #b91c1c)', color: '#fff', border: 'none', padding: '12px 24px', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 14px rgba(239,68,68,0.4)' }}>
+                        <button onClick={() => handleSuperDeleteClick(selectedOrder.id)} disabled={isSubmitting} className="btn-primary-modern" style={{ background: 'linear-gradient(135deg, #ef4444, #b91c1c)', color: '#fff', border: 'none', padding: '12px 20px', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 14px rgba(239,68,68,0.4)' }}>
                           <Trash2 size={16} /> СУПЕР-ВИДАЛЕННЯ
                         </button>
                       )}
-                      <button onClick={() => handleDeleteClick(selectedOrder.id)} disabled={isSubmitting} className="btn-load-more" style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.2)', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button onClick={() => handleDeleteClick(selectedOrder.id)} disabled={isSubmitting} className="btn-load-more" style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.2)', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <Trash2 size={16} /> ВИДАЛИТИ
                       </button>
-                      <button onClick={() => handleEditInit(selectedOrder)} className="btn-primary-modern" style={{ background: '#3b82f6', color: '#fff', boxShadow: 'none', padding: '12px 24px', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button onClick={() => handleBatchScheduleInit(selectedOrder)} className="btn-primary-modern" style={{ background: 'linear-gradient(135deg, #ff9000, #e67e00)', color: '#000', boxShadow: '0 4px 14px rgba(255,144,0,0.3)', padding: '12px 20px', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '900' }}>
+                        <Calendar size={16} /> КАЛЕНДАР ПАРТІЙ
+                      </button>
+                      <button onClick={() => handleEditInit(selectedOrder)} className="btn-primary-modern" style={{ background: '#3b82f6', color: '#fff', boxShadow: 'none', padding: '12px 20px', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                         🔧 РЕДАГУВАТИ
                       </button>
                    </div>
                 </div>
               )}
            </div>
+        </div>
+      )}
+
+      {/* BATCH SCHEDULE MODAL */}
+      {isBatchScheduleOpen && selectedOrder && (
+        <div className="modal-backdrop-modern">
+          <div className="glass-card modal-content-modern anim-slide-up" style={{ maxWidth: '650px' }}>
+            <div className="modal-header-modern">
+              <h2>📅 КАЛЕНДАР ПАРТІЙ <span className="text-orange">#{selectedOrder.order_num}</span></h2>
+              <button onClick={() => setIsBatchScheduleOpen(false)} className="btn-close-modal"><X size={24} /></button>
+            </div>
+            
+            <div className="modal-body-modern" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ background: 'rgba(255,144,0,0.05)', border: '1px solid rgba(255,144,0,0.2)', padding: '16px 20px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '0.7rem', color: '#888', fontWeight: '800', letterSpacing: '1px' }}>ЗАГАЛЬНИЙ ТИРАЖ ЗАМОВЛЕННЯ</div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: '900', color: '#ff9000' }}>{selectedOrder.quantity || 0} шт</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '0.7rem', color: '#888', fontWeight: '800', letterSpacing: '1px' }}>РОЗПОДІЛЕНО / ЗАЛИШОК</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: '900', color: batchScheduleList.reduce((acc, b) => acc + (Number(b.quantity) || 0), 0) === (selectedOrder.quantity || 0) ? '#22c55e' : '#ef4444' }}>
+                    {batchScheduleList.reduce((acc, b) => acc + (Number(b.quantity) || 0), 0)} / {(selectedOrder.quantity || 0) - batchScheduleList.reduce((acc, b) => acc + (Number(b.quantity) || 0), 0)} шт
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '350px', overflowY: 'auto' }}>
+                {batchScheduleList.map((batch, idx) => (
+                  <div key={idx} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', padding: '14px 18px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    <div style={{ fontWeight: '900', color: '#ff9000', minWidth: '85px', fontSize: '0.9rem' }}>
+                      Партія №{idx + 1}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', fontSize: '0.65rem', color: '#666', fontWeight: '800', marginBottom: '4px' }}>КІЛЬКІСТЬ (ШТ)</label>
+                      <input
+                        type="number"
+                        value={batch.quantity}
+                        onChange={e => handleUpdateBatchItem(idx, 'quantity', e.target.value)}
+                        style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '8px 12px', borderRadius: '10px', width: '100%', outline: 'none', fontWeight: '700' }}
+                        placeholder="Кількість..."
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', fontSize: '0.65rem', color: '#666', fontWeight: '800', marginBottom: '4px' }}>ДЕДЛАЙН</label>
+                      <input
+                        type="date"
+                        value={batch.deadline}
+                        onChange={e => handleUpdateBatchItem(idx, 'deadline', e.target.value)}
+                        onClick={e => e.target.showPicker()}
+                        style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '8px 12px', borderRadius: '10px', width: '100%', outline: 'none', fontWeight: '700' }}
+                      />
+                    </div>
+                    {batchScheduleList.length > 1 && (
+                      <button
+                        onClick={() => handleRemoveBatchItem(idx)}
+                        style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444', width: '36px', height: '36px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '16px' }}
+                        title="Видалити партію"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={handleAddBatchItem}
+                className="btn-load-more"
+                style={{ width: '100%', padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', borderStyle: 'dashed' }}
+              >
+                <Plus size={16} /> ДОДАТИ ПАРТІЮ В ГРАФІК
+              </button>
+
+              <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end', marginTop: '10px' }}>
+                <button onClick={() => setIsBatchScheduleOpen(false)} className="btn-load-more" style={{ padding: '12px 24px' }}>СКАСУВАТИ</button>
+                <button
+                  onClick={handleSaveBatchSchedule}
+                  disabled={isSavingSchedule}
+                  className="btn-primary-modern"
+                  style={{ padding: '12px 24px', marginTop: 0 }}
+                >
+                  {isSavingSchedule ? 'ЗБЕРЕЖЕННЯ...' : 'ЗБЕРЕГТИ КАЛЕНДАР ПАРТІЙ'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
