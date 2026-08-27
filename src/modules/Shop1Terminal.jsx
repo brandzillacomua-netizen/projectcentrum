@@ -426,43 +426,61 @@ export default function Shop1Terminal() {
         { facingMode: "environment" },
         config,
         async (text) => {
-          if (text.startsWith('CENTRUM_CARD_')) {
-            const id = text.replace('CENTRUM_CARD_', '').trim()
+            if (text.startsWith('CENTRUM_CARD_')) {
+              const id = text.replace('CENTRUM_CARD_', '').trim()
 
-            await stopAndClose()
+              await stopAndClose()
 
-            let card = workCards.find(c => String(c.id).trim() === id)
+              const queryLower = id.toLowerCase()
+              const hexSuffix = queryLower.slice(-8)
 
-            if (!card) {
-              setIsSyncing(true)
-              // Direct DB lookup for instant discovery of newly created cards
-              const { data: freshCard, error: fetchError } = await supabase
-                .from('work_cards')
-                .select('*')
-                .eq('id', id)
-                .single()
+              let card = workCards.find(c => 
+                String(c.id).trim().toLowerCase() === queryLower ||
+                String(c.id).trim().toLowerCase().endsWith(hexSuffix) ||
+                (c.card_info && c.card_info.toLowerCase().includes(hexSuffix))
+              )
 
-              setIsSyncing(false)
+              if (!card) {
+                setIsSyncing(true)
+                // Direct DB lookup for instant discovery of newly created or restored cards
+                const { data: freshCards } = await supabase
+                  .from('work_cards')
+                  .select('*')
+                  .ilike('id', `%${hexSuffix}`)
 
-              if (fetchError || !freshCard) {
-                setScanError(`Картку №${id} не знайдено.`)
+                const freshCard = (freshCards && freshCards.length > 0) ? freshCards[0] : null
+                setIsSyncing(false)
+
+                if (!freshCard) {
+                  const { data: directCard } = await supabase
+                    .from('work_cards')
+                    .select('*')
+                    .eq('id', id)
+                    .single()
+
+                  if (!directCard) {
+                    setScanError(`Картку №${id.slice(-8).toUpperCase()} не знайдено.`)
+                    return
+                  }
+                  card = directCard
+                } else {
+                  card = freshCard
+                }
+
+                setWorkCards(prev => prev.some(c => c.id === card.id)
+                  ? prev.map(c => c.id === card.id ? { ...c, ...card } : c)
+                  : [card, ...prev])
+              }
+
+              // Дозволяємо картки "Нова", ті що в ланцюжку Цеху №1, або в буфері Сортування
+              const isNew = card.status === 'new' || !card.operation || card.operation === 'Нова'
+              const isInChain = CHAIN.includes(card.operation) || String(card.operation).startsWith('Розкрій') || String(card.operation).startsWith('Галтовка') || card.operation === 'Прийомка' || card.operation === 'Сортування'
+              const isSorting = card.status === 'at-buffer' && card.operation === 'Сортування'
+
+              if (!isNew && !isInChain && !isSorting) {
+                setScanError(`Картка #${card.id.slice(-8).toUpperCase()} — не для Цеху №1 (${card.operation})`)
                 return
               }
-              card = freshCard
-              setWorkCards(prev => prev.some(c => c.id === freshCard.id)
-                ? prev.map(c => c.id === freshCard.id ? { ...c, ...freshCard } : c)
-                : [freshCard, ...prev])
-            }
-
-            // Дозволяємо картки "Нова", ті що в ланцюжку Цеху №1, або в буфері Сортування
-            const isNew = card.status === 'new' || !card.operation || card.operation === 'Нова'
-            const isInChain = CHAIN.includes(card.operation)
-            const isSortування = card.status === 'at-buffer' && card.operation === 'Сортування'
-
-            if (!isNew && !isInChain && !isSortування) {
-              setScanError(`Картка #${id} — не для Цеху №1 (${card.operation})`)
-              return
-            }
 
             if (card.status === 'completed') {
               setScanError(`Картка #${id} вже завершена`);
