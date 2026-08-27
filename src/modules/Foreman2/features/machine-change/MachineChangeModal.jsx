@@ -126,7 +126,30 @@ export default function MachineChangeModal({
   
   const hasMissingCutterSelection = remainingSheets > 0 && cutters.some(cut => !getSelectedCutterId(cut))
 
+  const cutterDeficits = []
+  if (remainingSheets > 0 && cutters.length > 0) {
+    cutters.forEach(cut => {
+      const selectedId = getSelectedCutterId(cut)
+      if (!selectedId) return
+      const invItem = (inventory || []).find(i => String(i.id) === String(selectedId))
+      if (invItem) {
+        const nom = (nomenclatures || []).find(n => String(n.id) === String(invItem.nomenclature_id))
+        const available = Math.max(0, (Number(invItem.total_qty) || 0) - (Number(invItem.reserved_qty) || 0))
+        if (available < cut.totalNeeded) {
+          cutterDeficits.push({
+            name: nom?.name || invItem.name || cut.name,
+            available,
+            needed: cut.totalNeeded,
+            shortage: cut.totalNeeded - available
+          })
+        }
+      }
+    })
+  }
+  const hasCutterDeficit = cutterDeficits.length > 0
+
   const handleConfirm = () => {
+    if (hasCutterDeficit) return
     const resolvedSelections = {}
     cutters.forEach(cut => { resolvedSelections[String(cut.id)] = getSelectedCutterId(cut) })
     onConfirm(selectedMachine, resolvedSelections, safeNomLoadCapacity)
@@ -252,21 +275,32 @@ export default function MachineChangeModal({
           </div>
         )}
 
+        {hasCutterDeficit && (
+          <div style={{ color: '#ef4444', fontSize: '0.78rem', fontWeight: 800, background: 'rgba(239, 68, 68, 0.1)', padding: '14px', borderRadius: '14px', border: '1px solid rgba(239, 68, 68, 0.3)', marginBottom: '15px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ fontWeight: 950, fontSize: '0.85rem' }}>⚠️ Недостатньо інструменту для зміни станка:</div>
+            {cutterDeficits.map((def, idx) => (
+              <div key={idx}>
+                • <strong style={{ color: '#fff' }}>{def.name}</strong>: Доступно на складі: <span style={{ color: '#ef4444' }}>{def.available} шт</span>, потрібно: <span style={{ color: '#ff9000' }}>{def.needed} шт</span> (дефіцит: {def.shortage} шт)
+              </div>
+            ))}
+          </div>
+        )}
+
         <button
           onClick={handleConfirm}
-          disabled={isChanging || hasMissingCutterSelection}
+          disabled={isChanging || hasMissingCutterSelection || hasCutterDeficit}
           style={{
             width: '100%',
-            background: (isChanging || hasMissingCutterSelection) ? '#222' : '#3b82f6',
-            color: (isChanging || hasMissingCutterSelection) ? '#555' : '#fff',
+            background: (isChanging || hasMissingCutterSelection || hasCutterDeficit) ? '#222' : '#3b82f6',
+            color: (isChanging || hasMissingCutterSelection || hasCutterDeficit) ? '#555' : '#fff',
             padding: '18px',
             borderRadius: '16px', fontSize: '0.95rem', fontWeight: 950,
-            cursor: (isChanging || hasMissingCutterSelection) ? 'not-allowed' : 'pointer',
-            border: (isChanging || hasMissingCutterSelection) ? '1px solid #333' : 'none',
+            cursor: (isChanging || hasMissingCutterSelection || hasCutterDeficit) ? 'not-allowed' : 'pointer',
+            border: (isChanging || hasMissingCutterSelection || hasCutterDeficit) ? '1px solid #333' : 'none',
             textTransform: 'uppercase', letterSpacing: '1px',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
-            boxShadow: (isChanging || hasMissingCutterSelection) ? 'none' : '0 10px 20px -5px rgba(59, 130, 246, 0.4)',
-            opacity: (isChanging || hasMissingCutterSelection) ? 0.6 : 1
+            boxShadow: (isChanging || hasMissingCutterSelection || hasCutterDeficit) ? 'none' : '0 10px 20px -5px rgba(59, 130, 246, 0.4)',
+            opacity: (isChanging || hasMissingCutterSelection || hasCutterDeficit) ? 0.6 : 1
           }}
         >
           {isChanging ? <Loader2 size={16} className="animate-spin" /> : 'ПІДТВЕРДИТИ ЗМІНУ'}

@@ -19,10 +19,14 @@ export function useMachineChange({
   const [selectedNomNewMachine, setSelectedNomNewMachine] = useState(null)
 
   const openMachineChange = (task, part) => {
+    if (!task || !part) return
+    const nomId = part.nomId || part.nom?.id || part.id
+    const partName = part.name || part.nom?.name || 'Деталь'
+    const machine = part.machine || part.selected_machine || part.rowMachineName || ''
     setChangeNomMachineTaskId(task.id)
-    setChangeNomMachineNomId(part.nomId)
-    setChangeNomMachineName(part.name || 'Деталь')
-    setSelectedNomNewMachine(part.machine || '')
+    setChangeNomMachineNomId(nomId)
+    setChangeNomMachineName(partName)
+    setSelectedNomNewMachine(machine)
   }
 
   const handleUpdateNomenclatureMachineAndRecalculate = async (task, nomId, newMachineName, newSplits = null, cutterSelection = {}, loadCapacity = null) => {
@@ -118,7 +122,7 @@ export function useMachineChange({
 
       const desiredCutters = {}
       const generatedSheetsByPart = {}
-      const partIds = Object.keys(updatedSnapshot).filter(key =>
+      const partIds = nomId ? [String(nomId)] : Object.keys(updatedSnapshot).filter(key =>
         !key.startsWith('_') && !['materialSummary', 'selectedCutters', 'consumables', 'arrivals', 'nomenclatures'].includes(key)
       )
 
@@ -140,7 +144,6 @@ export function useMachineChange({
           generatedSheets += cardSheets
           const machine = card.machine || partInfo.machine || partInfo.selected_machine || task.machine_name
           generatedByMachine[machine] = (generatedByMachine[machine] || 0) + cardSheets
-          addRequirements(desiredCutters, partId, machine, cardSheets, existingSelections)
         })
         generatedSheetsByPart[String(partId)] = Math.min(plannedSheets, generatedSheets)
 
@@ -168,6 +171,22 @@ export function useMachineChange({
       targetEntry.generated_sheets = generatedSheetsByPart[targetId] || 0
       targetEntry.remaining_sheets = Math.max(0, (Number(targetEntry.sheets) || 0) - targetEntry.generated_sheets)
 
+      // Group desired cutters by nomenclature_id
+      const desiredByNom = {}
+      for (const [key, item] of Object.entries(desiredCutters)) {
+        const nomId = String(item.nomenclature_id)
+        if (!desiredByNom[nomId]) {
+          desiredByNom[nomId] = {
+            nomenclature_id: item.nomenclature_id,
+            inventory_id: item.inventory_id,
+            name: item.name,
+            qty: 0
+          }
+        }
+        desiredByNom[nomId].qty += item.qty
+        if (item.inventory_id) desiredByNom[nomId].inventory_id = item.inventory_id
+      }
+
       const { data: requests, error: requestsError } = await supabase
         .from('material_requests')
         .select('*')
@@ -179,58 +198,72 @@ export function useMachineChange({
         const requestNom = nomenclatures.find(n => String(n.id) === String(request.nomenclature_id))
         return isCutterNom(requestNom)
       })
+
+      // Group active requests by nomenclature_id
       const requestsByNom = {}
       activeCutterRequests.forEach(request => {
-        const key = request.inventory_id ? `inventory:${request.inventory_id}` : `nom:${request.nomenclature_id}`
-        if (!requestsByNom[key]) requestsByNom[key] = []
-        requestsByNom[key].push(request)
+        const nomId = String(request.nomenclature_id)
+        if (!requestsByNom[nomId]) requestsByNom[nomId] = []
+        requestsByNom[nomId].push(request)
       })
 
-      const allCutterIds = new Set([...Object.keys(requestsByNom), ...Object.keys(desiredCutters)])
+      const allNomIds = new Set([...Object.keys(requestsByNom), ...Object.keys(desiredByNom)])
       const writeOperations = []
       const inventoryReleaseById = {}
-      for (const cutterId of allCutterIds) {
-        const desired = Math.max(0, Math.ceil(Number(desiredCutters[cutterId]?.qty) || 0))
-        const existingRequests = requestsByNom[cutterId] || []
+
+      for (const nomId of allNomIds) {
+        const item = desiredByNom[nomId]
+        const desired = item ? Math.max(0, Math.ceil(Number(item.qty) || 0)) : 0
+        const existingRequests = requestsByNom[nomId] || []
         const existing = existingRequests.reduce((sum, request) => sum + (Number(request.quantity) || 0), 0)
 
         if (desired > existing) {
-          const item = desiredCutters[cutterId]
-          const invItem = (item.inventory_id ? inventory.find(inv => String(inv.id) === String(item.inventory_id)) : null)
-            || inventory.find(inv => String(inv.nomenclature_id) === String(item.nomenclature_id) && inv.warehouse === 'operational')
-            || inventory.find(inv => String(inv.nomenclature_id) === String(item.nomenclature_id))
-          const requestName = invItem?.name || item.name
-          writeOperations.push(supabase.from('material_requests').insert({
-            order_id: task.order_id,
-            task_id: task.id,
-            quantity: desired - existing,
-            status: 'pending',
-            inventory_id: invItem?.id || null,
-            nomenclature_id: item.nomenclature_id,
-            details: `ВИТРАТНІ МАТЕРІАЛИ ПІСЛЯ ЗМІНИ ВЕРСТАТА: ${requestName} — ${desired - existing} од. [BALANCED_MACHINE_CHANGE]`
-          }))
-          continue
-        }
+          const delta = desired - existing
+          const invItem = (item?.inventory_id ? inventory.find(inv => String(inv.id) === String(item.inventory_id)) : null)
+            || inventory.find(inv => String(inv.nomenclature_id) === String(nomId) && inv.warehouse === 'operational')
+            || inventory.find(inv => String(inv.nomenclature_id) === String(nomId))
+          const requestName = invItem?.name || item?.name || 'Фреза'
 
-        let toRelease = existing - desired
-        const reducible = [...existingRequests].sort((a, b) => {
-          const aScore = (a.card_id ? 10 : 0) + (a.status === 'issued' ? 1 : 0)
-          const bScore = (b.card_id ? 10 : 0) + (b.status === 'issued' ? 1 : 0)
-          return aScore - bScore
-        })
-        for (const request of reducible) {
-          if (toRelease <= 0) break
-          const currentQty = Number(request.quantity) || 0
-          const releaseQty = Math.min(currentQty, toRelease)
-          const nextQty = currentQty - releaseQty
-
-          if (request.status === 'issued' && request.inventory_id && releaseQty > 0) {
-            inventoryReleaseById[request.inventory_id] = (inventoryReleaseById[request.inventory_id] || 0) + releaseQty
+          const pendingReq = existingRequests.find(r => r.status === 'pending')
+          if (pendingReq) {
+            writeOperations.push(supabase.from('material_requests').update({
+              quantity: (Number(pendingReq.quantity) || 0) + delta,
+              inventory_id: invItem?.id || pendingReq.inventory_id
+            }).eq('id', pendingReq.id))
+          } else {
+            writeOperations.push(supabase.from('material_requests').insert({
+              order_id: task.order_id,
+              task_id: task.id,
+              quantity: delta,
+              status: 'pending',
+              inventory_id: invItem?.id || null,
+              nomenclature_id: Number(nomId) || nomId,
+              details: `ВИТРАТНІ МАТЕРІАЛИ ПІСЛЯ ЗМІНИ ВЕРСТАТА: ${requestName} — ${delta} од. [BALANCED_MACHINE_CHANGE]`
+            }))
           }
+        } else if (desired < existing) {
+          let toRelease = existing - desired
+          const reducible = [...existingRequests].sort((a, b) => {
+            const aScore = a.status === 'pending' ? 0 : 10
+            const bScore = b.status === 'pending' ? 0 : 10
+            return aScore - bScore
+          })
 
-          if (nextQty <= 0) writeOperations.push(supabase.from('material_requests').delete().eq('id', request.id))
-          else writeOperations.push(supabase.from('material_requests').update({ quantity: nextQty }).eq('id', request.id))
-          toRelease -= releaseQty
+          for (const request of reducible) {
+            if (toRelease <= 0) break
+            if (request.status !== 'pending') continue
+
+            const currentQty = Number(request.quantity) || 0
+            const releaseQty = Math.min(currentQty, toRelease)
+            const nextQty = currentQty - releaseQty
+
+            if (nextQty <= 0) {
+              writeOperations.push(supabase.from('material_requests').delete().eq('id', request.id))
+            } else {
+              writeOperations.push(supabase.from('material_requests').update({ quantity: nextQty }).eq('id', request.id))
+            }
+            toRelease -= releaseQty
+          }
         }
       }
 
