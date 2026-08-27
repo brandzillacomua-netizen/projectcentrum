@@ -35,31 +35,67 @@ export const ScannerPanel = ({
       try {
         html5QrCode = new window.Html5Qrcode('warehouse-reader')
         const config = { fps: 20, qrbox: { width: 260, height: 260 } }
-        await html5QrCode.start(
-          { facingMode: 'environment' }, 
-          config, 
-          async (decodedText) => {
-            if (scanHandledRef.current) return
-            scanHandledRef.current = true
 
-            let cardId = decodedText.trim()
-            if (cardId.startsWith('CENTRUM_CARD_')) {
-              cardId = cardId.replace('CENTRUM_CARD_', '').trim()
-            }
+        // Discover exact back camera ID for iOS Safari / Multi-camera iPhones
+        let cameraConfig = { facingMode: 'environment' }
+        try {
+          const cameras = await window.Html5Qrcode.getCameras()
+          if (cameras && cameras.length > 0) {
+            const backCam = cameras.find(c => 
+              c.label.toLowerCase().includes('back') || 
+              c.label.toLowerCase().includes('rear') || 
+              c.label.toLowerCase().includes('задн') ||
+              c.label.toLowerCase().includes('тильн') ||
+              c.label.toLowerCase().includes('environment')
+            ) || cameras[cameras.length - 1]
 
-            try {
-              if (html5QrCode && html5QrCode.isScanning) {
-                await html5QrCode.stop().catch(() => {})
-              }
-              setIsScanning(false)
-              await Promise.resolve(handleCardScan(cardId))
-            } catch (err) {
-              console.error('Card scan handler error:', err)
-              setLocalError(err?.message || String(err))
-              scanHandledRef.current = false
+            if (backCam && backCam.id) {
+              cameraConfig = { deviceId: { exact: backCam.id } }
             }
           }
-        )
+        } catch (e) {
+          console.warn('Camera enumeration error, falling back:', e)
+        }
+
+        const onScanSuccess = async (decodedText) => {
+          if (scanHandledRef.current) return
+          scanHandledRef.current = true
+
+          let cardId = decodedText.trim()
+          if (cardId.startsWith('CENTRUM_CARD_')) {
+            cardId = cardId.replace('CENTRUM_CARD_', '').trim()
+          }
+
+          try {
+            if (html5QrCode && html5QrCode.isScanning) {
+              await html5QrCode.stop().catch(() => {})
+            }
+            setIsScanning(false)
+            await Promise.resolve(handleCardScan(cardId))
+          } catch (err) {
+            console.error('Card scan handler error:', err)
+            setLocalError(err?.message || String(err))
+            scanHandledRef.current = false
+          }
+        }
+
+        try {
+          await html5QrCode.start(cameraConfig, config, onScanSuccess)
+        } catch (e) {
+          // Fallback if exact deviceId constraint is rejected on iOS
+          await html5QrCode.start({ facingMode: 'environment' }, config, onScanSuccess)
+        }
+
+        // CRITICAL FOR iOS SAFARI (iPhone): set playsinline and force play to fix black screen
+        setTimeout(() => {
+          const videoEl = document.querySelector('#warehouse-reader video')
+          if (videoEl) {
+            videoEl.setAttribute('playsinline', 'true')
+            videoEl.setAttribute('webkit-playsinline', 'true')
+            videoEl.setAttribute('muted', 'true')
+            videoEl.play().catch(() => {})
+          }
+        }, 150)
       } catch (err) {
         console.error('Scanner start error:', err)
         setLocalError(err?.message || String(err))
