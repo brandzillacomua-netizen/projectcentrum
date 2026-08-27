@@ -2832,10 +2832,16 @@ const displayParts = getDisplayPartsForOrderItem(it)
                                     <span style={{
                                       fontSize: '0.85rem',
                                       fontWeight: 950,
-                                      color: isPartActiveBZ ? (availableBZ > 0 ? '#10b981' : '#777') : '#ef4444',
-                                      textDecoration: !isPartActiveBZ && availableBZ > 0 ? 'line-through' : 'none'
+                                      color: isPartActiveBZ ? (availableBZ > 0 ? '#10b981' : '#777') : '#ef4444'
                                     }}>
-                                      {inStock}
+                                      <span style={{ textDecoration: !isPartActiveBZ && availableBZ > 0 ? 'line-through' : 'none' }}>
+                                        {inStock}
+                                      </span>
+                                      {availableBZ > 0 && (
+                                        <span style={{ fontSize: '0.72rem', color: isPartActiveBZ ? 'rgba(16, 185, 129, 0.75)' : 'rgba(239, 68, 68, 0.75)', marginLeft: '3px', fontWeight: 800 }}>
+                                          ({availableBZ})
+                                        </span>
+                                      )}
                                     </span>
                                   </label>
                                 </div>
