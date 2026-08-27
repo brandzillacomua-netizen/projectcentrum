@@ -24,20 +24,18 @@ function getTable(table) {
 
 async function run() {
   const inv = await getTable('inventory');
-  console.log('Total inventory items:', inv.length);
-
-  const targets = [
+  const targetNames = [
     'Київ К-ІП9-10-П-7-46',
     'Київ К-ІП9/10/31/36/37-9-10-11-В-3-30',
     'Київ К-ІП9/10/31/36/37-9-10-11-Н-3-14',
     'Київ К-ІП9/10/31/36/37-9-10-11-Х-3-39'
   ];
 
-  targets.forEach(t => {
-    const found = inv.filter(i => i.name && i.name.includes(t.slice(0, 15)));
-    console.log(`\nTarget search "${t}":`, found.length);
-    found.forEach(item => {
-      console.log(`   ID: ${item.id} | Name: ${item.name} | Qty: ${item.quantity} | Total: ${item.total_units || item.total_quantity} | Wh: ${item.warehouse}`);
+  targetNames.forEach(tn => {
+    const matching = inv.filter(i => i.name && i.name.trim() === tn);
+    console.log(`=== Match for "${tn}": ${matching.length} rows ===`);
+    matching.forEach(m => {
+      console.log(m);
     });
   });
 }
