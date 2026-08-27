@@ -1925,13 +1925,13 @@ export function createProductionActions({
       const tData = (taskData && taskData.length > 0) ? taskData[0] : null
       if (taskError) throw taskError
 
-      // Для BZ-нарядів також створюємо завершений наряд для Цеху №2
-      if (isAllFromBZ && tData) {
-        await supabase.from('tasks').insert([{
+      // Створюємо завдання для Цеху №2 (Пресування [ЦЕХ №2])
+      if (tData) {
+        const { data: newShop2Task } = await supabase.from('tasks').insert([{
           order_id: orderId,
           step: 'Пресування [ЦЕХ №2]',
-          status: 'completed',
-          completed_at: nowISO,
+          status: isAllFromBZ ? 'completed' : 'waiting',
+          completed_at: isAllFromBZ ? nowISO : null,
           machine_name: machineName || 'Не вказано',
           estimated_time: 0,
           engineer_conf: true,
@@ -1941,7 +1941,11 @@ export function createProductionActions({
           planned_sets: thisNaryadTotalSets,
           batch_index: isPartial ? nextBatchIndex : null,
           planned_deadline: customDeadline || order.deadline
-        }])
+        }]).select()
+
+        if (newShop2Task && newShop2Task.length > 0) {
+          setTasks(prev => [...prev, newShop2Task[0]])
+        }
       }
 
       if (bzReservationCreated) {

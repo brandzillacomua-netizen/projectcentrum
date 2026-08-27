@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { useMES } from '../MESContext'
 import MonthlyReport from './reports/MonthlyReport'
+import SheetsReport from './reports/SheetsReport'
 
 const matchesOperator = (opName, filterVal) => {
   if (!filterVal || filterVal === 'all') return true;
@@ -1345,67 +1346,19 @@ const ReportsModule = () => {
 
       case 'sheets':
         return (
-          <div className="glass-panel" style={{ background: '#09090b', padding: '30px', borderRadius: '24px', border: '1px solid #27272a', boxShadow: '0 20px 40px rgba(0,0,0,0.4)' }}>
-            <h3 style={{ margin: '0 0 25px', color: '#10b981', fontSize: '1.4rem', display: 'flex', alignItems: 'center', gap: '12px', textTransform: 'uppercase', fontWeight: 950, letterSpacing: '0.5px' }}>
-              <PackageCheck size={24} color="#10b981" /> ДАШБОРД РУХУ ЛИСТІВ (МАТЕРІАЛІВ)
-            </h3>
-            
-            <div style={{ overflowX: 'auto', borderRadius: '16px', border: '1px solid #27272a', background: '#09090b' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                <thead>
-                  <tr style={{ background: '#18181b', color: '#a1a1aa', textAlign: 'left', borderBottom: '2px solid #27272a' }}>
-                    <th style={{ padding: '16px 20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Матеріал (Номенклатура)</th>
-                    <th style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#3b82f6' }}>Отримано на СВ</th>
-                    <th style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#8b5cf6' }}>На підготуванні</th>
-                    <th style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#10b981' }}>Підготовлено (На СО)</th>
-                    <th style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#f59e0b' }}>Витрачено</th>
-                    <th style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#ef4444' }}>Брак</th>
-                    <th style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', background: 'rgba(59, 130, 246, 0.08)', color: '#3b82f6' }}>Залишок СВ (Непідгот.)</th>
-                    <th style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', background: 'rgba(16, 185, 129, 0.08)', color: '#10b981' }}>Залишок СО (Підгот.)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sheetsStats.map((stat, idx) => (
-                    <tr key={idx} style={{ borderBottom: '1px solid #1a1a1a', background: 'transparent', transition: '0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#18181b'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                      <td style={{ padding: '16px 20px', fontWeight: 900, color: '#f4f4f5', fontSize: '0.95rem' }}>{stat.name}</td>
-                      <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                        {stat.supplied > 0 ? <span style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.supplied}</span> : <span style={{ color: '#3f3f46' }}>0</span>}
-                      </td>
-                      <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                        {stat.in_prep > 0 ? <span style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#8b5cf6', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.in_prep}</span> : <span style={{ color: '#3f3f46' }}>0</span>}
-                      </td>
-                      <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                        {stat.prepared > 0 ? <span style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.prepared}</span> : <span style={{ color: '#3f3f46' }}>0</span>}
-                      </td>
-                      <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                        {stat.used > 0 ? <span style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.used}</span> : <span style={{ color: '#3f3f46' }}>0</span>}
-                      </td>
-                      <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                        {stat.scrap > 0 ? <span style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '4px 10px', borderRadius: '8px', fontWeight: 900 }}>{stat.scrap}</span> : <span style={{ color: '#3f3f46' }}>0</span>}
-                      </td>
-                      <td style={{ padding: '16px 20px', textAlign: 'center', background: 'rgba(59, 130, 246, 0.02)' }}>
-                        <span style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)', color: '#3b82f6', padding: '6px 14px', borderRadius: '10px', fontWeight: 950, fontSize: '1.05rem' }}>
-                          {Math.max(0, stat.actual_sv - stat.reserved_sv)}
-                        </span>
-                      </td>
-                      <td style={{ padding: '16px 20px', textAlign: 'center', background: 'rgba(16, 185, 129, 0.02)' }}>
-                        <span style={{ background: 'rgba(16, 185, 129, 0.2)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#10b981', padding: '6px 14px', borderRadius: '10px', fontWeight: 950, fontSize: '1.05rem' }}>
-                          {Math.max(0, stat.actual_so - stat.reserved_so)}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                  {sheetsStats.length === 0 && (
-                    <tr>
-                      <td colSpan={8} style={{ padding: '40px', textAlign: 'center', color: '#71717a', fontSize: '0.9rem' }}>
-                        Немає даних за обраний період або пошуковий запит
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <SheetsReport
+            nomenclatures={nomenclatures}
+            tasks={tasks}
+            orders={orders}
+            receptionDocs={receptionDocs}
+            workCardHistory={workCardHistory}
+            requests={requests}
+            inventory={inventory}
+            startDate={startDate}
+            endDate={endDate}
+            searchQuery={searchQuery}
+            filterByDate={filterByDate}
+          />
         );
 
       case 'cutters':

@@ -274,6 +274,19 @@ const WarehouseModuleV2 = () => {
     ]
   }, [requests, tasks, receptionDocs, nomenclatures, inventory, cardsWithBoxes])
 
+  const getItemReservedQty = (item) => {
+    if (!item) return 0
+    const dbReserved = Number(item.reserved_qty) || 0
+    const approvedQty = (requests || [])
+      .filter(r => 
+        (r.status === 'approved' || r.status === 'reserved' || r.status === 'issued') &&
+        ((r.inventory_id && String(r.inventory_id) === String(item.id)) ||
+         (!r.inventory_id && r.nomenclature_id && String(r.nomenclature_id) === String(item.nomenclature_id)))
+      )
+      .reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+    return Math.max(dbReserved, approvedQty)
+  }
+
   return (
     <div className="warehouse-module-v2" style={{ background: '#080808', minHeight: '100vh', color: '#fff', display: 'flex', flexDirection: 'column' }}>
       <nav className="module-nav" style={{ 
@@ -769,9 +782,9 @@ const WarehouseModuleV2 = () => {
                                 )}
                               </td>
                               <td style={{ padding: '15px', textAlign: 'center', color: '#10b981', fontWeight: 900 }}>
-                                {editingInvId === item.id ? (Number(editingInvTotal) || 0) - (Number(editingInvReserved) || 0) : (item.total_qty || 0) - (item.reserved_qty || 0)}
+                                {editingInvId === item.id ? (Number(editingInvTotal) || 0) - (Number(editingInvReserved) || 0) : Math.max(0, (item.total_qty || 0) - getItemReservedQty(item))}
                               </td>
-                              <td style={{ padding: '15px', textAlign: 'center', color: Number(item.reserved_qty) > 0 ? '#3b82f6' : '#222', fontWeight: 800 }}>
+                              <td style={{ padding: '15px', textAlign: 'center', color: getItemReservedQty(item) > 0 ? '#3b82f6' : '#222', fontWeight: 800 }}>
                                 {editingInvId === item.id ? (
                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                                     <input
@@ -792,13 +805,13 @@ const WarehouseModuleV2 = () => {
                                     <button type="button" onClick={() => setEditingInvId(null)} style={{ background: '#222', border: 'none', borderRadius: '6px', padding: '5px 10px', color: '#fff', cursor: 'pointer' }}><X size={14} /></button>
                                   </div>
                                 ) : (
-                                    Number(item.reserved_qty) > 0 ? (
+                                    getItemReservedQty(item) > 0 ? (
                                       <span 
                                         onClick={() => setReserveAnalysisItem(item)}
-                                        style={{ textDecoration: 'underline', cursor: 'pointer', color: '#3b82f6' }}
+                                        style={{ textDecoration: 'underline', cursor: 'pointer', color: '#3b82f6', fontWeight: 900 }}
                                         title="Аналіз резерву"
                                       >
-                                        {item.reserved_qty}
+                                        {getItemReservedQty(item)}
                                       </span>
                                     ) : (
                                       0
@@ -874,9 +887,9 @@ const WarehouseModuleV2 = () => {
                             )}
                           </td>
                           <td style={{ padding: '15px', textAlign: 'center', color: '#10b981', fontWeight: 900 }}>
-                            {editingInvId === item.id ? (Number(editingInvTotal) || 0) - (Number(editingInvReserved) || 0) : (item.total_qty || 0) - (item.reserved_qty || 0)}
+                            {editingInvId === item.id ? (Number(editingInvTotal) || 0) - (Number(editingInvReserved) || 0) : Math.max(0, (item.total_qty || 0) - getItemReservedQty(item))}
                           </td>
-                          <td style={{ padding: '15px', textAlign: 'center', color: Number(item.reserved_qty) > 0 ? '#3b82f6' : '#222', fontWeight: 800 }}>
+                          <td style={{ padding: '15px', textAlign: 'center', color: getItemReservedQty(item) > 0 ? '#3b82f6' : '#222', fontWeight: 800 }}>
                             {editingInvId === item.id ? (
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                                 <input
@@ -897,13 +910,13 @@ const WarehouseModuleV2 = () => {
                                 <button type="button" onClick={() => setEditingInvId(null)} style={{ background: '#222', border: 'none', borderRadius: '6px', padding: '5px 10px', color: '#fff', cursor: 'pointer' }}><X size={14} /></button>
                               </div>
                             ) : (
-                                Number(item.reserved_qty) > 0 ? (
+                                getItemReservedQty(item) > 0 ? (
                                   <span 
                                     onClick={() => setReserveAnalysisItem(item)}
-                                    style={{ textDecoration: 'underline', cursor: 'pointer', color: '#3b82f6' }}
+                                    style={{ textDecoration: 'underline', cursor: 'pointer', color: '#3b82f6', fontWeight: 900 }}
                                     title="Аналіз резерву"
                                   >
-                                    {item.reserved_qty}
+                                    {getItemReservedQty(item)}
                                   </span>
                                 ) : (
                                   0

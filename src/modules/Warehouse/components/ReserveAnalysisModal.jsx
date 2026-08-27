@@ -17,10 +17,10 @@ export const ReserveAnalysisModal = ({
   const { refreshTable } = useMES()
   const [isSyncing, setIsSyncing] = useState(false)
 
-  // Find all requests with this inventory_id and status === 'issued'
+  // Find all requests matching this inventory item or nomenclature with status 'approved', 'reserved', or 'issued'
   const matchedRequests = (requests || []).filter(r => 
-    String(r.inventory_id) === String(item.id) && 
-    r.status === 'issued'
+    (String(r.inventory_id) === String(item.id) || (r.nomenclature_id && String(r.nomenclature_id) === String(item.nomenclature_id))) && 
+    (r.status === 'approved' || r.status === 'reserved' || r.status === 'issued')
   )
 
   const reserveDetails = matchedRequests.map(req => {

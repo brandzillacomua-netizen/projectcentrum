@@ -75,7 +75,7 @@ const Shop2Module = () => {
 
   // Фільтруємо наряди для Цеху №2 (Пресування/ЦЕХ №2)
   const allShop2Tasks = useMemo(() => {
-    return tasks.filter(t => {
+    const shop2TasksList = tasks.filter(t => {
       const order = orders?.find(o => o.id === t.order_id)
       const orderNum = order?.order_num || t.order_num || t.plan_snapshot?._prep_num || ''
       if (['14082026-01', '10082026-01', '260821-1'].includes(String(orderNum).trim())) return false
@@ -85,6 +85,18 @@ const Shop2Module = () => {
         t.step?.includes('Доопрацювання')
       )
     })
+
+    const existingOrderBatchKeys = new Set(shop2TasksList.map(t => `${t.order_id}_${t.batch_index || ''}`))
+
+    tasks.filter(t => t.status !== 'completed' && t.step !== 'Підготовка' && !t.step?.includes('Пресування') && !t.step?.includes('ЦЕХ №2')).forEach(mainTask => {
+      const key = `${mainTask.order_id}_${mainTask.batch_index || ''}`
+      if (!existingOrderBatchKeys.has(key)) {
+        existingOrderBatchKeys.add(key)
+        shop2TasksList.push(mainTask)
+      }
+    })
+
+    return shop2TasksList
   }, [tasks, orders])
 
   const activeQueueCount = useMemo(() => {
