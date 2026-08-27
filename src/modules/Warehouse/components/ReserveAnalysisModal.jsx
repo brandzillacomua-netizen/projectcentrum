@@ -17,38 +17,43 @@ export const ReserveAnalysisModal = ({
   const { refreshTable } = useMES()
   const [isSyncing, setIsSyncing] = useState(false)
 
+  const safeRequests = Array.isArray(requests) ? requests : (requests && typeof requests === 'object' ? Object.values(requests) : [])
+  const safeOrders = Array.isArray(orders) ? orders : (orders && typeof orders === 'object' ? Object.values(orders) : [])
+  const safeTasks = Array.isArray(tasks) ? tasks : (tasks && typeof tasks === 'object' ? Object.values(tasks) : [])
+  const safeNomenclatures = Array.isArray(nomenclatures) ? nomenclatures : (nomenclatures && typeof nomenclatures === 'object' ? Object.values(nomenclatures) : [])
+
   // Find all requests matching this inventory item or nomenclature with status 'approved', 'reserved', or 'issued'
-  const matchedRequests = (requests || []).filter(r => 
-    (String(r.inventory_id) === String(item.id) || (r.nomenclature_id && String(r.nomenclature_id) === String(item.nomenclature_id))) && 
+  const matchedRequests = safeRequests.filter(r => 
+    r && (String(r.inventory_id) === String(item.id) || (r.nomenclature_id && String(r.nomenclature_id) === String(item.nomenclature_id))) && 
     (r.status === 'approved' || r.status === 'reserved' || r.status === 'issued')
   )
 
-  const reserveDetails = matchedRequests.map(req => {
+  const reserveDetails = (Array.isArray(matchedRequests) ? matchedRequests : []).map(req => {
     let orderNum = '—'
     if (req.order_id) {
-      const order = (orders || []).find(o => String(o.id) === String(req.order_id))
+      const order = safeOrders.find(o => String(o.id) === String(req.order_id))
       if (order) orderNum = order.order_num
     }
     if (orderNum === '—' && req.task_id) {
-      const task = (tasks || []).find(t => String(t.id) === String(req.task_id))
+      const task = safeTasks.find(t => String(t.id) === String(req.task_id))
       if (task) {
-        const order = (orders || []).find(o => String(o.id) === String(task.order_id))
+        const order = safeOrders.find(o => String(o.id) === String(task.order_id))
         if (order) orderNum = order.order_num
       }
     }
     
     let productName = '—'
     if (req.task_id) {
-      const task = (tasks || []).find(t => String(t.id) === String(req.task_id))
+      const task = safeTasks.find(t => String(t.id) === String(req.task_id))
       if (task && task.nomenclature_id) {
-        const nom = nomenclatures.find(n => String(n.id) === String(task.nomenclature_id))
+        const nom = safeNomenclatures.find(n => String(n.id) === String(task.nomenclature_id))
         if (nom) productName = nom.name
       }
     }
     if (productName === '—' && req.order_id) {
-      const order = (orders || []).find(o => String(o.id) === String(req.order_id))
+      const order = safeOrders.find(o => String(o.id) === String(req.order_id))
       if (order && order.nomenclature_id) {
-        const nom = nomenclatures.find(n => String(n.id) === String(order.nomenclature_id))
+        const nom = safeNomenclatures.find(n => String(n.id) === String(order.nomenclature_id))
         if (nom) productName = nom.name
       }
     }
@@ -65,7 +70,7 @@ export const ReserveAnalysisModal = ({
   })
 
   // Also include active unstarted preparation tasks for production warehouse
-  (tasks || []).filter(t => t.step === 'Підготовка' && t.status === 'pending' && t.warehouse_conf === 'true').forEach(t => {
+  safeTasks.filter(t => t && t.step === 'Підготовка' && t.status === 'pending' && t.warehouse_conf === 'true').forEach(t => {
     if (t.plan_snapshot) {
       let snapshot = t.plan_snapshot
       if (typeof snapshot === 'string') {
