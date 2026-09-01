@@ -174,17 +174,15 @@ const getAvailableModules = (currentUser, badgeCount, chatBadgeCount = 0) => {
     if (m.id === 'simulator') return currentUser?.position === 'Адмін' || currentUser?.role === 'admin';
     if (m.id === 'crm') {
       return (
-        currentUser?.access_rights?.crm === true ||
-        currentUser?.access_rights?.crm === undefined ||
+        currentUser?.access_rights?.crm !== false ||
         currentUser?.position === 'Адмін' ||
         currentUser?.role === 'admin'
       );
     }
     if (m.id === 'crm_clients') {
       return (
-        currentUser?.access_rights?.crm_clients === true ||
-        currentUser?.access_rights?.crm === true ||
-        currentUser?.access_rights?.crm_clients === undefined ||
+        currentUser?.access_rights?.crm_clients !== false ||
+        currentUser?.access_rights?.crm !== false ||
         currentUser?.position === 'Адмін' ||
         currentUser?.role === 'admin'
       );

@@ -1846,14 +1846,17 @@ const SettingsModule = () => {
   }
 
   const editUser = (user) => {
+    const rights = user.access_rights || {}
     setUserForm({ 
       ...user, 
       password: '••••••••',
       access_rights: {
-        crm: false, crm_clients: false, dashboard: false, foreman_dashboard: false, manager: false, chat: false, master: false, warehouse: false, warehouse_boxes: false, cutter_restoration: false, preparation_dashboard: false, engineer: false,
+        crm: rights.crm !== false, 
+        crm_clients: rights.crm_clients !== false, 
+        dashboard: false, foreman_dashboard: false, manager: false, chat: false, master: false, warehouse: false, warehouse_boxes: false, cutter_restoration: false, preparation_dashboard: false, engineer: false,
         director: false, foreman: false, foreman2: false, operator: false, prep_terminal: false, shipping: false, 
         supply: false, procurement: false, nomenclature: false, nomenclature_v2: false, shop2: false, machines: false, settings: false, packaging: false, kanban: false, reports: false, tumbling_terminal: false, tumbling_dashboard: false, reception_terminal: false, sorting_terminal: false, painting_terminal: false, pressing_terminal: false,
-        ...(user.access_rights || {})
+        ...rights
       }
     })
     setActiveTab('users')
