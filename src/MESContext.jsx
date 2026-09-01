@@ -12,7 +12,12 @@ export const MESProvider = ({ children }) => {
   const data = useData()
 
   const [theme, setThemeState] = useState(() => {
-    return localStorage.getItem('app-theme') || 'dark'
+    if (!localStorage.getItem('theme-reset-light-v1')) {
+      localStorage.setItem('app-theme', 'light')
+      localStorage.setItem('theme-reset-light-v1', 'true')
+      return 'light'
+    }
+    return localStorage.getItem('app-theme') || 'light'
   })
 
   useEffect(() => {

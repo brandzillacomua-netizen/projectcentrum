@@ -13,7 +13,20 @@
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2/dist/quagga.min.js"></script>
   </head>
-  <body>
+  <body class="light-theme">
+    <script>
+      (function() {
+        if (!localStorage.getItem('theme-reset-light-v1')) {
+          localStorage.setItem('app-theme', 'light');
+          localStorage.setItem('theme-reset-light-v1', 'true');
+        }
+        if (localStorage.getItem('app-theme') === 'dark') {
+          document.body.classList.remove('light-theme');
+        } else {
+          document.body.classList.add('light-theme');
+        }
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
