@@ -3,8 +3,8 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = 'https://hurzutjytlcvtbvihnry.supabase.co'
 export const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1cnp1dGp5dGxjdnRidmlobnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMjc4NzksImV4cCI6MjA4OTYwMzg3OX0.0GETYIfUpEDVcpcMoZcAe3dLXtiafNNE1eegbbK1XUI'
 
-const SUPABASE_READ_CONCURRENCY = 1
-const SUPABASE_READ_TIMEOUT_MS = 20 * 1000
+const SUPABASE_READ_CONCURRENCY = 6
+const SUPABASE_READ_TIMEOUT_MS = 30 * 1000
 const SUPABASE_READ_ONLY_RPCS = new Set([
   'chat_unread_counts',
   'mes_fulfillment_queue',
