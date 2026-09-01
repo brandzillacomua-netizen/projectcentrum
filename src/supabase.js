@@ -177,7 +177,10 @@ export const rawSupabase = createClient(supabaseUrl, supabaseAnonKey, {
     lock: false
   },
   global: {
-    fetch: trackedSupabaseFetch
+    fetch: trackedSupabaseFetch,
+    headers: {
+      'x-mes-secret': 'CentrumMES2026SecretKey_a9f8'
+    }
   },
   realtime: {
     // Keep heartbeat timers alive when a terminal/browser tab is backgrounded.
