@@ -161,6 +161,8 @@ export default function Shop1ForemanModule() {
     department: 'Цех №1',
     shift: 'Зміна 1',
     access_rights: {
+      crm: true,
+      crm_clients: true,
       operator: true,
       shop1: true,
       tumbling_terminal: true,

@@ -172,21 +172,8 @@ const getAvailableModules = (currentUser, badgeCount, chatBadgeCount = 0) => {
   const allModules = getAllModules(badgeCount, chatBadgeCount);
   return allModules.filter(m => {
     if (m.id === 'simulator') return currentUser?.position === 'Адмін' || currentUser?.role === 'admin';
-    if (m.id === 'crm') {
-      return (
-        currentUser?.access_rights?.crm !== false ||
-        currentUser?.position === 'Адмін' ||
-        currentUser?.role === 'admin'
-      );
-    }
-    if (m.id === 'crm_clients') {
-      return (
-        currentUser?.access_rights?.crm_clients !== false ||
-        currentUser?.access_rights?.crm !== false ||
-        currentUser?.position === 'Адмін' ||
-        currentUser?.role === 'admin'
-      );
-    }
+    // CRM Pillar modules are available to all authorized users unconditionally
+    if (m.pillar === 'crm') return true;
     if (m.id === 'warehouse_fgp') {
       return (
         currentUser?.access_rights?.warehouse_fgp === true ||
@@ -4148,7 +4135,13 @@ const AppSidebar = ({ isCollapsed, setIsCollapsed, chatUnreadCount, isMobileOpen
             title="Налаштування профілю"
           >
             {(() => {
-              const userAvatar = currentUser?.avatar || '';
+              let userAvatar = currentUser?.avatar || '';
+              const cacheKey = currentUser?.id ? `MES_AVATAR_CACHE_${currentUser.id}` : null;
+              if (userAvatar && cacheKey) {
+                try { localStorage.setItem(cacheKey, userAvatar); } catch(e) {}
+              } else if (!userAvatar && cacheKey) {
+                userAvatar = localStorage.getItem(cacheKey) || '';
+              }
               const isImage = userAvatar.startsWith('data:image/') || userAvatar.startsWith('http');
               const avatarBg = isImage ? 'transparent' : userAvatar.startsWith('#') ? `linear-gradient(135deg, ${userAvatar}, rgba(0,0,0,0.4))` : 'linear-gradient(135deg, #ff9000, #e65100)';
               return (
